@@ -133,7 +133,7 @@ Composition build_text_only_comp(SoftwareRenderer& renderer,
                     glow_spec.softness        = 1.05f;
                     glow_spec.falloff         = 0.92f;
                     glow_spec.outer_downscale = 0.25f;
-                    l.glow(glow_spec.to_glow_params());
+                    l.effect(glow_spec.to_glow_params());
                 }
                 if (with_shadow) {
                     l.drop_shadow(Vec2{0.0f, 4.0f},

@@ -10,6 +10,7 @@
 #include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/effects/effect_catalog_data.hpp>
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
@@ -146,7 +147,13 @@ public:
         f32 radius = 0.5f, f32 softness = 0.5f, f32 amount = 1.0f);
     LayerBuilder& drop_shadow(
         Vec2 offset, Color color = {0, 0, 0, 0.35f}, f32 radius = 12.0f);
-    LayerBuilder& glow(GlowParams params);
+    template <typename Params>
+    LayerBuilder& effect(Params params) {
+        const auto& entry = effects::catalog_entry(effects::effect_type_v<Params>);
+        m_layer.effects().push_back(effects::EffectInstance{
+            entry.to_descriptor(), std::move(params)});
+        return *this;
+    }
     LayerBuilder& bloom(
         f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
     LayerBuilder& fake_3d_wave(Fake3DWaveParams params);

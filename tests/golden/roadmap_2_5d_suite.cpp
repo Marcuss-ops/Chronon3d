@@ -144,12 +144,12 @@ Composition make_hero_push_scene() {
         });
 
         s.layer("halo", [](LayerBuilder& l) {
-            l.position({0.0f, -45.0f, 0.0f}).glow(GlowParams{.radius = 84.0f, .intensity = 1.0f, .color = Color{0.12f, 0.62f, 1.0f, 1.0f}});
+            l.position({0.0f, -45.0f, 0.0f}).effect(GlowParams{.radius = 84.0f, .intensity = 1.0f, .color = Color{0.12f, 0.62f, 1.0f, 1.0f}});
             l.circle("c", {.radius = 220.0f, .color = Color{0.10f, 0.35f, 0.85f, 0.08f}});
         });
 
         s.layer("hero", [](LayerBuilder& l) {
-            l.position({0.0f, -20.0f, 0.0f}).glow(GlowPresets::neon_blue(26.0f));
+            l.position({0.0f, -20.0f, 0.0f}).effect(GlowPresets::neon_blue(26.0f));
             l.text("hero", {
                 .content = {.value = "SaaS"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
@@ -183,7 +183,7 @@ Composition make_hero_push_scene() {
         });
 
         s.layer("cta", [](LayerBuilder& l) {
-            l.position({0.0f, 220.0f, 0.0f}).glow(GlowPresets::cinematic_gold(30.0f));
+            l.position({0.0f, 220.0f, 0.0f}).effect(GlowPresets::cinematic_gold(30.0f));
             l.rounded_rect("pill", {
                 .size = {280.0f, 74.0f},
                 .radius = 18.0f,
@@ -273,7 +273,7 @@ Composition make_checker_perspective_scene() {
         });
 
         s.layer("card", [](LayerBuilder& l) {
-            l.enable_3d().position({0.0f, 0.0f, 0.0f}).rotate({18.0f, 58.0f, 0.0f}).glow(GlowPresets::soft_cyan(36.0f));
+            l.enable_3d().position({0.0f, 0.0f, 0.0f}).rotate({18.0f, 58.0f, 0.0f}).effect(GlowPresets::soft_cyan(36.0f));
             l.image("checker", {
                 .path = "assets/images/checker.png",
                 .size = {360.0f, 360.0f},
@@ -484,7 +484,7 @@ Composition make_fake_extrusion_scene() {
         });
 
         s.layer("extrude_front", [](LayerBuilder& l) {
-            l.position({0.0f, 0.0f, 0.0f}).glow(GlowPresets::soft_cyan(20.0f));
+            l.position({0.0f, 0.0f, 0.0f}).effect(GlowPresets::soft_cyan(20.0f));
             l.text("front", {
                 .content = {.value = "SaaS"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
@@ -526,7 +526,7 @@ Composition make_artifact_torture_scene() {
                     .radius = 16.0f,
                     .color = Color{0.18f + 0.05f * i, 0.12f, 0.42f + 0.04f * i, 0.92f}
                 });
-                l.glow(GlowParams{.radius = 18.0f + static_cast<float>(i) * 2.0f, .intensity = 0.5f + 0.05f * i, .color = Color{0.38f, 0.15f + 0.05f * i, 1.0f, 1.0f}});
+                l.effect(GlowParams{.radius = 18.0f + static_cast<float>(i) * 2.0f, .intensity = 0.5f + 0.05f * i, .color = Color{0.38f, 0.15f + 0.05f * i, 1.0f, 1.0f}});
             });
         }
 

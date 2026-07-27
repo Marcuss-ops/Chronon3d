@@ -100,13 +100,12 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d,
             // Optional glow
             if (d.glow_intensity > 0.01f) {
                 const f32 glow_radius = std::max(5.0f, d.font_size * 0.10f);
-                l.glow(GlowParams{
-                    .enabled         = true,
+                l.effect(GlowParams{
                     .radius          = glow_radius,
                     .intensity       = d.glow_intensity,
                     .color           = d.glow_color,
                     .preserve_source = true,
-                    .additive        = true,
+                    .blend = BlendMode::Add,
                 });
             }
 

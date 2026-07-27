@@ -289,7 +289,6 @@ Composition shape_proofs() {
             p.commands.push_back(PathCommand::line_to({60.0f, -18.0f}));
             p.fill.enabled = false;
             p.stroke = PathStroke{
-                .enabled = true,
                 .color = {0.1f, 0.95f, 0.3f, 1.0f},
                 .width = 5.0f,
                 .cap = LineCap::Round,
@@ -556,7 +555,6 @@ Composition shape_proofs() {
             p.commands = make_rounded_rect_commands({0.0f, -18.0f}, {100.0f, 100.0f}, 50.0f);
             p.fill.enabled = false;
             p.stroke = PathStroke{
-                .enabled = true,
                 .color = {0.1f, 0.8f, 0.95f, 1.0f},
                 .width = 6.0f,
                 .trim_start = 0.0f,
@@ -588,7 +586,7 @@ Composition shape_proofs() {
             p.fill = Fill::solid_color({0.1f, 0.1f, 0.12f, 1.0f});
             p.stroke = PathStroke{.enabled = true, .color = {0.0f, 0.95f, 0.95f, 1.0f}, .width = 2.0f};
             l.path("shape", p);
-            l.glow({
+            l.effect(GlowParams{
                 .enabled = true,
                 .radius = 12.0f,
                 .intensity = 1.0f,
@@ -605,7 +603,7 @@ Composition shape_proofs() {
             p.fill = Fill::solid_color({0.1f, 0.1f, 0.12f, 1.0f});
             p.stroke = PathStroke{.enabled = true, .color = {0.95f, 0.1f, 0.5f, 1.0f}, .width = 3.0f};
             l.path("shape", p);
-            l.glow({
+            l.effect(GlowParams{
                 .enabled = true,
                 .radius = 24.0f,
                 .intensity = 3.0f,

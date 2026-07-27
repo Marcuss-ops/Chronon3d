@@ -30,13 +30,7 @@ struct GlowLayer {
     Color color{0, 0, 0, 0};    // per-layer color tint; alpha=0 means "use pipeline color"
 };
 
-enum class GlowQuality {
-    Standard,
-    MultiLayer   // previously SkiaLike — multi-layer glow with explicit GlowLayer[] entries
-};
-
 struct GlowParams {
-    bool  enabled{false};
     f32   radius{15.0f};
     f32 intensity{0.8f};
     Color color{1,1,1,1};
@@ -49,9 +43,6 @@ struct GlowParams {
     f32 bloom_strength{0.18f};
     f32 outer_downscale{0.25f};
     bool preserve_source{true};
-    bool additive{true};
-
-    GlowQuality quality{GlowQuality::Standard};
     std::vector<GlowLayer> layers;
     BlendMode blend{BlendMode::Add};
 };

@@ -246,7 +246,7 @@ TEST_CASE("RenderGraph: glow on centered 2D layer is not clipped by local frameb
 
     SceneBuilder s(W, H);
     s.layer("glow_rect", [](LayerBuilder& l) {
-        l.glow(GlowParams{.radius = 40.0f, .intensity = 1.0f, .color = Color{0, 0.6f, 1, 1}});
+        l.effect(GlowParams{.radius = 40.0f, .intensity = 1.0f, .color = Color{0, 0.6f, 1, 1}});
         l.rect("box", {
             .size = {180, 120},
             .color = Color{1, 1, 1, 1},
@@ -440,7 +440,7 @@ TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
     SceneBuilder s(W, H);
 
     s.layer("glow_box", [](LayerBuilder& l) {
-        l.glow(GlowParams{.radius = 50.0f, .intensity = 1.0f, .color = Color{0, 0.6f, 1, 1}});
+        l.effect(GlowParams{.radius = 50.0f, .intensity = 1.0f, .color = Color{0, 0.6f, 1, 1}});
         l.rect("box", {
             .size = {120, 120},
             .color = Color{1, 1, 1, 1},

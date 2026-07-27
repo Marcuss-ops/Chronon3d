@@ -110,8 +110,8 @@ TEST_CASE("GlowTorture: neon text preserves a sharp core and creates a cyan halo
                 l.position({0.0f, 0.0f, 0.0f});
                 if (glow) {
                     GlowParams g = GlowPresets::neon_blue(34.0f);
-                    g.additive = false;
-                    l.glow(g);
+                    g.blend = BlendMode::Screen;
+                    l.effect(g);
                 }
                 // PR3→PR4 migration: TextDefaults is composable.  Flat fields
                 // `.text/.size/.font_path/.font_family/.font_size/.color/.align/.vertical_align`
@@ -161,8 +161,8 @@ TEST_CASE("GlowTorture: tiny bright text stays readable") {
                 if (glow) {
                     GlowParams g = GlowPresets::soft_cyan(10.0f);
                     g.intensity = 0.65f;
-                    g.additive = false;
-                    l.glow(g);
+                    g.blend = BlendMode::Screen;
+                    l.effect(g);
                 }
                 l.text("tiny_text", {
                     .content    = {.value = "small readable glow"},
@@ -207,8 +207,8 @@ TEST_CASE("GlowTorture: large radius glow has smooth monotonic falloff") {
             g.intensity = 1.15f;
             g.bloom_strength = 0.30f;
             g.outer_downscale = 0.25f;
-            g.additive = false;
-            l.glow(g);
+            g.blend = BlendMode::Screen;
+            l.effect(g);
             l.circle("core", {
                 .radius = 20.0f,
                 .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
@@ -240,7 +240,7 @@ TEST_CASE("GlowTorture: colored glow stack keeps saturation in overlap") {
 
         auto orb = [&](const char* layer, Vec3 pos, Color glow) {
             s.layer(layer, [=](LayerBuilder& l) {
-                l.position(pos).blend(BlendMode::Screen).glow(GlowParams{.radius = 38.0f, .intensity = 1.60f, .color = glow});
+                l.position(pos).blend(BlendMode::Screen).effect(GlowParams{.radius = 38.0f, .intensity = 1.60f, .color = glow});
                 l.circle("c", {
                     .radius = 14.0f,
                     .color = Color{0.98f, 0.98f, 1.0f, 0.82f},
@@ -275,8 +275,8 @@ TEST_CASE("GlowTorture: luminance threshold blooms only bright sources") {
                 GlowParams g = GlowPresets::neon_blue(34.0f);
                 g.threshold = 0.80f;
                 g.intensity = 1.0f;
-                g.additive = false;
-                l.position({x, 0.0f, 0.0f}).glow(g);
+                g.blend = BlendMode::Screen;
+                l.position({x, 0.0f, 0.0f}).effect(g);
                 l.rect("r", {
                     .size = {34.0f, 34.0f},
                     .color = source,
@@ -308,7 +308,7 @@ TEST_CASE("GlowTorture: subpixel movement advances smoothly") {
 
         const float x = static_cast<float>(ctx.frame()) * 0.15f;
         s.layer("moving", [x](LayerBuilder& l) {
-            l.position({x, 0.0f, 0.0f}).glow(GlowParams{.radius = 26.0f, .intensity = 0.9f, .color = Color{0.20f, 0.80f, 1.0f, 1.0f}});
+            l.position({x, 0.0f, 0.0f}).effect(GlowParams{.radius = 26.0f, .intensity = 0.9f, .color = Color{0.20f, 0.80f, 1.0f, 1.0f}});
             l.circle("c", {
                 .radius = 18.0f,
                 .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
@@ -345,8 +345,8 @@ TEST_CASE("GlowTorture: warm white UI card reads as light, not fog") {
             GlowParams g = GlowPresets::cinematic_gold_premium(42.0f);
             g.intensity = 0.42f;
             g.color = Color{1.0f, 0.82f, 0.58f, 1.0f};
-            g.additive = false;
-            l.glow(g);
+            g.blend = BlendMode::Screen;
+            l.effect(g);
             l.rounded_rect("panel", {
                 .size = {134.0f, 78.0f},
                 .radius = 18.0f,

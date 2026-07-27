@@ -59,7 +59,7 @@ inline Composition depth_product_reveal() {
                     {0.05f, 0.05f, 0.12f, 0.95f}
                 ),
             });
-            l.glow(GlowParams{.radius = 32.0f, .intensity = 0.45f, .color = Color{0.3f, 0.5f, 1.0f, 1.0f}, .threshold = 0.0f});
+            l.effect(GlowParams{.radius = 32.0f, .intensity = 0.45f, .color = Color{0.3f, 0.5f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.bloom(0.70f, 24.0f, 0.40f);
 
             l.rounded_rect("icon_bg", {
@@ -91,7 +91,7 @@ inline Composition depth_product_reveal() {
                 l.position(n.position);
                 l.enable_3d(true);
                 l.circle("dot", {.radius = 6.0f, .color = n.color, .pos = {0.0f, 0.0f, 0.0f}});
-                l.glow(GlowParams{.radius = 12.0f, .intensity = 0.60f, .color = n.color, .threshold = 0.0f});
+                l.effect(GlowParams{.radius = 12.0f, .intensity = 0.60f, .color = n.color, .threshold = 0.0f});
                 l.motion("float_idle", {.amount = 10.0f, .cycle = Frame{80}});
             });
         }

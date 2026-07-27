@@ -47,7 +47,7 @@ Composition camera_spline_comparison() {
                 s.layer("g_" + std::to_string(gx) + "_" + std::to_string(gy),
                         [gx, gy](LayerBuilder& l) {
                     l.position({gx * 120.0f, gy * 120.0f, 0.0f})
-                     .glow(GlowParams{.radius = 18.0f, .intensity = 0.7f, .color = {0.5f, 0.85f, 1.0f, 1.0f}});
+                     .effect(GlowParams{.radius = 18.0f, .intensity = 0.7f, .color = {0.5f, 0.85f, 1.0f, 1.0f}});
                     l.circle("dot", { .radius = 16.0f, .color = {0.5f, 0.85f, 1.0f, 1.0f} });
                 });
             }

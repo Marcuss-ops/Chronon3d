@@ -29,7 +29,7 @@ inline void waypoint_markers(SceneBuilder& s, std::initializer_list<Vec3> waypoi
     int i = 0;
     for (Vec3 p : waypoints) {
         s.layer("wp_" + std::to_string(i), [p](LayerBuilder& l) {
-            l.position(p).glow(GlowParams{.radius = 24.0f, .intensity = 0.8f, .color = {1.0f, 0.85f, 0.30f, 1.0f}});
+            l.position(p).effect(GlowParams{.radius = 24.0f, .intensity = 0.8f, .color = {1.0f, 0.85f, 0.30f, 1.0f}});
             l.circle("dot", { .radius = 14.0f, .color = {1.0f, 0.85f, 0.30f, 1.0f} });
         });
         ++i;

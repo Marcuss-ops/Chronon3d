@@ -70,8 +70,8 @@ Composition make_glow_layer_scene() {
                 l.position({0.0f, 0.0f, 0.0f});
                 GlowParams g = GlowPresets::neon_blue(28.0f);
                 g.intensity = 0.9f;
-                g.additive = false;
-                l.glow(g);
+                g.blend = BlendMode::Screen;
+                l.effect(g);
                 l.circle("core", {
                     .radius = 18.0f,
                     .color = {1.0f, 1.0f, 1.0f, 1.0f},

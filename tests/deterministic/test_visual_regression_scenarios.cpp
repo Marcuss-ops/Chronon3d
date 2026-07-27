@@ -356,7 +356,7 @@ TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
                 // The 4 AE-grade pass fields (inner_radius/bloom_radius/inner_intensity/bloom_intensity)
                 // do NOT exist on the layer-engine GlowParams aggregator; they belong (separately)
                 // to TextGlowSpec on text/text_glow_spec.hpp.
-                l.glow(GlowParams{
+                l.effect(GlowParams{
                     .radius    = 24.0f,
                     .intensity = 0.85f,
                     .color     = {1.0f, 0.55f, 0.18f, 1.0f},

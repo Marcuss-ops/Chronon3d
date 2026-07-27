@@ -126,7 +126,7 @@ Composition cert_glow() {
             add_dark_bg(s);
             s.layer("glow_rect", [](LayerBuilder& l) {
                 l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.glow(GlowParams{
+                l.effect(GlowParams{
                     .radius = 24.0f,
                     .intensity = 1.0f,
                     .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
@@ -156,7 +156,7 @@ Composition cert_glow_disabled() {
             // Glow with intensity=0 — must be a real no-op
             s.layer("glow_zero", [](LayerBuilder& l) {
                 l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.glow(GlowParams{
+                l.effect(GlowParams{
                     .radius = 24.0f,
                     .intensity = 0.0f,
                     .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
@@ -449,7 +449,7 @@ Composition cert_nested() {
             // Verifies the effect stack can compose multiple effects.
             s.layer("nested_rect", [](LayerBuilder& l) {
                 l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.glow(GlowParams{
+                l.effect(GlowParams{
                     .radius = 16.0f,
                     .intensity = 0.8f,
                     .color = Color{0.3f, 0.6f, 1.0f, 1.0f},

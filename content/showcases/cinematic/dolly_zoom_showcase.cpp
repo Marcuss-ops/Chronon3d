@@ -77,7 +77,7 @@ Composition dolly_zoom_showcase() {
         // Subject in the center, plus background grid to make the perspective
         // shift obvious.
         s.layer("subject", [](LayerBuilder& l) {
-            l.position({0.0f, 0.0f, 0.0f}).glow(GlowParams{.radius = 60.0f, .intensity = 0.9f, .color = {1.0f, 0.5f, 0.7f, 1.0f}});
+            l.position({0.0f, 0.0f, 0.0f}).effect(GlowParams{.radius = 60.0f, .intensity = 0.9f, .color = {1.0f, 0.5f, 0.7f, 1.0f}});
             l.circle("dot", { .radius = 36.0f, .color = {1.0f, 0.5f, 0.7f, 1.0f} });
         });
 

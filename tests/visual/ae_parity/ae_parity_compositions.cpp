@@ -67,7 +67,7 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
 // Phase 2 (CHRONON-GLOW-FINAL): the canonical CinematicGlowPreset
 // (inner_radius=4, mid_radius=14, bloom_radius=34, intensities
 // 0.55/0.22/0.08, micro_shadow=true) is NOW applied via the canonical
-// resolver/effect-stack — apply_cinematic_glow → l.glow(GlowParams) →
+// resolver/effect-stack — apply_cinematic_glow → l.effect(GlowParams) →
 // MultiLayer 3-pass blur + additive compositing.  Replaces the legacy
 // opacity-only envelope.  Per-frame opacity 0.40/0.85/0.50 + scale
 // breath 0.96/1.05/0.98 still modulate the layer as the cinematic

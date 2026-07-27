@@ -87,8 +87,8 @@ std::shared_ptr<Framebuffer> render_glow_params(
                         .vertical_align = VerticalAlign::Middle
                     }
                 });
-                if (glow.enabled && glow.intensity > 0.0f) {
-                    l.glow(glow);
+                if (glow.intensity > 0.0f) {
+                    l.effect(glow);
                 }
             });
             return s.build();
@@ -143,7 +143,6 @@ TEST_CASE("Glow acceptance: radius grows halo without moving text") {
 
     auto render_with_radius = [&](f32 radius) -> AlphaBBox {
         GlowParams g;
-        g.enabled   = true;
         g.intensity = 0.8f;
         g.radius    = radius;
         g.color     = Color::white();
