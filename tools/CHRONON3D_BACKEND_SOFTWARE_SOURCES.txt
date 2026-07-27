@@ -38,10 +38,10 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/utils/blend2d_bridge/bl2d_blimage_transformed.cpp
     src/backends/software/utils/blend2d_bridge/bl2d_blimage_tiled.cpp
     src/backends/software/utils/blend2d_bridge/bl2d_framebuffer_transformed.cpp
-    src/backends/software/utils/effects/effect_blur.cpp
-    src/backends/software/utils/effects/effect_color.cpp
-    src/backends/software/utils/effects/effect_wave.cpp
-    src/backends/software/utils/effects/effect_stack.cpp
+    src/backends/software/effects/effect_blur.cpp
+    src/backends/software/effects/effect_color.cpp
+    src/backends/software/effects/effect_wave.cpp
+    src/backends/software/effects/effect_stack.cpp
     src/backends/software/utils/render_hash_utils.cpp
     src/backends/software/simd/highway_kernels.cpp
 )

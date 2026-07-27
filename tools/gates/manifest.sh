@@ -35,6 +35,7 @@ DEVELOPER_GATES=(
     check_no_dead_shape_type_text.sh
     check_no_preset_catalog_magic_statics.sh
     check_no_software_effect_dispatch_switch.sh
+    check_effect_subsystem_ownership.sh
     check_effect_processor_coverage.py
     check_no_legacy_umbrella_includes.sh
     check_no_text_material_external_effects.sh
