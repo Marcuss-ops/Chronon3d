@@ -230,7 +230,11 @@ void apply_radial_blur(
     // shift must be the literal difference — no implicit half-pixel snap.
     const float shift_x = blurred_centroid.sum > 0.0f ? (blurred_centroid.x - source_centroid.x) : 0.0f;
     const float shift_y = blurred_centroid.sum > 0.0f ? (blurred_centroid.y - source_centroid.y) : 0.0f;
-    if (std::abs(shift_x) > 1e-3f || std::abs(shift_y) > 1e-3f) {
+    const bool source_is_at_blur_center =
+        std::abs(source_centroid.x - cx_px) < 1e-3f &&
+        std::abs(source_centroid.y - cy_px) < 1e-3f;
+    if (!source_is_at_blur_center &&
+        (std::abs(shift_x) > 1e-3f || std::abs(shift_y) > 1e-3f)) {
         auto recentered = std::make_unique<Framebuffer>(w, h);
         sampling::Sampler2D shift_sampler(fb, sampling::EdgeMode::Clamp);
         for (int y = 0; y < h; ++y) {
