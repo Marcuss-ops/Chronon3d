@@ -11,6 +11,8 @@
 set(CHRONON3D_SDK_API_HEADERS
     # ── canonical sdk::* surface (V0.1 MVP) ──────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_engine.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_file_request.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/c_api/chronon3d.h"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_output.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_error.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_request.hpp"
@@ -278,8 +280,10 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/text_span_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/assets/image_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_backend.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_decode_options.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/text/text_render_resources.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/motion_parameters.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_catalog.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_module.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/node_handle.hpp"
@@ -293,6 +297,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scheduler/for_each_tile.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scheduler/tile_size.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/parallel_tracked.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/random/deterministic_random.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/raster/bbox.hpp"
 
     # Header-only authoring closure required by the supported API.

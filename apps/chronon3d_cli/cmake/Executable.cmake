@@ -3,7 +3,7 @@ add_executable(chronon3d_cli
     register_runtime_compositions.cpp
     register_content_compositions.cpp
     register_dev_compositions.cpp
-    $<$<AND:$<BOOL:${CHRONON3D_ENABLE_TEXT}>,$<BOOL:${CHRONON3D_USE_BLEND2D}>>:${CMAKE_SOURCE_DIR}/examples/bench_corpus/bench_corpus_scenes.cpp>
+    $<$<AND:$<BOOL:${CHRONON3D_ENABLE_TEXT}>,$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<OR:$<BOOL:${CHRONON3D_BUILD_CONTENT}>,$<BOOL:${CHRONON3D_BUILD_DIAGNOSTICS}>>>:${CMAKE_SOURCE_DIR}/examples/bench_corpus/bench_corpus_scenes.cpp>
 )
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11
@@ -17,6 +17,9 @@ target_link_libraries(chronon3d_cli PRIVATE
     spdlog::spdlog_header_only
     fmt::fmt
 )
+if(TARGET chronon3d_c)
+    target_link_libraries(chronon3d_cli PRIVATE chronon3d_c)
+endif()
 foreach(_target IN ITEMS
     chronon3d_cli_render
     chronon3d_cli_video_export

@@ -28,6 +28,7 @@
 
 #include <chronon3d/core/types/result.hpp>     // canonical Result<T, E> (only allowed non-sdk include)
 #include <chronon3d/sdk/render_error.hpp>      // sdk::RenderError / RenderErrorCode
+#include <chronon3d/sdk/render_file_request.hpp>
 #include <chronon3d/sdk/render_output.hpp>     // sdk::RenderOutput / PixelFormat
 #include <chronon3d/sdk/render_request.hpp>    // sdk::Frame / RenderRequest
 #include <chronon3d/sdk/render_settings.hpp>   // sdk::RenderSettings
@@ -71,6 +72,14 @@ public:
     [[nodiscard]]
     chronon3d::Result<RenderOutput, RenderError>
     render(const chronon3d::Composition& composition, Frame frame);
+
+    /// Render a contiguous frame range into an encoded video file.
+    /// This is a public wrapper over the same internal frame renderer and
+    /// VideoSink used by the canonical CLI pipeline.
+    [[nodiscard]]
+    chronon3d::Result<RenderReport, RenderError>
+    render_to_file(const RenderFileRequest& request,
+                   const RenderCallbacks& callbacks = {});
 
     /// Apply new render settings.  Replaces whatever was set in the
     /// constructor or by a prior `set_settings` call.  Thread-safe
