@@ -46,7 +46,6 @@ Layer::Layer(const Layer& other)
       transition_out(other.transition_out),
       nodes(other.nodes),
       precomp_composition_name(other.precomp_composition_name),
-      font_engine(other.font_engine),
       m_static_hash(other.m_static_hash),
       m_static_hash_computed(other.m_static_hash_computed) {
 
@@ -87,7 +86,6 @@ Layer& Layer::operator=(const Layer& other) {
     transition_out = other.transition_out;
     nodes = other.nodes;
     precomp_composition_name = other.precomp_composition_name;
-    font_engine = other.font_engine;
     m_static_hash = other.m_static_hash;
     m_static_hash_computed = other.m_static_hash_computed;
     
