@@ -302,7 +302,10 @@ NodeExecResult SourceNode::execute(
         // processor-context, unsupported shape) are logged but cannot propagate
         // to the executor.  Tracked for Phase C post-freeze.
         ctx.services.backend->draw_node(*fb, m_node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
-        fb->set_opaque(full_frame_seed);
+        // A fully opaque source becomes translucent when the layer opacity
+        // is animated below one; keep the metadata truthful so CompositeNode
+        // cannot take the opaque fast path and replace the background.
+        fb->set_opaque(full_frame_seed && state.opacity >= 1.0f);
 
         if (ctx.policy.diagnostics_enabled) {
             int nonzero_pixels = 0;
