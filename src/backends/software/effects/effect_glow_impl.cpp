@@ -3,7 +3,7 @@
 // The actual implementation lives in glow_pipeline.cpp (run_layer_mode).
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include <chronon3d/core/config.hpp>          // TICKET-007
 #include <chronon3d/effects/glow_pipeline.hpp>
 

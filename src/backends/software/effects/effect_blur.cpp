@@ -10,7 +10,7 @@
 // Downsample paths are 3-6× faster for large radii with negligible visual loss.
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include "effects_internal.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>

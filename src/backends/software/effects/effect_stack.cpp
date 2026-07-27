@@ -1,6 +1,6 @@
 // effect_stack.cpp — registry-backed software effect dispatch.
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include <chronon3d/backends/software/effect_processor.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 

@@ -16,7 +16,7 @@
 #include <limits>      // std::numeric_limits
 
 // Include the real blur implementation for proper benchmarks
-#include "src/backends/software/utils/render_effects_processor.hpp"
+#include "src/backends/software/effects/render_effects_processor.hpp"
 
 // Tile benchmark includes
 #include <chronon3d/api/composition.hpp>
@@ -495,5 +495,4 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
         ->Unit(benchmark::kMicrosecond)
         ->Name("FontEngine/resolve_placed_glyph_run_4kchars");
 } // namespace
-
 
