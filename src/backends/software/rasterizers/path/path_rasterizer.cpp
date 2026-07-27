@@ -44,15 +44,12 @@ enum class VectorRasterizerDebugMode { Custom, Blend2D, Compare };
 
 namespace {
 [[nodiscard]] VectorRasterizerDebugMode current_vector_rasterizer_mode() {
-    static const VectorRasterizerDebugMode cached = []() {
-        const char* env = std::getenv("CHRONON3D_VECTOR_RASTERIZER_MODE");
-        if (!env || !*env) return VectorRasterizerDebugMode::Custom;
-        const std::string v(env);
-        if (v == "Blend2D") return VectorRasterizerDebugMode::Blend2D;
-        if (v == "Compare") return VectorRasterizerDebugMode::Compare;
-        return VectorRasterizerDebugMode::Custom;
-    }();
-    return cached;
+    const char* env = std::getenv("CHRONON3D_VECTOR_RASTERIZER_MODE");
+    if (!env || !*env) return VectorRasterizerDebugMode::Custom;
+    const std::string value(env);
+    if (value == "Blend2D") return VectorRasterizerDebugMode::Blend2D;
+    if (value == "Compare") return VectorRasterizerDebugMode::Compare;
+    return VectorRasterizerDebugMode::Custom;
 }
 } // anonymous namespace
 

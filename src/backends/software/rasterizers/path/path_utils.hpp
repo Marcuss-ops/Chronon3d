@@ -16,20 +16,10 @@ inline Vec2 transform_point(const Mat4& model, Vec2 p) {
     return {v.x / v.w, v.y / v.w};
 }
 
-/// Injected prefetch setting (set once at startup by SoftwareRenderer).
-inline bool& prefetch_enabled_flag() {
-    static bool enabled = true;  // default: enabled (matches Config default)
-    return enabled;
-}
-
-/// Set prefetch at startup (called by SoftwareRenderer).
-inline void set_prefetch_enabled(bool enabled) {
-    prefetch_enabled_flag() = enabled;
-}
-
-inline bool is_prefetch_enabled() {
-    return prefetch_enabled_flag();
-}
+// Prefetch is unconditional for the software path.  The old mutable
+// process-wide flag had no active production setter and made rasterisation
+// depend on hidden global state.
+inline bool is_prefetch_enabled() { return true; }
 
 inline void chrono_prefetch(const void* addr) {
     chronon3d::prefetch(addr, false, 3);
