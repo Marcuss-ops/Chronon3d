@@ -70,12 +70,10 @@ std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
     // ── Step 1: Convert UTF-8 to UTF-32 ────────────────────────────────
     const FriBidiStrIndex len = static_cast<FriBidiStrIndex>(text.size());
 
-    // ── P1-#7: thread-local scratch (zero per-call heap alloc on hot path) ──
-    // `segment_bidi_runs` is called per-text-shape per-frame on cinematic
-    // scenes (~12k calls/sec); capacity preserved across calls (zero realloc).
-    static thread_local std::vector<FriBidiChar> tl_logical;
-    tl_logical.assign(len + 1, 0);  // +1 for null terminator
-    auto& logical = tl_logical;
+    // Keep all decoder storage owned by this invocation.  The former
+    // thread-local vectors were hidden, unbounded per-worker caches that
+    // bypassed runtime accounting and lifetime control.
+    std::vector<FriBidiChar> logical(len + 1, 0);  // +1 for null terminator
 
     // fribidi_charset_to_unicode returns the number of UTF-32 characters.
     FriBidiStrIndex utf32_len = fribidi_charset_to_unicode(
@@ -85,10 +83,7 @@ std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
     if (utf32_len == 0) return runs;
 
     // ── Step 2: Get bidi types ─────────────────────────────────────────
-    // ── P1-#7: thread-local scratch buffer (capacity preserved) ─────
-    static thread_local std::vector<FriBidiCharType> tl_bidi_types;
-    tl_bidi_types.resize(utf32_len);
-    auto& bidi_types = tl_bidi_types;
+    std::vector<FriBidiCharType> bidi_types(utf32_len);
     fribidi_get_bidi_types(logical.data(), utf32_len, bidi_types.data());
 
     // ── Step 3: Determine paragraph direction ──────────────────────────
@@ -104,10 +99,7 @@ std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
     }
 
     // ── Step 4: Compute embedding levels ───────────────────────────────
-    // ── P1-#7: thread-local scratch buffer (capacity preserved) ─────
-    static thread_local std::vector<FriBidiLevel> tl_embedding_levels;
-    tl_embedding_levels.resize(utf32_len);
-    auto& embedding_levels = tl_embedding_levels;
+    std::vector<FriBidiLevel> embedding_levels(utf32_len);
     FriBidiLevel max_level = fribidi_get_par_embedding_levels_ex(
         bidi_types.data(), nullptr, utf32_len,
         &par_type, embedding_levels.data());
@@ -118,9 +110,7 @@ std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
     // We need to convert back from UTF-32 indices to UTF-8 byte offsets.
     //
     // Precompute the UTF-8 byte offset for each UTF-32 character.
-    static thread_local std::vector<std::size_t> tl_utf8_offsets;
-    tl_utf8_offsets.resize(utf32_len);
-    auto& utf8_offsets = tl_utf8_offsets;
+    std::vector<std::size_t> utf8_offsets(utf32_len);
     std::size_t byte_pos = 0;
     for (FriBidiStrIndex i = 0; i < utf32_len; ++i) {
         utf8_offsets[i] = byte_pos;
