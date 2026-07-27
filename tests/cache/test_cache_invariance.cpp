@@ -117,7 +117,7 @@ struct CompSpec {
 /// `SceneBuilder s(ctx.resource)` + `s.layer(name, [&](LayerBuilder& l) { ... })`
 /// pattern from `tests/cache/test_cache_reuse_identical_frame.cpp`.
 /// This is the only pattern verified to compile + pass in the current
-/// build environment. The `lb.glow()` / `lb.rotate()` / `lb.position_x()`
+/// build environment. The `lb.effect()` / `lb.rotate()` / `lb.position_x()`
 /// calls inside the LayerBuilder closure work for rect layers the same
 /// way they work for text layers.
 Composition build_comp(const CompSpec& spec) {
@@ -137,7 +137,7 @@ Composition build_comp(const CompSpec& spec) {
                     .pos   = spec.position,
                 });
                 if (spec.glow) {
-                    // Layer-level glow (LayerBuilder::glow takes GlowParams).
+                    // Layer-level glow is a generic effect carrying GlowParams.
                     // The glow registers as a separate node in the render
                     // graph, producing a distinct cache key and framebuffer
                     // hash. Mirrors the cert_*.cpp pattern of layer-level
@@ -150,7 +150,7 @@ Composition build_comp(const CompSpec& spec) {
                     g.spread    = 1.0f;
                     g.softness  = 1.0f;
                     g.falloff   = 0.85f;
-                    l.glow(g);
+                    l.effect(g);
                 }
                 if (spec.rotation_z != 0.0f) {
                     // Static Z-rotation via chronon3d::timeline (LayerBuilder

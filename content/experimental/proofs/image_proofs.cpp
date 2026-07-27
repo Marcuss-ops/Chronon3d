@@ -185,7 +185,7 @@ Composition image_proofs() {
         s.layer("r3c0_lbl", [&](auto& l) { draw_cell_label(l, "SOFT GLOW", 0, 3); });
         s.layer("r3c0", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(0, 3))
-             .glow(GlowParams{.radius = 8.0f, .intensity = 0.6f, .color = Color{0.0f, 1.0f, 0.8f, 0.8f}});
+             .effect(GlowParams{.radius = 8.0f, .intensity = 0.6f, .color = Color{0.0f, 1.0f, 0.8f, 0.8f}});
             l.image("img", { .path = img_path, .size = get_cell_box(0, 3), .fit = FitMode::Cover, .radius = 16.0f });
         });
 
@@ -193,7 +193,7 @@ Composition image_proofs() {
         s.layer("r3c1_lbl", [&](auto& l) { draw_cell_label(l, "STRONG GLOW", 1, 3); });
         s.layer("r3c1", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(1, 3))
-             .glow(GlowParams{.radius = 24.0f, .intensity = 1.5f, .color = Color{0.0f, 1.0f, 0.8f, 0.8f}});
+             .effect(GlowParams{.radius = 24.0f, .intensity = 1.5f, .color = Color{0.0f, 1.0f, 0.8f, 0.8f}});
             l.image("img", { .path = img_path, .size = get_cell_box(1, 3), .fit = FitMode::Cover, .radius = 16.0f });
         });
 
