@@ -158,7 +158,11 @@ std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
         return nullptr;
     }
 
-    const std::string key = rounded_cache_key(path, cached.width, cached.height, radius, options);
+    const auto canonical = m_cache.get().canonical_key_for(path, options);
+    if (!canonical) return nullptr;
+    const std::string key = rounded_cache_key(
+        canonical->canonical_path.string(), cached.width, cached.height,
+        radius, canonical->options);
     {
         std::lock_guard<std::mutex> lock(*m_rounded_mutex);
         auto it = m_rounded_framebuffers.find(key);
