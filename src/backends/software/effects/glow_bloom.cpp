@@ -8,7 +8,7 @@
 #include "glow_bloom.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include <algorithm>
 #include <cmath>
 

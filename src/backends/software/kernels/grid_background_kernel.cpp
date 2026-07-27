@@ -23,8 +23,8 @@ namespace chronon3d::renderer {
 namespace {
 
 // TBB grain size for the row-wise parallel scan. Matches the convention used
-// in src/backends/software/utils/effects/effect_blur.cpp (kTbbGrain = 16) and
-// src/backends/software/utils/effects/glow_pipeline.cpp (kGlowTbbGrain = 32).
+// in src/backends/software/effects/effect_blur.cpp (kTbbGrain = 16) and
+// src/backends/software/effects/glow_pipeline.cpp (kGlowTbbGrain = 32).
 // 16 rows per chunk keeps 4-8 workers active over a typical ~180-row
 // viewport, large enough to avoid simple_partitioner{}'s 1-row micro-chunk
 // determinism artifacts, small enough to balance sparse/dense row workload.

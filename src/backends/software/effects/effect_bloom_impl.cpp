@@ -3,7 +3,7 @@
 // The actual implementation lives in glow_pipeline.cpp (run_bloom_mode).
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include <chronon3d/effects/glow_pipeline.hpp>
 
 namespace chronon3d::renderer {

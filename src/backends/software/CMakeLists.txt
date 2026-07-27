@@ -72,6 +72,7 @@ target_precompile_headers(chronon3d_backend_software PRIVATE
 # Subsystem source files (each directory adds its sources via target_sources)
 # ==============================================================================
 add_subdirectory(processors)
+add_subdirectory(effects)
 add_subdirectory(rasterizers)
 add_subdirectory(sampling)
 add_subdirectory(utils)

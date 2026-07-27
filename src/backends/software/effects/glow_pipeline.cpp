@@ -8,7 +8,7 @@
 // separate fast path in effect_stack.cpp — no blur, cheaper for small radii.
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
 #include "glow_bloom.hpp"  // FASE 7 — bloom mode extracted

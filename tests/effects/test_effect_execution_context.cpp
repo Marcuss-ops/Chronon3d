@@ -11,7 +11,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include "src/backends/software/utils/render_effects_processor.hpp"
+#include "src/backends/software/effects/render_effects_processor.hpp"
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 

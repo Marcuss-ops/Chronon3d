@@ -16,17 +16,3 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/framebuffer_analysis.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/projection_utils.cpp
 )
-
-# Effects implementations
-target_sources(chronon3d_backend_software PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_blur.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_color.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_wave.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/glow_pipeline.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/glow_bloom.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/glow_pipeline_converters.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_glow_impl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_shadow_impl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_bloom_impl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/effects/effect_stack.cpp
-)

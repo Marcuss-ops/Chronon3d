@@ -13,7 +13,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
-#include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
+#include <chronon3d/backends/software/effects/per_pixel_dof.hpp>
 
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
@@ -259,4 +259,3 @@ BENCHMARK(BM_DofSeparable)
     ->Args({1920, 1080, 5})->Args({1920, 1080, 10})
     ->Args({1920, 1080, 20})->Args({1920, 1080, 40})
     ->Unit(benchmark::kMillisecond)->Name("DofSeparable_1920x1080");
-
