@@ -35,7 +35,7 @@ Composition make_minimalist_comp(const char* name, const char* text,
             s.layer("phrase", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 setup(l);
-                l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
+                l.effect(TextGlowPresets::ae_cinematic_white().to_glow_params());
                 l.text("phrase", TextDefinition{
     .content = {.value = text},
     .style = {

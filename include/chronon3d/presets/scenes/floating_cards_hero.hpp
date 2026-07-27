@@ -85,7 +85,7 @@ inline Composition floating_cards_hero() {
                 44.0f, 800, {0.95f, 0.96f, 1.0f, 1.0f},
                 TextAlign::Center, {900.0f, 70.0f}
             ));
-            l.glow(GlowParams{.radius = 18.0f, .intensity = 0.30f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
+            l.effect(GlowParams{.radius = 18.0f, .intensity = 0.30f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.motion("float_idle", {.amount = 8.0f, .cycle = Frame{100}});
         });
 

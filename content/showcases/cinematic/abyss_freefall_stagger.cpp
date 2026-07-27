@@ -152,12 +152,12 @@ Composition abyss_freefall_stagger() {
         .tracking = 0.0f
     }
 };
-                    l.glow(GlowParams{
+                    l.effect(GlowParams{
                         .radius          = 30.0f,
                         .intensity       = 0.55f,
                         .color           = {0.40f, 0.70f, 1.0f, 0.7f},
                         .preserve_source = true,
-                        .additive        = true,
+                        .blend = BlendMode::Add,
                     });
                     l.text("label", def);
                 }

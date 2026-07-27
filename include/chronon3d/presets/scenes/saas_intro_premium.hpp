@@ -206,7 +206,7 @@ inline Composition saas_intro_premium() {
                 l.drop_shadow({0.0f, 16.0f}, {0.0f, 0.0f, 0.0f, 0.30f}, 32.0f);
 
                 // Glow accent
-                l.glow(GlowParams{.radius = 14.0f, .intensity = 0.20f, .color = cards[i].accent, .threshold = 0.0f});
+                l.effect(GlowParams{.radius = 14.0f, .intensity = 0.20f, .color = cards[i].accent, .threshold = 0.0f});
 
                 // Animate: depth reveal from behind
                 l.motion("depth_reveal", {.amount = 200.0f + static_cast<f32>(i) * 40.0f, .duration = Frame{40}});
@@ -236,7 +236,7 @@ inline Composition saas_intro_premium() {
                 "Get Started", 18.0f, 700, {1.0f, 1.0f, 1.0f, 1.0f},
                 TextAlign::Center, {240.0f, 56.0f}
             ));
-            l.glow(GlowParams{.radius = 10.0f, .intensity = 0.25f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
+            l.effect(GlowParams{.radius = 10.0f, .intensity = 0.25f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.motion("settle", {.amount = 0.06f, .duration = Frame{25}});
         });
 
@@ -257,7 +257,12 @@ inline Composition saas_intro_premium() {
                     .radius = p.radius,
                     .color = p.color,
                 });
-                l.glow(8.0f, 0.40f, p.color, 0.0f);
+                l.effect(GlowParams{
+                    .radius = 8.0f,
+                    .intensity = 0.40f,
+                    .color = p.color,
+                    .threshold = 0.0f,
+                });
                 l.motion("float_idle", {.amount = 12.0f, .cycle = Frame{90}});
             });
         }

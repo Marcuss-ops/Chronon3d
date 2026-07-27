@@ -27,7 +27,7 @@ Composition make_minimalist_text(
                 layer.pin_to(Anchor::Center);
                 setup(layer);
                 if (options.glow) {
-                    layer.glow(
+                    layer.effect(
                         TextGlowPresets::ae_cinematic_white().to_glow_params());
                 }
                 layer.text("phrase", TextDefinition{

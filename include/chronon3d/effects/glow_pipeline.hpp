@@ -8,7 +8,6 @@
 //   1. apply_glow_effect()    (framebuffer-based, GlowParams)
 //   2. apply_bloom_effect()   (framebuffer-based, BloomParams)
 //   3. text_glow.cpp          (BLImage-based, Glow fields on RenderNode)
-//   4. draw_glow()            (5 expanded-shape passes, no blur fast path)
 //
 // All four share the same conceptual pipeline:
 //   - extract trigger mask (alpha / brightness / text alpha)
@@ -22,9 +21,8 @@
 // produce a fully-populated GlowPipeline, and `run_glow_pipeline()`
 // dispatches on `mode` and runs the appropriate code path.
 //
-// `draw_glow` (the 5 expanded-shape node primitive) intentionally stays
-// outside this pipeline — it is a fast path with no blur, useful for small
-// radii where the blur cost is not amortised.
+// All glow authoring reaches this pipeline through GlowParams; there is no
+// geometry-only glow fallback.
 //
 // New unified entry point (Item 17):
 //   GlowPipeline::render(ctx, input) → GlowPipelineOutput
@@ -112,14 +110,10 @@ struct GlowPipeline {
     f32 bloom_strength{0.18f};
     f32 outer_downscale{0.25f};
     bool preserve_source{true};
-    bool additive{true};
     BlendMode blend{BlendMode::Add};
 
     // ── Per-layer table (empty = use synthetic core/aura/bloom) ────
     std::vector<GlowLayer> layers;
-
-    // ── Quality routing for SkiaLike vs standard multi-pass ─────────
-    GlowQuality quality{GlowQuality::Standard};
 
     // ── Convex converters from existing param structs ───────────────
     static GlowPipeline from(const GlowParams& p);

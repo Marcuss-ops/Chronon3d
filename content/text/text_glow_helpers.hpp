@@ -79,7 +79,7 @@ inline void apply_ae_glow(LayerBuilder& l, const AeGlowOptions& options = {}) {
     glow.falloff         = options.falloff;
     glow.outer_downscale = options.outer_downscale;
 
-    l.glow(glow.to_glow_params());
+    l.effect(glow.to_glow_params());
 
     if (options.micro_shadow && glow.micro_shadow) {
         l.drop_shadow(options.shadow_offset, options.shadow_color, options.shadow_blur);

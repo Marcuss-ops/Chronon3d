@@ -241,8 +241,7 @@ void draw_motion_object_impl(
 
         if (st.effects.glow_enabled) {
             GlowParams layer_glow = st.effects.glow;
-            layer_glow.enabled = true;
-            l.glow(std::move(layer_glow));
+            l.effect(std::move(layer_glow));
         }
         if (st.effects.shadow_enabled) {
             l.drop_shadow(

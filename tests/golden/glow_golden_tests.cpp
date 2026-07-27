@@ -129,7 +129,7 @@ Composition make_neon_card() {
         for (int i = 0; i < 4; ++i) {
             s.layer("orb_" + std::to_string(i), [=](LayerBuilder& l) {
                 l.position({xs[i], -30.0f, 0.0f})
-                 .glow(GlowParams{.radius = radii[i] * 1.6f, .intensity = 1.0f + 0.15f * i, .color = colors[i]});
+                 .effect(GlowParams{.radius = radii[i] * 1.6f, .intensity = 1.0f + 0.15f * i, .color = colors[i]});
                 l.circle("c", {
                     .radius = radii[i],
                     .color = Color{1.0f, 1.0f, 1.0f, 0.95f},
@@ -140,7 +140,7 @@ Composition make_neon_card() {
 
         s.layer("title", [](LayerBuilder& l) {
             l.position({0.0f, 170.0f, 0.0f})
-             .glow(GlowPresets::neon_blue(44.0f));
+             .effect(GlowPresets::neon_blue(44.0f));
             l.text("title", {
                 .content = {.value = "NEON CARD"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
@@ -156,7 +156,7 @@ Composition make_neon_card() {
 
         s.layer("caption", [](LayerBuilder& l) {
             l.position({0.0f, 245.0f, 0.0f})
-             .glow(GlowPresets::cinematic_gold(24.0f));
+             .effect(GlowPresets::cinematic_gold(24.0f));
             l.text("caption", {
                 .content = {.value = "radius ladder + halo balance"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Regular.ttf",
@@ -183,7 +183,7 @@ Composition make_text_glow_scene() {
 
         s.layer("hero", [](LayerBuilder& l) {
             l.position({0.0f, -10.0f, 0.0f})
-             .glow(GlowPresets::cinematic_gold(52.0f));
+             .effect(GlowPresets::cinematic_gold(52.0f));
             l.text("hero", {
                 .content = {.value = "GLOW ENGINE"},
                 .style = {.font = {.font_path = "assets/fonts/Georgia_Bold.ttf",
@@ -199,7 +199,7 @@ Composition make_text_glow_scene() {
 
         s.layer("sub", [](LayerBuilder& l) {
             l.position({0.0f, 128.0f, 0.0f})
-             .glow(GlowPresets::soft_cyan(28.0f));
+             .effect(GlowPresets::soft_cyan(28.0f));
             l.text("sub", {
                 .content = {.value = "text, image and shape coverage"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Regular.ttf",
@@ -226,7 +226,7 @@ Composition make_image_glow_scene() {
 
         s.layer("image_plate", [](LayerBuilder& l) {
             l.position({0.0f, 0.0f, 0.0f})
-             .glow(GlowPresets::soft_cyan(36.0f));
+             .effect(GlowPresets::soft_cyan(36.0f));
             l.image("checker", {
                 .path = "assets/images/checker.png",
                 .size = {280.0f, 280.0f},
@@ -239,7 +239,7 @@ Composition make_image_glow_scene() {
 
         s.layer("label", [](LayerBuilder& l) {
             l.position({0.0f, 190.0f, 0.0f})
-             .glow(GlowPresets::neon_blue(20.0f));
+             .effect(GlowPresets::neon_blue(20.0f));
             l.text("label", {
                 .content = {.value = "image glow alpha coverage"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Regular.ttf",
@@ -266,7 +266,7 @@ Composition make_edge_glow_scene() {
 
         s.layer("edge_orb", [](LayerBuilder& l) {
             l.position({-400.0f, -220.0f, 0.0f})
-             .glow(GlowPresets::neon_blue(96.0f));
+             .effect(GlowPresets::neon_blue(96.0f));
             l.circle("orb", {
                 .radius = 84.0f,
                 .color = Color{0.98f, 0.99f, 1.0f, 0.95f},
@@ -276,7 +276,7 @@ Composition make_edge_glow_scene() {
 
         s.layer("counter_orb", [](LayerBuilder& l) {
             l.position({290.0f, 150.0f, 0.0f})
-             .glow(GlowPresets::cinematic_gold(72.0f));
+             .effect(GlowPresets::cinematic_gold(72.0f));
             l.circle("orb", {
                 .radius = 52.0f,
                 .color = Color{1.0f, 0.92f, 0.72f, 0.96f},
@@ -301,7 +301,7 @@ Composition make_pulse_scene() {
 
         s.layer("core", [pulse](LayerBuilder& l) {
             l.position({0.0f, -20.0f, 0.0f})
-             .glow(GlowParams{.radius = 30.0f + pulse * 12.0f, .intensity = 1.5f + pulse * 0.5f, .color = Color{0.95f, 0.98f, 1.0f, 1.0f}});
+             .effect(GlowParams{.radius = 30.0f + pulse * 12.0f, .intensity = 1.5f + pulse * 0.5f, .color = Color{0.95f, 0.98f, 1.0f, 1.0f}});
             l.circle("core", {
                 .radius = 34.0f + pulse * 7.0f,
                 .color = Color{1.0f, 1.0f, 1.0f, 0.96f},
@@ -311,7 +311,7 @@ Composition make_pulse_scene() {
 
         s.layer("aura", [aura](LayerBuilder& l) {
             l.position({0.0f, -20.0f, 0.0f})
-             .glow(GlowParams{.radius = 72.0f + aura * 18.0f, .intensity = 0.95f + aura * 0.35f, .color = Color{0.20f, 0.78f, 1.0f, 1.0f}});
+             .effect(GlowParams{.radius = 72.0f + aura * 18.0f, .intensity = 0.95f + aura * 0.35f, .color = Color{0.20f, 0.78f, 1.0f, 1.0f}});
             l.circle("aura", {
                 .radius = 108.0f,
                 .color = Color{0.20f, 0.78f, 1.0f, 0.16f},
@@ -321,7 +321,7 @@ Composition make_pulse_scene() {
 
         s.layer("title", [pulse](LayerBuilder& l) {
             l.position({0.0f, 180.0f, 0.0f})
-             .glow(GlowPresets::soft_cyan(22.0f + pulse * 4.0f));
+             .effect(GlowPresets::soft_cyan(22.0f + pulse * 4.0f));
             l.text("title", {
                 .content = {.value = "PULSE"},
                 .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",

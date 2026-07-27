@@ -72,13 +72,6 @@ LayerBuilder& LayerBuilder::drop_shadow(
     return *this;
 }
 
-LayerBuilder& LayerBuilder::glow(GlowParams params) {
-    m_layer.effects().push_back(EffectInstance{
-        effects::EffectDescriptor{.id = std::string{effects::ids::LightGlow}},
-        std::move(params)});
-    return *this;
-}
-
 LayerBuilder& LayerBuilder::bloom(
     f32 threshold, f32 radius, f32 intensity
 ) {

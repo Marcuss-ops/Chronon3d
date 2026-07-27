@@ -234,7 +234,7 @@ TEST_CASE("GraphHealth: glow expands visible pixels outside source bbox") {
     SceneBuilder s(W, H);
 
     s.layer("glow", [](LayerBuilder& l) {
-        l.glow(GlowParams{.radius = 50.0f, .intensity = 1.0f, .color = Color{0, 0.7f, 1, 1}});
+        l.effect(GlowParams{.radius = 50.0f, .intensity = 1.0f, .color = Color{0, 0.7f, 1, 1}});
         l.rect("box", {
             .size = {100.0f, 100.0f},
             .color = Color{1, 1, 1, 1},
@@ -270,7 +270,7 @@ TEST_CASE("GraphHealth: glow falloff is radial and fades with distance") {
     SceneBuilder s(W, H);
 
     s.layer("glow", [](LayerBuilder& l) {
-        l.glow(GlowParams{.radius = 60.0f, .intensity = 1.0f, .color = Color{0.15f, 0.65f, 1.0f, 1.0f}});
+        l.effect(GlowParams{.radius = 60.0f, .intensity = 1.0f, .color = Color{0.15f, 0.65f, 1.0f, 1.0f}});
         l.circle("orb", {
             .radius = 42.0f,
             .color = Color{1, 1, 1, 1},
@@ -413,7 +413,7 @@ TEST_CASE("GraphHealth: same frame renders deterministically") {
         });
 
         s.layer("glow", [](LayerBuilder& l) {
-            l.glow(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color{0, 0.8f, 1, 1}});
+            l.effect(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color{0, 0.8f, 1, 1}});
             l.circle("orb", {
                 .radius = 80.0f,
                 .color = Color{1, 1, 1, 1},

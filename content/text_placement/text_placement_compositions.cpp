@@ -159,8 +159,7 @@ Composition make_scale_130_center_no_pos() {
 Composition make_glow_shadow_center_no_pos() {
     return make_1080p_centered("TextPlaceGlowShadow",
         make_text_definition("GLOW+SHADOW", {1200.0f, 240.0f}, kDefaultFontSize, 5.0f), [](LayerBuilder& l) {
-        l.glow({
-            .enabled = true,
+        l.effect(GlowParams{
             .radius = 24.0f,
             .intensity = 0.50f,
             .color = {0.60f, 0.75f, 1.0f, 1.0f},
@@ -363,8 +362,7 @@ Composition make_clip_blur_20() {
 }
 Composition make_clip_glow_40() {
     return make_clipping_comp("TextPlaceClipGlow40", [](LayerBuilder& l) {
-        l.glow({
-            .enabled = true,
+        l.effect(GlowParams{
             .radius = 40.0f,
             .intensity = 0.70f,
             .color = {1.0f, 0.85f, 0.40f, 1.0f},

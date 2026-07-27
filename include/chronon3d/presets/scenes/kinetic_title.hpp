@@ -72,7 +72,7 @@ inline Composition kinetic_title() {
                 "Impact", 100.0f, 900, {0.60f, 0.35f, 1.0f, 0.90f},
                 TextAlign::Center, {400.0f, 110.0f}
             ));
-            l.glow(GlowParams{.radius = 24.0f, .intensity = 0.40f, .color = Color{0.50f, 0.30f, 1.0f, 1.0f}, .threshold = 0.0f});
+            l.effect(GlowParams{.radius = 24.0f, .intensity = 0.40f, .color = Color{0.50f, 0.30f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.bloom(0.60f, 20.0f, 0.35f);
             l.motion("settle", {.amount = 0.08f, .duration = Frame{30}});
         });

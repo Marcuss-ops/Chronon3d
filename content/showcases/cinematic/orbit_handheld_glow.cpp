@@ -95,7 +95,7 @@ Composition orbit_handheld_glow() {
             glow.inner_intensity = 0.85f + 0.95f * 0.50f;
             glow.mid_intensity   = 0.45f + 0.95f * 0.40f;
             glow.bloom_intensity = 0.95f;
-            l.glow(glow.to_glow_params());
+            l.effect(glow.to_glow_params());
 
             // Micro shadow lifted from the cinematic preset.
             l.drop_shadow(Vec2{0.0f, 6.0f},

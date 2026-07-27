@@ -29,6 +29,7 @@
 #include <span>
 #include <string_view>
 #include <utility>
+#include <stdexcept>
 
 namespace chronon3d::effects {
 
@@ -128,5 +129,12 @@ struct EffectCatalogEntry {
 /// Returns a span of all built-in catalog entries.
 /// The registry calls this to populate itself automatically.
 [[nodiscard]] std::span<const EffectCatalogEntry> builtin_effect_catalog() noexcept;
+
+[[nodiscard]] inline const EffectCatalogEntry& catalog_entry(EffectType type) {
+    for (const auto& entry : builtin_effect_catalog()) {
+        if (entry.type == type) return entry;
+    }
+    throw std::invalid_argument("Unknown effect type in effect catalog");
+}
 
 } // namespace chronon3d::effects

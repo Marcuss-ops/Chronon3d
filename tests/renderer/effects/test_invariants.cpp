@@ -212,7 +212,7 @@ TEST_CASE("Invariants: glow_intensity_zero_noop") {
     Composition comp_glow_intensity0({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
-            l.glow(GlowParams{.radius = 10.0f, .intensity = 0.0f, .color = Color::white()});
+            l.effect(GlowParams{.radius = 10.0f, .intensity = 0.0f, .color = Color::white()});
             l.rect("r", {.size = {50, 50}, .color = Color::white()});
         });
         return s.build();
@@ -281,22 +281,22 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
 
     // Base glow params
     LayerBuilder lb_base("l", SampleTime{}, std::pmr::get_default_resource());
-    lb_base.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::white()});
+    lb_base.effect(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::white()});
     u64 hash_base = hash_effect_stack(lb_base.build().effects());
 
     // Different radius
     LayerBuilder lb_radius("l", SampleTime{}, std::pmr::get_default_resource());
-    lb_radius.glow(GlowParams{.radius = 15.0f, .intensity = 0.8f, .color = Color::white()});
+    lb_radius.effect(GlowParams{.radius = 15.0f, .intensity = 0.8f, .color = Color::white()});
     u64 hash_radius = hash_effect_stack(lb_radius.build().effects());
 
     // Different intensity
     LayerBuilder lb_intensity("l", SampleTime{}, std::pmr::get_default_resource());
-    lb_intensity.glow(GlowParams{.radius = 10.0f, .intensity = 0.5f, .color = Color::white()});
+    lb_intensity.effect(GlowParams{.radius = 10.0f, .intensity = 0.5f, .color = Color::white()});
     u64 hash_intensity = hash_effect_stack(lb_intensity.build().effects());
 
     // Different color
     LayerBuilder lb_color("l", SampleTime{}, std::pmr::get_default_resource());
-    lb_color.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::red()});
+    lb_color.effect(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::red()});
     u64 hash_color = hash_effect_stack(lb_color.build().effects());
 
     CHECK(hash_base != hash_radius);
@@ -309,25 +309,25 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_quality_params_change") {
     using namespace chronon3d::graph;
 
     LayerBuilder lb_base("l", SampleTime{}, std::pmr::get_default_resource());
-    lb_base.glow(GlowPresets::neon_blue(40.0f));
+    lb_base.effect(GlowPresets::neon_blue(40.0f));
     u64 hash_base = hash_effect_stack(lb_base.build().effects());
 
     LayerBuilder lb_falloff("l", SampleTime{}, std::pmr::get_default_resource());
     GlowParams falloff = GlowPresets::neon_blue(40.0f);
     falloff.falloff = 1.20f;
-    lb_falloff.glow(falloff);
+    lb_falloff.effect(falloff);
     u64 hash_falloff = hash_effect_stack(lb_falloff.build().effects());
 
     LayerBuilder lb_core("l", SampleTime{}, std::pmr::get_default_resource());
     GlowParams core = GlowPresets::neon_blue(40.0f);
     core.core_strength = 0.95f;
-    lb_core.glow(core);
+    lb_core.effect(core);
     u64 hash_core = hash_effect_stack(lb_core.build().effects());
 
     LayerBuilder lb_screen("l", SampleTime{}, std::pmr::get_default_resource());
     GlowParams screen = GlowPresets::neon_blue(40.0f);
-    screen.additive = false;
-    lb_screen.glow(screen);
+    screen.blend = BlendMode::Screen;
+    lb_screen.effect(screen);
     u64 hash_screen = hash_effect_stack(lb_screen.build().effects());
 
     CHECK(hash_base != hash_falloff);
@@ -348,7 +348,7 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
 
     // Glow with radius 30
     LayerBuilder lb("l", SampleTime{}, std::pmr::get_default_resource());
-    lb.glow(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color::white()});
+    lb.effect(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color::white()});
     auto layer = lb.build();
 
     EffectStackNode node(layer.effects());
@@ -375,7 +375,7 @@ TEST_CASE("Invariants: no_nan_after_effect_stack") {
              .tint(Color::red(), 0.5f)
              .brightness(0.2f)
              .contrast(1.2f)
-             .glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::yellow()})
+             .effect(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::yellow()})
              .bloom(0.5f, 15.0f, 0.7f);
             l.rect("r", {.size = {40, 40}, .color = Color::white()});
         });

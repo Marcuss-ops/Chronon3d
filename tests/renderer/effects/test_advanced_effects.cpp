@@ -51,7 +51,7 @@ TEST_CASE("Advanced Effects: Layer Glow modifies pixels outside shape") {
             l.position({0, 0, 0});
             l.rect("r", {.size={20, 20}, .color=Color::white()});
             // Glow with 10px radius, green color
-            l.glow(GlowParams{.radius = 10.0f, .intensity = 1.0f, .color = Color::green()});
+            l.effect(GlowParams{.radius = 10.0f, .intensity = 1.0f, .color = Color::green()});
         });
         return s.build();
     });
@@ -114,7 +114,7 @@ TEST_CASE("Universal Glow: preserves original center color") {
             // Opaque Red rect of size 20x20
             l.rect("r", {.size={20, 20}, .color=Color::red()});
             // Large bright blue glow with high intensity
-            l.glow(GlowParams{.radius = 10.0f, .intensity = 1.0f, .color = Color::blue()});
+            l.effect(GlowParams{.radius = 10.0f, .intensity = 1.0f, .color = Color::blue()});
         });
         return s.build();
     });
@@ -150,7 +150,7 @@ TEST_CASE("Universal Glow: works on Text layers") {
                     .align = TextAlign::Center,
                 },
             });
-            l.glow(GlowParams{.radius = 8.0f, .intensity = 1.0f, .color = Color::green()});
+            l.effect(GlowParams{.radius = 8.0f, .intensity = 1.0f, .color = Color::green()});
         });
         return s.build();
     });

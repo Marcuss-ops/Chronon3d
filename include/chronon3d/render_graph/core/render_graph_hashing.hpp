@@ -126,7 +126,7 @@ template <typename T>
     seed = hash_combine(seed, hash_value(p.bloom_strength));
     seed = hash_combine(seed, hash_value(p.outer_downscale));
     seed = hash_combine(seed, hash_value(p.preserve_source));
-    return hash_combine(seed, hash_value(p.additive));
+    return hash_combine(seed, hash_value(p.blend));
 }
 
 [[nodiscard]] inline u64 hash_bloom_params(const BloomParams& p) {
