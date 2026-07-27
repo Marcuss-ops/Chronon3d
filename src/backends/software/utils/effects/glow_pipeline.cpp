@@ -133,6 +133,7 @@ struct GlowAccumResult {
     bool source_is_alpha_mask,
     const chronon3d::DebugConfig* debug_cfg = nullptr) {
     const i32 w = fb.width(), h = fb.height();
+    int debug_pass_counter = 0;
     const float extent = glow_effect_extent(p);
     auto effect_clip = expand_effect_clip(clip, w, h, extent);
 
@@ -248,8 +249,7 @@ struct GlowAccumResult {
 
             // Debug: save each glow pass before accumulation (per-instance debug_cfg — TICKET-007)
             if (debug_cfg && debug_cfg->glow()) {
-                static thread_local int pass_counter = 0;
-                save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(pass_counter++) + ".png");
+                save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(debug_pass_counter++) + ".png");
             }
         } else {
             const i32 small_w = std::max(1, static_cast<i32>(std::ceil(static_cast<float>(roi_w) * pass.buffer_scale)));
