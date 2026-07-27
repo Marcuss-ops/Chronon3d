@@ -77,6 +77,13 @@ public:
     find(const std::string& path,
          ImageDecodeOptions options = {});
 
+    /// Resolve the exact key used by the cache, including decode options.
+    /// Derived render surfaces must use this canonical key rather than the
+    /// authored path so path aliases share one entry.
+    [[nodiscard]] std::optional<ImageAssetKey>
+    canonical_key_for(const std::string& path,
+                      ImageDecodeOptions options = {}) const;
+
     void clear();
     void set_asset_resolver(const assets::AssetResolver* resolver) noexcept {
         m_asset_resolver = resolver;

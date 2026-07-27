@@ -25,6 +25,11 @@ std::optional<ImageAssetKey> ImageCache::canonical_key(
     return key;
 }
 
+std::optional<ImageAssetKey> ImageCache::canonical_key_for(
+    const std::string& path, ImageDecodeOptions options) const {
+    return canonical_key(path, options);
+}
+
 std::shared_ptr<const CachedImage> ImageCache::get_or_load(
     const std::string& path, ImageDecodeOptions options) {
     const auto key = canonical_key(path, options);
