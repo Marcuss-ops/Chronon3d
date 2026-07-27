@@ -2,7 +2,7 @@
 // effect_wave.cpp — Fake-3D wave deformation effect
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include "effects_internal.hpp"
 #include <algorithm>
 #include <cmath>

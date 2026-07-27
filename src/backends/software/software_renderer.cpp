@@ -57,7 +57,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 // Required by the renderer-namespace forward decls of `apply_color_effects`
 // (uses `LayerEffect`); pre-split incarnation pulled this in transitively
-// via `utils/render_effects_processor.hpp`, which we no longer include.
+// via the dedicated `effects/render_effects_processor.hpp` module.
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>

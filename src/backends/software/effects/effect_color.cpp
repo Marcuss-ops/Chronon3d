@@ -2,7 +2,7 @@
 // effect_color.cpp — Brightness/contrast/tint color correction (AVX2 + scalar)
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
+#include "render_effects_processor.hpp"
 #include "effects_internal.hpp"
 #include <immintrin.h>
 #include <algorithm>

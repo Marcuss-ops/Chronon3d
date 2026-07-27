@@ -5,8 +5,8 @@
 // orchestration.
 // ---------------------------------------------------------------------------
 
-#include "../render_effects_processor.hpp"
-#include "../../primitive_renderer.hpp"
+#include "render_effects_processor.hpp"
+#include "../primitive_renderer.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>

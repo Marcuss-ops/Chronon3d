@@ -2,7 +2,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include "../../utils/render_effects_processor.hpp"
+#include "../../effects/render_effects_processor.hpp"
 #include <spdlog/spdlog.h>
 // R2: draw() now consumes the slim processor context POD.
 #include <chronon3d/backends/software/software_processor_context.hpp>

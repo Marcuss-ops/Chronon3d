@@ -1,6 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
-#include "../utils/render_effects_processor.hpp"
+#include "../effects/render_effects_processor.hpp"
 #include "effects/color/exposure_levels.hpp"
 #include "effects/generate/fill_noise_offset.hpp"
 #include "effects/blur/directional_blur.hpp"

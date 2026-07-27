@@ -24,7 +24,7 @@
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
-#include <chronon3d/backends/software/utils/effects/dof_simd.hpp>
+#include <chronon3d/backends/software/effects/dof_simd.hpp>
 #include <hwy/highway.h>
 #include <algorithm>
 #include <cmath>
