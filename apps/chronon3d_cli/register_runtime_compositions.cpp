@@ -25,7 +25,9 @@
 // TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic glow factory.
 // Header-only inline factory; included transitively from CMAKE_SOURCE_DIR.
 // Available in production (no DEV/test gating).
+#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include "content/compositions/chronon_glow_final.hpp"
+#endif
 
 namespace chronon3d {
 
@@ -33,6 +35,7 @@ void register_runtime_compositions(CompositionRegistry& registry) {
     // (1) Built-in compositions (DarkGridBackground, CameraImageClip).
     chronon3d::register_builtin_compositions(registry);
 
+#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
     // (2) ChrononGlowFinalAE — the canonical user-spec name for the
     // cinematic-glow landscape composition.  Routes through the Phase 1
     // unified helper (header-only; no link-time surface).  This is the
@@ -57,6 +60,7 @@ void register_runtime_compositions(CompositionRegistry& registry) {
             return chronon3d::content::glow_final::make_chronon_glow_final(
                 chronon3d::content::glow_final::default_portrait_props());
         }));
+#endif
 }
 
 } // namespace chronon3d

@@ -1,0 +1,18 @@
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LD_LIBRARY_PATH=/opt/chronon3d/lib
+
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin chronon
+
+RUN mkdir -p /opt/chronon3d/bin /opt/chronon3d/lib /work/assets /work/output \
+    && chown -R chronon:chronon /work
+
+COPY build/sdk-check/apps/chronon3d_cli/chronon3d_cli /opt/chronon3d/bin/chronon3d_cli
+COPY build/sdk-check/src/libchronon3d_c.so /opt/chronon3d/lib/libchronon3d_c.so
+
+RUN chmod 0755 /opt/chronon3d/bin/chronon3d_cli /opt/chronon3d/lib/libchronon3d_c.so
+
+USER chronon
+WORKDIR /work
+ENTRYPOINT ["/opt/chronon3d/bin/chronon3d_cli"]

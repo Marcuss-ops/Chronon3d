@@ -61,6 +61,7 @@ option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
+option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
 # Blend2D is the only USE_ option because it is independent of its ENABLE_
