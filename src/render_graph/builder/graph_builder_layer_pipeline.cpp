@@ -197,6 +197,15 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     const Layer& layer = *item.layer;
 
+    // A fully transparent layer is identity for SourceOver composition. Do
+    // not build a transparent source/composite branch: besides wasting the
+    // raster pass, it can replace a valid backdrop when an opaque fast path
+    // sees stale bounds from the skipped content.
+    if (layer.transform.opacity <= 0.0f ||
+        layer.anim_transform.opacity.evaluate(ctx.frame_input.sample_time) <= 0.0f) {
+        return;
+    }
+
     // Adjustment layers are a scene-level effect applied to the current
     // composite, not a layer output. Handle them before the normal
     // layer pipeline.

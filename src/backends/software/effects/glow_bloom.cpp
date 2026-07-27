@@ -77,8 +77,12 @@ void run_bloom_mode(Framebuffer& fb, const GlowPipeline& p,
                 dst_row[dx].r += bloom_r;
                 dst_row[dx].g += bloom_g;
                 dst_row[dx].b += bloom_b;
-                // Alpha unchanged: additive RGB contribution does not
-                // affect coverage (consistent with compositing convention).
+                // Bloom is composited as a layer effect.  Its RGB contribution
+                // must carry coverage when it lands outside the source alpha;
+                // otherwise SourceOver discards the halo as transparent even
+                // though the blurred RGB values are present.
+                dst_row[dx].a = std::max(dst_row[dx].a,
+                                         std::clamp(b.a * p.intensity, 0.0f, 1.0f));
             }
         }
     }

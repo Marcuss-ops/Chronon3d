@@ -108,7 +108,7 @@ TEST_CASE("Invariants: bbox_expands_with_glow_radius") {
 TEST_CASE("Invariants: alpha_zero_noop") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-        renderer.set_settings(settings);
+    renderer.set_settings(settings);
 
     // Scene with ONLY background
     Composition comp_bg({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
@@ -137,29 +137,6 @@ TEST_CASE("Invariants: alpha_zero_noop") {
 
     REQUIRE(fb_bg != nullptr);
     REQUIRE(fb_fg != nullptr);
-
-    if (fb_hash(*fb_bg) != fb_hash(*fb_fg)) {
-        int diff_count = 0;
-        for (int y = 0; y < fb_bg->height(); ++y) {
-            for (int x = 0; x < fb_bg->width(); ++x) {
-                Color c_bg = fb_bg->get_pixel(x, y);
-                Color c_fg = fb_fg->get_pixel(x, y);
-                if (std::abs(c_bg.r - c_fg.r) > 1e-4f ||
-                    std::abs(c_bg.g - c_fg.g) > 1e-4f ||
-                    std::abs(c_bg.b - c_fg.b) > 1e-4f ||
-                    std::abs(c_bg.a - c_fg.a) > 1e-4f) {
-                    if (diff_count < 10) {
-                        std::cout << "Diff at (" << x << ", " << y << "): bg=["
-                                  << c_bg.r << ", " << c_bg.g << ", " << c_bg.b << ", " << c_bg.a
-                                  << "], fg=["
-                                  << c_fg.r << ", " << c_fg.g << ", " << c_fg.b << ", " << c_fg.a << "]\n";
-                    }
-                    diff_count++;
-                }
-            }
-        }
-        std::cout << "Total differing pixels: " << diff_count << "\n";
-    }
 
     CHECK(fb_hash(*fb_bg) == fb_hash(*fb_fg));
 }

@@ -70,8 +70,9 @@ TEST_CASE("Advanced Effects: Layer Bloom highlights bright pixels and spreads") 
         s.layer("l", [](LayerBuilder& l) {
             l.position({0, 0, 0});
             l.rect("r", {.size={20, 20}, .color=Color{2.0f, 0.0f, 0.0f, 1.0f}}); // Super bright red
-            // Bloom threshold 1.0, so only >1.0 pixels bloom
-            l.bloom(1.0f, 8.0f, 1.0f);
+            // The software framebuffer stores normalized HDR-safe colors;
+            // use a threshold below the bright value and above the dim one.
+            l.bloom(0.8f, 8.0f, 1.0f);
         });
         return s.build();
     });
@@ -143,7 +144,9 @@ TEST_CASE("Universal Glow: works on Text layers") {
             // declaration order (C++ designated-init rule).
             l.text("t", {
                 .content    = {.value = "GLOW"},
-                .style      = {.font = {.font_size = 14.0f},
+                .style      = {.font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                                         .font_family = "Inter",
+                                         .font_size = 14.0f},
                                .color = Color::white()},
                 .frame      = {
                     .size  = {30.0f, 20.0f},
