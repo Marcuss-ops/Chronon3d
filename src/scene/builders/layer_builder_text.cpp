@@ -81,7 +81,6 @@ Layer LayerBuilder::build() {
         m_layer.transform.position.z =
             DepthRoleResolver::z_for(m_layer.depth_role) + m_layer.depth_offset;
     }
-    m_layer.font_engine = m_font_engine;
     // Evaluate transform when ANY component is time-dependent (keyframes OR expressions).
     // Expression-only properties (e.g. "sin(time * 2)") have no keyframes, so
     // is_animated() alone would skip evaluation — causing stale values.

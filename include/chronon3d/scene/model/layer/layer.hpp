@@ -87,10 +87,6 @@ struct Layer {
     // Video source parameters (isolated from FFmpeg/Backend headers)
     std::unique_ptr<video::VideoSource> video_source;
 
-    // FontEngine pointer for precise text shaping / glyph metrics.
-    // Inherited from LayerBuilder when the layer is built.
-    FontEngine* font_engine{nullptr};
-
     // Asset manifest: collected during build, consumed by preflight.
     assets::AssetManifest asset_manifest;
 
