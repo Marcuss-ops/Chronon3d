@@ -3,6 +3,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/backends/image/image_decode_options.hpp>
+#include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 
 #include <string>
@@ -10,6 +11,10 @@
 namespace chronon3d {
 
 struct ImageParams {
+    /// Canonical asset identity used by new authoring code.
+    assets::ImageRef source{};
+
+    // Compatibility spellings retained until downstream initializers migrate.
     std::string asset_path{};
 
     // Legacy compatibility field. New code must write asset_path. The field
@@ -33,6 +38,7 @@ namespace detail {
 
 [[nodiscard]] inline std::string
 image_params_resolve_path(const ImageParams& params) {
+    if (!params.source.path().empty()) return params.source.path();
     return !params.asset_path.empty() ? params.asset_path : params.path;
 }
 
