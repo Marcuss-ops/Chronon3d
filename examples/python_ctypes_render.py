@@ -3,7 +3,7 @@ import os
 import sys
 
 # Load shared library
-lib_path = "./build/chronon/linux-release/src/libchronon3d.so"
+lib_path = "./build/chronon/linux-release/src/libchronon3d_c.so"
 if not os.path.exists(lib_path):
     print(f"Error: Shared library not found at {lib_path}")
     sys.exit(1)
