@@ -110,8 +110,8 @@ Composition build_clip_composition(
                 if (!is_identity_scale) {
                     l.scale(uniform_scale);
                 }
-                if (glow_params.enabled) {
-                    l.glow(glow_params);
+                if (glow_params.intensity > 0.0f) {
+                    l.effect(glow_params);
                 }
                 l.text_run("title", TextRunDefinition{
                     .text = {
@@ -323,10 +323,9 @@ TEST_CASE("Clip 05 TextClip GlowNotCut 1920x1080") {
 
     // Glow composition: radius 24, intensity 0.8, additive.
     GlowParams glow;
-    glow.enabled   = true;
     glow.radius    = 24.0f;
     glow.intensity = 0.8f;
-    glow.additive  = true;
+    glow.blend = BlendMode::Add;
     auto fb = renderer.render(
         build_clip_composition(renderer, Vec3{1.0f, 1.0f, 1.0f}, {}, glow),
         Frame{0});

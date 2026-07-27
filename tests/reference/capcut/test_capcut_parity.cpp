@@ -323,7 +323,7 @@ std::shared_ptr<chronon3d::Framebuffer> render_effect_case(
                 s.font_engine(&renderer.font_engine());
                 s.layer(c.id + "_layer", [&c, &renderer](LayerBuilder& l) {
                     l.font_engine(&renderer.font_engine());
-                    l.glow(GlowPresets::neon_blue(45.0f));
+                    l.effect(GlowPresets::neon_blue(45.0f));
                     TextDefinition definition;
                     definition.content.value = c.text;
                     definition.style.font.font_path = chronon3d::test::bundled_font_path(c.font_path);

@@ -13,7 +13,7 @@ void apply_cinematic_glow(LayerBuilder& l, const CinematicGlowPreset& opts) {
     glow.inner_intensity = opts.inner_intensity;
     glow.mid_intensity   = opts.mid_intensity;
     glow.bloom_intensity = opts.bloom_intensity;
-    l.glow(glow.to_glow_params());
+    l.effect(glow.to_glow_params());
     if (opts.micro_shadow && glow.micro_shadow) {
         l.drop_shadow(opts.shadow_offset, opts.shadow_color, opts.shadow_blur);
     }

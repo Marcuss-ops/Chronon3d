@@ -46,7 +46,7 @@ Composition make_light_comp(const char* name, const std::string& text,
             s.layer("text", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 setup(l);
-                // l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
+                // l.effect(TextGlowPresets::ae_cinematic_white().to_glow_params());
                 l.text("label", TextDefinition{
     .content = {.value = text},
     .style = {

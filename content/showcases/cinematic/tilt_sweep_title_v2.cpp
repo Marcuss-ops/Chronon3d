@@ -11,7 +11,7 @@
 //   * blur_anim()        — focus-in 14→0→0→2 (sharp → blur exit)
 //   * scale_anim()       — push-in with overshoot (0.96→1.04→1.00→0.98)
 //   * position_anim()    — subtle right→centre→left horizontal drift
-//   * l.glow()           — intensities halved (bloom doesn't bleed into text)
+//   * l.effect()           — intensities halved (bloom doesn't bleed into text)
 //   * title_shadow layer — offset black copy for soft lift-shadow
 //
 // 1920×1080 · 30 FPS · 150 frame (5 secondi).
@@ -49,7 +49,7 @@ Composition tilt_sweep_title_v2() {
     //                                cinematic feel.
     //   * l.opacity(1.0f)          — fully visible always (the original
     //                                "fade-in/out" animation was eating frames).
-    //   * l.glow(...)              — reduced intensities so the bloom does
+    //   * l.effect(...)              — reduced intensities so the bloom does
     //                                NOT blur the foreground text (the
     //                                user's #1 complaint: text+glow merged).
     //   * l.text(...)              — pure white, sharp text on top.

@@ -4,8 +4,7 @@
 // This file replaces effect_glow_impl.cpp and effect_bloom_impl.cpp as the
 // single home for the Layer and Bloom mode implementations. The two legacy
 // effect files now forward through run_glow_pipeline() so callers stay
-// unchanged. `draw_glow` (the 5 expanded-shape node primitive) remains a
-// separate fast path in effect_stack.cpp — no blur, cheaper for small radii.
+// unchanged. Glow is rendered exclusively by the blur/accumulation pipeline.
 // ---------------------------------------------------------------------------
 
 #include "render_effects_processor.hpp"
@@ -71,10 +70,10 @@ namespace {
 // ── Layer-mode helpers (moved from effect_glow_impl.cpp) ─────────────
 
 [[nodiscard]] BlendMode glow_blend_mode(const GlowPipeline& p) {
-    if (p.quality == GlowQuality::MultiLayer || !p.layers.empty()) {
+    if (!p.layers.empty()) {
         return p.blend;
     }
-    return p.additive ? BlendMode::Add : BlendMode::Screen;
+    return p.blend;
 }
 
 [[nodiscard]] float glow_trigger_from_pixel(const Color& c, const GlowPipeline& p) {

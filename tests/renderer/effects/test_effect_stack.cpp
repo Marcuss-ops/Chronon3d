@@ -84,7 +84,7 @@ TEST_CASE("EffectStack: chained effects preserve order") {
 TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
     LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.drop_shadow({4,4}, Color::black(), 8.0f)
-      .glow(GlowParams{.radius = 12.0f, .intensity = 0.9f, .color = Color::white()});
+      .effect(GlowParams{.radius = 12.0f, .intensity = 0.9f, .color = Color::white()});
     auto layer = lb.build();
     CHECK(layer.effects().size() == 2);
     CHECK(holds_effect<DropShadowParams>(layer.effects()[0]));
@@ -93,7 +93,7 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
 
 TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
     LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
-    lb.glow(GlowPresets::neon_blue(55.0f));
+    lb.effect(GlowPresets::neon_blue(55.0f));
 
     auto layer = lb.build();
     REQUIRE(layer.effects().size() == 1);
@@ -102,7 +102,7 @@ TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
     const auto& glow = get_effect<GlowParams>(layer.effects()[0]);
     CHECK(glow.radius == doctest::Approx(55.0f));
     CHECK(glow.intensity == doctest::Approx(1.25f));
-    CHECK(glow.additive);
+    CHECK(glow.blend == BlendMode::Add);
     CHECK(glow.core_strength > glow.bloom_strength);
 }
 

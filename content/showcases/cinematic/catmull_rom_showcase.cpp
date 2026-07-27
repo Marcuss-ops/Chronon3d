@@ -88,7 +88,7 @@ Composition catmull_rom_showcase() {
 
         // A center subject so we can see the camera moving around it.
         s.layer("subject", [](LayerBuilder& l) {
-            l.position({0.0f, 0.0f, 0.0f}).glow(GlowParams{.radius = 40.0f, .intensity = 0.9f, .color = {0.4f, 0.8f, 1.0f, 1.0f}});
+            l.position({0.0f, 0.0f, 0.0f}).effect(GlowParams{.radius = 40.0f, .intensity = 0.9f, .color = {0.4f, 0.8f, 1.0f, 1.0f}});
             l.circle("dot", { .radius = 28.0f, .color = {0.4f, 0.8f, 1.0f, 1.0f} });
         });
 

@@ -3,8 +3,7 @@
 // ── Glow presets — reusable GlowParams constructors ────────────────────────
 //
 /// @file    glow_presets.hpp
-/// @brief   Pre-built glow parameter configurations (neon, cinematic, etc.)
-///          and the GlowStyle intermediate struct.
+/// @brief   Pre-built GlowParams configurations (neon, cinematic, etc.).
 ///
 /// Extracted from effect_stack.hpp to keep effect type mapping separate from
 /// creative preset definitions.
@@ -15,44 +14,6 @@
 #include <chronon3d/effects/effect_params.hpp>
 
 namespace chronon3d {
-
-/// Intermediate struct for declarative glow configuration.
-/// Convertible to GlowParams via its operator GlowParams().
-struct GlowStyle {
-    Color color{1,1,1,1};
-    f32 inner_radius{6.0f};
-    f32 inner_opacity{0.75f};
-    f32 mid_radius{22.0f};
-    f32 mid_opacity{0.38f};
-    f32 outer_radius{72.0f};
-    f32 outer_opacity{0.16f};
-    f32 outer_downscale{0.25f};
-    BlendMode blend{BlendMode::Screen};
-    bool preserve_source{true};
-
-    operator GlowParams() const;
-};
-
-inline GlowStyle::operator GlowParams() const {
-    GlowParams p;
-    p.color = color;
-    p.quality = GlowQuality::MultiLayer;
-    p.preserve_source = preserve_source;
-    p.blend = blend;
-    p.additive = (blend == BlendMode::Add);
-    p.layers = {
-        {inner_radius, inner_opacity, 1.0f},
-        {mid_radius, mid_opacity, 1.0f},
-        {outer_radius, outer_opacity, outer_downscale}
-    };
-    p.radius = outer_radius;
-    p.intensity = 1.0f;
-    p.core_strength = inner_opacity;
-    p.aura_strength = mid_opacity;
-    p.bloom_strength = outer_opacity;
-    p.outer_downscale = outer_downscale;
-    return p;
-}
 
 // ── GlowPresets ─────────────────────────────────────────────────────────────
 //
@@ -73,7 +34,7 @@ namespace GlowPresets {
         .bloom_strength = 0.20f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = true
+        .blend = BlendMode::Add
     };
 }
 
@@ -91,7 +52,7 @@ namespace GlowPresets {
         .bloom_strength = 0.16f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = true
+        .blend = BlendMode::Add
     };
 }
 
@@ -109,7 +70,7 @@ namespace GlowPresets {
         .bloom_strength = 0.22f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = true
+        .blend = BlendMode::Add
     };
 }
 
@@ -127,7 +88,7 @@ namespace GlowPresets {
         .bloom_strength = 0.08f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = false
+        .blend = BlendMode::Screen
     };
 }
 
@@ -145,7 +106,7 @@ namespace GlowPresets {
         .bloom_strength = 0.10f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = false
+        .blend = BlendMode::Screen
     };
 }
 
@@ -163,7 +124,7 @@ namespace GlowPresets {
         .bloom_strength = 0.12f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = true
+        .blend = BlendMode::Add
     };
 }
 
@@ -181,7 +142,7 @@ namespace GlowPresets {
         .bloom_strength = 0.05f,
         .outer_downscale = 0.25f,
         .preserve_source = true,
-        .additive = false
+        .blend = BlendMode::Screen
     };
 }
 

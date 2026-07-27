@@ -5,7 +5,7 @@
 //
 // GlowPipeline is the unified struct that captures every parameter any of
 // the four glow paths (apply_glow_effect, apply_bloom_effect, text_glow,
-// draw_glow) need.  These unit tests verify the conversions and pure-math
+// These unit tests verify the conversions and pure-math
 // helpers:
 //   1. GlowPipeline::from(GlowParams) preserves all important fields.
 //   2. GlowPipeline::from(BloomParams) sets Mode::Bloom.
