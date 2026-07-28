@@ -8,7 +8,6 @@
 extern "C" {
 #endif
 
-typedef struct chronon_context chronon_context;
 typedef struct chronon_engine chronon_engine;
 typedef struct chronon_plan chronon_plan;
 
@@ -23,33 +22,6 @@ typedef enum chronon_status {
     ,CHRONON_ERROR_CANCELLED = 7
     ,CHRONON_ERROR_ABI_MISMATCH = 8
 } chronon_status;
-
-typedef struct chronon_render_options {
-    uint32_t width;
-    uint32_t height;
-    uint32_t frame;
-    uint32_t fps;
-    uint32_t flags;
-} chronon_render_options;
-
-CHRONON3D_API chronon_context* chronon_create_context(void);
-CHRONON3D_API void chronon_destroy_context(chronon_context* ctx);
-
-CHRONON3D_API chronon_status chronon_render_json_file(
-    chronon_context* ctx,
-    const char* json_path,
-    const char* output_png_path,
-    const chronon_render_options* options
-);
-
-CHRONON3D_API chronon_status chronon_render_json_string(
-    chronon_context* ctx,
-    const char* json_string,
-    const char* output_png_path,
-    const chronon_render_options* options
-);
-
-CHRONON3D_API const char* chronon_last_error(chronon_context* ctx);
 
 CHRONON3D_API const char* chronon_version_string(void);
 
