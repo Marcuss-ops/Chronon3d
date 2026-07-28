@@ -8,6 +8,7 @@
 # ==============================================================================
 
 add_library(chronon3d_render_plan OBJECT
+    render_plan_decoder.cpp
     render_plan_validator.cpp
 )
 

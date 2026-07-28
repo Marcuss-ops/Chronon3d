@@ -15,5 +15,6 @@ chronon3d_add_test_suite(
         chronon3d_render_plan
         nlohmann_json::nlohmann_json
     SOURCES
+        c_abi/test_render_plan_decoder.cpp
         c_abi/test_render_plan_validator.cpp
 )
