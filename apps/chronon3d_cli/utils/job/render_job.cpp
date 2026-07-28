@@ -183,11 +183,6 @@ Result<RenderJob, RenderJobError> resolve_render_request(
         job.first_frame = request.first_frame;
         job.last_frame = request.last_frame;
         job.frame_step = request.frame_step;
-        // Animation timing block — populated from the render-plan JSON
-        // `animation: {start_frame, duration_frames}` (or layer top-level
-        // fallback); see `apps/chronon3d_cli/utils/job/render_plan_timing.hpp`.
-        job.start_frame = request.start_frame;
-        job.duration_frames = request.duration_frames;
         job.output = std::move(request.output);
         job.settings = std::move(request.settings);
         job.video_settings = std::move(request.video_settings);
