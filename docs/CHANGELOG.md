@@ -1,3 +1,18 @@
+## 2026-07-28
+### `docs(state): correct SDK cross-language row in CURRENT_STATUS.md`
+- C ABI implementata (11+ simboli in `include/chronon3d/c_api/chronon3d.h`):
+  `chronon_engine_create/destroy/last_error`, `chronon_plan_compile_json`,
+  `chronon_render_frame/file`, `chronon_abi_version`, `chronon_buffer_get/free`.
+- Schema `.chronon` canonico a `schemas/chronon.render-plan.v1.schema.json` con
+  validator hand-rolled wired nei 2 call sites C API (TICKET-JSON-SCHEMA-VALIDATOR).
+- Packaging `libchronon3d_c.so` (alias `Chronon3D::C`) via
+  `cmake/Chronon3DSdkInstall.cmake`.
+- 4 consumer wirati al canonical ABI (Python ctypes, `tests/package_consumer/`,
+  `tests/install_consumer/`, `examples/`).
+- Macchina-verifica full SDK ABI smoke DEFERRED-WBH (dev host CLI=OFF, C_API=OFF).
+- Vecchia claim `C ABI e formato .chronon da progettare` rimossa (sostituita
+  con stato reale WIRED / NOT RUN).
+
 ## 2026-07-26
 
 - **Render preparation barrier chiusa** — `prepare_render()` è ora il solo
