@@ -79,4 +79,18 @@ chronon3d_add_test_suite(
         chronon3d_visual_test_support
 )
 
+# ─────────────────────────────────────────────────────────────────────────
+# 5. Word emphasis animator factory (TICKET-WORD-EMPHASIS — Variant A)
+#    Tag-driven per-letter emphasis: covers prefix parser, inverse strip
+#    helper, and per-letter stagger-bounce animator specs.
+# ─────────────────────────────────────────────────────────────────────────
+chronon3d_add_test_suite(
+    NAME  chronon3d_text_word_emphasis_animators_tests
+    TIER  UNIT
+    SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/test_word_emphasis_animators.cpp
+    LINK_TARGETS
+        chronon3d_text_core
+)
+
 endif()  # CHRONON3D_BUILD_TESTS
