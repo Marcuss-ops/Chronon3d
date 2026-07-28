@@ -4,6 +4,8 @@
 add_library(chronon3d_text_core OBJECT
     animated_text_document.cpp
     animation/glyph_instance_state.cpp
+    word_emphasis_animators.cpp    # TICKET-WORD-EMPHASIS — tag-driven per-letter emphasis animator factory
+
     animation/text_animator_evaluator.cpp
     animation/text_animator_compile.cpp
     animation/text_animator_stack.cpp
