@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> Ultima revisione semantica: 2026-07-26.
+> Ultima revisione semantica: 2026-07-28.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Lo SHA live del branch è fornito da Git/CI, non da questo documento.
+> Ultimo SHA osservato prima di questo allineamento: `main@20a102f3` (cleanup commit 1–9 pushed; build/runtime certification NOT RUN).
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -21,16 +21,16 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
-| CLI V3 unification | WIRED / NOT RUN | `render` è l’unico comando per still/sequence/video; alias e planner legacy rimossi. Suite focalizzata `chronon3d_render_job_contract_tests` copre mode, range, step, estensioni, video settings e video-disabled; matrice video ON/OFF/core-only aggiunta ma non ancora osservata verde. |
+| CLI V3 unification | WIRED / NOT RUN | `render --plan` è il percorso canonico; `render-plan` è un alias sottile. La compilazione typed e l’AudioMuxer condiviso sono presenti; macchina-verifica non eseguita. |
 | Push infrastructure | WIRED | `tools/monitor_push_divergence.sh` cron-friendly 5-min cadence; ADR-022 advisory gate. |
 | Text V1 Cert Step 11 (finale) | DEFERRED-VPS | BLOCKED on this VPS per TICKET-BUILD-ROT-CASCADE-CAMERA 409-error + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV; macchina-verifica DEFERRED-WBH. |
 | Cert sequence (Test #4/#8/#9/#13/#14) | WBH-DEFERRED | Per `docs/cert_sequence_wbh_protocol.md`; VPS cannot run. |
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | FAIL (cert) | AE-parity 35/35 PASS. Continuous-time motion params landed. `AnimatedCamera2_5D`, `CameraShotProfile` and imperative `CameraRig` surfaces removed; `camera_pose()` stores the V1 descriptor and render compiles one program per render. Functional certification remains open. |
+| Camera V1 | NOT RUN | Percorso descriptor → program → session già presente; certificazione funzionale, random access, framing, OrientAlongPath, DOF e motion blur restano da eseguire sullo SHA cleanup. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow Final (ChrononGlowFinalAE) | Done/Ready | Certified `1cb9cff2`; DoD §9 closed via 19px-sliver regression lock. |
+| Glow V1 | NOT RUN | Dopo la baseline cleanup: un solo `GlowEffectSpec`, algoritmo CPU canonico, animazione continua, bbox/alpha/determinismo e video 60-frame da certificare. Lo stato storico Glow Final non è una certificazione del lineage corrente. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
@@ -43,7 +43,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; registry resolve ora trasporta il costruttore preparato senza una seconda decode/factory pass. |
 | Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
 | SDK C++ installabile | PASS baseline / WIRED extension | Gate #10 storico PASS. Nuovo FILE_SET authoring disgiunto, closure gate e consumer installato `check_assets` implementati; nuova estensione non ancora certificata su CI. |
-| SDK cross-language | WIRED / NOT RUN | C ABI implementata: 11+ simboli in `include/chronon3d/c_api/chronon3d.h` (`chronon_engine_create/destroy/last_error`, `chronon_plan_compile_json`, `chronon_render_frame/file`, `chronon_abi_version`, `chronon_buffer_get/free`); impl `src/c_api/chronon3d_c_api.cpp`; packaging `libchronon3d_c.so` (alias `Chronon3D::C`) via `cmake/Chronon3DSdkInstall.cmake`. Schema `.chronon` canonico a `schemas/chronon.render-plan.v1.schema.json` con validator hand-rolled wired nei 2 call sites C API (TICKET-JSON-SCHEMA-VALIDATOR). 4 consumer (Python ctypes, `tests/package_consumer/`, `tests/install_consumer/`, `examples/`) wirati al canonical ABI. Macchina-verifica full C ABI smoke DEFERRED-WBH. |
+| SDK cross-language | WIRED / NOT RUN | C ABI V1 usa engine + plan: `chronon_engine_create/destroy/last_error`, `chronon_abi_version`, `chronon_plan_compile_json`, `chronon_render_frame/file` e `chronon_buffer_free`. Il vecchio `chronon_context` e gli adapter JSON sono stati rimossi; smoke install/ctypes non eseguito per toolchain mancante. |
 | Modular graph legacy path | PASS (source audit) | `use_modular_graph` non è presente nella superficie attiva `include/src/apps/tests`; il gate permanente è `tools/check_no_modular_graph.sh`. |
 | Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; `prepare_render()` orchestra preflight, resource preparation e warmup nei percorsi CLI e nella boundary `chronon3d::RenderEngine::render()`, con test fail-loud/idempotenza/null-renderer mirati. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
@@ -56,7 +56,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
 | 10-point friction audit | DONE (2026-07-08) | Lineage closed. |
 | SDK Product V1 (manifest + image-layer) | PASS baseline / WIRED authoring | forward-points 0e+0f+0g+0h+ closed nella baseline; authoring asset install extension attende verifica. |
-| Glow certification (Test GLOW-CERT) | WIRED (HARNESS-COMPLETE) | 13 TEST_CASEs; macchina-verifica DEFERRED-WBH. |
+| Glow certification (Test GLOW-CERT) | NOT RUN | Harness esistente; nuova certificazione bloccata fino alla baseline cleanup e alla disponibilità del toolchain. |
 | Fail-loud errors (Test #7) | WIRED | Gate esistente + nuovo confine SDK: un errore interno impedisce la restituzione di framebuffer parziali come successo. |
 | Costo reale (Test #11 render-cost) | WIRED | `measure_render_cost.sh` + `docs/scorecard.csv` 9-col. |
 | Manual touches per video (Test #19) | WIRED (HARNESS-COMPLETE) | `check_manual_touches_per_video.sh` + 4-phase thresholds. |
@@ -71,7 +71,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Diagnostics cert (Test P2) | WIRED / NOT RUN | `verify_diagnostics_linux.sh` usa solo `render`, richiede 10 codici stabili e restituisce BLOCKED quando manca la verifica runtime; nessun PASS parziale. |
 | Determinism spec completeness (amend) | PASS | Verified via chronon3d_cli on `BenchB01_StaticText1080p`: 5 identical renders of frame 30 and random-order sequence (30, 0, 60, 15, 30) produced identical SHA-256 hashes. |
 | Compositing spec completeness (amend) | WIRED | `verify_compositing_effects_linux.sh` 10→14 effects. |
-| Camera full cert (Test GLOW-CERT sibling) | WIRED | `verify_camera_full_linux.sh` 7-section FAIL-LOUD. |
+| Camera full cert (Test GLOW-CERT sibling) | NOT RUN | `verify_camera_full_linux.sh` è presente e fail-loud; nessuna esecuzione verde sul lineage cleanup. |
 | SDK consumer functional (Test P1 sibling) | WIRED | Consumer esterno esistente + nuovo `check_assets`: include authoring espliciti, image/font logical refs, due engine/root e CWD isolation. |
 | Render runtime cert (Test P3) | WIRED | `verify_render_runtime_linux.sh` 4 distinct sha256. |
 | Asset preflight cert (Test #7 sibling) | WIRED | `verify_asset_preflight_linux.sh` 10 sabotage scenarios. |
