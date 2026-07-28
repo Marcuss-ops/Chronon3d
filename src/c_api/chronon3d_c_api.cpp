@@ -3,6 +3,7 @@
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/presets/text/text_presets_v1.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -18,10 +19,12 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -115,23 +118,31 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const json& layer) {
 }
 
 std::unique_ptr<chronon3d::Composition> compile_plan(const json& root) {
-    // TICKET-JSON-SCHEMA-VALIDATOR — replace the manual two-field
-    // check (`schema` + `version`) with a real validator that walks the
-    // full `chronon.render-plan.v1` schema.  The validator accumulates
-    // ALL issues (not fail-fast) so the user sees the complete diff in
-    // one error message.  Throws std::runtime_error on any issue so the
-    // C API entry points can map it to CHRONON_ERROR_PARSE_FAILED via
-    // the existing try/catch.
-    chronon3d::render_plan::validate_render_plan_or_throw(root);
+    const auto decoded = chronon3d::render_plan::decode_render_plan(root);
+    if (!decoded) throw std::runtime_error(decoded.error().message);
+    const auto& typed_plan = decoded.value();
 
-    const auto canvas_json = root.at("canvas");
-    const int width = canvas_json.value("width", 1920);
-    const int height = canvas_json.value("height", 1080);
-    const int fps = canvas_json.value("fps", 30);
-    const auto duration = canvas_json.value("duration_frames", 0LL);
+    const int width = typed_plan.canvas.width;
+    const int height = typed_plan.canvas.height;
+    const int fps = typed_plan.canvas.fps;
+    const auto duration = typed_plan.canvas.duration.integral();
     const auto layers = root.value("layers", json::array());
     const auto canvas = chronon3d::CanvasInfo::from_dimensions(
         static_cast<float>(width), static_cast<float>(height));
+
+    std::vector<std::optional<chronon3d::presets::text::SubtitleTrack>> prepared_subtitles(
+        typed_plan.layers.size());
+    for (std::size_t index = 0; index < typed_plan.layers.size(); ++index) {
+        const auto& layer = typed_plan.layers[index];
+        if (layer.type != chronon3d::render_plan::LayerType::SubtitleTrack) continue;
+        const auto raw = read_text_file(layer.source);
+        if (layer.subtitle_format == chronon3d::render_plan::SubtitleFormat::Vtt)
+            prepared_subtitles[index] = chronon3d::presets::text::subtitle_from_vtt(raw);
+        else if (layer.subtitle_format == chronon3d::render_plan::SubtitleFormat::Json)
+            prepared_subtitles[index] = chronon3d::presets::text::subtitle_from_json(raw);
+        else
+            prepared_subtitles[index] = chronon3d::presets::text::subtitle_from_srt(raw);
+    }
 
     chronon3d::CompositionSpec spec;
     spec.name = root.value("job_id", std::string{"chronon_plan"});
@@ -142,10 +153,10 @@ std::unique_ptr<chronon3d::Composition> compile_plan(const json& root) {
     spec.assets_root = root.value("assets_root", std::string{});
 
     auto composition = std::make_unique<chronon3d::Composition>(
-        std::move(spec), [layers, canvas, width, height](const chronon3d::FrameContext& ctx) {
+        std::move(spec), [layers, prepared_subtitles, canvas, width, height](const chronon3d::FrameContext& ctx) {
             chronon3d::SceneBuilder scene(ctx);
-            if (ctx.runtime) scene.font_engine(&ctx.runtime->font_engine());
-            for (const auto& layer : layers) {
+            for (std::size_t layer_index = 0; layer_index < layers.size(); ++layer_index) {
+                const auto& layer = layers[layer_index];
                 const auto id = layer.value("id", std::string{"layer"});
                 const auto type = layer.value("type", std::string{});
                 scene.layer(id, [&](chronon3d::LayerBuilder& builder) {
@@ -168,17 +179,10 @@ std::unique_ptr<chronon3d::Composition> compile_plan(const json& root) {
                         builder.kind(chronon3d::LayerKind::Text);
                         builder.text("text", make_text_definition(layer, canvas));
                     } else if (type == "subtitle_track") {
-                        const auto source = layer.value("source", std::string{});
-                        const auto raw = source.find("WEBVTT") == 0
-                            ? read_text_file(source)
-                            : read_text_file(source);
-                        chronon3d::presets::text::SubtitleTrack track;
-                        const auto format = layer.value("format", std::string{"srt"});
-                        if (format == "vtt") track = chronon3d::presets::text::subtitle_from_vtt(raw);
-                        else if (format == "json") track = chronon3d::presets::text::subtitle_from_json(raw);
-                        else track = chronon3d::presets::text::subtitle_from_srt(raw);
+                        const auto& prepared = prepared_subtitles.at(layer_index);
+                        if (!prepared) throw std::runtime_error("subtitle asset was not prepared");
                         chronon3d::authoring::Layer authoring_layer(builder, canvas);
-                        auto subtitles = authoring_layer.subtitles(track);
+                        auto subtitles = authoring_layer.subtitles(*prepared);
                         subtitles.preset(layer.value("preset", std::string{"minimal_white"}))
                             .font(layer.value("font", std::string{}), layer.value("font_size", 48.0f))
                             .build();
