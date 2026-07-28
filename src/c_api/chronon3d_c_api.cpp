@@ -24,6 +24,7 @@ using json = nlohmann::json;
 
 struct chronon_plan {
     std::shared_ptr<const chronon3d::Composition> composition;
+    chronon3d::sdk::RenderSettings settings{};
 };
 
 struct chronon_engine {
@@ -192,13 +193,19 @@ uint32_t chronon_abi_version(void) { return 1; }
 
 chronon_engine* chronon_engine_create(const chronon_engine_config* config) {
     try {
-        chronon3d::sdk::RenderSettings settings;
-        if (config && config->struct_size >= sizeof(chronon_engine_config) && config->assets_root) {
-            // The root is mounted below, after construction, to preserve the
-            // SDK's per-engine asset isolation contract.
+        if (config) {
+            if (config->struct_size < sizeof(uint32_t) * 2)
+                return nullptr;
+            if (config->abi_version != chronon_abi_version())
+                return nullptr;
+            if (config->struct_size < sizeof(chronon_engine_config))
+                return nullptr;
+            if (config->flags != 0)
+                return nullptr;
         }
+        chronon3d::sdk::RenderSettings settings;
         auto* engine = new chronon_engine(settings);
-        if (config && config->struct_size >= sizeof(chronon_engine_config) && config->assets_root)
+        if (config && config->assets_root)
             engine->engine.set_assets_root(config->assets_root);
         return engine;
     } catch (...) {
@@ -225,10 +232,8 @@ chronon_status chronon_plan_compile_json(chronon_engine* engine, const char* sou
         const auto root = json::parse(source);
         auto plan = std::make_unique<chronon_plan>();
         plan->composition = compile_plan(root);
-        chronon3d::sdk::RenderSettings settings;
-        settings.width = root.at("canvas").value("width", 1920);
-        settings.height = root.at("canvas").value("height", 1080);
-        engine->engine.set_settings(settings);
+        plan->settings.width = root.at("canvas").at("width").get<int>();
+        plan->settings.height = root.at("canvas").at("height").get<int>();
         *out_plan = plan.release();
         return CHRONON_OK;
     } catch (const std::exception& error) {
@@ -243,6 +248,7 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
     if (!engine || !plan || !plan->composition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
     std::memset(output, 0, sizeof(*output));
+    engine->engine.set_settings(plan->settings);
     auto result = engine->engine.render(*plan->composition,
                                         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
     if (!result) return set_error(engine, CHRONON_ERROR_RENDER_FAILED, result.error().message);
@@ -268,6 +274,7 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
                                    uint32_t fps_den, const chronon_render_callbacks* cb) {
     if (!engine || !plan || !plan->composition || !output_path || fps_num == 0 || fps_den == 0)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid file render arguments");
+    engine->engine.set_settings(plan->settings);
     chronon3d::sdk::RenderFileRequest request;
     request.composition = plan->composition.get();
     request.output_path = output_path;
