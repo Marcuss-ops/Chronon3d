@@ -21,6 +21,7 @@ typedef enum chronon_status {
     CHRONON_ERROR_IO_FAILED = 5
     ,CHRONON_ERROR_UNSUPPORTED = 6
     ,CHRONON_ERROR_CANCELLED = 7
+    ,CHRONON_ERROR_ABI_MISMATCH = 8
 } chronon_status;
 
 typedef struct chronon_render_options {
