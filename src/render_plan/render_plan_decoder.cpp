@@ -35,6 +35,12 @@ FitMode fit_mode(const std::string& value) {
     return FitMode::Cover;
 }
 
+SubtitleFormat subtitle_format(const std::string& value) {
+    if (value == "vtt") return SubtitleFormat::Vtt;
+    if (value == "json") return SubtitleFormat::Json;
+    return SubtitleFormat::Srt;
+}
+
 OutputFormat output_format(const std::string& value) {
     if (value == "mp4") return OutputFormat::Mp4;
     if (value == "mkv") return OutputFormat::Mkv;
@@ -72,7 +78,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     }
     if (value.contains("fit")) layer.fit = fit_mode(value.at("fit").get<std::string>());
     if (value.contains("format"))
-        layer.subtitle_format = output_format(value.at("format").get<std::string>());
+        layer.subtitle_format = subtitle_format(value.at("format").get<std::string>());
     if (value.contains("animation")) {
         const auto& animation = value.at("animation");
         layer.animation = AnimationTiming{
