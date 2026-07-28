@@ -3,6 +3,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     backends_software_tests.cmake
     debug/CMakeLists.txt
     core_tests.cmake
+    c_abi_tests.cmake
     scene_tests.cmake
     cli_tests.cmake
     introspection_tests.cmake
