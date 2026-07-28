@@ -69,6 +69,9 @@
 # are stable: §14.13-style diff checks compare sorted vs on-disk and
 # must yield an empty diff.
 set(CHRONON3D_REGISTRY_OBJECT_LIBS
+    chronon3d_render_plan
+    chronon3d_render_plan_compiler
+
     # ── Core (src/core) ──────────────────────────────────────────────
     chronon3d_core_impl
 
@@ -134,6 +137,8 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
 # polluting the $<TARGET_OBJECTS:…> and target_link_libraries(sdk_impl …)
 # blocks, which only deal with actual OBJECT libraries.
 set(CHRONON3D_REGISTRY_INTERFACE_LIBS
+    chronon3d_base
+
     # ── Consumer-facing SDK alias ────────────────────────────────────
     chronon3d_sdk
     chronon3d_sdk_impl
