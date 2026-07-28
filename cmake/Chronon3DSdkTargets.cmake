@@ -53,6 +53,7 @@ if(CHRONON3D_BUILD_C_API)
         # tests link chronon3d_render_plan directly via
         # tests/c_abi_tests.cmake LINK_TARGETS.
         chronon3d_render_plan
+        chronon3d_render_plan_compiler
     )
     set_target_properties(chronon3d_c PROPERTIES
         EXPORT_NAME C
