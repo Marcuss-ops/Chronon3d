@@ -51,13 +51,14 @@
 # TICKET-TEXT-LEGACY-POSITION-ROT tracks 200+ TextDefaults::position sites; the
 # audit reports the current count and FAILS ONLY IF the count exceeds the
 # cap (i.e., a regression above the known baseline). User-calibratable via env.
-# KNOWN_COMPOSITION_ROTS=2 honors the pre-existing `class Composition` in
+# KNOWN_COMPOSITION_ROTS=3 honors the pre-existing `class Composition` in
 # `include/chronon3d/timeline/composition.hpp` + the forward decl in
-# `include/chronon3d/sdk/render_engine.hpp` (both predate the canonical
+# `include/chronon3d/sdk/render_engine.hpp` and the RenderFileRequest forward
+# declaration (all predate the canonical
 # CompositionDescriptor; tracked for future migration per the
 # TICKET-COMPOSITION-LEGACY-CLASSES forward-point).
 KNOWN_PLACEMENT_ROTS="${KNOWN_PLACEMENT_ROTS:-200}"
-KNOWN_COMPOSITION_ROTS="${KNOWN_COMPOSITION_ROTS:-2}"
+KNOWN_COMPOSITION_ROTS="${KNOWN_COMPOSITION_ROTS:-3}"
 
 # ── Precondition check ──────────────────────────────────────────────────
 set -uo pipefail
