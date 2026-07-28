@@ -50,12 +50,12 @@ endif()
 # ==============================================================================
 # Base Interface (must be defined before any add_subdirectory that uses it)
 # ==============================================================================
-add_library(chronon3d INTERFACE)
-target_include_directories(chronon3d INTERFACE
+add_library(chronon3d_base INTERFACE)
+target_include_directories(chronon3d_base INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_compile_definitions(chronon3d INTERFACE
+target_compile_definitions(chronon3d_base INTERFACE
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
 )
 # CHRONON3D_ENABLE_MESH is defined in the root CMakeLists.txt.
@@ -64,20 +64,20 @@ target_compile_definitions(chronon3d INTERFACE
 set(CHRONON3D_MESHOPTIMIZER_LINK "")
 if(CHRONON3D_ENABLE_MESH)
     set(CHRONON3D_MESHOPTIMIZER_LINK meshoptimizer::meshoptimizer)
-    target_compile_definitions(chronon3d INTERFACE CHRONON3D_ENABLE_MESH)
+    target_compile_definitions(chronon3d_base INTERFACE CHRONON3D_ENABLE_MESH)
 endif()
 
-target_link_libraries(chronon3d INTERFACE
+target_link_libraries(chronon3d_base INTERFACE
     glm::glm
     ${CHRONON3D_MESHOPTIMIZER_LINK}
     xxHash::xxhash
     magic_enum::magic_enum
+)
+
+add_library(chronon3d INTERFACE)
+target_link_libraries(chronon3d INTERFACE
+    chronon3d_base
     chronon3d_core_impl
-    # PR1 — transitively expose `chronon3d_animations` so that anything
-    # linking chronon3d (scene, render_graph, ...) automatically sees the
-    # implementations of motion::Timeline, AnimatedValue, and the new
-    # chronon3d::temporal::generate_temporal_samples symbol.
-    chronon3d_animations
 )
 
 # ==============================================================================
