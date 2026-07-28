@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (P2)
+CLOSED (P2)
 
 ## Priorità
 
@@ -10,7 +10,7 @@ P2 (build / test rot)
 
 ## Problema
 
-Il percorso di rendering `use_modular_graph = false` (coordinate top-left legacy) non è più mantenuto. Tutti i test helper di produzione e la maggior parte del codice CLI impostano il valore di default `true`, e le recenti modifiche al sistema di coordinate (centraggio canvas, `graph_builder_coordinates.hpp`, `graph_builder_internal.hpp`, TICKET-104) sono state progettate attorno al percorso modulare.
+Il percorso di rendering `use_modular_graph = false` è stato rimosso dalla superficie attiva. Il percorso modulare è ora l’unico percorso selezionabile.
 
 I test che esplicitamente disabilitano il percorso modulare falliscono perché i layer vengono renderizzati fuori viewport o i bounding box risultano vuoti.
 
@@ -47,6 +47,10 @@ Codice chiave:
 - Non si richiede di risolvere le logiche di centraggio legacy; si richiede di decidere se il percorso `false` deve ancora esistere.
 - Se si decide di rimuoverlo: aggiornare `RenderSettings`, il CLI, i test, e rimuovere il codice morto nei builder.
 - Se si decide di mantenerlo: migrare i test falliti al percorso modulare e dichiarare esplicitamente che `false` è deprecato/solo legacy.
+
+## Risoluzione
+
+Il source audit corrente non trova `use_modular_graph` in `include/`, `src/`, `apps/` o `tests/`. Il gate `tools/check_no_modular_graph.sh` impedisce la reintroduzione del simbolo.
 
 ## Soluzione accettabile
 
