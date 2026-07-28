@@ -5,6 +5,7 @@
 #include "../../utils/common/render_job_error_formatter.hpp"
 #include "../../utils/job/render_job.hpp"
 #include "render_profiles.hpp"
+#include "command_render_plan.hpp"
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
@@ -28,6 +29,7 @@ struct RenderState {
     std::string profile{"production"};
     std::string props_file;
     std::string props_json;   // Phase 1c / Increment B (TICKET-PHASE1-C-CLI-VERSION2)
+    std::string plan_file;
 };
 
 std::string lower_profile(std::string value) {
@@ -165,7 +167,9 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto& args = *state->args;
 
     auto* cmd = app.add_subcommand("render", "Render a composition");
-    cmd->add_option("input", args.comp_id, "Composition name")->required();
+    cmd->add_option("input", args.comp_id, "Composition name");
+    cmd->add_option("--plan", state->plan_file,
+                    "Render a chronon.render-plan.v1 file through the canonical executor");
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("--frame", args.frames, "Single frame number (alias for --frames)");
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
@@ -274,6 +278,15 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         diagnostic, program_cache_tune
     ]() {
         auto& render_args = *state->args;
+        if (!state->plan_file.empty()) {
+            ctx.exit_code = run_render_plan_file(ctx, state->plan_file, render_args.output);
+            return;
+        }
+        if (render_args.comp_id.empty()) {
+            spdlog::error("render requires a composition name or --plan <file>");
+            ctx.exit_code = 1;
+            return;
+        }
         const auto explicitly_set = [&](std::string_view flag) {
             if (flag == "--tile-size") return tile_size->count() > 0;
             if (flag == "--no-dirty-rects") return no_dirty_rects->count() > 0;

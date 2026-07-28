@@ -100,6 +100,9 @@ struct RenderJobOutput {
 /// pointer, renderer, resolver, cache, or runtime state.
 struct RenderRequest {
     std::string comp_id;
+    /// Optional precompiled plan path. When present, resolution does not
+    /// re-enter the composition registry or construct a second composition.
+    std::shared_ptr<const Composition> prepared_comp;
     CompositionInput input;
     RenderMode mode{RenderMode::Still};
     Frame still_frame{0};

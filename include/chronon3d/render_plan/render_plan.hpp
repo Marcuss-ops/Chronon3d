@@ -4,6 +4,7 @@
 #include <chronon3d/core/types/result.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -43,6 +44,7 @@ struct LayerPlan {
     std::optional<float> font_size;
     std::optional<float> box_width;
     std::optional<float> box_height;
+    std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     std::array<float, 3> position{0.0f, 0.0f, 0.0f};
     std::size_t position_dimensions{0};
     std::optional<Frame> start_frame;
