@@ -1,35 +1,29 @@
 #include <chronon3d/c_api/chronon3d.h>
 
-#include <chronon3d/authoring/layer.hpp>
-#include <chronon3d/presets/text/subtitle.hpp>
-#include <chronon3d/presets/text/text_presets_v1.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <nlohmann/json.hpp>
 #include <stb_image_write.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <memory>
-#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
 using json = nlohmann::json;
 
 struct chronon_plan {
-    std::unique_ptr<chronon3d::Composition> composition;
+    std::shared_ptr<const chronon3d::Composition> composition;
 };
 
 struct chronon_engine {
@@ -56,145 +50,12 @@ std::string read_text_file(const std::string& path) {
     return out.str();
 }
 
-chronon3d::FitMode fit_mode(std::string_view raw) {
-    if (raw == "contain") return chronon3d::FitMode::Contain;
-    if (raw == "stretch") return chronon3d::FitMode::Stretch;
-    if (raw == "none") return chronon3d::FitMode::None;
-    return chronon3d::FitMode::Cover;
-}
-
-chronon3d::Color color_value(const json& value,
-                             chronon3d::Color fallback = chronon3d::Color::white()) {
-    if (!value.is_array() || value.size() < 3) return fallback;
-    return {
-        value[0].get<float>(), value[1].get<float>(), value[2].get<float>(),
-        value.size() > 3 ? value[3].get<float>() : 1.0f};
-}
-
-chronon3d::TextDefinition make_text_definition(
-    const json& layer, const chronon3d::CanvasInfo& canvas) {
-    const std::string text = layer.value("text", std::string{});
-    const auto preset = layer.value("preset", std::string{});
-    if (preset == "title_centered")
-        return chronon3d::presets::text::title_centered(text, canvas);
-    if (preset == "subtitle_bottom")
-        return chronon3d::presets::text::subtitle_bottom(text, canvas);
-    if (preset == "caption_safe_area")
-        return chronon3d::presets::text::caption_safe_area(text, canvas);
-    if (preset == "kinetic_word")
-        return chronon3d::presets::text::kinetic_word(text, canvas);
-    if (preset == "lower_third")
-        return chronon3d::presets::text::lower_third(text, canvas);
-
-    chronon3d::TextDefinition def;
-    def.content.value = text;
-    def.style.font.font_path = layer.value("font", std::string{});
-    def.style.font.font_size = layer.value("font_size", 48.0f);
-    def.style.color = color_value(layer.value("color", json::array()));
-    def.frame.size = {
-        layer.value("box_width", static_cast<float>(canvas.width)),
-        layer.value("box_height", static_cast<float>(canvas.height))};
-    def.frame.align = chronon3d::TextAlign::Center;
-    def.frame.vertical_align = chronon3d::VerticalAlign::Middle;
-    return def;
-}
-
-void apply_layer_timing(chronon3d::LayerBuilder& builder, const json& layer) {
-    if (layer.contains("start_frame"))
-        builder.from(chronon3d::Frame{layer.at("start_frame").get<std::int64_t>()});
-    if (layer.contains("duration_frames"))
-        builder.duration(chronon3d::Frame{layer.at("duration_frames").get<std::int64_t>()});
-    if (layer.contains("position") && layer.at("position").is_array()) {
-        const auto& p = layer.at("position");
-        if (p.size() >= 2)
-            builder.position({p[0].get<float>(), p[1].get<float>(),
-                              p.size() > 2 ? p[2].get<float>() : 0.0f});
-    }
-    if (layer.contains("animation")) {
-        const auto& animation = layer.at("animation");
-        const auto preset = animation.value("preset", std::string{});
-        if (!preset.empty()) builder.motion(preset);
-    }
-}
-
-std::unique_ptr<chronon3d::Composition> compile_plan(const json& root) {
+std::shared_ptr<const chronon3d::Composition> compile_plan(const json& root) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
     if (!decoded) throw std::runtime_error(decoded.error().message);
-    const auto& typed_plan = decoded.value();
-
-    const int width = typed_plan.canvas.width;
-    const int height = typed_plan.canvas.height;
-    const int fps = typed_plan.canvas.fps;
-    const auto duration = typed_plan.canvas.duration.integral();
-    const auto layers = root.value("layers", json::array());
-    const auto canvas = chronon3d::CanvasInfo::from_dimensions(
-        static_cast<float>(width), static_cast<float>(height));
-
-    std::vector<std::optional<chronon3d::presets::text::SubtitleTrack>> prepared_subtitles(
-        typed_plan.layers.size());
-    for (std::size_t index = 0; index < typed_plan.layers.size(); ++index) {
-        const auto& layer = typed_plan.layers[index];
-        if (layer.type != chronon3d::render_plan::LayerType::SubtitleTrack) continue;
-        const auto raw = read_text_file(layer.source);
-        if (layer.subtitle_format == chronon3d::render_plan::SubtitleFormat::Vtt)
-            prepared_subtitles[index] = chronon3d::presets::text::subtitle_from_vtt(raw);
-        else if (layer.subtitle_format == chronon3d::render_plan::SubtitleFormat::Json)
-            prepared_subtitles[index] = chronon3d::presets::text::subtitle_from_json(raw);
-        else
-            prepared_subtitles[index] = chronon3d::presets::text::subtitle_from_srt(raw);
-    }
-
-    chronon3d::CompositionSpec spec;
-    spec.name = root.value("job_id", std::string{"chronon_plan"});
-    spec.width = width;
-    spec.height = height;
-    spec.frame_rate = {fps, 1};
-    spec.duration = chronon3d::Frame{duration};
-    spec.assets_root = root.value("assets_root", std::string{});
-
-    auto composition = std::make_unique<chronon3d::Composition>(
-        std::move(spec), [layers, prepared_subtitles, canvas, width, height](const chronon3d::FrameContext& ctx) {
-            chronon3d::SceneBuilder scene(ctx);
-            for (std::size_t layer_index = 0; layer_index < layers.size(); ++layer_index) {
-                const auto& layer = layers[layer_index];
-                const auto id = layer.value("id", std::string{"layer"});
-                const auto type = layer.value("type", std::string{});
-                scene.layer(id, [&](chronon3d::LayerBuilder& builder) {
-                    if (type == "image") {
-                        chronon3d::ImageParams params;
-                        params.asset_path = layer.value("asset", std::string{});
-                        params.size = {layer.value("width", static_cast<float>(width)),
-                                       layer.value("height", static_cast<float>(height))};
-                        params.fit = fit_mode(layer.value("fit", std::string{"cover"}));
-                        builder.image("image", std::move(params));
-                    } else if (type == "video") {
-                        builder.video(layer.value("source", std::string{}));
-                    } else if (type == "color") {
-                        chronon3d::RectParams params;
-                        params.size = {static_cast<float>(width), static_cast<float>(height)};
-                        params.color = color_value(layer.value("color", json::array()),
-                                                   chronon3d::Color::black());
-                        builder.rect("color", std::move(params));
-                    } else if (type == "text") {
-                        builder.kind(chronon3d::LayerKind::Text);
-                        builder.text("text", make_text_definition(layer, canvas));
-                    } else if (type == "subtitle_track") {
-                        const auto& prepared = prepared_subtitles.at(layer_index);
-                        if (!prepared) throw std::runtime_error("subtitle asset was not prepared");
-                        chronon3d::authoring::Layer authoring_layer(builder, canvas);
-                        auto subtitles = authoring_layer.subtitles(*prepared);
-                        subtitles.preset(layer.value("preset", std::string{"minimal_white"}))
-                            .font(layer.value("font", std::string{}), layer.value("font_size", 48.0f))
-                            .build();
-                    } else {
-                        throw std::runtime_error("unsupported layer type: " + type);
-                    }
-                    apply_layer_timing(builder, layer);
-                });
-            }
-            return scene.build();
-        });
-    return composition;
+    const auto compiled = chronon3d::render_plan::compile_render_plan(decoded.value());
+    if (!compiled) throw std::runtime_error(compiled.error().message);
+    return compiled.value();
 }
 
 // TICKET-JSON-SCHEMA-VALIDATOR contract — `legacy_scene_to_plan` MUST

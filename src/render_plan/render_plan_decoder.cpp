@@ -68,6 +68,11 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.font_size = optional_value<float>(value, "font_size");
     layer.box_width = optional_value<float>(value, "box_width");
     layer.box_height = optional_value<float>(value, "box_height");
+    if (value.contains("color")) {
+        const auto& color = value.at("color");
+        for (std::size_t index = 0; index < color.size() && index < layer.color.size(); ++index)
+            layer.color[index] = color.at(index).get<float>();
+    }
     layer.start_frame = optional_frame(value, "start_frame");
     layer.duration_frames = optional_frame(value, "duration_frames");
     if (value.contains("position")) {

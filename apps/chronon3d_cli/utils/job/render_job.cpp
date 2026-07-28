@@ -153,31 +153,37 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
-    auto resolved = registry.resolve(composition_id, request.input);
-    if (!resolved) {
-        return RenderJobError{
-            RenderJobErrorCode::ValidationFailed,
-            "Failed to resolve composition '" + composition_id +
-                "': " + resolved.error().message};
-    }
-    if (!resolved->construct) {
-        return RenderJobError{
-            RenderJobErrorCode::InvalidJob,
-            "Composition '" + composition_id +
-                "' has no prepared constructor"};
+    std::shared_ptr<const Composition> prepared = std::move(request.prepared_comp);
+    std::optional<ResolvedCompositionSpec> resolved;
+    if (!prepared) {
+        auto registry_result = registry.resolve(composition_id, request.input);
+        if (!registry_result) {
+            return RenderJobError{
+                RenderJobErrorCode::ValidationFailed,
+                "Failed to resolve composition '" + composition_id +
+                    "': " + registry_result.error().message};
+        }
+        resolved = std::move(registry_result.value());
+        if (!resolved->construct) {
+            return RenderJobError{
+                RenderJobErrorCode::InvalidJob,
+                "Composition '" + composition_id +
+                    "' has no prepared constructor"};
+        }
     }
 
     try {
-        Composition comp = resolved->construct();
-        auto comp_ptr =
-            std::make_shared<const Composition>(std::move(comp));
+        if (!prepared) {
+            Composition comp = resolved->construct();
+            prepared = std::make_shared<const Composition>(std::move(comp));
+        }
 
         RenderJob job;
         job.registry = &registry;
         job.comp_id = std::move(request.comp_id);
-        job.comp = std::move(comp_ptr);
-        job.metadata = resolved->metadata.value_or(
-            metadata_from_composition(*job.comp));
+        job.comp = std::move(prepared);
+        job.metadata = metadata_from_composition(*job.comp);
+        if (resolved && resolved->metadata) job.metadata = *resolved->metadata;
         job.mode = request.mode;
         job.still_frame = request.still_frame;
         job.first_frame = request.first_frame;

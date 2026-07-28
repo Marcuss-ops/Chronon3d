@@ -10,6 +10,7 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     commands/render/command_render_plan.cpp
+    commands/render/audio_muxer.cpp
     utils/job/render_job.cpp
     utils/job/render_job_setup.cpp
     utils/job/render_job_finalize.cpp
@@ -26,6 +27,8 @@ target_include_directories(chronon3d_cli_render PRIVATE
 )
 target_link_libraries(chronon3d_cli_render PRIVATE
     chronon3d_cli_core
+    chronon3d_render_plan
+    chronon3d_render_plan_compiler
     chronon3d_pipeline
     chronon3d_backend_image
     CLI11::CLI11

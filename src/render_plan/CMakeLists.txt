@@ -12,12 +12,27 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_validator.cpp
 )
 
+add_library(chronon3d_render_plan_compiler OBJECT
+    render_plan_compiler.cpp
+)
+
 target_include_directories(chronon3d_render_plan
     PUBLIC  ${CMAKE_SOURCE_DIR}/include
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+target_include_directories(chronon3d_render_plan_compiler
+    PUBLIC  ${CMAKE_SOURCE_DIR}/include
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(chronon3d_render_plan
+    PUBLIC
+        nlohmann_json::nlohmann_json
+        chronon3d_core_impl
+)
+
+target_link_libraries(chronon3d_render_plan_compiler
     PUBLIC
         nlohmann_json::nlohmann_json
         chronon3d_core_impl
