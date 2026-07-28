@@ -2,20 +2,14 @@
 
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
-#include <chronon3d/render_plan/render_plan_validator.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <nlohmann/json.hpp>
-#include <stb_image_write.h>
-
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -37,19 +31,7 @@ struct chronon_engine {
         : engine(settings) {}
 };
 
-struct chronon_context {
-    std::unique_ptr<chronon_engine> engine;
-};
-
 namespace {
-
-std::string read_text_file(const std::string& path) {
-    std::ifstream in(path);
-    if (!in) throw std::runtime_error("cannot read asset: " + path);
-    std::ostringstream out;
-    out << in.rdbuf();
-    return out.str();
-}
 
 std::shared_ptr<const chronon3d::Composition> compile_plan(const json& root) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
@@ -59,87 +41,8 @@ std::shared_ptr<const chronon3d::Composition> compile_plan(const json& root) {
     return compiled.value();
 }
 
-// TICKET-JSON-SCHEMA-VALIDATOR contract — `legacy_scene_to_plan` MUST
-// produce a plan conformant to `schemas/chronon.render-plan.v1.schema.json`.
-// The validator at `render_legacy_json()` exit enforces this contract
-// (fail-loud on any drift).  When extending the legacy scene format
-// (e.g. adding a new optional top-level field to the synthesized plan),
-// update the inlined schema in `src/render_plan/render_plan_validator.cpp`
-// AND the canonical schema file in lockstep.
-json legacy_scene_to_plan(const json& scene, const chronon_render_options* options) {
-    json plan;
-    plan["schema"] = "chronon.render-plan";
-    plan["version"] = 1;
-    plan["job_id"] = scene.value("name", std::string{"legacy_scene"});
-    plan["canvas"] = {
-        {"width", options && options->width ? options->width : scene.value("width", 1920)},
-        {"height", options && options->height ? options->height : scene.value("height", 1080)},
-        {"fps", options && options->fps ? options->fps : 30},
-        {"duration_frames", scene.value("duration", 1)}};
-    plan["layers"] = json::array();
-    for (const auto& layer : scene.value("layers", json::array())) {
-        for (const auto& visual : layer.value("visuals", json::array())) {
-            if (visual.value("type", std::string{}) != "rect")
-                throw std::runtime_error("legacy C API supports only rect visuals");
-            json output_layer = {
-                {"id", layer.value("id", std::string{"layer"})},
-                {"type", "color"},
-                {"color", visual.value("color", json::array({1.0, 1.0, 1.0, 1.0}))}
-            };
-            if (visual.contains("pos")) output_layer["position"] = visual["pos"];
-            plan["layers"].push_back(std::move(output_layer));
-        }
-    }
-    plan["output"] = {{"path", "legacy.png"}, {"format", "png"}};
-    return plan;
-}
-
 chronon_status set_error(chronon_engine* engine, chronon_status status,
                          std::string message);
-
-chronon_status render_legacy_json(chronon_context* context, const char* source,
-                                  const char* output_path,
-                                  const chronon_render_options* options) {
-    if (!context || !context->engine || !source || !output_path)
-        return set_error(context ? context->engine.get() : nullptr,
-                         CHRONON_ERROR_INVALID_ARGUMENT, "invalid legacy render arguments");
-    try {
-        auto root = json::parse(source);
-        // Legacy scenes lack the `schema` field; convert FIRST so the
-        // synthesized plan has the canonical shape, THEN validate.  The
-        // `legacy_scene_to_plan` output is already conformant to the
-        // schema, so validation acts as a smoke-test that the converter
-        // did not silently drop a required field.  If a future change
-        // extends the legacy converter (e.g. a new optional top-level
-        // field), the validator's `additionalProperties: false` will
-        // catch any drift at the conversion boundary.
-        if (root.value("schema", std::string{}) != "chronon.render-plan")
-            root = legacy_scene_to_plan(root, options);
-        // TICKET-JSON-SCHEMA-VALIDATOR — validate at the legacy entry
-        // point too, so legacy callers get fail-loud on schema drift
-        // (e.g. type mismatch in the synthesized canvas).  This is a
-        // no-op for clean legacy scenes; the legacy converter output
-        // passes by construction.
-        chronon3d::render_plan::validate_render_plan_or_throw(root);
-        chronon_plan* plan = nullptr;
-        auto status = chronon_plan_compile_json(context->engine.get(), root.dump().c_str(), &plan);
-        if (status != CHRONON_OK) return status;
-        const auto frame = options ? options->frame : 0;
-        chronon_frame_buffer buffer{};
-        status = chronon_render_frame(context->engine.get(), plan, frame, &buffer);
-        if (status == CHRONON_OK && !stbi_write_png(output_path,
-                                                     static_cast<int>(buffer.width),
-                                                     static_cast<int>(buffer.height), 4,
-                                                     buffer.data, static_cast<int>(buffer.stride))) {
-            status = set_error(context->engine.get(), CHRONON_ERROR_IO_FAILED,
-                               "PNG encoder failed");
-        }
-        chronon_plan_destroy(plan);
-        return status;
-    } catch (const std::exception& error) {
-        return set_error(context->engine.get(), CHRONON_ERROR_PARSE_FAILED, error.what());
-    }
-}
 
 chronon_status set_error(chronon_engine* engine, chronon_status status,
                           std::string message) {
@@ -150,40 +53,6 @@ chronon_status set_error(chronon_engine* engine, chronon_status status,
 } // namespace
 
 extern "C" {
-
-chronon_context* chronon_create_context(void) {
-    auto context = std::make_unique<chronon_context>();
-    context->engine = std::unique_ptr<chronon_engine>(chronon_engine_create(nullptr));
-    return context->engine ? context.release() : nullptr;
-}
-
-void chronon_destroy_context(chronon_context* context) {
-    delete context;
-}
-
-chronon_status chronon_render_json_file(chronon_context* context, const char* json_path,
-                                        const char* output_png_path,
-                                        const chronon_render_options* options) {
-    if (!json_path) return CHRONON_ERROR_INVALID_ARGUMENT;
-    try {
-        const auto source = read_text_file(json_path);
-        return render_legacy_json(context, source.c_str(), output_png_path, options);
-    } catch (const std::exception& error) {
-        return set_error(context ? context->engine.get() : nullptr,
-                         CHRONON_ERROR_IO_FAILED, error.what());
-    }
-}
-
-chronon_status chronon_render_json_string(chronon_context* context, const char* json_string,
-                                          const char* output_png_path,
-                                          const chronon_render_options* options) {
-    return render_legacy_json(context, json_string, output_png_path, options);
-}
-
-const char* chronon_last_error(chronon_context* context) {
-    return context && context->engine ? chronon_engine_last_error(context->engine.get())
-                                      : "invalid context";
-}
 
 const char* chronon_version_string(void) {
     return "0.1.0-alpha.1";
