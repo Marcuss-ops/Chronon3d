@@ -106,6 +106,14 @@ struct RenderRequest {
     Frame first_frame{0};
     Frame last_frame{0};
     Frame frame_step{1};
+
+    // Animation timing block — populated from the nested
+    // `animation: {preset, start_frame, duration_frames}` of the
+    // chronon-render-plan.v1 JSON schema. Mirrors `RenderJob::start_frame` /
+    // `RenderJob::duration_frames` after `resolve_render_request`.
+    Frame start_frame{0};
+    Frame duration_frames{0};
+
     std::string output;
     RenderSettings settings;
     VideoSettings video_settings;
@@ -130,6 +138,15 @@ struct RenderJob {
     Frame first_frame{0};
     Frame last_frame{0};
     Frame frame_step{1};
+
+    // Animation timing block — populated from the nested
+    // `animation: {preset, start_frame, duration_frames}` of the
+    // chronon-render-plan.v1 JSON schema (see
+    // `apps/chronon3d_cli/utils/job/render_plan_timing.hpp`).
+    // Distinct from `first_frame`/`last_frame` (render-range) and from the
+    // per-layer builder `start_frame`/`duration_frames` of the C ABI path.
+    Frame start_frame{0};
+    Frame duration_frames{0};
 
     // Optional non-contiguous frame selection for preview/contact-sheet jobs.
     // The canonical executor renders these frames in order with one session.

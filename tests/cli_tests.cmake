@@ -53,6 +53,7 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_cli_tests_link_targets}
     SOURCES ${_cli_test_sources}
             cli/test_render_request.cpp
+            cli/test_render_plan_animation_timing.cpp
 )
 
 target_include_directories(chronon3d_cli_tests PRIVATE
