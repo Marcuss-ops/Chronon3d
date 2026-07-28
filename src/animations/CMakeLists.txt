@@ -10,5 +10,5 @@ add_library(chronon3d_animations OBJECT
     temporal/temporal_samples.cpp
 )
 target_link_libraries(chronon3d_animations PUBLIC
-    chronon3d
+    chronon3d_base
 )
