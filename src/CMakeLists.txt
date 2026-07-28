@@ -96,6 +96,7 @@ endif()
 add_subdirectory(backends/assets)   # chronon3d_backend_assets
 add_subdirectory(render_graph)      # chronon3d_graph
 add_subdirectory(runtime)           # chronon3d_runtime
+add_subdirectory(render_plan)      # chronon3d_render_plan (JSON Schema validator)
 add_subdirectory(extension)        # chronon3d_extension (Fase 5)
 add_subdirectory(backends/software) # chronon3d_backend_software
 add_subdirectory(scene)             # chronon3d_scene
@@ -120,6 +121,12 @@ target_link_libraries(chronon3d_core INTERFACE
     chronon3d_cache
     chronon3d_animations
     chronon3d_core_impl
+    # chronon3d_render_plan is intentionally NOT here — adding an OBJECT
+    # library to chronon3d_core would require it in the SDK export set
+    # (cmake/Chronon3DSdkInstall.cmake), which is not desired for the
+    # pure-function validator.  The validator's OBJECT files reach the
+    # C API SHARED via direct link in cmake/Chronon3DSdkTargets.cmake
+    # and in-tree tests via tests/c_abi_tests.cmake LINK_TARGETS.
     # chronon3d_backend_video is linked via chronon3d_software, not core.
     # Core should be dependency-minimal for server-side / headless use.
 )

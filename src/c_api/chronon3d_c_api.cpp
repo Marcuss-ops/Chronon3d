@@ -3,6 +3,7 @@
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/presets/text/text_presets_v1.hpp>
+#include <chronon3d/render_plan/render_plan_validator.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -114,10 +115,14 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const json& layer) {
 }
 
 std::unique_ptr<chronon3d::Composition> compile_plan(const json& root) {
-    if (root.value("schema", std::string{}) != "chronon.render-plan")
-        throw std::runtime_error("unsupported plan schema");
-    if (root.value("version", 0) != 1)
-        throw std::runtime_error("unsupported render plan version");
+    // TICKET-JSON-SCHEMA-VALIDATOR — replace the manual two-field
+    // check (`schema` + `version`) with a real validator that walks the
+    // full `chronon.render-plan.v1` schema.  The validator accumulates
+    // ALL issues (not fail-fast) so the user sees the complete diff in
+    // one error message.  Throws std::runtime_error on any issue so the
+    // C API entry points can map it to CHRONON_ERROR_PARSE_FAILED via
+    // the existing try/catch.
+    chronon3d::render_plan::validate_render_plan_or_throw(root);
 
     const auto canvas_json = root.at("canvas");
     const int width = canvas_json.value("width", 1920);
@@ -188,6 +193,13 @@ std::unique_ptr<chronon3d::Composition> compile_plan(const json& root) {
     return composition;
 }
 
+// TICKET-JSON-SCHEMA-VALIDATOR contract — `legacy_scene_to_plan` MUST
+// produce a plan conformant to `schemas/chronon.render-plan.v1.schema.json`.
+// The validator at `render_legacy_json()` exit enforces this contract
+// (fail-loud on any drift).  When extending the legacy scene format
+// (e.g. adding a new optional top-level field to the synthesized plan),
+// update the inlined schema in `src/render_plan/render_plan_validator.cpp`
+// AND the canonical schema file in lockstep.
 json legacy_scene_to_plan(const json& scene, const chronon_render_options* options) {
     json plan;
     plan["schema"] = "chronon.render-plan";
@@ -227,8 +239,22 @@ chronon_status render_legacy_json(chronon_context* context, const char* source,
                          CHRONON_ERROR_INVALID_ARGUMENT, "invalid legacy render arguments");
     try {
         auto root = json::parse(source);
+        // Legacy scenes lack the `schema` field; convert FIRST so the
+        // synthesized plan has the canonical shape, THEN validate.  The
+        // `legacy_scene_to_plan` output is already conformant to the
+        // schema, so validation acts as a smoke-test that the converter
+        // did not silently drop a required field.  If a future change
+        // extends the legacy converter (e.g. a new optional top-level
+        // field), the validator's `additionalProperties: false` will
+        // catch any drift at the conversion boundary.
         if (root.value("schema", std::string{}) != "chronon.render-plan")
             root = legacy_scene_to_plan(root, options);
+        // TICKET-JSON-SCHEMA-VALIDATOR — validate at the legacy entry
+        // point too, so legacy callers get fail-loud on schema drift
+        // (e.g. type mismatch in the synthesized canvas).  This is a
+        // no-op for clean legacy scenes; the legacy converter output
+        // passes by construction.
+        chronon3d::render_plan::validate_render_plan_or_throw(root);
         chronon_plan* plan = nullptr;
         auto status = chronon_plan_compile_json(context->engine.get(), root.dump().c_str(), &plan);
         if (status != CHRONON_OK) return status;

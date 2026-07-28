@@ -42,6 +42,17 @@ if(CHRONON3D_BUILD_C_API)
     target_link_libraries(chronon3d_c PRIVATE
         chronon3d_sdk
         nlohmann_json::nlohmann_json
+        # TICKET-JSON-SCHEMA-VALIDATOR — chronon3d_render_plan is the
+        # render-plan JSON Schema validator OBJECT library.  It is NOT
+        # linked into chronon3d_core (would require it in the SDK export
+        # set — see Chronon3DRegistry.cmake install/export wiring), so we
+        # link it directly to the C API SHARED lib here.  chronon3d_c is
+        # the only SDK surface that parses render-plan JSON
+        # (chronon_plan_compile_json + the legacy render entrypoint),
+        # so this direct link is the canonical propagation path.  In-tree
+        # tests link chronon3d_render_plan directly via
+        # tests/c_abi_tests.cmake LINK_TARGETS.
+        chronon3d_render_plan
     )
     set_target_properties(chronon3d_c PROPERTIES
         EXPORT_NAME C
