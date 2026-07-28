@@ -1,57 +1,17 @@
 #!/usr/bin/env python3
 # ════════════════════════════════════════════════════════════════════════════════
-# tools/lib_perf_regression.py — pure-stdlib perf-regression gate helpers
+# tools/lib_perf_regression.py — CLI thin wrapper for perf-regression gate
 # (TICKET-PERF-GATE-V1, F1.6)
 # ════════════════════════════════════════════════════════════════════════════════
-#
-# Pure-stdlib (python3, no `pip install scipy`).  Adopted as the canonical
-# metric-gate helper library called from tools/check_perf_regression.sh.
-#
-# Public API (4 functions):
-#
-#   parse_bench(path: str) -> dict
-#     Read a bench.v3 JSON report from disk.  Caller passes to compare_to_baseline.
-#
-#   compare_to_baseline(current: dict, baseline: dict, thresholds: dict,
-#                       alpha: float = 0.05) -> dict
-#     Compute per-metric verdicts (PASS / CLOSE-CALL / FAIL) per the user spec:
-#       - metrics.median_frame_ms  > baseline * thresholds.median_pct  → FAIL
-#       - metrics.p95_frame_ms     > baseline * thresholds.p95_pct     → FAIL
-#       - memory.peak_rss_mb       > baseline * thresholds.peak_rss_pct → FAIL
-#       - counters.full_frame_passes increase (>)                     → FAIL
-#       - memory.allocations_per_frame increase (>)                  → FAIL
-#       - quality.deterministic_hash diff (allow_golden_change=False) → FAIL
-#     Each verdict carries: metric name, baseline, current, threshold,
-#     and the resulting status.  Returns a dict with `verdicts: list`,
-#     `close_calls: list` (subset of verdicts within close_call_band_pct of
-#     threshold), and `gate_result: Literal[pass|fail|block]`.
-#
-#   mann_whitney_u(a: list[float], b: list[float]) -> (u, z, p_two_sided)
-#     Pure-stdlib Mann-Whitney U test (no scipy).  Returns the U statistic,
-#     normal-approximation z-score, and two-sided p-value.
-#
-#   decide(verdicts: dict, allow_golden_change: bool) -> dict
-#     Apply the final gate decision policy.  Returns {gate_result, ...}.
-#     Subject to --allow-golden-change flag on the quality.deterministic_hash
-#     mismatch verdict.
-#
-# Field mapping (user spec → bench.v3 schema, Cat-3 anti-dup):
-#   user_spec              →   schema field
-#   ────────────────────────────────────────────────────
-#   median                 →   metrics.median_frame_ms
-#   p95                    →   metrics.p95_frame_ms
-#   peak_rss               →   memory.peak_rss_mb
-#   full_frame_copies      →   counters.full_frame_passes  (semantic note in TICKET)
-#   allocations_per_frame  →   memory.allocations_per_frame
-#   output_hash            →   quality.deterministic_hash
-#
-# Per AGENTS.md §honest-limitation PARTIAL cert: this implementation uses the
-# Mann-Whitney normal approximation (technically exact for n1+n2 > 20).
-# For n1+n2 ≤ 20 the approximation underestimates tail probabilities; for the
-# gate's intended sample sizes (10-20 reruns against the baseline of N=1, the
-# exact version is preferred but impractical without scipy).  The standard
-# normal approximation is statistically SUFFICIENT for CI regression gate
-# purposes per the canonical `touchpoint_thresholds.yaml::perf_gate_v1` schema.
+# Refactor 2026-07-28 (perf-regression):
+#   Heavy lifting moved to tools/perf_regression/
+#     - parsers    (FIELD_MAP, parse_bench, _to_float/_to_str/_dig helpers)
+#     - stats      (mann_whitney_u)
+#     - compare    (compare_to_baseline + MEDIAN_PCT_KEY etc.)
+#     - verdict    (decide + diagnostic_text)
+# This file is now a stable CLI entry-point that re-exports the public API
+# for back-compat with callers (notably tools/check_perf_regression.sh).
+# The canonical API docstring lives in tools/perf_regression/__init__.py.
 # ════════════════════════════════════════════════════════════════════════════════
 from __future__ import annotations
 
@@ -60,18 +20,23 @@ import math
 import sys
 from typing import Any, Dict, List, Tuple
 
-__all__ = ["parse_bench", "compare_to_baseline", "mann_whitney_u", "decide"]
+# Make perf_regression package importable when this script is invoked
+# directly via `python3 tools/lib_perf_regression.py` (no `tools/` on
+# sys.path by default; we add its directory).
+import os
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
 
-# ── Field mapping (canonical bench.v3 schema) ───────────────────────────────
-FIELD_MAP: Dict[str, Tuple[str, str]] = {
-    # user_spec            → (json parent, json field)
-    "median":                ("metrics", "median_frame_ms"),
-    "p95":                   ("metrics", "p95_frame_ms"),
-    "peak_rss":              ("memory",  "peak_rss_mb"),
-    "full_frame_copies":     ("counters", "full_frame_passes"),  # semantic mapping
-    "allocations_per_frame": ("memory",  "allocations_per_frame"),
-    "output_hash":           ("quality", "deterministic_hash"),
-}
+from perf_regression.parsers import (  # noqa: E402
+    FIELD_MAP,
+    _to_float,
+    _to_str,
+    _dig,
+    parse_bench,
+)
+
+__all__ = ["parse_bench", "compare_to_baseline", "mann_whitney_u", "decide"]
 
 # Threshold keys (from configs/touchpoint_thresholds.yaml::perf_regression_gate)
 MEDIAN_PCT_KEY = "median_pct"
@@ -81,39 +46,7 @@ CLOSE_CALL_BAND_KEY = "close_call_band_pct"
 ALPHA_KEY      = "mann_whitney_alpha"
 
 
-def _to_float(x: Any) -> float:
-    """Coerce to float, raising a structured error on None / non-numeric."""
-    if x is None:
-        raise ValueError("bench.v3 field is None")
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        raise ValueError(f"non-numeric bench.v3 field: {x!r}")
-
-
-def _to_str(x: Any) -> str:
-    """Coerce to str, raising on None."""
-    if x is None:
-        raise ValueError("bench.v3 string field is None")
-    return str(x)
-
-
-def _dig(d: Dict[str, Any], parent: str, field: str) -> Any:
-    """Safely dig into a nested dict, returning None on miss."""
-    p = d.get(parent)
-    if not isinstance(p, dict):
-        return None
-    return p.get(field)
-
-
-# ── 1) parse_bench ──────────────────────────────────────────────────────────
-def parse_bench(path: str) -> Dict[str, Any]:
-    """Read a bench.v3 JSON report from disk."""
-    with open(path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-# ── 2) mann_whitney_u ───────────────────────────────────────────────────────
+# ── 2) mann_whitney_u ────────────────────────────────────────────────────────
 def mann_whitney_u(a: List[float], b: List[float]) -> Tuple[float, float, float]:
     """
     Pure-stdlib Mann-Whitney U test (no scipy).  Two-sided p-value via the
