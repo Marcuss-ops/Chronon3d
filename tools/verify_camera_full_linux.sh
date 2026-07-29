@@ -106,7 +106,7 @@ record_step() {
         FAILED=$((FAILED + 1))
     fi
     if [ "$blocked" -ne 0 ]; then
-        BLOCKED_ANY=$((BLOCKED + 1))
+        BLOCKED_ANY=$((BLOCKED_ANY + 1))
     fi
 }
 
@@ -160,7 +160,7 @@ if [ -f "$REPO_ROOT/docs/tickets/TICKET-120.md" ]; then
         TICKET_120_STATE="DONE"
     fi
 fi
-log "TICKET-120      : $TICKET_120_STATE (user spec: `Chronon Camera Full Implemented` claim REQUIRES GREEN)"
+log 'TICKET-120      : '"$TICKET_120_STATE"' (user spec: Chronon Camera Full Implemented claim REQUIRES GREEN)'
 log ""
 
 # ─── STEP 1: Clean build directory (dev preset) ──────────────────────

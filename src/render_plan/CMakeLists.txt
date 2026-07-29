@@ -17,12 +17,12 @@ add_library(chronon3d_render_plan_compiler OBJECT
 )
 
 target_include_directories(chronon3d_render_plan
-    PUBLIC  ${CMAKE_SOURCE_DIR}/include
+    PUBLIC  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_include_directories(chronon3d_render_plan_compiler
-    PUBLIC  ${CMAKE_SOURCE_DIR}/include
+    PUBLIC  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
