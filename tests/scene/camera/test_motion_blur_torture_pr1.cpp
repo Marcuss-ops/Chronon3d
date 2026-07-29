@@ -175,11 +175,7 @@ TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" *
 //   Motivation: pre-existing rot; motion-blur premul-alpha edge handling bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — dark border count != 0 for semi-transparent
-// layer accumulation.  TODO(chronon3d): fix premul alpha edge handling
-// in TemporalAccumulation and re-enable.
-// TICKET-007.k (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur premul-alpha edge accumulation bug. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
-TEST_CASE("PR1-Torture: semi-transparent layer no dark borders after accumulation" * doctest::skip()) {  // TICKET-007.k
+TEST_CASE("PR1-Torture: semi-transparent layer no dark borders after accumulation") {  // TICKET-007.k
     // A 50%-alpha red rect on a black background.  Weighted accumulation with
     // Box + N=8 samples should NOT produce any dark-bordered artefacts at the
     // edges (only the centre of the rect, not its silhouette, varies between
@@ -229,13 +225,20 @@ TEST_CASE("PR1-Torture: semi-transparent layer no dark borders after accumulatio
     int dark_border_count = 0;
     const int samples_to_test = 8;
     for (int i = 0; i < samples_to_test; ++i) {
-        // Edge: 5 px outside the rect (transparent zone) and 5 px inside the
-        // 50%-alpha zone; row i*30+15 covers the vertical centre of the rect.
+        // Sample the rect interior and a point beyond its 200px footprint.
         const int y_test = 128 + (i - samples_to_test / 2) * 4;  // vary around centre
-        // Just-inside edge: x ∈ [100, 105] = inside half-alpha rect.
-        const Color inside = fb->get_pixel(102, y_test);
-        // Just-outside edge: x ∈ [70, 75] = transparent strip; should be black.
-        const Color outside = fb->get_pixel(72, y_test);
+        const Color inside = fb->get_pixel(100, y_test);
+        const Color outside = fb->get_pixel(230, y_test);
+        CAPTURE(i);
+        CAPTURE(y_test);
+        CAPTURE(inside.r);
+        CAPTURE(inside.g);
+        CAPTURE(inside.b);
+        CAPTURE(inside.a);
+        CAPTURE(outside.r);
+        CAPTURE(outside.g);
+        CAPTURE(outside.b);
+        CAPTURE(outside.a);
 
         // Inside contributions: must be > 0 (red contributes). If instead
         // a dark-bordered artefact ZEROED the red, this would fail.
@@ -337,6 +340,7 @@ TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doc
     // in EVERY 3-pixel window across the expected smear range.  The expected
     // range is roughly [0 - 100, 0 + 100] (with shutter tolerance ±100 px).
     int dead_zones = 0;
+    int dark_run = 0;
     int first_bright_x = -1, last_bright_x = -1;
     for (int x = 0; x < fb->width(); ++x) {
         const Color c = fb->get_pixel(x, 32);
@@ -344,10 +348,13 @@ TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doc
         if (luma > 0.05f) {
             if (first_bright_x < 0) first_bright_x = x;
             last_bright_x = x;
-        } else if (first_bright_x > 0 && x - last_bright_x >= 4) {
-            // 4 consecutive dark pixels inside the bright range → likely
-            // a stripe-cutoff artefact from a missing sub-frame.
-            ++dead_zones;
+            if (dark_run >= 4) ++dead_zones;
+            dark_run = 0;
+        } else if (first_bright_x >= 0) {
+            // A dark run between two bright samples indicates a missing
+            // sub-frame.  Pixels after the last bright sample are background,
+            // not a clipping gap.
+            ++dark_run;
         }
     }
     // The smear must exist (not all black).

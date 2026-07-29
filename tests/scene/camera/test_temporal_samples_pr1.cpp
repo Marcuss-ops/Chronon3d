@@ -85,7 +85,7 @@ TEST_CASE("PR1: temporal::generate_temporal_samples — frame-keyed jitter diffe
 
     bool differs = false;
     for (int i = 0; i < a.num_samples(); ++i) {
-        if (!approx(a.normalized_weights[i], b.normalized_weights[i], 1e-6)) {
+        if (!approx(a.sample_times[i], b.sample_times[i], 1e-6)) {
             differs = true;
             break;
         }

@@ -21,6 +21,8 @@ using namespace chronon3d;
 
 namespace {
 
+const std::filesystem::path kFontsRoot{"assets/fonts"};
+
 TextDocument make_doc(const std::string& utf8) {
     TextDocument doc;
     doc.utf8 = utf8;
@@ -44,7 +46,7 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
 
-    auto result = build_text_run(doc, engine, layout);
+    auto result = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
     CHECK(result.size() == 0);
 }
 
@@ -68,8 +70,9 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::s
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     layout.tracking = 0.0f;
+    layout.wrap = TextWrap::None;
 
-    auto result = build_text_run(doc, engine, layout);
+    auto result = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
     REQUIRE(result.size() == 1);
 
     auto& l = result.paragraphs[0];
@@ -104,7 +107,7 @@ TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * docte
     TextLayoutSpec layout;
     layout.box = {800.0f, 600.0f};
 
-    auto result = build_text_run(doc, engine, layout);
+    auto result = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
     REQUIRE(result.size() == 3);
 
     CHECK(result.paragraphs[0]->source_text == "Line one");
@@ -128,7 +131,7 @@ TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * d
     TextLayoutSpec layout;
     layout.box = {800.0f, 400.0f};
 
-    auto result = build_text_run(doc, engine, layout);
+    auto result = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
     REQUIRE(result.size() == 3);
 
     CHECK(result.paragraphs[0]->source_text == "A");
@@ -168,7 +171,7 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
-    auto result = build_text_run(doc, engine, layout);
+    auto result = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
     REQUIRE(result.size() == 1);
 
     // The paragraph should have all 6 characters.
@@ -202,7 +205,7 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
-    auto result = build_text_run(doc, engine, layout);
+    auto result = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
     REQUIRE(result.size() == 1);
     // Should not crash — composer handles EveryLine.
     CHECK(result.paragraphs[0]->source_text == "Centered text");
@@ -223,10 +226,10 @@ TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
 
     TextLayoutCache cache(64 * 1024 * 1024);
 
-    auto r1 = build_text_run(doc, engine, layout, &cache);
+    auto r1 = build_text_run(doc, engine, layout, &cache, kFontsRoot);
     REQUIRE(r1.size() == 1);
 
-    auto r2 = build_text_run(doc, engine, layout, &cache);
+    auto r2 = build_text_run(doc, engine, layout, &cache, kFontsRoot);
     REQUIRE(r2.size() == 1);
 
     // Same pointer (cached).
@@ -246,8 +249,8 @@ TEST_CASE("TextRunBuilder: same input produces same output") {
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
-    auto a = build_text_run(doc, engine, layout);
-    auto b = build_text_run(doc, engine, layout);
+    auto a = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
+    auto b = build_text_run(doc, engine, layout, nullptr, kFontsRoot);
 
     REQUIRE(a.size() == b.size());
     for (size_t i = 0; i < a.size(); ++i) {
