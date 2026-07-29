@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-07-29.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@eab27b9b` (Glow V1 certificato; Camera runtime globale ancora PARTIAL; profili text V1 span-budgeted aggiunti).
+> Ultimo SHA osservato: `main@6a109376` (Glow V1 e Camera 2.5D V1 verificati sui target disponibili; certificazione combinata non ancora eseguita).
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,9 +28,9 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PARTIAL | Percorso descriptor → program → session; test camera dedicati, random access, framing, DOF, motion blur, shutter=0, LookAt e OrientAlongPath PASS. Gate full Linux non certificato: suite globale e build clean restano bloccate da blocker preesistenti/ambientali. |
+| Camera V1 | PASS focused | `main@6a109376`: descriptor → program → session, projection, random access, framing, DOF, motion blur, LookAt, OrientAlongPath, camera groups e composition unification PASS; full Linux orchestrator non eseguito perché richiede il preset `linux-fast-dev-test`. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow V1 | PASS | `main@05fdb4cd`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo. |
+| Glow V1 | PASS | `main@6a109376`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
