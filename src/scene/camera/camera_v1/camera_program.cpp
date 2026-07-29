@@ -82,7 +82,10 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
         if (len > 1e-4f) {
             look_dir = look_dir / len;
             const Quat orientation = quat_look_along(look_dir);
-            cam.rotation = quat_to_camera_euler(orientation, cam.rotation.z);
+            // LookAt owns the full orientation.  Do not preserve a residual
+            // modifier roll here; roll is represented explicitly by the
+            // orientation/constraint contract.
+            cam.rotation = quat_to_camera_euler(orientation, 0.0f);
             cam.point_of_interest = lap->target;
             cam.point_of_interest_enabled = true;
         }
@@ -106,7 +109,7 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
                 if (len > 1e-4f) {
                     look_dir = look_dir / len;
                     const Quat orientation = quat_look_along(look_dir);
-                    cam.rotation = quat_to_camera_euler(orientation, cam.rotation.z);
+                    cam.rotation = quat_to_camera_euler(orientation, 0.0f);
                     cam.point_of_interest = *world_pos;
                     cam.point_of_interest_enabled = true;
                 }

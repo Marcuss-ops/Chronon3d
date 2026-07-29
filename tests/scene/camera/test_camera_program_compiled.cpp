@@ -329,14 +329,11 @@ TEST_CASE("compiled_trajectory_motion_source — "
     CAPTURE(cam_end.position.z);
     CHECK(std::abs(cam_end.position.z - (-500.0f)) <= 2.0f);
 
-    // Structural guard: the camera MUST have moved noticeably from the
-    // start point z=-1500.  This catches a regression where `sample()`
-    // returns point[0] for every frame (e.g. segment-selection bug) AND
-    // would silently pass the ±2 px slack above — the broken math would
-    // still produce z≈-1500, which fails the structural check below
-    // (z<-1000 means the camera is past the midpoint of the segment),
-    // AND acts as a no-reverse guard (any positive excursion fails).
-    CHECK(cam_end.position.z < -1000.0f);
+    // Structural guard: the camera MUST have moved past the midpoint from
+    // the start point z=-1500.  This catches a regression where `sample()`
+    // returns point[0] for every frame while remaining consistent with the
+    // endpoint contract above.
+    CHECK(cam_end.position.z > -1000.0f);
 }
 
 TEST_CASE("compiled_registered_motion_ref_resolved — "
