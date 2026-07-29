@@ -6,6 +6,7 @@
 
 #include <array>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <variant>
@@ -209,7 +210,8 @@ TEST_CASE("lightweight profiles stay inside the constant-cost budget") {
         CHECK(animated_keyframe_count(*result) <= 5);
 
         auto compiled = *result;
-        compiled.compile();
+        auto& compiled_ref = compiled.compile();
+        CHECK(&compiled_ref == &compiled);
         CHECK(compiled.is_valid());
     }
 }
