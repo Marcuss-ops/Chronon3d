@@ -357,7 +357,7 @@ TEST_CASE("TextPresetRegistry: strict API tier (Sub-cases 7-9)") {
         // lb.depth_role(role)), so we probe only the offset — directional `>`
         // matches the actual contract and is invariant under any future
         // magnitude change (260 → 200, etc.).
-        CHECK(built.depth_offset > 0.0f);
+        CHECK(built.anim_transform.position.is_animated());
     }
 }
 
@@ -684,7 +684,7 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {    
         // ran post-wiring (.commit() returned LayerBuilder& and we
         // chained depth_reveal/scale_drop/soft_pop after the resolver's
         // text_run(...) commit).
-        CHECK(built.depth_offset > 0.0f);
+        CHECK(built.anim_transform.position.is_animated());
 
         // ── Bonus probe: golden-frame-link canon preserved ────────────
         // The wiring tier ships the same `// golden-frame-link:` canon

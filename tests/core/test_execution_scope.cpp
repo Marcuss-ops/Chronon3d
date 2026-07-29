@@ -442,11 +442,11 @@ TEST_CASE("ExecutionScope: kMaxScopeChainLength — make_child Err at boundary")
     RenderSession session;
     ChainSlotBuilder chain;
     ExecutionScope& root = chain.emplace_root(session, GraphInstanceId{0});
-    FrameArena child_arena;
+    std::array<FrameArena, kMaxScopeChainLength> child_arenas;
     ExecutionScope* deepest = &root;
     for (int i = 1; i < kMaxScopeChainLength; ++i) {
         deepest = &chain.emplace_child(
-            ExecutionScopeKind::Tile, session, child_arena,
+            ExecutionScopeKind::Tile, session, child_arenas[static_cast<std::size_t>(i)],
             GraphInstanceId{static_cast<std::uint64_t>(i)}, *deepest);
     }
     CHECK(deepest->chain_length() == kMaxScopeChainLength);

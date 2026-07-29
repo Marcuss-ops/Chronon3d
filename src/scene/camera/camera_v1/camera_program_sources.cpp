@@ -148,8 +148,14 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
 
     cam.position = src.position.evaluate(ctx.sample_time);
     cam.rotation = src.rotation.evaluate(ctx.sample_time);
-    cam.point_of_interest = src.target.evaluate(ctx.sample_time);
-    cam.point_of_interest_enabled = src.use_target;
+    // A pose track may animate position without owning the target channel.
+    // Preserve the descriptor's canonical point of interest in that case so
+    // downstream constraints (and the orientation contract) still see the
+    // authored target instead of an unused zero-valued track.
+    cam.point_of_interest = src.use_target
+        ? src.target.evaluate(ctx.sample_time)
+        : base.point_of_interest;
+    cam.point_of_interest_enabled = src.use_target || base.point_of_interest_enabled;
 
     apply_projection_spec(base.projection, ctx, cam);
     std::visit([&](auto&& p) {
