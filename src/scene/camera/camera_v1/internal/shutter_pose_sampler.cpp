@@ -79,7 +79,11 @@ Camera2_5D ShutterPoseSampler::evaluate(
     FrameRate frame_rate,
     const CameraEvaluatorFn& evaluator) const
 {
-    if (!::chronon3d::is_motion_blur_active(settings_) || settings_.samples <= 1) {
+    // A zero shutter is the exact no-blur contract, regardless of the
+    // selected temporal mode or sample count.  Returning the center pose
+    // also preserves bit-equivalence with MotionBlurMode::Off.
+    if (!::chronon3d::is_motion_blur_active(settings_) ||
+        settings_.samples <= 1 || settings_.shutter_angle_deg <= 0.0f) {
         SampleTime st = SampleTime::from_frame(frame, frame_rate);
         return evaluator(st);
     }
