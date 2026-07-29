@@ -304,14 +304,14 @@ TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
     CHECK(has_warning_message_containing(res45->diagnostics,
                                           "previous frame tangent"));
 
-    // Forward-direction sanity: last_tangent is +Z (from segment 0); rotation
-    // magnitude for the +Z look should be near identity OR at most a roll
-    // offset (roll_deg at the hold point is 0 since the trajectory point
-    // and the hold segment don't carry explicit roll).
+    // Forward-direction sanity: last_tangent is +Z (from segment 0).  The
+    // camera convention is forward=-Z, so looking along +Z is the canonical
+    // 180° Y orientation, with no pitch or roll.
     const Vec3 fwd_off =
         Vec3{res45->camera.rotation.x, res45->camera.rotation.y, 0.0f};
-    CHECK(rotation_l2(fwd_off) < 5.0f);
-    // roll should be small (the fallback step does not introduce new roll).
+    CHECK(fwd_off.x == doctest::Approx(0.0f).epsilon(0.5f));
+    CHECK(std::abs(std::abs(fwd_off.y) - 180.0f) < 0.5f);
+    // Roll should be small (the fallback step does not introduce new roll).
     CHECK(std::abs(res45->camera.rotation.z) < 1.0f);
 }
 
