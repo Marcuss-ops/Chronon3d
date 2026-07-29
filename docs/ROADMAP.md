@@ -30,8 +30,9 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
-> **Snapshot osservato (2026-07-29):** `main@eabf459a`. Glow V1 e Camera 2.5D
-> V1 PASS sui target verificati; i profili testuali leggeri PASS nei test
+> **Snapshot osservato (2026-07-29):** `main@fd4b24d4`. Glow V1 PASS sul gate
+> completo del build linux-ci-full-validation; Camera 2.5D V1 e i profili
+> testuali leggeri PASS nei test dedicati;
 > dedicati; `GlowCameraProductV1` ha smoke render CLI PASS, mentre Combined
 > Product completo e baseline cleanup restano NOT RUN.
 
