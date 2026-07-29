@@ -35,6 +35,7 @@ export CHRONON3D_CLI_ASSETS_ROOT="$REPO_ROOT"
 BINARY_CANDIDATES=(
     "build/chronon/linux-content-dev/apps/chronon3d_cli/chronon3d_cli"
     "build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli"
+    "build/chronon/linux-ci-full-validation/apps/chronon3d_cli/chronon3d_cli"
     "build/manual-test/apps/chronon3d_cli/chronon3d_cli"
 )
 BINARY=""
