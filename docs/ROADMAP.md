@@ -9,8 +9,8 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 
 Il repository resta vincolato alla certificazione sullo stesso SHA: il cleanup
 non è ancora promosso a `CLEAN-BASELINE`; Glow V1 e Camera 2.5D V1 sono
-verificati sui target disponibili, mentre la certificazione runtime globale e
-la composizione combinata restano da eseguire.
+verificati sui target disponibili. La fixture combinata compila e ha uno smoke
+render CLI reale, ma la certificazione prodotto globale resta da eseguire.
 Il lineage di cleanup osservato arriva a `main@20a102f3`: timing globale rimosso
 dal job, Render Plan tipizzato e preparato prima del frame, CLI unificata, C ABI
 isolata, ciclo base/animazioni spezzato, percorso non-modulare rimosso, adapter
@@ -30,9 +30,10 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
-> **Snapshot osservato (2026-07-29):** `main@6a109376`. Glow V1 PASS e Camera
-> 2.5D V1 PASS sui target verificati; i profili testuali leggeri PASS nei test
-> dedicati; Combined Product e baseline cleanup completa restano NOT RUN.
+> **Snapshot osservato (2026-07-29):** `main@eabf459a`. Glow V1 e Camera 2.5D
+> V1 PASS sui target verificati; i profili testuali leggeri PASS nei test
+> dedicati; `GlowCameraProductV1` ha smoke render CLI PASS, mentre Combined
+> Product completo e baseline cleanup restano NOT RUN.
 
 > **Snapshot (2026-07-15):** `main@04c1cb48` — current origin/main HEAD. 13/13 action plan closure landed earlier (see §13/13 Action Plan closure below). CI infrastructure: sanitizers nightly/weekly, renderer-boundary gate, test hygiene gate, CI status JSON artifact; **current HEAD non certificato** (multipli gate CI in fallimento sui commit recenti). Video pipeline: structured errors, memory budget, atomic output. Test coverage: frame rate 55 tests, determinism matrix 16 tests.
 
