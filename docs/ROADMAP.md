@@ -7,7 +7,9 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 
 ## Decisione corrente — Cleanup → Glow V1 → Camera 2.5D V1
 
-Il repository resta in cleanup fino a una baseline verificata sullo stesso SHA.
+Il repository resta vincolato alla certificazione sullo stesso SHA: il cleanup
+non è ancora promosso a `CLEAN-BASELINE`; Glow V1 è stato verificato, mentre
+Camera 2.5D V1 resta `PARTIAL` finché la suite runtime globale non è verde.
 Il lineage di cleanup osservato arriva a `main@20a102f3`: timing globale rimosso
 dal job, Render Plan tipizzato e preparato prima del frame, CLI unificata, C ABI
 isolata, ciclo base/animazioni spezzato, percorso non-modulare rimosso, adapter
@@ -26,6 +28,11 @@ L'ordine vincolante successivo è:
 
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
+
+> **Snapshot osservato (2026-07-29):** `main@ea5f9128`. Glow V1 PASS su
+> `main@05fdb4cd`; Camera V1 PARTIAL (test dedicati PASS, `TICKET-120`
+> ancora aperto); i profili testuali span-budgeted sono implementati ma non
+> costituiscono una certificazione Text V1 completa.
 
 > **Snapshot (2026-07-15):** `main@04c1cb48` — current origin/main HEAD. 13/13 action plan closure landed earlier (see §13/13 Action Plan closure below). CI infrastructure: sanitizers nightly/weekly, renderer-boundary gate, test hygiene gate, CI status JSON artifact; **current HEAD non certificato** (multipli gate CI in fallimento sui commit recenti). Video pipeline: structured errors, memory budget, atomic output. Test coverage: frame rate 55 tests, determinism matrix 16 tests.
 
