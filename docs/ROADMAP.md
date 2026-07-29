@@ -30,10 +30,9 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
-> **Snapshot osservato (2026-07-29):** `main@fd4b24d4`. Glow V1 PASS sul gate
-> completo del build linux-ci-full-validation; Camera 2.5D V1 e i profili
-> testuali leggeri PASS nei test dedicati;
-> dedicati; `GlowCameraProductV1` ha smoke render CLI PASS, mentre Combined
+> **Snapshot osservato (2026-07-29):** `main@a059b7e0`. Glow V1 e Camera 2.5D V1
+> PASS sui gate Linux disponibili; i profili testuali leggeri PASS nei test
+> dedicati. `GlowCameraProductV1` ha smoke render CLI PASS, mentre Combined
 > Product completo e baseline cleanup restano NOT RUN.
 
 > **Snapshot (2026-07-15):** `main@04c1cb48` — current origin/main HEAD. 13/13 action plan closure landed earlier (see §13/13 Action Plan closure below). CI infrastructure: sanitizers nightly/weekly, renderer-boundary gate, test hygiene gate, CI status JSON artifact; **current HEAD non certificato** (multipli gate CI in fallimento sui commit recenti). Video pipeline: structured errors, memory budget, atomic output. Test coverage: frame rate 55 tests, determinism matrix 16 tests.
