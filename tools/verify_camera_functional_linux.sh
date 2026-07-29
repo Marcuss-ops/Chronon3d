@@ -367,6 +367,10 @@ if [ "$BUILD_BLOCKED" = true ]; then
     echo ""
     echo "  Blocked by: TICKET-BUILD-ROT-CASCADE-CAMERA"
     exit 2
+elif [ "$BLOCKED_COUNT" -gt 0 ]; then
+    echo "CAMERA_FUNCTIONAL_BLOCKED"
+    echo "  $BLOCKED_COUNT gate(s) are blocked; a blocked gate cannot certify Camera V1."
+    exit 2
 elif [ "$FAIL_COUNT" -gt 0 ]; then
     echo "CAMERA_FUNCTIONAL_FAIL"
     echo "  $FAIL_COUNT gate(s) failed. See details above."
