@@ -126,7 +126,16 @@ void Scene::resolve_hierarchy(Frame frame) {
             auto it = name_to_index.find(std::string_view(m_camera_2_5d->target_name));
             if (it != name_to_index.end()) {
                 std::size_t target_idx = it->second;
-                m_camera_2_5d->point_of_interest = Vec3(results.at(target_idx).world_matrix[3]);
+                // The layer transform has already been decomposed into
+                // world space while preserving its authored anchor.  The
+                // decomposed position is translated by -anchor, so recover
+                // the semantic anchor point from the world linear part.
+                const Transform& baked_target = m_layers[target_idx].transform;
+                const Mat4 linear = glm::toMat4(baked_target.rotation) *
+                    glm::scale(Mat4(1.0f), baked_target.scale);
+                const Vec4 offset = linear * Vec4(baked_target.anchor, 0.0f);
+                m_camera_2_5d->point_of_interest = baked_target.position +
+                    Vec3{2.0f * offset.x, 2.0f * offset.y, 2.0f * offset.z};
                 m_camera_2_5d->point_of_interest_enabled = true;
             }
         }
