@@ -125,6 +125,35 @@ std::vector<TextAnimatorSpec> make_light_text_animators(
     return {std::move(spec)};
 }
 
+std::optional<TextAnimatorSpec> make_lightweight_emphasis_animator(
+    WordEmphasisKind kind,
+    std::optional<Color> accent,
+    Frame start_frame,
+    GlyphSelectorSpec selector,
+    std::string_view id_suffix) {
+    if (kind == WordEmphasisKind::None) return std::nullopt;
+    auto specs = make_light_text_animators(kind, accent, start_frame);
+    if (specs.empty()) return std::nullopt;
+    auto spec = std::move(specs.front());
+    spec.id = "light_emphasis_" +
+              std::string(token(canonical_kind(kind)).substr(
+                  0, token(canonical_kind(kind)).size() - 1));
+    if (!id_suffix.empty()) spec.id += "_" + std::string{id_suffix};
+    selector.id = selector.id.empty() ? spec.id + "_selector" : selector.id;
+    spec.selectors.clear();
+    spec.selectors.push_back(std::move(selector));
+    return spec;
+}
+
+std::vector<TextAnimatorSpec> make_word_emphasis_animators(
+    WordEmphasisKind kind,
+    std::optional<Color> accent,
+    Frame start_frame,
+    std::size_t span_count) {
+    if (kind == WordEmphasisKind::None || span_count == 0) return {};
+    return make_light_text_animators(kind, accent, start_frame, 0, 1);
+}
+
 std::vector<TextAnimatorSpec> make_light_text_animators_for_semantics(
     std::span<const std::string_view> semantic_ids,
     std::optional<Color> accent,
