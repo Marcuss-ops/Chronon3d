@@ -132,19 +132,6 @@ struct Segment {
     return chronon3d::interpolate(f, s, e, values.from, values.to, opts);
 }
 
-/// Interpolate with explicit scalar arguments (backward-compatible overload).
-[[nodiscard]] inline f32 interpolate(
-    Frame frame,
-    Frame start,
-    Frame end,
-    f32 from,
-    f32 to,
-    EasingCurve easing = EasingCurve{Easing::Linear}
-) {
-    return interpolate(frame, FrameRange{start, end}, ValueRange{from, to},
-                       InterpolateOptions{Extrapolate::Clamp, Extrapolate::Clamp, easing});
-}
-
 /// Interpolate between two Vec2 positions over a frame range.
 [[nodiscard]] inline Vec2 interpolate(
     Frame frame,
