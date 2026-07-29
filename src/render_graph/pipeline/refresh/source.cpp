@@ -36,11 +36,24 @@ void refresh_source_node(
         if (ctx.frame_input.has_camera_2_5d) {
             cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
         }
+        // Keep the refresh path byte-equivalent to append_root_sources():
+        // modular_coordinates is a policy flag, not a transform.  Passing
+        // it as the optional Mat4 previously converted `true` into an
+        // identity override and shifted root shapes from their authored
+        // centered placement on cache refresh.
+        std::optional<Mat4> matrix_override;
+        if (ctx.policy.modular_coordinates && src_node.shape.type() == ShapeType::Line) {
+            matrix_override = glm::translate(Mat4(1.0f), Vec3(
+                ctx.frame_input.width * 0.5f,
+                ctx.frame_input.height * 0.5f,
+                0.0f));
+        }
         node.refresh(
             std::string(src_node.name),
             src_node,
             key,
-            ctx.policy.modular_coordinates
+            matrix_override,
+            std::optional<f32>(src_node.world_transform.opacity)
         );
         return;
     }
