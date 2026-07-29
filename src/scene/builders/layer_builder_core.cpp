@@ -113,6 +113,11 @@ LayerBuilder& LayerBuilder::cache_static(bool value) {
 
 LayerBuilder& LayerBuilder::position(Vec3 p) {
     m_layer.transform.position = p;
+    // Keep the animated transform's static baseline in sync so a subsequent
+    // motion preset can animate from/to the authored position.
+    if (!m_layer.anim_transform.position.is_time_dependent()) {
+        m_layer.anim_transform.position.set(p);
+    }
     return *this;
 }
 
