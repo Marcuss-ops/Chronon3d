@@ -112,7 +112,6 @@ Composition shape_motion_proofs() {
             cp.commands = make_rounded_rect_commands({0.0f, 15.0f}, {120.0f, 120.0f}, 60.0f);
             cp.fill.enabled = false;
             cp.stroke = PathStroke{
-                .enabled = true,
                 .color = {0.1f, 0.85f, 0.45f, 1.0f},
                 .width = 10.0f,
                 .trim_start = 0.0f,
@@ -231,7 +230,6 @@ Composition shape_motion_proofs() {
             cp.stroke = PathStroke{.enabled = true, .color = {0.7f, 0.15f, 0.95f, 1.0f}, .width = 3.0f};
             l.path("rect", cp);
             l.effect(GlowParams{
-                .enabled = true,
                 .radius = 12.0f + pulse * 28.0f,
                 .intensity = 1.0f + pulse * 4.0f,
                 .color = {0.7f, 0.15f, 0.95f, 1.0f}

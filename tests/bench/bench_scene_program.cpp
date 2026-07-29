@@ -46,7 +46,7 @@ Scene make_test_scene(int num_layers) {
     SceneBuilder builder;
 
     // Background layer (always present)
-    builder.rect("bg", {.size = {1920, 1080}, .color = Color::gray()});
+    builder.rect("bg", {.size = {1920, 1080}, .color = Color{0.5f, 0.5f, 0.5f, 1.0f}});
 
     for (int i = 0; i < num_layers; ++i) {
         const std::string layer_name = "layer_" + std::to_string(i);
@@ -91,7 +91,7 @@ CompiledFrameGraph make_compiled_graph(int num_layers) {
 
         if (i % 2 == 0) {
             auto effect_id = graph.add_node(std::make_unique<EffectStackNode>(
-                EffectStack{}, layer_id, Frame{0}));
+                EffectStack{}, Frame{0}));
             graph.connect(xform_id, effect_id);
             ids.push_back(effect_id);
         }
@@ -266,7 +266,7 @@ static void BM_ProgramCacheHit(benchmark::State& state) {
     for (auto _ : state) {
         // Cycle through keys for realistic hit/miss pattern
         const uint64_t topo = 100 + (key_idx % 16);
-        auto* program = cache.find(make_key(topo));
+        auto program = cache.find(make_key(topo));
         benchmark::DoNotOptimize(program);
         ++key_idx;
     }
@@ -288,7 +288,7 @@ static void BM_ProgramCacheMiss(benchmark::State& state) {
     uint64_t unique_key = 10000;
 
     for (auto _ : state) {
-        auto* program = cache.find_or_compile(
+        auto program = cache.find_or_compile(
             make_key(unique_key++),
             CounterCompiler{compile_count});
         benchmark::DoNotOptimize(program);

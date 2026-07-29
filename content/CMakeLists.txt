@@ -192,4 +192,5 @@ target_sources(chronon3d_content PRIVATE
     #   - chronon_glow_final.cpp  (implementation companion)
     # Both live in chronon3d::content::glow_final namespace.
     compositions/chronon_glow_final.cpp
+    compositions/glow_camera_product_v1.cpp
 )
