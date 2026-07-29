@@ -29,7 +29,7 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
-> **Snapshot osservato (2026-07-29):** `main@ea5f9128`. Glow V1 PASS su
+> **Snapshot osservato (2026-07-29):** `main@eab27b9b`. Glow V1 PASS su
 > `main@05fdb4cd`; Camera V1 PARTIAL (test dedicati PASS, `TICKET-120`
 > ancora aperto); i profili testuali span-budgeted sono implementati ma non
 > costituiscono una certificazione Text V1 completa.

@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-07-29.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@ea5f9128` (Glow V1 certificato; Camera runtime globale ancora PARTIAL; profili text V1 span-budgeted aggiunti).
+> Ultimo SHA osservato: `main@eab27b9b` (Glow V1 certificato; Camera runtime globale ancora PARTIAL; profili text V1 span-budgeted aggiunti).
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,7 +28,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PARTIAL | Percorso descriptor → program → session; test camera dedicati, random access, framing, DOF, motion blur e OrientAlongPath valido PASS. Suite scene/runtime globale ancora FAIL per residui TICKET-120 e golden placeholder. |
+| Camera V1 | PARTIAL | Percorso descriptor → program → session; test camera dedicati, random access, framing, DOF, motion blur, shutter=0, LookAt e OrientAlongPath PASS. Gate full Linux non certificato: suite globale e build clean restano bloccate da blocker preesistenti/ambientali. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
 | Glow V1 | PASS | `main@05fdb4cd`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
@@ -71,7 +71,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Diagnostics cert (Test P2) | WIRED / NOT RUN | `verify_diagnostics_linux.sh` usa solo `render`, richiede 10 codici stabili e restituisce BLOCKED quando manca la verifica runtime; nessun PASS parziale. |
 | Determinism spec completeness (amend) | PASS | Verified via chronon3d_cli on `BenchB01_StaticText1080p`: 5 identical renders of frame 30 and random-order sequence (30, 0, 60, 15, 30) produced identical SHA-256 hashes. |
 | Compositing spec completeness (amend) | WIRED | `verify_compositing_effects_linux.sh` 10→14 effects. |
-| Camera full cert (Test GLOW-CERT sibling) | NOT RUN | `verify_camera_full_linux.sh` è presente e fail-loud; nessuna esecuzione verde sul lineage cleanup. |
+| Camera full cert (Test GLOW-CERT sibling) | FAIL | `verify_camera_full_linux.sh` eseguito sul lineage corrente: prima collisione overload di `interpolate`, poi filesystem pieno durante il link; nessun PASS certificato. |
 | SDK consumer functional (Test P1 sibling) | WIRED | Consumer esterno esistente + nuovo `check_assets`: include authoring espliciti, image/font logical refs, due engine/root e CWD isolation. |
 | Render runtime cert (Test P3) | WIRED | `verify_render_runtime_linux.sh` 4 distinct sha256. |
 | Asset preflight cert (Test #7 sibling) | WIRED | `verify_asset_preflight_linux.sh` 10 sabotage scenarios. |
