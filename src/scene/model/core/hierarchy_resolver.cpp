@@ -47,6 +47,30 @@ const ResolvedNode& HierarchyResolver::resolved(std::size_t index) const {
 // ── compute_depths() — cycle-safe DFS to determine max depth per node ──────
 
 void HierarchyResolver::compute_depths() {
+    // Mark every node that belongs to a parent cycle before resolving depth.
+    // The depth walk is intentionally cycle-safe, but returning depth zero
+    // alone used to lose the diagnostic flag for the whole A↔B chain.
+    for (std::size_t start = 0; start < m_nodes.size(); ++start) {
+        std::vector<std::size_t> path;
+        std::vector<int> path_index(m_nodes.size(), -1);
+        std::size_t current = start;
+        while (current < m_nodes.size() && path_index[current] < 0) {
+            path_index[current] = static_cast<int>(path.size());
+            path.push_back(current);
+            if (!m_nodes[current].parent) break;
+            current = *m_nodes[current].parent;
+        }
+        // Reaching a root terminates the walk normally; only a repeated
+        // node while following an actual parent edge is a cycle.
+        if (current < m_nodes.size() && m_nodes[current].parent.has_value() &&
+            path_index[current] >= 0) {
+            for (std::size_t i = static_cast<std::size_t>(path_index[current]);
+                 i < path.size(); ++i) {
+                m_results[path[i]].cycle_detected = true;
+            }
+        }
+    }
+
     std::vector<bool> visiting(m_nodes.size(), false);
 
     auto get_depth = [&](auto& self, std::size_t idx) -> int {

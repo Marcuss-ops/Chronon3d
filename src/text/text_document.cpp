@@ -112,7 +112,9 @@ bool TextDocument::validate() const {
 
         // Bounds
         if (p.byte_start > len || p.byte_end > len) return false;
-        if (p.byte_start >= p.byte_end) return false;
+        // Empty ranges are valid paragraph records for consecutive hard
+        // breaks (for example "A\n\nC").
+        if (p.byte_start > p.byte_end) return false;
 
         // Sorted + non-overlapping
         if (p.byte_start < prev_end) return false;
@@ -191,14 +193,8 @@ size_t TextDocument::split_paragraphs(const ParagraphStyle& default_style) {
                 i += 2;        // loop will increment the last byte
                 para_start = i + 1;
             } else {
-                // '\n': collapse consecutive newlines into a single break.
-                // \n\n means one paragraph boundary, not two.
-                size_t next = i + 1;
-                while (next < len && utf8[next] == '\n') {
-                    ++next;
-                }
-                i = next - 1;   // loop increment will move to `next`
-                para_start = next;
+                // Keep consecutive newlines as explicit empty paragraphs.
+                para_start = i + 1;
             }
         }
     }

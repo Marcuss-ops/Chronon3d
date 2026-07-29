@@ -160,9 +160,12 @@ TEST_CASE("SceneBuilder active/inactive layer lifecycle filters") {
         })
         .build();
 
-    // The inactive layer is filtered out at frame 10 because it starts at 50
-    REQUIRE(scene.layers().size() == 1);
+    // SceneBuilder preserves authored layers. Runtime evaluation applies the
+    // canonical active_at(frame) predicate at render time.
+    REQUIRE(scene.layers().size() == 2);
     CHECK(scene.layers()[0].name == "active-layer");
+    CHECK(scene.layers()[0].active_at(Frame{10}));
+    CHECK_FALSE(scene.layers()[1].active_at(Frame{10}));
 }
 
 TEST_CASE("SceneBuilder layer adjustment mapping") {
