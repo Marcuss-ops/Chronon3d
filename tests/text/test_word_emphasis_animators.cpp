@@ -78,6 +78,33 @@ TEST_CASE("parse_emphasis_prefix — recognised prefixes") {
         CHECK(r.kind == WordEmphasisKind::None);
         CHECK(r.remainder == std::string_view{"NAME:Marco"});
     }
+    SUBCASE("V1 profile prefixes") {
+        CHECK(parse_emphasis_prefix("base:hello").kind == WordEmphasisKind::Base);
+        CHECK(parse_emphasis_prefix("phrase:hello").kind == WordEmphasisKind::Phrase);
+        CHECK(parse_emphasis_prefix("word:hello").kind == WordEmphasisKind::Word);
+    }
+}
+
+TEST_CASE("make_light_text_animators — span budget and canonical selectors") {
+    const auto base = make_light_text_animators(WordEmphasisKind::Base, std::nullopt, Frame{0});
+    REQUIRE(base.size() == 1);
+    CHECK(base.front().selectors.size() == 1);
+    CHECK(base.front().selectors.front().unit == TextSelectorUnit::Word);
+    CHECK(base.front().properties.size() == 2);
+
+    const auto name = make_light_text_animators(
+        WordEmphasisKind::Name, Color{1.0f, 0.2f, 0.1f, 1.0f}, Frame{10}, 1, 3);
+    REQUIRE(name.size() == 1);
+    CHECK(name.front().selectors.size() == 1);
+    CHECK(name.front().properties.size() == 3);
+    CHECK(name.front().selectors.front().start.default_value() == doctest::Approx(33.3333f));
+    CHECK(name.front().selectors.front().end.default_value() == doctest::Approx(66.6667f));
+
+    const auto word = make_light_text_animators(WordEmphasisKind::Word, std::nullopt, Frame{0});
+    REQUIRE(word.size() == 1);
+    CHECK(word.front().selectors.front().unit == TextSelectorUnit::Word);
+    CHECK(word.front().properties.size() == 2);
+    CHECK(make_light_text_animators(WordEmphasisKind::Word, std::nullopt, Frame{0}, 3, 3).empty());
 }
 
 // ── is_emphasis_kind ─────────────────────────────────────────────────────
