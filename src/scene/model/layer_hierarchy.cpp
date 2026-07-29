@@ -180,9 +180,23 @@ ResolvedCamera resolve_camera_hierarchy(
             // to {0,0,0}), which made the POI resolve to the layer's world
             // origin instead of the anchor world point. See test
             // "Camera hierarchy: target with anchor resolves POI to anchor".
-            out.camera.point_of_interest = detail::world_anchor_point(
-                layers[target_idx].transform,
-                target_result.world_matrix);
+            if (!layers.empty() && layers[0].hierarchy_resolved) {
+                // Scene::resolve_hierarchy stores the decomposed world
+                // transform while preserving the authored anchor.  Its
+                // position is therefore translated by -anchor already;
+                // applying the world linear part twice recovers the
+                // authored anchor point without baking the hierarchy twice.
+                const Transform& baked = layers[target_idx].transform;
+                const Mat4 linear = glm::toMat4(baked.rotation) *
+                    glm::scale(Mat4(1.0f), baked.scale);
+                const Vec4 offset = linear * Vec4(baked.anchor, 0.0f);
+                out.camera.point_of_interest = baked.position +
+                    Vec3{2.0f * offset.x, 2.0f * offset.y, 2.0f * offset.z};
+            } else {
+                out.camera.point_of_interest = detail::world_anchor_point(
+                    layers[target_idx].transform,
+                    target_result.world_matrix);
+            }
             out.camera.point_of_interest_enabled = true;
         }
     }
