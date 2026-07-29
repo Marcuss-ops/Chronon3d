@@ -166,7 +166,7 @@ TEST_CASE("TextPresetDescriptor: first-property-kind mapping for representative 
         // minimal_white: no resolver output, predicate unused.
         {"yellow_keyword",          [](const auto& p){ return std::holds_alternative<O>(p); }},
         {"glow_pulse",              [](const auto& p){ return std::holds_alternative<T>(p); }},
-        {"caption_box",             [](const auto& p){ return std::holds_alternative<P>(p); }},
+        {"caption_box",             [](const auto& p){ return std::holds_alternative<O>(p); }},
     };
 
     SUBCASE("C1) for the 21 motion presets, compose_for(<id>).properties[0] matches the expected first-kind") {
