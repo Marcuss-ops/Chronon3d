@@ -213,6 +213,7 @@ chronon3d_add_test_suite(
         renderer/effects/test_glow_pipeline_unit.cpp
         renderer/effects/test_glow_torture.cpp
         renderer/effects/test_invariants.cpp
+        visual/glow_ab/glow_ab_acceptance.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_effects_tests)
 

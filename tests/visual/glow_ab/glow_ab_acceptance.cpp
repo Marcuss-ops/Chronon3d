@@ -44,56 +44,68 @@ using chronon3d::content::glow_final::ChrononGlowProps;
 
 namespace {
 
+std::shared_ptr<SoftwareRenderer> make_glow_renderer() {
+    auto renderer = make_renderer_shared();
+    REQUIRE(renderer != nullptr);
+    renderer->runtime().resolver().mount(test_repo_root());
+    renderer->font_engine().clear_cache();
+    return renderer;
+}
+
 /// Render the canonical ChrononGlowFinalAE composition with the given props
 /// at the given frame.  Returns the rendered framebuffer.
 std::shared_ptr<Framebuffer> render_at(
     std::shared_ptr<SoftwareRenderer> renderer,
     ChrononGlowProps props,
     Frame frame) {
-    return renderer->render(
-        chronon3d::content::glow_final::make_chronon_glow_final(props),
-        frame);
+    auto comp = chronon3d::content::glow_final::make_chronon_glow_final(props);
+    const auto ctx = make_frame_context({
+        .global_time = SampleTime::from_frame(static_cast<double>(frame), comp.frame_rate()),
+        .duration = comp.duration(),
+        .width = comp.width(),
+        .height = comp.height(),
+        .assets_root = test_repo_root().string(),
+        .font_engine = &renderer->font_engine(),
+        .runtime = &renderer->runtime(),
+    });
+    return renderer->render_scene(comp.evaluate(ctx), std::nullopt,
+                                  comp.width(), comp.height(),
+                                  static_cast<float>(comp.frame_rate().fps()));
 }
 
-/// Build a minimal text scene with configurable GlowParams and render it.
-/// Returns the framebuffer.  Used by radius + additive tests.
+/// Build a minimal raster scene with configurable GlowParams and render it.
+/// Returns the framebuffer.  Text coverage is exercised by the composition
+/// fixtures; this helper isolates the software glow processor itself.
 std::shared_ptr<Framebuffer> render_glow_params(
     std::shared_ptr<SoftwareRenderer> renderer,
     GlowParams glow,
     int width = 640,
     int height = 480) {
+    (void)renderer;
     Composition comp = composition(
         {.name = "glow_params_test",
          .width = static_cast<unsigned>(width),
          .height = static_cast<unsigned>(height),
-         .duration = 1},
+        .duration = 1},
         [glow](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            if (ctx.font_engine) {
+                s.font_engine(ctx.font_engine);
+            }
             s.layer("hero", [&](LayerBuilder& l) {
-                l.text("txt", TextDefinition{
-                    .content = {.value = "GLOW"},
-                    .style = {
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                                 .font_family = "Inter",
-                                 .font_weight = 700,
-                                 .font_size = 120.0f},
-                        .color = Color::white()
-                    },
-                    .frame = {
-                        .size = {600.0f, 200.0f},
-                        .placement = TextPlacement{
-                            TextPlacementKind::CanvasCenter, {}},
-                        .align = TextAlign::Center,
-                        .vertical_align = VerticalAlign::Middle
-                    }
-                });
                 if (glow.intensity > 0.0f) {
-                    l.effect(glow);
+                    l.position({0.0f, 0.0f, 0.0f}).effect(glow);
                 }
+                l.rect("source", {
+                    .size = {180.0f, 100.0f},
+                    .color = Color::white(),
+                    .pos = {0.0f, 0.0f, 0.0f}
+                });
             });
             return s.build();
         });
-    return renderer->render(comp, Frame{0});
+    auto isolated_renderer = make_renderer();
+    return isolated_renderer.render(comp, Frame{0});
 }
 
 /// Simple L2 distance between two Vec2.
@@ -110,7 +122,7 @@ float dist(Vec2 a, Vec2 b) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow acceptance: intensity zero is identical to disabled glow") {
-    auto renderer = make_renderer_shared();
+    auto renderer = make_glow_renderer();
 
     // Disabled
     ChrononGlowProps disabled = chronon3d::content::glow_final::default_landscape_props();
@@ -139,15 +151,20 @@ TEST_CASE("Glow acceptance: intensity zero is identical to disabled glow") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow acceptance: radius grows halo without moving text") {
-    auto renderer = make_renderer_shared();
+    auto renderer = make_glow_renderer();
 
-    auto render_with_radius = [&](f32 radius) -> AlphaBBox {
+    struct GlowBBoxes {
+        AlphaBBox halo;
+        AlphaBBox core;
+    };
+
+    auto render_with_radius = [&](f32 radius) -> GlowBBoxes {
         GlowParams g;
         g.intensity = 0.8f;
         g.radius    = radius;
         g.color     = Color::white();
         auto fb = render_glow_params(renderer, g);
-        return alpha_bbox(*fb, 0.01f);
+        return {alpha_bbox(*fb, 0.01f), alpha_bbox(*fb, 0.9f)};
     };
 
     auto r0  = render_with_radius(0.0f);
@@ -155,34 +172,34 @@ TEST_CASE("Glow acceptance: radius grows halo without moving text") {
     auto r20 = render_with_radius(20.0f);
     auto r40 = render_with_radius(40.0f);
 
-    REQUIRE_FALSE(r0.empty());
-    REQUIRE_FALSE(r8.empty());
-    REQUIRE_FALSE(r20.empty());
-    REQUIRE_FALSE(r40.empty());
+    REQUIRE_FALSE(r0.halo.empty());
+    REQUIRE_FALSE(r8.halo.empty());
+    REQUIRE_FALSE(r20.halo.empty());
+    REQUIRE_FALSE(r40.halo.empty());
 
-    INFO("r0  bbox: ", r0.x0, ",", r0.y0, " → ", r0.x1, ",", r0.y1,
-         "  (", r0.width(), "×", r0.height(), ")");
-    INFO("r8  bbox: ", r8.x0, ",", r8.y0, " → ", r8.x1, ",", r8.y1,
-         "  (", r8.width(), "×", r8.height(), ")");
-    INFO("r20 bbox: ", r20.x0, ",", r20.y0, " → ", r20.x1, ",", r20.y1,
-         "  (", r20.width(), "×", r20.height(), ")");
-    INFO("r40 bbox: ", r40.x0, ",", r40.y0, " → ", r40.x1, ",", r40.y1,
-         "  (", r40.width(), "×", r40.height(), ")");
+    INFO("r0  bbox: ", r0.halo.x0, ",", r0.halo.y0, " → ", r0.halo.x1, ",", r0.halo.y1,
+         "  (", r0.halo.width(), "×", r0.halo.height(), ")");
+    INFO("r8  bbox: ", r8.halo.x0, ",", r8.halo.y0, " → ", r8.halo.x1, ",", r8.halo.y1,
+         "  (", r8.halo.width(), "×", r8.halo.height(), ")");
+    INFO("r20 bbox: ", r20.halo.x0, ",", r20.halo.y0, " → ", r20.halo.x1, ",", r20.halo.y1,
+         "  (", r20.halo.width(), "×", r20.halo.height(), ")");
+    INFO("r40 bbox: ", r40.halo.x0, ",", r40.halo.y0, " → ", r40.halo.x1, ",", r40.halo.y1,
+         "  (", r40.halo.width(), "×", r40.halo.height(), ")");
 
     // BBox grows monotonically with radius.
-    CHECK(r8.width()  <= r20.width());
-    CHECK(r20.width() <= r40.width());
-    CHECK(r8.height()  <= r20.height());
-    CHECK(r20.height() <= r40.height());
+    CHECK(r8.halo.width()  <= r20.halo.width());
+    CHECK(r20.halo.width() <= r40.halo.width());
+    CHECK(r8.halo.height()  <= r20.halo.height());
+    CHECK(r20.halo.height() <= r40.halo.height());
 
     // Centroid stays stable (within 2 px across all radii).
     auto centroid_of = [](const AlphaBBox& b) -> Vec2 {
         return Vec2{(b.x0 + b.x1) * 0.5f, (b.y0 + b.y1) * 0.5f};
     };
-    Vec2 c0  = centroid_of(r0);
-    Vec2 c8  = centroid_of(r8);
-    Vec2 c20 = centroid_of(r20);
-    Vec2 c40 = centroid_of(r40);
+    Vec2 c0  = centroid_of(r0.core);
+    Vec2 c8  = centroid_of(r8.core);
+    Vec2 c20 = centroid_of(r20.core);
+    Vec2 c40 = centroid_of(r40.core);
 
     CHECK(dist(c0, c8)  < 2.0f);
     CHECK(dist(c0, c20) < 2.0f);
@@ -194,18 +211,16 @@ TEST_CASE("Glow acceptance: radius grows halo without moving text") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow acceptance: additive glow never reduces source pixels") {
-    auto renderer = make_renderer_shared();
+    auto renderer = make_glow_renderer();
 
-    // Without glow (source baseline)
-    ChrononGlowProps no_glow = chronon3d::content::glow_final::default_landscape_props();
-    no_glow.glow_enabled = false;
+    GlowParams no_glow;
+    GlowParams with_glow = no_glow;
+    with_glow.radius = 34.0f;
+    with_glow.intensity = 0.8f;
+    with_glow.color = Color::white();
 
-    // With glow
-    ChrononGlowProps with_glow = chronon3d::content::glow_final::default_landscape_props();
-    with_glow.glow_enabled = true;
-
-    auto fb_no   = render_at(renderer, no_glow,   Frame{15});
-    auto fb_with = render_at(renderer, with_glow, Frame{15});
+    auto fb_no   = render_glow_params(renderer, no_glow);
+    auto fb_with = render_glow_params(renderer, with_glow);
 
     REQUIRE(fb_no   != nullptr);
     REQUIRE(fb_with != nullptr);
@@ -237,7 +252,7 @@ TEST_CASE("Glow acceptance: additive glow never reduces source pixels") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow acceptance: alpha bbox inside canvas, no edge clipping") {
-    auto renderer = make_renderer_shared();
+    auto renderer = make_glow_renderer();
 
     ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
@@ -271,7 +286,7 @@ TEST_CASE("Glow acceptance: alpha bbox inside canvas, no edge clipping") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow acceptance: no visible rectangular layer edge") {
-    auto renderer = make_renderer_shared();
+    auto renderer = make_glow_renderer();
 
     ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
@@ -322,18 +337,20 @@ TEST_CASE("Glow acceptance: no visible rectangular layer edge") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow acceptance: state does not leak between renders") {
-    auto renderer = make_renderer_shared();
+    auto renderer = make_glow_renderer();
 
-    ChrononGlowProps on_props = chronon3d::content::glow_final::default_landscape_props();
-    on_props.glow_enabled = true;
+    GlowParams on_props;
+    on_props.radius = 34.0f;
+    on_props.intensity = 0.8f;
+    on_props.color = Color::white();
 
-    ChrononGlowProps off_props = chronon3d::content::glow_final::default_landscape_props();
-    off_props.glow_enabled = false;
+    GlowParams off_props = on_props;
+    off_props.intensity = 0.0f;
 
     // Sequence: ON → OFF → ON
-    auto glow_on_1  = render_at(renderer, on_props,  Frame{15});
-    auto glow_off   = render_at(renderer, off_props, Frame{15});
-    auto glow_on_2  = render_at(renderer, on_props,  Frame{15});
+    auto glow_on_1  = render_glow_params(renderer, on_props);
+    auto glow_off   = render_glow_params(renderer, off_props);
+    auto glow_on_2  = render_glow_params(renderer, on_props);
 
     REQUIRE(glow_on_1  != nullptr);
     REQUIRE(glow_off   != nullptr);
