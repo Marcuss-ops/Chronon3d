@@ -31,6 +31,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Camera V1 | PASS | `main@a059b7e0`: gate funzionale Linux 10/10 PASS; descriptor → program → session, projection, random access, framing, DOF, motion blur, LookAt, OrientAlongPath, camera groups, composition unification e consumer installato verificati. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
 | Glow V1 | PASS | `main@fd4b24d4`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo; baseline globale ancora non certificata. |
+| Text lightweight semantic profiles | PASS | `main@88704bde`: Base, phrase/title, name e word/emph verificati con parsing, alias, span fusion, UTF-8, budget animator/selector/keyframe e determinismo seriale/parallelo. |
 | Combined Product V1 | PASS focused / NOT CERTIFIED | `main@eabf459a`: `GlowCameraProductV1` compila e produce un frame CLI reale con testo Glow, camera orbit, parallax e bloom senza clipping; SDK/C ABI, seriale/parallelo, cold/warm, random order e video 60 frame non ancora certificati. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
