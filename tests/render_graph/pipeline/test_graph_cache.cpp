@@ -31,7 +31,9 @@ static std::shared_ptr<Framebuffer> render_frame(
         renderer.render_settings(),
         renderer.composition_registry(),
         renderer.video_decoder(),
-        30.0f
+        30.0f,
+        {},
+        &renderer
     );
 }
 
@@ -152,15 +154,18 @@ TEST_CASE("GraphCache - pixel output matches non-cached path" * doctest::skip())
     REQUIRE(fb_cached != nullptr);
     CHECK(renderer_cached.counters()->graph_cache_hits.load() >= 1);
 
-    // --- Non-cached path: clear graph cache before every frame ---
+    // --- Non-cached path: invalidate only the compiled graph ---
+    // Preserve framebuffer/session setup while forcing a fresh graph build;
+    // clearing the whole renderer also clears the output pool and is not a
+    // valid pixel reference for this comparison.
     auto renderer_fresh = test::make_renderer();
     RenderSettings settings_f = renderer_fresh.render_settings();
     settings_f.dirty.enabled = false;
     renderer_fresh.set_settings(settings_f);
     cache::NodeCache node_cache_fresh;
-
     render_frame(renderer_fresh, node_cache_fresh, scene, camera, Frame{0});
-    renderer_fresh.clear_caches(); // invalidate graph cache
+    renderer_fresh.graph_cache().reset();
+
     auto fb_fresh = render_frame(renderer_fresh, node_cache_fresh, scene, camera, Frame{2});
     REQUIRE(fb_fresh != nullptr);
     CHECK(renderer_fresh.counters()->graph_cache_hits.load() == 0);
