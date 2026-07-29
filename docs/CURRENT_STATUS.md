@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> Ultima revisione semantica: 2026-07-28.
+> Ultima revisione semantica: 2026-07-29.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato prima di questo allineamento: `main@20a102f3` (cleanup commit 1–9 pushed; build/runtime certification NOT RUN).
+> Ultimo SHA osservato: `main@ea5f9128` (Glow V1 certificato; Camera runtime globale ancora PARTIAL; profili text V1 span-budgeted aggiunti).
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,9 +28,9 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | NOT RUN | Percorso descriptor → program → session già presente; certificazione funzionale, random access, framing, OrientAlongPath, DOF e motion blur restano da eseguire sullo SHA cleanup. |
+| Camera V1 | PARTIAL | Percorso descriptor → program → session; test camera dedicati, random access, framing, DOF, motion blur e OrientAlongPath valido PASS. Suite scene/runtime globale ancora FAIL per residui TICKET-120 e golden placeholder. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow V1 | NOT RUN | Dopo la baseline cleanup: un solo `GlowEffectSpec`, algoritmo CPU canonico, animazione continua, bbox/alpha/determinismo e video 60-frame da certificare. Lo stato storico Glow Final non è una certificazione del lineage corrente. |
+| Glow V1 | PASS | `main@05fdb4cd`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
@@ -56,7 +56,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
 | 10-point friction audit | DONE (2026-07-08) | Lineage closed. |
 | SDK Product V1 (manifest + image-layer) | PASS baseline / WIRED authoring | forward-points 0e+0f+0g+0h+ closed nella baseline; authoring asset install extension attende verifica. |
-| Glow certification (Test GLOW-CERT) | NOT RUN | Harness esistente; nuova certificazione bloccata fino alla baseline cleanup e alla disponibilità del toolchain. |
+| Glow certification (Test GLOW-CERT) | PASS | `main@05fdb4cd`: `tools/check_glow_certification.sh` PASS su 6 fasi e 3 run deterministici. |
 | Fail-loud errors (Test #7) | WIRED | Gate esistente + nuovo confine SDK: un errore interno impedisce la restituzione di framebuffer parziali come successo. |
 | Costo reale (Test #11 render-cost) | WIRED | `measure_render_cost.sh` + `docs/scorecard.csv` 9-col. |
 | Manual touches per video (Test #19) | WIRED (HARNESS-COMPLETE) | `check_manual_touches_per_video.sh` + 4-phase thresholds. |
