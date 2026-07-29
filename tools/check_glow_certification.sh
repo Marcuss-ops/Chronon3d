@@ -29,6 +29,7 @@ GATE_NAME=check_glow_certification
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
+export CHRONON3D_CLI_ASSETS_ROOT="$REPO_ROOT"
 
 # ── Phase 0: binary presence check ─────────────────────────────────────
 BINARY_CANDIDATES=(
@@ -53,28 +54,23 @@ if [ -z "$BINARY" ]; then
     exit 1
 fi
 
-BUILD_DIR="$(dirname "$(dirname "$BINARY")")"
+BUILD_DIR="$(dirname "$(dirname "$(dirname "$BINARY")")")"
 
 # ── Phase 1: ctest glow tests ──────────────────────────────────────────
 echo "=== Phase 1: ctest glow tests ==="
 FAILED_CTEST=0
 
-GLOW_TESTS=(
-    "GlowAcceptance"
-    "GlowTemporal"
-    "GlowDeterminism"
-    "TextGlowSmoke"
-)
-
-for test_name in "${GLOW_TESTS[@]}"; do
-    echo "--- ctest -R $test_name ---"
-    if ctest --test-dir "$BUILD_DIR" -R "$test_name" --output-on-failure -j"$(nproc)"; then
-        echo "  PASS: $test_name"
-    else
-        echo "  FAIL: $test_name" >&2
-        FAILED_CTEST=1
-    fi
-done
+GLOW_TEST_REGEX='^(chronon3d_effects_tests|chronon3d_pipeline_parity_real_tests|chronon3d_glow_fullframe_audit_tests|Ae08GlowPositionDrift)$'
+MATCHED_TESTS="$(ctest --test-dir "$BUILD_DIR" -N -R "$GLOW_TEST_REGEX" 2>/dev/null | awk '/Test[[:space:]]+#[0-9]+:/{count++} END{print count+0}')"
+if [ "$MATCHED_TESTS" -eq 0 ]; then
+    echo "GATE_FAIL: no Glow certification tests are registered in $BUILD_DIR" >&2
+    exit 1
+fi
+echo "--- ctest -R $GLOW_TEST_REGEX ($MATCHED_TESTS registered tests) ---"
+if ! ctest --test-dir "$BUILD_DIR" -R "$GLOW_TEST_REGEX" --output-on-failure -j"$(nproc)"; then
+    echo "GATE_FAIL: one or more Glow certification suites failed" >&2
+    FAILED_CTEST=1
+fi
 
 if [ "$FAILED_CTEST" -ne 0 ]; then
     echo "GATE_FAIL: one or more ctest glow suites failed" >&2
@@ -92,11 +88,11 @@ NO_GLOW="$OUTPUT_DIR/no_glow.png"
 if [ ! -f "$WITH_GLOW" ] || [ ! -f "$NO_GLOW" ]; then
     echo "--- Rendering A/B pair ---"
     mkdir -p "$OUTPUT_DIR"
-    "$BINARY" still ChrononGlowFinalAE --frame 15 -o "$WITH_GLOW" || {
+    "$BINARY" render CertGlow --frame 15 -o "$WITH_GLOW" || {
         echo "GATE_FAIL: failed to render with-glow frame" >&2
         exit 1
     }
-    "$BINARY" still ChrononGlowFinalAE_NoGlow --frame 15 -o "$NO_GLOW" || {
+    "$BINARY" render CertGlowDisabled --frame 15 -o "$NO_GLOW" || {
         echo "GATE_FAIL: failed to render no-glow frame" >&2
         exit 1
     }
@@ -135,8 +131,8 @@ if [ ! -f "$GLOW_MP4" ] || [ ! -d "$FRAMES_DIR" ]; then
     echo "--- Rendering 60-frame video ---"
     mkdir -p "$FRAMES_DIR"
     rm -rf "$FRAMES_DIR"/*
-    "$BINARY" video ChrononGlowFinalAE \
-        --start 0 --end 60 --fps 30 \
+    "$BINARY" render ChrononGlowFinalAE \
+        --frames 0-59 --fps 30 \
         --ffmpeg-mode png \
         --keep-frames \
         --frames-dir "$FRAMES_DIR" \
@@ -189,8 +185,8 @@ for run in 1 2 3; do
     if [ ! -f "$RUN_DIR.hashes" ]; then
         echo "--- Determinism run $run/3 ---"
         rm -rf "$RUN_DIR"
-        "$BINARY" video ChrononGlowFinalAE \
-            --start 0 --end 60 --fps 30 \
+        "$BINARY" render ChrononGlowFinalAE \
+            --frames 0-59 --fps 30 \
             --ffmpeg-mode png \
             --keep-frames \
             --frames-dir "$RUN_DIR" \

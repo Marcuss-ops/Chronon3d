@@ -40,14 +40,26 @@ def mean_luma(image: Image.Image, mask: Image.Image) -> float:
 
 
 def visible_bbox(path: str, threshold: int = 3) -> tuple[int, int, int, int]:
-    """Return (x0, y0, x1, y1) of pixels with alpha > threshold."""
+    """Return the foreground bbox for transparent or opaque-background PNGs.
+
+    Certification fixtures may intentionally use an opaque background.  An
+    alpha-only bbox would then describe the entire canvas and could never
+    observe a spatial glow expansion.  For opaque images, use the corner
+    pixel as the background reference and measure RGB distance from it.
+    """
     image = Image.open(path).convert("RGBA")
     width, height = image.size
+    background = image.getpixel((0, 0))
+    transparent = background[3] <= threshold
     xs: list[int] = []
     ys: list[int] = []
     for y in range(height):
         for x in range(width):
-            if image.getpixel((x, y))[3] > threshold:
+            pixel = image.getpixel((x, y))
+            alpha_visible = pixel[3] > threshold
+            foreground = any(abs(pixel[i] - background[i]) > threshold
+                             for i in range(3))
+            if (alpha_visible if transparent else foreground):
                 xs.append(x)
                 ys.append(y)
     if not xs:
