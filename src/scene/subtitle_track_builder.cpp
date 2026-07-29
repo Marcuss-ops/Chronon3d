@@ -1,9 +1,10 @@
 #include <chronon3d/authoring/subtitle_track_builder.hpp>
 #include <chronon3d/core/types/time.hpp>
 
+#include <chronon3d/presets/text/word_emphasis_animators.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <chronon3d/registry/text_preset_resolver.hpp>
-#include <chronon3d/text/glyph_selector_spec.hpp>  // GlyphSelectorSpec, TextSelectorUnit, TextSelectorShape (TICKET-TIMED-WORD-BINDING)
+#include <chronon3d/text/glyph_selector_spec.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -13,35 +14,135 @@ namespace chronon3d::authoring {
 
 namespace {
 
-// Return the 0-based word index of the whitespace-delimited word that
-// starts at `byte_start` in `text`.  This mirrors the word segmentation
-// used by the SRT/VTT/JSON adapters, so a TimedWord's byte range can be
-// mapped to the TextUnitMap::Word index that the renderer will use.
-// Falls back to `fallback` when the exact start offset cannot be found
-// (e.g. punctuation-attached words or malformed input).
+// Return the 0-based word index of the whitespace-delimited word that starts
+// at byte_start. This mirrors the segmentation used by the timed-text adapters.
 [[nodiscard]] std::size_t word_index_for_byte_start(
     std::string_view text,
     std::size_t byte_start,
-    std::size_t fallback)
-{
+    std::size_t fallback) {
     std::size_t index = 0;
     std::size_t i = 0;
     while (i < text.size()) {
-        // Skip ASCII whitespace (cue text normalises to ASCII separators).
         while (i < text.size() &&
-               (text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r')) {
+               (text[i] == ' ' || text[i] == '\t' ||
+                text[i] == '\n' || text[i] == '\r')) {
             ++i;
         }
         if (i >= text.size()) break;
         if (i == byte_start) return index;
-        // Consume non-whitespace word.
         while (i < text.size() &&
-               text[i] != ' ' && text[i] != '\t' && text[i] != '\n' && text[i] != '\r') {
+               text[i] != ' ' && text[i] != '\t' &&
+               text[i] != '\n' && text[i] != '\r') {
             ++i;
         }
         ++index;
     }
     return fallback;
+}
+
+struct SemanticWordEntry {
+    std::size_t word_index{0};
+    presets::text::WordEmphasisKind kind{
+        presets::text::WordEmphasisKind::None};
+    Frame start_frame{0};
+};
+
+// Convert tagged TimedWord entries into constant-cost semantic span animators.
+// Adjacent words with the same semantic role are merged, so a multi-word name
+// or important phrase costs one selector + one animator rather than one per
+// word or character.
+[[nodiscard]] std::vector<TextAnimatorSpec> build_semantic_emphasis_animators(
+    const TimedCue& cue,
+    FrameRate frame_rate,
+    std::size_t cue_index) {
+    std::vector<SemanticWordEntry> entries;
+    entries.reserve(cue.words.size());
+
+    for (std::size_t fallback_index = 0;
+         fallback_index < cue.words.size();
+         ++fallback_index) {
+        const auto& word = cue.words[fallback_index];
+        const auto parsed = presets::text::parse_emphasis_prefix(
+            word.semantic_id);
+        if (!presets::text::is_emphasis_kind(parsed.kind)) {
+            continue;
+        }
+
+        entries.push_back(SemanticWordEntry{
+            .word_index = word_index_for_byte_start(
+                cue.text, word.byte_start, fallback_index),
+            .kind = parsed.kind,
+            .start_frame = chronon3d::seconds_to_frame(
+                static_cast<double>(word.start_s),
+                frame_rate,
+                FrameRounding::Nearest),
+        });
+    }
+
+    if (entries.empty()) {
+        return {};
+    }
+
+    std::sort(entries.begin(), entries.end(),
+              [](const SemanticWordEntry& a, const SemanticWordEntry& b) {
+                  return a.word_index < b.word_index;
+              });
+
+    const f32 word_count = static_cast<f32>(cue.words.size());
+    std::vector<TextAnimatorSpec> animators;
+    animators.reserve(entries.size());
+
+    std::size_t group_begin = 0;
+    while (group_begin < entries.size()) {
+        std::size_t group_end = group_begin;
+        Frame group_start = entries[group_begin].start_frame;
+        const auto kind = entries[group_begin].kind;
+
+        while (group_end + 1 < entries.size() &&
+               entries[group_end + 1].kind == kind &&
+               entries[group_end + 1].word_index ==
+                   entries[group_end].word_index + 1) {
+            ++group_end;
+            group_start = std::min(
+                group_start, entries[group_end].start_frame);
+        }
+
+        const std::size_t first_word = entries[group_begin].word_index;
+        const std::size_t last_word = entries[group_end].word_index;
+
+        GlyphSelectorSpec selector;
+        selector.id = "subtitle_semantic_cue_" + std::to_string(cue_index) +
+                      "_words_" + std::to_string(first_word) + "_" +
+                      std::to_string(last_word);
+        selector.unit = TextSelectorUnit::Word;
+        selector.shape = TextSelectorShape::Square;
+        selector.order = TextSelectorOrder::Forward;
+        selector.combine = SelectorCombineMode::Replace;
+        selector.start = AnimatedValue<f32>(
+            static_cast<f32>(first_word) * 100.0f / word_count);
+        selector.end = AnimatedValue<f32>(
+            static_cast<f32>(last_word + 1) * 100.0f / word_count);
+        selector.amount = AnimatedValue<f32>(100.0f);
+        selector.exclude_spaces = true;
+
+        const std::string suffix =
+            "cue_" + std::to_string(cue_index) + "_words_" +
+            std::to_string(first_word) + "_" + std::to_string(last_word);
+
+        auto animator = presets::text::make_lightweight_emphasis_animator(
+            kind,
+            std::nullopt,
+            group_start,
+            std::move(selector),
+            suffix);
+        if (animator.has_value()) {
+            animators.push_back(std::move(*animator));
+        }
+
+        group_begin = group_end + 1;
+    }
+
+    return animators;
 }
 
 } // namespace
@@ -50,18 +151,18 @@ FrameRate SubtitleTrackBuilder::active_frame_rate() const noexcept {
     if (frame_rate_override_.has_value()) {
         return frame_rate_override_.value();
     }
-    // SubtitleTrackBuilder is always constructed with a valid LayerBuilder,
-    // so the parent composition frame rate is the single source of truth.
-    // No fallback default frame rate is provided here.
     return builder_->frame_rate();
 }
 
 Frame SubtitleTrackBuilder::seconds_to_frame(float seconds) const {
     return chronon3d::seconds_to_frame(
-        static_cast<double>(seconds), active_frame_rate(), FrameRounding::Nearest);
+        static_cast<double>(seconds),
+        active_frame_rate(),
+        FrameRounding::Nearest);
 }
 
-std::vector<TimedWordBinding> SubtitleTrackBuilder::build_word_bindings(const TimedCue& cue) {
+std::vector<TimedWordBinding>
+SubtitleTrackBuilder::build_word_bindings(const TimedCue& cue) {
     std::vector<TimedWordBinding> bindings;
     bindings.reserve(cue.words.size());
     for (std::size_t w = 0; w < cue.words.size(); ++w) {
@@ -70,19 +171,23 @@ std::vector<TimedWordBinding> SubtitleTrackBuilder::build_word_bindings(const Ti
             word_index_for_byte_start(cue.text, word.byte_start, w);
         bindings.push_back(TimedWordBinding{
             .semantic_id = word.semantic_id,
-            .word_index  = resolved_word_index,
+            .word_index = resolved_word_index,
             .total_words = cue.words.size(),
-            .byte_start  = word.byte_start,
-            .byte_end    = word.byte_end,
-            .start_s     = word.start_s,
-            .end_s       = word.end_s,
+            .byte_start = word.byte_start,
+            .byte_end = word.byte_end,
+            .start_s = word.start_s,
+            .end_s = word.end_s,
         });
     }
     return bindings;
 }
 
 std::vector<GlyphSelectorSpec>
-SubtitleTrackBuilder::build_word_selectors(const TimedCue& cue, FrameRate frame_rate, Frame start_frame, std::size_t cue_index) {
+SubtitleTrackBuilder::build_word_selectors(
+    const TimedCue& cue,
+    FrameRate frame_rate,
+    Frame start_frame,
+    std::size_t cue_index) {
     std::vector<GlyphSelectorSpec> selectors;
     if (cue.words.empty()) {
         return selectors;
@@ -96,41 +201,44 @@ SubtitleTrackBuilder::build_word_selectors(const TimedCue& cue, FrameRate frame_
         const std::size_t word_index =
             word_index_for_byte_start(cue.text, word.byte_start, w);
 
-        const f32 start_pct = (static_cast<f32>(word_index) * 100.0f) / word_count_f;
-        const f32 end_pct   = (static_cast<f32>(word_index + 1) * 100.0f) / word_count_f;
+        const f32 start_pct =
+            static_cast<f32>(word_index) * 100.0f / word_count_f;
+        const f32 end_pct =
+            static_cast<f32>(word_index + 1) * 100.0f / word_count_f;
 
         Frame word_start_frame = chronon3d::seconds_to_frame(
-            static_cast<double>(word.start_s), frame_rate, FrameRounding::Nearest);
+            static_cast<double>(word.start_s),
+            frame_rate,
+            FrameRounding::Nearest);
         Frame word_end_frame = chronon3d::seconds_to_frame(
-            static_cast<double>(word.end_s), frame_rate, FrameRounding::Nearest);
+            static_cast<double>(word.end_s),
+            frame_rate,
+            FrameRounding::Nearest);
         if (word_end_frame <= word_start_frame) {
             word_end_frame = word_start_frame + Frame{1};
         }
 
-        GlyphSelectorSpec word_sel;
-        word_sel.unit  = TextSelectorUnit::Word;
-        word_sel.shape = TextSelectorShape::Square;
-        word_sel.order = TextSelectorOrder::Forward;
-        word_sel.start = start_pct;
-        word_sel.end   = end_pct;
-        // The selector id carries the TimedWord semantic_id so the
-        // binding from timed-text source to renderer unit is explicit
-        // and diagnostics can trace a word back to its source id.
-        word_sel.id    = "subtitle_cue_" + std::to_string(cue_index)
-                          + "_word_" + word.semantic_id;
+        GlyphSelectorSpec word_selector;
+        word_selector.unit = TextSelectorUnit::Word;
+        word_selector.shape = TextSelectorShape::Square;
+        word_selector.order = TextSelectorOrder::Forward;
+        word_selector.start = start_pct;
+        word_selector.end = end_pct;
+        word_selector.id = "subtitle_cue_" + std::to_string(cue_index) +
+                           "_word_" + word.semantic_id;
 
         AnimatedValue<f32> amount;
-        // Only key "off" before the word if the word does not start
-        // exactly at the cue start (avoids two same-frame keys that
-        // would hide the 100% value on the active boundary).
         if (start_frame < word_start_frame) {
-            amount.add_keyframe(start_frame, 0.0f, EasingCurve{Easing::Hold});
+            amount.add_keyframe(
+                start_frame, 0.0f, EasingCurve{Easing::Hold});
         }
-        amount.add_keyframe(word_start_frame, 100.0f, EasingCurve{Easing::Hold});
-        amount.add_keyframe(word_end_frame, 0.0f, EasingCurve{Easing::Hold});
-        word_sel.amount = std::move(amount);
+        amount.add_keyframe(
+            word_start_frame, 100.0f, EasingCurve{Easing::Hold});
+        amount.add_keyframe(
+            word_end_frame, 0.0f, EasingCurve{Easing::Hold});
+        word_selector.amount = std::move(amount);
 
-        selectors.push_back(std::move(word_sel));
+        selectors.push_back(std::move(word_selector));
     }
 
     return selectors;
@@ -145,25 +253,21 @@ void SubtitleTrackBuilder::build() {
         registry::builtin_text_preset_registry();
 
     if (!preset_registry.contains(preset_id_)) {
-        // Fail-loud: unknown preset id.  The caller should use a registered
-        // subtitle preset (minimal_white, yellow_keyword, glow_pulse,
-        // caption_box, karaoke_fill, active_word_pop, subtitle_card,
-        // lower_third_safe).
         throw std::runtime_error(
-            "SubtitleTrackBuilder::build: unknown preset id '" + preset_id_ + "'");
+            "SubtitleTrackBuilder::build: unknown preset id '" +
+            preset_id_ + "'");
     }
 
-    // Karaoke-style presets rely on per-word timing being trustworthy.
-    // By default they require Authoritative per-word timing and reject
-    // Estimated/None unless the caller explicitly opts in.
     const bool is_karaoke_preset =
-        (preset_id_ == "karaoke_fill" || preset_id_ == "active_word_pop");
+        preset_id_ == "karaoke_fill" ||
+        preset_id_ == "active_word_pop";
     const bool enforce_authoritative =
         (is_karaoke_preset || require_authoritative_) && !allow_estimated_;
 
     if (enforce_authoritative) {
         for (const auto& cue : track_->cues) {
-            if (cue.word_timing_quality != WordTimingQuality::Authoritative) {
+            if (cue.word_timing_quality !=
+                WordTimingQuality::Authoritative) {
                 throw std::runtime_error(
                     "SubtitleTrackBuilder: preset '" + preset_id_ +
                     "' requires Authoritative per-word timing. Set "
@@ -172,8 +276,6 @@ void SubtitleTrackBuilder::build() {
             }
         }
     }
-
-    const auto& preset = preset_registry.get(preset_id_);
 
     for (std::size_t i = 0; i < track_->cues.size(); ++i) {
         const auto& cue = track_->cues[i];
@@ -194,58 +296,43 @@ void SubtitleTrackBuilder::build() {
             : (vertical_align_ == VerticalAlign::Top
                 ? TextAnchor::TopCenter
                 : TextAnchor::Center);
-
-        // Resolve placement through the canonical resolver.
         spec.placement = placement_;
 
-        // Schedule the cue using [start_frame, end_frame) semantics.
         const Frame start_frame = seconds_to_frame(cue.start_s);
         const Frame end_frame = seconds_to_frame(cue.end_s);
-        const Frame duration_frames = std::max(Frame{1}, end_frame - start_frame);
+        const Frame duration_frames =
+            std::max(Frame{1}, end_frame - start_frame);
 
         TextRunDefinition run_spec =
             registry::wire_preset_text_run_params(preset_id_, spec);
 
-        // TICKET-TIMED-WORD-BINDING: emit N per-word selectors and wire
-        // them into the preset animator's selector list so the preset's
-        // properties (fill / scale / stroke / background) apply ONLY to
-        // the active word.
-        //
-        // Mechanism (Cat-3 minimal-surface, Option c per thinker plan):
-        //   * One GlyphSelectorSpec per word with unit=Word; start/end are
-        //     percentage ranges (0..100) mapped to word indices by the
-        //     TextUnitMap-based selector math.
-        //   * Selector math (`evaluate_compiled_selectors`) returns weight=1.0
-        //     for the active word and 0.0 for all other words.
-        //   * The preset's animator multiplies its properties[] by the
-        //     combined selector weight per glyph: the active word gets the
-        //     highlight, neighbours stay at base.
-        //
-        // The selectors live inside the first animator (the preset's own
-        // animator returned by wire_preset_text_run_params).  Putting them
-        // in TextRunDefinition::selectors would orphan them because the
-        // materializer evaluates only animator-bound selectors during
-        // per-frame evaluation.
+        // Existing timed-word selectors drive preset-specific active-word
+        // effects such as karaoke fill and active-word pop.
         std::vector<GlyphSelectorSpec> word_selectors =
             build_word_selectors(cue, active_frame_rate(), start_frame, i);
         if (!run_spec.animators.empty()) {
             auto& preset_animator = run_spec.animators.front();
-            for (auto& word_sel : word_selectors) {
-                preset_animator.selectors.push_back(std::move(word_sel));
+            for (auto& word_selector : word_selectors) {
+                preset_animator.selectors.push_back(
+                    std::move(word_selector));
             }
         }
-        // If the preset has no animator (e.g. minimal_white) there is no
-        // property to drive per-word highlighting; drop the selectors.
 
-        builder_->text_run("subtitle_cue_" + std::to_string(i), run_spec)
+        // Semantic tags are independent of the selected subtitle preset.
+        // Adjacent base:/phrase:/name:/word: entries are merged into one
+        // constant-cost span animator and appended to the canonical stack.
+        auto semantic_animators = build_semantic_emphasis_animators(
+            cue, active_frame_rate(), i);
+        for (auto& animator : semantic_animators) {
+            run_spec.animators.push_back(std::move(animator));
+        }
+
+        builder_->text_run(
+                "subtitle_cue_" + std::to_string(i), run_spec)
             .commit()
             .start_at(start_frame)
             .duration(duration_frames);
     }
-
-    // Preset-specific layer-level side effects are applied per-cue above
-    // through wire_preset_text_run_params; no extra SceneBuilder call is
-    // needed for subtitle presets.
 }
 
 } // namespace chronon3d::authoring
