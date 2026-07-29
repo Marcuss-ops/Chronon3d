@@ -20,10 +20,9 @@
 #       segment-index bound check.  Otherwise every 2-point / 1-segment
 #       trajectory's compile_camera() rejects.
 #
-#   (2) tests/scene/camera/golden_projection_test.cpp's 4 references to
-#       `FocalPx` (lines 136, 180, 229, 271) renamed to `FocalPixels`
-#       or whatever the canonical type is now.  Otherwise the
-#       scene-tests executable fails to link.
+#   (2) the golden projection test must use the canonical focal type
+#       exported by camera_projection_contract.hpp.  This checkout still
+#       defines `camera_math::FocalPx`; the old deny probe was stale.
 #
 # ── USAGE ───────────────────────────────────────────────────────────────
 #   bash tools/regen_camera_golden.sh
@@ -50,7 +49,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GOLDEN="${REPO_ROOT}/tests/scene/camera/_golden/trajectory_lens_dof.golden.bin"
-TEST_EXE="${REPO_ROOT}/build/tests/chronon3d_scene_tests"
+TEST_EXE="${REPO_ROOT}/build/chronon/linux-content-dev/tests/chronon3d_scene_tests"
 
 echo "── tools/regen_camera_golden.sh ─────────────────────────────────"
 echo "repo:  ${REPO_ROOT}"
@@ -73,17 +72,15 @@ else
     echo "  ok prerequisite (1): trajectory-validator size() → points().size()"
 fi
 
-# (b) golden_projection_test FocalPx check.
-if [ -f "${REPO_ROOT}/tests/scene/camera/golden_projection_test.cpp" ] \
-   && grep -nE 'FocalPx' \
-       "${REPO_ROOT}/tests/scene/camera/golden_projection_test.cpp" \
-       >/dev/null 2>&1; then
-    echo "  FAIL prerequisite (2) STILL present:"
-    echo "    tests/scene/camera/golden_projection_test.cpp still references"
-    echo "    'FocalPx' (no longer a type). Fix: rename to the canonical type."
-    HAS_BLOCKER=1
+# (b) verify that the canonical focal type is available where the test uses it.
+if grep -qE 'struct FocalPx' \
+    "${REPO_ROOT}/include/chronon3d/math/camera_projection_contract.hpp" \
+    && grep -qE 'camera_math::FocalPx' \
+    "${REPO_ROOT}/tests/scene/camera/golden_projection_test.cpp"; then
+    echo "  ok prerequisite (2): golden projection test uses canonical FocalPx"
 else
-    echo "  ok prerequisite (2): no FocalPx references in golden_projection_test.cpp"
+    echo "  FAIL prerequisite (2): canonical FocalPx contract/test wiring missing"
+    HAS_BLOCKER=1
 fi
 
 if [ "${HAS_BLOCKER:-0}" -ne 0 ]; then
@@ -147,7 +144,7 @@ command -v python3 >/dev/null 2>&1 || {
 
 RUN_OUT="$(
     "$TEST_EXE" \
-        --test-case='compiled_trajectory_lens_dof_golden' \
+        --test-case='*compiled_trajectory_lens_dof_golden*' \
         --no-skip --duration=false 2>&1 || true
 )"
 
