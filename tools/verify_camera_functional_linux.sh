@@ -198,7 +198,10 @@ else
             -j"$(nproc)" 2>&1) || true
         fi
 
-        ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep 'error:' | wc -l)
+        # With `set -o pipefail`, a clean build makes grep return 1 and would
+        # abort the gate before it can emit its PASS marker.  Count matches
+        # without allowing the zero-match diagnostic to become a gate error.
+        ERROR_COUNT=$(grep -c 'error:' <<< "$BUILD_OUTPUT" || true)
 
         if [ "$ERROR_COUNT" -eq 0 ]; then
             _gate_pass "camera_build (0 errors)"
