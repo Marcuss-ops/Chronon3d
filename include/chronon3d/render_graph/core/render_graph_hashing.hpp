@@ -126,7 +126,15 @@ template <typename T>
     seed = hash_combine(seed, hash_value(p.bloom_strength));
     seed = hash_combine(seed, hash_value(p.outer_downscale));
     seed = hash_combine(seed, hash_value(p.preserve_source));
-    return hash_combine(seed, hash_value(p.blend));
+    seed = hash_combine(seed, hash_value(p.blend));
+    seed = hash_combine(seed, hash_value(static_cast<u64>(p.layers.size())));
+    for (const auto& layer : p.layers) {
+        seed = hash_combine(seed, hash_value(layer.radius));
+        seed = hash_combine(seed, hash_value(layer.opacity));
+        seed = hash_combine(seed, hash_value(layer.scale));
+        seed = hash_combine(seed, hash_color(layer.color));
+    }
+    return seed;
 }
 
 [[nodiscard]] inline u64 hash_bloom_params(const BloomParams& p) {
@@ -175,7 +183,7 @@ template <typename T>
         }
         case Glow: {
             if (auto* p = std::get_if<GlowParams>(&e.params))
-                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+                seed = hash_combine(seed, hash_glow_params(*p));
             break;
         }
         case Bloom: {
