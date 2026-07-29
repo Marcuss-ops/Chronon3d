@@ -54,6 +54,24 @@ struct EmphasisParseResult {
     std::size_t span_index = 0,
     std::size_t span_count = 1);
 
+// Compatibility adapter for authored subtitle spans. It delegates to the
+// same V1 profile implementation while preserving the caller's canonical
+// word selector and diagnostic suffix.
+[[nodiscard]] std::optional<TextAnimatorSpec> make_lightweight_emphasis_animator(
+    WordEmphasisKind kind,
+    std::optional<Color> accent,
+    Frame start_frame,
+    GlyphSelectorSpec selector,
+    std::string_view id_suffix = {});
+
+// Legacy name retained for source compatibility. It is intentionally
+// constant-cost for every profile and never creates per-character animators.
+[[nodiscard]] std::vector<TextAnimatorSpec> make_word_emphasis_animators(
+    WordEmphasisKind kind,
+    std::optional<Color> accent,
+    Frame start_frame,
+    std::size_t span_count);
+
 // Resolve a sequence of TimedWord semantic IDs into one animator per
 // contiguous marked span. Adjacent `name:`/`title:` or `word:`/`emph:` IDs
 // are coalesced; unmarked words do not allocate an extra animator.
