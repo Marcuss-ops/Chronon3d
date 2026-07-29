@@ -24,9 +24,6 @@ namespace chronon3d::content::anims        { void register_anim_compositions(Com
 namespace chronon3d::content::light_text   { void register_light_text_compositions(CompositionRegistry&); }
 namespace chronon3d::content::effects      { void register_effect_compositions(CompositionRegistry&); }
 namespace chronon3d::content::grid         { void register_grid_compositions(CompositionRegistry&); }
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
-namespace chronon3d::content::two_point_five_d { void register_2d5_compositions(CompositionRegistry&); }
-#endif
 namespace chronon3d::content::backgrounds  { void register_grid_clean_background(CompositionRegistry&); }
 // TICKET-CLI-ISOLATE-RUNTIME-DEV — AE_CAM_* live in `chronon3d_cli_dev` only
 // (DEV-gated, registered via `apps/chronon3d_cli/register_dev_compositions.cpp`
@@ -68,9 +65,6 @@ public:
         content::light_text::register_light_text_compositions(ctx.compositions);
         content::effects::register_effect_compositions(ctx.compositions);
         content::grid::register_grid_compositions(ctx.compositions);
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
-        content::two_point_five_d::register_2d5_compositions(ctx.compositions);
-#endif
         content::backgrounds::register_grid_clean_background(ctx.compositions);
         // TICKET-CLI-ISOLATE-RUNTIME-DEV — AE_CAM_* moved to DEV registration
         // (apps/chronon3d_cli/register_dev_compositions.cpp).  See
