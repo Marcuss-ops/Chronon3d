@@ -27,6 +27,7 @@
 // Available in production (no DEV/test gating).
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include "content/compositions/chronon_glow_final.hpp"
+#include "content/compositions/glow_camera_product_v1.hpp"
 #endif
 
 namespace chronon3d {
@@ -59,6 +60,10 @@ void register_runtime_compositions(CompositionRegistry& registry) {
         .id = "ChrononGlowFinalAEPortrait"}, [](const CompositionProps&) -> Composition {
             return chronon3d::content::glow_final::make_chronon_glow_final(
                 chronon3d::content::glow_final::default_portrait_props());
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "GlowCameraProductV1"}, [](const CompositionProps&) -> Composition {
+            return chronon3d::content::product::make_glow_camera_product_v1();
         }));
 #endif
 }

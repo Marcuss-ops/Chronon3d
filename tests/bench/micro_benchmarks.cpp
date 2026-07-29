@@ -117,7 +117,7 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
     // color=white-blue, intensity=0.25).  We don't need the blur stage —
     // accumulate_glow_pass is the inner hot loop we're benching.
     GlowPipeline p{};
-    p.appearance.color = {0.80f, 0.85f, 1.0f, 1.0f};
+    p.color = {0.80f, 0.85f, 1.0f, 1.0f};
     p.radius = 18.0f;
     p.intensity = 0.25f;
     p.falloff = falloff;
@@ -246,14 +246,14 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
 
     // TICKET-O(n)-audit registrations — exposed to google-benchmark's
     // static-init registration machinery inside this anonymous namespace.
-    BENCHMARK_CAPTURE(BM_Site1_Lookup, VectorFind,  false);
-    BENCHMARK_CAPTURE(BM_Site1_Lookup, UnorderedSet, true);
+    BENCHMARK_CAPTURE(onshore::BM_Site1_Lookup, VectorFind,  false);
+    BENCHMARK_CAPTURE(onshore::BM_Site1_Lookup, UnorderedSet, true);
 
-    BENCHMARK_CAPTURE(BM_Site2_StringDedup, VectorFind,  false);
-    BENCHMARK_CAPTURE(BM_Site2_StringDedup, UnorderedSet, true);
+    BENCHMARK_CAPTURE(onshore::BM_Site2_StringDedup, VectorFind,  false);
+    BENCHMARK_CAPTURE(onshore::BM_Site2_StringDedup, UnorderedSet, true);
 
-    BENCHMARK_CAPTURE(BM_Site3_LRU, HandRolled,    false);
-    BENCHMARK_CAPTURE(BM_Site3_LRU, StdMinElement, true);
+    BENCHMARK_CAPTURE(onshore::BM_Site3_LRU, HandRolled,    false);
+    BENCHMARK_CAPTURE(onshore::BM_Site3_LRU, StdMinElement, true);
 
     // ----------------------------------------------------------------------
     // PersistentFramebufferStore read-microbench.
@@ -495,4 +495,3 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
         ->Unit(benchmark::kMicrosecond)
         ->Name("FontEngine/resolve_placed_glyph_run_4kchars");
 } // namespace
-

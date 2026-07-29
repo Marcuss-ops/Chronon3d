@@ -587,7 +587,6 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.0f, 0.95f, 0.95f, 1.0f}, .width = 2.0f};
             l.path("shape", p);
             l.effect(GlowParams{
-                .enabled = true,
                 .radius = 12.0f,
                 .intensity = 1.0f,
                 .color = {0.0f, 0.95f, 0.95f, 1.0f}
@@ -604,7 +603,6 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.95f, 0.1f, 0.5f, 1.0f}, .width = 3.0f};
             l.path("shape", p);
             l.effect(GlowParams{
-                .enabled = true,
                 .radius = 24.0f,
                 .intensity = 3.0f,
                 .color = {0.95f, 0.1f, 0.5f, 1.0f}
