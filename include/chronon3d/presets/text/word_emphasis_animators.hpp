@@ -1,18 +1,17 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // presets/text/word_emphasis_animators.hpp
 //
-// Tag-driven per-word emphasis animations (Variant A — TICKET-WORD-EMPHASIS).
+// Canonical semantic text-emphasis factories.
 //
-// Reuses the canonical `TimedWord::semantic_id` field already populated by
-// the SRT/VTT/JSON subtitle adapters and adds a tiny prefix parser that
-// classifies the semantic_id into `WordEmphasisKind`. A factory function
-// emits a `std::vector<TextAnimatorSpec>` (one spec per letter) using the
-// canonical `AnimatedValue<Vec3>` + `EasingCurve` primitives — yielding a
-// per-letter stagger-bounce animation that slots into the existing
-// `evaluate_animator_stack[_into]` evaluator without touching the engine.
+// Two surfaces intentionally share the same parser, selector model and
+// TextAnimatorSpec primitives:
+//   1. make_lightweight_emphasis_animator() — one animator per semantic span;
+//      this is the preferred production path for maximum throughput.
+//   2. make_word_emphasis_animators() — the existing optional per-letter
+//      stagger path retained for callers that explicitly want that look.
 //
-// Cat-3 anti-duplication: zero new singletons / registries / caches /
-// font/color catalogs. All primitives come from existing producers.
+// No registry, resolver, sampler or cache is duplicated here. Both factories
+// feed the canonical text animator evaluator unchanged.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
@@ -32,74 +31,64 @@
 
 namespace chronon3d::presets::text {
 
-// ── WordEmphasisKind — semantic class of an emphasised word ─────────────
-
+// Semantic role carried by TimedWord::semantic_id or direct authoring code.
+// Existing enum names remain stable:
+//   Title == important phrase
+//   Emph  == important word
+//
 enum class WordEmphasisKind {
-    None,    // no prefix; default; not emphasised
-    Name,    // `name:` prefix     → proper nouns / on-screen names
-    Title,   // `title:` prefix    → titles / headings
-    Emph     // `emph:` prefix     → arbitrary emphasised keywords
+    None,
+    Base,   // `base:` — lightweight neutral entrance
+    Name,   // `name:` — special person/place/product name
+    Title,  // `title:` or `phrase:` — important phrase / heading
+    Emph    // `emph:` or `word:` — important keyword
 };
-
-// ── Prefix parse result ─────────────────────────────────────────────────
 
 struct EmphasisParseResult {
     WordEmphasisKind kind{WordEmphasisKind::None};
     std::string_view remainder{};
 };
 
-// ── parse_emphasis_prefix ───────────────────────────────────────────────
+// Recognised prefixes are case-sensitive ASCII:
+//   base:
+//   name:
+//   title:  / phrase:
+//   emph:   / word:
 //
-// Recognised prefixes (case-sensitive, ASCII):
-//   "name:"    →  WordEmphasisKind::Name
-//   "title:"   →  WordEmphasisKind::Title
-//   "emph:"    →  WordEmphasisKind::Emph
-// Anything else → WordEmphasisKind::None (remainder is the full input).
-//
-// Empty input → {None, ""}.
-// Nested prefixes (`emph:foo:bar`) strip only the first prefix; the colon
-// in the remainder is preserved (the renderer / authoring layer can interpret
-// multi-segment semantic_ids as it wishes).
-
+// Aliases map to the existing enum values, so old semantic data remains valid.
 [[nodiscard]] EmphasisParseResult parse_emphasis_prefix(std::string_view semantic_id);
-
-// ── is_emphasis_kind ─────────────────────────────────────────────────────
 
 [[nodiscard]] inline bool is_emphasis_kind(WordEmphasisKind kind) noexcept {
     return kind != WordEmphasisKind::None;
 }
 
-// ── strip_emphasis_prefix ────────────────────────────────────────────────
-//
-// Returns the visible-text form (remainder) of a semantic_id with the
-// emphasis prefix removed. Uses parse_emphasis_prefix under the hood.
-
 [[nodiscard]] inline std::string strip_emphasis_prefix(std::string_view semantic_id) {
     return std::string{parse_emphasis_prefix(semantic_id).remainder};
 }
 
-// ── make_word_emphasis_animators ─────────────────────────────────────────
+// Preferred production factory: emits at most ONE animator for the supplied
+// semantic span. The caller supplies the canonical selector, which may target
+// a complete cue, phrase, name or single word.
 //
-// Emits one TextAnimatorSpec per letter, each with a per-letter Character
-// selector that targets ONLY its own glyph (per-letter window in
-// normalised 0..100 range so the canonical evaluator's pre-built unit map
-// picks the right glyph).  Each spec carries the canonical `AnimatedValue`
-// ramps for the per-letter stagger-bounce (Variant A):
+// Profiles:
+//   Base  — short fade + 10px rise
+//   Title — soft phrase scale reveal
+//   Name  — clean name pop
+//   Emph  — fast keyword punch
 //
-//   * ScaleProperty  — 0.7 → 1.15 (Easing::OutBack) → 1.0 (settle),
-//                       starting at start_frame + letter_index * stagger_step
-//   * OpacityProperty — 0 → 1 over the first 4 frames (Easing::OutCubic)
-//
-// The accent colour is reserved for a Future FillColorProperty entry that
-// can be appended when the renderer should switch from white→accent; the
-// parameter is kept now so callers can wire it without touching the API
-// again (Cat-5 3-doc rule "no churn retroattivo").
-//
-// Return value: a std::vector<TextAnimatorSpec> sized `letter_count`
-// (empty when kind == None or letter_count == 0).  The vector plugs into
-// `evaluate_animator_stack[_into]` unchanged — no renderer-side glue
-// needed.
+// Each profile uses one selector and no more than three properties. Optional
+// accent colour is added as a static FillColorProperty without introducing a
+// second colour animation path.
+[[nodiscard]] std::optional<TextAnimatorSpec> make_lightweight_emphasis_animator(
+    WordEmphasisKind kind,
+    std::optional<Color> accent,
+    Frame start_frame,
+    GlyphSelectorSpec selector,
+    std::string_view id_suffix = {});
 
+// Existing expressive per-letter factory. Name / Title / Emph retain the
+// stagger-bounce behaviour for explicit callers. Base uses the lightweight
+// whole-span implementation so its cost remains O(1) even for long text.
 [[nodiscard]] std::vector<TextAnimatorSpec> make_word_emphasis_animators(
     WordEmphasisKind kind,
     std::optional<Color> accent,
