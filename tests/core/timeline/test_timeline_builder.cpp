@@ -25,8 +25,12 @@ TEST_CASE("TimelineBuilder: track timing filters layers by frame") {
     .apply();
 
     Scene scene = s.build();
-    CHECK(scene.layers().size() == 1);
+    // SceneBuilder retains authored layers; active_at(frame) is evaluated by
+    // render consumers rather than dropping inactive layers during authoring.
+    CHECK(scene.layers().size() == 2);
     CHECK(std::string(scene.layers()[0].name.c_str()) == "title");
+    CHECK(scene.layers()[0].active_at(Frame{0}));
+    CHECK_FALSE(scene.layers()[1].active_at(Frame{0}));
 
     // At frame 25 both layers are active
     FrameContext ctx25 = make_frame_context(FrameContextParams{
@@ -46,6 +50,8 @@ TEST_CASE("TimelineBuilder: track timing filters layers by frame") {
 
     Scene scene25 = s25.build();
     CHECK(scene25.layers().size() == 2);
+    CHECK(scene25.layers()[0].active_at(Frame{25}));
+    CHECK(scene25.layers()[1].active_at(Frame{25}));
 }
 
 TEST_CASE("TimelineBuilder: stagger shifts keyframes by spatial order") {
