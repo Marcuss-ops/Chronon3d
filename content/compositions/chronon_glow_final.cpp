@@ -37,6 +37,8 @@
 #include <chronon3d/core/types/frame_context.hpp>
 // chronon3d::FrameContext — captured-by-value in the composition lambda.
 
+#include <chronon3d/animation/core/animated_value.hpp>
+
 #include <chronon3d/scene/builders/builder_params.hpp>
 // TextDefinition / TextRunDefinition / TextPlacementKind::CanvasCenter /
 // TextAlign / VerticalAlign / Vec2 / Vec3 / Color — used by the inner
@@ -129,28 +131,32 @@ default_cinematic_preset(float strength) {
     };
 }
 
-// ── Per-frame envelope (matches the 0/15/30 snapshot buckets) ───────────
-chronon3d::f32 opacity_for_frame(long frame_idx) {
-    if (frame_idx <= 0)  return chronon3d::f32{0.40f};
-    if (frame_idx <= 15) return chronon3d::f32{0.85f};
-    return                     chronon3d::f32{0.50f};
+// ── Continuous envelope (preserves the 0/15/30 reference values) ─────────
+// The tracks are immutable after construction and therefore safe for random
+// access and parallel evaluation. AnimatedValue::evaluate(SampleTime) keeps
+// the interpolation continuous for sub-frame render requests.
+const chronon3d::AnimatedValue<chronon3d::f32>& opacity_animation() {
+    static const chronon3d::AnimatedValue<chronon3d::f32> track{
+        {{0, chronon3d::f32{0.40f}},
+         {15, chronon3d::f32{0.85f}},
+         {30, chronon3d::f32{0.50f}}}};
+    return track;
 }
 
-chronon3d::Vec3 scale_for_frame(long frame_idx) {
-    if (frame_idx <= 0)  return chronon3d::Vec3{0.96f, 0.96f, 1.0f};
-    if (frame_idx <= 15) return chronon3d::Vec3{1.05f, 1.05f, 1.0f};
-    return                     chronon3d::Vec3{0.98f, 0.98f, 1.0f};
+const chronon3d::AnimatedValue<chronon3d::Vec3>& scale_animation() {
+    static const chronon3d::AnimatedValue<chronon3d::Vec3> track{
+        {{0, chronon3d::Vec3{0.96f, 0.96f, 1.0f}},
+         {15, chronon3d::Vec3{1.05f, 1.05f, 1.0f}},
+         {30, chronon3d::Vec3{0.98f, 0.98f, 1.0f}}}};
+    return track;
 }
 
 // ── Inner scene composer (TU-local; shared between factory + future detours) ──
 //
-// Builds a single named layer "hero" with the text animated via
-// `opacity_for_frame()` + `scale_for_frame()` and optionally wrapped in
+// Builds a single named layer "hero" with the text animated via canonical
+// `AnimatedValue` tracks and optionally wrapped in
 // the Phase 2 cinematic glow pipeline.  Centred on `layout.canvas_size / 2`
 // via `TextPlacementKind::CanvasCenter` placement (Phase 3 SCALA fix).
-//
-// `frame_idx` is Frame::integral(); passes 0/15/30 directly for snapshot
-// tests, or the live ctx.frame().integral() for CLI runtime.
 //
 // Action 14/2 (closed on this commit): the prior `FontEngine* engine`
 // parameter has been REMOVED — the Sole canonical call site
@@ -164,11 +170,11 @@ chronon3d::Vec3 scale_for_frame(long frame_idx) {
 void build_chronon_glow_scene(
         chronon3d::SceneBuilder& s,
         const ChrononGlowProps& props,
-        long frame_idx) {
+        const chronon3d::SampleTime& sample_time) {
     // Step 8 §B: single source of truth for layout (derived from format).
     const GlowLayout layout = resolve_layout(props.format);
-    const chronon3d::f32 opacity = opacity_for_frame(frame_idx);
-    const chronon3d::Vec3 scale  = scale_for_frame(frame_idx);
+    const chronon3d::f32 opacity = opacity_animation().evaluate(sample_time);
+    const chronon3d::Vec3 scale  = scale_animation().evaluate(sample_time);
     const bool apply_breath = props.scale_breath;
 
     s.layer("hero", [&, opacity, scale, apply_breath](chronon3d::LayerBuilder& l) {
@@ -255,8 +261,14 @@ chronon3d::Composition make_chronon_glow_final(ChrononGlowProps props) {
         },
         [props](const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
             chronon3d::SceneBuilder s(ctx);
+            // The canonical runtime owns the font resolver.  Attach its
+            // FontEngine to the scene so Glow V1 never falls back to the
+            // process-wide resolver when rendered by SDK/tests.
+            if (ctx.font_engine) {
+                s.font_engine(ctx.font_engine);
+            }
             build_chronon_glow_scene(
-                s, props, ctx.frame().integral());
+                s, props, ctx.local_time());
             return s.build();
         });
 }
