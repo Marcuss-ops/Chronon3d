@@ -168,5 +168,5 @@ TEST_CASE("detail::image_params_resolve_path: large-path still resolves") {
     // Same data pointer invariant does NOT hold for std::string move
     // operations, but we can verify the contents are byte-equal.
     CHECK(resolved[0]  == 'l');
-    CHECK(resolved[79] == 'z');
+    CHECK(resolved.back() == 'z');
 }
