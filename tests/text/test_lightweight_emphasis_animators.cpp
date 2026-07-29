@@ -69,7 +69,7 @@ TEST_CASE("semantic emphasis parser supports production aliases") {
     CHECK(base.remainder == std::string_view{"neutral"});
 
     const auto phrase = parse_emphasis_prefix("phrase:very important sentence");
-    CHECK(phrase.kind == WordEmphasisKind::Title);
+    CHECK(phrase.kind == WordEmphasisKind::Phrase);
     CHECK(phrase.remainder == std::string_view{"very important sentence"});
 
     const auto title = parse_emphasis_prefix("title:legacy heading");
@@ -77,7 +77,7 @@ TEST_CASE("semantic emphasis parser supports production aliases") {
     CHECK(title.remainder == std::string_view{"legacy heading"});
 
     const auto word = parse_emphasis_prefix("word:critical");
-    CHECK(word.kind == WordEmphasisKind::Emph);
+    CHECK(word.kind == WordEmphasisKind::Word);
     CHECK(word.remainder == std::string_view{"critical"});
 
     const auto emph = parse_emphasis_prefix("emph:legacy-keyword");
