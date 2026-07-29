@@ -28,6 +28,7 @@ set -euo pipefail
 # Environment overrides:
 #   CHRONON3D_CAMERA_SKIP_BUILD=1     Skip the build step (use existing binaries)
 #   CHRONON3D_CAMERA_SKIP_CONSUMER=1  Skip external consumer test
+#   CHRONON3D_CAMERA_BUILD_DIR=...    Use an explicit configured build directory
 # ==============================================================================
 
 GATE_NAME="verify_camera_functional_linux"
@@ -39,6 +40,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 BLOCKED_COUNT=0
 BUILD_BLOCKED=false
+CAMERA_BUILD_DIR="${CHRONON3D_CAMERA_BUILD_DIR:-build/chronon/linux-content-dev}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -165,11 +167,18 @@ if [ "${CHRONON3D_CAMERA_SKIP_BUILD:-0}" = "1" ]; then
     echo "  CHRONON3D_CAMERA_SKIP_BUILD=1 — skipping build"
     _gate_blocked "camera_build" "skipped via env override"
 else
-    BUILD_DIR="build/chronon/linux-content-dev"
+    BUILD_DIR="$CAMERA_BUILD_DIR"
 
     # Configure
     echo "  Configuring..."
-    if cmake --preset linux-content-dev > /dev/null 2>&1; then
+    if [ -n "${CHRONON3D_CAMERA_BUILD_DIR:-}" ]; then
+        if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+            echo "  Configure: using existing $BUILD_DIR"
+        else
+            _gate_fail "camera_configure" "explicit build directory is not configured: $BUILD_DIR"
+            BUILD_BLOCKED=true
+        fi
+    elif cmake --preset linux-content-dev > /dev/null 2>&1; then
         echo "  Configure: OK"
     else
         _gate_fail "camera_configure" "cmake preset failed"
@@ -179,9 +188,15 @@ else
     # Build camera targets
     if [ "$BUILD_BLOCKED" = false ]; then
         echo "  Building camera targets..."
-        BUILD_OUTPUT=$(cmake --build --preset linux-content-dev \
+        if [ -n "${CHRONON3D_CAMERA_BUILD_DIR:-}" ]; then
+            BUILD_OUTPUT=$(cmake --build "$BUILD_DIR" \
             --target chronon3d_camera_tests chronon3d_scene_tests \
             -j"$(nproc)" 2>&1) || true
+        else
+            BUILD_OUTPUT=$(cmake --build --preset linux-content-dev \
+            --target chronon3d_camera_tests chronon3d_scene_tests \
+            -j"$(nproc)" 2>&1) || true
+        fi
 
         ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep 'error:' | wc -l)
 
@@ -208,14 +223,17 @@ echo "== 5. CTest discovery + run =="
 if [ "$BUILD_BLOCKED" = true ]; then
     _gate_blocked "ctest" "build is blocked — test binaries do not exist"
 else
-    # Find the correct test preset
+    # An explicit build directory is authoritative; otherwise find the
+    # configured preset as a compatibility fallback.
     TEST_PRESET=""
-    for candidate in linux-content-dev-test linux-fast-dev-test linux-ci-test; do
-        if ctest --list-presets 2>/dev/null | grep -q "$candidate"; then
-            TEST_PRESET="$candidate"
-            break
-        fi
-    done
+    if [ -z "${CHRONON3D_CAMERA_BUILD_DIR:-}" ]; then
+        for candidate in linux-content-dev-test linux-fast-dev-test linux-ci-test; do
+            if ctest --list-presets 2>/dev/null | grep -q "$candidate"; then
+                TEST_PRESET="$candidate"
+                break
+            fi
+        done
+    fi
 
     if [ -z "$TEST_PRESET" ]; then
         # Fallback: use build dir directly
@@ -271,8 +289,9 @@ echo "== 6. Camera test groups =="
 if [ "$BUILD_BLOCKED" = true ]; then
     _gate_blocked "test_groups" "build is blocked"
 else
-    SCENE_BIN=$(find build -type f -name 'chronon3d_scene_tests' -executable 2>/dev/null | head -1)
-    CAMERA_BIN=$(find build -type f -name 'chronon3d_camera_tests' -executable 2>/dev/null | head -1)
+    SEARCH_ROOT="${CHRONON3D_CAMERA_BUILD_DIR:-build}"
+    SCENE_BIN=$(find "$SEARCH_ROOT" -type f -name 'chronon3d_scene_tests' -executable 2>/dev/null | head -1)
+    CAMERA_BIN=$(find "$SEARCH_ROOT" -type f -name 'chronon3d_camera_tests' -executable 2>/dev/null | head -1)
 
     declare -A TEST_GROUPS=(
         ["projection"]="*projection*"
