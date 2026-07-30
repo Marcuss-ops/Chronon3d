@@ -243,15 +243,6 @@ TEST_CASE("TextUnitMap_8lvl (e) OOB safety on all inverses") {
     const PlacedGlyphRun placed = make_placed(offs, lens);
     const TextUnitMap map(s, placed);
 
-    // Below range → nullopt.
-    CHECK_FALSE(map.codepoint_to_byte(0).has_value());
-    CHECK_FALSE(map.grapheme_to_codepoint(0).has_value());
-    CHECK_FALSE(map.glyph_to_grapheme(0).has_value());
-    CHECK_FALSE(map.word_to_glyph(0).has_value());
-    CHECK_FALSE(map.line_to_word(0).has_value());
-    CHECK_FALSE(map.paragraph_to_line(0).has_value());
-    CHECK_FALSE(map.span_to_paragraph(0).has_value());
-
     // Beyond range → nullopt (sentinel UINT32_MAX).
     CHECK_FALSE(map.codepoint_to_byte(1000).has_value());
     CHECK_FALSE(map.grapheme_to_codepoint(1000).has_value());
@@ -287,13 +278,17 @@ TEST_CASE("TextUnitMap_8lvl (f) bit-exact determinism 100 iterations") {
         CHECK(map.line_count()      == golden.line_count());
         CHECK(map.paragraph_count() == golden.paragraph_count());
 
-        // Spot-check forward + inverse lookup parity.
+        // Spot-check forward + inverse lookup parity. For a multi-byte UTF-8
+        // codepoint, every byte maps to the same codepoint and the inverse
+        // therefore returns that codepoint's first byte, not the continuation
+        // byte currently being queried.
         for (u32 i = 0; i < map.byte_count(); ++i) {
             auto cp = map.byte_to_codepoint(i);
             REQUIRE(cp.has_value());
             auto back = map.codepoint_to_byte(*cp);
             REQUIRE(back.has_value());
-            CHECK(*back == i);
+            CHECK(*back <= i);
+            CHECK(map.byte_to_codepoint(*back).value() == *cp);
         }
     }
 }

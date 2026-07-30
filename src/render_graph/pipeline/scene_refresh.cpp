@@ -81,7 +81,7 @@ void refresh_compiled_graph_payloads(
                 for (const auto& [name, rl] : resolved_by_name) {
                     if (!rl || !rl->layer || rl->layer->kind != LayerKind::Text
                         || rl->layer->nodes.size() != 1
-                        || rl->layer->nodes[0].name != text.name()) {
+                        || rl->layer->name != text.layer_id()) {
                         continue;
                     }
                     const auto& render_ref = rl->layer->nodes[0];

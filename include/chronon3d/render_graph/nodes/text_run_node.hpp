@@ -50,6 +50,7 @@ public:
     /// text, `static_memory_cache("text_run")` for static.
     TextRunNode(
         std::string name,
+        std::string layer_id,
         std::shared_ptr<TextRunShape> shape,
         const ::chronon3d::RenderNode& render_ref,
         const cache::NodeCacheKey& key,
@@ -61,6 +62,7 @@ public:
     // ── RenderGraphNode overrides ────────────────────────────────────────
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::TextRun; }
     std::string_view name() const noexcept override { return m_name; }
+    std::string_view layer_id() const noexcept { return m_layer_id; }
 
     /// TextRuns are NOT full-frame seeds (the run shape itself is constrained).
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext&) const noexcept override {
@@ -122,6 +124,7 @@ public:
 
 private:
     std::string m_name;
+    std::string m_layer_id;
     std::shared_ptr<TextRunShape> m_shape;
     ::chronon3d::RenderNode m_render_ref;
     cache::NodeCacheKey m_key;
