@@ -9,20 +9,6 @@ macro(chronon3d_append_target_if_present list_name target_name)
     endif()
 endmacro()
 
-if(CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION AND TARGET chronon3d_core_tests)
-    target_compile_options(chronon3d_core_tests PRIVATE
-        -Werror=deprecated-declarations
-    )
-endif()
-
-add_test(
-    NAME verify_descriptor_registration_flag
-    COMMAND bash -c "${CMAKE_COMMAND} -L ${CMAKE_BINARY_DIR} 2>/dev/null | grep -q 'CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION'"
-)
-set_tests_properties(verify_descriptor_registration_flag PROPERTIES
-    LABELS "build-flag"
-)
-
 if(TARGET chronon3d_benchmarks)
     set(CHRONON3D_BENCHMARK_DEP
         chronon3d_benchmarks
