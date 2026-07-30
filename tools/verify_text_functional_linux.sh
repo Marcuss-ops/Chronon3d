@@ -225,7 +225,7 @@ else
             _gate_blocked "ctest" "source is newer than binary — rebuild required"
         else
             echo "  Running text production v1 tests..."
-            if CTEST_OUTPUT=$(ctest --output-on-failure \
+            if CTEST_OUTPUT=$(ctest --test-dir "$BUILD_DIR" --output-on-failure \
                 -R '^chronon3d_text_production_v1_tests$' 2>&1); then
                 if echo "$CTEST_OUTPUT" | grep -q '100% tests passed'; then
                     _gate_pass "ctest (100% passed)"
