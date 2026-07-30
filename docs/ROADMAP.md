@@ -8,9 +8,9 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 ## Decisione corrente — Cleanup → Glow V1 → Camera 2.5D V1
 
 Il repository resta vincolato alla certificazione sullo stesso SHA: il cleanup
-non è ancora promosso a `CLEAN-BASELINE`; Glow V1 e Camera 2.5D V1 sono
-verificati sui target disponibili. La fixture combinata compila e ha uno smoke
-render CLI reale, ma la certificazione prodotto globale resta da eseguire.
+non è ancora promosso a `CLEAN-BASELINE`; Glow V1, Camera 2.5D V1 e la fixture
+combinata sono certificati su `main@5cfdf1cd`. Il gate cleanup globale resta da
+eseguire con il checkout senza file non tracciati e con il full baseline runner.
 Il lineage di cleanup osservato arriva a `main@20a102f3`: timing globale rimosso
 dal job, Render Plan tipizzato e preparato prima del frame, CLI unificata, C ABI
 isolata, ciclo base/animazioni spezzato, percorso non-modulare rimosso, adapter
@@ -30,10 +30,10 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
-> **Snapshot osservato (2026-07-29):** `main@a059b7e0`. Glow V1 e Camera 2.5D V1
-> PASS sui gate Linux disponibili; i profili testuali leggeri PASS nei test
-> dedicati. `GlowCameraProductV1` ha smoke render CLI PASS, mentre Combined
-> Product completo e baseline cleanup restano NOT RUN.
+> **Snapshot osservato (2026-07-30):** `main@5cfdf1cd`. Glow V1, Camera 2.5D V1
+> e `GlowCameraProductV1` sono PASS sui gate Linux: video 60 frame, random
+> access, seriale/parallelo, cold/warm, SDK consumer e C ABI inclusi. La
+> baseline cleanup globale resta NOT CERTIFIED.
 
 > **Snapshot (2026-07-15):** `main@04c1cb48` — current origin/main HEAD. 13/13 action plan closure landed earlier (see §13/13 Action Plan closure below). CI infrastructure: sanitizers nightly/weekly, renderer-boundary gate, test hygiene gate, CI status JSON artifact; **current HEAD non certificato** (multipli gate CI in fallimento sui commit recenti). Video pipeline: structured errors, memory budget, atomic output. Test coverage: frame rate 55 tests, determinism matrix 16 tests.
 
