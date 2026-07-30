@@ -458,6 +458,11 @@ namespace {
     const std::string&    text       = params.text.content.value;
     FontSpec              font_spec  = params.text.font;
     const TextLayoutSpec& layout     = params.text.layout;
+    TextLayoutSpec        effective_layout = layout;
+    // Authoring TextFrame::auto_fit is lowered onto TextLayoutSpec.  The
+    // canonical compiler gate is ParagraphStyle::auto_fit_font_size.
+    effective_layout.paragraph.auto_fit_font_size =
+        layout.paragraph.auto_fit_font_size || layout.auto_fit;
 
     // Default to Inter-Bold when no font_path or font_family is set.
     // Prevents "failed to load font '' (error=1)" downstream when the
@@ -504,7 +509,7 @@ namespace {
     // compile_text_layout calls use cache=nullptr.  The resolved
     // font size replaces the authored size in the cache key.
     f32 effective_font_size = font_spec.font_size;
-    if (layout.paragraph.auto_fit_font_size) {
+    if (effective_layout.paragraph.auto_fit_font_size) {
         const f32 min_fs = layout.paragraph.min_font_size;
         const f32 max_fs = std::min(font_spec.font_size,
                                     layout.paragraph.max_font_size);
@@ -532,8 +537,8 @@ namespace {
                 probe_doc.defaults.font = probe_font;
                 probe_doc.split_paragraphs();
                 TextLayoutRequest probe_req{
-                    &probe_doc, &layout, probe_font};
-                probe_req.features = layout.features;
+                    &probe_doc, &effective_layout, probe_font};
+                probe_req.features = effective_layout.features;
                 TextCompileServices probe_svc{
                     &engine, nullptr, bundled_font_root_for(probe_font)};
                 auto probe = compile_text_layout(probe_req, probe_svc);
@@ -558,8 +563,8 @@ namespace {
                     mid_doc.defaults.font = mid_font;
                     mid_doc.split_paragraphs();
                     TextLayoutRequest mid_req{
-                        &mid_doc, &layout, mid_font};
-                    mid_req.features = layout.features;
+                        &mid_doc, &effective_layout, mid_font};
+                    mid_req.features = effective_layout.features;
                     TextCompileServices mid_svc{
                         &engine, nullptr, bundled_font_root_for(mid_font)};
                     auto mid_res =
@@ -580,8 +585,11 @@ namespace {
                     "auto-fit: resolved {:.1f}pt → {:.1f}pt",
                     font_spec.font_size, best);
             }
-            effective_font_size = best;
-            cache_key.font_size = best;
+            // Preserve the authored size when the probe already fits.  The
+            // binary-search fallback (`best = min_fs`) is only valid after
+            // an actual overflow/compile failure enters the search branch.
+            effective_font_size = fits_at_authored ? max_fs : best;
+            cache_key.font_size = effective_font_size;
         }
     }
 

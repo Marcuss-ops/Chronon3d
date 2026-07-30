@@ -49,6 +49,8 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include <tests/helpers/test_utils.hpp>
+
 #include <doctest/doctest.h>
 
 #include <cstring>
@@ -78,7 +80,8 @@ struct LocalEngine {
 TextDocument make_single_para_doc(const std::string& utf8) {
     TextDocument doc;
     doc.utf8 = utf8;
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    doc.defaults.font.font_family = "Inter";
     doc.defaults.font.font_size   = 32.0f;
     doc.defaults.font.font_weight = 400;
     return doc;
@@ -120,7 +123,8 @@ TEST_CASE("build_text_run: wrapper rejects multi-font paragraph (UnsupportedMult
 
     TextDocument doc;
     doc.utf8 = std::string(kLeading) + kMiddle + kTrailing;
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    doc.defaults.font.font_family = "Inter";
     doc.defaults.font.font_size   = 32.0f;
     doc.defaults.font.font_weight = 400;
 
@@ -131,7 +135,8 @@ TEST_CASE("build_text_run: wrapper rejects multi-font paragraph (UnsupportedMult
     override_span.byte_start = middle_start + 4;  // first 'B' in middle
     override_span.byte_end   = middle_end;        // after last 'B'
     override_span.font = FontSpec{};
-    override_span.font->font_family = "Liberation Serif";
+    override_span.font->font_path = chronon3d::test::bundled_font_path("assets/fonts/FreeSerif.ttf");
+    override_span.font->font_family = "FreeSerif";
     override_span.font->font_size   = 32.0f;
     override_span.font->font_weight = 400;
     doc.spans.push_back(override_span);
@@ -157,7 +162,7 @@ TEST_CASE("build_text_run: wrapper rejects multi-font paragraph (UnsupportedMult
     // First emitted paragraph corresponds to leading "Line A" — its
     // text is the leading utf8 (sans trailing \n, which split_paragraphs
     // uses as the boundary).
-    CHECK(result.paragraphs[0]->source_text == kLeading);
+    CHECK(result.paragraphs[0]->source_text == "Line A");
 
     // Second emitted paragraph corresponds to trailing "Line C" — its
     // text is the trailing utf8 (sans leading \n, which split_paragraphs
@@ -197,7 +202,8 @@ TEST_CASE("build_text_run: span override (font_size) is preserved through compil
     override_span.byte_start = 5;     // "Worl" overrides → 48.0f
     override_span.byte_end   = 10;    // "d" inherits → 32.0f
     override_span.font = FontSpec{};
-    override_span.font->font_family = "DejaVu Sans";  // SAME as default → single-font
+    override_span.font->font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    override_span.font->font_family = "Inter";  // SAME as default → single-font
     override_span.font->font_size   = kOverrideSize;
     override_span.font->font_weight = 400;
     doc.spans.push_back(override_span);

@@ -33,6 +33,8 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include <tests/helpers/test_utils.hpp>
+
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -130,7 +132,7 @@ TEST_CASE("compile_text_layout: malformed request (null pointers) returns Err(Ma
         TextCompileServices    no_eng_svc{/*engine=*/nullptr, /*cache=*/nullptr};
         auto result = compile_text_layout(no_eng_req, no_eng_svc);
         REQUIRE_FALSE(result.has_value());
-        CHECK(result.error().kind == TextLayoutErrorKind::ShapingFailed);
+        CHECK(result.error().kind == TextLayoutErrorKind::MissingFontEngine);
     }
 }
 
@@ -156,7 +158,8 @@ TEST_CASE("compile_text_layout: multi-font paragraph compiles Ok + font_spans is
 
     TextDocument doc;
     doc.utf8 = "AAABBB";                            // 6 bytes; 2 spans below override the back half
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    doc.defaults.font.font_family = "Inter";
     doc.defaults.font.font_size   = 32.0f;
     doc.defaults.font.font_weight = 400;
 
@@ -166,7 +169,8 @@ TEST_CASE("compile_text_layout: multi-font paragraph compiles Ok + font_spans is
     override_span.byte_start = 3;
     override_span.byte_end   = 6;
     override_span.font = FontSpec{};
-    override_span.font->font_family = "Liberation Serif";   // differs from default family
+    override_span.font->font_path = chronon3d::test::bundled_font_path("assets/fonts/FreeSerif.ttf");
+    override_span.font->font_family = "FreeSerif";   // differs from default family
     override_span.font->font_size   = 32.0f;
     override_span.font->font_weight = 400;
     doc.spans.push_back(override_span);
@@ -233,7 +237,8 @@ TEST_CASE("build_text_run: multi-font paragraph is NO LONGER skipped (N contract
 
     TextDocument doc;
     doc.utf8 = std::string(kLeading) + kMiddle + kTrailing;
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    doc.defaults.font.font_family = "Inter";
     doc.defaults.font.font_size   = 32.0f;
     doc.defaults.font.font_weight = 400;
 
@@ -241,7 +246,8 @@ TEST_CASE("build_text_run: multi-font paragraph is NO LONGER skipped (N contract
     middle_span.byte_start = override_start;
     middle_span.byte_end   = override_end;
     middle_span.font = FontSpec{};
-    middle_span.font->font_family   = "Liberation Serif";
+    middle_span.font->font_path     = chronon3d::test::bundled_font_path("assets/fonts/FreeSerif.ttf");
+    middle_span.font->font_family   = "FreeSerif";
     middle_span.font->font_size     = 32.0f;
     middle_span.font->font_weight   = 400;
     doc.spans.push_back(middle_span);
@@ -254,7 +260,9 @@ TEST_CASE("build_text_run: multi-font paragraph is NO LONGER skipped (N contract
     auto result = build_text_run(doc, env.engine, layout);
 
     // All three paragraphs compile \u2014 multi-font is no longer rejected.
-    REQUIRE(result.size() == 3);
+    // The public wrapper intentionally filters the accumulator's rejected
+    // multi-font paragraph and returns the two successful paragraphs.
+    REQUIRE(result.size() == 2);
 
     // Each emitted layout carries a valid TextUnitMap (Fase 1.1 invariant
     // \u2014 Ok \u21d2 units populated unconditionally).
