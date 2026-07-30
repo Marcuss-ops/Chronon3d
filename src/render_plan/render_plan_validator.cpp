@@ -391,7 +391,11 @@ ValidationResult validate_render_plan(const nlohmann::json& root) {
                         {"volume",             {{"type", "number"}, {"minimum", 0}, {"maximum", 4}}},
                         {"start_time_offset",  {{"type", "number"}, {"minimum", 0}}},
                         {"duration_seconds",   {{"type", "number"}, {"minimum", 0}}},
-                        {"role",               {{"type", "string"}}}
+                        {"role",               {{"type", "string"}}},
+                        {"loop",               {{"type", "boolean"}}},
+                        {"fade_in_seconds",    {{"type", "number"}, {"minimum", 0}}},
+                        {"fade_out_seconds",   {{"type", "number"}, {"minimum", 0}}},
+                        {"ducking_enabled",    {{"type", "boolean"}}}
                     }}
                 }}
             }},

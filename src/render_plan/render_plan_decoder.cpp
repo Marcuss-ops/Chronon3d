@@ -118,7 +118,11 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                 value.value("volume", 1.0),
                 value.value("start_time_offset", 0.0),
                 value.value("duration_seconds", 0.0),
-                value.value("role", std::string{})});
+                value.value("role", std::string{}),
+                value.value("loop", false),
+                value.value("fade_in_seconds", 0.0),
+                value.value("fade_out_seconds", 0.0),
+                value.value("ducking_enabled", false)});
         }
         const auto& output = root.at("output");
         plan.output.path = output.at("path").get<std::string>();
