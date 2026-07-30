@@ -64,7 +64,11 @@ struct LocalEngine {
 ) {
     TextRunDefinition params;
     params.text.content.value              = utf8;
-    params.text.font.font_family           = "DejaVu Sans";
+    // Family-only resolution is intentionally not a process-wide service;
+    // use the tracked fixture so this contract test is deterministic on a
+    // clean machine as well as on a developer workstation.
+    params.text.font.font_path             = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    params.text.font.font_family           = "Inter";
     params.text.font.font_size             = font_size;
     params.text.font.font_weight           = 400;
     params.text.layout.paragraph.auto_fit_font_size = auto_fit;

@@ -40,8 +40,9 @@ inline void skip_if_missing(const char* fixture, const char* what) noexcept {
 /// Canonical Inter-Bold font fixture for deterministic text tests.
 /// Font path: tests/fixtures/Inter-Bold.ttf (tracked in git).
 inline chronon3d::FontSpec inter_bold() {
+    const auto fixture = std::filesystem::absolute(kInterBoldPath).string();
     return chronon3d::FontSpec{
-        .font_path   = kInterBoldPath,
+        .font_path   = fixture,
         .font_family = "Inter",
         .font_weight = 700,
         .font_style  = "normal",

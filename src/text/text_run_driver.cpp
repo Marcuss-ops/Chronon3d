@@ -173,12 +173,16 @@ bool apply_active_state_to_text_run_shape(
             // we still update dissolve_mix inside rebuild_dissolve_slot
             // below so the compositor sees the latest mix, then return
             // BEFORE the active-side rebuild (no work).
-            (void)rebuild_dissolve_slot(
+            const bool dissolve_rebuilt = rebuild_dissolve_slot(
                 shape, state, /*outgoing=*/state.dissolve_from
                     ? state.dissolve_from->defaults.font
                     : effective_font,
                 layout_spec, engine, cache);
-            return false;
+            // The active side was already current, but the dissolve slot may
+            // still be newly materialized. Report that observable rebuild to
+            // callers so the transition lifecycle is not mistaken for a
+            // no-op (TICKET-068 crossfade contract).
+            return dissolve_rebuilt;
         }
     }
 
