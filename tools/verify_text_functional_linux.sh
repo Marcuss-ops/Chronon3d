@@ -187,7 +187,9 @@ else
         BUILD_OUTPUT=$(cmake --build --preset linux-content-dev \
             --target chronon3d_text_production_v1_tests -j"$(nproc)" 2>&1) || true
 
-        ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep -c 'error:' || echo 0)
+        # grep -c returns status 1 when no errors are found; do not append a
+        # second zero, or the arithmetic gate receives a multi-line value.
+        ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep -c 'error:' || true)
 
         if [ "$ERROR_COUNT" -eq 0 ]; then
             _gate_pass "text_build (0 errors)"
