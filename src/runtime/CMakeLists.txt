@@ -54,6 +54,9 @@ target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d_backend_software
     chronon3d_backend_image
 )
+if(CHRONON3D_ENABLE_VIDEO)
+    target_link_libraries(chronon3d_runtime PUBLIC chronon3d_media_video)
+endif()
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_runtime PUBLIC chronon3d_ffmpeg_full)
 endif()
