@@ -261,6 +261,7 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                             "invalid frame range or frame rate"};
     }
 
+#if CHRONON3D_ENABLE_VIDEO
     using namespace chronon3d::media::video;
     VideoSinkConfig config;
     config.stream.width = m_impl->settings.width;
@@ -279,7 +280,6 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     config.output.overwrite = request.video.overwrite;
     config.label = "sdk::RenderEngine::render_to_file";
 
-#if CHRONON3D_ENABLE_VIDEO
     auto sink = create_video_sink(config);
     if (!sink || !sink->open(config)) {
         const auto message = sink ? sink->last_error_message()
