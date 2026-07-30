@@ -10,7 +10,9 @@
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
+#if CHRONON3D_ENABLE_VIDEO
 #include <chronon3d/media/video/video_sink_factory.hpp>
+#endif
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <algorithm>
@@ -92,6 +94,7 @@ RenderError runtime_error(std::string message) {
     };
 }
 
+#if CHRONON3D_ENABLE_VIDEO
 chronon3d::media::video::VideoCodec convert_codec(VideoCodec codec) {
     using Source = VideoCodec;
     using Target = chronon3d::media::video::VideoCodec;
@@ -122,6 +125,7 @@ chronon3d::media::video::VideoContainer convert_container(
         }
     }
 }
+#endif // CHRONON3D_ENABLE_VIDEO
 
 } // namespace
 
@@ -275,6 +279,7 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     config.output.overwrite = request.video.overwrite;
     config.label = "sdk::RenderEngine::render_to_file";
 
+#if CHRONON3D_ENABLE_VIDEO
     auto sink = create_video_sink(config);
     if (!sink || !sink->open(config)) {
         const auto message = sink ? sink->last_error_message()
@@ -355,6 +360,10 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         .elapsed_seconds = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - started).count(),
     };
+#else
+    return RenderError{RenderErrorCode::BackendUnavailable,
+                       "Built without CHRONON3D_ENABLE_VIDEO support."};
+#endif
 }
 
 void RenderEngine::set_settings(const RenderSettings& settings) {
