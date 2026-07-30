@@ -321,8 +321,12 @@ else
         # Try scene binary first, then camera binary
         for bin in "$SCENE_BIN" "$CAMERA_BIN"; do
             if [ -n "$bin" ] && [ -x "$bin" ]; then
-                # Check if any test cases match
-                if "$bin" --list-test-cases 2>/dev/null | grep -qi "${pattern//\*/.\*}" 2>/dev/null; then
+                # Check if any test cases match.  Do not pipe doctest directly
+                # into grep -q: with pipefail, grep exits after its first
+                # match and doctest receives SIGPIPE (status 141), which
+                # falsely turns every populated group into a SKIP.
+                TEST_CASE_LIST=$("$bin" --list-test-cases 2>/dev/null || true)
+                if grep -Eqi -- "${pattern//\*/.*}" <<< "$TEST_CASE_LIST"; then
                     RESULT=$("$bin" --test-case="$pattern" 2>&1) || true
                     if echo "$RESULT" | grep -q 'Status: SUCCESS'; then
                         group_passed=$((group_passed + $(echo "$RESULT" | grep -oP '\d+(?= passed)' | head -1 || echo 0)))
