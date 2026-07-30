@@ -351,6 +351,10 @@ elif [ "$FAIL_COUNT" -gt 0 ]; then
     echo "TEXT_FUNCTIONAL_FAIL"
     echo "  $FAIL_COUNT gate(s) failed. See details above."
     exit 1
+elif [ "$BLOCKED_COUNT" -gt 0 ]; then
+    echo "TEXT_FUNCTIONAL_BLOCKED"
+    echo "  $BLOCKED_COUNT gate(s) are blocked; a blocked gate cannot certify Text V1."
+    exit 2
 else
     echo "TEXT_FUNCTIONAL_PASS"
     echo "  All $PASS_COUNT gates passed. Text Production V1 functional."
