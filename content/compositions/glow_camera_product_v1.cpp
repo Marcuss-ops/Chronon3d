@@ -36,25 +36,29 @@ camera_v1::CameraDescriptor product_camera() {
 
 } // namespace
 
-chronon3d::Composition make_glow_camera_product_v1() {
+namespace {
+
+chronon3d::Composition make_product(bool portrait) {
+    const int width = portrait ? 1080 : 1920;
+    const int height = portrait ? 1920 : 1080;
     auto result = chronon3d::composition(
         {
-            .name = "GlowCameraProductV1",
-            .width = 1920,
-            .height = 1080,
+            .name = portrait ? "GlowCameraProductV1Portrait" : "GlowCameraProductV1",
+            .width = width,
+            .height = height,
             .frame_rate = FrameRate{30, 1},
             .duration = Frame{60},
         },
-        [](const FrameContext& ctx) {
+        [width, height](const FrameContext& ctx) {
             SceneBuilder scene(ctx);
             if (ctx.font_engine) scene.font_engine(ctx.font_engine);
             AnimatedValue<f32> title_opacity{0.0f};
             title_opacity.key(Frame{0}, 0.0f).key(Frame{8}, 1.0f);
             const f32 opacity = title_opacity.evaluate(ctx.local_time());
 
-            scene.layer("background", [](LayerBuilder& layer) {
+            scene.layer("background", [width, height](LayerBuilder& layer) {
                 layer.grid_background("grid", GridBackgroundParams{
-                    .size = {1920.0f, 1080.0f},
+                    .size = {static_cast<float>(width), static_cast<float>(height)},
                     .bg_color = {0.015f, 0.02f, 0.06f, 1.0f},
                     .grid_color = {0.20f, 0.42f, 1.0f, 0.12f},
                     .spacing = 80.0f,
@@ -127,6 +131,16 @@ chronon3d::Composition make_glow_camera_product_v1() {
         });
     result.default_camera_descriptor(product_camera());
     return result;
+}
+
+} // namespace
+
+chronon3d::Composition make_glow_camera_product_v1() {
+    return make_product(false);
+}
+
+chronon3d::Composition make_glow_camera_product_v1_portrait() {
+    return make_product(true);
 }
 
 } // namespace chronon3d::content::product
