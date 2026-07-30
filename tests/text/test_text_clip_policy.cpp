@@ -42,7 +42,6 @@
 #include <chronon3d/text/text_visibility_audit.hpp>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/text_placement.hpp>
-#include <chronon3d/text/text_placement_resolver.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/time.hpp>
@@ -50,12 +49,17 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/text/text_run_layout.hpp>
 
 #include <tests/helpers/test_utils.hpp>
+#include <tests/text/pipeline_parity_canary.hpp>
 #include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
 
 #include <cmath>
 #include <cstdint>
+#include <array>
 #include <memory>
 #include <string>
 
@@ -122,40 +126,26 @@ static const char* kClipVariantNames[kClipVariantCount] = {
     "baseline", "expanded", "conservative", "full", "off"
 };
 static const Rect kClipRects[kClipVariantCount] = {
-    Rect{0.0f,    0.0f,    1920.0f, 1080.0f},   // Baseline
-    Rect{-100.0f, -100.0f, 2120.0f, 1280.0f},  // Expanded (FU04 violation response)
-    Rect{96.0f,   54.0f,   1824.0f, 1026.0f},   // Conservative (5% safe-area)
-    Rect{-1000.0f, -1000.0f, 3920.0f, 3080.0f},// Full (way over-sized)
-    Rect{0.0f,    0.0f,    0.0f,    0.0f}      // Off (zero rect)
+    Rect{{0.0f, 0.0f}, {1920.0f, 1080.0f}},   // Baseline
+    Rect{{-100.0f, -100.0f}, {2120.0f, 1280.0f}},  // Expanded
+    Rect{{96.0f, 54.0f}, {1824.0f, 1026.0f}},   // Conservative
+    Rect{{-1000.0f, -1000.0f}, {3920.0f, 3080.0f}},// Full
+    Rect{{0.0f, 0.0f}, {0.0f, 0.0f}}      // Off
 };
 
 /// Render the canary composition at frame 0 with the given pipeline config.
 /// Returns the 6 invariant fields + pipeline name + frame number.
 static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
                                            const Rect& clip_rect =
-                                               Rect{0.0f, 0.0f, 1920.0f, 1080.0f}) {
+                                               Rect{{0.0f, 0.0f}, {1920.0f, 1080.0f}}) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
 
     PipelineResult out{};
 
-    // Build the canary composition inline (no file I/O).
-    LayerBuilder lb("canary_layer", SampleTime{});
-    lb.screen_dimensions(1920.0f, 1080.0f);
-    lb.text("canary_text", TextDefinition{
-    .content = {.value = std::string("PIPELINE PARITY")},
-    .style = {
-        .font = {.font_size = 96.0f}
-    },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
-        .size = Vec2{900.0f, 200.0f},
-        .anchor = TextAnchor::Center,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle
-    }
-});
-    auto comp = lb.build();
+    // Reuse the canonical parity fixture so the test inherits its authoring
+    // context, asset root, and FontEngine binding.
+    Composition comp = test::make_pipeline_parity_canary({});
 
     // Render frame 0 (or multi-frame loop for pipeline_video).
     std::shared_ptr<Framebuffer> fb;
@@ -171,15 +161,16 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
 
     out.frame = cfg.multi_frame ? Frame{4} : Frame{0};
     REQUIRE(fb != nullptr);
-    out.hash = framebuffer_hash(*fb);
+    out.hash = test::framebuffer_hash(*fb);
 
     // Audit the visibility contract (mirrors chronon3d_cli inspect-text).
     TextRunShape shape{};
-    shape.layout.placed.glyphs.resize(10);  // Canary at 96pt produces ~10 glyphs.
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed.glyphs.resize(10);
+    shape.layout = std::const_pointer_cast<const TextRunLayout>(layout);
     TextVisibilityAudit audit = audit_text_visibility(
         shape,
         Mat4{},         // identity world matrix (canary at origin)
-        Rect{},         // local_ink_bbox placeholder (real pipeline computes this)
         Rect{},         // predicted_bbox placeholder
         clip_rect,      // §4A-ext — clip_rect from the 5-variant matrix
         fb.get()
@@ -201,6 +192,7 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
 /// 6 identity-vs-base + 6 determinism (2 runs).
 #define assert_pipeline_clip_18_checks(pipeline_name, clip_rect, base_ref, cfg)        \
     do {                                                                              \
+        ensure_clip_base_refs();                                                     \
         PipelineResult a__local = render_with_pipeline((cfg), (clip_rect));            \
         PipelineResult b__local = render_with_pipeline((cfg), (clip_rect));            \
         REQUIRE(a__local.glyph_count > 0);                                           \
@@ -235,13 +227,16 @@ namespace {
 /// Per-clip base reference: `s_clip_base_refs[i]` is the BASE reference
 /// for all 7 pipeline variations of the i-th clip variant (7 × 5 = 35
 /// pipeline-clip combinations, each compared against the matching base ref).
-PipelineResult s_clip_base_refs[kClipVariantCount] = {
-    render_with_pipeline(PipelineConfig{}, kClipRects[0]),
-    render_with_pipeline(PipelineConfig{}, kClipRects[1]),
-    render_with_pipeline(PipelineConfig{}, kClipRects[2]),
-    render_with_pipeline(PipelineConfig{}, kClipRects[3]),
-    render_with_pipeline(PipelineConfig{}, kClipRects[4])
-};
+std::array<PipelineResult, kClipVariantCount> s_clip_base_refs{};
+
+void ensure_clip_base_refs() {
+    static bool initialized = false;
+    if (initialized) return;
+    for (std::size_t i = 0; i < kClipVariantCount; ++i) {
+        s_clip_base_refs[i] = render_with_pipeline(PipelineConfig{}, kClipRects[i]);
+    }
+    initialized = true;
+}
 }  // anonymous namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -452,4 +447,3 @@ TEST_CASE("Text clip policy #35: clip_off + pipeline_diagnostic (SKIPPED)") {
     SUCCEED("diagnostic pipeline skipped in non-diagnostic build");
 }
 #endif
-
