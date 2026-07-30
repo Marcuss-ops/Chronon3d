@@ -6,5 +6,6 @@ namespace chronon3d::content::product {
 
 /// Canonical combined Glow + Camera 2.5D V1 fixture.
 [[nodiscard]] chronon3d::Composition make_glow_camera_product_v1();
+[[nodiscard]] chronon3d::Composition make_glow_camera_product_v1_portrait();
 
 } // namespace chronon3d::content::product
