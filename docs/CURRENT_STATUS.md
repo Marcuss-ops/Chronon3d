@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-07-30.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@5cfdf1cd` (Glow V1, Camera 2.5D V1 e Combined Product certificati; baseline globale cleanup ancora non certificata).
+> Ultimo SHA osservato: `main@fd5cbcf2` — build-fix baseline: aggregate target 795/795 PASS, default build 40/40 PASS, linker error `create_video_sink` risolto con `#if CHRONON3D_ENABLE_VIDEO` guards. CTest ~76% PASS (golden/visual PARTIAL). Tag: `build-fix-baseline-2026-07-30`.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -84,7 +84,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Sanitizer cert | WIRED | `verify_sanitizer_linux.sh` 0 OOB + 0 UAF + 0 UB + 0 data races. |
 | TICKET-125 (Test aggregator Tests 8-18) | PARTIAL | 11-row index Tests 8-18 con PASS/FAIL criterion. Vedi [TICKET-125](tickets/TICKET-125-test-aggregator.md) + forward-points TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + TICKET-TEST-18-LONG-FORM-CONTENT. |
 | Test 18 founder dashboard | OPEN | Weekly scorecard aggregator + 8 metriche. |
-| Build (4346d7f068cb11ab26598417b13b5277b7e55ad6) | PARTIAL | chronon3d_cli verde post rebase-21ece2b3 (upstream rot #8 for-loop fix merged at apps/chronon3d_cli/commands/watch/register_watch_commands.cpp; our profiling.hpp include at src/backends/text/text_render_resources.cpp preserved); broader 11/11 macchina-verifica DEFERRED-WBH per AGENTS.md §rot-class-protection threshold (post-2nd-rebase [ahead 4, behind 0] vs upstream 4e203dde (chaser-chaser close cat-5 deferred)). |
+| Build (fd5cbcf2) | PASS | `chronon3d_tests` 795/795 + default build 40/40 PASS. Linker error `create_video_sink` risolto con `#if CHRONON3D_ENABLE_VIDEO` in `sdk_render_engine.cpp` + `target_compile_definitions` in `src/runtime/CMakeLists.txt`. Tag: `build-fix-baseline-2026-07-30`. |
 
 | Layer transitions (TRN-03) | PASS | compute_progress centralizzato su `sample_transition()`; cache key include durata/delay/easing/direzione e parametri tipizzati; in/out coexist nel medesimo layer via due nodi seriali; catalogo fail-loud su ID sconosciuto. |
 | Text transitions (TRN-04) | PASS | semantica Cut corretta (A fino al boundary di B); dissolve testuale con alpha complementari (incoming alpha = mix, outgoing alpha = 1 - mix); effetti fill/stroke/shadow/blur/material/font spans/bbox applicati simmetricamente; golden frames al 0/25/50/75/100%. |

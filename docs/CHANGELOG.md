@@ -1,3 +1,24 @@
+## 2026-07-30
+### `fix(build): resolve create_video_sink linker error (CHRONON3D_ENABLE_VIDEO=OFF)`
+  ([build-fix-baseline-2026-07-30](../build-fix-baseline-2026-07-30))
+
+Quando `CHRONON3D_ENABLE_VIDEO=OFF`, `sdk_render_engine.cpp` chiamava
+`create_video_sink()` incondizionatamente causando un linker error a cascata
+su ~53 binari test. Fix in 4 commit:
+- `src/runtime/CMakeLists.txt`: `target_compile_definitions(chronon3d_runtime
+  PRIVATE CHRONON3D_ENABLE_VIDEO=1)` dentro il blocco `if(CHRONON3D_ENABLE_VIDEO)`.
+- `src/runtime/sdk_render_engine.cpp`: `#if CHRONON3D_ENABLE_VIDEO` attorno
+  a include, helper `convert_codec`/`convert_container`, e body di
+  `render_to_file` con `#else` che restituisce `BackendUnavailable`.
+- `tests/core_tests.cmake`: rimosso `chronon3d_media_video` da LINK_TARGETS
+  (OBJECT library, non produce `.a`/`.so`).
+- `tools/check_unique_cmake_source_ownership.py`: esclusi `vcpkg_bootstrap`
+  e `vcpkg_installed` dallo scan (38 falsi positivi).
+
+Risultato: aggregate target `chronon3d_tests` 795/795 PASS, default build
+40/40 PASS, 20/20 gate PASS. CTest ~76% PASS (~20 golden/visual failure
+pre-esistenti). Tag: `build-fix-baseline-2026-07-30` su `fd5cbcf2`.
+
 ## 2026-07-28
 ### `docs(state): correct SDK cross-language row in CURRENT_STATUS.md`
 - C ABI implementata (11+ simboli in `include/chronon3d/c_api/chronon3d.h`):
