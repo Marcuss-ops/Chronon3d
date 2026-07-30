@@ -81,6 +81,7 @@ done
 # ABI suite validates the canonical render-plan decoder/validator contract.
 run env CHRONON3D_INSTALL_TEST_PRESET="${CHRONON3D_INSTALL_TEST_PRESET:-linux-ci-full-validation}" \
     CHRONON3D_INSTALL_TEST_FAST="${CHRONON3D_INSTALL_TEST_FAST:-0}" \
+    CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}" \
     SDK_BUILD="$ROOT/$BUILD_DIR" SDK_PREFIX="$SDK_PREFIX" bash tools/install_consumer_test.sh
 run ctest --test-dir "$BUILD_DIR" -R '^chronon3d_c_abi_tests$' --output-on-failure
 
