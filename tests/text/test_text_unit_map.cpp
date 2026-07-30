@@ -183,7 +183,7 @@ TEST_CASE("Exclude_spaces: backward compatible -- placed==nullptr -> no-op") {
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — word unit width assertion fails (w==0 vs Approx(1)).
 // TODO(chronon3d): fix text unit map word-boundary logic and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs" * doctest::skip()) {
+TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs" * doctest::skip()) { // TICKET-007.p
     auto source = std::string("ab cd ef");
     auto placed = make_run_for_source(source);
     auto map = build_text_unit_map(placed, source);
