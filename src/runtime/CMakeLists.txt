@@ -56,6 +56,7 @@ target_link_libraries(chronon3d_runtime PUBLIC
 )
 if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_runtime PUBLIC chronon3d_media_video)
+    target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_VIDEO=1)
 endif()
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_runtime PUBLIC chronon3d_ffmpeg_full)
