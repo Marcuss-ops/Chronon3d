@@ -87,6 +87,12 @@ bool rebuild_dissolve_slot(
     TextLayoutCache* cache
 ) {
     if (state.dissolve_from == nullptr) {
+        // A transition can leave the dissolve interval without retaining an
+        // outgoing keyframe. Clear the previous slot explicitly so a reused
+        // shape cannot carry stale crossfade pixels into a Hold state.
+        shape.dissolve_layout.reset();
+        shape.dissolve_glyphs.clear();
+        shape.dissolve_mix = 0.0f;
         return false;
     }
     const std::string& cf_utf8 = state.dissolve_from->utf8;

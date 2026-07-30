@@ -15,6 +15,7 @@
 #include <spdlog/spdlog.h>
 
 #include <memory>
+#include <algorithm>
 #include <utility>
 
 namespace chronon3d {
@@ -148,39 +149,84 @@ compile_text_layout(
     TextCompileServices& services,
     const ResolvedTextTree* pre_resolved
 ) {
+    // Keep authoring auto-fit on the canonical PreparedText path as well as
+    // the compatibility TextRunDefinition path.  Probe through the same
+    // compiler with auto-fit disabled, then compile the selected size once.
+    PreparedText effective = prepared;
+    if (prepared.frame.auto_fit) {
+        const f32 min_fs = prepared.frame.min_font_size;
+        const f32 max_fs = std::min(prepared.style.font.font_size,
+                                    prepared.frame.max_font_size);
+        if (max_fs > min_fs) {
+            const auto fits = [&](f32 size) {
+                PreparedText probe = prepared;
+                probe.frame.auto_fit = false;
+                probe.style.font.font_size = size;
+                auto result = compile_text_layout(probe, services, pre_resolved);
+                // Font metrics exclude part of the raster ink (notably
+                // ascender/descender overshoot), so reserve a small
+                // deterministic vertical safety margin before accepting a
+                // probe.  This keeps the authoring contract true for the
+                // rendered alpha bounds, not only the layout metrics.
+                return result &&
+                       result.value()->bounds.x <= prepared.frame.size.x * 0.95f &&
+                       result.value()->bounds.y <= prepared.frame.size.y * 0.75f;
+            };
+            f32 low = min_fs;
+            f32 high = max_fs;
+            f32 best = min_fs;
+            if (fits(max_fs)) {
+                best = max_fs;
+            } else {
+                for (int i = 0; i < 12; ++i) {
+                    const f32 mid = (low + high) * 0.5f;
+                    if (fits(mid)) {
+                        best = mid;
+                        low = mid;
+                    } else {
+                        high = mid;
+                    }
+                }
+            }
+            effective.frame.auto_fit = false;
+            effective.style.font.font_size = best;
+            effective.document.defaults.font.font_size = best;
+        }
+    }
+
     // X2 canonical path: synthesise a transient TextLayoutSpec from the
     // canonical TextFrame and dispatch to the existing request-based
     // implementation.  This keeps the compiler's internal logic unchanged
     // while exposing the canonical PreparedText API to callers.
     TextLayoutSpec layout;
-    layout.box = prepared.frame.size;
-    layout.anchor = prepared.frame.anchor;
-    layout.centering_mode = prepared.frame.centering_mode;
-    layout.align = prepared.frame.align;
-    layout.vertical_align = prepared.frame.vertical_align;
-    layout.wrap = prepared.frame.wrap;
-    layout.overflow = prepared.frame.overflow;
-    layout.line_height = prepared.frame.line_height;
-    layout.tracking = prepared.frame.tracking;
-    layout.auto_fit = prepared.frame.auto_fit;
-    layout.min_font_size = prepared.frame.min_font_size;
-    layout.max_font_size = prepared.frame.max_font_size;
-    layout.max_lines = prepared.frame.max_lines;
-    layout.ellipsis = prepared.frame.ellipsis;
-    layout.paragraph = prepared.document.paragraphs.empty()
+    layout.box = effective.frame.size;
+    layout.anchor = effective.frame.anchor;
+    layout.centering_mode = effective.frame.centering_mode;
+    layout.align = effective.frame.align;
+    layout.vertical_align = effective.frame.vertical_align;
+    layout.wrap = effective.frame.wrap;
+    layout.overflow = effective.frame.overflow;
+    layout.line_height = effective.frame.line_height;
+    layout.tracking = effective.frame.tracking;
+    layout.auto_fit = effective.frame.auto_fit;
+    layout.min_font_size = effective.frame.min_font_size;
+    layout.max_font_size = effective.frame.max_font_size;
+    layout.max_lines = effective.frame.max_lines;
+    layout.ellipsis = effective.frame.ellipsis;
+    layout.paragraph = effective.document.paragraphs.empty()
         ? ParagraphStyle{}
-        : prepared.document.paragraphs.front().style;
-    layout.features = prepared.shaping.open_type_features;
+        : effective.document.paragraphs.front().style;
+    layout.features = effective.shaping.open_type_features;
 
     TextLayoutRequest request{
-        &prepared.document,
+        &effective.document,
         &layout,
-        prepared.style.font,
+        effective.style.font,
         0,
     };
-    request.direction = prepared.shaping.direction;
-    request.language = prepared.shaping.language;
-    request.features = prepared.shaping.open_type_features;
+    request.direction = effective.shaping.direction;
+    request.language = effective.shaping.language;
+    request.features = effective.shaping.open_type_features;
 
     return compile_text_layout(request, services, pre_resolved);
 }

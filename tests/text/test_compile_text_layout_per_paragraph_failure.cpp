@@ -52,6 +52,8 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include <tests/helpers/test_utils.hpp>
+
 #include <doctest/doctest.h>
 
 #include <cstring>
@@ -96,7 +98,8 @@ TextDocument make_three_para_doc_with_middle(
 
     TextDocument doc;
     doc.utf8 = std::string(kLeading) + kMiddle + kTrailing;
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    doc.defaults.font.font_family = "Inter";
     doc.defaults.font.font_size   = 32.0f;
     doc.defaults.font.font_weight = 400;
 
@@ -108,7 +111,8 @@ TextDocument make_three_para_doc_with_middle(
         override_span.byte_start = middle_start + 4;  // first 'B' in middle
         override_span.byte_end   = middle_end;        // after last 'B'
         override_span.font = FontSpec{};
-        override_span.font->font_family = "Liberation Serif";
+        override_span.font->font_path   = chronon3d::test::bundled_font_path("assets/fonts/FreeSerif.ttf");
+        override_span.font->font_family = "FreeSerif";
         override_span.font->font_size   = 32.0f;
         override_span.font->font_weight = 400;
         doc.spans.push_back(override_span);
@@ -206,7 +210,8 @@ TEST_CASE("compile_text_document: single-paragraph doc with multi-font — 1 Err
 
     TextDocument doc;
     doc.utf8 = "HelloWorld";
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    doc.defaults.font.font_family = "Inter";
     doc.defaults.font.font_size   = 32.0f;
     doc.defaults.font.font_weight = 400;
 
@@ -215,7 +220,8 @@ TEST_CASE("compile_text_document: single-paragraph doc with multi-font — 1 Err
     override_span.byte_start = 5;     // "Worl" overrides family
     override_span.byte_end   = 10;    // "d" inherits
     override_span.font = FontSpec{};
-    override_span.font->font_family = "Liberation Serif";
+    override_span.font->font_path   = chronon3d::test::bundled_font_path("assets/fonts/FreeSerif.ttf");
+    override_span.font->font_family = "FreeSerif";
     override_span.font->font_size   = 32.0f;
     override_span.font->font_weight = 400;
     doc.spans.push_back(override_span);
