@@ -319,6 +319,17 @@ else
 
     for target in "${!REQUIRED_TARGETS[@]}"; do
         TARGET_DESC="${REQUIRED_TARGETS[$target]}"
+        # chronon3d_tests is an aggregate custom target, not an executable.
+        # Validate its generated Ninja target directly; executable lookup is
+        # reserved for concrete runtime targets such as chronon3d_cli.
+        if [ "$target" = "chronon3d_tests" ]; then
+            if grep -qE "^build ${target}: phony" "$BUILD_DIR/build.ninja" 2>/dev/null; then
+                _gate_pass "required_target[$target] (CMake aggregate target)"
+            else
+                _gate_fail "required_target[$target]" "aggregate target not present in $BUILD_DIR/build.ninja — $TARGET_DESC"
+            fi
+            continue
+        fi
         # Find the binary in the build dir
         TARGET_PATH=$(find "$BUILD_DIR" -type f -name "$target" -executable 2>/dev/null | head -1)
         if [ -z "$TARGET_PATH" ]; then
