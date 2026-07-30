@@ -70,6 +70,7 @@ CameraTestReport.json
 temp_assets/
 artifacts/
 /build_text_res_*/
+tests/scene/camera/_golden/*.bak
 
 # ── IDE and OS ───────────────────────────────────────────────────────────────
 .vscode/
@@ -98,6 +99,11 @@ tools/_*.py
 *.tgz
 *.zip
 *.pdb
+
+# ── Bootstrap artifacts (fetched checksum-pinned by tools/bootstrap_test_fonts.py) ─
+# Repo intentionally does NOT ship font binaries; bootstrap fetches Google Fonts blobs.
+assets/fonts/Poppins-*.ttf
+assets/fonts/Poppins-OFL.txt
 
 # ── Dashboard frontend ──────────────────────────────────────────────────────
 tools/telemetry_dashboard/frontend/dist/
