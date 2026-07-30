@@ -13,6 +13,7 @@ chronon3d_add_test_suite(
         chronon3d_sdk
         chronon3d_sdk_impl
         chronon3d_pipeline
+        chronon3d_media_video
     SOURCES ${CORE_TEST_SOURCES}
 )
 
