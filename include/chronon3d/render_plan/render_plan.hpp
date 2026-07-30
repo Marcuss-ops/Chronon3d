@@ -60,6 +60,14 @@ struct AudioTrackPlan {
     double start_time_offset{0.0};
     double duration_seconds{0.0};
     std::string role;
+
+    // Rendering hints set by the hybrid.v1 compiler for background_music.
+    // The audio muxer reads these to generate the corresponding FFmpeg
+    // filter chain (-stream_loop, afade, sidechain compression).
+    bool loop{false};
+    double fade_in_seconds{0.0};
+    double fade_out_seconds{0.0};
+    bool ducking_enabled{false};
 };
 
 struct OutputSpec {
