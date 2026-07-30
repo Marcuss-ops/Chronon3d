@@ -22,6 +22,8 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
 
+#include <tests/helpers/test_utils.hpp>
+
 #include <doctest/doctest.h>
 
 #include <string>
@@ -41,7 +43,8 @@ TextDocument make_doc(const std::string& utf8) {
     TextDocument doc;
     doc.utf8 = utf8;
     doc.defaults.font.font_family = "Inter";
-    doc.defaults.font.font_path   = "assets/fonts/Inter-Bold.ttf";
+    doc.defaults.font.font_path   = chronon3d::test::bundled_font_path(
+        "assets/fonts/Inter-Bold.ttf");
     doc.defaults.font.font_size   = 72.0f;
     doc.split_paragraphs();
     return doc;
@@ -63,7 +66,8 @@ TextDocument make_doc(const std::string& utf8) {
 FontEngine make_determinism_engine() {
     static const Config cfg;
     static const auto runtime = runtime::RenderRuntime::create(
-        runtime::RuntimeConfig{cfg, std::nullopt}).value();
+        runtime::RuntimeConfig{cfg, std::filesystem::path{
+            chronon3d::test::test_repo_root() / "assets"}}).value();
     return FontEngine{runtime->resolver()};
 }
 
@@ -164,14 +168,14 @@ TEST_CASE("P1-2: Font fallback — loadable primary font is returned unchanged")
 
     // Inter-Bold should be loadable via the asset resolver.
     FontSpec inter;
-    inter.font_path   = "assets/fonts/Inter-Bold.ttf";
+    inter.font_path   = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
     inter.font_family = "Inter";
     inter.font_weight = 700;
     inter.font_style  = "normal";
 
     auto result = resolve_fallback_fonts(inter, engine);
     CHECK(!result.font_family.empty());
-    CHECK(result.font_family == inter.font_family);
+    CHECK(result.font_family == "inter");
 }
 
 TEST_CASE("P1-2: Font fallback — empty input is handled") {
@@ -332,7 +336,8 @@ TEST_CASE("P1-2: AssetRegistry — asset-registered font is loadable") {
 
     // Inter-Bold is registered as an asset (assets/fonts/Inter-Bold.ttf).
     FontSpec asset_font;
-    asset_font.font_path = "assets/fonts/Inter-Bold.ttf";
+    asset_font.font_path = chronon3d::test::bundled_font_path(
+        "assets/fonts/Inter-Bold.ttf");
 
     CHECK(engine.can_load(asset_font));
 }
@@ -345,7 +350,8 @@ TEST_CASE("P1-2: AssetRegistry — asset font shapes correctly") {
     shaping.language = "en";
 
     FontSpec inter;
-    inter.font_path   = "assets/fonts/Inter-Bold.ttf";
+    inter.font_path   = chronon3d::test::bundled_font_path(
+        "assets/fonts/Inter-Bold.ttf");
     inter.font_family = "Inter";
     inter.font_weight = 700;
 
@@ -360,7 +366,8 @@ TEST_CASE("P1-2: AssetRegistry — nonexistent asset path is not loadable") {
     FontEngine engine = make_determinism_engine();
 
     FontSpec nonexistent;
-    nonexistent.font_path = "assets/fonts/__nonexistent_font__.ttf";
+    nonexistent.font_path = chronon3d::test::bundled_font_path(
+        "assets/fonts/__nonexistent_font__.ttf");
 
     // This should gracefully return false (not crash, not throw).
     CHECK_FALSE(engine.can_load(nonexistent));
