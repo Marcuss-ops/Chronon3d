@@ -65,6 +65,10 @@ void register_runtime_compositions(CompositionRegistry& registry) {
         .id = "GlowCameraProductV1"}, [](const CompositionProps&) -> Composition {
             return chronon3d::content::product::make_glow_camera_product_v1();
         }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "GlowCameraProductV1Portrait"}, [](const CompositionProps&) -> Composition {
+            return chronon3d::content::product::make_glow_camera_product_v1_portrait();
+        }));
 #endif
 }
 
