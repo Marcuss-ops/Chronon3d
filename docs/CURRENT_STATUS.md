@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> Ultima revisione semantica: 2026-07-29.
+> Ultima revisione semantica: 2026-07-30.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@a059b7e0` (Glow V1 e Camera 2.5D V1 certificati sui gate Linux disponibili; Combined Product e baseline globale restano non certificati).
+> Ultimo SHA osservato: `main@5cfdf1cd` (Glow V1, Camera 2.5D V1 e Combined Product certificati; baseline globale cleanup ancora non certificata).
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,11 +28,11 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PASS | `main@a059b7e0`: gate funzionale Linux 10/10 PASS; descriptor → program → session, projection, random access, framing, DOF, motion blur, LookAt, OrientAlongPath, camera groups, composition unification e consumer installato verificati. |
+| Camera V1 | PASS | `main@5cfdf1cd`: gate funzionale Linux 10/10 PASS; descriptor → program → session, projection, random access, framing, DOF, motion blur, LookAt, OrientAlongPath, camera groups, composition unification e consumer installato verificati. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow V1 | PASS | `main@fd4b24d4`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo; baseline globale ancora non certificata. |
+| Glow V1 | PASS | `main@5cfdf1cd`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo; baseline globale ancora non certificata. |
 | Text lightweight semantic profiles | PASS | `main@88704bde`: Base, phrase/title, name e word/emph verificati con parsing, alias, span fusion, UTF-8, budget animator/selector/keyframe e determinismo seriale/parallelo. |
-| Combined Product V1 | PASS focused / NOT CERTIFIED | `main@eabf459a`: `GlowCameraProductV1` compila e produce un frame CLI reale con testo Glow, camera orbit, parallax e bloom senza clipping; SDK/C ABI, seriale/parallelo, cold/warm, random order e video 60 frame non ancora certificati. |
+| Combined Product V1 | PASS | `main@5cfdf1cd`: `GlowCameraProductV1` certificato via CLI con landscape/portrait, video reale 60 frame, seriale/parallelo, cold/warm, random order, SDK consumer installato e C ABI. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
@@ -44,7 +44,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Authoring facade | WIRED / GUARDED | `asset(path)` è context-typed e kind-free; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
 | Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; registry resolve ora trasporta il costruttore preparato senza una seconda decode/factory pass. |
 | Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
-| SDK C++ installabile | PASS | `main@a059b7e0`: package installato, canary 11/11, consumer grid/text/camera/full e authoring-assets PASS; dipendenza SQLite transitiva esportata nel config CMake. |
+| SDK C++ installabile | PASS | `main@5cfdf1cd`: package installato, canary 11/11, consumer grid/text/camera/full e authoring-assets PASS; dipendenza SQLite transitiva esportata nel config CMake. |
 | SDK cross-language | WIRED / NOT RUN | C ABI V1 usa engine + plan: `chronon_engine_create/destroy/last_error`, `chronon_abi_version`, `chronon_plan_compile_json`, `chronon_render_frame/file` e `chronon_buffer_free`. Il vecchio `chronon_context` e gli adapter JSON sono stati rimossi; smoke install/ctypes non eseguito per toolchain mancante. |
 | Modular graph legacy path | PASS (source audit) | `use_modular_graph` non è presente nella superficie attiva `include/src/apps/tests`; il gate permanente è `tools/check_no_modular_graph.sh`. |
 | Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; `prepare_render()` orchestra preflight, resource preparation e warmup nei percorsi CLI e nella boundary `chronon3d::RenderEngine::render()`, con test fail-loud/idempotenza/null-renderer mirati. |
