@@ -32,6 +32,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -81,6 +82,11 @@ TEST_CASE("freetype_face_cache: concurrent get_face across many threads") {
 
     std::atomic<int> ok_count{0};
     std::atomic<int> glyph_ok_count{0};
+    // FT_Face owns mutable glyph-slot state and FreeType does not permit
+    // concurrent FT_Load_Glyph calls on the same face. The production path
+    // serializes that operation in GlyphOutlineBuilder::mutex_; mirror the
+    // contract here while keeping concurrent cache lookup/lifetime coverage.
+    std::mutex face_use_mutex;
     std::vector<std::thread> workers;
 
     workers.reserve(kThreads);
@@ -95,6 +101,7 @@ TEST_CASE("freetype_face_cache: concurrent get_face across many threads") {
                 std::shared_ptr<FT_Face> face =
                     cache.get_face(path, /*face_index=*/0, /*font_size=*/16.0f);
 
+                std::lock_guard<std::mutex> face_use_lock(face_use_mutex);
                 if (face && *face && touch_glyph(*face, /*glyph_id=*/0)) {
                     glyph_ok_count.fetch_add(1, std::memory_order_relaxed);
                 }

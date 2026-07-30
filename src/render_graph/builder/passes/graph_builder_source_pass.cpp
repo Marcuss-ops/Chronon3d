@@ -107,6 +107,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
                 source = graph.add_node(std::make_unique<TextRunNode>(
                     std::string(node.name),
+                    std::string(layer.name),
                     run_shape,
                     node,
                     run_key,

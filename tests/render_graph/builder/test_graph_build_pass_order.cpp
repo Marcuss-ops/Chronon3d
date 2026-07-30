@@ -38,7 +38,12 @@ private:
 TEST_CASE("GraphBuildPassOrder: passes execute in registration order") {
     auto& registry = GraphBuildRegistry::instance();
 
-    std::vector<std::string> log;
+    // The registry owns the pass beyond this test case and executes it during
+    // later render tests. Keep the callback target alive for the process
+    // lifetime; a stack-local vector would leave a dangling pointer in the
+    // registered TrackingPass and make the aggregate suite crash later.
+    static std::vector<std::string> log;
+    log.clear();
     std::string id_a = "track_a_" + std::to_string(reinterpret_cast<uintptr_t>(&log));
     std::string id_b = "track_b_" + std::to_string(reinterpret_cast<uintptr_t>(&log));
 
