@@ -254,7 +254,10 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
             cp_to_grapheme_[cp_i] = my_grapheme_idx;
             state = GraphemeState::None;
         }
-        grapheme_count_ = my_grapheme_idx + 1;
+        // The state machine's initial index represents the first grapheme
+        // only when at least one codepoint was consumed. Empty input must
+        // remain an empty map at every level.
+        grapheme_count_ = codepoint_count_ == 0 ? 0 : my_grapheme_idx + 1;
     }
 
     // ── Level 3: grapheme → glyph ─────────────────────────────────────

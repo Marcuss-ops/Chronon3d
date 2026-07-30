@@ -119,6 +119,7 @@ namespace chronon3d::graph {
 
 TextRunNode::TextRunNode(
     std::string name,
+    std::string layer_id,
     std::shared_ptr<TextRunShape> shape,
     const ::chronon3d::RenderNode& render_ref,
     const cache::NodeCacheKey& key,
@@ -128,6 +129,7 @@ TextRunNode::TextRunNode(
 )
     : RenderGraphNode(policy),
       m_name(std::move(name)),
+      m_layer_id(std::move(layer_id)),
       m_shape(std::move(shape)),
       m_render_ref(render_ref),
       m_key(key),
