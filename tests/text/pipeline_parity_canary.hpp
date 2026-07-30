@@ -53,8 +53,8 @@ inline Composition make_pipeline_parity_canary(const CompositionProps& /*props*/
                     }
     },
     .frame = {
-        .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {960.0f, 540.0f}},
         .size = Vec2{900.0f, 200.0f},
+        .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {960.0f, 540.0f}},
         .anchor = TextAnchor::Center,
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
