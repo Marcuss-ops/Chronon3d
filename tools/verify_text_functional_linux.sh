@@ -166,12 +166,12 @@ fi
 echo ""
 echo "== 4. Text build =="
 
+BUILD_DIR="build/chronon/linux-content-dev"
+
 if [ "${CHRONON3D_TEXT_SKIP_BUILD:-0}" = "1" ]; then
     echo "  CHRONON3D_TEXT_SKIP_BUILD=1 — skipping build"
     _gate_blocked "text_build" "skipped via env override"
 else
-    BUILD_DIR="build/chronon/linux-content-dev"
-
     # Configure
     echo "  Configuring..."
     if cmake --preset linux-content-dev > /dev/null 2>&1; then
