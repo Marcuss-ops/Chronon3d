@@ -8,7 +8,7 @@
 //
 // refactor(text): consolidate shape_text via ShapedGlyphLine + shape_glyph_line (Point 8) —
 // Upstream already lands Point 8's single-shape caching via the
-// `ShapedGlyphLine` class ctor (ctor calls `engine.shape_text` once and
+// `ShapedGlyphLine` factory (try_shape calls `engine.shape_text` once and
 // caches `m_run`; `.width()` / `.layout()` read from `m_run` with no
 // re-shape).  This refactor introduces the FAIL-SOFT mirror — a free
 // function `shape_glyph_line(...)` returning `std::optional<ShapedGlyphLine>`
@@ -83,22 +83,15 @@ struct GlyphLineBBox {
     [[nodiscard]] f32 height() const noexcept { return y1 - y0; }
 };
 
-// Single shaped line of text.  Shapes once via FontEngine and exposes
+// Single shaped line of text. Shapes once via FontEngine and exposes
 // width, per-glyph layout, cursor positions, bbox and reveal helpers
 // without re-shaping the text.
 //
 // Public API contract:
-//   - Fail-loud primary ctor (throws on shaping failure) — used by the
-//     5 cinematic showcase callers (e.g., abyss_freefall_stagger.cpp) that
-//     REQUIRE a valid shape result.
-//   - Fail-soft `try_shape` static factory (returns `std::nullopt` on
-//     shaping failure) — used by the `shape_glyph_line` free function
-//     + the `measure_text_width` + `layout_glyphs` thin-wrappers.
-//
-// Per AGENTS.md `## Regole di lint documentale` `### C++ default-arg
-// uniqueness per TU`, default args live ONLY in this .hpp; both the
-// public fail-loud ctor and `try_shape` factory have all parameters
-// explicit (no in-class default args).
+//   - Fail-soft `try_shape` static factory returns `std::nullopt` on
+//     shaping failure and is the sole public construction path.
+//   - `shape_glyph_line`, `measure_text_width` and `layout_glyphs` are
+//     thin wrappers over the same cached shaping path.
 class ShapedGlyphLine {
 public:
     // ── Public read-only accessors (unchanged from upstream) ──
@@ -123,32 +116,6 @@ public:
     // Number of glyphs to reveal for a progress in [0, 1].
     [[nodiscard]] size_t reveal_count(f32 progress) const noexcept;
 
-    // ── Public fail-loud ctor (DEPRECATED, one release-cycle bridge) ──
-    // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — marked `[[deprecated]]`
-    // for V0.2 removal. The `font_size` + `FontSpec` arguments are
-    // write-only since the upstream landed the test-only production-
-    // surface removal (commit TICKET refactor). Use
-    // `ShapedGlyphLine::try_shape(...)` (the canonical factory) or
-    // `shape_glyph_line(...)` (the canonical free function) instead —
-    // both accept the same semantic args.
-    // Kept for ONE release cycle as a smooth migration bridge; will be
-    // REMOVED in V0.2 per TICKET-PUB-DEPRECATE-REMOVAL.
-    //
-    // Note (Cat-3 minimal-surface discipline): a 4-arg canonical bridge
-    // ctor was prototyped during this chore but ultimately removed —
-    // its `font_size` + `FontSpec` parameters would have been placeholders
-    // that always misshape. Per reviewer critique, adding a public ABI
-    // symbol that exists only to fail is dead-code debt; the
-    // `[[deprecated]]` markers above + the documented contract to use
-    // `try_shape(...)` / `shape_glyph_line(...)` are sufficient.
-    [[deprecated(
-        "Use ShapedGlyphLine::try_shape(text, font_size, spec, tracking, "
-        "ref_offset_x, engine) or shape_glyph_line(...) free function. "
-        "The 6-arg ctor will be REMOVED in V0.2 per TICKET-PUB-DEPRECATE-REMOVAL.")]]
-    ShapedGlyphLine(const std::string& text, f32 font_size,
-                    const FontSpec& spec, f32 tracking,
-                    f32 ref_offset_x, FontEngine& engine);
-
     // ── Public fail-soft static factory (Point 8 entry point) ──
     // Returns `std::nullopt` on shaping failure instead of throwing.
     // Forwarded by `shape_glyph_line` free function.
@@ -168,12 +135,12 @@ private:
     std::vector<float> m_prefix_advances;
 
     // Rebuild m_prefix_advances from m_run + m_tracking + m_ref_offset_x.
-    // Called from both constructors.  The private try_shape ctor is
+    // Called from the private constructor.  The private constructor is
     // noexcept, so a bad_alloc here terminates — same as any noexcept
     // function that allocates.
     void rebuild_prefix_advances();
 
-    // Private ctor used by try_shape factory — populate from a valid
+    // Private constructor used by try_shape factory — populate from a valid
     // GlyphRun directly (does NOT throw).
     ShapedGlyphLine(GlyphRun run, std::string text,
                     f32 tracking, f32 ref_offset_x);
@@ -196,11 +163,10 @@ private:
 // result, prefer:
 //   - measure_text_width (fail-soft: silently returns 0.0f on nullopt)
 //   - layout_glyphs (fail-loud: throws std::runtime_error on nullopt)
-//   - ShapedGlyphLine public ctor (fail-loud: throws std::runtime_error)
 //
 // Byte-equivalence with the upstream (pre-refactor) measure_text_width +
 // layout_glyphs is preserved verbatim — the underlying ShapedGlyphLine
-// class ctor logic (engine.shape_text + cached m_run) is unchanged.
+// factory logic (engine.shape_text + cached m_run) is unchanged.
 [[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
     std::string_view text, f32 font_size, const FontSpec& font,
     f32 tracking, FontEngine& engine);

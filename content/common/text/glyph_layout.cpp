@@ -66,37 +66,6 @@ const std::optional<GlyphRun>& get_raw_run(const ShapedGlyphLine& line) noexcept
 
 } // namespace test_support
 
-// ── ShapedGlyphLine fail-loud primary ctor (public, DEPRECATED) ─────────
-//
-// TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — marked [[deprecated]] in the
-// .hpp. Kept for ONE release cycle (V0.1 → V0.2) as a smooth migration
-// bridge; will be REMOVED in V0.2 per TICKET-PUB-DEPRECATE-REMOVAL.
-//
-// Throws on shaping failure (zero glyphs / missing font).  Same
-// fail-loud contract as `layout_glyphs` — preserved verbatim for
-// backward-compat with cinematic showcase callers that REQUIRE shape
-// result (e.g., `abyss_freefall_stagger.cpp`).
-//
-// Per AGENTS.md `### C++ default-arg uniqueness per TU`, no default
-// args here — declared ONLY in the .hpp.
-ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
-                                 const FontSpec& spec, f32 tracking,
-                                 f32 ref_offset_x, FontEngine& engine)
-    : m_text(text), m_tracking(tracking), m_ref_offset_x(ref_offset_x)
-{
-    m_run = engine.shape_text(text, spec, font_size);
-    // Increment the per-line shape-call counter exactly once per ctor
-    // invocation.  TICKET-FIX-TEXT-SHAPING-DEDUP-V1 contract:
-    //   - One ctor = at most ONE shape_text call (Point 8 single-shape cache).
-    //   - Failure path still increments (we WANT to see accidental
-    //     re-shape calls inside the ctor if a future refactor regresses).
-    s_shape_calls_per_line.fetch_add(1, std::memory_order_relaxed);
-    if (!m_run || m_run->glyphs.empty()) {
-        throw std::runtime_error(make_shape_error_message(text, spec, font_size));
-    }
-    rebuild_prefix_advances();
-}
-
 // ── ShapedGlyphLine 4-arg canonical ctor (REMOVED) ─────────────
 //
 // Removed during the TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL chore.
@@ -111,8 +80,8 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
 
 // ── ShapedGlyphLine private ctor (used by try_shape factory) ────────────
 //
-// Private ctor that populates fields from a valid GlyphRun directly —
-// does NOT throw.  Called by `try_shape` static factory only.
+// Private ctor populates fields from a valid GlyphRun directly — it does
+// not shape or throw. It is called by the sole public `try_shape` factory.
 ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text,
                                  f32 tracking, f32 ref_offset_x)
     : m_text(std::move(text)), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
@@ -124,7 +93,7 @@ ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text,
 // Rebuilds the m_prefix_advances vector so that cursor_position(i) and
 // cursor_at_end() are O(1).  m_prefix_advances[0] == m_ref_offset_x and
 // m_prefix_advances[i+1] == m_prefix_advances[i] + advance_x + tracking.
-// Called once from each constructor; kept const-noexcept because the
+// Called once from the factory-created instance; kept const-noexcept because the
 // cursor accessors are const-noexcept and the vector is mutable.
 void ShapedGlyphLine::rebuild_prefix_advances() {
     if (!m_run) {
@@ -145,7 +114,7 @@ void ShapedGlyphLine::rebuild_prefix_advances() {
 // ── ShapedGlyphLine read-only accessors (unchanged from upstream) ────────
 //
 // These methods read from `m_run` + `m_tracking` + `m_ref_offset_x`
-// (cached state populated by ctor / try_shape factory).  No re-shape
+// (cached state populated by try_shape factory).  No re-shape
 // calls — single engine.shape_text invocation per ShapedGlyphLine
 // instance (Point 8 single-shape efficiency).
 f32 ShapedGlyphLine::width() const noexcept {
