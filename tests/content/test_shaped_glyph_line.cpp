@@ -20,33 +20,41 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 
-TEST_CASE("ShapedGlyphLine: width matches legacy measure_text_width") {
+TEST_CASE("ShapedGlyphLine: shape_glyph_line width is canonical") {
     auto renderer = test::make_renderer();
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
+    auto shaped = content::text_reveal::shape_glyph_line(
+        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(shaped.has_value());
 
-    f32 expected = content::text_reveal::measure_text_width("Hello", 72.0f, spec, 4.0f, engine);
-    CHECK(line.width() == expected);
-    CHECK(line.width() > 0.0f);
+    REQUIRE(shaped->width() > 0.0f);
+    const auto compatibility = content::text_reveal::ShapedGlyphLine::try_shape(
+        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(compatibility.has_value());
+    CHECK(shaped->width() == compatibility->width());
 }
 
-TEST_CASE("ShapedGlyphLine: layout matches legacy layout_glyphs") {
+TEST_CASE("ShapedGlyphLine: shape_glyph_line layout is canonical") {
     auto renderer = test::make_renderer();
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
+    auto shaped = content::text_reveal::shape_glyph_line(
+        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(shaped.has_value());
 
-    auto glyphs = line.layout();
-    auto expected = content::text_reveal::layout_glyphs("Hello", 72.0f, spec, 4.0f, 0.0f, engine);
-
-    REQUIRE(glyphs.size() == expected.size());
+    const auto glyphs = shaped->layout();
+    REQUIRE(!glyphs.empty());
+    REQUIRE(glyphs.front().width > 0.0f);
+    const auto compatibility = content::text_reveal::layout_glyphs(
+        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(compatibility.size() == glyphs.size());
     for (size_t i = 0; i < glyphs.size(); ++i) {
-        CHECK(glyphs[i].ch == expected[i].ch);
-        CHECK(glyphs[i].center_x == expected[i].center_x);
-        CHECK(glyphs[i].width == expected[i].width);
+        CHECK(glyphs[i].ch == compatibility[i].ch);
+        CHECK(glyphs[i].center_x == compatibility[i].center_x);
+        CHECK(glyphs[i].width == compatibility[i].width);
     }
 }
 
@@ -55,13 +63,15 @@ TEST_CASE("ShapedGlyphLine: cursor positions are monotonic and span the line") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("ABC", 72.0f, spec, 4.0f, 10.0f, engine).value();
+    auto shaped = content::text_reveal::shape_glyph_line(
+        "ABC", 72.0f, spec, 4.0f, /*ref_offset_x=*/10.0f, engine);
+    REQUIRE(shaped.has_value());
 
-    CHECK(line.cursor_position(0) == 10.0f);
-    CHECK(line.cursor_position(0) < line.cursor_position(1));
-    CHECK(line.cursor_position(1) < line.cursor_position(2));
-    CHECK(line.cursor_position(2) < line.cursor_position(3));
-    CHECK(line.cursor_at_end() == line.cursor_position(3));
+    CHECK(shaped->cursor_position(0) == 10.0f);
+    CHECK(shaped->cursor_position(0) < shaped->cursor_position(1));
+    CHECK(shaped->cursor_position(1) < shaped->cursor_position(2));
+    CHECK(shaped->cursor_position(2) < shaped->cursor_position(3));
+    CHECK(shaped->cursor_at_end() == shaped->cursor_position(3));
 }
 
 TEST_CASE("ShapedGlyphLine: bbox has non-negative width and height") {
@@ -69,9 +79,11 @@ TEST_CASE("ShapedGlyphLine: bbox has non-negative width and height") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
+    auto shaped = content::text_reveal::shape_glyph_line(
+        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(shaped.has_value());
 
-    auto box = line.bbox();
+    auto box = shaped->bbox();
     CHECK(box.width() >= 0.0f);
     CHECK(box.height() >= 0.0f);
     CHECK(box.x1 >= box.x0);
@@ -83,16 +95,19 @@ TEST_CASE("ShapedGlyphLine: reveal_count is clamped to [0, glyph_count]") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
+    auto shaped = content::text_reveal::shape_glyph_line(
+        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(shaped.has_value());
+    const auto glyph_count = shaped->layout().size();
 
-    CHECK(line.reveal_count(-0.5f) == 0);
-    CHECK(line.reveal_count(0.0f) == 0);
-    CHECK(line.reveal_count(1.0f) == line.layout().size());
-    CHECK(line.reveal_count(2.0f) == line.layout().size());
+    CHECK(shaped->reveal_count(-0.5f) == 0);
+    CHECK(shaped->reveal_count(0.0f) == 0);
+    CHECK(shaped->reveal_count(1.0f) == glyph_count);
+    CHECK(shaped->reveal_count(2.0f) == glyph_count);
 
-    size_t mid = line.reveal_count(0.5f);
+    size_t mid = shaped->reveal_count(0.5f);
     CHECK(mid > 0);
-    CHECK(mid <= line.layout().size());
+    CHECK(mid <= glyph_count);
 }
 
 TEST_CASE("shape_glyph_line: canonical offset is retained by all layout accessors") {
@@ -129,10 +144,9 @@ TEST_CASE("shape_glyph_line: canonical offset is retained by all layout accessor
 }
 
 TEST_CASE("ShapedGlyphLine: layout_glyphs throws std::runtime_error on non-existent font path (fail-loud contract)") {
-    // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — the historical 6-arg
-    // fail-loud ctor (`std::runtime_error` on bad spec) was [[deprecated]]
-    // during this chore. The fail-loud contract is preserved via the
-    // canonical free function `layout_glyphs(...)` which throws
+    // Compatibility lock: the fail-loud contract remains available through
+    // the transitional `layout_glyphs(...)` adapter while callers migrate to
+    // the canonical `shape_glyph_line(...)` result.
     // `std::runtime_error(make_shape_error_message(...))` when shaping fails.
     auto renderer = test::make_renderer();
     auto& engine  = renderer.font_engine();
@@ -178,22 +192,21 @@ TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 
     content::text_reveal::test_support::reset_shape_call_counter();
     REQUIRE(content::text_reveal::test_support::get_shape_call_count() == 0);
 
-    // Construct ShapedGlyphLine via canonical factory (Point 8 fail-soft).
-    // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL: migrated off the [[deprecated]]
-    // 6-arg ctor onto `try_shape(...).value()` — same single-shape call + fail-loud
-    // semantic, no deprecation warning.
-    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape(text_200, 72.0f, spec, 4.0f, 0.0f, engine).value();
+    // Construct the canonical shape (fail-soft).
+    auto shaped = content::text_reveal::shape_glyph_line(
+        text_200, 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
+    REQUIRE(shaped.has_value());
 
     // After construction, counter must be exactly 1 (single engine.shape_text call).
     CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);
 
     // Accessor invocations must NOT trigger additional shaping calls
     // (Point 8 single-shape efficiency contract holds across all accessors).
-    const f32 w        = line.width();
-    auto         glyphs = line.layout();
-    auto         box    = line.bbox();
-    const f32   cur_end = line.cursor_at_end();
-    const auto   count  = line.reveal_count(0.5f);
+    const f32 w        = shaped->width();
+    auto         glyphs = shaped->layout();
+    auto         box    = shaped->bbox();
+    const f32   cur_end = shaped->cursor_at_end();
+    const auto   count  = shaped->reveal_count(0.5f);
 
     // Counter stays at 1 — accessors read from m_run, not re-shape.
     CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);
