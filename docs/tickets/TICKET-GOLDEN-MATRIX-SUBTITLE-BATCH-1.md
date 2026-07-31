@@ -9,16 +9,19 @@
       - **bg dimension**: CRITICAL A confirmed OPP does NOT consume
         `CompositionSpec::background_color_rgba` during clear pass.  Adding
         bg cells would emit bit-identical `_l`/`_d` goldens (silent-fake green).
-        Forward-point: TICKET-OPP-BG-CONSUMER (P2 OPEN).
+        The proposed field was removed; TICKET-OPP-BG-CONSUMER is now
+        CLOSED-SUPERSEDED. Background coverage remains deferred to a future
+        canonical render-session input.
       - **scheduler dimension**: `chronon3d::ExecutionScheduler` has no
         `set_mode()` API; mode frozen at ctor.  Forward-point:
         TICKET-EXECUTION-SCHEDULER-SET-MODE (P2 OPEN, ADR-030).
-  * Composition additive change RETAINED: `std::uint32_t background_color_rgba{0x00000000u}`
-    on `CompositionSpec` (default-bit-identical additive POD, marked in-comment
-    as forward-point); harmless additive — future OPP wiring reads it.
+  * The unused `CompositionSpec::background_color_rgba` proposal was removed
+    before release; background-clear coverage remains deferred to a future
+    canonical render-session input.
   * Round lineage: Round 1 (SDK::RenderSettings fields) → reverted via
-    `git restore` after C1.  Round 2 (CompositionSpec path) → CRITICAL A.  Round 3
-    (this state) per Option B = NETA-ZERO matrix + forward-points opened.
+    `git restore` after C1. Round 2 (CompositionSpec path) → CRITICAL A.
+    Round 3 removed the unused field and kept the matrix NETA-ZERO; only the
+    scheduler forward-point remains active.
   * Per AGENTS.md §`### Docs canonical update discipline rule`, cronaca
     estesa lives in ticket-home; canonici vedono solo 1-line cite.
 
@@ -111,10 +114,8 @@ cd build && cmake . 2>&1 | tail -3 && cmake --build . --target chronon3d_golden_
 ### What landed (minimal)
 
 - `include/chronon3d/timeline/composition.hpp`:
-  - Added `#include <cstdint>`.
-  - Added `std::uint32_t background_color_rgba{0x00000000u}` to `CompositionSpec`
-    (additive POD, default-bit-identical; marked in-comment as forward-point
-    TICKET-OPP-BG-CONSUMER).
+  - Removed the unused background field and its now-unneeded `<cstdint>` include.
+  - `TICKET-OPP-BG-CONSUMER` is closed-superseded.
 - `include/chronon3d/sdk/render_settings.hpp`: RESTORED to HEAD
     (Round 1's 2-field additions were reverted after code-reviewer-minimax-m3
     caught C1 — those fields would have been dead-code by AGENTS.md
@@ -125,8 +126,10 @@ cd build && cmake . 2>&1 | tail -3 && cmake --build . --target chronon3d_golden_
 
 ### What was shelved (NEW forward-points)
 
-- **TICKET-OPP-BG-CONSUMER** (NEW, P2 OPEN): wire
-  `CompositionSpec::background_color_rgba` consumption through the OPP compiler
+- **TICKET-OPP-BG-CONSUMER** is CLOSED-SUPERSEDED: the unused
+  `CompositionSpec::background_color_rgba` proposal was removed instead of
+  retained as dead public API. A future background feature needs a canonical
+  render-session input and OPP consumer.
   (`SoftwareRenderer::render` → `render_scene_via_graph` → OPP clear pass
   / scene compile).  When wired, bg dimension can be re-introduced to the
   matrix WITH a cross-cell uniqueness assertion
@@ -135,9 +138,8 @@ cd build && cmake . 2>&1 | tail -3 && cmake --build . --target chronon3d_golden_
 - **TICKET-EXECUTION-SCHEDULER-SET-MODE** (NEW, P2 OPEN): see forward-point
   discussion + ADR-030 reference.  `ExecutionScheduler::set_mode()` vs
   `SoftwareRenderer` ctor parameter.
-- Both forward-points registered atomicamente per AGENTS.md
-  `### 2×-in-one-chore: deprecation reversal bundles forward-point tickets
-  (Cat-3 anti-dup)` rule.
+- The background forward-point is closed-superseded; the scheduler forward-point
+  remains registered as the active ADR-grade follow-up.
 
 ### Honest-discipline disclosure (Round 1 + Round 2 + Round 3)
 
@@ -152,20 +154,21 @@ CRITICAL A flagged by code-reviewer that the OPP does NOT consume the field.
 Without OPP consumer, bg cells would be silent-fake green.
 
 **Round 3 (this state)**: per Option B (thinker-with-files-gemini), both
-bg AND scheduler dimensions SHELVED into forward-point tickets.  The additive
-CompositionSpec field is RETAINED for future OPP consumer.  No matrix
-cells added this chase.
+bg AND scheduler dimensions stayed out of the matrix. The unused
+CompositionSpec background field was removed rather than retained for a future
+consumer; only scheduler API design remains an active forward-point. No matrix
+cells were added in this chase.
 
 ### Acceptance verification (NETA-ZERO)
 
-- [x] `CompositionSpec::background_color_rgba` field added (additive POD, default-bit-identical, marked forward-point)
+- [x] Unused `CompositionSpec::background_color_rgba` proposal removed; no dead public field retained
 - [x] Matrix test REVERTED to 5-dim / 192-cell Batch 1 baseline (NO new dims)
 - [x] `render_settings.hpp` RESTORED to HEAD (no dead fields)
 - [x] Test target builds + FAST_MODE smoke runs Status: SUCCESS!
 - [x] ZERO struct shape change in SOFTWARE RenderSettings
 - [x] ZERO new singleton/registry/resolver/cache
 - [x] ZERO `#include <msdfgen>/<libtess2>/<unicode[/...]>`
-- [x] New forward-point tickets TICKET-OPP-BG-CONSUMER + TICKET-EXECUTION-SCHEDULER-SET-MODE registered atomicamente
+- [x] Background forward-point closed-superseded; scheduler forward-point remains tracked in `TICKET-EXECUTION-SCHEDULER-SET-MODE`
 - [x] ADR-022 collision resolved (new tickets reference ADR-030)
 
 

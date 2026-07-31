@@ -197,13 +197,16 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
     const auto& comp = *resolved.comp;
     RenderSettings settings;
     settings.diagnostics.enabled = args.plan;
-    auto renderer = create_renderer(registry, settings);
+    const auto assets_root = args.assets_root.empty()
+        ? std::optional<std::filesystem::path>{}
+        : std::optional<std::filesystem::path>{args.assets_root};
+    auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
     auto scene = comp.evaluate(make_frame_context({
         .global_time = SampleTime::from_frame_int(args.frame, comp.frame_rate()),
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
-        .assets_root = comp.assets_root(),
+        .assets_root = renderer->runtime().resolver().mount_root().string(),
         .runtime = &renderer->runtime(),
     }));
 

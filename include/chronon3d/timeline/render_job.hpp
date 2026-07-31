@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -70,6 +71,8 @@ struct RenderExecutionOptions {
 
     CpuBudget cpu_budget{};
     std::optional<Config> config;
+    // Runtime-owned asset mount; never stored in CompositionSpec.
+    std::optional<std::filesystem::path> assets_root;
 };
 
 struct RenderDiagnostics {

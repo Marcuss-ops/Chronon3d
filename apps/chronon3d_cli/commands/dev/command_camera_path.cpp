@@ -179,6 +179,11 @@ int command_camera_path(const CompositionRegistry& registry,
     if (!resolved) return 1;
 
     const auto& comp = *resolved.comp;
+    RenderSettings settings;
+    const auto assets_root = args.assets_root.empty()
+        ? std::optional<std::filesystem::path>{}
+        : std::optional<std::filesystem::path>{args.assets_root};
+    auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
     const Frame start = args.start;
     const Frame end   = (args.end > 0) ? args.end : Frame{comp.duration() - 1};
     const int step    = std::max(1, args.step);
@@ -198,7 +203,9 @@ int command_camera_path(const CompositionRegistry& registry,
             .duration = comp.duration(),
             .width = comp.width(),
             .height = comp.height(),
-            .assets_root = comp.assets_root(),
+            .assets_root = renderer->runtime().resolver().mount_root().string(),
+            .font_engine = &renderer->runtime().font_engine(),
+            .runtime = &renderer->runtime(),
         }));
 
         const auto& cam = scene.camera_2_5d();

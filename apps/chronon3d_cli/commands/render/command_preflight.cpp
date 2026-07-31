@@ -40,7 +40,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
             .duration = comp.duration(),
             .width = comp.width(),
             .height = comp.height(),
-            .assets_root = comp.assets_root(),
+            .assets_root = args.assets_root,
         }));
         manifest.merge(scene.asset_manifest());
     }

@@ -58,7 +58,8 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,
-    std::optional<Config> config) {
+    std::optional<Config> config,
+    std::optional<std::filesystem::path> assets_root) {
     auto renderer = config.has_value()
         ? std::make_shared<SoftwareRenderer>(std::move(*config))
         : std::make_shared<SoftwareRenderer>(Config::from_environment());
@@ -96,10 +97,13 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // Explicit CLI asset mounting for standalone renders.  Do not fall back
     // to the process CWD: callers must opt in so an unrelated working
     // directory can never silently become the project's asset root.
-    if (const char* assets_root = std::getenv("CHRONON3D_CLI_ASSETS_ROOT");
-        assets_root && *assets_root) {
-        renderer->runtime().resolver().mount(std::filesystem::path{assets_root});
-        spdlog::debug("CLI assets root mounted: {}", assets_root);
+    if (assets_root.has_value()) {
+        renderer->runtime().resolver().mount(*assets_root);
+        spdlog::debug("Explicit CLI assets root mounted: {}", assets_root->string());
+    } else if (const char* env_assets_root = std::getenv("CHRONON3D_CLI_ASSETS_ROOT");
+               env_assets_root && *env_assets_root) {
+        renderer->runtime().resolver().mount(std::filesystem::path{env_assets_root});
+        spdlog::debug("CLI assets root mounted: {}", env_assets_root);
     }
 
     // FIX (video-pipeline SEGV): capture cwd once and mount it on both

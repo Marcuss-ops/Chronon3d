@@ -5,6 +5,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -136,7 +137,8 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,
-    std::optional<Config> config = std::nullopt);
+    std::optional<Config> config = std::nullopt,
+    std::optional<std::filesystem::path> assets_root = std::nullopt);
 
 } // namespace cli
 } // namespace chronon3d

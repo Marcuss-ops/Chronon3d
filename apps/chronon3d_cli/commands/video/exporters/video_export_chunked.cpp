@@ -64,7 +64,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     // threads FontEngine into composition evaluation.
     {
         Config preflight_cfg = Config::from_environment(cpu_budget);
-        auto preflight_renderer = create_renderer(registry, settings, std::move(preflight_cfg));
+        auto preflight_renderer = create_renderer(
+            registry, settings, std::move(preflight_cfg), opts.assets_root);
         const auto preparation = runtime::prepare_render(
             preflight_renderer.get(), comp,
             runtime::RenderPreparationOptions{.warmup_renderer = false,
@@ -104,7 +105,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
             try {
                 const auto renderer_t0 = profiling::now();
                 Config chunk_cfg = Config::from_environment(cpu_budget);
-                auto renderer = create_renderer(registry, settings, std::move(chunk_cfg));
+                auto renderer = create_renderer(
+                    registry, settings, std::move(chunk_cfg), opts.assets_root);
                 const auto renderer_t1 = profiling::now();
                 if (renderer->counters()) {
                     const auto setup_ms = static_cast<uint64_t>(

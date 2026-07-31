@@ -63,7 +63,12 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             spdlog::error("Render plan decode failed: {}", decoded.error().message);
             return 1;
         }
-        const auto compiled = render_plan::compile_render_plan(decoded.value());
+        const std::string effective_assets_root = !args.assets_root.empty()
+            ? args.assets_root
+            : decoded->assets_root;
+        auto plan = decoded.value();
+        plan.assets_root = effective_assets_root;
+        const auto compiled = render_plan::compile_render_plan(plan);
         if (!compiled) {
             spdlog::error("Render plan compilation failed: {}", compiled.error().message);
             return 1;
@@ -78,6 +83,9 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
         request.comp_id = decoded->job_id;
         request.prepared_comp = compiled.value();
         request.output = output;
+        request.execution.assets_root = effective_assets_root.empty()
+            ? std::nullopt
+            : std::optional<std::filesystem::path>{effective_assets_root};
         request.settings.fail_on_missing_assets = true;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? decoded->canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
@@ -108,7 +116,7 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             return 1;
         }
         if (video_output(output) && !AudioMuxer{}.mux(output, decoded->audio_tracks,
-                                                       args.assets_root))
+                                                       effective_assets_root))
             return 1;
         return 0;
     } catch (const std::exception& error) {
@@ -121,10 +129,12 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
 
 int run_render_plan_file(CliContext& ctx,
                          const std::string& input,
-                         const std::string& output) {
+                         const std::string& output,
+                         const std::string& assets_root) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
+    state.assets_root = assets_root;
     return execute_render_plan(ctx, state);
 }
 
