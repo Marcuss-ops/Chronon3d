@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace chronon3d;
@@ -75,9 +76,12 @@ TEST_CASE("ShapedGlyphLine cluster benchmark: 200-glyph stress O(n) vs O(n²)") 
     // the benchmark behaves consistently with the equivalence suite.
     auto shaped_opt = ShapedGlyphLine::try_shape(
         text_200, 72.0f, spec, 4.0f, 0.0f, engine);
+    if (!shaped_opt) {
+        WARN("Font failed to load or shaping produced zero glyphs; skipping benchmark.");
+        return;
+    }
     const auto& raw_run = chronon3d::content::text_reveal::test_support::get_raw_run(*shaped_opt);
-    if (!shaped_opt || !raw_run.has_value() ||
-        raw_run->glyphs.empty()) {
+    if (!raw_run.has_value() || raw_run->glyphs.empty()) {
         WARN("Font failed to load or shaping produced zero glyphs; skipping benchmark.");
         return;
     }
@@ -103,7 +107,10 @@ TEST_CASE("ShapedGlyphLine cluster benchmark: 200-glyph stress O(n) vs O(n²)") 
     const double ref_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
 
     // Time actual ShapedGlyphLine::layout() (O(n)).
-    ShapedGlyphLine line(text_200, 72.0f, spec, 4.0f, 0.0f, engine);
+    auto line_opt = ShapedGlyphLine::try_shape(
+        text_200, 72.0f, spec, 4.0f, 0.0f, engine);
+    REQUIRE(line_opt.has_value());
+    ShapedGlyphLine line = std::move(*line_opt);
     auto t2 = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; ++i) {
         [[maybe_unused]] auto _ = line.layout();
