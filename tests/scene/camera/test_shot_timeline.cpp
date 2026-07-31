@@ -170,7 +170,7 @@ TEST_CASE("smooth blend interpolates position") {
 // ==============================================================================
 // 6 — EaseOutBlend transition (ease-out).
 // ==============================================================================
-TEST_CASE("push transition uses ease-out") {
+TEST_CASE("EaseOutBlend transition uses ease-out") {
     Camera2_5D from, to;
     from.position = {0, 0, -1000};
     to.position   = {400, 0, -1000};
@@ -189,7 +189,7 @@ TEST_CASE("push transition uses ease-out") {
 // ==============================================================================
 // 7 — SmoothRotationBlend transition.
 // ==============================================================================
-TEST_CASE("whip pan interpolates rotation via quaternion") {
+TEST_CASE("SmoothRotationBlend interpolates rotation via quaternion") {
     Camera2_5D from, to;
     from.rotation = {0, 0, 0};
     to.rotation   = {0, 90, 0};
@@ -208,7 +208,7 @@ TEST_CASE("whip pan interpolates rotation via quaternion") {
 // ==============================================================================
 // 8 — FocusDistanceBlend.
 // ==============================================================================
-TEST_CASE("focus handoff transitions focus distance") {
+TEST_CASE("FocusDistanceBlend transitions focus distance") {
     Camera2_5D from, to;
     from.dof.focus_distance = 100.0f;
     to.dof.focus_distance   = 900.0f;
