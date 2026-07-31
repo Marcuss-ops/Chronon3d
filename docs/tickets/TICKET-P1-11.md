@@ -21,6 +21,20 @@ Coesistono 6+ percorsi concorrenti: `Composition::evaluate()`, `compile_composit
 - [x] Test: compiled composition sopravvive alla distruzione del definition originale
 - [x] Test: fingerprint identico su due macchine diverse per la stessa composizione
 
+## Nota tecnica — CompositionCompileContext
+
+`CompositionCompileContext` resta parte delle firme pubbliche di
+`compile_camera()` e `compile_composition()` come options carrier esplicito.
+Il precedente campo `compiled_at` è stato rimosso perché non aveva consumer:
+non influenzava compilazione, diagnostica, fingerprint o ciclo detection e
+introduceva soltanto una dipendenza dall'orologio di sistema. Il contesto è
+intenzionalmente vuoto finché non esisteranno opzioni reali; nuove opzioni di
+compilazione dovranno essere aggiunte qui, senza moltiplicare gli argomenti
+pubblici né reintrodurre input non deterministici.
+
+La copertura deterministica verifica che contesti value-initialized distinti
+producano lo stesso fingerprint per la stessa `CompositionDefinition`.
+
 ## File interessati
 
 - `src/animation_compositions.cpp`, `content/animation_compositions.cpp`  <!-- drift-allow: stale-ref -->

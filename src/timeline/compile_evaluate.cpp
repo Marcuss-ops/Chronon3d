@@ -75,9 +75,8 @@ std::uint64_t fingerprint_composition_definition(
 //
 // V2 staging — delegate to the canonical `camera_v1::compile_camera()` and
 // remap any failure to a structured `CompositionCompileError::CameraFailure`.
-// `CompositionCompileContext::compiled_at` is intentionally NOT consulted at
-// this stage: the camera_v1 cycle-detection state is unrelated to the
-// wall-clock timestamp and is allocated fresh per call.
+// The context is currently an empty options carrier; camera_v1 cycle-detection
+// state is allocated fresh per call and compilation has no wall-clock input.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<camera_v1::CameraProgram, CompositionCompileError>
 compile_camera(const camera_v1::CameraDescriptor& descriptor,
@@ -151,9 +150,9 @@ compile_composition(const CompositionDefinition& definition,
     // ADL on `camera_v1::CameraDescriptor` finds BOTH an outer wrapper in
     // `chronon3d::` (this TU — returns Result<…, CompositionCompileError>)
     // AND an inline `camera_v1::compile_camera(...)` returning
-    // Result<…, CameraCompileError>.  Use a QUALIFIED call so only the
-    // outer is in the overload set; the second arg is the required
-    // CompositionCompileContext payload (currently unused by the adapter).
+    // Result<…, CameraCompileError>. Use a QUALIFIED call so only the
+    // outer is in the overload set; the second arg is the explicit
+    // CompositionCompileContext options carrier.
     if (definition.camera.has_value()) {
         auto cam = chronon3d::compile_camera(
             *definition.camera, CompositionCompileContext{});
