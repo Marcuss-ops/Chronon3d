@@ -145,8 +145,6 @@ public:
 
     Layer& from(Frame f)    { builder_->from(f);    return *this; }
     Layer& duration(Frame f){ builder_->duration(f);return *this; }
-    Layer& start_at(Frame f){ builder_->start_at(f);return *this; }
-    Layer& length(Frame f)  { builder_->length(f);  return *this; }
     Layer& until(Frame f)   { builder_->until(f);   return *this; }
     Layer& offset(Frame f)  { builder_->offset(f);  return *this; }
 

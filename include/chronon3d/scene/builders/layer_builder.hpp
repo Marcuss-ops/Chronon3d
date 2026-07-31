@@ -66,8 +66,6 @@ public:
     LayerBuilder& duration(Frame frames);
     LayerBuilder& until(Frame frame);
     LayerBuilder& offset(Frame frames);
-    LayerBuilder& start_at(Frame frame) { return from(frame); }
-    LayerBuilder& length(Frame frames) { return duration(frames); }
 
     // Time remap and visibility.
     LayerBuilder& speed(f32 multiplier);
