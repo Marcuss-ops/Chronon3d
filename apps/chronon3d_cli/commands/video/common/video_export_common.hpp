@@ -21,6 +21,8 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>
+#include <filesystem>
+#include <optional>
 #include <memory>
 
 namespace chronon3d::cli {
@@ -41,6 +43,8 @@ struct FfmpegExportOptions {
     PipeOptions           pipe;
     RenderWarmupOptions   warmup;
     SinkOptions           sink;
+    // Explicit per-render asset mount; never inferred from the process CWD.
+    std::optional<std::filesystem::path> assets_root;
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};
@@ -93,7 +97,7 @@ inline Scene evaluate_video_scene(
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
-        .assets_root = comp.assets_root(),
+        .assets_root = renderer.runtime().resolver().mount_root().string(),
         .font_engine = &renderer.runtime().font_engine(),
         .runtime = &renderer.runtime(),
     }));

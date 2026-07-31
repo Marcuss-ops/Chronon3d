@@ -45,6 +45,7 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.pipe = std::move(pipe);
     opts.warmup = std::move(warmup);
     opts.sink = std::move(sink);
+    opts.assets_root = job.execution.assets_root;
     return opts;
 }
 

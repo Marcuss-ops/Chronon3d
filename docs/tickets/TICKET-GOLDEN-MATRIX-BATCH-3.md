@@ -110,7 +110,7 @@ This chore lands the matrix harness coverage for ALL 18 registered descriptors
 ## Forward-points
 
 - `TICKET-TEST-FONT-ASSET-PATH` — P1, OPEN (Batch 1 inheritance, blocks macchina-verify of all matrix cells)
-- `TICKET-OPP-BG-CONSUMER` — P2, OPEN (ADR-029; bg dim shelved per Batch 1.5 NETA-ZERO Option B)
+- `TICKET-OPP-BG-CONSUMER` — CLOSED-SUPERSEDED (the unused CompositionSpec field was removed; future background work requires a canonical render-session input)
 - `TICKET-EXECUTION-SCHEDULER-SET-MODE` — P2, OPEN (ADR-030; sched dim shelved per Batch 1.5 NETA-ZERO Option B)
 - `TICKET-GOLDEN-MATRIX-STRICT-EMPTY-CHECK` — P2, OPEN (from Batch 1 macchina-verify; promote empty-frame to REQUIRE without env-var opt-out AFTER FAT-BLOCKER resolves)
 - `TICKET-GOLDEN-MATRIX-BATCH-3-C3` — P3, **NEW** (extract singleton `shared_text_preset_registry()` to shared `.cpp` exported TU; 4 freeze() calls today)

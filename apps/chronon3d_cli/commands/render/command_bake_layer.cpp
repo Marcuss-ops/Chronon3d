@@ -29,7 +29,10 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     RenderSettings settings;
     settings.text_layout_debug = args.diagnostic_overlay || args.diagnostic_overlay_only;
     settings.diagnostic_overlay_only = args.diagnostic_overlay_only;
-    auto renderer = create_renderer(registry, settings);
+    const auto assets_root = args.assets_root.empty()
+        ? std::optional<std::filesystem::path>{}
+        : std::optional<std::filesystem::path>{args.assets_root};
+    auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
 
     const auto frame = static_cast<Frame>(args.frame);
     auto scene = comp.evaluate(make_frame_context({
@@ -37,7 +40,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
-        .assets_root = comp.assets_root(),
+        .assets_root = renderer->runtime().resolver().mount_root().string(),
         .runtime = &renderer->runtime(),
     }));
 
@@ -125,6 +128,8 @@ void register_bake_layer_commands(CLI::App& app, CliContext& ctx) {
     auto& bake_args = *state->args;
     auto* bake = app.add_subcommand("bake-layer", "Bake a single static layer to an image");
     bake->add_option("comp", bake_args.comp_id, "Composition id")->required();
+    bake->add_option("--assets-root", bake_args.assets_root,
+                     "Root directory for resolving relative assets");
     bake->add_option("--layer", bake_args.layer_id, "Layer id to bake")->required();
     bake->add_option("--frame", bake_args.frame, "Frame to bake")->default_val(0);
     bake->add_option("-o,--output", bake_args.output, "Output image path")->required();

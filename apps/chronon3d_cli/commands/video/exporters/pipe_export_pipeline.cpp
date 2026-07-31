@@ -99,17 +99,16 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         track_pipe_encoder_process(session->opts, *session->encoder, session->sys_metrics);
     }
 
-    // NOTE: asset mounting (CWD) is handled per-renderer inside
-    // create_renderer() (cli_render_utils.cpp) which mounts CWD on both
-    // renderer->runtime().assets() and renderer->runtime().resolver().
-    // The old cli_asset_registry().mount(CWD) here was a redundant
-    // global mutable mount removed in the P1-A refactor.
+    // Asset mounting is explicit and scoped to this render session.  The
+    // exporter receives the same root carried by RenderJob and never falls
+    // back to the process CWD.
 
     // ── Create renderer ──────────────────────────────────────────────────
     const auto renderer_t0 = profiling::now();
     // Inject the single CLI CpuBudget so the runtime does not recompute it.
     Config renderer_cfg = Config::from_environment(cpu_budget);
-    session->renderer = create_renderer(registry, settings, std::move(renderer_cfg));
+    session->renderer = create_renderer(
+        registry, settings, std::move(renderer_cfg), session->opts.assets_root);
     const auto renderer_t1 = profiling::now();
 
     if (session->renderer->counters()) {

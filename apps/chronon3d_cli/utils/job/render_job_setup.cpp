@@ -19,7 +19,8 @@ void setup_render_job(const CompositionRegistry& registry,
     out.wall_t0 = profiling::now();
 
     out.setup_t0 = profiling::now();
-    out.renderer = create_renderer(registry, job.settings, job.execution.config);
+    out.renderer = create_renderer(
+        registry, job.settings, job.execution.config, job.execution.assets_root);
     const auto renderer_t1 = profiling::now();
 
     if (!out.renderer) {

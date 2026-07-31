@@ -34,7 +34,8 @@ int dry_run_video_job(const RenderJob& job) {
     spdlog::info("[dry-run]   SSAA: {}×", job.settings.ssaa_factor);
 
     try {
-        auto renderer = create_renderer(*job.registry, job.settings);
+        auto renderer = create_renderer(
+            *job.registry, job.settings, job.execution.config, job.execution.assets_root);
 
         const auto preparation = runtime::prepare_render(
             renderer.get(), *job.comp,
