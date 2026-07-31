@@ -1,6 +1,6 @@
 # TICKET-TOOLS-ORPHAN-AUDIT — Orphan-Script Removal Audit (95 scripts classified)
 
-## Stato: AUDITED (2026-07-14, commit assigned at push-time)
+## Stato: AUDITED (2026-07-31; one verified removal, remaining watch-list active)
 
 ## Problema
 
@@ -49,7 +49,7 @@ The strict-interpretation: identify orphan scripts (session/action named OR clos
 
 ### Closed-Ticket-Only Candidates
 
-**Status**: 0 definite orphans. ~6 in the watch-list for per-script evaluation.
+**Status**: one verified orphan removed (`analyze_frames.py`); the remaining watch-list entries stay pending per-script evaluation.
 
 **Candidates requiring per-script evaluation** (each forward-pointed to a dedicated ticket for evaluation):
 
@@ -59,7 +59,7 @@ The strict-interpretation: identify orphan scripts (session/action named OR clos
 | `pilot_metrics.py` | TICKET-PILOT-IG-DASHBOARD-WIREUP | OPEN | (no removal — actively wired) |
 | `run_pilot.sh` | TICKET-PILOT-IG-DASHBOARD-WIREUP | OPEN | (no removal — actively wired) |
 | `selftest_validate_benchmark_json.sh` | TICKET-BENCH-SCHEMA-V1 | Watch | TICKET-TOOLS-BENCH-SELFTEST-ORPHAN-V1 |
-| `analyze_frames.py` | none | Watch | TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1 |
+| `analyze_frames.py` | none | DONE — removed 2026-07-31; no active wiring | TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1 |
 
 **Verification protocol** for each per-script evaluation ticket:
 1. Confirm owning-ticket status (`docs/FOLLOWUP_TICKETS.md` row in §Recently Closed + ticket-home in `docs/tickets/`)
@@ -70,18 +70,20 @@ The strict-interpretation: identify orphan scripts (session/action named OR clos
 
 (Note for ticket-home catena readers: the 5-step verification-protocol count above is the canonical version. The earlier "3-step" + "7-step" variants that appear in the parent CHANGELOG entry are pre-fix inconsistencies resolved by this amendment per code-reviewer Finding 2.)
 
-## Verdict: Audit-Only (Zero Removals in This Chore)
+## Verdict: Audit + One Verified Removal
 
-**Outcome**: This chore performs the AUDIT step (per-spec "verifica che gli eventuali test utili siano stati trasferiti nello script permanente del dominio"). The actual `git rm` action is deferred to per-script tickets (forward-pointed above) — each individual removal requires its own 5-step verification protocol.
+**Outcome**: This audit records one completed per-script evaluation and removal: `tools/analyze_frames.py`. The exact basename search found no active invocations in workflows, CMake, gates, tests, bench, or maintained tools; its only non-archive references explicitly describe it as unused. The remaining watch-list entries stay deferred to their own evaluations.
 
-**Rationale**: AGENTS.md "Non rimuovere se non sei sicuro" + the per-script verification protocol is too granular to mass-execute safely in a single chore. Each per-script removal is a separate Cat-5 3-doc chaser-chore (NEW ticket-home + EDIT FOLLOWUP_TICKETS row + EDIT CHANGELOG cite-only entry).
+**Rationale**: AGENTS.md "Non rimuovere se non sei sicuro" is satisfied only for `analyze_frames.py`; the nightly contact-sheet script is actively wired and the benchmark self-test remains a documented manual verifier, so those two scripts are retained.
 
 ## Files Touched
 
-This audit-only chore is Cat-3 minimal-surface: ZERO source modifications.
-- NEW: `docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md` (this file, cronaca home)
-- EDIT: `docs/FOLLOWUP_TICKETS.md` (1 NEW §Open Blockers row prepended)
-- EDIT: `docs/CHANGELOG.md` (cite-only entry prepended at TOP of ## 2026-07-14 per Cat-5 newer-at-top)
+This per-script chaser is Cat-3 minimal-surface: one unused helper removed.
+- DELETE: `tools/analyze_frames.py`
+- NEW: `docs/tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md`
+- EDIT: this audit ticket with the evidence and final classification
+- EDIT: `docs/CHANGELOG.md` with a cite-only entry
+- EDIT: `docs/FOLLOWUP_TICKETS.md`; the umbrella Tools / lint debt blocker remains open for the other watch-list entries and links the completed per-script ticket.
 
 ## Criterio di landing stabile
 
@@ -99,7 +101,7 @@ Uno script `tools/` può essere rimosso solo quando **tutte** le condizioni segu
 
 1. `TICKET-TOOLS-RENDER-SHOWCASE-CONTACT-SHEET-ORPHAN-V1` — per-script evaluation of `render_showcase_contact_sheet.sh` orphan status
 2. `TICKET-TOOLS-BENCH-SELFTEST-ORPHAN-V1` — per-script evaluation of `selftest_validate_benchmark_json.sh` orphan status
-3. `TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1` — per-script evaluation of `analyze_frames.py` orphan status
+3. `TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1` — DONE: `analyze_frames.py` removed after zero-wiring audit
 4. `TICKET-TOOLS-AZ18-HISTORY-RESOLVE` — resolve `az18_build_ctet.sh` non-existence (git reflog deep-query on a clean host)
 
 ## Cross-References

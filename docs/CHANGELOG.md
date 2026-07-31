@@ -1,3 +1,7 @@
+## 2026-07-31
+### `chore(tools): remove unused frame analyzer` ([TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1](tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md))
+Removed `tools/analyze_frames.py` after confirming zero active wiring in CMake, CI, gates, tests, bench, and maintained tools. The nightly contact-sheet script and benchmark self-test remain in place because they have active/documented roles.
+
 ## 2026-07-30
 ### `fix(build): resolve create_video_sink linker error (CHRONON3D_ENABLE_VIDEO=OFF)`
   ([build-fix-baseline-2026-07-30](../build-fix-baseline-2026-07-30))
