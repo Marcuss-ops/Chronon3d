@@ -95,6 +95,39 @@ TEST_CASE("ShapedGlyphLine: reveal_count is clamped to [0, glyph_count]") {
     CHECK(mid <= line.layout().size());
 }
 
+TEST_CASE("shape_glyph_line: canonical offset is retained by all layout accessors") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
+    constexpr f32 kOffset = 37.5f;
+    content::text_reveal::test_support::reset_shape_call_counter();
+    auto shaped = content::text_reveal::shape_glyph_line(
+        "Hello", 72.0f, spec, 4.0f, kOffset, engine);
+    CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);
+    REQUIRE(shaped.has_value());
+
+    const auto positions = shaped->layout();
+    REQUIRE(!positions.empty());
+    CHECK(shaped->cursor_position(0) == kOffset);
+    CHECK(positions.front().center_x > kOffset);
+    CHECK(shaped->cursor_at_end() > kOffset);
+
+    const auto legacy_layout = content::text_reveal::ShapedGlyphLine::try_shape(
+        "Hello", 72.0f, spec, 4.0f, kOffset, engine);
+    REQUIRE(legacy_layout.has_value());
+    const auto legacy_positions = legacy_layout->layout();
+    REQUIRE(legacy_positions.size() == positions.size());
+    for (size_t i = 0; i < positions.size(); ++i) {
+        CHECK(legacy_positions[i].ch == positions[i].ch);
+        CHECK(legacy_positions[i].center_x == positions[i].center_x);
+        CHECK(legacy_positions[i].width == positions[i].width);
+    }
+    // Both accessors above read the cached shape; only the explicit
+    // compatibility-adapter construction adds the second shape call.
+    CHECK(content::text_reveal::test_support::get_shape_call_count() == 2);
+}
+
 TEST_CASE("ShapedGlyphLine: layout_glyphs throws std::runtime_error on non-existent font path (fail-loud contract)") {
     // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — the historical 6-arg
     // fail-loud ctor (`std::runtime_error` on bad spec) was [[deprecated]]
