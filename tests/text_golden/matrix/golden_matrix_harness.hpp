@@ -107,7 +107,7 @@ struct MatrixCell {
     // `render_matrix_cell` + `matrix_tag` + OPP/scheduler plumbing
     // (per `### 2×-in-one-chore: deprecation reversal bundles forward-point
     // tickets` rule).  Forward-points live at:
-    //   * TICKET-OPP-BG-CONSUMER (ADR-029)
+    //   * TICKET-OPP-BG-CONSUMER (closed-superseded; future design only)
     //   * TICKET-EXECUTION-SCHEDULER-SET-MODE (ADR-030)
 };
 
@@ -248,7 +248,7 @@ inline std::vector<MatrixCell> matrix_cells_for_preset(std::string_view /*preset
     // Full matrix: 2 (AR) × 2 (text) × 2 (scale) × 2 (cache) × 3 (ts) = 48 cells/preset.
     // bg + scheduler dimensions SHELVED per Batch 1.5 Option B
     // (thinker-with-files-gemini Q4-A): the OPP compiler path does NOT
-    // currently consume CompositionSpec::background_color_rgba, and
+    // do not yet have a canonical background-clear input, and
     // ExecutionScheduler has no set_mode() API at ctor.  Adding these as
     // active cells would emit bit-identical _l/_d and _s/_p goldens
     // (silent-fake green suite).  Forward-points:

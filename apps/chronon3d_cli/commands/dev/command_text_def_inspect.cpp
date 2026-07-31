@@ -26,7 +26,9 @@
 #include <nlohmann/json.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
+#include <filesystem>
 #include <fstream>
+#include <optional>
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include <chronon3d/text/text_visibility_audit.hpp>
@@ -81,10 +83,13 @@ int command_text_def_inspect(const CompositionRegistry& registry,
     // 2. Render the composition at the requested frame.  This populates
     //    `renderer.text_audit_snapshots()` via the graph builder's source
     //    pass.  RenderSettings are hardcoded (dev command, no user-exposed
-    //    knobs needed) — the same pattern as `command_text_visibility.cpp`.
+    //    knobs needed) — the same pattern as this diagnostic command.
     RenderSettings settings;
     settings.dirty.enabled = false;
-    auto renderer = create_renderer(registry, settings);
+    const auto assets_root = args.assets_root.empty()
+        ? std::optional<std::filesystem::path>{}
+        : std::optional<std::filesystem::path>{args.assets_root};
+    auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
     auto fb = renderer->render(comp, args.frame);
     if (!fb) {
         nlohmann::json js;

@@ -7,7 +7,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <functional>
 #include <string>
-#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -53,18 +52,7 @@ struct CompositionSpec {
     i32 width{1920};
     i32 height{1080};
     FrameRate frame_rate{30, 1};
-    Frame duration{0};
-    std::string assets_root{};
-
-    /// RGBA clear color for the composition's clear pass (LE AABBGGRR;
-    /// 0 = transparent black, preserves existing default-clear behaviour).
-    /// TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1 Batch 1.5 FORWARD-POINT —
-    /// the field is ADDITIVE and DEFAULT-BIT-IDENTICAL (no existing caller
-    /// change), but the OPP consumer path (`SoftwareRenderer::render` →
-    /// `render_scene_via_graph` → OPP compiler) does NOT YET consume it
-    /// (CRITICAL A confirmed via rg this session).  See TICKET-OPP-BG-CONSUMER.
-    /// Field RETAINED so future OPP wiring can read it without re-introduction.
-    std::uint32_t background_color_rgba{0x00000000u};
+    Frame duration{0}; // Asset roots belong to the runtime resolver, not authoring metadata.
 };
 
 class Composition {
@@ -79,7 +67,6 @@ public:
     [[nodiscard]] FrameRate frame_rate() const { return m_spec.frame_rate; }
     [[nodiscard]] Frame duration() const { return m_spec.duration; }
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
-    [[nodiscard]] const std::string& assets_root() const { return m_spec.assets_root; }
 
     /// Direct evaluation from a pre-built FrameContext.
     /// This is the natural V2 entry point: callers that already have a
@@ -103,7 +90,6 @@ public:
             .duration = m_spec.duration,
             .width = m_spec.width,
             .height = m_spec.height,
-            .assets_root = m_spec.assets_root,
         }));
     }
 
