@@ -27,7 +27,6 @@
 // paid ONCE per binary, not once per scheduling TU that includes this header.
 // ============================================================================
 
-#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -48,17 +47,14 @@ namespace chronon3d {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // chronon3d::CompositionCompileContext
-//   Per-call compile context threaded into compile_composition() and compile_camera().
+//   Per-call compile context threaded into compile_composition() and
+//   compile_camera(). It is intentionally retained as an explicit, empty
+//   options carrier: the current compiler has no context-dependent options,
+//   so compilation remains deterministic and wall-clock independent. Future
+//   compile options belong here rather than becoming new function arguments.
 //   Held by value; non-owning.
 // ─────────────────────────────────────────────────────────────────────────────
-struct CompositionCompileContext {
-    // Wall-clock at the time the compile_composition() call started.
-    // Used purely for diagnostics; the compile_camera() inner call does NOT
-    // depend on it (camera_v1 cycle-detection state is allocated fresh per
-    // compile_camera() invocation).
-    std::chrono::system_clock::time_point compiled_at =
-        std::chrono::system_clock::now();
-};
+struct CompositionCompileContext {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // chronon3d::CompositionCompileError — POD error type returned by
