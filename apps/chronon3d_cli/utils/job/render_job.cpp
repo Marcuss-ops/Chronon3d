@@ -114,6 +114,9 @@ std::optional<RenderRequest> make_render_request(
     request.input.values = props.values;
     request.input.project_root = props.project_root;
     request.output = args.output;
+    if (!args.assets_root.empty()) {
+        request.execution.assets_root = std::filesystem::path(args.assets_root);
+    }
     request.settings =
         settings_from_args(args, true, args.pipeline.diagnostic);
     request.settings.diagnostics.plan_output =

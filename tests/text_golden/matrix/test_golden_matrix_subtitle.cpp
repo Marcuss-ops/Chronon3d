@@ -175,7 +175,7 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
         : "SUBTITLE";
 
     // bg dimension SHELVED per Option B (thinker-with-files-gemini Q4-A):
-    // OPP does NOT consume CompositionSpec::background_color_rgba during
+    // the current OPP path has no canonical background-clear input during
     // the clear pass (CRITICAL A confirmed via rg).  Adding bg cells to
     // the matrix would emit bit-identical _l/_d goldens (silent-fake).
     auto comp = chronon3d::composition(
@@ -225,10 +225,8 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
 
     // 2-arg render (canonical signature per SoftwareRenderer.hpp).
     // Batch 1.5 wiring (honest paths only):
-    //   * bg_dark -> CompositionSpec::background_color_rgba is threaded
-    //     into the per-frame clear pass via the OPP compiler.  The default
-    //     0x00000000u preserves TXT-QA-01 output bit-for-bit; setting
-    //     0xFF1A1A1Au yields an opaque dark slate clear.
+    //   * background color remains deferred because the current OPP path
+    //     has no canonical per-frame clear-color input.
     //   * scheduler dimension -> SHELVED (forward-point ticket
     //     TICKET-EXECUTION-SCHEDULER-SET-MODE).  ExecutionScheduler has
     //     no set_mode() API at the time of this commit; the existing
@@ -283,7 +281,7 @@ std::vector<MatrixConfig> matrix_cells_for_preset(const std::string& /*preset_id
     // Full matrix: 2 (AR) × 2 (text) × 2 (scale) × 2 (cache) × 3 (ts)
     // = 48 cells per preset × 4 presets = 192 total cells (Batch 1 baseline).
     // bg dimension SHELVED per Option B (thinker-with-files-gemini Q4-A):
-    // OPP does NOT consume CompositionSpec::background_color_rgba.  Adding
+    // The current OPP path has no canonical background-clear input. Adding
     // bg cells to the matrix would emit bit-identical _l/_d goldens (silent-
     // fake green suite).  Forward-point: TICKET-OPP-BG-CONSUMER.
     // Scheduler dimension forward-point: TICKET-EXECUTION-SCHEDULER-SET-MODE.

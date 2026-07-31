@@ -6,6 +6,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
 #include <fstream>
+#include <filesystem>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -15,8 +16,13 @@
 namespace chronon3d::render_plan {
 namespace {
 
-std::string read_asset_text(const std::string& path) {
-    std::ifstream input(path);
+std::string read_asset_text(const std::string& path,
+                           const std::string& assets_root) {
+    std::filesystem::path resolved_path{path};
+    if (!assets_root.empty() && resolved_path.is_relative()) {
+        resolved_path = std::filesystem::path{assets_root} / resolved_path;
+    }
+    std::ifstream input(resolved_path);
     if (!input) throw std::runtime_error("cannot read subtitle asset: " + path);
     std::ostringstream contents;
     contents << input.rdbuf();
@@ -85,7 +91,7 @@ compile_render_plan(const RenderPlan& plan) {
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::SubtitleTrack) continue;
-            const auto raw = read_asset_text(layer.source);
+            const auto raw = read_asset_text(layer.source, plan.assets_root);
             if (layer.subtitle_format == SubtitleFormat::Vtt)
                 subtitles[index] = presets::text::subtitle_from_vtt(raw);
             else if (layer.subtitle_format == SubtitleFormat::Json)
@@ -100,7 +106,6 @@ compile_render_plan(const RenderPlan& plan) {
         spec.height = plan.canvas.height;
         spec.frame_rate = {plan.canvas.fps, 1};
         spec.duration = plan.canvas.duration;
-        spec.assets_root = plan.assets_root;
 
         auto composition = std::make_shared<Composition>(
             std::move(spec), [plan, canvas, subtitles](const FrameContext& ctx) {

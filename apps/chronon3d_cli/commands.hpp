@@ -65,6 +65,7 @@ struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
     std::string output;      // Output extension selects image or video mode
+    std::string assets_root; // Explicit per-render asset mount (never CWD implicitly)
     RenderPipelineArgs pipeline{};
     VideoSettings video_settings{};
     std::string log_level{"info"};
@@ -103,6 +104,7 @@ struct BenchArgs {
 
 struct GraphArgs {
     std::string comp_id;
+    std::string assets_root;
     Frame frame{0};
     std::string output;
     bool summary{false};
@@ -149,6 +151,7 @@ struct PreviewArgs {
 
 struct BakeLayerArgs {
     std::string comp_id;
+    std::string assets_root;
     std::string layer_id;
     int frame{0};
     std::string output;
@@ -161,6 +164,7 @@ struct BakeLayerArgs {
 
 struct CameraPathArgs {
     std::string comp_id;
+    std::string assets_root;
     Frame start{0};
     Frame end{0};
     int step{1};
@@ -176,6 +180,7 @@ struct InspectTextArgs {
 
 struct TextDefInspectArgs {
     std::string comp_id;
+    std::string assets_root;
     Frame frame{0};
     std::string json_output;
 };

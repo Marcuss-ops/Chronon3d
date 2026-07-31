@@ -10,7 +10,8 @@ namespace chronon3d::cli {
 
 int run_render_plan_file(CliContext& ctx,
                          const std::string& input,
-                         const std::string& output = {});
+                         const std::string& output = {},
+                         const std::string& assets_root = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 }  // namespace chronon3d::cli

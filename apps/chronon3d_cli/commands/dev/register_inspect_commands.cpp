@@ -10,6 +10,7 @@ struct GraphState { std::shared_ptr<GraphArgs> args{std::make_shared<GraphArgs>(
 struct PreflightState { std::shared_ptr<PreflightArgs> args{std::make_shared<PreflightArgs>()}; };
 struct CameraPathState { std::shared_ptr<CameraPathArgs> args{std::make_shared<CameraPathArgs>()}; };
 struct InspectTextState { std::shared_ptr<InspectTextArgs> args{std::make_shared<InspectTextArgs>()}; };
+struct TextDefInspectState { std::shared_ptr<TextDefInspectArgs> args{std::make_shared<TextDefInspectArgs>()}; };
 }
 
 void register_inspect_commands(CLI::App& app, CliContext& ctx) {
@@ -19,6 +20,8 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         auto& args = *state->args;
         auto* cmd = app.add_subcommand("graph", "Inspect the render graph: summary stats or DOT export");
         cmd->add_option("id", args.comp_id, "Composition name")->required();
+        cmd->add_option("--assets-root", args.assets_root,
+                        "Root directory for resolving relative assets");
         cmd->add_option("--frame", args.frame, "Frame to inspect")->default_val(0);
         cmd->add_option("-o,--output", args.output, "Output .dot file path");
         cmd->add_flag("--summary", args.summary, "Print node counts, cache stats, and timing");
@@ -38,6 +41,8 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         auto& args = *state->args;
         auto* cmd = app.add_subcommand("camera-path", "Export camera path as JSON/CSV for debug and validation");
         cmd->add_option("id", args.comp_id, "Composition name")->required();
+        cmd->add_option("--assets-root", args.assets_root,
+                        "Root directory for resolving relative assets");
         cmd->add_option("--start", args.start, "Start frame (inclusive)")->default_val(0);
         cmd->add_option("--end", args.end, "End frame (inclusive, 0 = composition duration)")->default_val(0);
         cmd->add_option("--step", args.step, "Sample every N frames")->default_val(1);
@@ -60,6 +65,25 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--assets-root", args.assets_root, "Root directory for resolving relative assets");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_preflight(ctx.registry, *state->args, ctx.assets);
+        });
+    }
+
+    // --- text-def-inspect ---
+    {
+        auto state = std::make_shared<TextDefInspectState>();
+        auto& args = *state->args;
+        auto* cmd = app.add_subcommand(
+            "text-def-inspect",
+            "Audit rendered text definitions with structured JSON output");
+        cmd->add_option("id", args.comp_id, "Composition name")->required();
+        cmd->add_option("--assets-root", args.assets_root,
+                        "Root directory for resolving relative assets");
+        cmd->add_option("--frame", args.frame, "Frame number to inspect")
+            ->default_val(0);
+        cmd->add_option("--json-output", args.json_output,
+                        "Write the audit JSON to a file instead of stdout");
+        cmd->callback([state, &ctx]() {
+            ctx.exit_code = command_text_def_inspect(ctx.registry, *state->args);
         });
     }
 

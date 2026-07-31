@@ -237,7 +237,9 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             .duration = comp.duration(),
             .width = comp.width(),
             .height = comp.height(),
-            .assets_root = comp.assets_root(),
+            .assets_root = frame_runtime
+                ? frame_runtime->resolver().mount_root().string()
+                : std::string{},
             .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
             .runtime = frame_runtime,
         });
@@ -298,7 +300,9 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                     .duration = comp.duration(),
                     .width = comp.width(),
                     .height = comp.height(),
-                    .assets_root = comp.assets_root(),
+                    .assets_root = frame_runtime
+                        ? frame_runtime->resolver().mount_root().string()
+                        : std::string{},
                     .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
                     .runtime = frame_runtime,
                 });

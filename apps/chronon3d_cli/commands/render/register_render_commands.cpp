@@ -173,6 +173,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("--frame", args.frames, "Single frame number (alias for --frames)");
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
+    cmd->add_option("--assets-root", args.assets_root,
+                    "Root directory for resolving relative assets");
     cmd->add_option("--props-file", state->props_file,
                     "Flat JSON object containing composition props");
     cmd->add_option("--props-json", state->props_json,
@@ -279,7 +281,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     ]() {
         auto& render_args = *state->args;
         if (!state->plan_file.empty()) {
-            ctx.exit_code = run_render_plan_file(ctx, state->plan_file, render_args.output);
+            ctx.exit_code = run_render_plan_file(
+                ctx, state->plan_file, render_args.output, render_args.assets_root);
             return;
         }
         if (render_args.comp_id.empty()) {
