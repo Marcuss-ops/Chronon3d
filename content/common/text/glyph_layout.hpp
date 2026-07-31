@@ -6,22 +6,23 @@
 // (Step 2 of 4).  Single-responsibility: shaping (HarfBuzz) and
 // per-glyph layout (positioning).
 //
-// refactor(text): consolidate shape_text via ShapedGlyphLine + shape_glyph_line (Point 8) —
-// Upstream already lands Point 8's single-shape caching via the
-// `ShapedGlyphLine` factory (try_shape calls `engine.shape_text` once and
-// caches `m_run`; `.width()` / `.layout()` read from `m_run` with no
-// re-shape).  This refactor introduces the FAIL-SOFT mirror — a free
-// function `shape_glyph_line(...)` returning `std::optional<ShapedGlyphLine>`
-// — and re-implements `measure_text_width` + `layout_glyphs` as 1-line
-// thin-wrappers over it.  Byte-equivalence preserved verbatim.
+// Canonical shaping primitive: `shape_glyph_line(...)` returns a
+// `std::optional<ShapedGlyphLine>` and owns the single `FontEngine::shape_text`
+// call. The legacy `ShapedGlyphLine::try_shape(...)` factory remains as a
+// compatibility adapter during migration. Width and per-glyph layout are
+// read from the returned shape without additional shaping calls.
+//
+// The offset-bearing overload is the canonical form; the zero-offset overload
+// remains source-compatible for existing callers. `measure_text_width` and
+// `layout_glyphs` remain transitional adapters until their callers migrate.
+// Byte-equivalence is preserved verbatim.
 //   - measure_text_width: return `shape_glyph_line(...)->width()` or 0.0f
 //     on nullopt (fail-soft contract — same as upstream's try/catch wrapper
 //     semantics).
 //   - layout_glyphs: throw `std::runtime_error(make_shape_error_message(...))`
 //     on nullopt (fail-loud contract per AGENTS.md §honesty + ADR-020
-//     §fail-loud path); otherwise return positions with `ref_offset_x`
-//     applied as a constant post-step (matches pre-refactor cursor-start
-//     math).
+//     §fail-loud path); otherwise return positions from the offset-bearing
+//     canonical shape.
 //
 // Namespace: chronon3d::content::text_reveal (single flat namespace per
 // Cat-3 minimal-surface — preserves the 12 existing callers' `using`
@@ -88,10 +89,11 @@ struct GlyphLineBBox {
 // without re-shaping the text.
 //
 // Public API contract:
-//   - Fail-soft `try_shape` static factory returns `std::nullopt` on
-//     shaping failure and is the sole public construction path.
-//   - `shape_glyph_line`, `measure_text_width` and `layout_glyphs` are
-//     thin wrappers over the same cached shaping path.
+//   - Fail-soft `shape_glyph_line` is the canonical construction path and
+//     returns `std::nullopt` on shaping failure.
+//   - `try_shape` is a compatibility adapter over that primitive.
+//   - `measure_text_width` and `layout_glyphs` are transitional adapters over
+//     the same cached shaping path.
 class ShapedGlyphLine {
 public:
     // ── Public read-only accessors (unchanged from upstream) ──
@@ -116,9 +118,9 @@ public:
     // Number of glyphs to reveal for a progress in [0, 1].
     [[nodiscard]] size_t reveal_count(f32 progress) const noexcept;
 
-    // ── Public fail-soft static factory (Point 8 entry point) ──
+    // ── Public fail-soft compatibility factory ──
     // Returns `std::nullopt` on shaping failure instead of throwing.
-    // Forwarded by `shape_glyph_line` free function.
+    // Delegates to the canonical `shape_glyph_line` primitive.
     [[nodiscard]] static std::optional<ShapedGlyphLine> try_shape(
         std::string_view text, f32 font_size, const FontSpec& spec,
         f32 tracking, f32 ref_offset_x, FontEngine& engine);
@@ -145,9 +147,11 @@ private:
     ShapedGlyphLine(GlyphRun run, std::string text,
                     f32 tracking, f32 ref_offset_x);
 
-    // Friend declaration allows shape_glyph_line free function to be
-    // declared in the .hpp file and defined in the .cpp file without
-    // the namespace pollution of "friend free function bodies".
+    // Friend declarations allow the canonical free functions to construct
+    // the line without exposing another public constructor.
+    friend std::optional<ShapedGlyphLine> shape_glyph_line(
+        std::string_view text, f32 font_size, const FontSpec& spec,
+        f32 tracking, f32 ref_offset_x, FontEngine& engine);
     friend std::optional<ShapedGlyphLine> shape_glyph_line(
         std::string_view text, f32 font_size, const FontSpec& spec,
         f32 tracking, FontEngine& engine);
@@ -156,17 +160,17 @@ private:
     friend const std::optional<GlyphRun>& test_support::get_raw_run(const ShapedGlyphLine&) noexcept;
 };
 
-// shape_glyph_line — fail-soft free-function entry point (Point 8 mirror).
+// shape_glyph_line — canonical fail-soft free-function entry point.
 //
 // Returns `std::optional<ShapedGlyphLine>` (std::nullopt on engine.shape_text
-// failure OR run->glyphs.empty()).  When a caller needs a valid shape
-// result, prefer:
-//   - measure_text_width (fail-soft: silently returns 0.0f on nullopt)
-//   - layout_glyphs (fail-loud: throws std::runtime_error on nullopt)
-//
-// Byte-equivalence with the upstream (pre-refactor) measure_text_width +
-// layout_glyphs is preserved verbatim — the underlying ShapedGlyphLine
-// factory logic (engine.shape_text + cached m_run) is unchanged.
+// failure OR run->glyphs.empty()). The returned line owns the requested
+// reference offset, so width/cursor/layout accessors all describe the same
+// shaped snapshot without another shaping call.
+[[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
+    std::string_view text, f32 font_size, const FontSpec& font,
+    f32 tracking, f32 ref_offset_x, FontEngine& engine);
+
+// Compatibility overload: canonical zero-offset shaping.
 [[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
     std::string_view text, f32 font_size, const FontSpec& font,
     f32 tracking, FontEngine& engine);
@@ -175,9 +179,8 @@ private:
 // layout_glyphs output.  Returns 0.0f if shaping fails (fail-soft; layout_glyphs
 // fail-loud via throw).
 //
-// Point 8 thin-wrapper over shape_glyph_line() — single engine.shape_text
-// call shared with layout_glyphs when both are invoked consecutively
-// (e.g., the typewriter reveal flow).
+// Transitional thin-wrapper over shape_glyph_line() — fail-soft width
+// measurement with one engine.shape_text call for this returned snapshot.
 [[nodiscard]] f32 measure_text_width(const std::string& text, f32 font_size,
                                      const FontSpec& spec, f32 tracking,
                                      FontEngine& engine);
@@ -188,12 +191,11 @@ private:
 // per AGENTS.md §honesty (fail-loud path = font resolution / AssetResolver
 // errors land here).
 //
-// Point 8 thin-wrapper over shape_glyph_line() — single engine.shape_text
-// call shared with measure_text_width when both are invoked consecutively.
+// Transitional thin-wrapper over shape_glyph_line() — fail-loud layout
+// materialization from the returned snapshot.
 // Byte-equivalence with pre-refactor version preserved via:
-//   - shape_glyph_line populates glyph positions starting at cursor=0 (relative)
-//   - layout_glyphs post-applies ref_offset_x as a constant offset (matches
-//     pre-refactor cursor math `cursor = ref_offset_x` start state)
+//   - shape_glyph_line stores the caller's ref_offset_x in the snapshot
+//   - layout_glyphs reads positions directly from that offset-bearing snapshot
 [[nodiscard]] std::vector<GlyphPos> layout_glyphs(
     const std::string& text, f32 font_size,
     const FontSpec& spec, f32 tracking,
