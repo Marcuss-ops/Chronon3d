@@ -115,7 +115,7 @@ static void check_layout_equivalence(
 
 // ── Golden equivalence runner ────────────────────────────────────────────
 //
-// Shapes text once via ShapedGlyphLine::try_shape, then runs the reference
+// Shapes text once via shape_glyph_line, then runs the reference
 // O(n²) layout on the cached raw GlyphRun and compares against
 // ShapedGlyphLine::layout(). This avoids double-shaping the same text.
 static void run_golden_equivalence(
@@ -130,7 +130,7 @@ static void run_golden_equivalence(
     // Shape once through ShapedGlyphLine. The raw GlyphRun is cached
     // internally; we retrieve it via test_support::get_raw_run() for the
     // reference path.
-    auto shaped_opt = ShapedGlyphLine::try_shape(
+    auto shaped_opt = chronon3d::content::text_reveal::shape_glyph_line(
         text, font_size, spec, tracking, ref_offset_x, engine);
 
     if (!shaped_opt) {
@@ -257,7 +257,7 @@ TEST_CASE("ShapedGlyphLine cluster golden: ZWJ emoji sequence") {
     // Additional explicit checks: the line must shape successfully and
     // the first and last glyphs must correspond to the Latin characters.
     // Skip if the font cannot be loaded in this test environment.
-    auto shaped = ShapedGlyphLine::try_shape(
+    auto shaped = chronon3d::content::text_reveal::shape_glyph_line(
         text, 72.0f, spec, 4.0f, 0.0f, engine);
     if (!shaped.has_value()) {
         return;
@@ -352,8 +352,8 @@ TEST_CASE("ShapedGlyphLine cluster golden: empty text") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    // Empty text produces zero glyphs. ShapedGlyphLine ctor throws;
-    // try_shape returns nullopt. The runner already handles this by
+    // Empty text produces zero glyphs. The canonical shape_glyph_line
+    // primitive returns nullopt. The runner already handles this by
     // verifying both paths agree on the failure mode.
     run_golden_equivalence(engine, "", spec, 72.0f, 4.0f, 0.0f, "Empty text");
 }

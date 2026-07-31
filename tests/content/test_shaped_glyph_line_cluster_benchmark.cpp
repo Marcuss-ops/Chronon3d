@@ -72,9 +72,9 @@ TEST_CASE("ShapedGlyphLine cluster benchmark: 200-glyph stress O(n) vs O(n²)") 
     text_200.resize(200);
 
     // Shape once and reuse the raw GlyphRun for both implementations.
-    // Use ShapedGlyphLine::try_shape (same path as the golden tests) so
+    // Use the canonical shape_glyph_line primitive (same path as the golden tests) so
     // the benchmark behaves consistently with the equivalence suite.
-    auto shaped_opt = ShapedGlyphLine::try_shape(
+    auto shaped_opt = chronon3d::content::text_reveal::shape_glyph_line(
         text_200, 72.0f, spec, 4.0f, 0.0f, engine);
     if (!shaped_opt) {
         WARN("Font failed to load or shaping produced zero glyphs; skipping benchmark.");
@@ -107,7 +107,7 @@ TEST_CASE("ShapedGlyphLine cluster benchmark: 200-glyph stress O(n) vs O(n²)") 
     const double ref_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
 
     // Time actual ShapedGlyphLine::layout() (O(n)).
-    auto line_opt = ShapedGlyphLine::try_shape(
+    auto line_opt = chronon3d::content::text_reveal::shape_glyph_line(
         text_200, 72.0f, spec, 4.0f, 0.0f, engine);
     REQUIRE(line_opt.has_value());
     ShapedGlyphLine line = std::move(*line_opt);
