@@ -391,7 +391,7 @@ Camera2_5D interpolate_camera(
     const CameraTransitionSpec& spec);
 ```
 
-Non duplicare la stessa interpolazione in Cut, SmoothBlend, Push, WhipPan e FocusHandoff.
+Non duplicare la stessa interpolazione in Cut, SmoothBlend, EaseOutBlend, SmoothRotationBlend e FocusDistanceBlend.
 
 ## Risultato timeline strutturato
 
