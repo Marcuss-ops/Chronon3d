@@ -384,7 +384,9 @@ TEST_CASE("P3-F [7]: modify descriptor → new fingerprint; same input → same 
         Vec3{10.0f, 20.0f, -1000.0f},
         50.0f);
 
-    auto cc1_res = compile_composition(def1, {});
+    CompositionCompileContext context_a{};
+    CompositionCompileContext context_b{};
+    auto cc1_res = compile_composition(def1, context_a);
     REQUIRE(cc1_res.has_value());
     std::uint64_t fp1 = cc1_res->fingerprint;
     REQUIRE(fp1 != 0);
@@ -414,7 +416,12 @@ TEST_CASE("P3-F [7]: modify descriptor → new fingerprint; same input → same 
         "unify_fp_test",                              // same name field-by-field
         Vec3{10.0f, 20.0f, -1000.0f},
         50.0f);
-    auto cc4_res = compile_composition(def4, {});
+    auto cc4_res = compile_composition(def4, context_b);
     REQUIRE(cc4_res.has_value());
     CHECK(cc4_res->fingerprint == fp1);
+
+    // The retained compile context is an empty options carrier today: two
+    // independently value-initialized contexts must not introduce a
+    // wall-clock-dependent fingerprint or compiled result.
+    CHECK(cc4_res->fingerprint == cc1_res->fingerprint);
 }
