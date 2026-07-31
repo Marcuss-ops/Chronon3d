@@ -40,9 +40,25 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #endif
+#include <stdexcept>
 #include <utility>
 
 namespace chronon3d {
+namespace {
+
+std::unique_ptr<runtime::RenderRuntime> create_runtime_or_throw(Config config) {
+    auto result = runtime::RenderRuntime::create(
+        runtime::RuntimeConfig{std::move(config), std::nullopt});
+    if (!result.has_value()) {
+        throw std::runtime_error(
+            "SoftwareRenderer: RenderRuntime::create() failed: " +
+            result.error().message);
+    }
+    return std::move(result).value();
+}
+
+} // namespace
+
 
 // ── Construction ──────────────────────────────────────────────────────────────
 
@@ -64,7 +80,7 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
 // above with a pre-built `runtime::RenderRuntime` instance.
 SoftwareRenderer::SoftwareRenderer(Config config)
     : m_config(std::move(config))
-    , m_owned_runtime_storage(std::make_unique<runtime::RenderRuntime>(m_config))
+    , m_owned_runtime_storage(create_runtime_or_throw(m_config))
     , m_runtime(m_owned_runtime_storage.get())
     , m_image_renderer(m_runtime->image_cache())
 {

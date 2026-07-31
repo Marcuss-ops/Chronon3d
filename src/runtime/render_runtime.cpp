@@ -60,18 +60,18 @@ RenderRuntime::RenderRuntime(chronon3d::Config config)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase C2 / R1 — internal runtime assembly
+// Fase C2 / R1 — canonical runtime factory
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Single internal function that builds a fully-populated RenderRuntime.
-// Shared by RenderRuntime::create() and sdk::RenderEngine.  Backend
-// attachment is deliberately NOT here — the backend depends on per-
-// instance state from SoftwareRenderer, which is wired at a higher level.
+// The factory owns the only public construction boundary. Backend attachment
+// is deliberately NOT here — the backend depends on per-instance state from
+// SoftwareRenderer, which is wired at a higher level.
 
 Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
-detail::assemble_runtime(RuntimeConfig cfg) {
+RenderRuntime::create(RuntimeConfig cfg) {
     try {
-        auto runtime = std::make_unique<RenderRuntime>(std::move(cfg.config));  // calls populate()
+        auto runtime = std::unique_ptr<RenderRuntime>(
+            new RenderRuntime(std::move(cfg.config)));  // private construction
 
         if (cfg.assets_root.has_value()) {
             runtime->resolver().mount(*cfg.assets_root);
@@ -81,20 +81,14 @@ detail::assemble_runtime(RuntimeConfig cfg) {
     } catch (const std::exception& e) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
-            std::string{"assemble_runtime(): populate failed — "} + e.what()
+            std::string{"RenderRuntime::create(): construction failed — "} + e.what()
         };
     } catch (...) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
-            "assemble_runtime(): populate failed — unknown exception"
+            "RenderRuntime::create(): construction failed — unknown exception"
         };
     }
-}
-
-// Public factory is a thin wrapper around the internal assembly function.
-Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
-RenderRuntime::create(RuntimeConfig cfg) {
-    return detail::assemble_runtime(std::move(cfg));
 }
 
 RenderRuntime::~RenderRuntime() = default;
