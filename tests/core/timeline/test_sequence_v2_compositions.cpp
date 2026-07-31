@@ -11,6 +11,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/assets/asset_manifest.hpp>
@@ -30,8 +31,25 @@ using namespace chronon3d::content::sequence_v2;
 
 // ── Helper ─────────────────────────────────────────────────────────────
 
-// test_ctx removed — Composition::evaluate() takes Frame directly,
-// not FrameContext.  The FrameContext is created internally by evaluate().
+// V2 migration helper: keep the content factories source-compatible while
+// exercising CompositionDefinition → compile_composition() →
+// CompiledComposition → evaluate().
+Scene evaluate_compiled(const Composition& composition, Frame frame) {
+    auto compiled = compile_composition(composition, {});
+    REQUIRE(compiled.has_value());
+
+    CompositionEvaluateContext context;
+    context.frame_context =
+        context.frame_context.with_frame_rate(composition.frame_rate());
+    context.frame_context.width = composition.width();
+    context.frame_context.height = composition.height();
+    context.frame_context =
+        context.frame_context.with_duration(composition.duration());
+
+    auto evaluated = evaluate(std::move(compiled).value(), context, frame);
+    REQUIRE(evaluated.has_value());
+    return std::move(evaluated).value().scene;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. SeqV2IntroOutro — sequential sequences with local_frame restart
@@ -41,23 +59,23 @@ TEST_CASE("SeqV2 compositions — IntroOutro: layers switch at boundary") {
     auto comp = seq_v2_intro_outro();
 
     SUBCASE("frame 0: intro active, has bg + title layers") {
-        Scene scene = comp.evaluate(Frame{0});
+        Scene scene = evaluate_compiled(comp, Frame{0});
         // Intro has _bg + title = 2 layers
         CHECK(scene.layers().size() >= 2);
     }
 
     SUBCASE("frame 20: still in intro") {
-        Scene scene = comp.evaluate(Frame{20});
+        Scene scene = evaluate_compiled(comp, Frame{20});
         CHECK(scene.layers().size() >= 2);
     }
 
     SUBCASE("frame 50: outro active, has bg + outro_text layers") {
-        Scene scene = comp.evaluate(Frame{50});
+        Scene scene = evaluate_compiled(comp, Frame{50});
         CHECK(scene.layers().size() >= 2);
     }
 
     SUBCASE("frame 70: still in outro") {
-        Scene scene = comp.evaluate(Frame{70});
+        Scene scene = evaluate_compiled(comp, Frame{70});
         CHECK(scene.layers().size() >= 2);
     }
 }
@@ -70,24 +88,24 @@ TEST_CASE("SeqV2 compositions — DeepNesting: nested layers at correct frames")
     auto comp = seq_v2_deep_nesting();
 
     SUBCASE("frame 5: ch1/title active") {
-        Scene scene = comp.evaluate(Frame{5});
+        Scene scene = evaluate_compiled(comp, Frame{5});
         // act → ch1 → title: bg + ch1_title = 2 layers
         CHECK(scene.layers().size() >= 2);
     }
 
     SUBCASE("frame 25: ch1/body active (title ended)") {
-        Scene scene = comp.evaluate(Frame{25});
+        Scene scene = evaluate_compiled(comp, Frame{25});
         // act → ch1 → body: ch1_body layer
         CHECK(scene.layers().size() >= 1);
     }
 
     SUBCASE("frame 65: ch2/title active") {
-        Scene scene = comp.evaluate(Frame{65});
+        Scene scene = evaluate_compiled(comp, Frame{65});
         CHECK(scene.layers().size() >= 2);
     }
 
     SUBCASE("frame 85: ch2/body active") {
-        Scene scene = comp.evaluate(Frame{85});
+        Scene scene = evaluate_compiled(comp, Frame{85});
         CHECK(scene.layers().size() >= 1);
     }
 }
@@ -100,25 +118,25 @@ TEST_CASE("SeqV2 compositions — StaggeredTimeline: overlapping sequences") {
     auto comp = seq_v2_staggered_timeline();
 
     SUBCASE("frame 10: word1 active") {
-        Scene scene = comp.evaluate(Frame{10});
+        Scene scene = evaluate_compiled(comp, Frame{10});
         // bg (top-level) + word1 = at least 2 layers
         CHECK(scene.layers().size() >= 2);
     }
 
     SUBCASE("frame 30: word1 + word2 overlap") {
-        Scene scene = comp.evaluate(Frame{30});
+        Scene scene = evaluate_compiled(comp, Frame{30});
         // bg + word1 + word2 = at least 3 layers
         CHECK(scene.layers().size() >= 3);
     }
 
     SUBCASE("frame 55: word2 + word3 overlap (word1 ended)") {
-        Scene scene = comp.evaluate(Frame{55});
+        Scene scene = evaluate_compiled(comp, Frame{55});
         // bg + word2 + word3 = at least 3 layers
         CHECK(scene.layers().size() >= 3);
     }
 
     SUBCASE("frame 80: word3 only (+ bg)") {
-        Scene scene = comp.evaluate(Frame{80});
+        Scene scene = evaluate_compiled(comp, Frame{80});
         CHECK(scene.layers().size() >= 2);
     }
 }
@@ -131,13 +149,13 @@ TEST_CASE("SeqV2 compositions — TrimOffset: trim_before shifts local frame") {
     auto comp = seq_v2_trim_offset();
 
     SUBCASE("frame 0: both sequences active") {
-        Scene scene = comp.evaluate(Frame{0});
+        Scene scene = evaluate_compiled(comp, Frame{0});
         // bg + main text + trimmed text = at least 3 layers
         CHECK(scene.layers().size() >= 3);
     }
 
     SUBCASE("frame 45: still within duration") {
-        Scene scene = comp.evaluate(Frame{45});
+        Scene scene = evaluate_compiled(comp, Frame{45});
         CHECK(scene.layers().size() >= 2);
     }
 }
@@ -150,7 +168,7 @@ TEST_CASE("SeqV2 compositions — MixedMedia: manifest collects font + image") {
     auto comp = seq_v2_mixed_media();
 
     SUBCASE("frame 35: both sequences active — font + image in manifest") {
-        Scene scene = comp.evaluate(Frame{35});
+        Scene scene = evaluate_compiled(comp, Frame{35});
         const auto& manifest = scene.asset_manifest();
         auto fonts = manifest.filter(assets::AssetKind::Font);
         auto images = manifest.filter(assets::AssetKind::Image);
@@ -173,14 +191,14 @@ TEST_CASE("SeqV2 compositions — MixedMedia: manifest collects font + image") {
     }
 
     SUBCASE("frame 10: title_seq only — font but no image") {
-        Scene scene = comp.evaluate(Frame{10});
+        Scene scene = evaluate_compiled(comp, Frame{10});
         const auto& manifest = scene.asset_manifest();
         auto fonts = manifest.filter(assets::AssetKind::Font);
         CHECK(fonts.size() >= 1);
     }
 
     SUBCASE("frame 70: image_seq only — image but no font") {
-        Scene scene = comp.evaluate(Frame{70});
+        Scene scene = evaluate_compiled(comp, Frame{70});
         const auto& manifest = scene.asset_manifest();
         auto images = manifest.filter(assets::AssetKind::Image);
         CHECK(images.size() >= 1);
