@@ -122,7 +122,8 @@ TEST_CASE("RenderRuntime isolation: two runtimes do not share state") {
     // `RenderRuntime::create(RuntimeConfig)` produces a fully-populated
     // runtime, and the test for re-populate idempotency was testing
     // implementation detail (the idempotency check is now an internal
-    // contract of the factory + 1-arg ctor, not externally observable
+    // internal contract of the factory's private construction path, not
+    // externally observable
     // behavior).
     SUBCASE("backends start unattached") {
         CHECK_FALSE(runtime_a->backend_attached());
