@@ -697,20 +697,22 @@ Il comando canonico di certificazione prodotto `tools/verify_chronon_product_lin
 
 ## Transitions cleanup roadmap (TRN-01..TRN-07)
 
-Stato: OPEN. Piano di 7 fasi per pulire e certificare le transizioni Layer,
-Camera e Text prima di aggiungerne di nuove.
+Stato: CLOSURE CANDIDATE (source/gate audit corrente). Le fasi TRN-01..TRN-07
+sono implementate nei percorsi canonici e coperte dai test/gate correnti; il
+master tracker resta OPEN finché la sua scheda non viene sincronizzata.
 
 Master tracker: [`docs/tickets/TICKET-TRN-TRANSITION-CLEANUP.md`](docs/tickets/TICKET-TRN-TRANSITION-CLEANUP.md).
 
 | Fase | Obiettivo | Riferimento |
 |---|---|---|
-| TRN-01 | Inventario + gate architetturale | [`TICKET-TRN-01`](docs/tickets/TICKET-TRN-01.md) (superseded) |
-| TRN-02 | Timing canonico (`TransitionProgressSampler`) | Master tracker |
-| TRN-03 | Pulizia layer transitions | Master tracker |
-| TRN-04 | Correttezza transizioni testo | Master tracker |
-| TRN-05 | Pulizia camera transitions | Master tracker |
-| TRN-06 | Certificazione matrice minima | Master tracker |
-| TRN-07 | Vera `ClipTransitionNode` (Cut/Dissolve) | Master tracker |
+| TRN-01 | Inventario + gate architetturale | PASS — `tools/check_transition_id_dispatch.sh` |
+| TRN-02 | Timing canonico (`TransitionProgressSampler`) | PASS — `sample_transition()` + test dedicati |
+| TRN-03 | Pulizia layer transitions | PASS — catalogo canonico, fail-loud e cache key completa |
+| TRN-04 | Correttezza transizioni testo | PASS — semantica Cut/dissolve ed effetti simmetrici |
+| TRN-05 | Pulizia camera transitions | PASS — overlap, catalogo e sessione unificati |
+| TRN-06 | Certificazione matrice minima | PASS — matrice e determinismo certificati |
+| TRN-07 | Vera `ClipTransitionNode` (Cut/Dissolve) | PASS — nodo e integrazione graph certificati |
 
-Gate di ingresso: nessuna nuova transizione finché non sono soddisfatti i
-criteri di Definition of Done elencati nel master tracker.
+Gate di ingresso storico: nessuna nuova transizione prima della Definition of
+Done; l’audit corrente soddisfa il contenuto tecnico, mentre la chiusura
+amministrativa resta pendente sulla sincronizzazione della scheda master.
