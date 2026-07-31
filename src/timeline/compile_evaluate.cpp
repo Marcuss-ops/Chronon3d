@@ -45,6 +45,29 @@ std::uint64_t fnv1a64(const void* data, std::size_t n) noexcept {
     }
     return h;
 }
+
+std::uint64_t fingerprint_composition_definition(
+    const CompositionDefinition& definition) {
+    std::uint64_t h = kFnv1aOffset;
+    h ^= fnv1a64(definition.composition.name.data(),
+                 definition.composition.name.size());
+    h ^= fnv1a64(&definition.composition.width, sizeof(i32));
+    h ^= fnv1a64(&definition.composition.height, sizeof(i32));
+    h ^= fnv1a64(&definition.composition.frame_rate.numerator, sizeof(i32));
+    h ^= fnv1a64(&definition.composition.frame_rate.denominator, sizeof(i32));
+    h ^= fnv1a64(&definition.composition.duration, sizeof(Frame));
+
+    if (definition.camera.has_value()) {
+        h ^= camera_v1::compute_camera_descriptor_fingerprint(*definition.camera);
+    }
+    if (definition.scene) {
+        const auto& target_type = definition.scene.target_type();
+        if (target_type != typeid(void)) {
+            h ^= static_cast<std::uint64_t>(target_type.hash_code());
+        }
+    }
+    return h;
+}
 } // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,39 +169,76 @@ compile_composition(const CompositionDefinition& definition,
             keep, keep.get());
     }
 
-    // (5) Deterministic per-field fingerprint — P1 #11.
-    //     Replaces the previous raw-memory fnv1a64(&struct, sizeof) which
-    //     hashed padding bytes, std::string internal pointers, and STL
-    //     layout details — all non-portable across compilers/platforms.
-    //     Now each field is hashed individually; std::strings via their
-    //     content bytes, POD fields via their value bytes, and the
-    //     CameraDescriptor via its existing canonical fingerprint function.
-    std::uint64_t h = kFnv1aOffset;
-
-    // CompositionSpec fields — hash strings by content, not by pointer.
-    h ^= fnv1a64(definition.composition.name.data(), definition.composition.name.size());
-    h ^= fnv1a64(&definition.composition.width,  sizeof(i32));
-    h ^= fnv1a64(&definition.composition.height, sizeof(i32));
-    h ^= fnv1a64(&definition.composition.frame_rate.numerator,   sizeof(i32));
-    h ^= fnv1a64(&definition.composition.frame_rate.denominator, sizeof(i32));
-    h ^= fnv1a64(&definition.composition.duration, sizeof(Frame));
-
-    // Camera descriptor — use the canonical per-field fingerprint function.
-    if (definition.camera.has_value()) {
-        h ^= camera_v1::compute_camera_descriptor_fingerprint(*definition.camera);
-    }
-
-    // Scene function type identity — hash via type_info::hash_code(),
-    // which is deterministic per ABI and independent of addresses.
-    if (definition.scene) {
-        const auto& target_type = definition.scene.target_type();
-        if (target_type != typeid(void)) {
-            h ^= static_cast<std::uint64_t>(target_type.hash_code());
-        }
-    }
-    out.fingerprint = h;
+    // (5) Deterministic per-field fingerprint — P1 #11. Keep the helper
+    // reusable so compatibility adapters can replace storage without making
+    // the fingerprint describe a different immutable definition.
+    out.fingerprint = fingerprint_composition_definition(definition);
 
     return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// compile_composition(Composition)
+//
+// Compatibility adapter — snapshot the legacy object into the explicit V2
+// input, then delegate to the canonical definition compiler. Existing
+// Composition callers remain source-compatible while new code can consume
+// the returned CompiledComposition.
+// ─────────────────────────────────────────────────────────────────────────────
+Result<CompiledComposition, CompositionCompileError>
+compile_composition(const Composition& composition,
+                    const CompositionCompileContext& context) {
+    CompositionDefinition definition;
+    definition.composition.name = composition.name();
+    definition.composition.width = composition.width();
+    definition.composition.height = composition.height();
+    definition.composition.frame_rate = composition.frame_rate();
+    definition.composition.duration = composition.duration();
+
+    if (!composition.has_scene_function()) {
+        CompositionCompileError err;
+        err.kind = CompositionCompileError::Kind::NoSceneFunction;
+        err.message = "Composition::SceneFunction is null";
+        return err;
+    }
+
+    auto scene = composition.scene_function_snapshot();
+    definition.scene = [scene = std::move(scene)](const FrameContext& frame_context) {
+        return Composition::evaluate_scene_function(scene, frame_context);
+    };
+
+    // Preserve both legacy camera inputs in the definition snapshot. The
+    // precompiled program is applied below with the legacy precedence rule;
+    // retaining the descriptor keeps the adapter lossless for diagnostics and
+    // for the next migration step.
+    if (composition.has_default_camera_descriptor()) {
+        definition.camera = composition.default_camera_descriptor();
+    }
+
+    CompositionDefinition compile_definition = definition;
+    if (composition.has_camera_program()) {
+        // The legacy program has precedence. Avoid compiling a descriptor
+        // that the legacy render path would never consume, while retaining
+        // that descriptor in the immutable snapshot below.
+        compile_definition.camera.reset();
+    }
+
+    auto compiled = compile_composition(compile_definition, context);
+    if (!compiled.has_value()) {
+        return std::move(compiled).error();
+    }
+
+    auto result = std::move(compiled).value();
+    if (composition.has_camera_program()) {
+        auto program = std::make_shared<camera_v1::CameraProgram>(
+            composition.camera_program());
+        result.camera_program = std::shared_ptr<const camera_v1::CameraProgram>(
+            std::move(program));
+        result.definition = std::make_shared<const CompositionDefinition>(
+            std::move(definition));
+        result.fingerprint = fingerprint_composition_definition(*result.definition);
+    }
+    return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
