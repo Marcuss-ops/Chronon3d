@@ -47,10 +47,7 @@ const std::vector<CameraTransitionKind> kAllKinds{
     CameraTransitionKind::EaseOutBlend,
     CameraTransitionKind::SmoothRotationBlend,
     CameraTransitionKind::FocusDistanceBlend,
-    // Legacy aliases included for backward-compat coverage.
-    CameraTransitionKind::Push,
-    CameraTransitionKind::WhipPan,
-    CameraTransitionKind::FocusHandoff,
+
 };
 
 } // namespace
@@ -134,16 +131,7 @@ TEST_CASE("CameraTransitionCatalog - pre-freeze concurrent register+read"
         catalog.register_transition(
             CameraTransitionKind::FocusDistanceBlend,
             []() { return std::make_shared<DummyTransition>(); });
-        catalog.register_transition(
-            CameraTransitionKind::Push,
-            []() { return std::make_shared<DummyTransition>(); });
-        catalog.register_transition(
-            CameraTransitionKind::WhipPan,
-            []() { return std::make_shared<DummyTransition>(); });
-        catalog.register_transition(
-            CameraTransitionKind::FocusHandoff,
-            []() { return std::make_shared<DummyTransition>(); });
-        registers_done.store(8, std::memory_order_release);
+        registers_done.store(5, std::memory_order_release);
 
         // Hammer register_transition a few times (idempotent overwrites)
         // to ensure the writers' gate closes cleanly under churn.
@@ -189,10 +177,10 @@ TEST_CASE("CameraTransitionCatalog - pre-freeze concurrent register+read"
                           .count();
     REQUIRE(elapsed_ms < kDeadlineMs);
 
-    CHECK(registers_done.load(std::memory_order_acquire) >= 9);
+    CHECK(registers_done.load(std::memory_order_acquire) >= 6);
     REQUIRE(catalog.is_frozen());
 
-    // After freeze, all five kinds must be present and resolvable.
+    // After freeze, all canonical kinds must be present and resolvable.
     for (auto k : kAllKinds) {
         CHECK(catalog.has(k));
         auto t = catalog.create(k);

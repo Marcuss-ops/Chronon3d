@@ -153,9 +153,9 @@ CameraDescriptor
 | Per-shot sessions | 🟡 | `ShotTimelineSession` presente. |
 | Cut | 🟡 | Implementazione/factory presente. |
 | Smooth Blend | 🟡 | Implementazione/factory presente. |
-| Push | 🟡 | Implementazione/factory presente. |
-| Whip Pan | 🟡 | Implementazione/factory presente. |
-| Focus Handoff | 🟡 | Implementazione/factory presente. |
+| Ease-out Blend | 🟡 | Implementazione/factory presente; nome canonico della transizione precedentemente chiamata Push. |
+| Smooth Rotation Blend | 🟡 | Implementazione/factory presente; nome canonico della transizione precedentemente chiamata WhipPan. |
+| Focus Distance Blend | 🟡 | Implementazione/factory presente; nome canonico della transizione precedentemente chiamata FocusHandoff. |
 | Transition catalog | 🟡 | Catalogo DI, non singleton, presente. |
 | Diagnostica completa | 🔴 | TICKET-027: non tutta la diagnostica viene propagata. |
 | Random-access determinism | 🟡 | Checkpoint/pre-roll presente; integrazione timeline da certificare. |

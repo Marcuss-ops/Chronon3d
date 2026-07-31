@@ -29,7 +29,7 @@ Il next shot inizia a `shot.end_frame - shot.transition_frames` e il suo tempo l
 `ShotTimelineSession` ora possiede solo `CameraSessionCache cache`. Il resolver riceve il riferimento alla cache e non mantiene più una sua cache privata.
 
 ### 4. Catalogo come unica fonte
-`ShotTimelineResolver` prende le transizioni esclusivamente da `CameraTransitionCatalog`. Kind non registrati cadono in `CutTransition` (fail-closed). Gli alias legacy (`Push`, `WhipPan`, `FocusHandoff`) risolvono lo stesso oggetto delle controparti canoniche.
+`ShotTimelineResolver` prende le transizioni esclusivamente da `CameraTransitionCatalog`. Kind non registrati cadono in `CutTransition` (fail-closed). I nomi canonici sono `EaseOutBlend`, `SmoothRotationBlend` e `FocusDistanceBlend`; gli alias legacy sono stati rimossi dopo la migrazione dei chiamanti.
 
 ## Test
 

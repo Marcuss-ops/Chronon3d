@@ -76,7 +76,7 @@ Sono presenti:
 - handheld noise deterministico;
 - constraint tipizzati;
 - shot timeline;
-- Cut, Smooth Blend, Push, Whip Pan e Focus Handoff.
+- Cut, Smooth Blend, Ease-out Blend, Smooth Rotation Blend e Focus Distance Blend.
 
 ## Correzioni recenti
 

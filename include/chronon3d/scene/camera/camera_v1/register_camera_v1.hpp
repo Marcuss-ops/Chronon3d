@@ -28,8 +28,9 @@ namespace chronon3d::camera_v1 {
 
 class CameraTransitionCatalog;
 
-/// Register all built-in camera transitions (Cut / SmoothBlend / Push /
-/// WhipPan / FocusHandoff) into the CALLER-OWNED `catalog` reference.
+/// Register all built-in camera transitions (Cut / SmoothBlend /
+/// EaseOutBlend / SmoothRotationBlend / FocusDistanceBlend) into the
+/// CALLER-OWNED `catalog` reference.
 ///
 /// Lifetime: `catalog` must outlive all usages of the resulting
 /// transitions — typically owned by the render runtime.
