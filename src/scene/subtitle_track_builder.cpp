@@ -329,9 +329,8 @@ void SubtitleTrackBuilder::build() {
 
         builder_->text_run(
                 "subtitle_cue_" + std::to_string(i), run_spec)
-            .commit()
-            .start_at(start_frame)
-            .duration(duration_frames);
+            .commit()                .from(start_frame)
+                .duration(duration_frames);
     }
 }
 

@@ -73,7 +73,7 @@ plugin o sistemi sperimentali.
 > | 4 | Composition / shape DSL | `3ded66a9` | `fullscreen_rect` canvas-correct via `pin_to(Anchor::Center)` + `pos=(-w/2,-h/2,0)` |
 > | 5 | Tests / docs | `8c1e9ddc` chain | sRGB pixel assertion helper (`tests/helpers/color_expect.hpp`) + doctest hygiene gate (`tools/check_test_hygiene.sh`) |
 > | 6 | SDK / canonical header | `2c0254c3` (then promoted to strict gate in `fae3a0ac` chain) | Frame reading convention docblock in `include/chronon3d/core/types/frame.hpp` |
-> | 7 | SDK / build DSL | `2332dc7d` | LayerBuilder `start_at()` + `length()` aliases (additive-only) |
+> | 7 | SDK / build DSL | `2332dc7d` | LayerBuilder timing aliases removed; canonical `from()` + `duration()` retained |
 > | 8 | CLI / preflight | `99323724` | V2 preflight default in CLI + `--legacy-preflight` opt-in flag |
 > | 9 | Tests / audit | `27fab453` + `8c1e9ddc` (promoted to FAIL via TICKET-110 chain `e369f9e7`) | test suite registration audit gate |
 > | 10 | Tests / build rot | `4113a8db` chain | Unblock `chronon3d_render_graph_tests` compilation + SceneProgramStore/SceneProgramCache accessors + ExecutionScope::make_root factory |
