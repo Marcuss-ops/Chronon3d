@@ -40,6 +40,7 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 
@@ -128,6 +129,14 @@ compile_camera(const camera_v1::CameraDescriptor& descriptor,
 // ─────────────────────────────────────────────────────────────────────────────
 Result<CompiledComposition, CompositionCompileError>
 compile_composition(const CompositionDefinition& definition,
+                    const CompositionCompileContext& context);
+
+// Incremental compatibility adapter: snapshots the legacy Composition into
+// the explicit definition/compiled pipeline without changing existing callers.
+// A precompiled camera program on the legacy object takes precedence over its
+// descriptor, matching the legacy render contract.
+Result<CompiledComposition, CompositionCompileError>
+compile_composition(const Composition& composition,
                     const CompositionCompileContext& context);
 
 // ─────────────────────────────────────────────────────────────────────────────

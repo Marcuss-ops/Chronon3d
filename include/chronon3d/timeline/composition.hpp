@@ -47,6 +47,11 @@
 
 namespace chronon3d {
 
+template <typename T, typename E> class Result;
+struct CompiledComposition;
+struct CompositionCompileContext;
+struct CompositionCompileError;
+
 struct CompositionSpec {
     std::string name{"Untitled"};
     i32 width{1920};
@@ -73,11 +78,7 @@ public:
     /// FrameContext (e.g. tests, content compositions) can pass it
     /// directly without extracting individual fields.
     [[nodiscard]] Scene evaluate(const FrameContext& ctx) const {
-        Scene result = m_render(ctx);
-        if (!ctx.assets_root.empty()) {
-            result.set_assets_root(ctx.assets_root);
-        }
-        return result;
+        return evaluate_scene_function(m_render, ctx);
     }
 
     /// Evaluate one integral frame using the composition's immutable spec.
@@ -173,6 +174,28 @@ public:
     }
 
 private:
+    friend Result<CompiledComposition, CompositionCompileError>
+    compile_composition(const Composition& composition,
+                        const CompositionCompileContext& context);
+
+    [[nodiscard]] bool has_scene_function() const noexcept {
+        return static_cast<bool>(m_render);
+    }
+
+    [[nodiscard]] SceneFunction scene_function_snapshot() const {
+        return m_render;
+    }
+
+    [[nodiscard]] static Scene evaluate_scene_function(
+        const SceneFunction& render,
+        const FrameContext& ctx) {
+        Scene result = render(ctx);
+        if (!ctx.assets_root.empty()) {
+            result.set_assets_root(ctx.assets_root);
+        }
+        return result;
+    }
+
     // ── P3-F — the Composition is immutable on the camera side.
     //    Only the value-typed descriptor field remains; no cache or lazy
     //    inverse projection is retained.
