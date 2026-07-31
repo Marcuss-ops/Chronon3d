@@ -49,11 +49,11 @@
 // the migration rationale and the per-session ownership spec.
 //
 // Fase C2 — Canonical construction sequence (RenderEngine::Impl unified ctor):
-//   1) m_runtime(m_config)            → populate() allocates all slots
-//   2) m_renderer(m_runtime, cfg)     → renderer wires per-instance state
-//   3) SoftwareBackend constructed     → inside Impl ctor body, then
-//      m_runtime.attach_backend()      → runtime owns backend for engine lifetime
-//   4) m_pipeline.emplace(...)         → published after backend is live
+//   1) RenderRuntime::create(RuntimeConfig) → populate() allocates all slots
+//   2) m_renderer(m_runtime, cfg)           → renderer wires per-instance state
+//   3) SoftwareBackend constructed          → inside Impl ctor body, then
+//      m_runtime.attach_backend()           → runtime owns backend for engine lifetime
+//   4) m_pipeline.emplace(...)              → published after backend is live
 //
 // @deprecated standalone paths (migrate to RenderEngine constructor):
 //   * SoftwareRenderer(Config) — creates its own runtime internally
@@ -134,6 +134,8 @@ struct RuntimeConfig {
     std::optional<std::filesystem::path>        assets_root;
 };
 
+class RenderRuntime;
+
 // P1-15 (DONE) — the `RenderServices` pointer bundle (struct +
 // `services()` accessor + `m_services` member) has been REMOVED
 // wholesale.  The typed direct accessors below are the canonical
@@ -143,14 +145,9 @@ struct RuntimeConfig {
 /// RenderRuntime — engine-lifetime container.
 class RenderRuntime {
 public:
-    // P1-14 — Default ctor DELETED (was `= default`): prevents accidentally
-    // creating an uninitialized runtime that bypasses populate() and the
-    // canonical factory.  Stack-alloc in tests is still supported via the
-    // 1-arg ctor below (the user's verify pattern `RenderRuntime::create\(
-    // |new RenderRuntime|make_unique<RenderRuntime` is HEAP-alloc focused
-    // and does not match direct stack ctor calls).
+    // The default and direct Config constructors are intentionally not public:
+    // RenderRuntime::create(RuntimeConfig) is the sole construction boundary.
     RenderRuntime() = delete;
-    explicit RenderRuntime(chronon3d::Config config);
     ~RenderRuntime();
 
     // ── Fase C2 — Unified factory (canonical construction path) ──────────
@@ -171,10 +168,10 @@ public:
     RenderRuntime& operator=(RenderRuntime&&) = delete;
 
     // P1-14 — `populate()` and `attach_backend()` moved to PRIVATE (see
-    // below).  The canonical public entry is `RenderRuntime::create(
-    // RuntimeConfig)`; `populate()` is called by the 1-arg ctor body
-    // (which the factory uses); `attach_backend()` is called by the
-    // internal bridges (runtime_adapter + test_utils) listed as
+    // below). The canonical public entry is
+    // `RenderRuntime::create(RuntimeConfig)`; the factory's private
+    // constructor calls `populate()`, while `attach_backend()` is called
+    // by the internal bridges (runtime_adapter + test_utils) listed as
     // `friend` declarations in the private section.
 
     // ── Configuration ────────────────────────────────────────────────
@@ -243,9 +240,13 @@ public:
     // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-allow: stale-ref
 
 private:
+    // Solely callable by RenderRuntime::create(RuntimeConfig).
+    explicit RenderRuntime(chronon3d::Config config);
+
     // P1-14 — populate() + attach_backend() moved here from public.
-    // populate() is called by the 1-arg ctor body (which the factory uses).
-    // attach_backend() is called by the two internal bridges via friend.
+    // populate() is called by the private Config constructor used by the
+    // factory. attach_backend() is called by the two internal bridges via
+    // friend.
 
     /// Initialise the long-lived infrastructure from the engine Config.
     /// Idempotent: calling populate() on a populated runtime is a no-op.
@@ -321,14 +322,5 @@ private:
 // (RenderRuntime::resolver(), RenderSession, or dependency injection).
 // Deep code without a runtime in scope should receive the resolver via
 // parameter rather than reading a process-wide global.
-
-// Internal assembly helper — shared by RenderRuntime::create() and
-// sdk::RenderEngine.  Not a public API surface.
-namespace detail {
-
-[[nodiscard]] Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
-assemble_runtime(RuntimeConfig cfg);
-
-} // namespace detail
 
 } // namespace chronon3d::runtime

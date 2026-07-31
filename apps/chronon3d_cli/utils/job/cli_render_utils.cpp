@@ -140,12 +140,11 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // a hard FAIL — the desired behaviour per audit §10 ("fallback
     // CWD" delisting).  No silent drift.
 
-    // P1-14 — the vestigial `populate()` call was REMOVED.  The canonical
-    // `RenderRuntime::create()` factory auto-pops the runtime via
-    // `populate()` (and the 1-arg `RenderRuntime(Config)` ctor does the
-    // same in its body).  `populate()` is now PRIVATE on RenderRuntime;
-    // this call site was vestigial (the runtime is already populated by
-    // the time we reach this point in `create_renderer`).
+    // P1-14 — the vestigial `populate()` call was REMOVED. The canonical
+    // `RenderRuntime::create(RuntimeConfig)` factory invokes the private
+    // construction path, which populates the runtime before this renderer
+    // factory returns. `populate()` is private on RenderRuntime, so this
+    // call site was vestigial.
 
     return renderer;
 }

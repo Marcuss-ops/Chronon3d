@@ -2,11 +2,11 @@
 // api/render_engine.cpp — RenderEngine::Impl wired for TICKET-011
 //
 // Construction sequence inside `Impl`:
-//   1) m_runtime(m_config)       — populate(): allocates caches, pool,
-//                                  executor, plan cache, scheduler,
-//                                  3 registries, 3 catalogs (but NOT the
-//                                  backend)
-//   2) m_renderer(m_runtime, cfg) — renderer holds per-instance state
+//   1) RenderRuntime::create(RuntimeConfig) — populate(): allocates caches,
+//                                             pool, executor, plan cache,
+//                                             scheduler, 3 registries, and
+//                                             3 catalogs (but NOT the backend)
+//   2) m_renderer(m_runtime, cfg)           — renderer holds per-instance state
 //                                  (counters, settings, image backend,
 //                                  video decoder, session, registry)
 //                                  and BORROWS services from the runtime
@@ -61,12 +61,12 @@ struct RenderEngine::Impl {
     // in the body, so std::optional is the right storage here.
     std::optional<runtime::RenderPipeline>       m_pipeline;
 
-    // Fase C2 / R1 — unified constructor delegates runtime assembly to
-    // the shared internal `assemble_runtime()` helper.
+    // Fase C2 / R1 — unified constructor delegates runtime construction to
+    // the canonical RenderRuntime::create(RuntimeConfig) factory.
     explicit Impl(Config config, std::optional<std::filesystem::path> assets_root = std::nullopt)
         : m_config(std::move(config))
     {
-        auto runtime_result = runtime::detail::assemble_runtime(
+        auto runtime_result = runtime::RenderRuntime::create(
             runtime::RuntimeConfig{.config = m_config, .assets_root = assets_root});
         if (!runtime_result) {
             throw std::runtime_error(
