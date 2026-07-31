@@ -66,22 +66,19 @@ const std::optional<GlyphRun>& get_raw_run(const ShapedGlyphLine& line) noexcept
 
 } // namespace test_support
 
-// ── ShapedGlyphLine 4-arg canonical ctor (REMOVED) ─────────────
+// ── Removed direct construction bridge ─────────────────────────────────
 //
-// Removed during the TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL chore.
-// Originally prototyped as a TICKET-migration bridge for callers that
-// structurally required the old 6-arg signature, but it would have been
-// a useless public ABI symbol that always failed shaping (placeholder
-// FontSpec cannot load a font). Per Cat-3 minimal-surface discipline
-// and reviewer critique, dead-code public ABI symbols are removed
-// rather than deprecated. The `[[deprecated]]` 6-arg ctor above +
-// the documented contract to use `try_shape(...)` / `shape_glyph_line(...)`
-// are sufficient as the V0.1 → V0.2 migration bridge.
+// ShapedGlyphLine has no public constructor that accepts raw text. The
+// previous compatibility constructor was removed under the
+// TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL chore; callers now enter through
+// the canonical `shape_glyph_line(...)` primitive or its temporary
+// `try_shape(...)` compatibility adapter.
 
-// ── ShapedGlyphLine private ctor (used by try_shape factory) ────────────
+// ── ShapedGlyphLine private ctor (used by canonical shaping) ────────────
 //
 // Private ctor populates fields from a valid GlyphRun directly — it does
-// not shape or throw. It is called by the sole public `try_shape` factory.
+// not shape or throw. It is called by `shape_glyph_line(...)` after the
+// engine has produced a valid run.
 ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text,
                                  f32 tracking, f32 ref_offset_x)
     : m_text(std::move(text)), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
@@ -114,7 +111,8 @@ void ShapedGlyphLine::rebuild_prefix_advances() {
 // ── ShapedGlyphLine read-only accessors (unchanged from upstream) ────────
 //
 // These methods read from `m_run` + `m_tracking` + `m_ref_offset_x`
-// (cached state populated by try_shape factory).  No re-shape
+// (cached state populated by the canonical shape_glyph_line primitive).
+// No re-shape
 // calls — single engine.shape_text invocation per ShapedGlyphLine
 // instance (Point 8 single-shape efficiency).
 f32 ShapedGlyphLine::width() const noexcept {
@@ -270,45 +268,42 @@ size_t ShapedGlyphLine::reveal_count(f32 progress) const noexcept {
     return static_cast<size_t>(static_cast<f32>(m_run->glyphs.size()) * progress);
 }
 
-// ── try_shape static factory (Point 8 fail-soft entry point) ────────────
+// ── shape_glyph_line canonical primitive ────────────────────────────────
 //
-// Returns `std::optional<ShapedGlyphLine>`:
-//   - engine.shape_text returned std::nullopt           → return std::nullopt
-//   - run->glyphs.empty()                                → return std::nullopt
-//   - otherwise                                          → populated instance
-//
-// Does NOT throw.  Forwarded by `shape_glyph_line` free function below.
-std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
-    std::string_view text, f32 font_size, const FontSpec& spec,
+// One FontEngine::shape_text call produces one immutable ShapedGlyphLine
+// snapshot. The reference offset is stored in that snapshot so width,
+// cursor and layout accessors share one coordinate contract.
+[[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
+    std::string_view text, f32 font_size, const FontSpec& font,
     f32 tracking, f32 ref_offset_x, FontEngine& engine)
 {
-    auto run_opt = engine.shape_text(std::string(text), spec, font_size);
-    // Increment the per-line shape-call counter exactly once per try_shape
-    // invocation (one engine.shape_text call per ShapedGlyphLine instance
-    // lifetime — Point 8 single-shape efficiency contract).
+    auto run_opt = engine.shape_text(std::string(text), font, font_size);
     s_shape_calls_per_line.fetch_add(1, std::memory_order_relaxed);
     if (!run_opt || run_opt->glyphs.empty()) return std::nullopt;
+
     ShapedGlyphLine line(
-        std::move(*run_opt),
-        std::string(text),
-        tracking,
-        ref_offset_x);
+        std::move(*run_opt), std::string(text), tracking, ref_offset_x);
     line.rebuild_prefix_advances();
     return line;
 }
 
-// ── shape_glyph_line free function (Point 8 single-shape entry point) ─
-//
-// 1-line delegation to `ShapedGlyphLine::try_shape` with
-// `ref_offset_x = 0.0f` (the caller applies offset as a post-step in
-// `layout_glyphs`).  Fail-soft contract: `std::nullopt` on shaping
-// failure.
+// Compatibility overload: canonical zero-offset shaping.
 [[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
     std::string_view text, f32 font_size, const FontSpec& font,
     f32 tracking, FontEngine& engine)
 {
-    return ShapedGlyphLine::try_shape(text, font_size, font, tracking,
-                                      /*ref_offset_x=*/0.0f, engine);
+    return shape_glyph_line(text, font_size, font, tracking,
+                            /*ref_offset_x=*/0.0f, engine);
+}
+
+// Compatibility factory. Keep the historical static entry point source
+// compatible while ensuring it cannot grow a second shaping implementation.
+std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
+    std::string_view text, f32 font_size, const FontSpec& spec,
+    f32 tracking, f32 ref_offset_x, FontEngine& engine)
+{
+    return shape_glyph_line(text, font_size, spec, tracking,
+                            ref_offset_x, engine);
 }
 
 // ── measure_text_width — thin-wrapper over shape_glyph_line (fail-soft) ──
@@ -328,29 +323,19 @@ f32 measure_text_width(const std::string& text, f32 font_size,
 //
 // Throws std::runtime_error(make_shape_error_message(...)) on shaping
 // failure (fail-loud per AGENTS.md §honesty + ADR-020 §fail-loud path).
-// Post-step: applies `ref_offset_x` as a constant offset to each
-// glyph's `center_x` (byte-equivalent to pre-refactor cursor-init-at-
-// ref_offset_x math).
+// The canonical offset-bearing shape owns the requested coordinate origin.
 std::vector<GlyphPos> layout_glyphs(
     const std::string& text, f32 font_size,
     const FontSpec& spec, f32 tracking,
     f32 ref_offset_x,
     FontEngine& engine)
 {
-    auto shaped = shape_glyph_line(text, font_size, spec, tracking, engine);
+    auto shaped = shape_glyph_line(text, font_size, spec, tracking,
+                                   ref_offset_x, engine);
     if (!shaped) {
         throw std::runtime_error(make_shape_error_message(text, spec, font_size));
     }
-    auto positions = shaped->layout();
-    // Pre-refactor byte-equivalence: the cursor inside ShapedGlyphLine's
-    // `layout()` starts at `m_ref_offset_x`; we applied 0.0f via
-    // shape_glyph_line, so positions are RELATIVE to 0.  Adding the
-    // caller-provided `ref_offset_x` as a constant offset is
-    // mathematically equivalent to starting the cursor at `ref_offset_x`.
-    for (auto& p : positions) {
-        p.center_x += ref_offset_x;
-    }
-    return positions;
+    return shaped->layout();
 }
 
 } // namespace chronon3d::content::text_reveal
