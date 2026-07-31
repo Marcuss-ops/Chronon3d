@@ -35,12 +35,13 @@
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
-#include "content/common/text/glyph_layout.hpp"  // measure_text_width, layout_glyphs
+#include "content/common/text/glyph_layout.hpp"  // canonical shape_glyph_line
 #include "content/common/text/text_reveal.hpp"    // font_bold
 #include "content/text/text_theme.hpp"
 
 #include <cmath>
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace chronon3d::content::anims {
@@ -57,7 +58,7 @@ namespace {
 // the original block live in deep_parallax_cascade / whip_pan_ /
 // orbit_ / rack_focus / and are not needed here).
 using chronon3d::content::text_reveal::font_bold;
-using chronon3d::content::text_reveal::ShapedGlyphLine;
+using chronon3d::content::text_reveal::shape_glyph_line;
 
 } // anonymous namespace
 
@@ -102,7 +103,15 @@ Composition abyss_freefall_stagger() {
         // fade-out at the tail.
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
-        auto spec = font_bold();            ShapedGlyphLine line = ShapedGlyphLine::try_shape(phrase, fs, spec, 4.0f, 0.0f, ctx.runtime->font_engine()).value();
+        auto spec = font_bold();
+        auto shaped = shape_glyph_line(
+            phrase, fs, spec, 4.0f, /*ref_offset_x=*/0.0f,
+            ctx.runtime->font_engine());
+        if (!shaped) {
+            throw std::runtime_error(
+                "abyss_freefall_stagger: unable to shape text");
+        }
+        const auto& line = *shaped;
         f32 w = line.width();
         f32 ref_x = -w * 0.5f;
         auto chars = line.layout();

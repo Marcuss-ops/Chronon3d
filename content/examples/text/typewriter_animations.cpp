@@ -36,8 +36,8 @@
 //   (a) text_reveal for TextRevealDescriptor (Stagger factory only — kept
 //       for the 4-line case which is out-of-scope for Point 11)
 //   (b) typewriter_block for TwoLineTypewriterSpec + build_2line_typewriter
-//   (c) glyph_layout NOT included here: shape_glyph_line is used internally
-//       in typewriter_block, never directly (Point 8 clean separation).
+//   (c) glyph_layout for the canonical shape_glyph_line primitive used by
+//       the four-line stagger path.
 #include "content/common/text/text_reveal.hpp"
 #include "content/common/text/typewriter_block.hpp"
 #include "content/common/text/glyph_layout.hpp"
@@ -54,7 +54,7 @@ using chronon3d::content::animation_helpers::FONT_REGULAR;
 using chronon3d::content::text_reveal::build_2line_typewriter;
 using chronon3d::content::text_reveal::build_text_reveal_line;
 using chronon3d::content::text_reveal::font_regular;
-using chronon3d::content::text_reveal::measure_text_width;
+using chronon3d::content::text_reveal::shape_glyph_line;
 using chronon3d::content::text_reveal::TextRevealDescriptor;
 
 namespace {
@@ -217,9 +217,13 @@ Composition anim_typewriter_stagger() {
         auto spec = chronon3d::content::text_reveal::font_regular();
         f32 max_w = 0.0f;
         for (int i = 0; i < 4; ++i) {
-            f32 w = measure_text_width(lines[i].text, lines[i].size, spec,
-                                       /*tracking=*/TW_TRACKING, *s.font_engine());
-            if (w > max_w) max_w = w;
+            auto shaped = shape_glyph_line(
+                lines[i].text, lines[i].size, spec,
+                /*tracking=*/TW_TRACKING, /*ref_offset_x=*/0.0f,
+                *s.font_engine());
+            if (shaped && shaped->width() > max_w) {
+                max_w = shaped->width();
+            }
         }
         f32 ref_x = -max_w * 0.5f;
 
