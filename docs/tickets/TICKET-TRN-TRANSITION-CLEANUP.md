@@ -162,9 +162,9 @@ Il sistema camera possiede:
 
 * `Cut`;
 * `SmoothBlend`;
-* `Push`;
-* `WhipPan`;
-* `FocusHandoff`;
+* `EaseOutBlend`;
+* `SmoothRotationBlend`;
+* `FocusDistanceBlend`;
 * `ShotTimeline`;
 * sessioni per shot;
 * catalogo DI;
@@ -172,11 +172,11 @@ Il sistema camera possiede:
 
 ## 3.2 Nomi vs comportamento
 
-| Transizione | Nome suggerito alternativo / Problema |
+| Transizione | Semantica / limite |
 |---|---|
-| `Push` | `EaseOutCameraBlend`; non è un vero push editoriale con traiettoria/direzione/overshoot |
-| `WhipPan` | Manca overshoot, curva di accelerazione specifica, shutter coupling, motion-blur envelope, settle finale |
-| `FocusHandoff` | Quasi uguale a `SmoothBlend`; un focus handoff credibile richiede defocus/intervallo morbido e curva separata dal movimento camera |
+| `EaseOutBlend` | Blend di posizione con ease-out; non è un vero push editoriale con traiettoria/direzione/overshoot |
+| `SmoothRotationBlend` | Blend della rotazione con smoothstep; non include overshoot, shutter coupling o settle dedicato |
+| `FocusDistanceBlend` | Blend dei campi camera con enfasi sul focus distance; richiede una curva DOF più specifica per un handoff cinematografico |
 
 ## 3.3 Semantica dell’overlap poco chiara
 
@@ -444,7 +444,7 @@ TransitionCatalog
 * rimuovere lo stato sessione duplicato → **implementato**: `ShotTimelineSession` contiene solo `CameraSessionCache cache`;
 * usare soltanto il catalogo → **implementato**: `ShotTimelineResolver` legge le transizioni da `CameraTransitionCatalog`;
 * definire una policy per ogni campo della camera → **implementato**: `blend_camera_fields()` distingue campi continui vs discreti;
-* rinominare transizioni che non rispettano ancora il comportamento promesso → **implementato**: `Push→EaseOutBlend`, `WhipPan→SmoothRotationBlend`, `FocusHandoff→FocusDistanceBlend` (alias legacy mantenuti);
+* rinominare transizioni che non rispettano ancora il comportamento promesso → **implementato**: `EaseOutBlend`, `SmoothRotationBlend`, `FocusDistanceBlend`; i tre alias pubblici sono stati rimossi dopo la migrazione dei chiamanti; il repository non contiene un decoder di dati camera legacy;
 * testare continuità quaternion e tutti i parametri → **testato**: `tests/scene/camera/test_shot_timeline.cpp` (casi 13-16).
 
 ## TRN-06 — Certificazione delle transizioni già presenti ✅ DONE

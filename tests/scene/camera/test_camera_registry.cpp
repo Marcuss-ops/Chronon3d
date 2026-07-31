@@ -13,8 +13,8 @@
 //
 // 2 TEST_CASE:
 //   1. register_camera_v1_builtins_into() injects the 5 built-in transitions
-//      into a caller-owned catalog (Cut / SmoothBlend / Push / WhipPan /
-//      FocusHandoff).
+//      into a caller-owned catalog (Cut / SmoothBlend / EaseOutBlend /
+//      SmoothRotationBlend / FocusDistanceBlend).
 //   2. register_camera_v1_builtins_into() is idempotent — calling twice on
 //      the same catalog yields the same frozen state without errors.
 // ==============================================================================
@@ -47,10 +47,6 @@ TEST_CASE("CAM-05: register_camera_v1_builtins_into() injects the 5 built-in tra
     CHECK(catalog.has(CameraTransitionKind::SmoothRotationBlend));
     CHECK(catalog.has(CameraTransitionKind::FocusDistanceBlend));
 
-    // Legacy aliases still resolve.
-    CHECK(catalog.has(CameraTransitionKind::Push));
-    CHECK(catalog.has(CameraTransitionKind::WhipPan));
-    CHECK(catalog.has(CameraTransitionKind::FocusHandoff));
 
     // Exercise ALL canonical transition factories.
     auto cut      = catalog.create(CameraTransitionKind::Cut);
