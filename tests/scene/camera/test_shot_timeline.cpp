@@ -9,9 +9,9 @@
 //   3. Shot pair returns current + next for transition overlap
 //   4. Cut transition shows 'from' until t=1
 //   5. SmoothBlend interpolates position (quaternion slerp rotation)
-//   6. Push transition uses ease-out
-//   7. WhipPan transition interpolates rotation via quaternion
-//   8. FocusHandoff transitions focus distance
+//   6. EaseOutBlend transition uses ease-out
+//   7. SmoothRotationBlend transition interpolates rotation via quaternion
+//   8. FocusDistanceBlend transitions focus distance
 //   9. Overlap boundary produces non-NaN camera
 //  10. TransitionCatalog register + create + freeze
 //  11. Endpoint parity: t=0==from, t=1==to
@@ -168,7 +168,7 @@ TEST_CASE("smooth blend interpolates position") {
 }
 
 // ==============================================================================
-// 6 — Push transition (ease-out).
+// 6 — EaseOutBlend transition (ease-out).
 // ==============================================================================
 TEST_CASE("push transition uses ease-out") {
     Camera2_5D from, to;
@@ -187,7 +187,7 @@ TEST_CASE("push transition uses ease-out") {
 }
 
 // ==============================================================================
-// 7 — WhipPan transition.
+// 7 — SmoothRotationBlend transition.
 // ==============================================================================
 TEST_CASE("whip pan interpolates rotation via quaternion") {
     Camera2_5D from, to;
@@ -206,7 +206,7 @@ TEST_CASE("whip pan interpolates rotation via quaternion") {
 }
 
 // ==============================================================================
-// 8 — FocusHandoff.
+// 8 — FocusDistanceBlend.
 // ==============================================================================
 TEST_CASE("focus handoff transitions focus distance") {
     Camera2_5D from, to;
@@ -375,7 +375,7 @@ TEST_CASE("true overlap evaluates both shots locally") {
 }
 
 // ==============================================================================
-// 15 — TRN-05: renamed transitions are registered under new and old IDs.
+// 15 — TRN-05: canonical named transitions are registered.
 // ==============================================================================
 TEST_CASE("renamed camera transitions are available") {
     CameraTransitionCatalog catalog;
@@ -386,10 +386,6 @@ TEST_CASE("renamed camera transitions are available") {
     CHECK(catalog.has(CameraTransitionKind::SmoothRotationBlend));
     CHECK(catalog.has(CameraTransitionKind::FocusDistanceBlend));
 
-    // Legacy names still resolve.
-    CHECK(catalog.has(CameraTransitionKind::Push));
-    CHECK(catalog.has(CameraTransitionKind::WhipPan));
-    CHECK(catalog.has(CameraTransitionKind::FocusHandoff));
 }
 
 // ==============================================================================

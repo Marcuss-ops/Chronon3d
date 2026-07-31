@@ -113,7 +113,7 @@ release-ready. Questa pagina separa feature presenti, parziali e pianificate.
 - Constraint tipizzati.
 - Fingerprint del descriptor.
 - Shot timeline.
-- Transizioni Cut, Smooth Blend, Push, Whip Pan e Focus Handoff.
+- Transizioni Cut, Smooth Blend, Ease-out Blend, Smooth Rotation Blend e Focus Distance Blend.
 - Sub-frame sampling.
 - Checkpoint/pre-roll per accesso non sequenziale.
 - Camera debug/validation foundations.

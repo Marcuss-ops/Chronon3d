@@ -286,27 +286,21 @@ ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timelin
     // Cut (fail-closed) so the resolver never creates transitions
     // outside the catalog.
     auto fail_closed = std::make_shared<CutTransition>();
-    auto fetch = [&](CameraTransitionKind k,
-                     CameraTransitionKind legacy) -> std::shared_ptr<CameraTransition> {
+    auto fetch = [&](CameraTransitionKind k) -> std::shared_ptr<CameraTransition> {
         if (auto t = catalog.create(k)) return t;
-        if (auto t = catalog.create(legacy)) return t;
         return fail_closed;
     };
     transitions_[CameraTransitionKind::Cut] =
-        fetch(CameraTransitionKind::Cut, CameraTransitionKind::Cut);
+        fetch(CameraTransitionKind::Cut);
     transitions_[CameraTransitionKind::SmoothBlend] =
-        fetch(CameraTransitionKind::SmoothBlend, CameraTransitionKind::SmoothBlend);
+        fetch(CameraTransitionKind::SmoothBlend);
     transitions_[CameraTransitionKind::EaseOutBlend] =
-        fetch(CameraTransitionKind::EaseOutBlend, CameraTransitionKind::Push);
+        fetch(CameraTransitionKind::EaseOutBlend);
     transitions_[CameraTransitionKind::SmoothRotationBlend] =
-        fetch(CameraTransitionKind::SmoothRotationBlend, CameraTransitionKind::WhipPan);
+        fetch(CameraTransitionKind::SmoothRotationBlend);
     transitions_[CameraTransitionKind::FocusDistanceBlend] =
-        fetch(CameraTransitionKind::FocusDistanceBlend, CameraTransitionKind::FocusHandoff);
+        fetch(CameraTransitionKind::FocusDistanceBlend);
 
-    // Legacy aliases share the same instances as the canonical names.
-    transitions_[CameraTransitionKind::Push]         = transitions_[CameraTransitionKind::EaseOutBlend];
-    transitions_[CameraTransitionKind::WhipPan]      = transitions_[CameraTransitionKind::SmoothRotationBlend];
-    transitions_[CameraTransitionKind::FocusHandoff] = transitions_[CameraTransitionKind::FocusDistanceBlend];
 }
 
 std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
@@ -640,13 +634,6 @@ void CameraTransitionCatalog::register_defaults() {
     if (!has(CameraTransitionKind::FocusDistanceBlend))
         register_transition(CameraTransitionKind::FocusDistanceBlend, make_default_focus_distance_blend);
 
-    // Legacy aliases map to the same factories.
-    if (!has(CameraTransitionKind::Push))
-        register_transition(CameraTransitionKind::Push, make_default_ease_out_blend);
-    if (!has(CameraTransitionKind::WhipPan))
-        register_transition(CameraTransitionKind::WhipPan, make_default_smooth_rotation_blend);
-    if (!has(CameraTransitionKind::FocusHandoff))
-        register_transition(CameraTransitionKind::FocusHandoff, make_default_focus_distance_blend);
 }
 
 } // namespace chronon3d::camera_v1

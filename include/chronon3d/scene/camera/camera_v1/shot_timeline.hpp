@@ -6,7 +6,7 @@
 //
 // A ShotTimeline resolves which shot is active at any given frame and
 // evaluates the transition between consecutive shots (Cut, SmoothBlend,
-// Push, WhipPan, FocusHandoff).
+// EaseOutBlend, SmoothRotationBlend, FocusDistanceBlend).
 //
 // Architecture:
 //   CameraShot           → start/end frames + CameraProgram reference
@@ -64,14 +64,10 @@ enum class CameraTransitionKind : std::uint8_t {
     Cut          = 0,  // instant switch (no interpolation)
     SmoothBlend  = 1,  // lerp position + slerp rotation over transition frames
 
-    // Deprecated legacy names — kept for source compatibility.
-    // Prefer EaseOutBlend, SmoothRotationBlend, and FocusDistanceBlend.
-    Push         = 2,  // deprecated, use EaseOutBlend
-    WhipPan      = 3,  // deprecated, use SmoothRotationBlend
-    FocusHandoff = 4,  // deprecated, use FocusDistanceBlend
-
+    // Canonical named blends. Explicit values preserve the serialized values
+    // already assigned to these transition kinds.
     EaseOutBlend        = 5,  // ease-out blend of position/rotation/optics
-    SmoothRotationBlend = 6,  // smoothstep-rotated blend (formerly WhipPan)
+    SmoothRotationBlend = 6,  // smoothstep-rotated blend
     FocusDistanceBlend  = 7,  // blend with focus-distance emphasis
 };
 

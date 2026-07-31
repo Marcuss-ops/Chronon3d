@@ -116,23 +116,29 @@ Note:
 
 ```cpp
 enum class CameraTransitionKind : std::uint8_t {
-    Cut,
-    SmoothBlend,
-    Push,
-    WhipPan,
-    FocusHandoff,
+    Cut = 0,
+    SmoothBlend = 1,
+    EaseOutBlend = 5,
+    SmoothRotationBlend = 6,
+    FocusDistanceBlend = 7,
 };
 ```
+
+I nomi legacy `Push`, `WhipPan` e `FocusHandoff` sono stati rimossi dalla
+superficie pubblica dopo la migrazione dei chiamanti. I valori numerici canonici
+5/6/7 restano espliciti per stabilità futura; il repository non contiene però un
+decoder di transizioni camera, quindi eventuali formati esterni devono migrare
+2/3/4 prima del caricamento.
 
 ### Classificazione semantica
 
 | Kind | Comportamento attuale | Problema noto |
 |---|---|---|
-| `Cut` | istant switch a `t >= 1` | OK |
+| `Cut` | instant switch a `t >= 1` | OK |
 | `SmoothBlend` | lerp pos/POI/fov/zoom + slerp rot + focus distance | OK baseline |
-| `Push` | lerp pos con ease-out, slerp rot | Nome "Push" non rispecchia un vero push editoriale |
-| `WhipPan` | slerp rot con smoothstep | Nome promette overshoot/accel che non esistono |
-| `FocusHandoff` | come SmoothBlend ma interpola solo focus distance | Quasi duplicato di SmoothBlend |
+| `EaseOutBlend` | lerp pos con ease-out, slerp rot | Non è un vero push editoriale |
+| `SmoothRotationBlend` | slerp rot con smoothstep | Non include overshoot/accel specifici |
+| `FocusDistanceBlend` | blend dei campi camera con enfasi focus distance | Curva DOF dedicata ancora da valutare |
 
 ### Progress sampler locale
 
