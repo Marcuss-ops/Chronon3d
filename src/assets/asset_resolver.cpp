@@ -98,4 +98,13 @@ AssetResolver::resolve_lexical(const std::filesystem::path& path) const {
     return resolve_locked_(path);
 }
 
+std::optional<std::filesystem::path>
+AssetResolver::resolve_logical(const std::filesystem::path& path) const {
+    if (path.empty() || path.is_absolute()) return std::nullopt;
+    for (const auto& component : path) {
+        if (component == std::filesystem::path("..")) return std::nullopt;
+    }
+    return resolve(path);
+}
+
 } // namespace chronon3d::assets
