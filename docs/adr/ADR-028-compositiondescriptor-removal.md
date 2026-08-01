@@ -1,14 +1,22 @@
 # ADR-028 - CompositionRegistry legacy add(name, factory) overload REMOVAL (ABI-breaking)
 
 ## Status
-**DRAFT** (2026-07-14, NOT implemented yet — see §Implementation Status below).
+**Accepted / Implemented** (2026-08-01; the current source exposes only the
+descriptor overload).
 
 ## Date
 2026-07-14 (initial draft; implementation deferred to follow-up chores)
 
-## Implementation Status (2026-07-14, DEFERRED)
+## Implementation Status (2026-08-01)
 
-This ADR was attempted in the same session it was drafted, but the implementation was REVERTED due to scope overflow:
+The historical attempted migration was later completed on `main`. The current
+implementation is the canonical descriptor-only registration surface:
+
+- `CompositionRegistry::add(std::string, Factory)` is absent;
+- the duplicate `factories_` map is absent;
+- existing callers use `add(CompositionDescriptor)`.
+
+The earlier deferred attempt is retained below as historical context:
 
 - **Attempted**: 33 files + 209 call sites migrated to canonical form via a Python regex script
 - **Result**: The first attempt used non-greedy regex which produced broken C++ (the `[\s\S]*?` non-greedy match terminated at the first inner `);` inside multi-line factories like `return make_xxx();`, producing syntax errors). The second attempt used paren-counting but the script logic was incomplete (0 changes produced).

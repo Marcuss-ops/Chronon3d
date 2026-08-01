@@ -98,13 +98,12 @@ static size_t count_differing_pixels(const std::vector<float>& a,
 }
 
 /// Build the background-only composition (no text layer).
-static c3d::Composition make_bg_composition(const char* assets_root) {
+static c3d::Composition make_bg_composition() {
     return c3d::composition(
         {.name = "sdk_text_bg_only",
          .width = 640, .height = 360,
          .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1,
-         .assets_root = assets_root},
+         .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
 
@@ -122,13 +121,12 @@ static c3d::Composition make_bg_composition(const char* assets_root) {
 }
 
 /// Build the full composition with text layer.
-static c3d::Composition make_text_composition(const char* assets_root) {
+static c3d::Composition make_text_composition() {
     return c3d::composition(
         {.name = "sdk_text_consumer",
          .width = 640, .height = 360,
          .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1,
-         .assets_root = assets_root},
+         .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
 
@@ -198,7 +196,7 @@ int main(int argc, char* argv[]) {
     // ═══════════════════════════════════════════════════════════════
     // PASS 1: Background-only render (baseline)
     // ═══════════════════════════════════════════════════════════════
-    auto bg_comp = make_bg_composition(assets_root);
+    auto bg_comp = make_bg_composition();
     bg_comp.default_camera_descriptor(make_cam());
 
     auto bg_result = engine.render(bg_comp, c3d::sdk::Frame{0});
@@ -220,7 +218,7 @@ int main(int argc, char* argv[]) {
     // ═══════════════════════════════════════════════════════════════
     // PASS 2: Full render with text
     // ═══════════════════════════════════════════════════════════════
-    auto text_comp = make_text_composition(assets_root);
+    auto text_comp = make_text_composition();
     text_comp.default_camera_descriptor(make_cam());
 
     auto text_result = engine.render(text_comp, c3d::sdk::Frame{0});

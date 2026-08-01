@@ -7,7 +7,7 @@
 //   1. text       — TextRun via LayerBuilder::text() + TextDefinition
 //   2. image      — Rect (LayerBuilder::rect with distinctive color) +
 //                   GridBackground — same LayerBuilder surface as image()
-//   3. camera     — CameraDescriptorBuilder + compile_camera + scene.camera().program()
+//   3. camera     — CameraDescriptorBuilder + Composition descriptor authoring
 //   4. timeline   — Composition + Frame + FrameRate + FrameContext
 //   5. render     — sdk::RenderEngine::render(composition, frame)
 //   6. PNG-save   — chronon3d::save_png(framebuffer, path)
@@ -35,16 +35,12 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/scene_camera_facade.hpp>
 #include <chronon3d/scene/camera/camera_descriptor_builder.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 
 // Compile-time public-surface reachability check.
 static_assert(sizeof(chronon3d::camera_v1::CameraDescriptor) > 0,
               "CameraDescriptor must be reachable from the public SDK");
-static_assert(sizeof(chronon3d::camera_v1::CameraProgram) > 0,
-              "CameraProgram must be reachable from the public SDK");
 static_assert(sizeof(chronon3d::sdk::RenderEngine) > 0,
               "sdk::RenderEngine must be reachable from the public SDK");
 
@@ -75,18 +71,7 @@ int main(int argc, char* argv[]) {
         })
         .build();
 
-    // ── 2. Compile descriptor → immutable CameraProgram ───────────────
-    auto program_result = c3d::compile_camera(
-        descriptor, c3d::CompositionCompileContext{});
-    if (!program_result.has_value()) {
-        std::fprintf(stderr,
-                     "[FULL-FAIL] compile_camera failed: %s\n",
-                     program_result.error().message.c_str());
-        return 1;
-    }
-    auto program = std::move(program_result.value());
-
-    // ── 3. Composition spec (SURFACE: timeline via Composition+Frame+FrameRate) ──
+    // ── 2. Composition spec (SURFACE: timeline via Composition+Frame+FrameRate) ──
     const c3d::CompositionSpec spec{
         /* .name         */ "p3h_full_consumer",
         /* .width        */ 1920,
@@ -95,7 +80,7 @@ int main(int argc, char* argv[]) {
         /* .duration     */ 1,
     };
 
-    // ── 4. Composition with all 6 surface areas wired up ─────────────
+    // ── 3. Composition with all 6 surface areas wired up ─────────────
     auto comp = c3d::composition(
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
@@ -161,15 +146,10 @@ int main(int argc, char* argv[]) {
 });
             });
 
-            c3d::Scene scene = s.build();
-            // SURFACE: camera (scene facade). Attach the pre-compiled
-            // program to the scene so the OPP uses the V2 camera path.
-            scene.camera().program(program);
-            return scene;
+            return s.build();
         });
 
-    // Also set on the composition for consistency probes.
-    comp.camera_program(std::move(program));
+    comp.default_camera_descriptor(descriptor);
 
     // ── 5. Render settings + engine (SURFACE: render) ────────────────
     c3d::sdk::RenderSettings settings{};

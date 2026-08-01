@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Accepted (2026-07-14) |
+| **Status** | Superseded (2026-08-01) |
 | **Date** | 2026-07-14 |
 | **Deciders** | Chronon3D Composition API maintainers |
 | **Tags** | , , , , ,  |
 | **Related** | [TICKET-COMPOSITIONDESCRIPTOR-MIGRATION](docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md) (parent ticket, Phase 1+2+3+4 plan), AGENTS.md section 2x-in-one-chore deprecation-reversal rule (the rule this ADR operationalizes), AGENTS.md Cat-2 freeze (no new SDK API + no source removal without ADR), [ADR-024](ADR-024-deprecate-persistent-framebuffer-cache.md) (sibling deprecation-ADR precedent), [ADR-011](ADR-011-camera-legacy-deletion.md) (sibling class-surface-removal precedent) |
-| **Supersedes** | Re-introduces the deprecation discipline that the recovery chore removed |
+| **Supersedes** | Re-introduces the deprecation discipline that the recovery chore removed; the implemented removal is recorded by ADR-028 |
 
 ## Context
 

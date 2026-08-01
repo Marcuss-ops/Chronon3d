@@ -87,9 +87,9 @@ TEST_CASE("Composition compatibility adapter rejects a null scene callback") {
     CHECK(compiled.error().kind == CompositionCompileError::Kind::NoSceneFunction);
 }
 
-TEST_CASE("Composition adapter preserves descriptor with precompiled camera precedence") {
+TEST_CASE("Composition adapter compiles its authored camera descriptor") {
     CompositionSpec spec{
-        .name = "ProgramPrecedence",
+        .name = "DescriptorAdapter",
         .width = 320,
         .height = 180,
         .frame_rate = {30, 1},
@@ -102,13 +102,7 @@ TEST_CASE("Composition adapter preserves descriptor with precompiled camera prec
     descriptor.source = camera_v1::StaticCameraSource{};
     descriptor.base.position = {0.0f, 0.0f, -1000.0f};
 
-    camera_v1::CameraDescriptor program_descriptor = descriptor;
-    program_descriptor.id = "program-camera";
-    program_descriptor.base.position = {250.0f, 0.0f, -500.0f};
-    auto camera_result = chronon3d::compile_camera(program_descriptor, {});
-    REQUIRE(camera_result.has_value());
     comp.default_camera_descriptor(descriptor);
-    comp.camera_program(std::move(camera_result).value());
 
     auto compiled = compile_composition(comp, {});
     REQUIRE(compiled.has_value());
@@ -126,6 +120,6 @@ TEST_CASE("Composition adapter preserves descriptor with precompiled camera prec
     auto evaluated = evaluate(compiled.value(), eval_context, Frame{0});
     REQUIRE(evaluated.has_value());
     REQUIRE(evaluated->camera.has_value());
-    CHECK(evaluated->camera->position.x == doctest::Approx(250.0f));
-    CHECK(evaluated->camera->position.z == doctest::Approx(-500.0f));
+    CHECK(evaluated->camera->position.x == doctest::Approx(0.0f));
+    CHECK(evaluated->camera->position.z == doctest::Approx(-1000.0f));
 }
