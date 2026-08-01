@@ -87,6 +87,16 @@ TEST_CASE("render_plan: extra root-level field rejected (additionalProperties:fa
     CHECK_THROWS_AS(validate_render_plan_or_throw(plan), std::runtime_error);
 }
 
+TEST_CASE("render_plan: extra layer field rejected (additionalProperties:false)") {
+    auto plan = make_minimal_valid_plan();
+    plan["layers"][0]["typo"] = "ignored-no-more";
+    const auto result = validate_render_plan(plan);
+    INFO(result.format());
+    CHECK_FALSE(result.ok());
+    CHECK(result.issues[0].path == "layers[0].typo");
+    CHECK(result.issues[0].kind == ValidationIssueKind::UnknownField);
+}
+
 TEST_CASE("render_plan: missing required field rejected (output.path)") {
     // SUBCASE 3 in the spec — interpret "missing codec" as "missing a
     // required field".  `codec` is OPTIONAL in the schema; pick a
