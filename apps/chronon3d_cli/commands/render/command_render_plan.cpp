@@ -86,8 +86,9 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             ? decoded->canvas.duration.integral() - 1
             : static_cast<std::int64_t>(args.end_frame);
         RenderRequest request;
-        request.comp_id = decoded->job_id;
-        request.prepared_comp = compiled.value();
+        const auto& prepared = compiled.value();
+        request.comp_id = prepared.job_id;
+        request.prepared_comp = prepared.composition;
         request.output = output;
         request.execution.assets_root = effective_assets_root.empty()
             ? std::nullopt
@@ -121,7 +122,7 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
-        if (video_output(output) && !AudioMuxer{}.mux(output, decoded->audio_tracks,
+        if (video_output(output) && !AudioMuxer{}.mux(output, prepared.audio_tracks,
                                                        resolver))
             return 1;
         return 0;
