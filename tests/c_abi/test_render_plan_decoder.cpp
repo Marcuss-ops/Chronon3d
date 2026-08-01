@@ -52,6 +52,20 @@ TEST_CASE("render plan decoder rejects absolute and traversal asset references")
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(traversal).has_value());
 }
 
+TEST_CASE("render plan budget rejects excessive layer count") {
+    chronon3d::render_plan::RenderPlan plan;
+    plan.canvas.width = 320;
+    plan.canvas.height = 180;
+    plan.canvas.duration = chronon3d::Frame{10};
+    plan.layers.resize(2);
+
+    chronon3d::render_plan::RenderBudget budget;
+    budget.max_layers = 1;
+    const auto error = chronon3d::render_plan::validate_render_plan_budget(plan, budget);
+    REQUIRE(error.has_value());
+    CHECK(error->path == "layers");
+}
+
 TEST_CASE("render plan fingerprint includes decoded content and preserves order") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
