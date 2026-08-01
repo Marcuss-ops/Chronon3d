@@ -15,7 +15,7 @@
 //
 // DEPENDENCIES: text_reveal (for build_text_reveal_line + TextRevealDescriptor
 // + font_regular) + glyph_layout (for shape_glyph_line — Post-Point-8
-// single-shape contract: 1 measure_text_width-style shape call returns
+// single-shape contract: one canonical shape call returns
 // {width, glyphs-vector} for both w + n_glyphs in one shape call).
 //
 // Namespace: chronon3d::content::text_reveal (single flat namespace per

@@ -1,6 +1,6 @@
 #include "content/common/text/text_reveal.hpp"
 
-#include "content/common/text/glyph_layout.hpp"  // layout_glyphs()
+#include "content/common/text/glyph_layout.hpp"  // shape_glyph_line()
 
 #include <chronon3d/runtime/render_runtime.hpp>   // Anchor, GlowParams
 #include <chronon3d/text/text_definition.hpp>
@@ -37,7 +37,7 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
     // fail-loud contract at this boundary without retaining the deprecated
     // six-argument constructor.
     auto line = shape_glyph_line(d.text, d.font_size, d.font_spec,
-                                 d.tracking, *engine);
+                                 d.tracking, /*ref_offset_x=*/0.0f, *engine);
     if (!line) {
         throw std::runtime_error(
             "build_text_reveal_line: unable to shape text '" +
