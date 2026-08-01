@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/frame_context.hpp>
+#include <cstdint>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
@@ -63,14 +64,25 @@ class Composition {
 public:
     using SceneFunction = std::function<Scene(const FrameContext&)>;
 
-    Composition(CompositionSpec spec, SceneFunction render)
-        : m_spec(std::move(spec)), m_render(std::move(render)) {}
+    Composition(CompositionSpec spec,
+                SceneFunction render,
+                std::uint64_t scene_content_fingerprint = 0)
+        : m_spec(std::move(spec)),
+          m_render(std::move(render)),
+          m_scene_content_fingerprint(scene_content_fingerprint) {}
 
     [[nodiscard]] i32 width() const { return m_spec.width; }
     [[nodiscard]] i32 height() const { return m_spec.height; }
     [[nodiscard]] FrameRate frame_rate() const { return m_spec.frame_rate; }
     [[nodiscard]] Frame duration() const { return m_spec.duration; }
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
+
+    /// Deterministic identity of values captured by the scene callback.
+    /// Zero preserves the legacy authoring contract for callbacks whose
+    /// recipe has no externally supplied identity.
+    [[nodiscard]] std::uint64_t scene_content_fingerprint() const noexcept {
+        return m_scene_content_fingerprint;
+    }
 
     /// Direct evaluation from a pre-built FrameContext.
     /// This is the natural V2 entry point: callers that already have a
@@ -164,6 +176,7 @@ private:
     //    Only the value-typed descriptor field remains; no cache or lazy
     //    inverse projection is retained.
     chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
+    std::uint64_t m_scene_content_fingerprint{0};
 
     CompositionSpec m_spec;
     SceneFunction m_render;
