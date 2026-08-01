@@ -289,10 +289,24 @@ std::string ContentDigest::hex() const {
     return output.str();
 }
 
+ContentDigest sha256_string(std::string_view value) {
+    Sha256 sha;
+    sha.update(value.data(), value.size());
+    return sha.finish();
+}
+
 Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
     const render_plan::RenderPlan& plan,
     AssetResolver& resolver,
     const AssetPreflightPolicy& policy) {
+    const auto requests = requested_assets(plan);
+    if (requests.empty()) {
+        PreparedAssetManifest empty_manifest;
+        empty_manifest.m_manifest_digest =
+            sha256_string("chronon.prepared-asset-manifest.v1");
+        return empty_manifest;
+    }
+
     const auto root = resolver.mount_root();
     if (root.empty())
         return error(AssetPreflightErrorCode::OutsideAssetsRoot, {},
@@ -310,7 +324,7 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
     const std::string domain = "chronon.prepared-asset-manifest.v1";
     manifest_hash.update(domain.data(), domain.size());
 
-    for (const auto& request : requested_assets(plan)) {
+    for (const auto& request : requests) {
         const std::filesystem::path raw_path{request.logical_path};
         if (raw_path.is_absolute() || drive_absolute(request.logical_path))
             return error(AssetPreflightErrorCode::AbsolutePathRejected,
