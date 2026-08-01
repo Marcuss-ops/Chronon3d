@@ -14,7 +14,6 @@ Restano soltanto deprecazioni verificabili nel codice, da gestire per area:
 - `SoftwareRenderer(Config)` come percorso di costruzione legacy;
 - `GraphExecutor::execute(CompiledFrameGraph&)` senza `ExecutionScope`;
 - i preset testuali con dimensione canvas implicita;
-- `text::resolve_fallback_fonts(...)` come free-function adapter;
 - `authoring::{Scene,Layer}::context()` e `Layer::configure_core(...)`;
 - `SceneBuilder`/`Layer::local_frame(...)` e gli altri adapter esplicitamente
   marcati nei rispettivi header.
@@ -29,7 +28,8 @@ Restano soltanto deprecazioni verificabili nel codice, da gestire per area:
 
 ## Evidenza di chiusura parziale
 
-L'assenza dei simboli legacy di composition, timing, camera e glyph shaping è
+L'assenza dei simboli legacy di composition, timing, camera, glyph shaping e
+font fallback è
 verificabile con `rg` sui path `include/`, `src/`, `content/`, `apps/` e
 `tests/`. I dettagli storici dei singoli refactor restano nelle schede
 specifiche e non fanno più parte dell'inventario operativo di questo ticket.

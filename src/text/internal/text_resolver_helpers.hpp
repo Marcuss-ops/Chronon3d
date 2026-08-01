@@ -108,7 +108,7 @@ make_font_family_name(std::string_view family_name);
 // ── FontSpec canonicalization ──────────────────────────────────────────────
 //
 // Canonicalize font_family (lowercase) and font_style (lowercase) on a
-// FontSpec in-place.  Used by resolve_fallback_fonts and effective_font
+// FontSpec in-place. Used by FontResolver and effective_font
 // before the font is dispatched to HarfBuzz or the fallback chain.
 // font_weight is validated by parse_font_weight elsewhere; font_path is
 // left as-is (filesystem paths are case-sensitive on Linux).

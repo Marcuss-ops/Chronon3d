@@ -18,16 +18,13 @@
 // here, but in the internal namespace `chronon3d::text::resolver`.
 //
 // DECISION (thinker-with-files-gemini verdict M1.5#8 APPROVE-WITH-CHANGES):
-//   1. New class types live INTERNAL — `include/chronon3d/text/text_resolver.hpp`
-//      keeps `resolve_fallback_fonts` as a `[[deprecated]]` free function
-//      whose impl in `text_font_resolver.cpp` delegates here.
+//   1. The resolver service lives INTERNAL; the installed
+//      `text_resolver.hpp` exposes only the public orchestration entry points.
 //   2. `chrono3d::text::resolver::FontResolver` is the one and only font
 //      fallback service.  No second resolver in the backend or in the
 //      builder (architectural strong constraint from the user spec).
-//   3. The `[[deprecated]]` `resolve_fallback_fonts` free function is
-//      kept as a single-line forwarder, not a separate impl — it
-//      delegates to `FontResolver::resolve` so the "un solo servizio"
-//      promise stays true.
+//   3. There is no public free-function adapter: callers use the
+//      orchestration entry points, which delegate to this service.
 
 #include <chronon3d/text/font_engine.hpp>  // FontSpec, FontEngine
 
