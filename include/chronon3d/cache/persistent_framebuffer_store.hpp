@@ -104,10 +104,9 @@ struct PersistentStoreStats {
 //
 // P1-13 — Pure instance ownership (no singleton, no process-wide static).
 // The class is owned by:
-//   - `runtime::RenderRuntime` per-engine (via `m_framebuffer_store`
-//     value member + `framebuffer_store()` accessor AND the non-owning
-//     `RenderServices::framebuffer_store` pointer field, both populated
-//     in `RenderRuntime::populate()`),
+//   - `runtime::RenderRuntime` per-engine (via its optional
+//     `m_framebuffer_store` unique_ptr and nullable `framebuffer_store()`
+//     accessor, populated in `RenderRuntime::populate()`),
 //   - Stack/heap on a per-call-site basis for tests + benchmarks
 //     (the test harness instantiates a fresh `PersistentFramebufferStore`
 //     with a temp cache_dir per `TEST_CASE`; the micro-benchmark does
@@ -127,10 +126,9 @@ struct PersistentStoreStats {
 //     private `m_disabled` field, defaulting to `false`.
 //
 // Cat-3 invariant preserved: zero new singletons/registries/caches; the
-// per-instance runtime field IS the single source of truth (one store
-// per engine). Public SDK ABI surface UNCHANGED at the cpp-symbol level
-// for out-of-tree consumers that already use `framebuffer_store()` or
-// the runtime accessor — only the 3 singleton/config symbols are gone.
+// per-instance runtime field is the single source of truth (one store per
+// enabled engine). The runtime accessor is nullable because V1 may omit
+// this subsystem when persistent caching is disabled.
 
 class PersistentFramebufferStore {
 public:
