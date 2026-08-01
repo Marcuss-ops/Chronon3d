@@ -10,6 +10,7 @@
 #include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -65,6 +66,33 @@ chronon3d::TextDefinition text_definition(const LayerPlan& layer,
     return definition;
 }
 
+RenderJobFingerprint render_job_fingerprint(
+    const RenderPlan& plan,
+    const chronon3d::assets::PreparedAssetManifest& assets) {
+    // The legacy u64 plan hash is already a sequential hash of every decoded
+    // plan field.  Normalize identity-only fields before deriving the
+    // content/request SHA-256 values: job id and destination path are runtime
+    // routing metadata, not rendered content identity.
+    auto content_plan = plan;
+    content_plan.job_id.clear();
+    content_plan.output = {};
+    auto request_plan = plan;
+    request_plan.job_id.clear();
+    request_plan.output.path.clear();
+
+    const auto content_hash = compute_render_plan_content_fingerprint(content_plan);
+    const auto request_hash = compute_render_plan_content_fingerprint(request_plan);
+    const auto material = [&](std::string_view domain, std::uint64_t plan_hash) {
+        return std::string(domain) + "|" + std::to_string(plan_hash) + "|" +
+               assets.manifest_digest().hex();
+    };
+    return {
+        chronon3d::assets::sha256_string(
+            material("chronon.render-content.v1", content_hash)),
+        chronon3d::assets::sha256_string(
+            material("chronon.render-request.v1", request_hash))};
+}
+
 void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
@@ -82,10 +110,21 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
 
 Result<PreparedRenderPlan, PlanDecodeError>
 compile_render_plan(const RenderPlan& plan,
-                    const chronon3d::assets::AssetResolver& resolver) {
+                    chronon3d::assets::AssetResolver& resolver) {
     try {
+        auto prepared_assets = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+        if (!prepared_assets) {
+            return PlanDecodeError{
+                "assets." + prepared_assets.error().logical_path,
+                prepared_assets.error().message};
+        }
+        auto assets = std::move(prepared_assets).value();
+        const auto fingerprints = render_job_fingerprint(plan, assets);
+        auto content_plan = plan;
+        content_plan.job_id.clear();
+        content_plan.output = {};
         const auto content_fingerprint =
-            compute_render_plan_content_fingerprint(plan);
+            compute_render_plan_content_fingerprint(content_plan);
         const auto canvas = CanvasInfo::from_dimensions(
             static_cast<float>(plan.canvas.width),
             static_cast<float>(plan.canvas.height));
@@ -161,11 +200,12 @@ compile_render_plan(const RenderPlan& plan,
             }, content_fingerprint);
         PreparedRenderPlan prepared;
         prepared.composition = std::shared_ptr<const Composition>(std::move(composition));
+        prepared.assets = std::move(assets);
+        prepared.fingerprint = fingerprints;
         prepared.job_id = plan.job_id;
         prepared.canvas = plan.canvas;
         prepared.output = plan.output;
         prepared.audio_tracks = plan.audio_tracks;
-        prepared.content_fingerprint = content_fingerprint;
         return prepared;
     } catch (const std::exception& error) {
         return PlanDecodeError{"", error.what()};

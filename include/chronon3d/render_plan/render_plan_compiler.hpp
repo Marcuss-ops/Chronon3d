@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
@@ -10,6 +11,11 @@
 #include <vector>
 
 namespace chronon3d::render_plan {
+
+struct RenderJobFingerprint {
+    chronon3d::assets::ContentDigest content_digest{};
+    chronon3d::assets::ContentDigest request_digest{};
+};
 
 /// Immutable output of render-plan preparation.
 ///
@@ -21,15 +27,16 @@ namespace chronon3d::render_plan {
 /// manifest.
 struct PreparedRenderPlan {
     std::shared_ptr<const Composition> composition;
+    chronon3d::assets::PreparedAssetManifest assets;
+    RenderJobFingerprint fingerprint;
     std::string job_id;
     CanvasSpec canvas;
     OutputSpec output;
     std::vector<AudioTrackPlan> audio_tracks;
-    std::uint64_t content_fingerprint{0};
 };
 
 Result<PreparedRenderPlan, PlanDecodeError>
 compile_render_plan(const RenderPlan& plan,
-                    const chronon3d::assets::AssetResolver& resolver);
+                    chronon3d::assets::AssetResolver& resolver);
 
 }  // namespace chronon3d::render_plan
