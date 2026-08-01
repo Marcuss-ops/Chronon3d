@@ -4,7 +4,6 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <functional>
 #include <string>
 #include <memory>
@@ -39,10 +38,10 @@
 //   compiled program).  See
 //   `<chronon3d/timeline/compile_evaluate.hpp>` for the entry points.
 //
-// The header STILL includes `camera_v1::CameraDescriptor` because the
+// The header includes `camera_v1::CameraDescriptor` because the
 // descriptor value is stored in `m_default_camera_desc` (POCO field, no
-// cache).  No `camera_v1::CameraProgram` member is retained — heavy
-// program type lives in `CompiledComposition::camera_program` only.
+// cache).  The compiled `CameraProgram` lives only in
+// `CompiledComposition::camera_program`.
 // =============================================================================
 
 namespace chronon3d {
@@ -131,41 +130,6 @@ public:
         return m_default_camera_desc;
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // P3-H + feat(api) public camera facade — Composition::camera_program(p)
-    //
-    // Mirror of the spec example:
-    //   auto program  = compile_camera(descriptor).value();
-    //   composition.camera_program(program);
-    //   renderer.render(composition, Frame{30});
-    //
-    // Stores a pre-compiled `CameraProgram` on the Composition.  The OPP
-    // renderer consumes the program on the per-frame evaluate path,
-    // skipping the `compile_camera(...)` step on the hot loop.
-    //
-    // The explicit name keeps the pre-compiled program distinct from the
-    // descriptor-based authoring surface.
-    // ══════════════════════════════════════════════════════════════════════
-    Composition& camera_program(chronon3d::camera_v1::CameraProgram program) {
-        m_camera_program = std::move(program);
-        return *this;
-    }
-
-    /// Read-only accessor for the pre-compiled camera program.
-    [[nodiscard]] const chronon3d::camera_v1::CameraProgram&
-    camera_program() const noexcept {
-        return m_camera_program;
-    }
-
-    /// True iff `camera(program)` has been called with a non-empty
-    /// (compiled) program.  The OPP renderer uses this probe to implement
-    /// the documented precedence policy: when BOTH `camera(p)` and
-    /// `default_camera_descriptor(d)` are set, the program wins at render
-    /// time.  See `camera(p)` doc-comment for the full precedence rule.
-    [[nodiscard]] bool has_camera_program() const noexcept {
-        return m_camera_program.is_compiled();
-    }
-
     /// True when `default_camera_descriptor(...)` has set a non-empty
     /// descriptor.  Read-only; the descriptor's presence is the OPP's
     /// signal that the V2 compile path should be used.
@@ -200,13 +164,6 @@ private:
     //    Only the value-typed descriptor field remains; no cache or lazy
     //    inverse projection is retained.
     chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
-
-    // ── P3-H + feat(api) public camera facade — pre-compiled program.
-    //    Authoring-time entry point: the consumer calls
-    //    `composition.camera(compile_camera(descriptor).value())` to
-    //    set the program once.  The OPP renderer reads
-    //    `m_camera_program` on each evaluate() call.
-    chronon3d::camera_v1::CameraProgram m_camera_program{};
 
     CompositionSpec m_spec;
     SceneFunction m_render;
