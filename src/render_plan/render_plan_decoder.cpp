@@ -5,6 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
 #include <stdexcept>
 
 namespace chronon3d::render_plan {
@@ -14,7 +15,6 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan) {
     auto hash = chronon3d::core::hash::HashBuilder{}
         .add("chronon3d.render-plan.fingerprint.v1")
         .add(plan.job_id)
-        .add(plan.assets_root)
         .add(plan.canvas.width)
         .add(plan.canvas.height)
         .add(plan.canvas.fps)
@@ -75,6 +75,16 @@ std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
 std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
     if (!object.contains(key)) return std::nullopt;
     return Frame{object.at(key).get<std::int64_t>()};
+}
+
+bool invalid_logical_path(const std::string& value) {
+    if (value.empty()) return false;
+    const std::filesystem::path path{value};
+    if (path.is_absolute()) return true;
+    for (const auto& component : path) {
+        if (component == std::filesystem::path("..")) return true;
+    }
+    return false;
 }
 
 LayerType layer_type(const std::string& value) {
@@ -165,17 +175,36 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
     try {
         RenderPlan plan;
         plan.job_id = root.value("job_id", std::string{"chronon_plan"});
-        plan.assets_root = root.value("assets_root", std::string{});
         const auto& canvas = root.at("canvas");
         plan.canvas = CanvasSpec{
             canvas.at("width").get<int>(),
             canvas.at("height").get<int>(),
             canvas.at("fps").get<int>(),
             Frame{canvas.at("duration_frames").get<std::int64_t>()}};
-        for (const auto& layer : root.at("layers")) plan.layers.push_back(decode_layer(layer));
+        for (const auto& layer : root.at("layers")) {
+            auto decoded_layer = decode_layer(layer);
+            if (invalid_logical_path(decoded_layer.asset)) {
+                return PlanDecodeError{"layers[].asset",
+                    "asset references must be relative logical paths"};
+            }
+            if (invalid_logical_path(decoded_layer.source)) {
+                return PlanDecodeError{"layers[].source",
+                    "source references must be relative logical paths"};
+            }
+            if (invalid_logical_path(decoded_layer.font)) {
+                return PlanDecodeError{"layers[].font",
+                    "font references must be relative logical paths"};
+            }
+            plan.layers.push_back(std::move(decoded_layer));
+        }
         for (const auto& value : root.value("audio_tracks", nlohmann::json::array())) {
+            const auto source = value.at("source").get<std::string>();
+            if (invalid_logical_path(source)) {
+                return PlanDecodeError{"audio_tracks[].source",
+                    "audio references must be relative logical paths"};
+            }
             plan.audio_tracks.push_back(AudioTrackPlan{
-                value.at("source").get<std::string>(),
+                source,
                 value.value("volume", 1.0),
                 value.value("start_time_offset", 0.0),
                 value.value("duration_seconds", 0.0),

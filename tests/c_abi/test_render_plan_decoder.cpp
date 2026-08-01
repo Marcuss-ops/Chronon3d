@@ -33,6 +33,25 @@ TEST_CASE("render plan decoder returns validation path on malformed plan") {
     CHECK_FALSE(decoded.error().message.empty());
 }
 
+TEST_CASE("render plan decoder rejects absolute and traversal asset references") {
+    const nlohmann::json base = {
+        {"schema", "chronon.render-plan"},
+        {"version", 1},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps", 30},
+                     {"duration_frames", 1}}},
+        {"layers", {{{"id", "image"}, {"type", "image"},
+                      {"asset", "image.png"}}}},
+        {"output", {{"path", "out.png"}}}};
+
+    auto absolute = base;
+    absolute["layers"][0]["asset"] = "/tmp/image.png";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(absolute).has_value());
+
+    auto traversal = base;
+    traversal["layers"][0]["asset"] = "../image.png";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(traversal).has_value());
+}
+
 TEST_CASE("render plan fingerprint includes decoded content and preserves order") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},

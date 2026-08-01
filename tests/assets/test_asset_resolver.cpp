@@ -148,6 +148,18 @@ TEST_CASE("AssetResolver::resolve without mount (relative) returns nullopt") {
     CHECK_FALSE(r.resolve(std::filesystem::path("anything")).has_value());
 }
 
+TEST_CASE("AssetResolver::resolve_logical enforces the mounted root") {
+    ensure_file("logical/ok.txt");
+    chronon3d::assets::AssetResolver r;
+    r.mount(g_temp.path);
+
+    const auto resolved = r.resolve_logical("logical/ok.txt");
+    REQUIRE(resolved.has_value());
+    CHECK(*resolved == (g_temp.path / "logical/ok.txt").lexically_normal());
+    CHECK_FALSE(r.resolve_logical("../logical/ok.txt").has_value());
+    CHECK_FALSE(r.resolve_logical(g_temp.path / "logical/ok.txt").has_value());
+}
+
 TEST_CASE("AssetResolver::resolve ../escape returns nullopt") {
     ensure_file("marker_escape_above.txt");
     chronon3d::assets::AssetResolver r;

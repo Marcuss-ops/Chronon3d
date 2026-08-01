@@ -89,6 +89,12 @@ public:
     [[nodiscard]] std::optional<std::filesystem::path>
     resolve_lexical(const std::filesystem::path& path) const;
 
+    /// Resolve a logical asset reference. Unlike resolve(), this rejects
+    /// absolute paths and traversal components so callers can enforce the
+    /// runtime asset-root boundary for untrusted plans.
+    [[nodiscard]] std::optional<std::filesystem::path>
+    resolve_logical(const std::filesystem::path& path) const;
+
 private:
     /// Common implementation used by resolve() and resolve_lexical().
     /// Caller holds m_mutex.  Returns the candidate path or
