@@ -80,7 +80,7 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
 
 }  // namespace
 
-Result<std::shared_ptr<const Composition>, PlanDecodeError>
+Result<PreparedRenderPlan, PlanDecodeError>
 compile_render_plan(const RenderPlan& plan,
                     const chronon3d::assets::AssetResolver& resolver) {
     try {
@@ -159,7 +159,14 @@ compile_render_plan(const RenderPlan& plan,
                 }
                 return scene.build();
             }, content_fingerprint);
-        return std::shared_ptr<const Composition>(std::move(composition));
+        PreparedRenderPlan prepared;
+        prepared.composition = std::shared_ptr<const Composition>(std::move(composition));
+        prepared.job_id = plan.job_id;
+        prepared.canvas = plan.canvas;
+        prepared.output = plan.output;
+        prepared.audio_tracks = plan.audio_tracks;
+        prepared.content_fingerprint = content_fingerprint;
+        return prepared;
     } catch (const std::exception& error) {
         return PlanDecodeError{"", error.what()};
     }
