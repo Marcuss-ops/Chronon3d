@@ -1,5 +1,6 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 
 #include <nlohmann/json.hpp>
@@ -8,6 +9,62 @@
 
 namespace chronon3d::render_plan {
 namespace {
+
+std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan) {
+    auto hash = chronon3d::core::hash::HashBuilder{}
+        .add("chronon3d.render-plan.fingerprint.v1")
+        .add(plan.job_id)
+        .add(plan.assets_root)
+        .add(plan.canvas.width)
+        .add(plan.canvas.height)
+        .add(plan.canvas.fps)
+        .add(plan.canvas.duration)
+        .add(plan.layers.size());
+
+    for (const auto& layer : plan.layers) {
+        hash.add(layer.id).add_enum(layer.type).add(layer.asset).add(layer.source)
+            .add(layer.text).add(layer.font).add(layer.preset)
+            .add(layer.font_size.has_value());
+        if (layer.font_size) hash.add(*layer.font_size);
+        hash.add(layer.box_width.has_value());
+        if (layer.box_width) hash.add(*layer.box_width);
+        hash.add(layer.box_height.has_value());
+        if (layer.box_height) hash.add(*layer.box_height);
+        for (const auto value : layer.color) hash.add(value);
+        for (const auto value : layer.position) hash.add(value);
+        hash.add(layer.position_dimensions).add(layer.start_frame.has_value());
+        if (layer.start_frame) hash.add(*layer.start_frame);
+        hash.add(layer.duration_frames.has_value());
+        if (layer.duration_frames) hash.add(*layer.duration_frames);
+        hash.add(layer.fit.has_value());
+        if (layer.fit) hash.add_enum(*layer.fit);
+        hash.add(layer.subtitle_format.has_value());
+        if (layer.subtitle_format) hash.add_enum(*layer.subtitle_format);
+        hash.add(layer.animation.has_value());
+        if (layer.animation) {
+            hash.add(layer.animation->start_frame.has_value());
+            if (layer.animation->start_frame) hash.add(*layer.animation->start_frame);
+            hash.add(layer.animation->duration_frames.has_value());
+            if (layer.animation->duration_frames) hash.add(*layer.animation->duration_frames);
+            hash.add(layer.animation->preset);
+        }
+    }
+
+    hash.add(plan.audio_tracks.size());
+    for (const auto& track : plan.audio_tracks) {
+        hash.add(track.source).add(track.volume).add(track.start_time_offset)
+            .add(track.duration_seconds).add(track.role).add(track.loop)
+            .add(track.fade_in_seconds).add(track.fade_out_seconds)
+            .add(track.ducking_enabled);
+    }
+
+    return hash.add(plan.output.path)
+        .add_enum(plan.output.format)
+        .add_enum(plan.output.codec)
+        .add(plan.output.bitrate)
+        .add(plan.output.crf)
+        .finish();
+}
 
 template <typename T>
 std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
@@ -96,6 +153,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
 }  // namespace
 
+std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
+    return fingerprint_render_plan_impl(plan);
+}
+
 Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& root) {
     const auto validation = validate_render_plan(root);
     if (!validation.ok())
@@ -132,6 +193,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.output.codec = video_codec(output.at("codec").get<std::string>());
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
+        plan.content_fingerprint = compute_render_plan_content_fingerprint(plan);
         return plan;
     } catch (const std::exception& error) {
         return PlanDecodeError{"", error.what()};

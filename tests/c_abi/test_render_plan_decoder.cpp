@@ -32,3 +32,37 @@ TEST_CASE("render plan decoder returns validation path on malformed plan") {
     REQUIRE_FALSE(decoded.has_value());
     CHECK_FALSE(decoded.error().message.empty());
 }
+
+TEST_CASE("render plan fingerprint includes decoded content and preserves order") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan"},
+        {"version", 1},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+                     {"duration_frames", 12}}},
+        {"layers", {{{"id", "first"}, {"type", "text"},
+                      {"text", "one"}},
+                     {{"id", "second"}, {"type", "text"},
+                      {"text", "two"}}}},
+        {"output", {{"path", "out.png"}}}};
+
+    const auto original = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(original.has_value());
+    CHECK(original->content_fingerprint ==
+          chronon3d::render_plan::compute_render_plan_content_fingerprint(*original));
+
+    const auto repeat = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeat.has_value());
+    CHECK(original->content_fingerprint == repeat->content_fingerprint);
+
+    auto changed_text = source;
+    changed_text["layers"][0]["text"] = "changed";
+    const auto changed = chronon3d::render_plan::decode_render_plan(changed_text);
+    REQUIRE(changed.has_value());
+    CHECK(original->content_fingerprint != changed->content_fingerprint);
+
+    auto reordered = source;
+    std::swap(reordered["layers"][0], reordered["layers"][1]);
+    const auto reordered_plan = chronon3d::render_plan::decode_render_plan(reordered);
+    REQUIRE(reordered_plan.has_value());
+    CHECK(original->content_fingerprint != reordered_plan->content_fingerprint);
+}
