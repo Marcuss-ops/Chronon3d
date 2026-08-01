@@ -7,6 +7,9 @@ atterrate non sono più blocker: `CompositionRegistry::add(name, factory)`,
 la mappa `factories_`, gli alias temporali di `LayerBuilder`, gli alias delle
 transizioni camera, il percorso `CompositionSpec::assets_root` e il
 costruttore deprecato di `ShapedGlyphLine` non esistono più sul `main` attuale.
+In questa tranche sono stati rimossi anche `ShapedGlyphLine::try_shape`,
+`measure_text_width` e `layout_glyphs`: i chiamanti residui erano soltanto
+test di equivalenza e sono stati portati sulla primitiva `shape_glyph_line`.
 Anche la soppressione globale `-Wno-error=deprecated-declarations` è assente.
 
 Restano soltanto deprecazioni verificabili nel codice, da gestire per area:

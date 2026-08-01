@@ -30,10 +30,6 @@ TEST_CASE("ShapedGlyphLine: shape_glyph_line width is canonical") {
     REQUIRE(shaped.has_value());
 
     REQUIRE(shaped->width() > 0.0f);
-    const auto compatibility = content::text_reveal::ShapedGlyphLine::try_shape(
-        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
-    REQUIRE(compatibility.has_value());
-    CHECK(shaped->width() == compatibility->width());
 }
 
 TEST_CASE("ShapedGlyphLine: shape_glyph_line layout is canonical") {
@@ -48,14 +44,6 @@ TEST_CASE("ShapedGlyphLine: shape_glyph_line layout is canonical") {
     const auto glyphs = shaped->layout();
     REQUIRE(!glyphs.empty());
     REQUIRE(glyphs.front().width > 0.0f);
-    const auto compatibility = content::text_reveal::layout_glyphs(
-        "Hello", 72.0f, spec, 4.0f, /*ref_offset_x=*/0.0f, engine);
-    REQUIRE(compatibility.size() == glyphs.size());
-    for (size_t i = 0; i < glyphs.size(); ++i) {
-        CHECK(glyphs[i].ch == compatibility[i].ch);
-        CHECK(glyphs[i].center_x == compatibility[i].center_x);
-        CHECK(glyphs[i].width == compatibility[i].width);
-    }
 }
 
 TEST_CASE("ShapedGlyphLine: cursor positions are monotonic and span the line") {
@@ -128,35 +116,19 @@ TEST_CASE("shape_glyph_line: canonical offset is retained by all layout accessor
     CHECK(positions.front().center_x > kOffset);
     CHECK(shaped->cursor_at_end() > kOffset);
 
-    const auto legacy_layout = content::text_reveal::ShapedGlyphLine::try_shape(
-        "Hello", 72.0f, spec, 4.0f, kOffset, engine);
-    REQUIRE(legacy_layout.has_value());
-    const auto legacy_positions = legacy_layout->layout();
-    REQUIRE(legacy_positions.size() == positions.size());
-    for (size_t i = 0; i < positions.size(); ++i) {
-        CHECK(legacy_positions[i].ch == positions[i].ch);
-        CHECK(legacy_positions[i].center_x == positions[i].center_x);
-        CHECK(legacy_positions[i].width == positions[i].width);
-    }
-    // Both accessors above read the cached shape; only the explicit
-    // compatibility-adapter construction adds the second shape call.
-    CHECK(content::text_reveal::test_support::get_shape_call_count() == 2);
+    // Every accessor above reads the same cached shape.
+    CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);
 }
 
-TEST_CASE("ShapedGlyphLine: layout_glyphs throws std::runtime_error on non-existent font path (fail-loud contract)") {
-    // Compatibility lock: the fail-loud contract remains available through
-    // the transitional `layout_glyphs(...)` adapter while callers migrate to
-    // the canonical `shape_glyph_line(...)` result.
-    // `std::runtime_error(make_shape_error_message(...))` when shaping fails.
+TEST_CASE("shape_glyph_line returns no line for a non-existent font path") {
     auto renderer = test::make_renderer();
     auto& engine  = renderer.font_engine();
 
     FontSpec bad_spec{"assets/fonts/NonExistentFont.ttf", "Unknown", 400};
 
-    CHECK_THROWS_AS(
-        content::text_reveal::layout_glyphs("Hello", 72.0f, bad_spec, 4.0f, 0.0f, engine),
-        std::runtime_error
-    );
+    const auto shaped = content::text_reveal::shape_glyph_line(
+        "Hello", 72.0f, bad_spec, 4.0f, 0.0f, engine);
+    CHECK_FALSE(shaped.has_value());
 }
 
 // ── Counter test (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ─────────────────────

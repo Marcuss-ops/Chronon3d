@@ -5,8 +5,8 @@
 //  composition abyss_freefall_stagger() from the monolithic
 //  cinematic_text_camera.cpp (was 667 LOC).  Behaviour preserved
 //  bit-identical: pure-black bg + far blue torch + per-letter drop
-//  stack of the phrase "LET  FALL" using measure_text_width +
-//  layout_glyphs to vector-anchor each glyph at z=-150, animated to
+//  stack of the phrase "LET  FALL" using one canonical shaped line to
+//  vector-anchor each glyph at z=-150, animated to
 //  drop along z to +3500 (Held until per-letter delay = 8 + 6*i,
 //  then InCubic drop) with parallel scale compression (1.0 → 0.22)
 //  + opacity fade-out.  Camera looks straight down Z axis with a
