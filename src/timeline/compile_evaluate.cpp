@@ -21,52 +21,38 @@
 // transitively minimal.
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <exception>
 
 namespace chronon3d {
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FNV-1a 64-bit fingerprint (file-scope helpers).
-//   Deterministic across runs (no std::hash<std::string> platform variation).
-//   Mirrors the convention used by Composition::compute_camera_descriptor_fingerprint
-//   (chronon3d/scene/camera/camera_v1/camera_descriptor.hpp).
+// Composition fingerprint (file-scope helper).
+//   Hash fields in declaration order. XOR is intentionally avoided because it
+//   is commutative and makes reordered fields share the same digest. The scene
+//   callback's captures are represented by the explicit content fingerprint;
+//   std::function itself has no portable capture introspection API.
 // ─────────────────────────────────────────────────────────────────────────────
 namespace {
-constexpr std::uint64_t kFnv1aOffset = 14695981039346656037ULL;
-constexpr std::uint64_t kFnv1aPrime  = 1099511628211ULL;
-
-std::uint64_t fnv1a64(const void* data, std::size_t n) noexcept {
-    std::uint64_t h = kFnv1aOffset;
-    const auto* p   = static_cast<const std::uint8_t*>(data);
-    for (std::size_t i = 0; i < n; ++i) {
-        h ^= static_cast<std::uint64_t>(p[i]);
-        h *= kFnv1aPrime;
-    }
-    return h;
-}
-
 std::uint64_t fingerprint_composition_definition(
     const CompositionDefinition& definition) {
-    std::uint64_t h = kFnv1aOffset;
-    h ^= fnv1a64(definition.composition.name.data(),
-                 definition.composition.name.size());
-    h ^= fnv1a64(&definition.composition.width, sizeof(i32));
-    h ^= fnv1a64(&definition.composition.height, sizeof(i32));
-    h ^= fnv1a64(&definition.composition.frame_rate.numerator, sizeof(i32));
-    h ^= fnv1a64(&definition.composition.frame_rate.denominator, sizeof(i32));
-    h ^= fnv1a64(&definition.composition.duration, sizeof(Frame));
+    auto hash = core::hash::HashBuilder{}
+        .add("chronon3d.composition.fingerprint.v2")
+        .add(definition.composition.name)
+        .add(definition.composition.width)
+        .add(definition.composition.height)
+        .add(definition.composition.frame_rate.numerator)
+        .add(definition.composition.frame_rate.denominator)
+        .add(definition.composition.duration)
+        .add(definition.scene_content_fingerprint)
+        .add(definition.camera.has_value());
 
     if (definition.camera.has_value()) {
-        h ^= camera_v1::compute_camera_descriptor_fingerprint(*definition.camera);
+        hash.add(camera_v1::compute_camera_descriptor_fingerprint(
+            *definition.camera));
     }
-    if (definition.scene) {
-        const auto& target_type = definition.scene.target_type();
-        if (target_type != typeid(void)) {
-            h ^= static_cast<std::uint64_t>(target_type.hash_code());
-        }
-    }
-    return h;
+    return hash.finish();
 }
 } // namespace
 
@@ -110,10 +96,9 @@ compile_camera(const camera_v1::CameraDescriptor& descriptor,
 //      caller retains lifetime ownership).
 //   4. If `definition.camera` is set, delegate the camera compile to
 //      `compile_camera()`; surface any failure verbatim.
-//   5. Compute a deterministic FNV-1a 64-bit fingerprint over the static
-//      (CompositionSpec bytes + optional CameraDescriptor bytes +
-//       SceneFunction target_type() address-as-pointer-as-bytes for
-//       cheap content-stable hashing without per-std::function demangling).
+//   5. Compute a deterministic sequential fingerprint over the static
+//      CompositionSpec, explicit scene-content identity, and optional camera
+//      descriptor. The callback object itself is intentionally not hashed.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<CompiledComposition, CompositionCompileError>
 compile_composition(const CompositionDefinition& definition,
@@ -205,6 +190,7 @@ compile_composition(const Composition& composition,
     definition.scene = [scene = std::move(scene)](const FrameContext& frame_context) {
         return Composition::evaluate_scene_function(scene, frame_context);
     };
+    definition.scene_content_fingerprint = composition.scene_content_fingerprint();
 
     // Snapshot the sole authoring-time camera input. Compilation owns the
     // resulting CameraProgram in CompiledComposition.

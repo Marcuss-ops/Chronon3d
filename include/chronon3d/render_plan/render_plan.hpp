@@ -81,11 +81,20 @@ struct OutputSpec {
 struct RenderPlan {
     std::string job_id{"chronon_plan"};
     std::string assets_root;
+    // Deterministic identity of all decoded plan values. Asset bytes are not
+    // implied here; the asset-manifest preflight will add content hashes.
+    std::uint64_t content_fingerprint{0};
     CanvasSpec canvas;
     std::vector<LayerPlan> layers;
     std::vector<AudioTrackPlan> audio_tracks;
     OutputSpec output;
 };
+
+/// Compute the deterministic identity of the decoded plan values.
+/// Asset bytes are deliberately not included until asset-manifest preflight
+/// supplies their content hashes.
+[[nodiscard]] std::uint64_t compute_render_plan_content_fingerprint(
+    const RenderPlan& plan);
 
 struct PlanDecodeError {
     std::string path;

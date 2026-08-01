@@ -83,6 +83,8 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
 Result<std::shared_ptr<const Composition>, PlanDecodeError>
 compile_render_plan(const RenderPlan& plan) {
     try {
+        const auto content_fingerprint =
+            compute_render_plan_content_fingerprint(plan);
         const auto canvas = CanvasInfo::from_dimensions(
             static_cast<float>(plan.canvas.width),
             static_cast<float>(plan.canvas.height));
@@ -155,7 +157,7 @@ compile_render_plan(const RenderPlan& plan) {
                     });
                 }
                 return scene.build();
-            });
+            }, content_fingerprint);
         return std::shared_ptr<const Composition>(std::move(composition));
     } catch (const std::exception& error) {
         return PlanDecodeError{"", error.what()};
