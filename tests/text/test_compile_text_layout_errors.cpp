@@ -22,7 +22,7 @@
 //      which is not yet exposed (TICKET-cr-followup).
 //
 // IMPORTANT: this TU MUST stay synchronous, MUST NOT call shape_text /
-// prewarm / resolve_fallback_fonts with side effects.  Each Err case
+// prewarm / FontResolver with side effects. Each Err case
 // is triggered by a STATIC FEATURE of the input (geometry of inputs,
 // not behaviour of the resolver with system fonts).
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550

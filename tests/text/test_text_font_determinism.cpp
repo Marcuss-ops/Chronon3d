@@ -22,6 +22,8 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
 
+#include "src/text/resolver/font_resolver.hpp"
+
 #include <tests/helpers/test_utils.hpp>
 
 #include <doctest/doctest.h>
@@ -137,8 +139,8 @@ TEST_CASE("P1-2: compile-time FriBidi gate is present") {
 // 2. Font fallback chain behavior sentinel
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// P1 #2: La catena di fallback di sistema è hardcoded in
-// resolve_fallback_fonts() (DejaVu Sans → Liberation Sans → Arial → ...).
+// P1 #2: La catena di fallback di sistema è gestita dal
+// FontResolver canonico (DejaVu Sans → Liberation Sans → Arial → ...).
 // Questi test verificano che la funzione non crashi e che il comportamento
 // sia documentato.  L'ordine esatto della catena non può essere ispezionato
 // senza modificare il codice di produzione (le candidate array sono locali
@@ -153,13 +155,16 @@ TEST_CASE("P1-2: Font fallback — unloadable font does not crash") {
     unloadable.font_style  = "normal";
 
     // Should not throw, should not crash, should return a FontSpec.
-    auto result = resolve_fallback_fonts(unloadable, engine);
-    CHECK(!result.font_family.empty());
+    chronon3d::text::resolver::FontRequest request;
+    request.primary = unloadable;
+    auto result = chronon3d::text::resolver::FontResolver{engine}.resolve(request);
+    const auto& resolved = result.resolved;
+    CHECK(!resolved.font_family.empty());
 
     // Document which outcome occurred (useful for CI diagnostics).
-    bool fallback_succeeded = (result.font_family != unloadable.font_family);
+    bool fallback_succeeded = (resolved.font_family != unloadable.font_family);
     INFO("Fallback succeeded: ", fallback_succeeded,
-         " → result font family: ", result.font_family);
+         " → result font family: ", resolved.font_family);
     (void)fallback_succeeded;
 }
 
@@ -173,9 +178,11 @@ TEST_CASE("P1-2: Font fallback — loadable primary font is returned unchanged")
     inter.font_weight = 700;
     inter.font_style  = "normal";
 
-    auto result = resolve_fallback_fonts(inter, engine);
-    CHECK(!result.font_family.empty());
-    CHECK(result.font_family == "inter");
+    chronon3d::text::resolver::FontRequest request;
+    request.primary = inter;
+    const auto result = chronon3d::text::resolver::FontResolver{engine}.resolve(request);
+    CHECK(!result.resolved.font_family.empty());
+    CHECK(result.resolved.font_family == "inter");
 }
 
 TEST_CASE("P1-2: Font fallback — empty input is handled") {
@@ -183,10 +190,12 @@ TEST_CASE("P1-2: Font fallback — empty input is handled") {
 
     FontSpec empty_spec;  // all fields default
 
-    auto result = resolve_fallback_fonts(empty_spec, engine);
+    chronon3d::text::resolver::FontRequest request;
+    request.primary = empty_spec;
+    const auto result = chronon3d::text::resolver::FontResolver{engine}.resolve(request);
     // Should not crash.  Empty font_family means no fallback possible,
     // so the primary is returned as-is.
-    CHECK(result.font_family.empty());
+    CHECK(result.resolved.font_family.empty());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -225,7 +234,7 @@ TEST_CASE("P1-2: resolve_text_run_tree — same input → same output") {
     }
 }
 
-TEST_CASE("P1-2: resolve_fallback_fonts — same input → same output") {
+TEST_CASE("P1-2: FontResolver — same input → same output") {
     FontEngine engine = make_determinism_engine();
 
     FontSpec spec;
@@ -233,13 +242,15 @@ TEST_CASE("P1-2: resolve_fallback_fonts — same input → same output") {
     spec.font_weight = 400;
     spec.font_style  = "normal";
 
-    auto a = resolve_fallback_fonts(spec, engine);
-    auto b = resolve_fallback_fonts(spec, engine);
+    chronon3d::text::resolver::FontRequest request;
+    request.primary = spec;
+    const auto a = chronon3d::text::resolver::FontResolver{engine}.resolve(request);
+    const auto b = chronon3d::text::resolver::FontResolver{engine}.resolve(request);
 
-    CHECK(a.font_family == b.font_family);
-    CHECK(a.font_weight == b.font_weight);
-    CHECK(a.font_style  == b.font_style);
-    CHECK(a.font_path   == b.font_path);
+    CHECK(a.resolved.font_family == b.resolved.font_family);
+    CHECK(a.resolved.font_weight == b.resolved.font_weight);
+    CHECK(a.resolved.font_style  == b.resolved.font_style);
+    CHECK(a.resolved.font_path   == b.resolved.font_path);
 }
 
 TEST_CASE("P1-2: Multi-paragraph — same input → same structure") {

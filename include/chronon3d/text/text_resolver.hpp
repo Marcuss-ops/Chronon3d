@@ -11,7 +11,7 @@
 // Pipeline:
 //   TextDocument
 //       ↓  split_paragraphs()          ← already in text_document.cpp
-//       ↓  resolve_fallback_fonts()     ← font substitution
+//       ↓  FontResolver::resolve()     ← font substitution
 //       ↓  resolve_text_run_tree()      ← spans → bidi → resolved runs
 //       ↓  resolve_and_shape()          ← HarfBuzz shaping → PlacedGlyphRun
 //       ↓  concatenate + ParagraphComposer → TextRunLayout (text_run_builder)
@@ -134,39 +134,6 @@ struct ShapedTextTree {
         return n;
     }
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// resolve_fallback_fonts
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Resolve a FontSpec through the fallback chain using a FontEngine.
-/// **DEPRECATED** (M1.5#8) — kept as a back-compat shim until all
-/// downstream callers migrate.  Implementation delegated to the canonical
-/// `chronon3d::text::resolver::FontResolver::resolve(const FontRequest&)`
-/// service defined in `src/text/resolver/text_font_resolver.cpp`; there
-/// is exactly ONE font fallback implementation in the text pipeline
-/// (matching the user-spec invariant "non creare un secondo resolver").
-///
-/// If `primary` can be loaded by the engine, it is returned unchanged.
-/// Otherwise, the function attempts a sequence of fallbacks:
-///   1. The primary font (unchanged)
-///   2. A font with the same font_family but a generic path (empty path,
-///      hoping the engine has a family→path mapping)
-///   3. A platform-generic sans-serif fallback
-///   4. A platform-generic serif fallback
-///   5. The primary font returned as-is (caller should check can_load())
-///
-/// @param primary  The FontSpec to resolve.
-/// @param engine   FontEngine used to check font availability.
-/// @return A FontSpec that is more likely to be loadable.
-[[nodiscard,
-  deprecated("M1.5#8: Use chronon3d::text::resolver::FontResolver::resolve "
-             "instead. This free function delegates internally; the cpp "
-             "singleton is removed once all callers migrate.")]]
-FontSpec resolve_fallback_fonts(
-    FontSpec primary,
-    FontEngine& engine
-);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // resolve_text_run_tree

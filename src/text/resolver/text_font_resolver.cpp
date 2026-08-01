@@ -6,14 +6,9 @@
 //
 // What lives here:
 //   * `FontResolver::resolve(const FontRequest&)` — full fallback chain
-//     (5-tier walking, identical to the pre-split `resolve_fallback_fonts`
-//     logic in text_resolver.cpp).
-//   * `resolve_fallback_fonts(FontSpec, FontEngine&)` — DEPRECATED
-//     free-function form kept for back-compat.  Marked [[deprecated]] in
-//     include/chronon3d/text/text_resolver.hpp.  The cpp body IS the
-//     legacy chain body inlined for clarity, BUT the gate to enter the
-//     chain is identical — there is ONE impl of the fallback logic
-//     (this one).  No copy in the backend or in the builder.
+//     (5-tier walking, carried from the original text fallback logic).
+//   * The public text pipeline consumes this service through
+//     `resolve_text_run_tree`; no free-function fallback adapter remains.
 //
 // What does NOT live here:
 //   * Span splitting — see text_span_resolver.cpp.
@@ -150,27 +145,3 @@ FontResolutionResult FontResolver::resolve(const FontRequest& req) const {
 }
 
 } // namespace chronon3d::text::resolver
-
-// ═══════════════════════════════════════════════════════════════════════════
-// resolve_fallback_fonts — DEPRECATED back-compat shim
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// Marked [[deprecated]] in include/chronon3d/text/text_resolver.hpp.
-// Implementation delegated to FontResolver::resolve so the "un solo
-// servizio" architectural constraint stays true — there is exactly one
-// implementation of the fallback chain (text_font_resolver.cpp's
-// resolve() above).  This free function is a thin adapter.
-
-namespace chronon3d {
-
-FontSpec resolve_fallback_fonts(
-    FontSpec primary,
-    FontEngine& engine
-) {
-    chronon3d::text::resolver::FontRequest req;
-    req.primary = primary;
-    auto res = chronon3d::text::resolver::FontResolver{engine}.resolve(req);
-    return res.resolved;
-}
-
-} // namespace chronon3d
