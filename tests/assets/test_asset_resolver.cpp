@@ -424,6 +424,43 @@ TEST_CASE("PreparedAssetManifest is deterministic and deduplicates assets") {
     CHECK(changed->manifest_digest() != root_b_result->manifest_digest());
 }
 
+TEST_CASE("PreparedAssetStore owns subtitle bytes and keeps media metadata") {
+    write_file(g_temp.path, "captions.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
+    write_file(g_temp.path, "clip.mp4", "media");
+    chronon3d::render_plan::RenderPlan plan;
+    chronon3d::render_plan::LayerPlan subtitle;
+    subtitle.id = "captions";
+    subtitle.type = chronon3d::render_plan::LayerType::SubtitleTrack;
+    subtitle.source = "captions.srt";
+    subtitle.subtitle_format = chronon3d::render_plan::SubtitleFormat::Srt;
+    plan.layers.push_back(subtitle);
+    chronon3d::render_plan::LayerPlan video;
+    video.id = "video";
+    video.type = chronon3d::render_plan::LayerType::Video;
+    video.source = "clip.mp4";
+    plan.layers.push_back(video);
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+    auto result = chronon3d::assets::prepare_asset_store(plan, resolver);
+    REQUIRE(result);
+
+    const auto captions = result->find(
+        "captions.srt", chronon3d::assets::PreparedAssetKind::Subtitle);
+    REQUIRE(captions);
+    CHECK(std::string(reinterpret_cast<const char*>(captions->bytes.data()),
+                      captions->bytes.size()) ==
+          "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
+    CHECK(captions->content_digest == only_asset(
+        chronon3d::assets::prepare_asset_manifest(plan, resolver).value()).content_digest);
+
+    const auto media = result->find(
+        "clip.mp4", chronon3d::assets::PreparedAssetKind::Video);
+    REQUIRE(media);
+    CHECK(media->bytes.empty());
+    CHECK(media->byte_size == 5);
+}
+
 TEST_CASE("AssetResolver::resolve_lexical still rejects ../escape") {
     chronon3d::assets::AssetResolver r;
     r.mount(g_temp.path / "nested");
