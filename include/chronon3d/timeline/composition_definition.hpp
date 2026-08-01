@@ -28,6 +28,7 @@
 //   new struct becomes a hot per-frame allocation target.
 // ============================================================================
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 
@@ -44,6 +45,10 @@ namespace chronon3d {
 //     * `composition` \u2014 the timing/timeline-bound `CompositionSpec`.
 //     * `scene`       \u2014 a `SceneFunction` (signature `Scene(const FrameContext&)`)
 //                       the V2 driver invokes per frame to materialise a Scene.
+//     * `scene_content_fingerprint` \u2014 value identity for data captured by
+//                       the scene callback. `std::function` cannot inspect
+//                       lambda captures, so value-built scenes must provide
+//                       this deterministic digest explicitly.
 //     * `camera`      \u2014 a V1-shape authoring descriptor (camera_v1::CameraDescriptor)
 //                       when set; `std::nullopt` falls back to identity / 2.5D null-rig
 //                       (no authored camera path).
@@ -57,6 +62,7 @@ struct CompositionDefinition {
 
     CompositionSpec composition{};
     SceneFunction    scene{};
+    std::uint64_t    scene_content_fingerprint{0};
     std::optional<camera_v1::CameraDescriptor> camera{};
 };
 

@@ -123,3 +123,30 @@ TEST_CASE("Composition adapter compiles its authored camera descriptor") {
     CHECK(evaluated->camera->position.x == doctest::Approx(0.0f));
     CHECK(evaluated->camera->position.z == doctest::Approx(-1000.0f));
 }
+
+TEST_CASE("Composition fingerprint includes explicit scene content identity") {
+    auto make_definition = [](int captured_value,
+                              std::uint64_t content_fingerprint) {
+        CompositionDefinition definition;
+        definition.composition.name = "captured-scene";
+        definition.composition.width = 320;
+        definition.composition.height = 180;
+        definition.composition.duration = 10;
+        definition.scene = [captured_value](const FrameContext&) {
+            Scene scene;
+            scene.set_assets_root(std::to_string(captured_value));
+            return scene;
+        };
+        definition.scene_content_fingerprint = content_fingerprint;
+        return definition;
+    };
+
+    const auto first = compile_composition(make_definition(1, 101), {});
+    const auto second = compile_composition(make_definition(2, 202), {});
+    const auto repeat = compile_composition(make_definition(1, 101), {});
+    REQUIRE(first.has_value());
+    REQUIRE(second.has_value());
+    REQUIRE(repeat.has_value());
+    CHECK(first->fingerprint != second->fingerprint);
+    CHECK(first->fingerprint == repeat->fingerprint);
+}
