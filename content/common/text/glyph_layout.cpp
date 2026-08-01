@@ -4,7 +4,6 @@
 #include <atomic>
 #include <functional>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -14,25 +13,6 @@
 namespace chronon3d::content::text_reveal {
 
 namespace {
-
-// Build the diagnostic message used when shaping fails (layout_glyphs
-// fail-loud path).  The message preserves `font_path` + `font_size` +
-// 60-char text snippet + AssetResolver remediation hint (per pre-refactor
-// content + ADR-020 §fail-loud path).
-[[nodiscard]] std::string make_shape_error_message(
-    const std::string& text,
-    const FontSpec& spec,
-    f32 font_size)
-{
-    std::string msg = "ShapedGlyphLine/layout_glyphs: HarfBuzz shaping produced zero glyphs. ";
-    msg += "font_path='" + spec.font_path + "' ";
-    // font_size is f32; cast to int for compact diagnostics (avoid "72.000000")
-    msg += "font_size=" + std::to_string(static_cast<int>(font_size)) + " ";
-    // truncate text to 60 chars (intentional, no ellipsis — keeps log lines bounded)
-    msg += "text='" + text.substr(0, 60) + "'. ";
-    msg += "Check that the font file exists and the AssetResolver is mounted.";
-    return msg;
-}
 
 // ── Shape-call counter (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ────────────
 //
@@ -71,8 +51,7 @@ const std::optional<GlyphRun>& get_raw_run(const ShapedGlyphLine& line) noexcept
 // ShapedGlyphLine has no public constructor that accepts raw text. The
 // previous compatibility constructor was removed under the
 // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL chore; callers now enter through
-// the canonical `shape_glyph_line(...)` primitive or its temporary
-// `try_shape(...)` compatibility adapter.
+// the canonical `shape_glyph_line(...)` primitive.
 
 // ── ShapedGlyphLine private ctor (used by canonical shaping) ────────────
 //
@@ -285,57 +264,6 @@ size_t ShapedGlyphLine::reveal_count(f32 progress) const noexcept {
         std::move(*run_opt), std::string(text), tracking, ref_offset_x);
     line.rebuild_prefix_advances();
     return line;
-}
-
-// Compatibility overload: canonical zero-offset shaping.
-[[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
-    std::string_view text, f32 font_size, const FontSpec& font,
-    f32 tracking, FontEngine& engine)
-{
-    return shape_glyph_line(text, font_size, font, tracking,
-                            /*ref_offset_x=*/0.0f, engine);
-}
-
-// Compatibility factory. Keep the historical static entry point source
-// compatible while ensuring it cannot grow a second shaping implementation.
-std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
-    std::string_view text, f32 font_size, const FontSpec& spec,
-    f32 tracking, f32 ref_offset_x, FontEngine& engine)
-{
-    return shape_glyph_line(text, font_size, spec, tracking,
-                            ref_offset_x, engine);
-}
-
-// ── measure_text_width — thin-wrapper over shape_glyph_line (fail-soft) ──
-//
-// Returns 0.0f if shape_glyph_line returns std::nullopt (fail-soft —
-// pre-refactor semantics preserved verbatim).  Single engine.shape_text
-// call (shared with layout_glyphs when both are invoked consecutively).
-f32 measure_text_width(const std::string& text, f32 font_size,
-                       const FontSpec& spec, f32 tracking,
-                       FontEngine& engine) {
-    auto shaped = shape_glyph_line(text, font_size, spec, tracking, engine);
-    if (!shaped) return 0.0f;
-    return shaped->width();
-}
-
-// ── layout_glyphs — thin-wrapper over shape_glyph_line (fail-loud) ──
-//
-// Throws std::runtime_error(make_shape_error_message(...)) on shaping
-// failure (fail-loud per AGENTS.md §honesty + ADR-020 §fail-loud path).
-// The canonical offset-bearing shape owns the requested coordinate origin.
-std::vector<GlyphPos> layout_glyphs(
-    const std::string& text, f32 font_size,
-    const FontSpec& spec, f32 tracking,
-    f32 ref_offset_x,
-    FontEngine& engine)
-{
-    auto shaped = shape_glyph_line(text, font_size, spec, tracking,
-                                   ref_offset_x, engine);
-    if (!shaped) {
-        throw std::runtime_error(make_shape_error_message(text, spec, font_size));
-    }
-    return shaped->layout();
 }
 
 } // namespace chronon3d::content::text_reveal

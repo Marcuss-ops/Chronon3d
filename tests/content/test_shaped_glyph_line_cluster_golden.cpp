@@ -134,13 +134,13 @@ static void run_golden_equivalence(
         text, font_size, spec, tracking, ref_offset_x, engine);
 
     if (!shaped_opt) {
-        // Font cannot shape this text — both paths agree on failure.
+        // Font cannot shape this text — the canonical result is empty.
         return;
     }
 
     const auto& raw_run = chronon3d::content::text_reveal::test_support::get_raw_run(*shaped_opt);
     if (!raw_run.has_value() || raw_run->glyphs.empty()) {
-        // Shaping produced no glyphs — both paths agree on failure.
+        // Shaping produced no glyphs — the canonical result is empty.
         return;
     }
 

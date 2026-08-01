@@ -16,9 +16,7 @@ namespace chronon3d::content::text_reveal {
 // Post-Point-11 contract:
 //   1. Single-shape both lines (Point 8 single-shape efficiency —
 //      shape_glyph_line() returns std::optional<ShapedGlyphLine> with
-//      the engine.shape_text results cached in m_run; measure_text_width
-//      + layout_glyphs share the same instance when invoked consecutively
-//      via the ShapedGlyphLine class API).
+//      the engine.shape_text results cached in m_run).
 //   2. Returns TypewriterBlockResult with pre-computed geometry for
 //      downstream consumers (e.g., add_cursor on AnimTypewriterCursor).
 //
@@ -32,12 +30,13 @@ TypewriterBlockResult build_2line_typewriter(
     auto font = font_regular();
     auto& engine = *s.font_engine();
 
-    // Single-shape both lines (Point 8 — shape_glyph_line delegates to
-    // ShapedGlyphLine::try_shape factory, fail-soft contract).
+    // Single-shape both lines (Point 8 — canonical fail-soft contract).
     auto shape1_opt = shape_glyph_line(
-        spec.first.text, spec.first.font_size, font, spec.tracking, engine);
+        spec.first.text, spec.first.font_size, font, spec.tracking,
+        /*ref_offset_x=*/0.0f, engine);
     auto shape2_opt = shape_glyph_line(
-        spec.second.text, spec.second.font_size, font, spec.tracking, engine);
+        spec.second.text, spec.second.font_size, font, spec.tracking,
+        /*ref_offset_x=*/0.0f, engine);
 
     if (!shape1_opt || !shape2_opt) {
         throw std::runtime_error(
