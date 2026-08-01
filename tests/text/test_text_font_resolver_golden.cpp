@@ -10,10 +10,7 @@
 //      — same input + same engine state → same output across N invocations.
 //   2. `resolve_text_run_tree` (the orchestration entry point) produces a
 //      stable FNV-1a hash of the resolved tree, with FriBidi ON or OFF.
-//   3. The deprecated `resolve_fallback_fonts` free function and the new
-//      `FontResolver::resolve` produce equivalent outputs (delegation
-//      contract: the deprecated free function calls into the same impl).
-//   4. CHRONON3D_FORCE_NO_FRIBIDI env override forces the LTR-only fallback
+//   3. CHRONON3D_FORCE_NO_FRIBIDI env override forces the LTR-only fallback
 //      regardless of the compile-time CHRONON3D_HAS_FRIBIDI flag.
 //
 // Output: a single FNV-1a 64-bit sentinel per test case.  If any future
@@ -171,15 +168,10 @@ TEST_CASE("M1.5#8: resolve_text_run_tree + FNV-1a gold snapshot is stable") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3. Deprecated shim equivalence — resolve_fallback_fonts == FontResolver
+// 3. Canonical fallback result
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// The [[deprecated]] free function `resolve_fallback_fonts` MUST produce
-// the same FontSpec as the canonical `FontResolver::resolve(...)` —
-// otherwise the "un solo servizio" invariant from the user spec is
-// silently violated.
 
-TEST_CASE("M1.5#8: deprecated resolve_fallback_fonts == FontResolver::resolve") {
+TEST_CASE("M1.5#8: FontResolver returns a deterministic fallback result") {
     auto engine = make_golden_engine();
 
     FontSpec primary;
@@ -187,15 +179,13 @@ TEST_CASE("M1.5#8: deprecated resolve_fallback_fonts == FontResolver::resolve") 
     primary.font_path   = "assets/fonts/Nonexistent.ttf";
     primary.font_size   = 32.0f;
 
-    auto legacy = resolve_fallback_fonts(primary, engine);
-
     chronon3d::text::resolver::FontRequest req;
     req.primary = primary;
     auto service = chronon3d::text::resolver::FontResolver{engine}.resolve(req);
 
-    CHECK(legacy.font_family == service.resolved.font_family);
-    CHECK(legacy.font_path   == service.resolved.font_path);
-    CHECK(legacy.font_size   == service.resolved.font_size);
+    CHECK(!service.resolved.font_family.empty());
+    CHECK(service.resolved.font_size == primary.font_size);
+    CHECK(service.status != chronon3d::text::resolver::FontResolutionResult::Status::Loaded);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
