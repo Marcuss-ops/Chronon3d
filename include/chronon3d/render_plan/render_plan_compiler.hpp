@@ -28,6 +28,7 @@ struct RenderJobFingerprint {
 struct PreparedRenderPlan {
     std::shared_ptr<const Composition> composition;
     chronon3d::assets::PreparedAssetManifest assets;
+    chronon3d::assets::PreparedAssetStore resources;
     RenderJobFingerprint fingerprint;
     std::string job_id;
     CanvasSpec canvas;

@@ -5,10 +5,8 @@
 #include <chronon3d/presets/text/text_presets_v1.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
-#include <fstream>
 #include <filesystem>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -16,19 +14,6 @@
 
 namespace chronon3d::render_plan {
 namespace {
-
-std::string read_asset_text(const std::string& path,
-                            const assets::AssetResolver& resolver) {
-    const auto resolved_path = resolver.resolve_logical(path);
-    if (!resolved_path) {
-        throw std::runtime_error("cannot resolve logical subtitle asset: " + path);
-    }
-    std::ifstream input(*resolved_path);
-    if (!input) throw std::runtime_error("cannot read subtitle asset: " + path);
-    std::ostringstream contents;
-    contents << input.rdbuf();
-    return contents.str();
-}
 
 chronon3d::FitMode fit_mode(FitMode value) {
     switch (value) {
@@ -112,13 +97,14 @@ Result<PreparedRenderPlan, PlanDecodeError>
 compile_render_plan(const RenderPlan& plan,
                     chronon3d::assets::AssetResolver& resolver) {
     try {
-        auto prepared_assets = chronon3d::assets::prepare_asset_manifest(plan, resolver);
-        if (!prepared_assets) {
+        auto prepared_store = chronon3d::assets::prepare_asset_store(plan, resolver);
+        if (!prepared_store) {
             return PlanDecodeError{
-                "assets." + prepared_assets.error().logical_path,
-                prepared_assets.error().message};
+                "assets." + prepared_store.error().logical_path,
+                prepared_store.error().message};
         }
-        auto assets = std::move(prepared_assets).value();
+        auto resources = std::move(prepared_store).value();
+        auto assets = resources.manifest();
         const auto fingerprints = render_job_fingerprint(plan, assets);
         auto content_plan = plan;
         content_plan.job_id.clear();
@@ -133,7 +119,15 @@ compile_render_plan(const RenderPlan& plan,
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::SubtitleTrack) continue;
-            const auto raw = read_asset_text(layer.source, resolver);
+            const auto subtitle = resources.find(
+                std::filesystem::path(layer.source).lexically_normal().generic_string(),
+                chronon3d::assets::PreparedAssetKind::Subtitle);
+            if (!subtitle || subtitle->bytes.empty()) {
+                throw std::runtime_error("subtitle asset was not prepared: " + layer.source);
+            }
+            const std::string raw(
+                reinterpret_cast<const char*>(subtitle->bytes.data()),
+                subtitle->bytes.size());
             if (layer.subtitle_format == SubtitleFormat::Vtt)
                 subtitles[index] = presets::text::subtitle_from_vtt(raw);
             else if (layer.subtitle_format == SubtitleFormat::Json)
@@ -201,6 +195,7 @@ compile_render_plan(const RenderPlan& plan,
         PreparedRenderPlan prepared;
         prepared.composition = std::shared_ptr<const Composition>(std::move(composition));
         prepared.assets = std::move(assets);
+        prepared.resources = std::move(resources);
         prepared.fingerprint = fingerprints;
         prepared.job_id = plan.job_id;
         prepared.canvas = plan.canvas;
