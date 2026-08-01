@@ -9,15 +9,14 @@
 //       .position({0, 0, -1200}).look_at({0, 0, 0})
 //       .lens(PhysicalLens{.focal_length_mm = 50.0f, .sensor_width_mm = 36.0f})
 //       .build();
-//   auto program = compile_camera(descriptor).value();
-//   composition.camera_program(program);
+//   composition.default_camera_descriptor(descriptor);
 //   renderer.render(composition, Frame{30});
 //
 // Contract (P3-H strict):
 //   (a) Includes ONLY headers listed in cmake/Chronon3DPublicHeaders.cmake
 //   (b) Calls ONLY `chronon3d::sdk::RenderEngine::render(...)` +
 //       `chronon3d::save_png(...)` + the new public facade methods
-//   (c) Uses `scene.camera().descriptor/.program/.timeline/.preset` chain
+//   (c) Uses the composition descriptor authoring surface for camera input
 //   (d) Output PNG via save_png
 //   (e) Pixel-hash check: fails if every pixel has mean luminance < 5/255
 //   (f) MUST NOT see `CameraSession` or `RenderGraph` — no `#include` of
@@ -38,9 +37,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/scene_camera_facade.hpp>          // SceneCameraFacade
 #include <chronon3d/scene/camera/camera_descriptor_builder.hpp>    // chronon3d::camera()
-#include <chronon3d/timeline/compile_evaluate.hpp>                 // compile_camera()
 #include <chronon3d/backends/image/image_writer.hpp>                // save_png
 
 // STATIC ASSERT: the consumer must NOT see CameraSession or RenderGraph.
@@ -56,8 +53,6 @@
 // we know the SDK install propagated the manifest correctly).
 static_assert(sizeof(chronon3d::camera_v1::CameraDescriptor) > 0,
               "CameraDescriptor must be reachable from the public SDK");
-static_assert(sizeof(chronon3d::camera_v1::CameraProgram) > 0,
-              "CameraProgram must be reachable from the public SDK");
 
 #include <cstddef>
 #include <cstdint>
@@ -88,18 +83,7 @@ int main(int argc, char* argv[]) {
         })
         .build();
 
-    // ── 2. Compile the descriptor into an immutable program ────────────
-    auto program_result = c3d::compile_camera(
-        descriptor, c3d::CompositionCompileContext{});
-    if (!program_result.has_value()) {
-        std::fprintf(stderr,
-                     "[CAMERA-FAIL] compile_camera failed: %s\n",
-                     program_result.error().message.c_str());
-        return 1;
-    }
-    auto program = std::move(program_result.value());
-
-    // ── 3. Composition spec (1920x1080 landscape) ─────────────────────
+    // ── 2. Composition spec (1920x1080 landscape) ─────────────────────
     const c3d::CompositionSpec spec{
         /* .name         */ "p3h_camera_consumer",
         /* .width        */ 1920,
@@ -108,11 +92,7 @@ int main(int argc, char* argv[]) {
         /* .duration     */ 1,
     };
 
-    // ── 4. Composition via the public camera facade ──────────────────
-    //
-    // The SceneCameraFacade setters chain the descriptor onto the scene
-    // that the SceneBuilder produces.  External consumers see ONLY the
-    // public facade — no `CameraSession` or `RenderGraph` is visible.
+    // ── 3. Composition via the descriptor authoring surface ───────────
     auto comp = c3d::composition(
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
@@ -157,19 +137,10 @@ int main(int argc, char* argv[]) {
 
             c3d::Scene scene = s.build();
 
-            // ── Public camera facade — attach the pre-compiled program.
-            // P3-H + code-review round 2: pick ONE path.  We use the
-            // new facade (the canonical entry for the spec example),
-            // not the redundant `composition.camera_program(...)` call.
-            scene.camera().program(program);
             return scene;
         });
 
-    // Optional: also set on the composition so the OPP read path
-    // `comp.camera_program()` returns the same program (consistency probe
-    // for `has_camera_program()`).  This is a CONSUMER choice; the
-    // spec example shows either path works.
-    comp.camera_program(std::move(program));
+    comp.default_camera_descriptor(descriptor);
 
     // ── 5. Render settings + engine ──────────────────────────────────
     c3d::sdk::RenderSettings settings{};
@@ -261,7 +232,7 @@ int main(int argc, char* argv[]) {
     const auto file_size = std::filesystem::file_size(output_path);
     std::printf("[CAMERA-OK] public camera facade consumer rendered %dx%d "
                 "PNG (%zu bytes, %zu/%zu pixels >5/255, "
-                "facade=scene.camera() + composition.camera_program(p), "
+                "composition=default_camera_descriptor(descriptor), "
                 "format=%s)\n",
                 out.width, out.height,
                 static_cast<std::size_t>(file_size),

@@ -4,9 +4,8 @@
 
 ## Problema
 
-TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1 Batch 1.5 PARTIAL closed bg dimension
-via `CompositionSpec::background_color_rgba` (canonical user-spec Option (a)),
-but the scheduler dimension was shelved because:
+TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1 Batch 1.5 left the scheduler dimension
+shelved because:
 
 - `chronon3d::ExecutionScheduler` has NO `set_mode(SchedulerMode)` API.
 - The scheduler mode is frozen at ctor: `ExecutionScheduler(SchedulerMode mode, int worker_count, bool pin_calling_thread)`.

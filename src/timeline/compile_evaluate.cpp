@@ -206,38 +206,12 @@ compile_composition(const Composition& composition,
         return Composition::evaluate_scene_function(scene, frame_context);
     };
 
-    // Preserve both legacy camera inputs in the definition snapshot. The
-    // precompiled program is applied below with the legacy precedence rule;
-    // retaining the descriptor keeps the adapter lossless for diagnostics and
-    // for the next migration step.
+    // Snapshot the sole authoring-time camera input. Compilation owns the
+    // resulting CameraProgram in CompiledComposition.
     if (composition.has_default_camera_descriptor()) {
         definition.camera = composition.default_camera_descriptor();
     }
-
-    CompositionDefinition compile_definition = definition;
-    if (composition.has_camera_program()) {
-        // The legacy program has precedence. Avoid compiling a descriptor
-        // that the legacy render path would never consume, while retaining
-        // that descriptor in the immutable snapshot below.
-        compile_definition.camera.reset();
-    }
-
-    auto compiled = compile_composition(compile_definition, context);
-    if (!compiled.has_value()) {
-        return std::move(compiled).error();
-    }
-
-    auto result = std::move(compiled).value();
-    if (composition.has_camera_program()) {
-        auto program = std::make_shared<camera_v1::CameraProgram>(
-            composition.camera_program());
-        result.camera_program = std::shared_ptr<const camera_v1::CameraProgram>(
-            std::move(program));
-        result.definition = std::make_shared<const CompositionDefinition>(
-            std::move(definition));
-        result.fingerprint = fingerprint_composition_definition(*result.definition);
-    }
-    return result;
+    return compile_composition(definition, context);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
