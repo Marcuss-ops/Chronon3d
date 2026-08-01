@@ -328,7 +328,6 @@ ValidationResult validate_render_plan(const nlohmann::json& root) {
             {"schema", {{"const", "chronon.render-plan"}}},
             {"version", {{"const", 1}}},
             {"job_id", {{"type", "string"}, {"minLength", 1}}},
-            {"assets_root", {{"type", "string"}}},
             {"canvas", {
                 {"type", "object"},
                 {"additionalProperties", false},

@@ -80,7 +80,6 @@ struct OutputSpec {
 
 struct RenderPlan {
     std::string job_id{"chronon_plan"};
-    std::string assets_root;
     // Deterministic identity of all decoded plan values. Asset bytes are not
     // implied here; the asset-manifest preflight will add content hashes.
     std::uint64_t content_fingerprint{0};

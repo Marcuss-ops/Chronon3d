@@ -17,12 +17,12 @@ namespace chronon3d::render_plan {
 namespace {
 
 std::string read_asset_text(const std::string& path,
-                           const std::string& assets_root) {
-    std::filesystem::path resolved_path{path};
-    if (!assets_root.empty() && resolved_path.is_relative()) {
-        resolved_path = std::filesystem::path{assets_root} / resolved_path;
+                            const assets::AssetResolver& resolver) {
+    const auto resolved_path = resolver.resolve_logical(path);
+    if (!resolved_path) {
+        throw std::runtime_error("cannot resolve logical subtitle asset: " + path);
     }
-    std::ifstream input(resolved_path);
+    std::ifstream input(*resolved_path);
     if (!input) throw std::runtime_error("cannot read subtitle asset: " + path);
     std::ostringstream contents;
     contents << input.rdbuf();
@@ -81,7 +81,8 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
 }  // namespace
 
 Result<std::shared_ptr<const Composition>, PlanDecodeError>
-compile_render_plan(const RenderPlan& plan) {
+compile_render_plan(const RenderPlan& plan,
+                    const chronon3d::assets::AssetResolver& resolver) {
     try {
         const auto content_fingerprint =
             compute_render_plan_content_fingerprint(plan);
@@ -93,7 +94,7 @@ compile_render_plan(const RenderPlan& plan) {
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::SubtitleTrack) continue;
-            const auto raw = read_asset_text(layer.source, plan.assets_root);
+            const auto raw = read_asset_text(layer.source, resolver);
             if (layer.subtitle_format == SubtitleFormat::Vtt)
                 subtitles[index] = presets::text::subtitle_from_vtt(raw);
             else if (layer.subtitle_format == SubtitleFormat::Json)
