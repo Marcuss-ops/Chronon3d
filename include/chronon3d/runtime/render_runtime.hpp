@@ -219,8 +219,16 @@ public:
 
     [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
     [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
-    [[nodiscard]] chronon3d::cache::PersistentFramebufferStore&       framebuffer_store()       noexcept { return m_framebuffer_store; }
-    [[nodiscard]] const chronon3d::cache::PersistentFramebufferStore& framebuffer_store() const noexcept { return m_framebuffer_store; }
+    /// Whether the optional persistent framebuffer store was allocated for
+    /// this runtime.  It is disabled by Config's
+    /// `CHRONON_DISABLE_PERSISTENT_FB_CACHE` policy when set.
+    [[nodiscard]] bool has_framebuffer_store() const noexcept {
+        return static_cast<bool>(m_framebuffer_store);
+    }
+    /// Access the optional persistent store. Returns nullptr when the
+    /// persistent framebuffer cache is disabled for this runtime.
+    [[nodiscard]] chronon3d::cache::PersistentFramebufferStore* framebuffer_store() noexcept;
+    [[nodiscard]] const chronon3d::cache::PersistentFramebufferStore* framebuffer_store() const noexcept;
     [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
     [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
     [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
@@ -303,13 +311,11 @@ private:
     // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
     chronon3d::ImageCache                           m_image_cache;
     chronon3d::CurveCache                           m_curve_cache;
-    // framebuffer_store accessor: per-runtime PersistentFramebufferStore (value member); the
-    // P1-13 closure migrated the class to pure instance ownership (no singleton, no
-    // process-wide static config).  All configuration is per-instance (`m_cache_dir` initialised
-    // JSON-default to `output/cache/framebuffers`, `m_disabled=false`) and routed through the
-    // `runtime.framebuffer_store()` typed accessor (P1-15: was the non-owning
-    // `RenderServices::framebuffer_store` pointer field; the pointer-bundle was deleted).
-    chronon3d::cache::PersistentFramebufferStore                  m_framebuffer_store{};
+    // Optional per-runtime persistent framebuffer store.  The CFB4 class and
+    // codec remain independently constructible for tests, benchmarks, and
+    // the future V3 tile cache; V1 does not pay for this subsystem when the
+    // configured persistent cache is disabled.
+    std::unique_ptr<chronon3d::cache::PersistentFramebufferStore> m_framebuffer_store;
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     /// WP-9 PR 9.0 / R1 — runtime owns the per-runtime FontEngine.
