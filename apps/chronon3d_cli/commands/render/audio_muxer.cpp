@@ -29,13 +29,6 @@ int run_process(const std::vector<std::string>& arguments) {
     return WIFEXITED(status) ? WEXITSTATUS(status) : 128;
 }
 
-std::string resolve_audio_path(const std::string& source,
-                               const std::string& assets_root) {
-    const std::filesystem::path path(source);
-    if (path.is_absolute() || assets_root.empty()) return path.string();
-    return (std::filesystem::path(assets_root) / path).string();
-}
-
 // Compute the total audio timeline duration from the tracks.
 // Returns the maximum (start_time_offset + effective_duration) across
 // all tracks, or 0.0 if no tracks have a defined duration.
@@ -57,7 +50,7 @@ double total_audio_duration(const std::vector<render_plan::AudioTrackPlan>& trac
 
 bool AudioMuxer::mux(const std::string& video_path,
                      const std::vector<render_plan::AudioTrackPlan>& tracks,
-                     const std::string& assets_root) const {
+                     const chronon3d::assets::AssetResolver& resolver) const {
     if (tracks.empty()) return true;
 
     // Resolve audio paths.
@@ -68,7 +61,12 @@ bool AudioMuxer::mux(const std::string& video_path,
             spdlog::error("Audio track is missing source");
             return false;
         }
-        audio_paths.push_back(resolve_audio_path(track.source, assets_root));
+        const auto resolved = resolver.resolve_logical(track.source);
+        if (!resolved) {
+            spdlog::error("Audio track is not a resolvable logical asset: {}", track.source);
+            return false;
+        }
+        audio_paths.push_back(resolved->string());
     }
 
     // Identify voiceover tracks (used as sidechain source for ducking).

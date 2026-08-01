@@ -6,12 +6,14 @@
 
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -65,10 +67,14 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
         }
         const std::string effective_assets_root = !args.assets_root.empty()
             ? args.assets_root
-            : decoded->assets_root;
+            : (std::getenv("CHRONON3D_CLI_ASSETS_ROOT")
+                ? std::getenv("CHRONON3D_CLI_ASSETS_ROOT") : "");
         auto plan = decoded.value();
-        plan.assets_root = effective_assets_root;
-        const auto compiled = render_plan::compile_render_plan(plan);
+        chronon3d::assets::AssetResolver resolver;
+        if (!effective_assets_root.empty()) {
+            resolver.mount(std::filesystem::path{effective_assets_root});
+        }
+        const auto compiled = render_plan::compile_render_plan(plan, resolver);
         if (!compiled) {
             spdlog::error("Render plan compilation failed: {}", compiled.error().message);
             return 1;
@@ -116,7 +122,7 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             return 1;
         }
         if (video_output(output) && !AudioMuxer{}.mux(output, decoded->audio_tracks,
-                                                       effective_assets_root))
+                                                       resolver))
             return 1;
         return 0;
     } catch (const std::exception& error) {
