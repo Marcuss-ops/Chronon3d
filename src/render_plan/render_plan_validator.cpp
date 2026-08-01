@@ -333,28 +333,33 @@ ValidationResult validate_render_plan(const nlohmann::json& root) {
                 {"additionalProperties", false},
                 {"required", json::array({"width", "height", "fps", "duration_frames"})},
                 {"properties", {
-                    {"width",           {{"type", "integer"}, {"minimum", 1}}},
-                    {"height",          {{"type", "integer"}, {"minimum", 1}}},
-                    {"fps",             {{"type", "integer"}, {"minimum", 1}}},
-                    {"duration_frames", {{"type", "integer"}, {"minimum", 1}}}
+                    {"width",           {{"type", "integer"}, {"minimum", 1}, {"maximum", 7680}}},
+                    {"height",          {{"type", "integer"}, {"minimum", 1}, {"maximum", 4320}}},
+                    {"fps",             {{"type", "integer"}, {"minimum", 1}, {"maximum", 240}}},
+                    {"duration_frames", {{"type", "integer"}, {"minimum", 1}, {"maximum", 1000000}}}
                 }}
             }},
             {"layers", {
                 {"type", "array"},
+                {"maxItems", 1024},
                 {"items", {
                     {"type", "object"},
-                    {"additionalProperties", true},
+                    {"additionalProperties", false},
                     {"required", json::array({"id", "type"})},
                     {"properties", {
                         {"id",      {{"type", "string"}, {"minLength", 1}}},
                         {"type",    {{"enum", json::array({"image", "video", "text", "color", "subtitle_track"})}}},
                         {"asset",   {{"type", "string"}}},
                         {"source",  {{"type", "string"}}},
-                        {"text",    {{"type", "string"}}},
+                        {"text",    {{"type", "string"}, {"maxLength", 1048576}}},
                         {"font",    {{"type", "string"}}},
                         {"font_size",   {{"type", "number"}, {"exclusiveMinimum", 0}}},
                         {"box_width",   {{"type", "number"}, {"exclusiveMinimum", 0}}},
                         {"box_height",  {{"type", "number"}, {"exclusiveMinimum", 0}}},
+                        {"color", {
+                            {"type", "array"}, {"minItems", 4}, {"maxItems", 4},
+                            {"items", {{"type", "number"}}}
+                        }},
                         {"position", {
                             {"type", "array"},
                             {"minItems", 2},
@@ -381,6 +386,7 @@ ValidationResult validate_render_plan(const nlohmann::json& root) {
             }},
             {"audio_tracks", {
                 {"type", "array"},
+                {"maxItems", 128},
                 {"items", {
                     {"type", "object"},
                     {"additionalProperties", false},

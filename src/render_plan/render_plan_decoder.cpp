@@ -5,7 +5,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <filesystem>
+#include <limits>
 #include <stdexcept>
 
 namespace chronon3d::render_plan {
@@ -163,6 +165,67 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
 }  // namespace
 
+std::optional<PlanDecodeError> validate_render_plan_budget(
+    const RenderPlan& plan, const RenderBudget& budget) {
+    const auto fail = [](std::string path, std::string message) {
+        return std::optional<PlanDecodeError>{
+            PlanDecodeError{std::move(path), std::move(message)}};
+    };
+    if (plan.canvas.width > static_cast<int>(budget.max_width))
+        return fail("canvas.width", "render budget max_width exceeded");
+    if (plan.canvas.height > static_cast<int>(budget.max_height))
+        return fail("canvas.height", "render budget max_height exceeded");
+    if (plan.layers.size() > budget.max_layers)
+        return fail("layers", "render budget max_layers exceeded");
+    if (plan.audio_tracks.size() > budget.max_audio_tracks)
+        return fail("audio_tracks", "render budget max_audio_tracks exceeded");
+
+    const auto width = static_cast<std::uint64_t>(plan.canvas.width);
+    const auto height = static_cast<std::uint64_t>(plan.canvas.height);
+    if (height != 0 && width > budget.max_total_pixels / height)
+        return fail("canvas", "render budget max_total_pixels exceeded");
+    const auto total_pixels = width * height;
+    if (total_pixels > budget.max_total_pixels)
+        return fail("canvas", "render budget max_total_pixels exceeded");
+
+    const auto frames = static_cast<std::uint64_t>(plan.canvas.duration.integral());
+    if (frames > budget.max_frames)
+        return fail("canvas.duration_frames", "render budget max_frames exceeded");
+
+    std::uint64_t text_bytes = 0;
+    std::uint64_t asset_reference_bytes = 0;
+    const auto add_bytes = [](std::uint64_t& total, std::size_t value,
+                              std::uint64_t limit) {
+        if (value > limit - std::min(total, limit)) return false;
+        total += static_cast<std::uint64_t>(value);
+        return true;
+    };
+    for (const auto& layer : plan.layers) {
+        if (!add_bytes(text_bytes, layer.text.size(), budget.max_text_bytes))
+            return fail("layers[].text", "render budget max_text_bytes exceeded");
+        for (const auto* reference : {&layer.asset, &layer.source, &layer.font}) {
+            if (!add_bytes(asset_reference_bytes, reference->size(),
+                           budget.max_asset_reference_bytes))
+                return fail("layers[]", "render budget max_asset_reference_bytes exceeded");
+        }
+    }
+    for (const auto& track : plan.audio_tracks) {
+        if (!add_bytes(asset_reference_bytes, track.source.size(),
+                       budget.max_asset_reference_bytes))
+            return fail("audio_tracks[].source",
+                        "render budget max_asset_reference_bytes exceeded");
+    }
+
+    if (total_pixels != 0 && total_pixels > budget.max_peak_memory_bytes / 16)
+        return fail("canvas", "render budget max_peak_memory_bytes exceeded");
+    if (frames != 0 && total_pixels != 0 &&
+        (total_pixels > std::numeric_limits<std::uint64_t>::max() / 4 / frames ||
+         total_pixels * 4 * frames > budget.max_estimated_output_bytes)) {
+        return fail("canvas", "render budget max_estimated_output_bytes exceeded");
+    }
+    return std::nullopt;
+}
+
 std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
     return fingerprint_render_plan_impl(plan);
 }
@@ -214,6 +277,8 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                 value.value("fade_out_seconds", 0.0),
                 value.value("ducking_enabled", false)});
         }
+        if (const auto budget_error = validate_render_plan_budget(plan))
+            return *budget_error;
         const auto& output = root.at("output");
         plan.output.path = output.at("path").get<std::string>();
         if (output.contains("format"))
