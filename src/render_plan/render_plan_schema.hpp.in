@@ -1,0 +1,16 @@
+#pragma once
+
+#include <nlohmann/json.hpp>
+
+namespace chronon3d::render_plan {
+
+// Generated from schemas/chronon.render-plan.v1.schema.json at configure time.
+// Keep the JSON schema as the only editable source of validator structure.
+inline const nlohmann::json& render_plan_schema() {
+    static const nlohmann::json schema = nlohmann::json::parse(R"CHRONON3D_SCHEMA(
+@CHRONON3D_RENDER_PLAN_SCHEMA_JSON@
+)CHRONON3D_SCHEMA");
+    return schema;
+}
+
+}  // namespace chronon3d::render_plan
