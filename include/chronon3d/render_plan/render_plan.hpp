@@ -89,16 +89,36 @@ struct RenderPlan {
     OutputSpec output;
 };
 
+struct PlanDecodeError {
+    std::string path;
+    std::string message;
+};
+
+/// Resource limits applied before a RenderPlan can reach compilation.
+/// The defaults are deliberately finite so untrusted JSON cannot request
+/// unbounded framebuffer, frame, layer, or text allocations.
+struct RenderBudget {
+    std::uint32_t max_width{7680};
+    std::uint32_t max_height{4320};
+    std::uint64_t max_total_pixels{7680ULL * 4320ULL};
+    std::uint64_t max_frames{1'000'000};
+    std::uint32_t max_layers{1024};
+    std::uint32_t max_audio_tracks{128};
+    std::uint64_t max_text_bytes{4ULL * 1024ULL * 1024ULL};
+    std::uint64_t max_asset_reference_bytes{1ULL * 1024ULL * 1024ULL};
+    std::uint64_t max_estimated_output_bytes{4ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL};
+    std::uint64_t max_peak_memory_bytes{2ULL * 1024ULL * 1024ULL * 1024ULL};
+};
+
+[[nodiscard]] std::optional<PlanDecodeError> validate_render_plan_budget(
+    const RenderPlan& plan,
+    const RenderBudget& budget = {});
+
 /// Compute the deterministic identity of the decoded plan values.
 /// Asset bytes are deliberately not included until asset-manifest preflight
 /// supplies their content hashes.
 [[nodiscard]] std::uint64_t compute_render_plan_content_fingerprint(
     const RenderPlan& plan);
-
-struct PlanDecodeError {
-    std::string path;
-    std::string message;
-};
 
 Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& root);
 
