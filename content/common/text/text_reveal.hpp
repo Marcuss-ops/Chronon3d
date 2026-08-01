@@ -8,7 +8,7 @@
 // that materialises one layer per character at its final pre-computed
 // position with per-frame opacity / slide-up / glow animation.
 //
-// DEPENDENCIES: glyph_layout (for layout_glyphs()).
+// DEPENDENCIES: glyph_layout (for the ShapedGlyphLine overload).
 //
 // Namespace: chronon3d::content::text_reveal (single flat namespace per
 // Cat-3 minimal-surface — preserves the 12 existing callers' `using`
@@ -94,9 +94,8 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d);
 // build_text_reveal_line (P0-2 perf overload) — same effect as the 2-arg
 // form, but with the ShapedGlyphLine pre-shaped by the caller.  The
 // pre_shaped instance MUST have been constructed with ref_offset_x=0.0f
-// (the canonical raw-shape pattern: shape_glyph_line() and
-// ShapedGlyphLine::try_shape() both default to a zero ref-offset).  The
-// reveal emitter adds d.ref_offset_x to each glyph center at layer-build
+// (the canonical raw-shape pattern: shape_glyph_line(..., 0.0f, engine)).
+// The reveal emitter adds d.ref_offset_x to each glyph center at layer-build
 // time, preserving byte-equivalence with the 2-arg path.  No engine
 // check is required: pre_shaped was already produced via a successful
 // engine.shape_text call.

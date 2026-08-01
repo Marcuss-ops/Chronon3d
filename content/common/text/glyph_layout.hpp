@@ -8,21 +8,12 @@
 //
 // Canonical shaping primitive: `shape_glyph_line(...)` returns a
 // `std::optional<ShapedGlyphLine>` and owns the single `FontEngine::shape_text`
-// call. The legacy `ShapedGlyphLine::try_shape(...)` factory remains as a
-// compatibility adapter during migration. Width and per-glyph layout are
-// read from the returned shape without additional shaping calls.
+// call. Width and per-glyph layout are read from the returned shape without
+// additional shaping calls.
 //
-// The offset-bearing overload is the canonical form; the zero-offset overload
-// remains source-compatible for existing callers. `measure_text_width` and
-// `layout_glyphs` remain transitional adapters until their callers migrate.
-// Byte-equivalence is preserved verbatim.
-//   - measure_text_width: return `shape_glyph_line(...)->width()` or 0.0f
-//     on nullopt (fail-soft contract — same as upstream's try/catch wrapper
-//     semantics).
-//   - layout_glyphs: throw `std::runtime_error(make_shape_error_message(...))`
-//     on nullopt (fail-loud contract per AGENTS.md §honesty + ADR-020
-//     §fail-loud path); otherwise return positions from the offset-bearing
-//     canonical shape.
+// The offset-bearing overload is the only public form; callers pass 0.0f for
+// an unshifted line. Byte-equivalence is preserved by reading all geometry
+// from that snapshot.
 //
 // Namespace: chronon3d::content::text_reveal (single flat namespace per
 // Cat-3 minimal-surface — preserves the 12 existing callers' `using`
@@ -91,16 +82,12 @@ struct GlyphLineBBox {
 // Public API contract:
 //   - Fail-soft `shape_glyph_line` is the canonical construction path and
 //     returns `std::nullopt` on shaping failure.
-//   - `try_shape` is a compatibility adapter over that primitive.
-//   - `measure_text_width` and `layout_glyphs` are transitional adapters over
-//     the same cached shaping path.
 class ShapedGlyphLine {
 public:
     // ── Public read-only accessors (unchanged from upstream) ──
     [[nodiscard]] bool valid() const noexcept { return m_run.has_value(); }
 
-    // Total advance width INCLUDING tracking, matching the legacy
-    // measure_text_width output.
+    // Total advance width INCLUDING tracking.
     [[nodiscard]] f32 width() const noexcept;
 
     // Per-glyph positions at FINAL locations.
@@ -117,13 +104,6 @@ public:
 
     // Number of glyphs to reveal for a progress in [0, 1].
     [[nodiscard]] size_t reveal_count(f32 progress) const noexcept;
-
-    // ── Public fail-soft compatibility factory ──
-    // Returns `std::nullopt` on shaping failure instead of throwing.
-    // Delegates to the canonical `shape_glyph_line` primitive.
-    [[nodiscard]] static std::optional<ShapedGlyphLine> try_shape(
-        std::string_view text, f32 font_size, const FontSpec& spec,
-        f32 tracking, f32 ref_offset_x, FontEngine& engine);
 
 private:
     std::string m_text;
@@ -142,8 +122,8 @@ private:
     // function that allocates.
     void rebuild_prefix_advances();
 
-    // Private constructor used by try_shape factory — populate from a valid
-    // GlyphRun directly (does NOT throw).
+    // Private constructor used by the canonical shape factory — populate
+    // from a valid GlyphRun directly (does NOT throw).
     ShapedGlyphLine(GlyphRun run, std::string text,
                     f32 tracking, f32 ref_offset_x);
 
@@ -152,10 +132,6 @@ private:
     friend std::optional<ShapedGlyphLine> shape_glyph_line(
         std::string_view text, f32 font_size, const FontSpec& spec,
         f32 tracking, f32 ref_offset_x, FontEngine& engine);
-    friend std::optional<ShapedGlyphLine> shape_glyph_line(
-        std::string_view text, f32 font_size, const FontSpec& spec,
-        f32 tracking, FontEngine& engine);
-
     // Test/internal support needs access to the cached GlyphRun.
     friend const std::optional<GlyphRun>& test_support::get_raw_run(const ShapedGlyphLine&) noexcept;
 };
@@ -169,37 +145,5 @@ private:
 [[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
     std::string_view text, f32 font_size, const FontSpec& font,
     f32 tracking, f32 ref_offset_x, FontEngine& engine);
-
-// Compatibility overload: canonical zero-offset shaping.
-[[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
-    std::string_view text, f32 font_size, const FontSpec& font,
-    f32 tracking, FontEngine& engine);
-
-// measure_text_width — total advance width INCLUDING tracking, matching
-// layout_glyphs output.  Returns 0.0f if shaping fails (fail-soft; layout_glyphs
-// fail-loud via throw).
-//
-// Transitional thin-wrapper over shape_glyph_line() — fail-soft width
-// measurement with one engine.shape_text call for this returned snapshot.
-[[nodiscard]] f32 measure_text_width(const std::string& text, f32 font_size,
-                                     const FontSpec& spec, f32 tracking,
-                                     FontEngine& engine);
-
-// layout_glyphs — per-glyph positions at FINAL locations (only opacity /
-// position animate per frame so the text block stays perfectly stable).
-// Throws std::runtime_error on HarfBuzz shaping failure (zero glyphs)
-// per AGENTS.md §honesty (fail-loud path = font resolution / AssetResolver
-// errors land here).
-//
-// Transitional thin-wrapper over shape_glyph_line() — fail-loud layout
-// materialization from the returned snapshot.
-// Byte-equivalence with pre-refactor version preserved via:
-//   - shape_glyph_line stores the caller's ref_offset_x in the snapshot
-//   - layout_glyphs reads positions directly from that offset-bearing snapshot
-[[nodiscard]] std::vector<GlyphPos> layout_glyphs(
-    const std::string& text, f32 font_size,
-    const FontSpec& spec, f32 tracking,
-    f32 ref_offset_x,
-    FontEngine& engine);
 
 } // namespace chronon3d::content::text_reveal

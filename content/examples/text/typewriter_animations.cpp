@@ -43,6 +43,8 @@
 #include "content/common/text/glyph_layout.hpp"
 #include <chronon3d/text/text_definition.hpp>
 
+#include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -221,9 +223,12 @@ Composition anim_typewriter_stagger() {
                 lines[i].text, lines[i].size, spec,
                 /*tracking=*/TW_TRACKING, /*ref_offset_x=*/0.0f,
                 *s.font_engine());
-            if (shaped && shaped->width() > max_w) {
-                max_w = shaped->width();
+            if (!shaped) {
+                throw std::runtime_error(
+                    "anim_typewriter_stagger: unable to shape line " +
+                    std::to_string(i));
             }
+            max_w = std::max(max_w, shaped->width());
         }
         f32 ref_x = -max_w * 0.5f;
 
