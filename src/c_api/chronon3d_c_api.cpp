@@ -86,7 +86,7 @@ std::optional<std::size_t> rendered_byte_size(const Rendered& rendered) {
 }
 
 chronon3d::render_plan::PreparedRenderPlan compile_plan(
-    const json& root, const chronon3d::assets::AssetResolver& resolver) {
+    const json& root, chronon3d::assets::AssetResolver& resolver) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
     if (!decoded) throw std::runtime_error(decoded.error().message);
     const auto compiled = chronon3d::render_plan::compile_render_plan(

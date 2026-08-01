@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::render_plan {
@@ -23,6 +24,10 @@ struct ContentDigest {
     [[nodiscard]] std::string hex() const;
     friend bool operator==(const ContentDigest&, const ContentDigest&) = default;
 };
+
+/// Hash a deterministic byte/string representation with the same SHA-256
+/// primitive used by prepared assets.
+[[nodiscard]] ContentDigest sha256_string(std::string_view value);
 
 enum class PreparedAssetKind : std::uint8_t {
     Image,
