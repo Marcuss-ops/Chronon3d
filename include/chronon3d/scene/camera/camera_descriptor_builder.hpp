@@ -6,7 +6,7 @@
 // P3-H + feat(api) public camera facade — the canonical "how an external
 // consumer writes a perspective camera" entry point.  Stateless, value-typed,
 // zero allocation.  Returns a `CameraDescriptor` by value from `.build()`,
-// which is then compiled via `chronon3d::compile_camera(descriptor).value()`.
+// which is then compiled by `compile_composition()` at the runtime boundary.
 //
 // The fields exposed by `.position() / .look_at() / .lens() / .id() /
 // .enabled()` map 1:1 onto `CameraBaseSpec` (and the `PhysicalLensProjection`
@@ -23,9 +23,7 @@
 //           .sensor_width_mm = 36.0f,
 //       })
 //       .build();
-//   auto program = chronon3d::compile_camera(descriptor).value();
-//
-//   composition.camera_program(program);
+//   composition.default_camera_descriptor(descriptor);
 //   renderer.render(composition, Frame{30});
 //
 // Cat-3 compliance: this header introduces NO new singleton / registry /
