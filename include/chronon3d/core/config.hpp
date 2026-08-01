@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include <chronon3d/cache/framebuffer_pool.hpp>  // P1-21: FramebufferPoolClearPolicy
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
@@ -182,6 +183,16 @@ public:
 
     /// Set the framebuffer pool budget on this instance (non-static).
     void set_fb_pool_budget(std::size_t bytes);
+
+    /// Configure whether the per-runtime persistent framebuffer store is disabled.
+    void set_disable_persistent_framebuffer_cache(bool disabled) noexcept {
+        cache_.disable_persistent_framebuffer_cache_ = disabled;
+    }
+
+    /// Configure the per-runtime persistent framebuffer cache directory.
+    void set_persistent_framebuffer_cache_dir(std::string path) {
+        paths_.persistent_framebuffer_cache_dir_ = std::move(path);
+    }
 
     /// P1-21: set the framebuffer pool clear policy on this instance
     /// (non-static).  Overrides the env-resolved default
