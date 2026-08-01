@@ -16,9 +16,20 @@ add_library(chronon3d_render_plan_compiler OBJECT
     render_plan_compiler.cpp
 )
 
+set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
+    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v1.schema.json)
+file(READ "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"
+     CHRONON3D_RENDER_PLAN_SCHEMA_JSON)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/render_plan_schema.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated_render_plan_schema.hpp
+    @ONLY
+)
+
 target_include_directories(chronon3d_render_plan
     PUBLIC  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_include_directories(chronon3d_render_plan_compiler
