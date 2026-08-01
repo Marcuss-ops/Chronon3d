@@ -15,6 +15,8 @@
 #include <chronon3d/text/text_resolver.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
+
+#include "src/text/resolver/font_resolver.hpp"
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -159,7 +161,7 @@ TEST_CASE("TextResolver: mixed LTR/RTL text produces directional runs") {
 // 5. Font fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("TextResolver: resolve_fallback_fonts returns primary if loadable") {
+TEST_CASE("TextResolver: FontResolver resolves a primary or fallback font") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
@@ -167,10 +169,13 @@ TEST_CASE("TextResolver: resolve_fallback_fonts returns primary if loadable") {
     FontSpec spec;
     spec.font_family = "DejaVu Sans";
 
+    chronon3d::text::resolver::FontRequest request;
+    request.primary = spec;
+    const auto result = chronon3d::text::resolver::FontResolver{engine}.resolve(request);
+    const auto& resolved = result.resolved;
     // If DejaVu Sans is available on the system, it should return unchanged.
-    // If not, it falls through to next candidates.  We just check that
-    // the function doesn't crash and returns a FontSpec.
-    auto resolved = resolve_fallback_fonts(spec, engine);
+    // If not, it falls through to the canonical fallback chain.  In either
+    // case the service must not crash and must return a usable family.
     // The family should be unchanged because the primary was loadable
     // or the fallback chain returned the primary anyway.
     CHECK(!resolved.font_family.empty());
