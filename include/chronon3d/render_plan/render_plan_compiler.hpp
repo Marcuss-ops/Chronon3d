@@ -3,6 +3,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
@@ -19,13 +20,14 @@ struct RenderJobFingerprint {
 
 /// Immutable output of render-plan preparation.
 ///
-/// Composition remains the current runtime execution value, while the plan
-/// metadata travels with it so callers do not have to keep a second decoded
-/// RenderPlan alive.  Asset byte hashes and a prepared asset manifest are
-/// intentionally a follow-up: the resolver is already the only path used
-/// during preparation, and this value is the stable insertion point for that
-/// manifest.
+/// `compiled_composition` is the canonical execution value.  The
+/// `composition` member is a temporary source-compatibility view for the
+/// legacy CLI/runtime boundary; it is built from the same
+/// CompositionDefinition and has no independent compilation path.
 struct PreparedRenderPlan {
+    CompiledComposition compiled_composition;
+
+    // Transitional adapter.  New consumers must use compiled_composition.
     std::shared_ptr<const Composition> composition;
     chronon3d::assets::PreparedAssetManifest assets;
     chronon3d::assets::PreparedAssetStore resources;

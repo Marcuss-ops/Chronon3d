@@ -13,8 +13,10 @@ chronon3d_add_test_suite(
     TIER UNIT
     LINK_TARGETS
         chronon3d_render_plan
+        chronon3d_render_plan_compiler
         nlohmann_json::nlohmann_json
     SOURCES
         c_abi/test_render_plan_decoder.cpp
         c_abi/test_render_plan_validator.cpp
-)
+        c_abi/test_prepared_render_plan.cpp
+    )

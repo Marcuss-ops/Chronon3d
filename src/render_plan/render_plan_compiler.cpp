@@ -4,6 +4,7 @@
 #include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/presets/text/text_presets_v1.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <filesystem>
 #include <optional>
@@ -143,8 +144,9 @@ compile_render_plan(const RenderPlan& plan,
         spec.frame_rate = {plan.canvas.fps, 1};
         spec.duration = plan.canvas.duration;
 
-        auto composition = std::make_shared<Composition>(
-            std::move(spec), [plan, canvas, subtitles](const FrameContext& ctx) {
+        CompositionDefinition definition;
+        definition.composition = spec;
+        definition.scene = [plan, canvas, subtitles](const FrameContext& ctx) {
                 SceneBuilder scene(ctx);
                 for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                     const auto& layer = plan.layers[index];
@@ -191,8 +193,21 @@ compile_render_plan(const RenderPlan& plan,
                     });
                 }
                 return scene.build();
-            }, content_fingerprint);
+            };
+        definition.scene_content_fingerprint = content_fingerprint;
+
+        // The explicit definition is compiled first and is the sole
+        // canonical preparation path.  The legacy Composition below is only
+        // a view for consumers that have not yet migrated to CompiledComposition.
+        auto compiled = chronon3d::compile_composition(definition, {});
+        if (!compiled) {
+            return PlanDecodeError{"composition", compiled.error().message};
+        }
+
+        auto composition = std::make_shared<Composition>(
+            definition.composition, definition.scene, content_fingerprint);
         PreparedRenderPlan prepared;
+        prepared.compiled_composition = std::move(compiled).value();
         prepared.composition = std::shared_ptr<const Composition>(std::move(composition));
         prepared.assets = std::move(assets);
         prepared.resources = std::move(resources);
