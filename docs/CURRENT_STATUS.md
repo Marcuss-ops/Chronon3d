@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> Ultima revisione semantica: 2026-07-30.
+> Ultima revisione semantica: 2026-08-01.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@fd5cbcf2` — build-fix baseline: aggregate target 795/795 PASS, default build 40/40 PASS, linker error `create_video_sink` risolto con `#if CHRONON3D_ENABLE_VIDEO` guards. CTest ~76% PASS (golden/visual PARTIAL). Tag: `build-fix-baseline-2026-07-30`.
+> Ultimo SHA osservato: `main@771aa603` — cleanup legacy source/doc verificato: core ctest 1/1, composition-camera unification 1/1, consumer SDK text/camera/full PASS, doc-sync/architecture/test-registration PASS. Full baseline 11/11 non ricalcolata.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
