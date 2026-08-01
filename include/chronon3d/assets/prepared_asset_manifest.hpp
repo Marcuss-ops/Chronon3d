@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <span>
 #include <vector>
 
 namespace chronon3d::render_plan {
@@ -62,13 +63,21 @@ enum class AssetPreflightErrorCode {
     AssetTooLarge,
     TotalBudgetExceeded,
     ReadFailed,
-    HashFailed
+    HashFailed,
+    AssetChangedAfterPreflight
 };
 
 struct AssetPreflightError {
     AssetPreflightErrorCode code{AssetPreflightErrorCode::ReadFailed};
     std::string logical_path;
     std::string message;
+};
+
+struct PreparedAssetView {
+    std::span<const std::byte> bytes{};
+    PreparedAssetKind kind{PreparedAssetKind::Data};
+    std::uint64_t byte_size{0};
+    ContentDigest content_digest{};
 };
 
 /// Immutable result of asset preflight.  The only accessors expose const
@@ -94,7 +103,41 @@ private:
         const struct AssetPreflightPolicy& policy);
 };
 
+/// Immutable resources retained after preflight. Small textual resources are
+/// copied into owned byte storage; large media keeps only its certified
+/// metadata and digest so the compiler never opens a second filesystem path.
+class PreparedAssetStore {
+public:
+    [[nodiscard]] const PreparedAssetManifest& manifest() const noexcept {
+        return m_manifest;
+    }
+
+    [[nodiscard]] Result<PreparedAssetView, AssetPreflightError> find(
+        std::string_view logical_path,
+        PreparedAssetKind kind) const;
+
+private:
+    struct Resource {
+        PreparedAsset metadata;
+        std::vector<std::byte> bytes;
+    };
+
+    PreparedAssetManifest m_manifest;
+    std::vector<Resource> m_resources;
+
+    friend Result<PreparedAssetStore, AssetPreflightError>
+    prepare_asset_store(
+        const render_plan::RenderPlan& plan,
+        AssetResolver& resolver,
+        const AssetPreflightPolicy& policy);
+};
+
 Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
+    const render_plan::RenderPlan& plan,
+    AssetResolver& resolver,
+    const AssetPreflightPolicy& policy = {});
+
+Result<PreparedAssetStore, AssetPreflightError> prepare_asset_store(
     const render_plan::RenderPlan& plan,
     AssetResolver& resolver,
     const AssetPreflightPolicy& policy = {});
