@@ -14,6 +14,8 @@
 
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 
+#include "generated_render_plan_schema.hpp"
+
 #include <cmath>
 #include <cstdint>
 #include <sstream>
@@ -311,113 +313,7 @@ std::string ValidationResult::format() const {
 ValidationResult validate_render_plan(const nlohmann::json& root) {
     ValidationResult result;
 
-    // The canonical schema is encoded inline (Cat-3 anti-dup: schema is
-    // the SSoT; this inlined copy is the validator's minimal machine-
-    // readable surface).  When the schema file evolves, this function
-    // MUST be updated in lockstep — the test suite verifies alignment
-    // (see test_render_plan_validator.cpp SUBCASE "schema alignment").
-    //
-    // The shape mirrors `schemas/chronon.render-plan.v1.schema.json`
-    // with the same keywords the schema file declares.
-    using nlohmann::json;
-    const json schema = {
-        {"type", "object"},
-        {"additionalProperties", false},
-        {"required", json::array({"schema", "version", "canvas", "layers", "output"})},
-        {"properties", {
-            {"schema", {{"const", "chronon.render-plan"}}},
-            {"version", {{"const", 1}}},
-            {"job_id", {{"type", "string"}, {"minLength", 1}}},
-            {"canvas", {
-                {"type", "object"},
-                {"additionalProperties", false},
-                {"required", json::array({"width", "height", "fps", "duration_frames"})},
-                {"properties", {
-                    {"width",           {{"type", "integer"}, {"minimum", 1}, {"maximum", 7680}}},
-                    {"height",          {{"type", "integer"}, {"minimum", 1}, {"maximum", 4320}}},
-                    {"fps",             {{"type", "integer"}, {"minimum", 1}, {"maximum", 240}}},
-                    {"duration_frames", {{"type", "integer"}, {"minimum", 1}, {"maximum", 1000000}}}
-                }}
-            }},
-            {"layers", {
-                {"type", "array"},
-                {"maxItems", 1024},
-                {"items", {
-                    {"type", "object"},
-                    {"additionalProperties", false},
-                    {"required", json::array({"id", "type"})},
-                    {"properties", {
-                        {"id",      {{"type", "string"}, {"minLength", 1}}},
-                        {"type",    {{"enum", json::array({"image", "video", "text", "color", "subtitle_track"})}}},
-                        {"asset",   {{"type", "string"}}},
-                        {"source",  {{"type", "string"}}},
-                        {"text",    {{"type", "string"}, {"maxLength", 1048576}}},
-                        {"font",    {{"type", "string"}}},
-                        {"font_size",   {{"type", "number"}, {"exclusiveMinimum", 0}}},
-                        {"box_width",   {{"type", "number"}, {"exclusiveMinimum", 0}}},
-                        {"box_height",  {{"type", "number"}, {"exclusiveMinimum", 0}}},
-                        {"color", {
-                            {"type", "array"}, {"minItems", 4}, {"maxItems", 4},
-                            {"items", {{"type", "number"}}}
-                        }},
-                        {"position", {
-                            {"type", "array"},
-                            {"minItems", 2},
-                            {"maxItems", 3},
-                            {"items", {{"type", "number"}}}
-                        }},
-                        {"start_frame",     {{"type", "integer"}, {"minimum", 0}}},
-                        {"duration_frames", {{"type", "integer"}, {"minimum", 1}}},
-                        {"fit",    {{"enum", json::array({"cover", "contain", "stretch", "none"})}}},
-                        {"format", {{"enum", json::array({"srt", "vtt", "json"})}}},
-                        {"preset", {{"type", "string"}}},
-                        {"animation", {
-                            {"type", "object"},
-                            {"additionalProperties", false},
-                            {"required", json::array({"preset"})},
-                            {"properties", {
-                                {"preset",          {{"type", "string"}, {"minLength", 1}}},
-                                {"start_frame",     {{"type", "integer"}, {"minimum", 0}}},
-                                {"duration_frames", {{"type", "integer"}, {"minimum", 1}}}
-                            }}
-                        }}
-                    }}
-                }}
-            }},
-            {"audio_tracks", {
-                {"type", "array"},
-                {"maxItems", 128},
-                {"items", {
-                    {"type", "object"},
-                    {"additionalProperties", false},
-                    {"required", json::array({"source"})},
-                    {"properties", {
-                        {"source",             {{"type", "string"}, {"minLength", 1}}},
-                        {"volume",             {{"type", "number"}, {"minimum", 0}, {"maximum", 4}}},
-                        {"start_time_offset",  {{"type", "number"}, {"minimum", 0}}},
-                        {"duration_seconds",   {{"type", "number"}, {"minimum", 0}}},
-                        {"role",               {{"type", "string"}}},
-                        {"loop",               {{"type", "boolean"}}},
-                        {"fade_in_seconds",    {{"type", "number"}, {"minimum", 0}}},
-                        {"fade_out_seconds",   {{"type", "number"}, {"minimum", 0}}},
-                        {"ducking_enabled",    {{"type", "boolean"}}}
-                    }}
-                }}
-            }},
-            {"output", {
-                {"type", "object"},
-                {"additionalProperties", false},
-                {"required", json::array({"path"})},
-                {"properties", {
-                    {"path",    {{"type", "string"}, {"minLength", 1}}},
-                    {"format",  {{"enum", json::array({"png", "mp4", "mkv", "webm"})}}},
-                    {"codec",   {{"enum", json::array({"auto", "h264", "h265", "vp9", "av1"})}}},
-                    {"bitrate", {{"type", "integer"}, {"minimum", 0}}},
-                    {"crf",     {{"type", "integer"}, {"minimum", 0}, {"maximum", 63}}}
-                }}
-            }}
-        }}
-    };
+    const auto& schema = render_plan_schema();
 
     // Root-level guard: the plan MUST be a JSON object before any
     // subschema walk.  Surface this as WrongType rather than letting
