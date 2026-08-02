@@ -1,3 +1,15 @@
+## 2026-08-02
+### `fix(pipeline): enforce prepared asset integrity at render` (`60a2d028`)
+
+`PreparedRenderPlan` ora esegue il `CompiledComposition` canonico e porta il
+manifest degli asset fino al render boundary. Il runtime verifica size/mtime e
+ricalcola SHA-256 quando l’identità filesystem cambia; il cambio di bytes viene
+propagato come errore strutturato fino a `CHRONON_ERROR_ASSET_CHANGED` nel C ABI.
+La superficie C ABI riporta la versione v2 e i test coprono anche JSON a
+lunghezza esplicita, buffer caller-owned e busy/cancellation paths. La fixture
+`ImageProofs` non usa più un path inesistente né un font implicito: il renderer
+resta fail-loud e il proof usa un placeholder authored esplicito.
+
 ## 2026-07-31
 ### `chore(tools): remove unused frame analyzer` ([TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1](tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md))
 Removed `tools/analyze_frames.py` after confirming zero active wiring in CMake, CI, gates, tests, bench, and maintained tools. The nightly contact-sheet script and benchmark self-test remain in place because they have active/documented roles.
