@@ -12,3 +12,12 @@
 //
 // The function is declared here, implemented in command_inspect_text.cpp.
 // ═══════════════════════════════════════════════════════════════════════════
+
+#include "../../commands.hpp"
+
+namespace chronon3d::cli {
+
+int command_inspect_text(const CompositionRegistry& registry,
+                         const InspectTextArgs& args);
+
+} // namespace chronon3d::cli

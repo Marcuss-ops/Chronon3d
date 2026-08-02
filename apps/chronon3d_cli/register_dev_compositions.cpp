@@ -130,7 +130,8 @@ void register_dev_compositions(CompositionRegistry& registry) {
     // Production factory (header-only); registration is DEV-only per user spec.
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id = "ChrononGlowFinalAE_NoGlow"}, [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::content::glow_final::default_landscape_props();
+            chronon3d::content::glow_final::ChrononGlowProps p =
+                chronon3d::content::glow_final::default_landscape_props();
             p.glow_enabled = false;
             return chronon3d::content::glow_final::make_chronon_glow_final(p);
         }));

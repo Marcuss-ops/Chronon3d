@@ -139,8 +139,8 @@ Composition make_camera_truth_orbit() {
         .color = chronon3d::Color{1.0f, 0.70f, 0.30f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {500.0f, 24.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = chronon3d::TextAlign::Left,
         .line_height = 1.20f,
         .tracking = 2.0f
