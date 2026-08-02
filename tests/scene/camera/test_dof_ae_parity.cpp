@@ -158,6 +158,7 @@ TEST_CASE("FASE 5.2: Animated focus distance — rack focus") {
         Camera2_5D cam = eval_one(def, Frame{0});
         CHECK(cam.dof.enabled);
         CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(200.0f).epsilon(kDofEps));
         CHECK(cam.dof.aperture       == doctest::Approx(0.03f).epsilon(kDofEps));
         CHECK(cam.dof.max_blur       == doctest::Approx(24.0f).epsilon(kDofEps));
     }
@@ -165,23 +166,27 @@ TEST_CASE("FASE 5.2: Animated focus distance — rack focus") {
     SUBCASE("frame 60 — focus at far (keyframe peak)") {
         Camera2_5D cam = eval_one(def, Frame{60});
         CHECK(cam.dof.focus_distance == doctest::Approx(1000.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(1000.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 120 — focus back to near (keyframe end)") {
         Camera2_5D cam = eval_one(def, Frame{120});
         CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(200.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 30 — midpoint interpolation (200→1000)") {
         Camera2_5D cam = eval_one(def, Frame{30});
         // Linear interpolation: 200 + (1000-200)/2 = 600
         CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(600.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 90 — midpoint interpolation (1000→200)") {
         Camera2_5D cam = eval_one(def, Frame{90});
         // Linear interpolation: 1000 + (200-1000)/2 = 600
         CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(600.0f).epsilon(kDofEps));
     }
 }
 

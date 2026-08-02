@@ -31,8 +31,19 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "PerPixelDOF"; }
 
+    [[nodiscard]] const Camera2_5DRuntime& camera_for(
+        const RenderGraphContext& ctx) const noexcept {
+        // The node is compiled once and may be reused across animated frames.
+        // Keep the constructor value only as a fallback for isolated node
+        // tests; production execution must consume the evaluated camera from
+        // the current frame context.
+        return ctx.frame_input.has_camera_2_5d
+            ? ctx.frame_input.camera_2_5d
+            : m_camera;
+    }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
+        const auto& camera = camera_for(ctx);
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
             .frame = ctx.frame_input.frame,
@@ -40,9 +51,11 @@ public:
             .height = ctx.frame_input.height,
             .params_hash = hash_combine(
                 hash_combine(
-                    hash_value(m_camera.dof.focus_z),
-                    hash_value(m_camera.dof.aperture)),
-                hash_value(m_camera.dof.max_blur))
+                    hash_value(camera.dof.focus_z),
+                    hash_value(camera.dof.focus_distance)),
+                hash_combine(
+                    hash_value(camera.dof.aperture),
+                    hash_value(camera.dof.max_blur)))
         };
     }
 
@@ -50,6 +63,7 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override {
+        const auto& camera = camera_for(ctx);
         // DOF blur expands the bounding box by max_blur pixels.
         if (input_bboxes.empty() || !input_bboxes[0]) {
             return std::nullopt;
@@ -57,7 +71,7 @@ public:
         auto bbox = *input_bboxes[0];
         if (bbox.is_empty()) return bbox;
 
-        const float blur = m_camera.dof.max_blur;
+        const float blur = camera.dof.max_blur;
         if (blur <= 0.5f) return bbox;
 
         bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - blur)));

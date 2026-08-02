@@ -26,11 +26,11 @@
 //      inputs.
 //
 //   3. No compilation: the DOF pass is a render-graph node, not a
-//      camera compile step.  The camera program + DOF settings are
-//      baked in at compile time (outside the render loop) and the
-//      execute() function reads them by value per call.  No
-//      `compile_camera()` call inside execute() (same invariant as
-//      the motion-blur-no-recompile contract).
+//      camera compile step.  The graph node is compiled outside the
+//      render loop, while execute() reads the already-evaluated camera
+//      from the current frame context.  No `compile_camera()` call is
+//      allowed inside execute() (same invariant as the
+//      motion-blur-no-recompile contract).
 //
 //   4. No threading-induced non-determinism: the kernel processes
 //      pixels in a deterministic order (left-to-right, top-to-bottom
@@ -68,10 +68,12 @@ NodeExecResult PerPixelDofNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes)
 {
+    const auto& camera = camera_for(ctx);
+    const auto& dof_depth = ctx.node_exec.dof_depth_buffer();
     if (ctx.policy.diagnostics_enabled) {
         spdlog::info("[PerPixelDofNode] focus_z={:.1f} enabled={} dof_depth_size={} inputs_count={}",
-            m_camera.dof.focus_z, m_camera.dof.enabled,
-            ctx.node_exec.dof_depth.size(), inputs.size());
+            camera.dof.focus_z, camera.dof.enabled,
+            dof_depth.size(), inputs.size());
     }
 
     if (inputs.empty() || !inputs[0]) {
@@ -80,12 +82,12 @@ NodeExecResult PerPixelDofNode::execute(
         return NodeExecResult{std::move(empty)};
     }
 
-    if (!m_camera.dof.enabled) {
+    if (!camera.dof.enabled) {
         return ctx.acquire_owned_fb(*inputs[0]);
     }
 
     // Check that the depth buffer was populated during compositing
-    if (ctx.node_exec.dof_depth.empty()) {
+    if (dof_depth.empty()) {
         // No depth data — fall through without blur
         return ctx.acquire_owned_fb(*inputs[0]);
     }
@@ -113,8 +115,8 @@ NodeExecResult PerPixelDofNode::execute(
         // work, but explicit construction documents intent and guards
         // against future type drift on `dof_depth`.
         ctx.services.backend->apply_per_pixel_dof(
-            *result, std::span<const float>{ctx.node_exec.dof_depth},
-            m_camera.dof, m_camera.lens, clip);
+            *result, std::span<const float>{dof_depth},
+            camera.dof, camera.lens, clip);
     }
 
     if (ctx.node_exec.counters) {

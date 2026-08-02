@@ -323,23 +323,15 @@ TEST_CASE("AE_CAM_06: dolly_zoom — subject size is maintained") {
     auto renderer = test::make_renderer();
     auto comp = make_ae_cam_06_dolly_zoom();
     auto fb0  = renderer.render(comp, Frame{0});
+    auto fb30 = renderer.render(comp, Frame{30});
     auto fb60 = renderer.render(comp, Frame{60});
     REQUIRE(fb0 != nullptr);
+    REQUIRE(fb30 != nullptr);
     REQUIRE(fb60 != nullptr);
 
     // Total frame must differ (background parallax).
-    // KNOWN-ISSUE (Fase 6): AE_CAM_06 dolly-zoom produces identical
-    // frames at 0/30/60 — the m_matrix_override centering pass strips
-    // the Z-coordinate from depth cards, causing all elements to project
-    // as if at Z=0 (1:1 zoom/distance ratio).  This is a separate
-    // architectural issue (Z-translation collapse in the graph builder's
-    // centering pass), NOT a precision-collapse regression.  Relaxed to
-    // MESSAGE until the Z-translation is preserved through the projection
-    // pipeline.  See TICKET-AE-CAM-MULTI-NODE-SWEEP for the forward-fix.
-    MESSAGE("AE_CAM_06 dolly-zoom: frames 0/30/60 identical — known "
-            "Z-translation collapse in m_matrix_override centering pass; "
-            "see graph_builder_source_pass.cpp centering override for "
-            "the forward-fix path (separate from precision collapse).");
+    CHECK(framebuffer_hash(*fb0) != framebuffer_hash(*fb30));
+    CHECK(framebuffer_hash(*fb30) != framebuffer_hash(*fb60));
 
     // Center region (subject) should have some similarity.
     // NOTE: compute_ssim runs on the full framebuffer; the dolly-zoom
@@ -430,17 +422,12 @@ TEST_CASE("AE_CAM_08: dof — focus distance changes blur pattern") {
     REQUIRE(fb60 != nullptr);
     REQUIRE(fb120 != nullptr);
 
-    // Different focus distances must produce different images.
-    // KNOWN-ISSUE: AE_CAM_08 (DOF with animated focus_z) currently
-    // produces byte-identical framebuffers at frame 0/60/120 — the
-    // per-frame DOF blur doesn't propagate through the renderer.  Same
-    // class as CAM_02/04 framebuffer-hash collision (downstream of
-    // resolve_scene_camera).  Relaxed to WARN until DOF per-frame
-    // evaluation is wired correctly.
-    MESSAGE("AE_CAM_08 focus-distance: fb0/60/120 hash collision "
-            "known issue — DOF blur not applied per-frame; "
-            "see TICKET-ae-cam-hash-collision for the "
-            "downstream-cache / node_cache fix path.");
+    // Different focus distances must produce different images.  The near
+    // and far cards are different colours, so all three key frames must
+    // remain distinguishable even when the blur radius is symmetric.
+    CHECK(framebuffer_hash(*fb0) != framebuffer_hash(*fb60));
+    CHECK(framebuffer_hash(*fb60) != framebuffer_hash(*fb120));
+    CHECK(framebuffer_hash(*fb0) != framebuffer_hash(*fb120));
 
     // Each frame must have some blur visible (non-zero pixels).
     check_not_black(*fb0);
