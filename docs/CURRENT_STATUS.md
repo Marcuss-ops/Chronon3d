@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@4e944243` (checkpoint locale non pushato) — 7/7 foundation tests PASS, core renderer 162/162 PASS, consumer SDK installato/canary 11/11 e consumer text/grid/camera/full/authoring PASS. Golden suite corrente 17/39 PASS; sanitizer completo e packaging release BLOCKED dall'ambiente/spazio. Full baseline 11/11 non ricalcolata.
+> Ultimo SHA osservato: `main@6a1f7dec` (checkpoint locale non pushato) — 7/7 foundation tests PASS, core renderer 162/162 PASS, consumer SDK installato/canary 11/11 e consumer text/grid/camera/full/authoring PASS. Golden suite corrente 19/39 PASS; sanitizer completo e packaging release BLOCKED dall'ambiente/spazio. Full baseline 11/11 non ricalcolata.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -52,7 +52,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden suite corrente 17/39 PASS, con golden 2.5D storiche obsolete e fixture Test 17.2 corretta. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden suite corrente 19/39 PASS, con golden 2.5D storiche obsolete e fixture Test 17.2 corretta. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
