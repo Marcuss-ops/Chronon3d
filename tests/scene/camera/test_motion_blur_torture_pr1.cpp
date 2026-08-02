@@ -132,11 +132,9 @@ std::shared_ptr<Framebuffer> render_with_mb(
 //          fed different `t` values, even though the SceneBuilder/Layer
 //          recipe is identical for every sub-frame).
 //
-//   TODO(chronon3d): rotate the fix target to (i) or (ii) above.  Re-enable
-//   this test once the rendering pipeline is byte-exact between N=1
-//   (mode=Off) and N=16 (TemporalAccumulation) for static compositions.
-// TICKET-007.j — see metadata block 7 lines above.
-TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" * doctest::skip()) {  // TICKET-007.j
+//   Current verification on the canonical linux-fast-dev build is byte-exact
+//   across N=1 and N=16; keep the regression lock active.
+TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples") {
     auto comp = make_static_composition();
 
     // Reference: motion blur disabled
@@ -297,11 +295,8 @@ TEST_CASE("PR1-Torture: deterministic motion blur across two consecutive runs") 
 //   Motivation: pre-existing rot; motion-blur sub-frame edge clipping bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — dead_zones > 1 in fast-object smear test.
-// TODO(chronon3d): fix sub-frame edge clipping in TemporalAccumulation
-// and re-enable.
 // TICKET-007.l (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur sub-frame edge clipping on fast objects. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
-TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doctest::skip()) {  // TICKET-007.l
+TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window") {
     // A 20×20 rect moving 100 px/frame.  With samples=16 across a 360° shutter
     // (= full-frame exposure window centred on frame), the rect should appear
     // as a continuous horizontal smear from x = 0 - 32 to x = 0 + 32 with NO
@@ -440,12 +435,9 @@ TEST_CASE("PR1-Torture: static layers reused between sub-samples") {
 // If the migration dropped, swapped, or duplicated any per-sample weight
 // contribution, this test fails with framebuffer bytes diverging.
 
-// DISABLED: TICKET-120 — pre-existing rendering pipeline bug.
-// TemporalAccumulation framebuffer is not byte-equal to mode=Off
-// due to sub-pixel jitter / FP drift in render_scene_via_graph.
 TEST_CASE("motion_blur_parity_ticket_026 — MotionBlurMode::TemporalAccumulation "
           "runtime output IS IDENTICAL to the legacy `enabled=true` "
-          "post-TICKET-026 contract (lock the parity)" * doctest::skip()) {
+          "post-TICKET-026 contract (lock the parity)") {
     const i32 w = 64;
     const i32 h = 64;
 
