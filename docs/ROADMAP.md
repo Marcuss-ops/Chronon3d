@@ -432,7 +432,7 @@ Sequenza di lavoro — 5 step incrementali. Ogni step è un commit atomic su `ma
 
 2. **Killer test driver** (TICKET-AE-PARITY-KILLER-PER-CHAR-3D + TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION; cross-link TICKET-MOTION-BLUR-TEXT + TICKET-GOLDEN-30). Per ogni killer test: `tests/text_golden/ae_parity_killer/<name>.cpp` con 3 SUBCASEs (determinism seed + frame-by-frame delta + cross-run reproducibility). Cross-link a M5 milestone per per-char-3D (text 3D + Expressions V2 stable prerequisite).
 
-3. **Floor deliverable: 288 PNG** (TICKET-AE-PARITY-FLOOR) post-CAPTURE-fix (`TICKET-GOLDEN-CAPTURE` chiusura prerequisita). `git ls-files HEAD ./test_renders/golden/text/ae_*.png` ≥ 120; consumato dal `tools/test_golden_driver.sh verify linux-release` con zero PNG drift.
+3. **Floor deliverable: 288 PNG** (TICKET-AE-PARITY-FLOOR) post-CAPTURE-fix (`TICKET-GOLDEN-CAPTURE` chiusura prerequisita). `git ls-files HEAD ./test_renders/golden/text/ae_*.png` ≥ 120; consumato dal `tools/test_golden_driver.sh run linux-release-validation` con zero PNG drift.
 
 4. **Referee pipeline** (TICKET-AE-PARITY-DRIVER). `tools/ae_parity_referee.sh`: per ogni AE-parity scene, `reference/after_effects/scene_NNN_frame_NN.png` (AE-side mock futuro) + `reference/chronon3d/scene_NNN_frame_NN.png` (engine output) + diff harness `mean_abs_diff + perceptual color metric` con lock a 5/255 threshold. Rigoroso: nessun claim di "AE-like" finché referee non passa su almeno 10/15 scene cinematic. Step forward-only: prima le 5 scene storiche (ae_01..05) devono passare referee come proof-of-concept.
 
