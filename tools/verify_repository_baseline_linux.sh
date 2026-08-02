@@ -17,7 +17,8 @@
 # Honest-state contract (AGENTS.md §honesty + §honest-limitation):
 #   - BASELINE_FUNCTIONAL_PASS is only emitted when ALL 7 sections pass.
 #   - BASELINE_FUNCTIONAL_FAIL is emitted on any FAIL section (non-zero exit).
-#   - BASELINE_FUNCTIONAL_BLOCKED is emitted when env/configure/build is blocked.
+#   - BASELINE_FUNCTIONAL_BLOCKED is emitted when any required section is
+#     blocked, including explicit audit-only overrides.
 #   - BLOCKED steps are reported with explicit diagnostic, not silently skipped.
 #   - Exit code 0 = PASS, 1 = FAIL, 2 = BLOCKED.
 #
@@ -422,7 +423,7 @@ echo ""
 # path is non-PASS, so the [INFO] emission is suppressed here — the
 # BASELINE_FUNCTIONAL_BLOCKED line IS the canonical verdict for that state.
 
-if [ "$BUILD_BLOCKED" = true ] || [ "$ENV_BLOCKED" = true ]; then
+if [ "$BUILD_BLOCKED" = true ] || [ "$ENV_BLOCKED" = true ] || [ "$BLOCKED_COUNT" -gt 0 ]; then
     echo "BASELINE_FUNCTIONAL_BLOCKED"
     echo ""
     echo "  The baseline certification is blocked by:"
@@ -435,6 +436,9 @@ if [ "$BUILD_BLOCKED" = true ] || [ "$ENV_BLOCKED" = true ]; then
         echo "    - Fix: see the per-file canonical-fix matrix in"
         echo "      docs/baselines/main-df1e09d9-rot-cascade-baseline.md"
         echo "      (TICKET-BUILD-ROT-CASCADE-CAMERA, ~409 errors at df1e09d9)"
+    fi
+    if [ "$BLOCKED_COUNT" -gt 0 ] && [ "$BUILD_BLOCKED" = false ] && [ "$ENV_BLOCKED" = false ]; then
+        echo "    - $BLOCKED_COUNT required section(s) were explicitly skipped or otherwise blocked"
     fi
     exit 2
 elif [ "$FAIL_COUNT" -gt 0 ]; then
