@@ -23,6 +23,7 @@
 # Environment:
 #   CHRONON3D_SAN_SKIP_BUILD=1   Skip cmake configure + build (reuse existing)
 #   CHRONON3D_SAN_SKIP_TSAN=1    Skip TSan phase (ASan/UBSan only)
+#   CHRONON3D_SAN_JOBS=N         Sanitizer build parallelism (default: min(nproc, 8))
 # ═══════════════════════════════════════════════════════════════════════════
 
 GATE_NAME="verify_sanitizer_linux"
@@ -36,7 +37,14 @@ CHRONON3D_SAN_SKIP_TSAN="${CHRONON3D_SAN_SKIP_TSAN:-0}"
 # NOTE: set -u + pipefail only — NO set -e (must run all phases and aggregate)
 set -uo pipefail
 
-NPROC=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+CPU_COUNT=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+SAN_JOBS="${CHRONON3D_SAN_JOBS:-$CPU_COUNT}"
+if ! [[ "$SAN_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+    SAN_JOBS=8
+fi
+if [ "$SAN_JOBS" -gt 8 ] && [ -z "${CHRONON3D_SAN_JOBS:-}" ]; then
+    SAN_JOBS=8
+fi
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -48,6 +56,15 @@ ENV_BLOCKED=false
 _gate_pass()   { echo "  [PASS]    $1"; PASS_COUNT=$((PASS_COUNT + 1)); }
 _gate_fail()   { echo "  [FAIL]    $1 — $2"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
 _gate_blocked(){ echo "  [BLOCKED] $1 — $2"; BLOCKED_COUNT=$((BLOCKED_COUNT + 1)); }
+
+# `grep -c` writes a valid zero before returning status 1 when there are no
+# matches.  With `pipefail`, appending `|| echo 0` produced the invalid value
+# `0\n0`, which then made numeric comparisons fail.  Keep the stream on stdin
+# and normalize the exit status in one place.
+count_matches() {
+    local pattern="$1"
+    grep -cE "$pattern" 2>/dev/null || true
+}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. Repository state
@@ -144,6 +161,7 @@ echo ""
 echo "== 3. ASan/UBSan build =="
 
 ASAN_BUILD_DIR="build/chronon/linux-asan"
+ASAN_BUILD_FAILED=false
 
 if [ "$ENV_BLOCKED" = true ]; then
     _gate_blocked "asan_build" "env blocked"
@@ -163,17 +181,21 @@ else
 
     # Build
     if [ "$ENV_BLOCKED" = false ] && [ -d "$ASAN_BUILD_DIR" ]; then
-        echo "  Building chronon3d_cli + chronon3d_tests (-j$NPROC)..."
+        echo "  Building chronon3d_cli + chronon3d_tests (-j$SAN_JOBS)..."
         asan_build_rc=0
         BUILD_OUTPUT=$(cmake --build "$ASAN_BUILD_DIR" \
-            --target chronon3d_cli chronon3d_tests -j"$NPROC" 2>&1) || asan_build_rc=$?
+            --target chronon3d_cli chronon3d_tests -j"$SAN_JOBS" 2>&1) || asan_build_rc=$?
         ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep -c 'error:' 2>/dev/null || echo 0)
         if [ "$ERROR_COUNT" -eq 0 ] && [ "$asan_build_rc" -eq 0 ]; then
             _gate_pass "asan_build (0 errors)"
         else
             _gate_fail "asan_build" "$ERROR_COUNT compilation errors (exit=$asan_build_rc)"
+            ASAN_BUILD_FAILED=true
             echo "$BUILD_OUTPUT" | grep 'error:' | head -5
         fi
+    elif [ "$ENV_BLOCKED" = false ]; then
+        _gate_blocked "asan_build" "build dir $ASAN_BUILD_DIR not found"
+        ASAN_BUILD_FAILED=true
     fi
 fi
 
@@ -186,6 +208,8 @@ echo "== 4. ASan/UBSan ctest (0 leak ASan = DoD hard) =="
 
 if [ "$ENV_BLOCKED" = true ]; then
     _gate_blocked "asan_ctest" "build blocked"
+elif [ "$ASAN_BUILD_FAILED" = true ]; then
+    _gate_blocked "asan_ctest" "build failed; stale sanitizer binaries not executed"
 elif [ ! -d "$ASAN_BUILD_DIR" ]; then
     _gate_blocked "asan_ctest" "build dir $ASAN_BUILD_DIR not found"
 else
@@ -196,9 +220,9 @@ else
                    ctest --preset linux-asan-test --output-on-failure 2>&1) || CTEST_RC=$?
 
     # Explicit 0-leak enforcement (grep even if ctest passes)
-    LEAK_COUNT=$(echo "$CTEST_OUTPUT" | grep -cE 'LeakSanitizer|leak detected|Direct leak|Indirect leak' 2>/dev/null || echo 0)
-    OOB_COUNT=$(echo "$CTEST_OUTPUT" | grep -cE 'heap-buffer-overflow|stack-buffer-overflow|heap-use-after-free' 2>/dev/null || echo 0)
-    UB_COUNT=$(echo "$CTEST_OUTPUT" | grep -cE 'runtime error:|undefined behavior|UndefinedBehavior' 2>/dev/null || echo 0)
+    LEAK_COUNT=$(printf '%s\n' "$CTEST_OUTPUT" | count_matches 'LeakSanitizer|leak detected|Direct leak|Indirect leak')
+    OOB_COUNT=$(printf '%s\n' "$CTEST_OUTPUT" | count_matches 'heap-buffer-overflow|stack-buffer-overflow|heap-use-after-free')
+    UB_COUNT=$(printf '%s\n' "$CTEST_OUTPUT" | count_matches 'runtime error:|undefined behavior|UndefinedBehavior')
 
     echo "  ctest rc=$CTEST_RC, leaks=$LEAK_COUNT, oob=$OOB_COUNT, ub=$UB_COUNT"
 
@@ -220,6 +244,7 @@ echo ""
 echo "== 5. TSan build + ctest (7 subsystems) =="
 
 TSAN_BUILD_DIR="build/chronon/linux-tsan"
+TSAN_BUILD_FAILED=false
 
 if [ "$ENV_BLOCKED" = true ] || [ "$CHRONON3D_SAN_SKIP_TSAN" = "1" ]; then
     _gate_blocked "tsan" "skipped or env blocked"
@@ -237,28 +262,34 @@ else
         fi
 
         if [ -d "$TSAN_BUILD_DIR" ] && [ "$tsan_rc" -eq 0 ]; then
-            echo "  Building chronon3d_cli + chronon3d_tests (-j$NPROC)..."
+            echo "  Building chronon3d_cli + chronon3d_tests (-j$SAN_JOBS)..."
             tsan_build_rc=0
             BUILD_OUTPUT=$(cmake --build "$TSAN_BUILD_DIR" \
-                --target chronon3d_cli chronon3d_tests -j"$NPROC" 2>&1) || tsan_build_rc=$?
+                --target chronon3d_cli chronon3d_tests -j"$SAN_JOBS" 2>&1) || tsan_build_rc=$?
             ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep -c 'error:' 2>/dev/null || echo 0)
             if [ "$ERROR_COUNT" -eq 0 ] && [ "$tsan_build_rc" -eq 0 ]; then
                 _gate_pass "tsan_build (0 errors)"
             else
                 _gate_fail "tsan_build" "$ERROR_COUNT compilation errors (exit=$tsan_build_rc)"
+                TSAN_BUILD_FAILED=true
             fi
+        elif [ -d "$TSAN_BUILD_DIR" ]; then
+            _gate_blocked "tsan_build" "build directory exists but configure did not complete"
+            TSAN_BUILD_FAILED=true
         fi
     fi
 
     # ctest
-    if [ -d "$TSAN_BUILD_DIR" ] && [ "${tsan_rc:-0}" -eq 0 ]; then
+    if [ "$TSAN_BUILD_FAILED" = true ]; then
+        _gate_blocked "tsan_ctest" "build failed; stale sanitizer binaries not executed"
+    elif [ -d "$TSAN_BUILD_DIR" ] && [ "${tsan_rc:-0}" -eq 0 ]; then
         echo "  Running ctest --preset linux-tsan-test --output-on-failure..."
         CTEST_RC=0
         CTEST_OUTPUT=$(TSAN_OPTIONS="halt_on_error=1:abort_on_error=1:second_deadlock_stack=1:print_stacktrace=1:history_size=7" \
                        ctest --preset linux-tsan-test --output-on-failure 2>&1) || CTEST_RC=$?
 
-        RACE_COUNT=$(echo "$CTEST_OUTPUT" | grep -cE 'ThreadSanitizer|data race|WARNING:.*race' 2>/dev/null || echo 0)
-        DEADLOCK_COUNT=$(echo "$CTEST_OUTPUT" | grep -cE 'deadlock|lock-order inversion' 2>/dev/null || echo 0)
+        RACE_COUNT=$(printf '%s\n' "$CTEST_OUTPUT" | count_matches 'ThreadSanitizer|data race|WARNING:.*race')
+        DEADLOCK_COUNT=$(printf '%s\n' "$CTEST_OUTPUT" | count_matches 'deadlock|lock-order inversion')
 
         echo "  ctest rc=$CTEST_RC, races=$RACE_COUNT, deadlocks=$DEADLOCK_COUNT"
 
