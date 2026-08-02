@@ -131,12 +131,7 @@ public:
     ///
     /// WP 5.1 — derives from the executor-driven `current_identity` when
     /// the GraphExecutor has populated it (the production path); falls
-    /// back to `kInvalid*Id` sentinel values when a test path drives
-    /// `precomp.execute(...)` directly without going through the full
-    /// executor.  In that fallback case the caller MUST override
-    /// `ctx.node_exec.current_identity` before invoking execute() —
-    /// otherwise the bucket key degenerates and multiple sibling
-    /// precomps alias.
+    /// back to a deterministic composition-derived key for direct callers.
     [[nodiscard]] PrecompInstanceKey instance_key(
         const RenderGraphContext& ctx
     ) const noexcept;
@@ -146,7 +141,10 @@ public:
     /// DEFAULT (invalid) identity.  Tests MUST pre-set
     /// `ctx.node_exec.current_identity` before invoking execute().
     [[nodiscard]] PrecompInstanceKey instance_key_default() const noexcept {
-        return make_precomp_key(kInvalidGraphInstanceId, kInvalidStableNodeId);
+        return PrecompInstanceKey{
+            static_cast<std::uint64_t>(kInvalidGraphInstanceId.value),
+            hash_string(m_comp_name),
+        };
     }
 
     /// Access the FrameParameterBlock (for diagnostics / testing).

@@ -47,6 +47,10 @@ inline std::filesystem::path cache_dir() {
 
 inline std::filesystem::path cache_path(f32 W, f32 H, const DarkGridBgParams& p) {
     u64 seed = 0;
+    // Bump when rasterization semantics change.  Parameter hashing alone
+    // cannot invalidate PNGs produced by an older algorithm.
+    constexpr u64 kCacheSchema = 2;
+    seed = mix_hash(seed, kCacheSchema);
     seed = mix_hash(seed, hash_float(W));
     seed = mix_hash(seed, hash_float(H));
     seed = mix_hash(seed, hash_color(p.bg_color));

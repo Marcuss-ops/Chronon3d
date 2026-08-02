@@ -58,7 +58,20 @@ struct TextRasterSpace {
     const TextRasterSpace& rs
 ) {
     BLMatrix2D m = glyph_mat;
-    m.translate(-rs.offset_x, -rs.offset_y);
+    if (rs.scale != 1) {
+        const double scale = static_cast<double>(rs.scale);
+        // The BLFont is created at the supersampled size, so its glyph
+        // geometry already carries this scale.  Only layout-space
+        // translations need conversion to surface pixels; scaling the
+        // linear part here would enlarge the glyph outlines a second time.
+        m.m20 *= scale;
+        m.m21 *= scale;
+    }
+    // offset_x/y are already in surface pixels.  Applying them through
+    // BLMatrix2D::translate would multiply them by the matrix linear part a
+    // second time when supersampling is enabled.
+    m.m20 -= static_cast<double>(rs.offset_x);
+    m.m21 -= static_cast<double>(rs.offset_y);
     return m;
 }
 

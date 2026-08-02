@@ -76,15 +76,8 @@ PrecompNode::~PrecompNode() = default;
 PrecompInstanceKey PrecompNode::instance_key(const RenderGraphContext& ctx) const noexcept {
     // WP 5.1 — derive the owner key from the executor-driven
     // `current_identity` on the executing node's context when the
-    // GraphExecutor has populated it (production path).  When a test
-    // path drives `precomp.execute(...)` directly without going through
-    // the full executor, `current_identity` stays at its default
-    // (invalid sentinel) and we fall back to `instance_key_default()`
-    // so per-instance buckets still partition correctly.  In that
-    // fallback case the caller MAY override `ctx.node_exec.current_identity`
-    // before invoking execute() — sibling PrecompNodes driving the
-    // fixture without an explicit override WILL alias on the invalid
-    // key (acceptable for tests that don't assert sibling-isolation).
+    // GraphExecutor has populated it (production path). Direct callers
+    // use the composition-derived compatibility key below.
     const auto& ident = ctx.node_exec.current_identity;
     if (ident.valid()) {
         return make_precomp_key(ident.graph, ident.node);
@@ -181,8 +174,11 @@ NodeExecResult PrecompNode::execute_with_scope(
 
     RenderGraphContext nested_ctx = ctx;
     nested_ctx.frame_input.frame   = nested_frame;
-    nested_ctx.frame_input.width   = comp.width();
-    nested_ctx.frame_input.height  = comp.height();
+    // A precomp is a source in the parent graph: its executable surface must
+    // have the parent render dimensions. The nested composition dimensions
+    // still drive its authoring/evaluation context below.
+    nested_ctx.frame_input.width   = ctx.frame_input.width;
+    nested_ctx.frame_input.height  = ctx.frame_input.height;
     nested_ctx.node_exec.current_identity.graph = static_cast<GraphInstanceId>(precomp_key.graph);
 
     // F1.D: P1-16 — the legacy `FrameContext::font_engine` field is REMOVED;

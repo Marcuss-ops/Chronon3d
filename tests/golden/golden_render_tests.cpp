@@ -68,7 +68,9 @@ TEST_CASE("Test 17.2 — Framebuffer dimension and float boundary comparisons") 
     auto renderer = test::make_renderer();
     Composition comp({.width = 128, .height = 64}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("box", {.size={60, 30}, .color=Color::white(), .pos={0, 0, 0}});
+        // Rect positions are center-based; the probes below intentionally
+        // sample the left and right interior edges of this 60x30 box.
+        s.rect("box", {.size={60, 30}, .color=Color::white(), .pos={64, 32, 0}});
         return s.build();
     });
 

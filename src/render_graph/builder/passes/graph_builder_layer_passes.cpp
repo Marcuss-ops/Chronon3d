@@ -2,11 +2,14 @@
 #include "../graph_builder_coordinates.hpp"
 
 #include <chronon3d/effects/effect_catalog.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/dof_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <memory>
+#include <atomic>
+#include <cstdint>
 
 namespace chronon3d::graph::detail {
 
@@ -27,6 +30,14 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         graph.node(current).name() == "Clear" &&
         layer.blend_mode == chronon3d::BlendMode::Normal &&
         graph.node(layer_output).can_seed_full_frame(ctx)) {
+        if (ctx.node_exec.counters) {
+            const auto pixels = static_cast<std::uint64_t>(ctx.frame_input.width) *
+                static_cast<std::uint64_t>(ctx.frame_input.height);
+            ctx.node_exec.counters->clear_skipped_calls.fetch_add(
+                1, std::memory_order_relaxed);
+            ctx.node_exec.counters->clear_skipped_pixels.fetch_add(
+                pixels, std::memory_order_relaxed);
+        }
         current = layer_output;
         return;
     }

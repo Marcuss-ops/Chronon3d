@@ -42,8 +42,23 @@ RenderPreparationResult prepare_render(
     }
 
     // Composition evaluation is intentionally random-access and collects
-    // inactive sequence assets as part of the canonical scene manifest.
-    const Scene scene = composition.evaluate(options.reference_frame);
+    // inactive sequence assets as part of the canonical scene manifest.  Use
+    // the same runtime-bound context as the subsequent render; evaluating
+    // through Composition::evaluate(Frame) here would silently drop the
+    // engine-local asset resolver and FontEngine at the preparation barrier.
+    const auto sample = SampleTime::from_frame_int(
+        options.reference_frame, composition.frame_rate());
+    const auto& runtime = renderer->runtime();
+    const FrameContext preparation_context = make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+        .assets_root = runtime.resolver().mount_root().string(),
+        .font_engine = &runtime.font_engine(),
+        .runtime = &runtime,
+    });
+    const Scene scene = composition.evaluate(preparation_context);
     result.preflight = AssetPreflightResolver::check(
         scene, renderer->runtime().resolver(), options.preflight_mode,
         options.reference_frame);

@@ -33,15 +33,15 @@ LayerGraphItem make_layer_graph_item(const ResolvedLayer& resolved_layer,
             static_cast<f32>(rctx.frame_input.width), static_cast<f32>(rctx.frame_input.height),
             rctx.policy.diagnostics_enabled);
         if (proj.visible) {
-            Vec3 projected_position = proj.transform.position;
-            if (glm::length(Vec2(projected_position.x, projected_position.y)) < 1e-4f &&
-                glm::length(Vec2(effective_transform.position.x, effective_transform.position.y)) > 1e-4f) {
-                projected_position = effective_transform.position;
-            }
+            // The resolver already produced the complete camera * view *
+            // layer homography.  Keeping only the projected centroid and a
+            // uniform scale loses Y/X rotations and perspective at the
+            // render boundary, so the 2.5D card becomes a flat 2D rectangle.
+            // Native 3D nodes own their projection and therefore retain the
+            // identity placeholder here.
             const Mat4 eff_proj = is_native_3d_layer(layer)
                 ? Mat4(1.0f)
-                : glm::translate(Mat4(1.0f), Vec3(projected_position.x, projected_position.y, 0.0f)) *
-                    glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
+                : proj.projection_matrix;
             return LayerGraphItem{
                 .layer             = resolved_layer.layer,
                 .transform         = proj.transform,
@@ -221,7 +221,9 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             .layer_id = name,
             .opacity_evaluator = [opacity = rl.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
                 return opacity.evaluate(info.sample_time);
-            }
+            },
+            .layer_index = static_cast<std::uint32_t>(rl.insertion_index),
+            .item_index = 0,
         };
 
         GraphNodeId out = detail::build_layer_output_node(

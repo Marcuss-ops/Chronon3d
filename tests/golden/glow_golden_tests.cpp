@@ -52,7 +52,7 @@ GlowComparisonResult compare_glow_images(const Framebuffer& rendered, const Fram
         // roundtrip clamps to 8-bit. HDR glow accumulation (>1.0) must be
         // clamped before comparison (the visual difference is in the glow
         // intensity, not in the clipped highlights).
-        const Color c1 = rendered.get_pixel(x, y).to_srgb().clamped();
+        const Color c1 = rendered.get_pixel(x, y).unpremultiplied().to_srgb().clamped();
         const Color c2 = golden.get_pixel(x, y).clamped();
 
             const float dr = std::abs(c1.r - c2.r);

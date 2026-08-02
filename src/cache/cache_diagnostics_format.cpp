@@ -25,7 +25,7 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
 
     std::string out;
     out += "┌──── Cache Snapshot ";
-    out += std::string(48, '─');
+    out.append(48, '-');
     out += "\n";
 
     std::size_t total_hits = 0;
@@ -105,7 +105,7 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
         : 0.0;
 
     out += "├──── Totals ";
-    out += std::string(48, '─');
+    out.append(48, '-');
 
     // Format totals with human-readable units (use first domain's unit as
     // heuristic — by default all registered domains use consistent units).
@@ -125,7 +125,7 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
         total_entries, tot_weight_str, tot_cap_str, total_hit_pct);
 
     out += "└";
-    out += std::string(79, '─');
+    out.append(79, '-');
     out += "\n";
 
     return out;

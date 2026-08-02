@@ -192,7 +192,9 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         .layer_id = std::string(item.layer->name),
         .opacity_evaluator = [opacity = item.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
             return opacity.evaluate(info.sample_time);
-        }
+        },
+        .layer_index = static_cast<std::uint32_t>(item.insertion_index),
+        .item_index = 0,
     };
 
     const Layer& layer = *item.layer;

@@ -122,9 +122,14 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
                 continue;
             }
 
-            data[index + 0] = Color::linear_to_srgb8(linear_c.r);
-            data[index + 1] = Color::linear_to_srgb8(linear_c.g);
-            data[index + 2] = Color::linear_to_srgb8(linear_c.b);
+            // Framebuffers store premultiplied linear RGB. PNG stores
+            // straight-alpha sRGB, so remove coverage before applying the
+            // transfer curve; otherwise translucent pixels acquire dark
+            // fringes on export.
+            const Color straight_linear = linear_c.unpremultiplied();
+            data[index + 0] = Color::linear_to_srgb8(straight_linear.r);
+            data[index + 1] = Color::linear_to_srgb8(straight_linear.g);
+            data[index + 2] = Color::linear_to_srgb8(straight_linear.b);
             // Alpha stays in linear space (no sRGB curve).
             data[index + 3] = static_cast<uint8_t>(std::clamp(std::round(linear_c.a * 255.0f), 0.0f, 255.0f));
         }

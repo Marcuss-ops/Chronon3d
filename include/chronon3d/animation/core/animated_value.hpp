@@ -108,7 +108,8 @@ public:
     // already key-derivable from a scalar), so dropping `explicit` is a
     // backward-compatible widening with no production-side behaviour
     // change.
-    AnimatedValue(T default_value) : m_default_value(default_value) {}
+    AnimatedValue(T default_value)
+        : m_default_value(default_value), m_has_explicit_baseline(true) {}
 
     /// Construct from an initializer list of Keyframes.
     /// Enables `keyframes<T>({{0, v0}, {60, v1}})` factory syntax.
@@ -131,6 +132,15 @@ public:
 
     // Add a keyframe; keys are kept sorted by frame.
     void add_keyframe(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}, bool roving = false) {
+        // `set()` establishes an authored baseline.  If the first authored
+        // keyframe starts later than frame 0, materialize that baseline as
+        // the segment's start instead of silently holding the first keyframe
+        // value before its start.  Curves built only with add_keyframe()
+        // retain their historical pre-first-keyframe hold semantics.
+        if (m_keyframes.empty() && m_has_explicit_baseline && frame > Frame{0}) {
+            m_keyframes.emplace_back(Frame{0}, m_default_value,
+                                      EasingCurve{Easing::Linear}, false);
+        }
         m_keyframes.emplace_back(frame, value, easing, roving);
         std::sort(m_keyframes.begin(), m_keyframes.end());
         if (roving) m_roving_dirty = true;
@@ -192,6 +202,7 @@ public:
     AnimatedValue& set(const T& value) {
         clear();
         m_default_value = value;
+        m_has_explicit_baseline = true;
         m_expression.clear();
         return *this;
     }
@@ -378,7 +389,12 @@ public:
         return m_default_value;
     }
 
-    void clear() { m_keyframes.clear(); m_roving_dirty = true; m_auto_bezier_dirty = false; }
+    void clear() {
+        m_keyframes.clear();
+        m_has_explicit_baseline = false;
+        m_roving_dirty = true;
+        m_auto_bezier_dirty = false;
+    }
 
     // ── AnimationTrack<T> declarative builder────────────────────────
     // Bake an AnimationTrack<T>'s keyframes into this AnimatedValue, replacing
@@ -486,6 +502,7 @@ private:
     }
 
     T m_default_value{};
+    bool m_has_explicit_baseline{false};
     mutable std::vector<Keyframe<T>> m_keyframes;
     LoopMode m_loop_mode{LoopMode::Hold};
     std::string m_expression;

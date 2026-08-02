@@ -31,8 +31,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
+        const bool projected_2d = item.projected && !item.native_3d;
         const bool use_local = ctx.policy.modular_coordinates &&
-            layer_needs_transform && !item.native_3d;
+            layer_needs_transform && !item.native_3d && !projected_2d;
         // A local transform changes the rasterized placement, but it does not
         // make an animated layer's source frame-invariant.  Treating
         // `use_local` as static reused the first moving shape in dirty/tile
@@ -54,9 +55,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             );
         }
 
-        const Mat4 item_source_world = item.projected && !item.native_3d &&
-            std::abs(item.world_z) < 1e-4f
-            ? item.projection_matrix
+        const Mat4 item_source_world = item.projected && !item.native_3d
+            ? implicit_canvas_center_matrix(ctx)
             : (use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx));
@@ -148,7 +148,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     is_pinned_full_canvas_rect(item, node, ctx)) {
                     shape_matrix = implicit_canvas_center_matrix(ctx) * shape_matrix;
                 }
-                const f32 shape_opacity = use_local
+                const f32 shape_opacity = (use_local || projected_2d)
                     ? node.world_transform.opacity
                     : (item.transform.opacity * node.world_transform.opacity);
 
@@ -247,16 +247,19 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 : (item_source_world * node.world_transform.to_mat4());
             const Mat4 shape_matrix = use_local
                 ? raw_shape_matrix
-                : resolve_absolute_text_source_matrix(
-                    item, node, ctx, raw_shape_matrix);
-            const f32 shape_opacity = use_local
+                : (has_custom_absolute_text_transform(item, node, ctx)
+                    ? resolve_custom_absolute_text_matrix(item, node, ctx)
+                    : resolve_absolute_text_source_matrix(
+                        item, node, ctx, raw_shape_matrix));
+            const f32 shape_opacity = (use_local || projected_2d)
                 ? node.world_transform.opacity
                 : (item.transform.opacity * node.world_transform.opacity);
 
             items.push_back(MultiSourceItem{
                 .node = &node,
                 .matrix = shape_matrix,
-                .opacity = shape_opacity
+                .opacity = shape_opacity,
+                .defer_camera_projection = item.projected && !item.native_3d,
             });
         }
 

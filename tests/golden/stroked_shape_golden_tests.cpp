@@ -46,7 +46,7 @@ void verify_stroke_golden_or_create(const Framebuffer& rendered, const std::stri
 
     for (int y = 0; y < rendered.height(); ++y) {
         for (int x = 0; x < rendered.width(); ++x) {
-            const Color c1 = rendered.get_pixel(x, y).clamped();
+            const Color c1 = rendered.get_pixel(x, y).unpremultiplied().to_srgb().clamped();
             const Color c2 = golden->get_pixel(x, y).clamped();
             const float max_ch = std::max({std::abs(c1.r - c2.r),
                                            std::abs(c1.g - c2.g),
