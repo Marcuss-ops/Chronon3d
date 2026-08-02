@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@13bf429a` (checkpoint locale non pushato) — `linux-fast-dev` build PASS, core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9), `chronon3d_camera_tests` PASS (64/64), `chronon3d_scene_tests` PASS (406/406), AE parity visuale PASS (41/41 casi, 274/274 asserzioni), CLI introspection PASS (26/26) e packaging relocatability PASS (14/14). Sanitizer completo e baseline 11/11 restano BLOCKED.
+> Ultimo SHA osservato: `main@05730263` (checkpoint locale non pushato) — `linux-fast-dev` build PASS, core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9), `chronon3d_camera_tests` PASS (64/64), `chronon3d_scene_tests` PASS (406/406), GraphCache PASS (4/4) e PR1-Torture PASS (5/5), AE parity visuale PASS (41/41 casi, 274/274 asserzioni), CLI introspection PASS (26/26) e packaging relocatability PASS (14/14). Sanitizer completo e baseline 11/11 restano BLOCKED.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
