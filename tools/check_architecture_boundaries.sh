@@ -607,7 +607,7 @@ echo -n "  [19/26] TextDefaults::offset RETIRED        ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bspec\.offset\b' $SCRIPT_PATHS 2>/dev/null \
     | grep -v 'glyph_selector' \
-    | filter_symbol_in_code_only '\bspec\.offset\b' \
+    | filter_symbol_in_code_only '(^|[^[:alnum:]_])spec[.]offset([^[:alnum:]_]|$)' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
@@ -632,7 +632,7 @@ else echo "PASS"; fi
 echo -n "  [20/26] TextFrame consolidated           ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bframe\.(position|placement_kind|offset)\b' $SCRIPT_PATHS 2>/dev/null \
-    | filter_symbol_in_code_only '\bframe\.(position|placement_kind|offset)\b' \
+    | filter_symbol_in_code_only '(^|[^[:alnum:]_])frame[.](position|placement_kind|offset)([^[:alnum:]_]|$)' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
@@ -664,7 +664,7 @@ else echo "PASS"; fi
 echo -n "  [22/26] TextEffects ELIMINATED       ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bstruct[[:space:]]+TextEffects\b|\bdef\.effects\.' $SCRIPT_PATHS 2>/dev/null \
-    | filter_symbol_in_code_only '\bstruct[[:space:]]+TextEffects\b|\bdef\.effects\.' \
+    | filter_symbol_in_code_only '(^|[^[:alnum:]_])struct[[:space:]]+TextEffects([^[:alnum:]_]|$)|(^|[^[:alnum:]_])def[.]effects[.]' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
