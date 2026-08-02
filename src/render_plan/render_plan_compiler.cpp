@@ -5,6 +5,7 @@
 #include <chronon3d/presets/text/text_presets_v1.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <filesystem>
 #include <optional>
@@ -52,31 +53,69 @@ chronon3d::TextDefinition text_definition(const LayerPlan& layer,
     return definition;
 }
 
+std::uint64_t render_settings_fingerprint(
+    const RenderPlanFingerprintSettings& settings) {
+    return chronon3d::core::hash::HashBuilder{}
+        .add("chronon3d.render-settings.fingerprint.v1")
+        .add(settings.width)
+        .add(settings.height)
+        .add(settings.antialiasing_samples)
+        .add(settings.ssaa_factor)
+        .add(settings.motion_blur)
+        .add(settings.dirty_rects)
+        .add(settings.deterministic)
+        .add(settings.force_scalar_normal_blend)
+        .add(settings.dirty_bitmask)
+        .add(settings.dirty_tiles)
+        .add(settings.parallel_tiles)
+        .add(settings.tile_size)
+        .add(settings.tile_dirty_ratio_threshold)
+        .add(settings.optimize_compositing)
+        .finish();
+}
+
 RenderJobFingerprint render_job_fingerprint(
     const RenderPlan& plan,
-    const chronon3d::assets::PreparedAssetManifest& assets) {
-    // The legacy u64 plan hash is already a sequential hash of every decoded
-    // plan field.  Normalize identity-only fields before deriving the
-    // content/request SHA-256 values: job id and destination path are runtime
-    // routing metadata, not rendered content identity.
+    const chronon3d::assets::PreparedAssetManifest& assets,
+    const RenderPlanFingerprintOptions& options) {
+    // Job identifiers and destination paths are routing metadata. They are
+    // deliberately excluded so absolute machine paths, temp directories, and
+    // output renames cannot change the content identity.
     auto content_plan = plan;
     content_plan.job_id.clear();
     content_plan.output = {};
     auto request_plan = plan;
     request_plan.job_id.clear();
+    // Destination paths are machine-local routing metadata, not identity.
+    // Keep format/codec/bitrate/crf in the request fingerprint.
     request_plan.output.path.clear();
 
     const auto content_hash = compute_render_plan_content_fingerprint(content_plan);
     const auto request_hash = compute_render_plan_content_fingerprint(request_plan);
-    const auto material = [&](std::string_view domain, std::uint64_t plan_hash) {
-        return std::string(domain) + "|" + std::to_string(plan_hash) + "|" +
-               assets.manifest_digest().hex();
+    const auto settings_hash = render_settings_fingerprint(options.render_settings);
+    const auto material = [&](std::string_view domain, std::uint64_t plan_hash,
+                              bool include_output_settings) {
+        auto hash = chronon3d::core::hash::HashBuilder{}
+            .add(domain)
+            .add(options.schema_version)
+            .add(options.engine_compatibility_version)
+            .add(plan_hash)
+            .add(settings_hash)
+            .add_bytes(assets.manifest_digest().bytes.data(),
+                       assets.manifest_digest().bytes.size());
+        if (include_output_settings) {
+            hash.add_enum(request_plan.output.format)
+                .add_enum(request_plan.output.codec)
+                .add(request_plan.output.bitrate)
+                .add(request_plan.output.crf);
+        }
+        return std::to_string(hash.finish());
     };
     return {
         chronon3d::assets::sha256_string(
-            material("chronon.render-content.v1", content_hash)),
+            material("chronon.render-content.v2", content_hash, false)),
         chronon3d::assets::sha256_string(
-            material("chronon.render-request.v1", request_hash))};
+            material("chronon.render-request.v2", request_hash, true))};
 }
 
 void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
@@ -95,8 +134,10 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
 }  // namespace
 
 Result<PreparedRenderPlan, PlanDecodeError>
-compile_render_plan(const RenderPlan& plan,
-                    chronon3d::assets::AssetResolver& resolver) {
+compile_render_plan(
+    const RenderPlan& plan,
+    chronon3d::assets::AssetResolver& resolver,
+    const RenderPlanFingerprintOptions& fingerprint_options) {
     try {
         auto prepared_store = chronon3d::assets::prepare_asset_store(plan, resolver);
         if (!prepared_store) {
@@ -106,7 +147,8 @@ compile_render_plan(const RenderPlan& plan,
         }
         auto resources = std::move(prepared_store).value();
         auto assets = resources.manifest();
-        const auto fingerprints = render_job_fingerprint(plan, assets);
+        const auto fingerprints = render_job_fingerprint(
+            plan, assets, fingerprint_options);
         auto content_plan = plan;
         content_plan.job_id.clear();
         content_plan.output = {};

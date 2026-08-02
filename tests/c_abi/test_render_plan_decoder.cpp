@@ -4,6 +4,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <utility>
+
 TEST_CASE("render plan decoder constructs typed V1 plan") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
@@ -64,6 +66,24 @@ TEST_CASE("render plan budget rejects excessive layer count") {
     const auto error = chronon3d::render_plan::validate_render_plan_budget(plan, budget);
     REQUIRE(error.has_value());
     CHECK(error->path == "layers");
+}
+
+TEST_CASE("render plan fingerprint ignores JSON formatting") {
+    const auto compact = nlohmann::json::parse(
+        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":320,"height":180,"fps":30,"duration_frames":1},"layers":[{"id":"title","type":"text","text":"Hello"}],"output":{"path":"out.png"}})");
+    const auto formatted = nlohmann::json::parse(R"(
+    {
+      "output": { "path": "out.png" },
+      "layers": [ { "text": "Hello", "type": "text", "id": "title" } ],
+      "canvas": { "duration_frames": 1, "fps": 30, "height": 180, "width": 320 },
+      "version": 1,
+      "schema": "chronon.render-plan"
+    })");
+    const auto compact_plan = chronon3d::render_plan::decode_render_plan(compact);
+    const auto formatted_plan = chronon3d::render_plan::decode_render_plan(formatted);
+    REQUIRE(compact_plan);
+    REQUIRE(formatted_plan);
+    CHECK(compact_plan->content_fingerprint == formatted_plan->content_fingerprint);
 }
 
 TEST_CASE("render plan fingerprint includes decoded content and preserves order") {
