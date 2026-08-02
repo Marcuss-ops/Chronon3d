@@ -48,7 +48,11 @@ int main(void) {
     }
 
     uint8_t* pixels = (uint8_t*)malloc((size_t)info.size);
-    if (!pixels) return 1;
+    if (!pixels) {
+        chronon_plan_destroy(plan);
+        chronon_engine_destroy(engine);
+        return 1;
+    }
     status = chronon_render_frame_into(engine, plan, 0, pixels, info.size, &info);
     if (status != CHRONON_OK || info.width != 2 || info.height != 2) {
         int result = fail_status("render frame", status);
