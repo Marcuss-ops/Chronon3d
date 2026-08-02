@@ -151,14 +151,14 @@ TEST_CASE("C ABI v2 cancellation certification requires video support" * doctest
 }
 #endif
 
-TEST_CASE("C ABI v2 failed file render leaves no output or SDK temp sibling") {
+TEST_CASE("C ABI v2 invalid file range leaves no output or SDK temp sibling") {
     EngineFixture fixture;
     const auto output = unique_output_path("unsupported");
     chronon_render_callbacks callbacks{};
     callbacks.is_cancelled = [](void*) { return 0; };
 
     const auto status = chronon_render_file(
-        fixture.engine, fixture.plan, output.c_str(), 0, 1, 30, 1, &callbacks);
+        fixture.engine, fixture.plan, output.c_str(), 1, 0, 30, 1, &callbacks);
     CHECK(status != CHRONON_OK);
     CHECK_FALSE(std::filesystem::exists(output));
     CHECK_FALSE(has_sdk_temp_sibling(output));
