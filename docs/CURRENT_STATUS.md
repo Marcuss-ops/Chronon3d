@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@f97568d9` (checkpoint locale non pushato) — `linux-fast-dev` build PASS (223/223 per il target core), core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9) e CLI introspection PASS (26/26). AE parity visuale resta FAIL (31/41 casi, 10 fallimenti); sanitizer completo, baseline 11/11 e packaging release restano BLOCKED.
+> Ultimo SHA osservato: `main@469178f3` (checkpoint locale non pushato) — `linux-fast-dev` build PASS (223/223 per il target core), core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9), CLI introspection PASS (26/26) e packaging relocatability PASS (14/14). AE parity visuale resta FAIL (31/41 casi, 10 fallimenti); sanitizer completo e baseline 11/11 restano BLOCKED.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -45,7 +45,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Authoring facade | WIRED / GUARDED | `asset(path)` è context-typed e kind-free; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
 | Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; registry resolve ora trasporta il costruttore preparato senza una seconda decode/factory pass. |
 | Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
-| SDK C++ installabile | PASS (checkpoint locale) | `main@4e944243`: package reinstallato da build riusata, canary 11/11, consumer grid/text/camera/full e authoring-assets PASS; FAST mode ora risolve percorsi e vcpkg tree dal build reale. |
+| SDK C++ installabile | PASS (checkpoint locale) | `main@469178f3`: installazione relocatable, audit path, `find_package`, build e run del consumer `tests/package_consumer` PASS (14/14); dipendenze esterne risolte dal prefix vcpkg registrato dalla build. |
 | SDK cross-language | PASS (focused) | C ABI v2 verificato con create_v2, JSON length, buffer caller-owned, busy/cancellation paths, `chronon_render_frame/file`, asset-change status e `chronon_buffer_free`; smoke install/ctypes esterno resta da eseguire. |
 | Modular graph legacy path | PASS (source audit) | `use_modular_graph` non è presente nella superficie attiva `include/src/apps/tests`; il gate permanente è `tools/check_no_modular_graph.sh`. |
 | Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; `prepare_render()` orchestra preflight, resource preparation e warmup nei percorsi CLI e nella boundary `chronon3d::RenderEngine::render()`, con test fail-loud/idempotenza/null-renderer mirati. |
@@ -53,7 +53,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS, camera visual 9/9 PASS e core `--no-skip` 1423/1423 PASS senza skip; AE parity resta 31/41 PASS con 10 FAIL. Restano baseline globale, sanitizer, packaging e certificazioni di prodotto. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS, camera visual 9/9 PASS e core `--no-skip` 1423/1423 PASS senza skip; AE parity resta 31/41 PASS con 10 FAIL. Restano baseline globale, sanitizer e certificazioni di prodotto. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
@@ -70,7 +70,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Sunset registry (Test #16) | GATE-WIRED | `docs/FEATURE_SUNSET.md` 3-non rule + 30gg scadenza. |
 | Direct comparison (Test #17) | GATE-WIRED | `docs/product-tests/TEST-17-COMPARISON.md` 8 metriche × 3 prodotti. |
 | Single source of truth (Test #12) | GATE-WIRED | 12/12 audits clean. |
-| Packaging cert (Test P1) | BLOCKED | `verify_packaging_linux.sh` passa i gate strutturali ma non trova `build/chronon/linux-release`; install/consumer release non certificabili su questo host. |
+| Packaging cert (Test P1) | PASS (checkpoint locale) | `main@469178f3`: `verify_packaging_linux.sh` 14/14 PASS; relocation A→B, config, assenza path source/host, consumer configure/build/run verificati con prefix dipendenze esterne della build release. |
 | Diagnostics cert (Test P2) | WIRED / NOT RUN | `verify_diagnostics_linux.sh` usa solo `render`, richiede 10 codici stabili e restituisce BLOCKED quando manca la verifica runtime; nessun PASS parziale. |
 | Determinism spec completeness (amend) | PASS | Verified via chronon3d_cli on `BenchB01_StaticText1080p`: 5 identical renders of frame 30 and random-order sequence (30, 0, 60, 15, 30) produced identical SHA-256 hashes. |
 | Compositing spec completeness (amend) | WIRED | `verify_compositing_effects_linux.sh` 10→14 effects. |
