@@ -5,11 +5,12 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
-> **Snapshot osservato (2026-08-02):** `main@60a2d028`. Il cleanup legacy
+> **Snapshot osservato (2026-08-02):** `main@4dabf6e3`. Il cleanup legacy
 > confermato è allineato al codice: registration descriptor-only, shaping
 > canonico, `Composition` descriptor-only per la camera, factory unica del
 > runtime, alias temporali/camera rimossi e ticket superati chiusi. Verifiche
-> mirate PASS; la baseline globale 11/11 resta da ricalcolare.
+> mirate PASS; golden visuali focalizzati 39/39 e camera visuale 9/9 passano
+> su questo SHA; la baseline globale 11/11 resta da ricalcolare.
 
 ## Decisione corrente — Cleanup → Glow V1 → Camera 2.5D V1
 

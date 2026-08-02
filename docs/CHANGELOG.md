@@ -1,4 +1,15 @@
 ## 2026-08-02
+### `test(golden): make current visual fixtures strict` (`4dabf6e3`)
+
+I quattro helper golden non creano più PNG mancanti durante una verifica:
+senza `CHRONON3D_UPDATE_GOLDENS=1` falliscono in modo esplicito. Sono state
+registrate soltanto le 27 fixture usate dai test visuali correnti. La
+ricertificazione sullo stesso SHA passa: golden focalizzati 39/39 casi e
+269.969/269.969 asserzioni; suite camera visuale 9/9 casi e 27/27 asserzioni.
+La modifica al test shadow allinea l’asserzione al contratto esistente del
+contact pass (alpha 0,85), senza cambiare l’algoritmo.
+
+## 2026-08-02
 ### `fix(pipeline): enforce prepared asset integrity at render` (`60a2d028`)
 
 `PreparedRenderPlan` ora esegue il `CompiledComposition` canonico e porta il
