@@ -74,7 +74,29 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
         if (!effective_assets_root.empty()) {
             resolver.mount(std::filesystem::path{effective_assets_root});
         }
-        const auto compiled = render_plan::compile_render_plan(plan, resolver);
+        RenderSettings effective_settings;
+        effective_settings.fail_on_missing_assets = true;
+        render_plan::RenderPlanFingerprintOptions fingerprint_options;
+        fingerprint_options.render_settings.width = plan.canvas.width;
+        fingerprint_options.render_settings.height = plan.canvas.height;
+        fingerprint_options.render_settings.ssaa_factor = effective_settings.ssaa_factor;
+        fingerprint_options.render_settings.motion_blur =
+            chronon3d::is_motion_blur_active(effective_settings.motion_blur);
+        fingerprint_options.render_settings.dirty_rects = effective_settings.dirty.enabled;
+        fingerprint_options.render_settings.dirty_bitmask = effective_settings.dirty.use_bitmask;
+        fingerprint_options.render_settings.dirty_tiles = effective_settings.dirty.use_tiles;
+        fingerprint_options.render_settings.parallel_tiles = effective_settings.dirty.parallel_tiles;
+        fingerprint_options.render_settings.tile_size = effective_settings.dirty.tile_size;
+        fingerprint_options.render_settings.tile_dirty_ratio_threshold =
+            effective_settings.dirty.tile_dirty_ratio_threshold;
+        fingerprint_options.render_settings.optimize_compositing =
+            effective_settings.compositing.optimize_compositing;
+        fingerprint_options.render_settings.deterministic =
+            effective_settings.force_scalar_normal_blend;
+        fingerprint_options.render_settings.force_scalar_normal_blend =
+            effective_settings.force_scalar_normal_blend;
+        const auto compiled = render_plan::compile_render_plan(
+            plan, resolver, fingerprint_options);
         if (!compiled) {
             spdlog::error("Render plan compilation failed: {}", compiled.error().message);
             return 1;
@@ -93,7 +115,7 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
         request.execution.assets_root = effective_assets_root.empty()
             ? std::nullopt
             : std::optional<std::filesystem::path>{effective_assets_root};
-        request.settings.fail_on_missing_assets = true;
+        request.settings = effective_settings;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? decoded->canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(decoded->output.codec);
