@@ -129,6 +129,31 @@ void FrameGraphCompiler::build_node_metadata(
                 node_info.reachable = true;
                 node_info.consumers = children[id];
 
+                // Carry the builder's canonical layer location into the
+                // compiled program.  The binding table used to depend on
+                // metadata that no production builder ever populated, so
+                // every real precomp program ended up with zero bindings and
+                // its per-frame refresh path was silently skipped.
+                const bool refreshable_kind =
+                    node_info.kind == RenderGraphNodeKind::Source ||
+                    node_info.kind == RenderGraphNodeKind::TextRun ||
+                    node_info.kind == RenderGraphNodeKind::Transform ||
+                    node_info.kind == RenderGraphNodeKind::Effect;
+                const bool has_layer_location = node.layer_index() != UINT32_MAX;
+                const bool is_root_source =
+                    !has_layer_location && node.layer_id().empty() &&
+                    (node_info.kind == RenderGraphNodeKind::Source ||
+                     node_info.kind == RenderGraphNodeKind::TextRun);
+                if (refreshable_kind && (has_layer_location || is_root_source)) {
+                    node_info.binding_meta = SceneBindingMetadata{
+                        true,
+                        node.layer_index(),
+                        node.item_index(),
+                        0,
+                        0,
+                    };
+                }
+
                 node_info.cache_policy = node.cache_policy();
 
                 if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {

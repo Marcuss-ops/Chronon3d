@@ -14,6 +14,7 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -87,6 +88,13 @@ public:
     [[nodiscard]] std::string_view layer_id() const noexcept { return m_layer_id; }
     void set_layer_id(std::string id) { m_layer_id = std::move(id); }
 
+    [[nodiscard]] std::uint32_t layer_index() const noexcept { return m_layer_index; }
+    [[nodiscard]] std::uint32_t item_index() const noexcept { return m_item_index; }
+    void set_binding_location(std::uint32_t layer_index, std::uint32_t item_index) noexcept {
+        m_layer_index = layer_index;
+        m_item_index = item_index;
+    }
+
     /// Callback that evaluates the owning layer's animated opacity at a given frame.
     /// Set by the graph builder via set_opacity_evaluator().  Defaults to an empty
     /// callable; evaluate_opacity() returns 1.0f when unset.
@@ -129,6 +137,8 @@ protected:
 private:
     std::string m_layer_id;
     OpacityEvaluator m_opacity_eval;
+    std::uint32_t m_layer_index{UINT32_MAX};
+    std::uint32_t m_item_index{0};
 };
 
 } // namespace chronon3d::graph

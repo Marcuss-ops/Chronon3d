@@ -33,7 +33,10 @@ Composition make_shadow_scene(bool casts, bool accepts,
         s.directional_light(light_dir, Color{1, 1, 1, 1}, 0.85f);
 
         s.layer("floor", [accepts](LayerBuilder& l) {
-            l.enable_3d().position({0, 60, 150}).accepts_shadows(accepts);
+            // Camera contract: world +Y is screen-up. Keep the receiver
+            // below the caster so the measured lower-half ROI contains the
+            // floor and its projected shadow.
+            l.enable_3d().position({0, -60, 150}).accepts_shadows(accepts);
             l.rect("fill", {.size = {280, 100}, .color = {0.8f, 0.8f, 0.8f, 1}});
         });
 

@@ -45,7 +45,7 @@ MotionPrewarmResult prewarm_motion_graph(const Scene& scene,
         size_t text_count = 0;
         for (const auto& layer : scene.layers()) {
             if (layer.is_text()) {
-                chronon3d::text::text_layer_prewarm_stub(layer.kind);
+                static_cast<void>(chronon3d::text::text_layer_prewarm_stub(layer.kind));
                 ++text_count;
             }
         }

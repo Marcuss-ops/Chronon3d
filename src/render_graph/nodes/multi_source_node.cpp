@@ -43,7 +43,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         const auto& item = m_items[bbox_i];
         if (!item.node) continue;
         Mat4 matrix;
-        if (ctx.frame_input.has_camera_2_5d) {
+        if (ctx.frame_input.has_camera_2_5d && !item.defer_camera_projection) {
             // Condition the 2.5D projection on the global `has_camera_2_5d`
             // trigger (Soluzione B).  Mirrors the SourceNode pattern for
             // key/pixel consistency.
@@ -224,7 +224,7 @@ NodeExecResult MultiSourceNode::execute(
                 // the item matrix; otherwise the source pass already
                 // resolved the final matrix.
                 Mat4 resolved_matrix = item.matrix;
-                if (ctx.frame_input.has_camera_2_5d) {
+                if (ctx.frame_input.has_camera_2_5d && !item.defer_camera_projection) {
                     auto proj_opt = chronon3d::graph::detail::project_to_camera_space(
                         item.matrix, item.opacity, ctx, m_name, "text_run_execute", i);
                     if (!proj_opt) {
@@ -276,7 +276,7 @@ NodeExecResult MultiSourceNode::execute(
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;
-            if (ctx.frame_input.has_camera_2_5d) {
+            if (ctx.frame_input.has_camera_2_5d && !item.defer_camera_projection) {
                 // TICKET-ae-cam-hash-collision Soluzione B
                 // (MultiSourceNode consistency follow-up): same
                 // global-trigger pattern as predicted_bbox site

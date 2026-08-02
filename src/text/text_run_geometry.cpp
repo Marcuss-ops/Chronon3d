@@ -149,10 +149,15 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                     glyph_bottom = gy + descent * scale_y;
                 }
 
-                min_x = std::min(min_x, glyph_left - pad);
-                max_x = std::max(max_x, glyph_right + pad);
-                min_y = std::min(min_y, glyph_top - pad);
-                max_y = std::max(max_y, glyph_bottom + pad);
+                // Lightweight callers and space-like glyphs can carry no
+                // outline bbox. Keep one conservative raster pixel around
+                // that advance-based fallback so an origin glyph does not
+                // collapse its integer bbox exactly onto x/y == 0.
+                const float fallback_pad = has_bbox ? 0.0f : 1.0f;
+                min_x = std::min(min_x, glyph_left - pad - fallback_pad);
+                max_x = std::max(max_x, glyph_right + pad + fallback_pad);
+                min_y = std::min(min_y, glyph_top - pad - fallback_pad);
+                max_y = std::max(max_y, glyph_bottom + pad + fallback_pad);
             }
         };
 

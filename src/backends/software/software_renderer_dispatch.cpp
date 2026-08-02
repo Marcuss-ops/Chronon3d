@@ -18,6 +18,7 @@
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -33,6 +34,7 @@
 #endif
 #include <algorithm>
 #include <optional>
+#include <stdexcept>
 
 namespace chronon3d {
     namespace raster { struct BBox; }
@@ -78,6 +80,23 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
     // Top-level invocation boundary: nested tile/precomp executors must not
     // clear errors from sibling scopes. Reset exactly once before dispatch.
     m_session.common.clear_last_frame_error();
+
+    // Keep the direct SoftwareRenderer entrypoint on the same preparation
+    // contract as RenderEngine: preflight and resource decode must complete
+    // before graph execution, otherwise image nodes fall back to placeholders
+    // even though the asset is valid on disk.
+    const auto preparation = runtime::prepare_render(
+        this, comp,
+        runtime::RenderPreparationOptions{
+            .warmup_renderer = false,
+            .reference_frame = frame,
+        });
+    if (!preparation.ok()) {
+        throw std::runtime_error(
+            "Render preparation failed for composition '" +
+            comp.name() + "': " + preparation.diagnostic());
+    }
+
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_composition_frame(
