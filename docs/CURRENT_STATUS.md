@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@6a1f7dec` (checkpoint locale non pushato) — 7/7 foundation tests PASS, core renderer 162/162 PASS, consumer SDK installato/canary 11/11 e consumer text/grid/camera/full/authoring PASS. Golden suite corrente 19/39 PASS; sanitizer completo e packaging release BLOCKED dall'ambiente/spazio. Full baseline 11/11 non ricalcolata.
+> Ultimo SHA osservato: `main@60a2d028` (checkpoint locale non pushato) — foundation/core focalizzati PASS, `chronon3d_c_abi_tests` PASS con C ABI v2 e cambio asset runtime, `chronon3d_sdk_tests` PASS, CLI render-plan diretto PASS, architecture/doc-sync/test-registration/hygiene PASS. Golden ufficiale: 39 casi eseguiti, 19 riferimenti esistenti PASS e 19 mismatch; una fixture ha creato un riferimento ignorato mancante e non viene contato come certificazione. Sanitizer completo e packaging release restano BLOCKED. Full baseline 11/11 non ricalcolata.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -21,38 +21,39 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
-| CLI V3 unification | WIRED / NOT RUN | `render --plan` è il percorso canonico; `render-plan` è un alias sottile. La compilazione typed e l’AudioMuxer condiviso sono presenti; macchina-verifica non eseguita. |
+| CLI V3 unification | PASS (focused) | `render-plan` diretto su `examples/render_plan_v1_smoke.json` produce PNG con il percorso `PreparedRenderPlan → CompiledComposition`; `render --plan` resta il percorso canonico di prodotto. |
 | Push infrastructure | WIRED | `tools/monitor_push_divergence.sh` cron-friendly 5-min cadence; ADR-022 advisory gate. |
 | Text V1 Cert Step 11 (finale) | DEFERRED-VPS | BLOCKED on this VPS per TICKET-BUILD-ROT-CASCADE-CAMERA 409-error + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV; macchina-verifica DEFERRED-WBH. |
 | Cert sequence (Test #4/#8/#9/#13/#14) | WBH-DEFERRED | Per `docs/cert_sequence_wbh_protocol.md`; VPS cannot run. |
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PASS | `main@5cfdf1cd`: gate funzionale Linux 10/10 PASS; descriptor → program → session, projection, random access, framing, DOF, motion blur, LookAt, OrientAlongPath, camera groups, composition unification e consumer installato verificati. |
+| Camera V1 | PARTIAL (storico) | Esistono implementazione e certificazione storica `main@5cfdf1cd`; la ricertificazione sul nuovo percorso compilato e sullo SHA corrente è ancora da eseguire. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow V1 | PASS | `main@5cfdf1cd`: gate Glow completo PASS — software CPU, animazione continua, bbox/ROI, alpha, landscape/portrait, video reale 60 frame, cold/warm e determinismo; baseline globale ancora non certificata. |
+| Glow V1 | PARTIAL (storico) | Esistono implementazione e certificazione storica `main@5cfdf1cd`; le golden Glow correnti mostrano mismatch e la ricertificazione produttiva sullo SHA corrente è ancora aperta. |
 | Text lightweight semantic profiles | PASS | `main@88704bde`: Base, phrase/title, name e word/emph verificati con parsing, alias, span fusion, UTF-8, budget animator/selector/keyframe e determinismo seriale/parallelo. |
-| Combined Product V1 | PASS | `main@5cfdf1cd`: `GlowCameraProductV1` certificato via CLI con landscape/portrait, video reale 60 frame, seriale/parallelo, cold/warm, random order, SDK consumer installato e C ABI. |
+| Combined Product V1 | PARTIAL (storico) | `GlowCameraProductV1` è certificato storicamente su `main@5cfdf1cd`; non è ancora ricertificato sulla pipeline compilata e sullo SHA corrente. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
-| Sanitizer gates (P2-A) | PARTIAL | Gate robusto e job limitati; ASan configure PASS, build/certificazione completa BLOCKED per spazio disco; full ctest non dichiarato. |
+| Sanitizer gates (P2-A) | BLOCKED | Gate robusto e job limitati; ASan configure PASS, build/certificazione completa BLOCKED per spazio disco; full ctest non dichiarato. |
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
 | Text Production / CapCut-grade V1 | PARTIAL | Canonical TextDefinition path, catalogo 20 preset generali + 8 subtitle, subtitle matrix 192/192 non-empty, alignment e auto-fit focused tests PASS. CapCut parity is now a strict release-blocking gate, but the repository still has zero blessed PNG exports from CapCut. Vedi [TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md). |
 | Test hardening (false-green audit) | PASS | Auto-fit e alignment sono assertions bloccanti; il parity harness non accetta più reference mancanti o corpus vuoti. Vedi [TICKET-FALSE-GREEN-TEST-AUDIT](tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md). |
 | Text Health | PASS | `chronon3d_text_health_tests` PASS (1/1) on main. |
 | Text API migration (Blocco 5.1/5.2) | PASS (focused) | `TextSpec`/`TextRunSpec`, reverse adapters, `animated_text()` e i 21 motion helper dedicati sono stati rimossi dal percorso produttivo; authoring, esempi e preset usano `TextDefinition`, `text_run()` e `LayerBuilder::motion()`. Resta tracciata soltanto l'eventuale riduzione futura dei transport interni `TextRunDefinition`/`PreparedText` in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md). |
 | Animation / local-time / asset preparation | PASS (focused) | Un solo interpolate con `Extrapolate`, una `SpringConfig`, random deterministico per stagger, sequence su `FrameContext` locale e barriera `prepare_render()` verificati con test mirati; full baseline non ricalcolata su questo worktree. |
+| Prepared plan / asset identity | PASS (focused) | `PreparedRenderPlan` esegue il `CompiledComposition` canonico; manifest SHA-256, controllo size/mtime, verifica cambio bytes e propagazione `CHRONON_ERROR_ASSET_CHANGED` sono coperti da unit e C ABI test. |
 | Authoring facade | WIRED / GUARDED | `asset(path)` è context-typed e kind-free; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
 | Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; registry resolve ora trasporta il costruttore preparato senza una seconda decode/factory pass. |
 | Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
 | SDK C++ installabile | PASS (checkpoint locale) | `main@4e944243`: package reinstallato da build riusata, canary 11/11, consumer grid/text/camera/full e authoring-assets PASS; FAST mode ora risolve percorsi e vcpkg tree dal build reale. |
-| SDK cross-language | WIRED / NOT RUN | C ABI V1 usa engine + plan: `chronon_engine_create/destroy/last_error`, `chronon_abi_version`, `chronon_plan_compile_json`, `chronon_render_frame/file` e `chronon_buffer_free`. Il vecchio `chronon_context` e gli adapter JSON sono stati rimossi; smoke install/ctypes non eseguito per toolchain mancante. |
+| SDK cross-language | PASS (focused) | C ABI v2 verificato con create_v2, JSON length, buffer caller-owned, busy/cancellation paths, `chronon_render_frame/file`, asset-change status e `chronon_buffer_free`; smoke install/ctypes esterno resta da eseguire. |
 | Modular graph legacy path | PASS (source audit) | `use_modular_graph` non è presente nella superficie attiva `include/src/apps/tests`; il gate permanente è `tools/check_no_modular_graph.sh`. |
 | Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; `prepare_render()` orchestra preflight, resource preparation e warmup nei percorsi CLI e nella boundary `chronon3d::RenderEngine::render()`, con test fail-loud/idempotenza/null-renderer mirati. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden suite corrente 19/39 PASS, con golden 2.5D storiche obsolete e fixture Test 17.2 corretta. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden ufficiale 39 casi: 19 riferimenti esistenti PASS, 19 mismatch e 1 riferimento ignorato auto-creato; restano Glow, testo, 2.5D, stroke e SSAA da chiudere. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
@@ -76,12 +77,12 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Camera full cert (Test GLOW-CERT sibling) | PASS | `main@a059b7e0`: `verify_camera_functional_linux.sh` 10/10 PASS con build e package consumer sul preset linux-ci-full-validation. |
 | SDK consumer functional (Test P1 sibling) | WIRED | Consumer esterno esistente + nuovo `check_assets`: include authoring espliciti, image/font logical refs, due engine/root e CWD isolation. |
 | Render runtime cert (Test P3) | WIRED | `verify_render_runtime_linux.sh` 4 distinct sha256. |
-| Asset preflight cert (Test #7 sibling) | WIRED | `verify_asset_preflight_linux.sh` 10 sabotage scenarios. |
+| Asset preflight cert (Test #7 sibling) | PASS (focused) | Manifest SHA-256, verifica size/mtime, cambio bytes a size stabile, path-root e C ABI runtime `CHRONON_ERROR_ASSET_CHANGED` PASS; la matrice completa `verify_asset_preflight_linux.sh` resta da rieseguire. |
 | Timeline functional cert (Test P1) | WIRED | `verify_timeline_functional_linux.sh` 10 TEST_CASEs. |
 | Chronon product cert (orchestrator) | WIRED / NOT RUN | `verify_chronon_product_linux.sh` esegue una lista unica di 15 sub-gate reali; il diagnostics gate non è più forward-pointed. |
 | Error handling cert | WIRED | `verify_error_handling_linux.sh` 10 scenarios. |
 | Performance cert | WIRED | `verify_performance_linux.sh` 5 scenarios + leak test. |
-| Sanitizer cert | WIRED | `verify_sanitizer_linux.sh` 0 OOB + 0 UAF + 0 UB + 0 data races. |
+| Sanitizer cert | BLOCKED | `verify_sanitizer_linux.sh` è wiring robusto, ma la certificazione completa non è stata eseguita: il build ASan ha superato il limite di spazio dell’host. |
 | TICKET-125 (Test aggregator Tests 8-18) | PARTIAL | 11-row index Tests 8-18 con PASS/FAIL criterion. Vedi [TICKET-125](tickets/TICKET-125-test-aggregator.md) + forward-points TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + TICKET-TEST-18-LONG-FORM-CONTENT. |
 | Test 18 founder dashboard | OPEN | Weekly scorecard aggregator + 8 metriche. |
 | Build (fd5cbcf2) | PASS | `chronon3d_tests` 795/795 + default build 40/40 PASS. Linker error `create_video_sink` risolto con `#if CHRONON3D_ENABLE_VIDEO` in `sdk_render_engine.cpp` + `target_compile_definitions` in `src/runtime/CMakeLists.txt`. Tag: `build-fix-baseline-2026-07-30`. |

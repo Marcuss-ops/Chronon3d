@@ -77,6 +77,10 @@ Tutti i punti seguenti devono essere veri:
    (`tools/sdk/check_feature_ghosts.sh`, opt-in) restano i gate
    canonici per la copertura del simboli; il consumer manifest-clean
    è l'invariante pubblica della SDK.
+9. **C ABI v2**: `chronon_abi_version()` deve riportare il contratto v2;
+   create_v2, input JSON a lunghezza esplicita, buffer caller-owned,
+   serializzazione BUSY e stato strutturato per asset modificati devono essere
+   verificati da consumer C/C++ sul medesimo SHA.
 
 ## Certificazione Globale Linux (21-item DoD)
 
