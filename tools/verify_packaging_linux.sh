@@ -9,14 +9,15 @@
 #   1. cmake --install build/chronon/linux-release-validation --prefix /tmp/chronon-install-a
 #   2. mv /tmp/chronon-install-a /tmp/chronon-install-b
 #   3. cmake -S tests/package_consumer -B /tmp/chronon-consumer -G Ninja \
-#         -DCMAKE_PREFIX_PATH=/tmp/chronon-install-b
+#         -DCMAKE_PREFIX_PATH=/tmp/chronon-install-b;<dependency-prefix>
 #   4. build, esegui consumer
 #
 # PASS quando (4 anti-false-green invariants):
 #   - pacchetto funziona dopo lo spostamento
 #   - nessun riferimento alla source tree in /tmp/chronon-install-b
 #   - nessun path assoluto a /tmp/chronon-install-a in /tmp/chronon-install-b
-#   - find_package(Chronon3D) works from /tmp/chronon-install-b
+#   - find_package(Chronon3D) works from /tmp/chronon-install-b with the
+#     external dependency prefix recorded by the SDK build
 #   - consumer produce output (exit 0 + produces a non-empty artifact)
 #
 # Verdict contract:
@@ -57,6 +58,9 @@ PREFIX_A="/tmp/chronon-install-a"
 PREFIX_B="/tmp/chronon-install-b"
 CONSUMER_DIR="/tmp/chronon-consumer"
 CONSUMER_SRC="$ROOT/tests/package_consumer"
+CONSUMER_PREFIX_PATH="$PREFIX_B"
+VCPKG_INSTALLED_DIR_FOR_CONSUMER=""
+VCPKG_TARGET_TRIPLET_FOR_CONSUMER=""
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -160,11 +164,30 @@ elif [ ! -f "$BUILD_DIR/src/libchronon3d_sdk_impl.a" ]; then
     BUILD_BLOCKED=true
 else
     # Clean any previous run
-    rm -rf "$PREFIX_A" "$PREFIX_B" "$CONSUMER_DIR"
+    find "$PREFIX_A" "$PREFIX_B" "$CONSUMER_DIR" -depth -delete 2>/dev/null || true
     mkdir -p "$PREFIX_A"
 
+    # A CMake package exports its third-party dependencies; it does not vendor
+    # the package manager tree.  Resolve the exact dependency prefix used by
+    # this SDK build from its cache so the relocated-package check stays
+    # independent of the source-tree layout.
+    VCPKG_ROOT_FROM_CACHE="$(sed -n 's/^VCPKG_INSTALLED_DIR:.*=//p' "$BUILD_DIR/CMakeCache.txt" | head -n 1)"
+    VCPKG_TRIPLET_FROM_CACHE="$(sed -n 's/^VCPKG_TARGET_TRIPLET:.*=//p' "$BUILD_DIR/CMakeCache.txt" | head -n 1)"
+    if [ -n "$VCPKG_ROOT_FROM_CACHE" ] && [ -n "$VCPKG_TRIPLET_FROM_CACHE" ] \
+        && [ -d "$VCPKG_ROOT_FROM_CACHE/$VCPKG_TRIPLET_FROM_CACHE" ]; then
+        VCPKG_INSTALLED_DIR_FOR_CONSUMER="$(cd "$VCPKG_ROOT_FROM_CACHE" && pwd)"
+        VCPKG_TARGET_TRIPLET_FOR_CONSUMER="$VCPKG_TRIPLET_FROM_CACHE"
+        CONSUMER_PREFIX_PATH="$PREFIX_B;$VCPKG_INSTALLED_DIR_FOR_CONSUMER/$VCPKG_TARGET_TRIPLET_FOR_CONSUMER"
+    else
+        _gate_blocked "consumer_dependencies" \
+            "vcpkg dependency prefix is not available in the release build cache"
+        BUILD_BLOCKED=true
+    fi
+
     echo "  Running: cmake --install $BUILD_DIR --prefix $PREFIX_A"
-    if cmake --install "$BUILD_DIR" --prefix "$PREFIX_A" > /tmp/chronon_pkg_install_a.log 2>&1; then
+    if [ "$BUILD_BLOCKED" = true ]; then
+        _gate_blocked "install_prefix_a" "dependency environment unavailable"
+    elif cmake --install "$BUILD_DIR" --prefix "$PREFIX_A" > /tmp/chronon_pkg_install_a.log 2>&1; then
         _gate_pass "install_prefix_a"
     else
         _gate_fail "install_prefix_a" "cmake --install failed (see /tmp/chronon_pkg_install_a.log)"
@@ -251,10 +274,13 @@ else
         rm -rf "$CONSUMER_DIR"
         mkdir -p "$CONSUMER_DIR"
 
-        echo "  Running: cmake -S $CONSUMER_SRC -B $CONSUMER_DIR -G Ninja -DCMAKE_PREFIX_PATH=$PREFIX_B"
+        echo "  Running: cmake -S $CONSUMER_SRC -B $CONSUMER_DIR -G Ninja -DCMAKE_PREFIX_PATH=$CONSUMER_PREFIX_PATH"
         if cmake -S "$CONSUMER_SRC" -B "$CONSUMER_DIR" \
             -G "Ninja" \
-            -DCMAKE_PREFIX_PATH="$PREFIX_B" \
+            -DCMAKE_PREFIX_PATH="$CONSUMER_PREFIX_PATH" \
+            -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED_DIR_FOR_CONSUMER" \
+            -D_VCPKG_INSTALLED_DIR="$VCPKG_INSTALLED_DIR_FOR_CONSUMER" \
+            -DVCPKG_TARGET_TRIPLET="$VCPKG_TARGET_TRIPLET_FOR_CONSUMER" \
             > /tmp/chronon_pkg_consumer_configure.log 2>&1; then
             _gate_pass "find_package_works_after_relocation"
         else
