@@ -5,12 +5,14 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include "chronon3d_version.hpp"
 
 #include <nlohmann/json.hpp>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <atomic>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -30,9 +32,27 @@ struct chronon_engine {
     std::string last_error;
     std::uint8_t* buffer{nullptr};
     std::size_t buffer_size{0};
+    std::atomic_flag in_use = ATOMIC_FLAG_INIT;
 
     explicit chronon_engine(const chronon3d::sdk::RenderSettings& settings)
         : engine(settings) {}
+};
+
+class EngineUseGuard {
+public:
+    explicit EngineUseGuard(std::atomic_flag& flag) : flag_(flag) {
+        acquired_ = !flag_.test_and_set(std::memory_order_acquire);
+    }
+    ~EngineUseGuard() {
+        if (acquired_) flag_.clear(std::memory_order_release);
+    }
+    EngineUseGuard(const EngineUseGuard&) = delete;
+    EngineUseGuard& operator=(const EngineUseGuard&) = delete;
+    [[nodiscard]] bool acquired() const noexcept { return acquired_; }
+
+private:
+    std::atomic_flag& flag_;
+    bool acquired_{false};
 };
 
 namespace {
@@ -109,7 +129,7 @@ chronon_status set_error(chronon_engine* engine, chronon_status status,
 extern "C" {
 
 const char* chronon_version_string(void) {
-    return "0.1.0-alpha.1";
+    return CHRONON3D_PROJECT_VERSION_STRING;
 }
 
 uint32_t chronon_abi_version(void) { return 1; }
@@ -211,6 +231,9 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
                                     uint64_t frame, chronon_frame_buffer* output) {
     if (!engine || !plan || !plan->prepared.composition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
+    EngineUseGuard use(engine->in_use);
+    if (!use.acquired())
+        return set_error(engine, CHRONON_ERROR_BUSY, "engine is already rendering");
     std::memset(output, 0, sizeof(*output));
     engine->engine.set_settings(plan->settings);
     auto result = engine->engine.render(*plan->prepared.composition,
@@ -240,9 +263,12 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
                                           uint64_t frame, void* destination,
                                           uint64_t destination_size,
                                           chronon_frame_info* output) {
-    if (!engine || !plan || !plan->prepared.composition || !destination || !output)
+    if (!engine || !plan || !plan->prepared.composition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT,
                          "invalid render-into arguments");
+    EngineUseGuard use(engine->in_use);
+    if (!use.acquired())
+        return set_error(engine, CHRONON_ERROR_BUSY, "engine is already rendering");
     std::memset(output, 0, sizeof(*output));
     engine->engine.set_settings(plan->settings);
     auto result = engine->engine.render(
@@ -255,15 +281,15 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
     const auto size = rendered_byte_size(rendered);
     if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
                                 "rendered frame size overflow or invalid dimensions");
-    if (destination_size < *size)
-        return set_error(engine, CHRONON_ERROR_IO_FAILED,
-                         "destination buffer is too small");
+    output->size = static_cast<uint64_t>(*size);
+    if (!destination || destination_size < *size)
+        return set_error(engine, CHRONON_ERROR_BUFFER_TOO_SMALL,
+                         "destination buffer is too small; query required size in out_info->size");
     std::memcpy(destination, rendered.pixels, *size);
     output->width = static_cast<uint32_t>(rendered.width);
     output->height = static_cast<uint32_t>(rendered.height);
     output->stride = static_cast<uint32_t>(rendered.bytes_per_row);
     output->pixel_format = static_cast<uint32_t>(rendered.format);
-    output->size = static_cast<uint64_t>(*size);
     clear_error(engine);
     return CHRONON_OK;
 }
@@ -274,6 +300,9 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
                                    uint32_t fps_den, const chronon_render_callbacks* cb) {
     if (!engine || !plan || !plan->prepared.composition || !output_path || fps_num == 0 || fps_den == 0)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid file render arguments");
+    EngineUseGuard use(engine->in_use);
+    if (!use.acquired())
+        return set_error(engine, CHRONON_ERROR_BUSY, "engine is already rendering");
     engine->engine.set_settings(plan->settings);
     chronon3d::sdk::RenderFileRequest request;
     request.composition = plan->prepared.composition.get();
