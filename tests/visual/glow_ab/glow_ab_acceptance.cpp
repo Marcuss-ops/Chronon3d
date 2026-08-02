@@ -84,8 +84,8 @@ std::shared_ptr<Framebuffer> render_glow_params(
     (void)renderer;
     Composition comp = composition(
         {.name = "glow_params_test",
-         .width = static_cast<unsigned>(width),
-         .height = static_cast<unsigned>(height),
+         .width = static_cast<i32>(width),
+         .height = static_cast<i32>(height),
         .duration = 1},
         [glow](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);

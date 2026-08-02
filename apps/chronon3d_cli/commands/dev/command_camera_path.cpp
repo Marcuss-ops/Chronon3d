@@ -8,6 +8,7 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>

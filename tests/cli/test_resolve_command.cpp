@@ -131,7 +131,7 @@ CompositionRegistry make_typed_resolve_registry() {
             return composition({.name = "ResolvePass",
                                 .width = 1920, .height = 1080,
                                 .duration = Frame{150}},
-                               [](const FrameContext&) {});
+                               [](const FrameContext&) { return Scene{}; });
         },
         .codec = std::move(codec),
     }.to_descriptor());

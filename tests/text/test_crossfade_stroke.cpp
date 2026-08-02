@@ -236,7 +236,7 @@ TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doe
     // Post-gap (frame 90).  Per PR 11, slots must be cleared.
     const auto post = shape->animated_doc->sample_at(Frame{90});
     CHECK(post.transition == SourceTextTransition::Hold);
-    apply_active_state_to_text_run_shape(*shape, post, engine, layout);
+    static_cast<void>(apply_active_state_to_text_run_shape(*shape, post, engine, layout));
     CHECK(shape->dissolve_layout == nullptr);
     CHECK(shape->dissolve_glyphs.empty());
     CHECK(shape->dissolve_mix == 0.0f);

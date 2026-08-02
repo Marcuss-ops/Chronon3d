@@ -98,6 +98,20 @@ CaptureResult capture_stdout_int(std::function<int()> fn) {
 
 CompositionRegistry make_typed_validate_registry() {
     CompositionRegistry registry;
+    PropsCodec<NewsProps> codec;
+    codec.schema = PropsSchema{{
+        PropField{"title", PropType::String, false,
+                  "Headline text", std::optional<std::string>{"default-title"}},
+        PropField{"duration", PropType::Integer, false,
+                  "Frame count", std::optional<std::string>{"150"}},
+    }};
+    codec.decode = [](const ValueMap& vals, const NewsProps& defs)
+                      -> Result<NewsProps, PropsError> {
+        NewsProps p = defs;
+        if (vals.contains("title"))    p.title = vals.get_string("title");
+        if (vals.contains("duration")) p.duration_frames = vals.get_int("duration", 0);
+        return p;
+    };
     registry.add(TypedCompositionDescriptor<NewsProps>{
         .id = "ValidatePass",
         .category = "test",
@@ -106,19 +120,13 @@ CompositionRegistry make_typed_validate_registry() {
             if (p.duration_frames < 0) return std::string{"duration must be >= 0"};
             return std::nullopt;
         },
-        .decode = [](const ValueMap& vals, const NewsProps& defs)
-                      -> Result<NewsProps, PropsError> {
-            NewsProps p = defs;
-            if (vals.contains("title"))    p.title = vals.get_string("title");
-            if (vals.contains("duration")) p.duration_frames = vals.get_int("duration", 0);
-            return p;
-        },
         .factory = [](const NewsProps&) {
             return composition({.name = "ValidatePass",
                                 .width = 1920, .height = 1080,
                                 .duration = Frame{150}},
-                               [](const FrameContext&) {});
-        }
+                               [](const FrameContext&) { return Scene{}; });
+        },
+        .codec = std::move(codec),
     }.to_descriptor());
     return registry;
 }

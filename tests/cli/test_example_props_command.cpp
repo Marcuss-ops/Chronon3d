@@ -109,7 +109,7 @@ CompositionRegistry make_typed_registry_with_codec_defaults() {
         return composition({.name = "TestExamplePropsOK",
                             .width = 1920, .height = 1080,
                             .duration = Frame{60}},
-                           [](const FrameContext&) {});
+                           [](const FrameContext&) { return Scene{}; });
     }));
     return registry;
 }
@@ -128,7 +128,7 @@ CompositionRegistry make_legacy_registry_no_codec() {
         return composition({.name = "TestLegacyNoCodec",
                             .width = 1280, .height = 720,
                             .duration = Frame{120}},
-                           [](const FrameContext&) {});
+                           [](const FrameContext&) { return Scene{}; });
     }));
     return registry;
 }

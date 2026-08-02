@@ -26,7 +26,7 @@ CompositionRegistry make_test_registry() {
                                 .width = 1920,
                                 .height = 1080,
                                 .duration = Frame{300}},
-                               [](const FrameContext&) {});
+                               [](const FrameContext&) { return Scene{}; });
         }
     }.to_descriptor());
     return registry;

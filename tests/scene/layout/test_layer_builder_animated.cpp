@@ -94,7 +94,9 @@ TEST_CASE("LayerBuilder: animations resolve in layer-local time") {
     Scene scene = sb.build();
     REQUIRE(scene.layers().size() == 1);
     CHECK(scene.layers()[0].transform.position.x == doctest::Approx(120.0f));
-    CHECK(scene.layers()[0].local_frame(90) == 70);
+    CHECK(scene.layers()[0].local_time(
+        SampleTime::from_frame_int(Frame{90}, FrameRate{30, 1})
+    ).integral_frame() == 70);
 }
 
 TEST_CASE("LayerBuilder: font_engine setter and getter") {

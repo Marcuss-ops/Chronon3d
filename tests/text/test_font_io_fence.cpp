@@ -78,7 +78,7 @@ TEST_CASE("font_io_fence: arm + cache miss throws std::runtime_error") {
     trr.set_debug_io_fence(true);          // late-bind + arm
 
     CHECK_THROWS_AS(
-        trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver),
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver)),
         std::runtime_error);
 
     trr.set_debug_io_fence(false);          // disarm before return
@@ -100,7 +100,7 @@ TEST_CASE("font_io_fence: disarm + cache miss does NOT throw (cache lazy-load)")
     trr.set_debug_io_fence(false);          // explicit disarm (default already)
 
     CHECK_NOTHROW(
-        trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver));
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -124,7 +124,7 @@ TEST_CASE("font_io_fence: re-arm + cache hit does NOT throw") {
 
     trr.set_debug_io_fence(true);           // arm
     CHECK_NOTHROW(
-        trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver));
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver)));
 
     trr.set_debug_io_fence(false);
 }
@@ -154,16 +154,16 @@ TEST_CASE("font_io_fence: preflight per-tuple, distinct sizes get distinct entri
 
     // Both succeed with the fence disarmed.
     CHECK_NOTHROW(
-        trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver));
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver)));
     CHECK_NOTHROW(
-        trr.resolve_handle(kFixturePath, /*font_size=*/24.0f, *resolver));
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/24.0f, *resolver)));
 
     // Arm AFTER both are cached — neither should throw.
     trr.set_debug_io_fence(true);
     CHECK_NOTHROW(
-        trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver));
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/16.0f, *resolver)));
     CHECK_NOTHROW(
-        trr.resolve_handle(kFixturePath, /*font_size=*/24.0f, *resolver));
+        static_cast<void>(trr.resolve_handle(kFixturePath, /*font_size=*/24.0f, *resolver)));
 
     trr.set_debug_io_fence(false);
 }
