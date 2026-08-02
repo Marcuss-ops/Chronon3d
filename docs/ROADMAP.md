@@ -5,7 +5,7 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
-> **Snapshot osservato (2026-08-01):** `main@771aa603`. Il cleanup legacy
+> **Snapshot osservato (2026-08-02):** `main@60a2d028`. Il cleanup legacy
 > confermato è allineato al codice: registration descriptor-only, shaping
 > canonico, `Composition` descriptor-only per la camera, factory unica del
 > runtime, alias temporali/camera rimossi e ticket superati chiusi. Verifiche
@@ -15,13 +15,16 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 
 Il repository resta vincolato alla certificazione sullo stesso SHA: il cleanup
 non è ancora promosso a `CLEAN-BASELINE`; Glow V1, Camera 2.5D V1 e la fixture
-combinata sono certificati su `main@5cfdf1cd`. Il gate cleanup globale resta da
-eseguire con il checkout senza file non tracciati e con il full baseline runner.
+combinata hanno certificazioni storiche su `main@5cfdf1cd`, ma non sono ancora
+ricertificate sullo SHA corrente. Il gate cleanup globale resta da eseguire con
+il checkout senza file non tracciati e con il full baseline runner.
 Il lineage di cleanup osservato arriva a `main@20a102f3`: timing globale rimosso
 dal job, Render Plan tipizzato e preparato prima del frame, CLI unificata, C ABI
 isolata, ciclo base/animazioni spezzato, percorso non-modulare rimosso, adapter
-legacy cancellati e gate architetturali resi bloccanti. La certificazione macchina
-è ancora `NOT RUN` perché il checkout non contiene il toolchain vcpkg richiesto.
+legacy cancellati, asset integrity al render boundary e gate architetturali resi
+bloccanti. La certificazione globale macchina è ancora `NOT RUN`: sanitizer
+completo e packaging release richiedono un ambiente/checkout dedicato; i gate
+focalizzati del nuovo SHA sono riportati in `CURRENT_STATUS.md`.
 
 L'ordine vincolante successivo è:
 
