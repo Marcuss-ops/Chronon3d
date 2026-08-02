@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@4dabf6e3` (checkpoint locale non pushato) — foundation/core focalizzati PASS, `chronon3d_c_abi_tests` PASS con C ABI v2 e cambio asset runtime, `chronon3d_sdk_tests` PASS, CLI render-plan diretto PASS, architecture/doc-sync/test-registration/hygiene PASS. Golden visuali focalizzati: 39/39 casi e 269.969/269.969 asserzioni PASS; `chronon3d_camera_visual_tests`: 9/9 casi e 27/27 asserzioni PASS. Sanitizer completo e packaging release restano BLOCKED. Full baseline 11/11 non ricalcolata.
+> Ultimo SHA osservato: `main@bf413d58` (checkpoint locale non pushato) — foundation/core focalizzati PASS, `chronon3d_c_abi_tests` PASS con C ABI v2 e cambio asset runtime, `chronon3d_sdk_tests` PASS, CLI render-plan diretto PASS, architecture/doc-sync/test-registration/hygiene PASS. Golden visuali focalizzati: 39/39 casi e 269.969/269.969 asserzioni PASS; `chronon3d_camera_visual_tests`: 9/9 casi e 27/27 asserzioni PASS. Marker gate Markdown PASS su `docs/**/*.md`; sanitizer completo e packaging release restano BLOCKED. Full baseline 11/11 non ricalcolata.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -12,8 +12,8 @@
 
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
-| TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | docs | OPEN | [TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX](tickets/TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.md) |
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
+| TICKET-DEPRECATED-API-REMOVAL | API | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
 
 Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 

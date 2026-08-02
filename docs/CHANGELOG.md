@@ -1,4 +1,12 @@
 ## 2026-08-02
+### `fix(gates): scan all markdown conflict markers` (`bf413d58`)
+
+Chiuso `TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX`: il gate non controlla più
+soltanto `docs/CHANGELOG.md`, ma tutti i Markdown sotto `docs/`, compresi
+ticket, roadmap, archive e baseline. Il checkout corrente passa senza marker
+di conflitto residui.
+
+## 2026-08-02
 ### `test(golden): make current visual fixtures strict` (`4dabf6e3`)
 
 I quattro helper golden non creano più PNG mancanti durante una verifica:
