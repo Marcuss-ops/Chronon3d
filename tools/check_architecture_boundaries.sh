@@ -663,8 +663,8 @@ else echo "PASS"; fi
 # new ticket — not silently re-add the deleted struct.
 echo -n "  [22/26] TextEffects ELIMINATED       ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
-    -E '\bstruct\s+TextEffects\b|\bdef\.effects\.' $SCRIPT_PATHS 2>/dev/null \
-    | filter_symbol_in_code_only '\bstruct\s+TextEffects\b|\bdef\.effects\.' \
+    -E '\bstruct[[:space:]]+TextEffects\b|\bdef\.effects\.' $SCRIPT_PATHS 2>/dev/null \
+    | filter_symbol_in_code_only '\bstruct[[:space:]]+TextEffects\b|\bdef\.effects\.' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
@@ -734,14 +734,14 @@ if [ -f include/chronon3d/text/text_placement_resolver.hpp ] \
     hits=""
     inc_hits=""
 else
-    hits=$(grep -RnE 'class\s+TextPlacementResolver\b' include/chronon3d/ 2>/dev/null \
-        | filter_symbol_in_code_only 'class\s+TextPlacementResolver\b' \
+    hits=$(grep -RnE 'class[[:space:]]+TextPlacementResolver\b' include/chronon3d/ 2>/dev/null \
+        | filter_symbol_in_code_only 'class[[:space:]]+TextPlacementResolver\b' \
         || true)
     # Symmetric include scan (P1 reviewer hardening): also cover .cpp under
     # include/chronon3d/ to catch relative `#include "text_placement_resolver.hpp"`
     # patterns a future commit might introduce.
     inc_hits=$(grep -Rn --include='*.hpp' --include='*.inl' --include='*.cpp' \
-        -E '#\s*include\s+<chronon3d/text/text_placement_resolver\.hpp>' \
+        -E '#[[:space:]]*include[[:space:]]+<chronon3d/text/text_placement_resolver\.hpp>' \
         include/chronon3d/ 2>/dev/null \
         || true)
     if [ -n "$hits" ] || [ -n "$inc_hits" ]; then
