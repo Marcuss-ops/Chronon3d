@@ -772,7 +772,7 @@ def main():
     parser = argparse.ArgumentParser(description="Chronon3d Full Visual Quality Test Suite")
     parser.add_argument("--reference", help="Path to reference target image")
     parser.add_argument("--render", help="Path to rendered output image")
-    parser.add_argument("--executable", default="./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli", help="Path to chronon3d_cli")
+    parser.add_argument("--executable", default="./build/chronon/linux-release-validation/apps/chronon3d_cli/chronon3d_cli", help="Path to chronon3d_cli")
     parser.add_argument("--composition", default="OrbitCameraTest", help="Composition name to test determinism / responsive (camera-test default after the SaaS cleanup pass)")
     parser.add_argument("--skip-pipeline", action="store_true", help="Skip deterministic render and responsive margin checks")
     parser.add_argument("--smoke-template", nargs="*", default=[], help="Render and validate one or more template compositions by name")
