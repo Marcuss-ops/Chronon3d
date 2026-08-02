@@ -83,8 +83,17 @@ RenderPreparationResult prepare_render(
         return result;
     }
 
+    auto resource_options = options.resources;
+    // An injected MediaFrameProvider is the authoritative video source for
+    // this render.  It may intentionally support synthetic/test media and
+    // therefore cannot be probed through the optional native FFmpeg path.
+    // Keep manifest existence validation above, but do not reject a valid
+    // provider-backed render merely because native metadata probing is off.
+    if (renderer->video_decoder() != nullptr) {
+        resource_options.prepare_video_metadata = false;
+    }
     auto prepared = ResourcePreparation::prepare(
-        scene.asset_manifest(), renderer->runtime().resolver(), options.resources);
+        scene.asset_manifest(), renderer->runtime().resolver(), resource_options);
     if (!prepared.has_value()) {
         result.preparation_error = std::move(prepared.error());
         return result;

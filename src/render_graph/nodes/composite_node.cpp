@@ -167,7 +167,8 @@ NodeExecResult CompositeNode::execute(
         // ── Post-blend overhead ────────────────────────────────────────
         _os = profiling::now();
 
-        if (ctx.policy.track_dof_depth && !ctx.node_exec.dof_depth.empty()) {
+        auto& dof_depth = ctx.node_exec.dof_depth_buffer();
+        if (ctx.policy.track_dof_depth && !dof_depth.empty()) {
             const i32 w = ctx.frame_input.width;
             const float wz = m_world_z;
             const i32 bx0 = clip ? clip->x0 : 0;
@@ -182,7 +183,7 @@ NodeExecResult CompositeNode::execute(
                     const i32 sx = x - top->origin_x();
                     if (sx < 0 || sx >= top->width()) continue;
                     if (src_row[sx].a > 0.01f) {
-                        ctx.node_exec.dof_depth[static_cast<size_t>(y) * w + x] = wz;
+                        dof_depth[static_cast<size_t>(y) * w + x] = wz;
                     }
                 }
             }

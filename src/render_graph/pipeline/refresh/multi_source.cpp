@@ -35,7 +35,7 @@ void refresh_multi_source_node(
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static || use_local;
     const Mat4 item_source_world = item.projected && !item.native_3d
-        ? implicit_canvas_center_matrix(ctx)
+        ? item.world_matrix
         : (use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx));
