@@ -1,4 +1,7 @@
 #include "glyph_selector_helpers.hpp"
+
+#include <array>
+
 using namespace chronon3d;
 using namespace test_glyph_sel;
 
@@ -176,14 +179,7 @@ TEST_CASE("Exclude_spaces: backward compatible -- placed==nullptr -> no-op") {
     }
 }
 
-// TICKET-007.p (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; text unit map word-boundary logic bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — word unit width assertion fails (w==0 vs Approx(1)).
-// TODO(chronon3d): fix text unit map word-boundary logic and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs" * doctest::skip()) { // TICKET-007.p
+TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs") {
     auto source = std::string("ab cd ef");
     auto placed = make_run_for_source(source);
     auto map = build_text_unit_map(placed, source);
@@ -198,9 +194,13 @@ TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs" * doctest::
 
     SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
-    for (u32 i = 0; i < 8; ++i) {
+    // Whitespace is not a word unit.  It must remain inactive while each
+    // non-whitespace word glyph follows the full-range selector.
+    const std::array<f32, 8> expected{
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f};
+    for (u32 i = 0; i < expected.size(); ++i) {
         f32 w = evaluate_selector(spec, map, i, source, t, &placed);
-        CHECK(w == doctest::Approx(1.0f));
+        CHECK(w == doctest::Approx(expected[i]));
     }
 }
 
