@@ -79,6 +79,13 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/Chronon3DTargets.cmake")
 
+# The C ABI target is exported with the short internal name `C` for
+# compatibility with the existing target file.  Re-expose it through the
+# namespaced public spelling used by installed C consumers.
+if(TARGET C AND NOT TARGET Chronon3D::C)
+    add_library(Chronon3D::C ALIAS C)
+endif()
+
 # ── Public API alias ─────────────────────────────────────────────────
 # CMake does not preserve ALIAS targets across install(EXPORT …), so the
 # in-tree `add_library(Chronon3D::SDK ALIAS chronon3d_sdk)` in
@@ -89,6 +96,12 @@ include("${CMAKE_CURRENT_LIST_DIR}/Chronon3DTargets.cmake")
 # Chronon3DTargets.cmake included above.
 if(NOT TARGET Chronon3D::SDK)
     add_library(Chronon3D::SDK ALIAS SDK)
+endif()
+
+# Recreate the namespaced C ABI alias for installed consumers.  The export
+# file uses the historical short target name `C` as its EXPORT_NAME.
+if(TARGET C AND NOT TARGET Chronon3D::C)
+    add_library(Chronon3D::C ALIAS C)
 endif()
 
 check_required_components(Chronon3D)

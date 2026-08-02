@@ -33,11 +33,17 @@ set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
 
 if(CHRONON3D_BUILD_C_API)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/src/c_api/chronon3d_version.hpp.in
+        ${CMAKE_CURRENT_BINARY_DIR}/chronon3d_version.hpp
+        @ONLY
+    )
     add_library(chronon3d_c SHARED
         ${CMAKE_SOURCE_DIR}/src/c_api/chronon3d_c_api.cpp
     )
     target_include_directories(chronon3d_c PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}
     )
     target_link_libraries(chronon3d_c PRIVATE
         chronon3d_sdk
