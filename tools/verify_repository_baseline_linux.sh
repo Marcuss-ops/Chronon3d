@@ -367,7 +367,11 @@ else
     MANDATORY_LABELS=("baseline" "boundary" "ci")
 
     for label in "${MANDATORY_LABELS[@]}"; do
-        if ! echo "$AVAILABLE_LABELS" | grep -qE "^${label}\$"; then
+        # ctest --print-labels renders each label with indentation (currently
+        # two spaces).  Match the semantic label instead of depending on the
+        # presentation whitespace, otherwise a present `boundary` label is
+        # falsely reported as missing.
+        if ! echo "$AVAILABLE_LABELS" | grep -qE "^[[:space:]]*${label}[[:space:]]*\$"; then
             # Soft-skip per code-reviewer NIT: labels that are not defined in
             # ctest should not FAIL a working build (they are forward-point
             # candidates, not blockers). Only the canonical `boundary` label
