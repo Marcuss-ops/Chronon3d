@@ -73,16 +73,18 @@ struct PreparationOptions {
 
 struct PreparationError {
     enum class Code {
-        MissingAsset,              // required asset not found by resolver
-        UnresolvableAssetPath,     // path is malformed / empty
-        CorruptedAsset,            // asset exists but failed to decode/probe
-        ResolverFailure,           // resolver returned an error
-        LayoutPreparationFailed,   // layout pipeline returned Error
-        InternalError,
+        MissingAsset = 0,          // required asset not found by resolver
+        UnresolvableAssetPath = 1, // path is malformed / empty
+        CorruptedAsset = 2,        // asset exists but failed to decode/probe
+        ResolverFailure = 3,       // resolver returned an error
+        LayoutPreparationFailed = 4, // layout pipeline returned Error
+        InternalError = 5,         // preserve the existing stable ordinal
+        PreflightFailed = 6,       // asset preflight rejected the composition
     };
 
     Code        code{Code::InternalError};
     std::string message;
+    std::string cause_code; // stable source code from the failing phase, if known
     std::string path;     // failing asset path (if known)
     std::string owner;    // manifest owner-key of failing asset (if known)
     std::string phase;    // "font" / "image" / "video" / "audio" / "layout"

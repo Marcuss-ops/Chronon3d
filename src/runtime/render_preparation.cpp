@@ -5,6 +5,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+#include <algorithm>
 #include <sstream>
 
 namespace chronon3d::runtime {
@@ -16,6 +17,9 @@ std::string RenderPreparationResult::diagnostic() const {
     }
     if (preparation_error) {
         out << preparation_error->message;
+        if (!preparation_error->cause_code.empty()) {
+            out << " [" << preparation_error->cause_code << ']';
+        }
         if (!preparation_error->path.empty()) {
             out << " (" << preparation_error->path << ')';
         }
@@ -44,6 +48,23 @@ RenderPreparationResult prepare_render(
         scene, renderer->runtime().resolver(), options.preflight_mode,
         options.reference_frame);
     if (!result.preflight.ok()) {
+        const auto issue = std::find_if(
+            result.preflight.issues.begin(), result.preflight.issues.end(),
+            [](const auto& candidate) {
+                return candidate.severity == PreflightSeverity::Error;
+            });
+        const auto& error_issue = issue != result.preflight.issues.end()
+            ? *issue : result.preflight.issues.front();
+        result.preparation_error = PreparationError{
+            .code = PreparationError::Code::PreflightFailed,
+            .message = error_issue.message.empty()
+                ? "asset preflight validation failed"
+                : error_issue.message,
+            .cause_code = error_issue.code,
+            .path = error_issue.path,
+            .owner = error_issue.layer_id,
+            .phase = "preflight",
+        };
         return result;
     }
 

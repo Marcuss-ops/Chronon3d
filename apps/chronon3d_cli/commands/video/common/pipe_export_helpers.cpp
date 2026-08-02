@@ -165,12 +165,15 @@ warmup_pipe_renderer(
     if (!preparation.ok()) {
         spdlog::error("[video] Render preparation FAILED:\n{}",
                       preparation.diagnostic());
-        return preparation.preparation_error.value_or(
-            runtime::PreparationError{
-                .code = runtime::PreparationError::Code::InternalError,
-                .message = preparation.diagnostic(),
-                .phase = "render preparation",
-            });
+        if (preparation.preparation_error) {
+            return *preparation.preparation_error;
+        }
+        return runtime::PreparationError{
+            .code = runtime::PreparationError::Code::InternalError,
+            .message = "render preparation failed without a structured error: " +
+                preparation.diagnostic(),
+            .phase = "render preparation",
+        };
     }
     const auto warmup_t1 = profiling::now();
 
