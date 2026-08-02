@@ -461,6 +461,41 @@ TEST_CASE("PreparedAssetStore owns subtitle bytes and keeps media metadata") {
     CHECK(media->byte_size == 5);
 }
 
+TEST_CASE("PreparedAssetStore recovers after a failed preflight and keeps prepared bytes immutable") {
+    const auto subtitle = std::filesystem::path("recovery/captions.srt");
+    chronon3d::render_plan::RenderPlan plan;
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "recovery-captions";
+    layer.type = chronon3d::render_plan::LayerType::SubtitleTrack;
+    layer.source = subtitle.generic_string();
+    layer.subtitle_format = chronon3d::render_plan::SubtitleFormat::Srt;
+    plan.layers.push_back(layer);
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+
+    auto failed = chronon3d::assets::prepare_asset_store(plan, resolver);
+    REQUIRE_FALSE(failed);
+    CHECK(failed.error().code ==
+          chronon3d::assets::AssetPreflightErrorCode::MissingAsset);
+
+    const std::string original = "1\n00:00:00,000 --> 00:00:01,000\nRecover me\n";
+    write_file(g_temp.path, subtitle, original);
+    auto recovered = chronon3d::assets::prepare_asset_store(plan, resolver);
+    REQUIRE(recovered);
+
+    const auto view = recovered->find(
+        subtitle.generic_string(), chronon3d::assets::PreparedAssetKind::Subtitle);
+    REQUIRE(view);
+    CHECK(std::string(reinterpret_cast<const char*>(view->bytes.data()),
+                      view->bytes.size()) == original);
+
+    write_file(g_temp.path, subtitle, "changed after preparation");
+    CHECK(std::string(reinterpret_cast<const char*>(view->bytes.data()),
+                      view->bytes.size()) == original);
+    CHECK(view->content_digest == chronon3d::assets::sha256_string(original));
+}
+
 TEST_CASE("AssetResolver::resolve_lexical still rejects ../escape") {
     chronon3d::assets::AssetResolver r;
     r.mount(g_temp.path / "nested");
