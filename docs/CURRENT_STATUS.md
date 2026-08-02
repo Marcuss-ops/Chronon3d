@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@234191dc` (checkpoint locale non pushato) — `linux-fast-dev` build PASS (453/453), core PASS (1422/1422, 1 test esplicitamente skip), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9) e CLI introspection PASS (26/26). AE parity visuale resta FAIL (31/41 casi, 10 fallimenti) e il test `TextUnitMap` word/whitespace resta un blocker visibile con `--no-skip`; sanitizer completo, baseline 11/11 e packaging release restano BLOCKED.
+> Ultimo SHA osservato: `main@f97568d9` (checkpoint locale non pushato) — `linux-fast-dev` build PASS (223/223 per il target core), core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9) e CLI introspection PASS (26/26). AE parity visuale resta FAIL (31/41 casi, 10 fallimenti); sanitizer completo, baseline 11/11 e packaging release restano BLOCKED.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -53,7 +53,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS e camera visual 9/9 PASS sul percorso focalizzato; AE parity 31/41 PASS e core `--no-skip` espone il blocker TextUnitMap word/whitespace. Restano baseline globale, sanitizer, packaging e certificazioni di prodotto. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS, camera visual 9/9 PASS e core `--no-skip` 1423/1423 PASS senza skip; AE parity resta 31/41 PASS con 10 FAIL. Restano baseline globale, sanitizer, packaging e certificazioni di prodotto. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
