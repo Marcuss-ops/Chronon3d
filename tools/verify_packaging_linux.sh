@@ -195,7 +195,7 @@ else
         fi
 
         # (Anti-false-green invariant #1) no source tree references in installed files
-        SOURCE_REFS="$(grep -rF "$ROOT" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l)"
+        SOURCE_REFS="$(grep -rF "$ROOT" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l || true)"
         if [ "$SOURCE_REFS" -eq 0 ]; then
             _gate_pass "no_source_tree_refs (0 references to $ROOT)"
         else
@@ -204,7 +204,7 @@ else
         fi
 
         # (Anti-false-green invariant #2) no absolute paths to old prefix A in installed files
-        ABS_PATHS_A="$(grep -rF "$PREFIX_A" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l)"
+        ABS_PATHS_A="$(grep -rF "$PREFIX_A" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l || true)"
         if [ "$ABS_PATHS_A" -eq 0 ]; then
             _gate_pass "no_absolute_paths_to_a (0 references to $PREFIX_A)"
         else
@@ -216,7 +216,7 @@ else
         SUSPICIOUS="$(grep -rE '"/tmp/|/home/' "$PREFIX_B" 2>/dev/null \
             | grep -v 'Binary file' \
             | grep -v "$PREFIX_B" \
-            | wc -l)"
+            | wc -l || true)"
         if [ "$SUSPICIOUS" -eq 0 ]; then
             _gate_pass "no_suspicious_build_host_paths (0 leaks to /tmp/ or /home/ in installed files)"
         else
