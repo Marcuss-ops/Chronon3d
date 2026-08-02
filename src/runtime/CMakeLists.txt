@@ -65,6 +65,9 @@ target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include
 target_include_directories(chronon3d_runtime
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private
 )
+target_compile_definitions(chronon3d_runtime PRIVATE
+    CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
+)
 target_precompile_headers(chronon3d_runtime PRIVATE <chronon3d/detail/pch.hpp>)
 
 if(CHRONON3D_ENABLE_TELEMETRY)

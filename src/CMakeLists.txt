@@ -55,9 +55,6 @@ target_include_directories(chronon3d_base INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_compile_definitions(chronon3d_base INTERFACE
-    CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
-)
 # CHRONON3D_ENABLE_MESH is defined in the root CMakeLists.txt.
 
 # Only link meshoptimizer when mesh support is active
