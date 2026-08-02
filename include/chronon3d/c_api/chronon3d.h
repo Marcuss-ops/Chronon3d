@@ -59,8 +59,10 @@ typedef struct chronon_render_callbacks {
 typedef struct chronon_error_info {
     uint32_t struct_size;
     chronon_status status;
-    // Valid until the next API call on the same thread. The pointer is
-    // implementation-owned and must not be freed by the caller.
+    // For create_v2 diagnostics, valid until the next create_v2 call on the
+    // same thread. The pointer is implementation-owned and must not be freed
+    // by the caller. chronon_engine_last_error() instead returns storage owned
+    // by the engine and callers must serialize access to that engine handle.
     const char* message;
 } chronon_error_info;
 
@@ -77,7 +79,9 @@ CHRONON3D_API chronon_engine* chronon_engine_create(
     const chronon_engine_config* config);
 // V2 reports configuration failures through out_error instead of returning
 // nullptr without a diagnostic. Engine objects and plans are not thread-safe;
-// serialize calls made against the same handle.
+// serialize calls made against the same handle. Concurrent render attempts
+// are the one deliberate exception: a second render returns CHRONON_ERROR_BUSY.
+// Do not destroy an engine or plan while another call may still use it.
 CHRONON3D_API chronon_status chronon_engine_create_v2(
     const chronon_engine_config* config, chronon_engine** out_engine,
     chronon_error_info* out_error);

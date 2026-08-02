@@ -8,15 +8,22 @@
 #
 # Linked into ctest by registration in tests/manifests/test_definitions.cmake.
 
+set(_chronon3d_c_abi_links
+    chronon3d_render_plan
+    chronon3d_render_plan_compiler
+    nlohmann_json::nlohmann_json)
+set(_chronon3d_c_abi_sources
+    c_abi/test_render_plan_decoder.cpp
+    c_abi/test_render_plan_validator.cpp
+    c_abi/test_prepared_render_plan.cpp)
+if(TARGET chronon3d_c)
+    list(APPEND _chronon3d_c_abi_links chronon3d_c)
+    list(APPEND _chronon3d_c_abi_sources c_abi/test_c_api_v2.cpp)
+endif()
+
 chronon3d_add_test_suite(
     NAME chronon3d_c_abi_tests
     TIER UNIT
-    LINK_TARGETS
-        chronon3d_render_plan
-        chronon3d_render_plan_compiler
-        nlohmann_json::nlohmann_json
-    SOURCES
-        c_abi/test_render_plan_decoder.cpp
-        c_abi/test_render_plan_validator.cpp
-        c_abi/test_prepared_render_plan.cpp
+    LINK_TARGETS ${_chronon3d_c_abi_links}
+    SOURCES ${_chronon3d_c_abi_sources}
     )

@@ -208,6 +208,9 @@ chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* s
                                            chronon_plan** out_plan) {
     if (!engine || !source || source_size == 0 || !out_plan)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid plan arguments");
+    EngineUseGuard use(engine->in_use);
+    if (!use.acquired())
+        return CHRONON_ERROR_BUSY;
     *out_plan = nullptr;
     try {
         const auto root = json::parse(source, source + source_size);
@@ -238,7 +241,7 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
     EngineUseGuard use(engine->in_use);
     if (!use.acquired())
-        return set_error(engine, CHRONON_ERROR_BUSY, "engine is already rendering");
+        return CHRONON_ERROR_BUSY;
     std::memset(output, 0, sizeof(*output));
     engine->engine.set_settings(plan->settings);
     auto result = engine->engine.render(*plan->prepared.composition,
@@ -273,7 +276,7 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
                          "invalid render-into arguments");
     EngineUseGuard use(engine->in_use);
     if (!use.acquired())
-        return set_error(engine, CHRONON_ERROR_BUSY, "engine is already rendering");
+        return CHRONON_ERROR_BUSY;
     std::memset(output, 0, sizeof(*output));
     engine->engine.set_settings(plan->settings);
     auto result = engine->engine.render(
@@ -287,14 +290,14 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
     if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
                                 "rendered frame size overflow or invalid dimensions");
     output->size = static_cast<uint64_t>(*size);
-    if (!destination || destination_size < *size)
-        return set_error(engine, CHRONON_ERROR_BUFFER_TOO_SMALL,
-                         "destination buffer is too small; query required size in out_info->size");
-    std::memcpy(destination, rendered.pixels, *size);
     output->width = static_cast<uint32_t>(rendered.width);
     output->height = static_cast<uint32_t>(rendered.height);
     output->stride = static_cast<uint32_t>(rendered.bytes_per_row);
     output->pixel_format = static_cast<uint32_t>(rendered.format);
+    if (!destination || destination_size < *size)
+        return set_error(engine, CHRONON_ERROR_BUFFER_TOO_SMALL,
+                         "destination buffer is too small; query required size in out_info->size");
+    std::memcpy(destination, rendered.pixels, *size);
     clear_error(engine);
     return CHRONON_OK;
 }
@@ -307,7 +310,7 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid file render arguments");
     EngineUseGuard use(engine->in_use);
     if (!use.acquired())
-        return set_error(engine, CHRONON_ERROR_BUSY, "engine is already rendering");
+        return CHRONON_ERROR_BUSY;
     engine->engine.set_settings(plan->settings);
     chronon3d::sdk::RenderFileRequest request;
     request.composition = plan->prepared.composition.get();
