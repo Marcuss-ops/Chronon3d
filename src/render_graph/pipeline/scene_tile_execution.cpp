@@ -12,11 +12,10 @@
 // duplicate-fix precedent — the audit-comment block above mirrors
 // the wording exactly.
 #include <chronon3d/runtime/render_runtime.hpp>
-#include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <algorithm>
+#include <stdexcept>
 
 namespace chronon3d::graph::detail {
 
@@ -120,23 +119,20 @@ namespace chronon3d::graph::detail {
         };
     }
     ExecutionScope tile_scope = tile_scope_res.value();
-    // Section 5 violation fix: executor lives on RenderRuntime (engine-
-    // lifetime owner), not on SoftwareRenderer.  Reach it via
-    // `sw_renderer->runtime().executor()`; the reference is guaranteed
-    // non-null once HasRuntime() is true.
+    // Section 5 canonical-owner invariant: tile execution is selected only
+    // when TileExecutionPolicy has a renderer with a runtime-owned executor.
+    // Do not construct a second GraphExecutor here; a missing runtime is a
+    // violated pipeline precondition and must fail loudly.
     if (!sw_renderer || !sw_renderer->has_runtime()) {
-        GraphExecutor local_executor;
-        ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
-        tile_fb = local_executor.execute_with_scope(
-            compiled, tile_ctx, tile_scope, local_scheduler);
-    } else {
-        auto& tile_scheduler = ctx.services.scheduler
-            ? *ctx.services.scheduler
-            : sw_renderer->scheduler();
-        tile_fb = sw_renderer->runtime().executor().execute_with_scope(
-            compiled, tile_ctx, tile_scope,
-            tile_scheduler);
+        throw std::logic_error(
+            "tile execution requires the RenderRuntime-owned GraphExecutor");
     }
+    auto& tile_scheduler = ctx.services.scheduler
+        ? *ctx.services.scheduler
+        : sw_renderer->scheduler();
+    tile_fb = sw_renderer->runtime().executor().execute_with_scope(
+        compiled, tile_ctx, tile_scope,
+        tile_scheduler);
 
     if (tile_fb) {
         for (i32 y = region_bbox.y0; y < region_bbox.y1; ++y) {

@@ -22,7 +22,9 @@
 #include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
+#include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <spdlog/spdlog.h>
+#include <stdexcept>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -87,15 +89,12 @@ TileExecutionResult execute_tile_or_fallback(
             full_ctx.node_exec.active_tile_clip.reset();
             full_ctx.policy.reuse_prev_framebuffer = false;
             full_ctx.policy.dirty_rects_enabled = false;
-            if (sw_renderer && sw_renderer->has_runtime()) {
-                result.fb = sw_renderer->runtime().executor().execute_with_scope(
-                    compiled, full_ctx, root_scope, sw_renderer->scheduler());
-            } else {
-                GraphExecutor local_executor;
-                ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
-                result.fb = local_executor.execute_with_scope(
-                    compiled, full_ctx, root_scope, local_scheduler);
+            if (!sw_renderer || !sw_renderer->has_runtime()) {
+                throw std::logic_error(
+                    "tile execution requires the RenderRuntime-owned GraphExecutor");
             }
+            result.fb = sw_renderer->runtime().executor().execute_with_scope(
+                compiled, full_ctx, root_scope, sw_renderer->scheduler());
             const int dirty_count = dirty_out.dirty_tiles
                 ? dirty_out.dirty_tiles->dirty_count() : 0;
             const int clean_count = std::max(0, total_tiles - dirty_count);
@@ -138,19 +137,23 @@ TileExecutionResult execute_tile_or_fallback(
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
             // Section 5 violation fix: executor is engine-owned by RenderRuntime,
             // not by SoftwareRenderer.  Reach it via runtime().executor().
-            if (sw_renderer && sw_renderer->has_runtime()) {
-                // PR 6.2 — root_scope constructed in render_scene_via_graph()
-                // binds session + graph identity; passed through to executor.
+            if (!sw_renderer || !sw_renderer->has_runtime()) {
+                // Direct graph-pipeline tests may provide a backend without
+                // the SoftwareRenderer sidecar. Preserve that explicit
+                // compatibility path; production renderer calls always use
+                // the runtime-owned executor below.
+                GraphExecutor compatibility_executor;
+                ExecutionScheduler compatibility_scheduler{
+                    SchedulerMode::Sequential, 1, false};
+                result.fb = compatibility_executor.execute_with_scope(
+                    compiled, ctx, root_scope, compatibility_scheduler);
+            } else {
+                // PR 6.2 — root_scope constructed in
+                // render_scene_via_graph() binds session + graph identity;
+                // production calls use the sole runtime-owned executor.
                 result.fb = sw_renderer->runtime().executor().execute_with_scope(
                     compiled, ctx, root_scope,
                     sw_renderer->scheduler());
-            } else {
-                // PR 6.2 — fallback single-pass uses the same root_scope
-                // (already bound to fallback_session at the top level).
-                GraphExecutor local_executor;
-                ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
-                result.fb = local_executor.execute_with_scope(
-                    compiled, ctx, root_scope, local_scheduler);
             }
             // P0-1 — GraphExecutor returns nullptr when a node surfaced a
             // backend error (frame_error slot).  Propagate the null result
