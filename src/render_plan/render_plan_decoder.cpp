@@ -171,42 +171,85 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
 }  // namespace
 
-std::optional<PlanDecodeError> validate_render_plan_budget(
+std::optional<PlanDecodeError> validate_render_budget(
     const RenderPlan& plan, const RenderBudget& budget) {
     const auto fail = [](std::string path, std::string message) {
         return std::optional<PlanDecodeError>{
             PlanDecodeError{std::move(path), std::move(message)}};
     };
-    if (plan.canvas.width > static_cast<int>(budget.max_width))
-        return fail("canvas.width", "render budget max_width exceeded");
-    if (plan.canvas.height > static_cast<int>(budget.max_height))
-        return fail("canvas.height", "render budget max_height exceeded");
+    const auto fail_if_non_finite = [&](double value, const char* path) {
+        return !std::isfinite(value) ? fail(path, "value must be finite")
+                                     : std::optional<PlanDecodeError>{};
+    };
+    if (plan.canvas.width <= 0 ||
+        static_cast<std::uint64_t>(plan.canvas.width) > budget.max_width)
+        return fail("canvas.width", "render budget resolution width exceeded or is non-positive");
+    if (plan.canvas.height <= 0 ||
+        static_cast<std::uint64_t>(plan.canvas.height) > budget.max_height)
+        return fail("canvas.height", "render budget resolution height exceeded or is non-positive");
+    if (plan.canvas.fps <= 0)
+        return fail("canvas.fps", "frame rate must be positive");
+    if (plan.output.bitrate < 0)
+        return fail("output.bitrate", "bitrate cannot be negative");
+    if (plan.output.crf < 0 || plan.output.crf > 63)
+        return fail("output.crf", "CRF must be between 0 and 63");
     if (plan.layers.size() > budget.max_layers)
         return fail("layers", "render budget max_layers exceeded");
     if (plan.audio_tracks.size() > budget.max_audio_tracks)
         return fail("audio_tracks", "render budget max_audio_tracks exceeded");
 
-    const auto width = static_cast<std::uint64_t>(plan.canvas.width);
-    const auto height = static_cast<std::uint64_t>(plan.canvas.height);
-    if (height != 0 && width > budget.max_total_pixels / height)
-        return fail("canvas", "render budget max_total_pixels exceeded");
-    const auto total_pixels = width * height;
-    if (total_pixels > budget.max_total_pixels)
-        return fail("canvas", "render budget max_total_pixels exceeded");
-
-    const auto frames = static_cast<std::uint64_t>(plan.canvas.duration.integral());
+    const auto duration_value = plan.canvas.duration.integral();
+    if (duration_value <= 0)
+        return fail("canvas.duration_frames", "duration must be positive");
+    const auto frames = static_cast<std::uint64_t>(duration_value);
     if (frames > budget.max_frames)
         return fail("canvas.duration_frames", "render budget max_frames exceeded");
+
+    const auto width = static_cast<std::uint64_t>(plan.canvas.width);
+    const auto height = static_cast<std::uint64_t>(plan.canvas.height);
+    if (width > budget.max_total_pixels / height)
+        return fail("canvas", "render budget max_total_pixels exceeded");
+    const auto total_pixels = width * height;
 
     std::uint64_t text_bytes = 0;
     std::uint64_t asset_reference_bytes = 0;
     const auto add_bytes = [](std::uint64_t& total, std::size_t value,
                               std::uint64_t limit) {
-        if (value > limit - std::min(total, limit)) return false;
+        if (total > limit || static_cast<std::uint64_t>(value) > limit - total)
+            return false;
         total += static_cast<std::uint64_t>(value);
         return true;
     };
-    for (const auto& layer : plan.layers) {
+    for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+        const auto& layer = plan.layers[index];
+        if (layer.start_frame && layer.start_frame->integral() < 0)
+            return fail("layers[" + std::to_string(index) + "].start_frame",
+                        "layer start frame cannot be negative");
+        if (layer.duration_frames && layer.duration_frames->integral() <= 0)
+            return fail("layers[" + std::to_string(index) + "].duration_frames",
+                        "layer duration must be positive");
+        if (layer.start_frame && layer.start_frame->integral() >= duration_value)
+            return fail("layers[" + std::to_string(index) + "].start_frame",
+                        "layer starts outside the composition duration");
+        if (layer.duration_frames &&
+            layer.duration_frames->integral() >
+                duration_value - (layer.start_frame
+                    ? layer.start_frame->integral() : 0))
+            return fail("layers[" + std::to_string(index) + "].duration_frames",
+                        "layer duration exceeds composition duration");
+        if (layer.animation) {
+            const auto animation_start = layer.animation->start_frame
+                ? layer.animation->start_frame->integral() : 0;
+            if (animation_start < 0 || animation_start >= duration_value)
+                return fail("layers[" + std::to_string(index) + "].animation.start_frame",
+                            "animation starts outside the composition duration");
+            if (layer.animation->duration_frames &&
+                (layer.animation->duration_frames->integral() <= 0 ||
+                 layer.animation->duration_frames->integral() >
+                     duration_value - animation_start))
+                return fail("layers[" + std::to_string(index) + "].animation.duration_frames",
+                            "animation duration exceeds composition duration");
+        }
         if (!add_bytes(text_bytes, layer.text.size(), budget.max_text_bytes))
             return fail("layers[].text", "render budget max_text_bytes exceeded");
         for (const auto* reference : {&layer.asset, &layer.source, &layer.font}) {
@@ -214,22 +257,50 @@ std::optional<PlanDecodeError> validate_render_plan_budget(
                            budget.max_asset_reference_bytes))
                 return fail("layers[]", "render budget max_asset_reference_bytes exceeded");
         }
+        for (const auto* numeric : {&layer.font_size, &layer.box_width,
+                                    &layer.box_height}) {
+            if (numeric->has_value()) {
+                if (const auto invalid = fail_if_non_finite(
+                        static_cast<double>(numeric->value()), "layers[].numeric"))
+                    return invalid;
+            }
+        }
     }
-    for (const auto& track : plan.audio_tracks) {
+    for (std::size_t index = 0; index < plan.audio_tracks.size(); ++index) {
+        const auto& track = plan.audio_tracks[index];
+        for (const auto* value : {&track.volume, &track.start_time_offset,
+                                  &track.duration_seconds, &track.fade_in_seconds,
+                                  &track.fade_out_seconds}) {
+            if (const auto invalid = fail_if_non_finite(*value, "audio_tracks[].numeric"))
+                return invalid;
+        }
+        if (track.start_time_offset < 0.0 || track.duration_seconds < 0.0 ||
+            track.start_time_offset + track.duration_seconds >
+                static_cast<double>(duration_value) / plan.canvas.fps)
+            return fail("audio_tracks[" + std::to_string(index) + "]",
+                        "audio timing exceeds composition duration");
+        if (track.duration_seconds > budget.max_audio_duration_seconds)
+            return fail("audio_tracks[].duration_seconds",
+                        "render budget max_audio_duration_seconds exceeded");
         if (!add_bytes(asset_reference_bytes, track.source.size(),
                        budget.max_asset_reference_bytes))
             return fail("audio_tracks[].source",
                         "render budget max_asset_reference_bytes exceeded");
     }
 
-    if (total_pixels != 0 && total_pixels > budget.max_peak_memory_bytes / 16)
+    if (total_pixels > budget.max_peak_memory_bytes / 16)
         return fail("canvas", "render budget max_peak_memory_bytes exceeded");
-    if (frames != 0 && total_pixels != 0 &&
-        (total_pixels > std::numeric_limits<std::uint64_t>::max() / 4 / frames ||
-         total_pixels * 4 * frames > budget.max_estimated_output_bytes)) {
+    if (total_pixels > std::numeric_limits<std::uint64_t>::max() / 4 / frames)
+        return fail("canvas", "render budget output estimate overflow");
+    const auto estimated_output = total_pixels * 4 * frames;
+    if (estimated_output > budget.max_estimated_output_bytes)
         return fail("canvas", "render budget max_estimated_output_bytes exceeded");
-    }
     return std::nullopt;
+}
+
+std::optional<PlanDecodeError> validate_render_plan_budget(
+    const RenderPlan& plan, const RenderBudget& budget) {
+    return validate_render_budget(plan, budget);
 }
 
 std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
@@ -283,8 +354,6 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                 value.value("fade_out_seconds", 0.0),
                 value.value("ducking_enabled", false)});
         }
-        if (const auto budget_error = validate_render_plan_budget(plan))
-            return *budget_error;
         const auto& output = root.at("output");
         plan.output.path = output.at("path").get<std::string>();
         if (output.contains("format"))
@@ -293,6 +362,8 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.output.codec = video_codec(output.at("codec").get<std::string>());
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
+        if (const auto budget_error = validate_render_budget(plan))
+            return *budget_error;
         plan.content_fingerprint = compute_render_plan_content_fingerprint(plan);
         return plan;
     } catch (const std::exception& error) {

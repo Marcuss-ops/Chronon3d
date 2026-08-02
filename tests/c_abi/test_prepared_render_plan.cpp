@@ -50,6 +50,16 @@ void write_asset(const std::filesystem::path& root, std::string contents) {
 
 } // namespace
 
+TEST_CASE("compile_render_plan fails loudly when the budget is exceeded") {
+    chronon3d::render_plan::RenderPlan plan;
+    plan.canvas = {.width = 0, .height = 180, .fps = 30,
+                   .duration = chronon3d::Frame{1}};
+    chronon3d::assets::AssetResolver resolver;
+    const auto result = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().path == "canvas.width");
+}
+
 TEST_CASE("prepared render plan owns the canonical compiled composition") {
     chronon3d::render_plan::RenderPlan plan;
     plan.job_id = "prepared-plan-test";

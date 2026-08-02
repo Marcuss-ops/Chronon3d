@@ -139,6 +139,9 @@ compile_render_plan(
     chronon3d::assets::AssetResolver& resolver,
     const RenderPlanFingerprintOptions& fingerprint_options) {
     try {
+        if (const auto budget_error = validate_render_budget(plan)) {
+            return *budget_error;
+        }
         auto prepared_store = chronon3d::assets::prepare_asset_store(plan, resolver);
         if (!prepared_store) {
             return PlanDecodeError{
