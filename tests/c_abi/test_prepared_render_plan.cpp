@@ -79,6 +79,8 @@ TEST_CASE("prepared render plan owns the canonical compiled composition") {
     const auto& prepared = prepared_result.value();
 
     REQUIRE(prepared.compiled_composition.definition);
+    REQUIRE(prepared.compiled_composition.asset_manifest);
+    CHECK(prepared.compiled_composition.asset_manifest->assets().empty());
     CHECK(prepared.compiled_composition.definition->composition.name ==
           "prepared-plan-test");
     CHECK(prepared.compiled_composition.definition->composition.width == 320);
