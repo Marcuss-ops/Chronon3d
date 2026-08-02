@@ -132,6 +132,12 @@ CMAKE_ARGS=(
     "-DVCPKG_INSTALLED_DIR=${VCPKG_INSTALLED_DIR:-}"
     "-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET:-x64-linux}"
 )
+# Consumer builds link the complete SDK archive.  Prefer the repository's
+# canonical Ninja generator so independent target builds do not fall back to
+# the slower Makefiles generator on a machine that already has Ninja.
+if command -v ninja >/dev/null 2>&1; then
+    CMAKE_ARGS+=( "-G" "Ninja" )
+fi
 VCPKG_TC="$REPO_ROOT/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake"
 if [[ -f "$VCPKG_TC" ]]; then
     CMAKE_ARGS+=( "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_TC" )

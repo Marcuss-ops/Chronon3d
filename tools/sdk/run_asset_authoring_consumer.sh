@@ -52,6 +52,10 @@ CMAKE_ARGS=(
     "-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET:-x64-linux}"
 )
 
+if command -v ninja >/dev/null 2>&1; then
+    CMAKE_ARGS+=( "-G" "Ninja" )
+fi
+
 VCPKG_TC="$REPO_ROOT/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake"
 if [[ -f "$VCPKG_TC" ]]; then
     CMAKE_ARGS+=("-DCMAKE_TOOLCHAIN_FILE=$VCPKG_TC")
