@@ -33,6 +33,7 @@
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
@@ -210,6 +211,16 @@ std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
     if (!compiled.definition) {
         throw std::runtime_error(
             "CompiledComposition has no definition");
+    }
+    if (compiled.asset_manifest) {
+        const auto integrity = assets::verify_asset_manifest(
+            *compiled.asset_manifest, m_impl->m_runtime->resolver());
+        if (!integrity) {
+            throw std::runtime_error(
+                "Prepared asset integrity check failed for '" +
+                integrity.error().logical_path + "': " +
+                integrity.error().message);
+        }
     }
     m_impl->m_renderer->session().clear_last_frame_error();
     return m_impl->m_pipeline->render_compiled_composition(compiled, frame);

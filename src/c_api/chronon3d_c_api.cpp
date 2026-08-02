@@ -129,6 +129,14 @@ chronon_status set_error(chronon_engine* engine, chronon_status status,
     return status;
 }
 
+chronon_status render_error_status(const chronon3d::sdk::RenderError& error) {
+    if (error.code == chronon3d::sdk::RenderErrorCode::AssetChanged)
+        return CHRONON_ERROR_ASSET_CHANGED;
+    if (error.code == chronon3d::sdk::RenderErrorCode::Cancelled)
+        return CHRONON_ERROR_CANCELLED;
+    return CHRONON_ERROR_RENDER_FAILED;
+}
+
 } // namespace
 
 extern "C" {
@@ -137,7 +145,7 @@ const char* chronon_version_string(void) {
     return CHRONON3D_PROJECT_VERSION_STRING;
 }
 
-uint32_t chronon_abi_version(void) { return 1; }
+uint32_t chronon_abi_version(void) { return 2; }
 
 chronon_engine* chronon_engine_create(const chronon_engine_config* config) {
     try {
@@ -247,7 +255,8 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
     auto result = engine->engine.render_compiled(
         plan->prepared.compiled_composition,
         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
-    if (!result) return set_error(engine, CHRONON_ERROR_RENDER_FAILED, result.error().message);
+    if (!result) return set_error(engine, render_error_status(result.error()),
+                                  result.error().message);
     const auto& rendered = result.value();
     const auto size = rendered_byte_size(rendered);
     if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
@@ -284,7 +293,7 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
         plan->prepared.compiled_composition,
         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
     if (!result)
-        return set_error(engine, CHRONON_ERROR_RENDER_FAILED,
+        return set_error(engine, render_error_status(result.error()),
                          result.error().message);
     const auto& rendered = result.value();
     const auto size = rendered_byte_size(rendered);
@@ -329,8 +338,7 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
     auto result = engine->engine.render_to_file(request, callbacks);
     if (!result) {
         return set_error(engine,
-            result.error().code == chronon3d::sdk::RenderErrorCode::Cancelled
-                ? CHRONON_ERROR_CANCELLED : CHRONON_ERROR_RENDER_FAILED,
+            render_error_status(result.error()),
             result.error().message);
     }
     clear_error(engine);

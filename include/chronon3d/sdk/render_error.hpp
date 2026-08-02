@@ -30,6 +30,7 @@ enum class RenderErrorCode : std::uint8_t {
     RuntimeFailure     = 5,   ///< Backend-side render exception
     Cancelled          = 6,   ///< CancellationToken fired during render
     BudgetExceeded     = 7,   ///< CPU / memory / time budget exhausted
+    AssetChanged       = 8,   ///< Prepared asset identity changed at render time
     InternalError      = 255, ///< Catch-all OPP-side error
 };
 
@@ -52,6 +53,7 @@ inline const char* render_error_code_name(RenderErrorCode c) noexcept {
         case RenderErrorCode::RuntimeFailure:     return "RuntimeFailure";
         case RenderErrorCode::Cancelled:          return "Cancelled";
         case RenderErrorCode::BudgetExceeded:     return "BudgetExceeded";
+        case RenderErrorCode::AssetChanged:       return "AssetChanged";
         case RenderErrorCode::InternalError:      return "InternalError";
     }
     return "Unknown";

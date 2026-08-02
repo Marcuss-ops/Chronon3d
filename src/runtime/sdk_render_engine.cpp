@@ -89,10 +89,11 @@ void resize_rgba8_nearest(const std::vector<std::uint8_t>& source,
 }
 
 RenderError runtime_error(std::string message) {
-    return RenderError{
-        .code = RenderErrorCode::RuntimeFailure,
-        .message = std::move(message),
-    };
+    const auto code = message.find("Prepared asset integrity check failed") !=
+            std::string::npos
+        ? RenderErrorCode::AssetChanged
+        : RenderErrorCode::RuntimeFailure;
+    return RenderError{.code = code, .message = std::move(message)};
 }
 
 #if CHRONON3D_ENABLE_VIDEO
