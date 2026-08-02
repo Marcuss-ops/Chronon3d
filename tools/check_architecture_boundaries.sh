@@ -595,18 +595,18 @@ else echo "PASS"; fi
 #
 # `GlyphSelectorSpec` deliberately has its own `offset` field
 # (`animator_property<Vec2>` for an animation phase shift, NOT a pin
-# position). Files matching `*glyph_selector*` are explicitly exempted
-# so the gate does not false-positive on the AnimationOffset property
-# setter chain.
+# position). Implementation files matching `*glyph_selector*` and the
+# focused `tests/text/test_selector_*.cpp` family are explicitly exempted
+# so the gate does not false-positive on the selector property setter chain.
 echo -n "  [19/26] TextDefaults::offset RETIRED        ... "
 # Path filter exempts files touching `GlyphSelectorSpec::offset`
 # (animator property for phase shift, NOT a pin position):
 #   * src/text/glyph_selector_compile.cpp  (compile path)
-# `test_*select*` paths are deliberately NOT exempted here — any test
-# using spec.offset on a non-GlyphSelectorSpec type should be migrated.
+# Uses of spec.offset outside those implementation/test paths must be
+# migrated to spec.placement.offset.
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bspec\.offset\b' $SCRIPT_PATHS 2>/dev/null \
-    | grep -v 'glyph_selector' \
+    | grep -vE 'glyph_selector|tests/text/test_selector_[^:]*\.cpp:' \
     | filter_symbol_in_code_only '(^|[^[:alnum:]_])spec[.]offset([^[:alnum:]_]|$)' \
     || true)
 if [ -n "$hits" ]; then
