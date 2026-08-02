@@ -7,7 +7,7 @@
 
 | Epic / Area | Pri | Stato | Scheda |
 |---|---:|---|---|
-| Docs + test aggregator | P0 | OPEN | [CHANGELOG-UPSTREAM-MARKERS-FIX](tickets/TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.md), [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
+| Test aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | Deprecated API cleanup (remaining symbols) | P1 | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
 | Test harness + certification | P1 | OPEN | Golden visuali focalizzati e camera visuale PASS su `main@4dabf6e3`; restano baseline globale, font e certificazione WBH: [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md), [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Core systems / ADR gaps | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
@@ -27,3 +27,4 @@
 - The executor-side persistent-cache bridge and retired cache-mode API are absent from source; `TICKET-PERSISTENT-CACHE-ADR-GAP` is DONE/ARCHIVED, while `PersistentFramebufferStore` remains active.
 - `ShapedGlyphLine` legacy constructor surface is absent; `TICKET-PUB-DEPRECATE-REMOVAL` and `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL` are DONE/ARCHIVED. Remaining deprecations are tracked only by `TICKET-DEPRECATED-API-REMOVAL`.
 - CompositionDescriptor registration is canonical: the legacy string/factory overload and duplicate factory map are absent; remaining deprecation work stays open under the narrowed API-cleanup tickets.
+- Markdown conflict-marker gate now scans all `docs/**/*.md` and closes `TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX` (`bf413d58`).
