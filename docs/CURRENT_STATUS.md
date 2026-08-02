@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@469178f3` (checkpoint locale non pushato) — `linux-fast-dev` build PASS (223/223 per il target core), core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9), CLI introspection PASS (26/26) e packaging relocatability PASS (14/14). AE parity visuale resta FAIL (31/41 casi, 10 fallimenti); sanitizer completo e baseline 11/11 restano BLOCKED.
+> Ultimo SHA osservato: `main@13bf429a` (checkpoint locale non pushato) — `linux-fast-dev` build PASS, core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9), `chronon3d_camera_tests` PASS (64/64), `chronon3d_scene_tests` PASS (406/406), AE parity visuale PASS (41/41 casi, 274/274 asserzioni), CLI introspection PASS (26/26) e packaging relocatability PASS (14/14). Sanitizer completo e baseline 11/11 restano BLOCKED.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,7 +28,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PARTIAL (focused PASS; AE parity FAIL) | Camera visual focalizzata corrente: 9/9 casi e 27/27 asserzioni PASS; AE parity: 31/41 casi PASS e 10 FAIL per golden/proiezione/DOF/motion-blur/cache. Certificazione produttiva completa sullo stesso SHA non autorizzata. |
+| Camera V1 | PARTIAL (runtime PASS; release cert incompleta) | Camera visual focalizzata: 9/9 casi e 27/27 asserzioni PASS; suite Camera: 64/64 e scene camera: 406/406; AE parity: 41/41 casi e 274/274 asserzioni PASS. Restano baseline globale, sanitizer e certificazione prodotto completa sullo stesso SHA. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
 | Glow V1 | PARTIAL (focused PASS) | Test effects/Glow: 208/208 casi e 15.715/15.715 asserzioni PASS; restano video 60 frame, budget, SDK/C ABI, landscape/portrait e fixture combinata sullo stesso SHA. |
 | Text lightweight semantic profiles | PASS | `main@88704bde`: Base, phrase/title, name e word/emph verificati con parsing, alias, span fusion, UTF-8, budget animator/selector/keyframe e determinismo seriale/parallelo. |
@@ -53,7 +53,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS, camera visual 9/9 PASS e core `--no-skip` 1423/1423 PASS senza skip; AE parity resta 31/41 PASS con 10 FAIL. Restano baseline globale, sanitizer e certificazioni di prodotto. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS, camera visual 9/9 PASS, suite Camera 64/64, scene 406/406 e core `--no-skip` 1423/1423 PASS senza skip; AE parity 41/41 PASS con 274/274 asserzioni. Restano baseline globale, sanitizer e certificazioni di prodotto. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
