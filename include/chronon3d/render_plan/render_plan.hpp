@@ -102,6 +102,7 @@ struct RenderBudget {
     std::uint32_t max_height{4320};
     std::uint64_t max_total_pixels{7680ULL * 4320ULL};
     std::uint64_t max_frames{1'000'000};
+    double max_audio_duration_seconds{24.0 * 60.0 * 60.0};
     std::uint32_t max_layers{1024};
     std::uint32_t max_audio_tracks{128};
     std::uint64_t max_text_bytes{4ULL * 1024ULL * 1024ULL};
@@ -110,6 +111,14 @@ struct RenderBudget {
     std::uint64_t max_peak_memory_bytes{2ULL * 1024ULL * 1024ULL * 1024ULL};
 };
 
+/// Explicit fail-loud budget phase executed before render-plan compilation.
+/// It validates dimensions, frame/duration bounds, layer/audio counts and
+/// timing, text/reference bytes, memory, and estimated output size.
+[[nodiscard]] std::optional<PlanDecodeError> validate_render_budget(
+    const RenderPlan& plan,
+    const RenderBudget& budget = {});
+
+/// Compatibility spelling for callers that used the original budget helper.
 [[nodiscard]] std::optional<PlanDecodeError> validate_render_plan_budget(
     const RenderPlan& plan,
     const RenderBudget& budget = {});

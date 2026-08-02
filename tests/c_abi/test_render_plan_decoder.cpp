@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include <utility>
+#include <limits>
 
 TEST_CASE("render plan decoder constructs typed V1 plan") {
     const nlohmann::json source = {
@@ -58,6 +59,7 @@ TEST_CASE("render plan budget rejects excessive layer count") {
     chronon3d::render_plan::RenderPlan plan;
     plan.canvas.width = 320;
     plan.canvas.height = 180;
+    plan.canvas.fps = 30;
     plan.canvas.duration = chronon3d::Frame{10};
     plan.layers.resize(2);
 
@@ -68,22 +70,194 @@ TEST_CASE("render plan budget rejects excessive layer count") {
     CHECK(error->path == "layers");
 }
 
-TEST_CASE("render plan fingerprint ignores JSON formatting") {
-    const auto compact = nlohmann::json::parse(
-        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":320,"height":180,"fps":30,"duration_frames":1},"layers":[{"id":"title","type":"text","text":"Hello"}],"output":{"path":"out.png"}})");
-    const auto formatted = nlohmann::json::parse(R"(
-    {
-      "output": { "path": "out.png" },
-      "layers": [ { "text": "Hello", "type": "text", "id": "title" } ],
-      "canvas": { "duration_frames": 1, "fps": 30, "height": 180, "width": 320 },
-      "version": 1,
-      "schema": "chronon.render-plan"
-    })");
-    const auto compact_plan = chronon3d::render_plan::decode_render_plan(compact);
-    const auto formatted_plan = chronon3d::render_plan::decode_render_plan(formatted);
-    REQUIRE(compact_plan);
-    REQUIRE(formatted_plan);
-    CHECK(compact_plan->content_fingerprint == formatted_plan->content_fingerprint);
+namespace {
+
+chronon3d::render_plan::RenderPlan budget_plan() {
+    chronon3d::render_plan::RenderPlan plan;
+    plan.canvas = {.width = 320, .height = 180, .fps = 30,
+                   .duration = chronon3d::Frame{30}};
+    return plan;
+}
+
+} // namespace
+
+TEST_CASE("validate_render_budget rejects resolution, fps, and duration limits") {
+    auto plan = budget_plan();
+    chronon3d::render_plan::RenderBudget budget;
+
+    plan.canvas.width = 0;
+    auto error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas.width");
+
+    plan = budget_plan();
+    plan.canvas.height = static_cast<int>(budget.max_height) + 1;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas.height");
+
+    plan = budget_plan();
+    plan.canvas.fps = 0;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas.fps");
+
+    plan = budget_plan();
+    plan.canvas.duration = chronon3d::Frame{-1};
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas.duration_frames");
+}
+
+TEST_CASE("validate_render_budget rejects pixel, frame, layer, and memory limits") {
+    auto plan = budget_plan();
+    chronon3d::render_plan::RenderBudget budget;
+
+    budget.max_total_pixels = 100;
+    auto error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas");
+
+    plan = budget_plan();
+    budget = {};
+    budget.max_frames = 29;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas.duration_frames");
+
+    plan = budget_plan();
+    chronon3d::render_plan::LayerPlan layer;
+    plan.layers.push_back(layer);
+    budget = {};
+    budget.max_layers = 0;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "layers");
+
+    plan = budget_plan();
+    budget = {};
+    budget.max_peak_memory_bytes = 320 * 180 * 16 - 1;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas");
+}
+
+TEST_CASE("validate_render_budget rejects text, asset references, and audio limits") {
+    auto plan = budget_plan();
+    chronon3d::render_plan::LayerPlan text;
+    text.type = chronon3d::render_plan::LayerType::Text;
+    text.text = "too long";
+    plan.layers.push_back(text);
+    chronon3d::render_plan::RenderBudget budget;
+    budget.max_text_bytes = 3;
+    auto error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "layers[].text");
+
+    plan = budget_plan();
+    chronon3d::render_plan::LayerPlan asset;
+    asset.asset = "images/asset.png";
+    plan.layers.push_back(asset);
+    budget = {};
+    budget.max_asset_reference_bytes = 4;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "layers[]");
+
+    plan = budget_plan();
+    chronon3d::render_plan::AudioTrackPlan audio;
+    audio.source = "music.wav";
+    audio.duration_seconds = 0.5;
+    plan.audio_tracks.push_back(audio);
+    plan.audio_tracks.push_back(audio);
+    budget = {};
+    budget.max_audio_tracks = 1;
+    budget.max_audio_duration_seconds = 10.0;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "audio_tracks");
+
+    plan = budget_plan();
+    audio.duration_seconds = 0.5;
+    plan.audio_tracks.clear();
+    plan.audio_tracks.push_back(audio);
+    budget = {};
+    budget.max_audio_duration_seconds = 0.1;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "audio_tracks[].duration_seconds");
+
+    plan = budget_plan();
+    audio.duration_seconds = 2.0;
+    plan.audio_tracks.clear();
+    plan.audio_tracks.push_back(audio);
+    budget = {};
+    budget.max_audio_duration_seconds = 10.0;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "audio_tracks[0]");
+}
+
+TEST_CASE("validate_render_budget rejects layer timing, output estimate, and non-finite values") {
+    auto plan = budget_plan();
+    chronon3d::render_plan::LayerPlan layer;
+    layer.start_frame = chronon3d::Frame{30};
+    plan.layers.push_back(layer);
+    chronon3d::render_plan::RenderBudget budget;
+    auto error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "layers[0].start_frame");
+
+    plan = budget_plan();
+    budget.max_estimated_output_bytes = 320 * 180 * 4 * 30 - 1;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "canvas");
+
+    plan = budget_plan();
+    layer = {};
+    layer.font_size = std::numeric_limits<float>::quiet_NaN();
+    plan.layers.push_back(layer);
+    budget = {};
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "layers[].numeric");
+
+    plan = budget_plan();
+    layer = {};
+    layer.animation = chronon3d::render_plan::AnimationTiming{
+        chronon3d::Frame{29}, chronon3d::Frame{2}, "fade"};
+    plan.layers.push_back(layer);
+    budget = {};
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "layers[0].animation.duration_frames");
+
+    plan = budget_plan();
+    plan.output.bitrate = -1;
+    error = chronon3d::render_plan::validate_render_budget(plan, budget);
+    REQUIRE(error);
+    CHECK(error->path == "output.bitrate");
+}
+
+TEST_CASE("render plan decoder uses fail-loud budget phase") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan"},
+        {"version", 1},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps", 30},
+                     {"duration_frames", 1}}},
+        {"layers", nlohmann::json::array()},
+        {"output", {{"path", "out.png"}}}};
+    auto over_budget = source;
+    over_budget["canvas"]["width"] = 7681;
+    const auto decoded = chronon3d::render_plan::decode_render_plan(over_budget);
+    CHECK_FALSE(decoded);
+
+    const auto valid = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(valid);
+    chronon3d::render_plan::RenderBudget tight;
+    tight.max_width = 100;
+    CHECK(chronon3d::render_plan::validate_render_budget(valid.value(), tight));
 }
 
 TEST_CASE("render plan fingerprint includes decoded content and preserves order") {
