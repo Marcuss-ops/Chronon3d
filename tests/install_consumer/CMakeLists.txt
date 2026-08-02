@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.27)
 
 project(install_consumer
     VERSION 0.0.1
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 # Standalone install-boundary project. Every executable links only the exported
@@ -12,6 +12,11 @@ find_package(Chronon3D CONFIG REQUIRED)
 if(NOT TARGET Chronon3D::SDK)
     message(FATAL_ERROR
         "Install boundary broken: Chronon3D::SDK target absent")
+endif()
+
+if(NOT TARGET Chronon3D::C)
+    message(FATAL_ERROR
+        "Install boundary broken: chronon3d_c target absent")
 endif()
 
 function(add_chronon_consumer target source)
@@ -33,6 +38,14 @@ add_chronon_consumer(check_full main_full.cpp)
 # ships the explicit authoring headers and supports the documented asset(path)
 # syntax for both images and fonts without any umbrella include.
 add_chronon_consumer(check_assets main_assets.cpp)
+
+add_executable(check_c_api main_c.c)
+set_target_properties(check_c_api PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS OFF
+)
+target_link_libraries(check_c_api PRIVATE Chronon3D::C)
 
 # Synthetic image fixture for the existing full-surface consumer.
 add_custom_command(TARGET check_full POST_BUILD
