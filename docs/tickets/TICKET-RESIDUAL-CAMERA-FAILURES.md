@@ -1,10 +1,11 @@
 # TICKET-RESIDUAL-CAMERA-FAILURES — post-TICKET-120 camera test residuals
 
 ## Stato
-PARTIAL (2026-08-02) — the four GraphCache counter tests are re-enabled and
-machine-verified across three consecutive runs (`4/4` cases, `17/17`
-assertions, zero failures). The MotionBlurTorture residual and the remaining
-camera tests explicitly tracked by TICKET-120 are still open.
+PARTIAL (2026-08-02) — the four GraphCache counter tests and the five
+`PR1-Torture` motion-blur tests are active and machine-verified across three
+consecutive runs (`4/4` GraphCache cases, `17/17` assertions; `5/5` torture
+cases, `16/16` assertions). The remaining TBD failures and other camera tests
+explicitly tracked by TICKET-120 are still open.
 
 ## Priorità
 P1
@@ -42,18 +43,20 @@ Residual camera-related test failures remaining after the TICKET-120 PARTIAL clo
 
 The four GraphCache tests were re-enabled after three consecutive direct runs
 of `chronon3d_scene_tests --test-case="GraphCache - *"`. Each run passed `4/4`
-cases and `17/17` assertions. The remaining ticket scope is not promoted to
-DONE: MotionBlurTorture and the other TICKET-120 residuals still require
-separate classification and certification.
+cases and `17/17` assertions. The five `PR1-Torture` cases, including static
+sample parity and fast-object clipping, were also run three times and passed
+`5/5` cases with `16/16` assertions. The remaining ticket scope is not
+promoted to DONE: the two TBD failures and other TICKET-120 residuals still
+require separate classification and certification.
 
 ## Impatto
-Camera V1 cert (TICKET-120 PARTIAL closure is the parent; this ticket is the sub-cluster for the post-120 residuals). The four GraphCache tests now regression-lock counter behavior and cached-vs-fresh pixel equivalence. The `MotionBlurTorture` residual suggests a framebuffer-level mismatch that may regress AE-parity cinematic. The 2 TBD failures are unknown but counted in the camera failure tally (the TICKET-120 baseline says `18/24` failures — this ticket captures the subset that the user enumerated during the post-120 audit).
+Camera V1 cert (TICKET-120 PARTIAL closure is the parent; this ticket is the sub-cluster for the post-120 residuals). The four GraphCache tests now regression-lock counter behavior and cached-vs-fresh pixel equivalence; the five PR1-Torture tests lock static parity, deterministic accumulation, alpha edges, fast-object clipping and static-layer reuse. The 2 TBD failures and remaining TICKET-120 tests are still counted in the camera failure tally (the TICKET-120 baseline says `18/24` failures — this ticket captures the subset that the user enumerated during the post-120 audit).
 
 ## Confine
 - This ticket remains an aggregator + forward-point tracker; the four GraphCache test re-enablement is closed in the partial-closure commit.
 - Re-enable of the 4 skipped tests in `test_graph_cache.cpp` is CLOSED by the partial closure above.
 - Identification of the 2 TBD failures is OUT-OF-SCOPE for this commit (deferred to working build host).
-- The `MotionBlurTorture` test fixture is OUT-OF-SCOPE for this commit (deferred to working build host).
+- The `MotionBlurTorture`/PR1-Torture fixture is CLOSED by the partial closure above.
 - The TICKET-120 PARTIAL closure is NOT in scope; this ticket is a sub-cluster, not a superseder.
 
 ## Soluzione accettabile
