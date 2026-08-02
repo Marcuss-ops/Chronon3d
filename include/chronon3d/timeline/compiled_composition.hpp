@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <memory>
 
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>          // CompositionDefinition
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>   // camera_v1::CameraProgram
 
@@ -53,6 +54,11 @@ namespace chronon3d {
 struct CompiledComposition {
     std::shared_ptr<const CompositionDefinition>  definition{};
     std::shared_ptr<const camera_v1::CameraProgram> camera_program{};
+    // Optional immutable asset identity attached by PreparedRenderPlan.
+    // Generic compile_composition() callers have no manifest and retain the
+    // legacy resolver contract; prepared-plan consumers get render-boundary
+    // integrity verification without a second compilation path.
+    std::shared_ptr<const assets::PreparedAssetManifest> asset_manifest{};
     std::uint64_t                                 fingerprint{0};
 };
 

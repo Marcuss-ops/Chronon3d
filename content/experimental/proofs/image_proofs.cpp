@@ -51,7 +51,7 @@ Composition image_proofs() {
             l.text("lbl", TextDefinition{
     .content = {.value = text},
     .style = {
-        .font = {.font_size = 12.0f},
+        .font = {.font_path = "assets/fonts/Inter-Bold.ttf", .font_size = 12.0f},
         .color = {0.6f, 0.7f, 0.9f, 0.8f}
     },
     .frame = {
@@ -161,7 +161,7 @@ Composition image_proofs() {
             l.text("card_title", TextDefinition{
     .content = {.value = "LENS SPECS"},
     .style = {
-        .font = {.font_size = 12.0f},
+        .font = {.font_path = "assets/fonts/Inter-Bold.ttf", .font_size = 12.0f},
         .color = Color::white()
     },
     .frame = {
@@ -218,7 +218,7 @@ Composition image_proofs() {
             l.image("img_fg", { .path = img_path, .size = get_cell_box(3, 3) * 0.7f, .fit = FitMode::Contain });
         });
 
-        // ── ROW 4: Masks & Fallback ──
+        // ── ROW 4: Masks & Explicit Error Visualization ──
         // 4,0: Circle Mask Small
         s.layer("r4c0_lbl", [&](auto& l) { draw_cell_label(l, "CIRCLE MASK SMALL", 0, 4); });
         s.layer("r4c0", [&](auto& l) {
@@ -235,11 +235,20 @@ Composition image_proofs() {
             l.image("img", { .path = img_path, .size = get_cell_box(1, 4), .fit = FitMode::Cover });
         });
 
-        // 4,2: Missing Image Fallback (Red Cross)
-        s.layer("r4c2_lbl", [&](auto& l) { draw_cell_label(l, "MISSING IMAGE FALLBACK", 2, 4); });
+        // 4,2: Explicit placeholder for the missing-asset case.  The
+        // production renderer is fail-loud and must not discover a missing
+        // image through a silent fallback during a golden render, so this
+        // proof uses an authored red cross instead of an invalid asset path.
+        s.layer("r4c2_lbl", [&](auto& l) { draw_cell_label(l, "EXPLICIT ERROR PLACEHOLDER", 2, 4); });
         s.layer("r4c2", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(2, 4));
-            l.image("img", { .path = "assets/images/does_not_exist.jpg", .size = get_cell_box(2, 4) });
+            const auto box = get_cell_box(2, 4);
+            l.rect("error_h", {.size = {box.x * 0.72f, 8.0f},
+                                .color = {1.0f, 0.08f, 0.12f, 1.0f},
+                                .pos = {0.0f, 0.0f, 0.0f}});
+            l.rect("error_v", {.size = {8.0f, box.y * 0.72f},
+                                .color = {1.0f, 0.08f, 0.12f, 1.0f},
+                                .pos = {0.0f, 0.0f, 0.0f}});
         });
 
         // 4,3: Transparent PNG

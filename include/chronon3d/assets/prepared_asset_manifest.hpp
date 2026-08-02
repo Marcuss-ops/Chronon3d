@@ -44,6 +44,9 @@ struct PreparedAsset {
     PreparedAssetKind kind{PreparedAssetKind::Data};
     std::uint64_t byte_size{0};
     ContentDigest content_digest{};
+    // Filesystem timestamp captured around the preflight hash.  It is an
+    // execution-time fast path only; content_digest remains authoritative.
+    std::int64_t file_timestamp{0};
 };
 
 struct AssetPreflightPolicy {
@@ -104,8 +107,8 @@ private:
 };
 
 /// Immutable resources retained after preflight. Small textual resources are
-/// copied into owned byte storage; large media keeps only its certified
-/// metadata and digest so the compiler never opens a second filesystem path.
+/// copied into owned byte storage; decoders for larger resources reopen their
+/// source through the runtime boundary after the manifest integrity check.
 class PreparedAssetStore {
 public:
     [[nodiscard]] const PreparedAssetManifest& manifest() const noexcept {
@@ -134,6 +137,16 @@ private:
 
 Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
     const render_plan::RenderPlan& plan,
+    AssetResolver& resolver,
+    const AssetPreflightPolicy& policy = {});
+
+/// Verify that every asset in an immutable manifest still resolves inside the
+/// same mounted root and has the certified bytes. Size/timestamp equality is
+/// the normal O(1) path; a full SHA-256 is performed when the timestamp is
+/// unavailable or changed. This is the render-job boundary check that closes
+/// the preflight-to-decode TOCTOU window.
+Result<bool, AssetPreflightError> verify_asset_manifest(
+    const PreparedAssetManifest& manifest,
     AssetResolver& resolver,
     const AssetPreflightPolicy& policy = {});
 

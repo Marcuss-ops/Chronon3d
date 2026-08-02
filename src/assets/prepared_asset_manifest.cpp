@@ -387,11 +387,39 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
             return error(AssetPreflightErrorCode::TotalBudgetExceeded, normalized,
                          "assets exceed the configured total byte limit");
 
+        std::error_code timestamp_ec;
+        const auto timestamp_before = std::filesystem::last_write_time(
+            canonical, timestamp_ec);
+        if (timestamp_ec)
+            return error(AssetPreflightErrorCode::ReadFailed, normalized,
+                         "asset timestamp could not be read");
+
         auto digest = hash_file(canonical, normalized, byte_size,
                                 policy.max_single_asset_bytes);
         if (!digest) return std::move(digest).error();
 
-        PreparedAsset prepared{normalized, request.kind, byte_size, std::move(digest).value()};
+        timestamp_ec.clear();
+        const auto timestamp_after = std::filesystem::last_write_time(
+            canonical, timestamp_ec);
+        if (timestamp_ec || timestamp_before != timestamp_after) {
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         normalized,
+                         "asset changed while its prepared bytes were hashed");
+        }
+        std::error_code size_ec;
+        const auto size_after = std::filesystem::file_size(canonical, size_ec);
+        if (size_ec || size_after != byte_size) {
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         normalized,
+                         "asset size changed while its prepared bytes were hashed");
+        }
+
+        PreparedAsset prepared{
+            normalized,
+            request.kind,
+            byte_size,
+            std::move(digest).value(),
+            static_cast<std::int64_t>(timestamp_after.time_since_epoch().count())};
         manifest_hash.update(prepared.logical_path.data(), prepared.logical_path.size());
         const auto kind = static_cast<std::uint8_t>(prepared.kind);
         manifest_hash.update(&kind, sizeof(kind));
@@ -404,6 +432,83 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
 
     manifest.m_manifest_digest = manifest_hash.finish();
     return manifest;
+}
+
+Result<bool, AssetPreflightError> verify_asset_manifest(
+    const PreparedAssetManifest& manifest,
+    AssetResolver& resolver,
+    const AssetPreflightPolicy& policy) {
+    if (manifest.assets().empty()) return true;
+
+    const auto root = resolver.mount_root();
+    if (root.empty())
+        return error(AssetPreflightErrorCode::OutsideAssetsRoot, {},
+                     "asset integrity verification requires a mounted root");
+
+    std::error_code ec;
+    const auto canonical_root = std::filesystem::weakly_canonical(root, ec);
+    if (ec || canonical_root.empty())
+        return error(AssetPreflightErrorCode::OutsideAssetsRoot, {},
+                     "asset resolver root could not be canonicalized for verification");
+
+    for (const auto& asset : manifest.assets()) {
+        const auto resolved = resolver.resolve_logical(asset.logical_path);
+        if (!resolved)
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset disappeared after asset preflight");
+
+        ec.clear();
+        const auto canonical = std::filesystem::canonical(*resolved, ec);
+        if (ec || !path_is_within(canonical_root, canonical))
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset path moved outside the mounted root after asset preflight");
+        if (!policy.allow_symlinks_within_root && canonical != *resolved)
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset symlink policy changed after asset preflight");
+
+        ec.clear();
+        if (!std::filesystem::is_regular_file(canonical, ec) || ec)
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset is no longer a regular file");
+        if (!known_extension_matches(asset.kind, lower_extension(canonical)))
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset extension changed after asset preflight");
+
+        ec.clear();
+        const auto current_size = std::filesystem::file_size(canonical, ec);
+        if (ec || current_size != asset.byte_size)
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset byte size changed after asset preflight");
+
+        ec.clear();
+        const auto current_timestamp = std::filesystem::last_write_time(canonical, ec);
+        const auto current_stamp = ec
+            ? std::int64_t{0}
+            : static_cast<std::int64_t>(
+                current_timestamp.time_since_epoch().count());
+        if (!ec && asset.file_timestamp != 0 &&
+            current_stamp == asset.file_timestamp) {
+            continue;
+        }
+
+        auto digest = hash_file(canonical, asset.logical_path, current_size,
+                                policy.max_single_asset_bytes);
+        if (!digest)
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         digest.error().message);
+        if (digest.value() != asset.content_digest)
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         asset.logical_path,
+                         "asset bytes changed after asset preflight");
+    }
+    return true;
 }
 
 Result<PreparedAssetStore, AssetPreflightError> prepare_asset_store(
@@ -420,8 +525,9 @@ Result<PreparedAssetStore, AssetPreflightError> prepare_asset_store(
         resource.metadata = asset;
 
         // Subtitle parsing is compiler-time work and therefore retains its
-        // immutable bytes. Media decoders consume only the certified metadata
-        // and reopen their source through the runtime boundary later.
+        // immutable bytes. Media decoders consume the certified metadata and
+        // reopen their source through the runtime boundary only after the
+        // render-job integrity check.
         if (asset.kind == PreparedAssetKind::Subtitle) {
             const auto resolved = resolver.resolve_logical(asset.logical_path);
             if (!resolved) {

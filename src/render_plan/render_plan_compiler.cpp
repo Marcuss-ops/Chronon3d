@@ -252,6 +252,8 @@ compile_render_plan(
         }
 
         auto compiled_value = std::move(compiled).value();
+        compiled_value.asset_manifest =
+            std::make_shared<const chronon3d::assets::PreparedAssetManifest>(assets);
         auto compiled_view = std::make_shared<const CompiledComposition>(
             compiled_value);
         auto composition = std::make_shared<Composition>(
