@@ -50,14 +50,20 @@ if [[ "${CHRONON3D_INSTALL_TEST_FAST:-0}" == "1" ]]; then
     # install step. Materialize the prefix once, incrementally, so FAST mode
     # remains a real installed-consumer test instead of failing before the
     # consumer is even configured.
-    if [[ ! -f "$SDK_PREFIX/lib/cmake/Chronon3D/Chronon3DConfig.cmake" \
-        || ! -f "$SDK_PREFIX/lib/libchronon3d_sdk_impl.a" ]]; then
+    SDK_ARCHIVE="$SDK_BUILD/src/libchronon3d_sdk_impl.a"
+    SDK_INSTALLED_ARCHIVE="$SDK_PREFIX/lib/libchronon3d_sdk_impl.a"
+    SDK_BUILD_CONFIG="$SDK_BUILD/Chronon3DConfig.cmake"
+    SDK_INSTALLED_CONFIG="$SDK_PREFIX/lib/cmake/Chronon3D/Chronon3DConfig.cmake"
+    if [[ ! -f "$SDK_INSTALLED_CONFIG" \
+        || ! -f "$SDK_INSTALLED_ARCHIVE" \
+        || ( -f "$SDK_ARCHIVE" && "$SDK_ARCHIVE" -nt "$SDK_INSTALLED_ARCHIVE" ) \
+        || ( -f "$SDK_BUILD_CONFIG" && "$SDK_BUILD_CONFIG" -nt "$SDK_INSTALLED_CONFIG" ) ]]; then
         log "FAST mode: installing SDK into $SDK_PREFIX"
         cmake --install "$SDK_BUILD" --prefix "$SDK_PREFIX" 1>&2
     fi
-    [[ -f "$SDK_PREFIX/lib/cmake/Chronon3D/Chronon3DConfig.cmake" ]] \
+    [[ -f "$SDK_INSTALLED_CONFIG" ]] \
         || fail "FAST mode requires an installed Chronon3D package config"
-    [[ -f "$SDK_PREFIX/lib/libchronon3d_sdk_impl.a" ]] \
+    [[ -f "$SDK_INSTALLED_ARCHIVE" ]] \
         || fail "FAST mode requires the installed SDK archive"
 else
     SDK_BUILD="$(mktemp_dir chronon3d_install_consumer_sdk_build)"
@@ -75,8 +81,29 @@ else
     cmake --install "$SDK_BUILD" --prefix "$SDK_PREFIX" 1>&2
 fi
 
+# The consumer CMake project is configured from a separate temporary
+# directory.  FAST-mode callers commonly provide repository-relative paths;
+# exporting those paths verbatim makes find_package(Chronon3D) resolve them
+# relative to the consumer directory and report a misleading missing-package
+# error.  Freeze both paths before crossing the install boundary.
+SDK_BUILD="$(cd "$SDK_BUILD" && pwd)"
+mkdir -p "$SDK_PREFIX"
+SDK_PREFIX="$(cd "$SDK_PREFIX" && pwd)"
+
+# In FAST mode the caller may reuse a build produced by a different preset.
+# Use the dependency root recorded by that build before falling back to the
+# preset-derived path; otherwise an installed SDK built with telemetry can
+# advertise unofficial::sqlite3 while the consumer is pointed at a vcpkg
+# tree that never installed the telemetry feature.
+if [[ -z "${VCPKG_INSTALLED_DIR:-}" && -f "$SDK_BUILD/CMakeCache.txt" ]]; then
+    SDK_VCPKG_INSTALLED_DIR="$(sed -n 's/^VCPKG_INSTALLED_DIR:.*=//p' "$SDK_BUILD/CMakeCache.txt" | head -n 1)"
+    if [[ -n "$SDK_VCPKG_INSTALLED_DIR" && -d "$SDK_VCPKG_INSTALLED_DIR" ]]; then
+        VCPKG_INSTALLED_DIR="$SDK_VCPKG_INSTALLED_DIR"
+    fi
+fi
+
 export SDK_BUILD SDK_PREFIX REPO_ROOT PRESET="$CHRONON3D_INSTALL_TEST_PRESET"
-export VCPKG_INSTALLED_DIR="$REPO_ROOT/vcpkg_installed/$PRESET"
+export VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$REPO_ROOT/vcpkg_installed/$PRESET}"
 export VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-x64-linux}"
 
 # Phase 2: destructive feature-OFF ghost sweep, opt-in.
