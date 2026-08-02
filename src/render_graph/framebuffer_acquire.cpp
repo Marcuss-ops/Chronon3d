@@ -273,14 +273,16 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     // Services: copy pointer fields + shared_ptr refcount bumps.
     copy.services    = services;
     // Node execution state: copy small POD (counters path, profiler ptr,
-    // clip_rect), skip large vectors (`node_telemetry`, `layer_telemetry`,
-    // `dof_depth`, `early_exit_skip`, `reusable_inputs`).  See header
-    // comment for rationale (per-node copy overhead reduction).
+    // clip_rect), skip large vectors and share the parent-owned DOF depth
+    // vector without copying it.
     copy.node_exec.counters         = node_exec.counters;
     copy.node_exec.profiler         = node_exec.profiler;
     copy.node_exec.clip_rect        = node_exec.clip_rect;
     copy.node_exec.active_tile_clip = node_exec.active_tile_clip;
     copy.node_exec.dirty_rect       = node_exec.dirty_rect;
+    copy.node_exec.shared_dof_depth = node_exec.shared_dof_depth
+        ? node_exec.shared_dof_depth
+        : const_cast<std::vector<float>*>(&node_exec.dof_depth);
     // scratch views (transform_scratch, ping_write, reusable_inputs)
     // are intentionally default-initialised in the clone (no aliases to
     // the parent's per-node scratch state).

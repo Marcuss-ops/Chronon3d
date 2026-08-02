@@ -94,7 +94,9 @@ void OutputPass::run(GraphBuildContext& ctx) {
             static_cast<size_t>(rctx.frame_input.width) * rctx.frame_input.height,
             1e18f  // sentinel: no layer contributed
         );
-        // PR2-cleanup: PerPixelDofNode builds its policy at ctor-time.
+        // The node keeps this value as an isolated-test fallback, but reads
+        // the evaluated camera from the frame context during execution so
+        // animated focus/aperture/max_blur are not frozen at graph build.
         auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
         graph.connect(current, dof_node);
         current = dof_node;

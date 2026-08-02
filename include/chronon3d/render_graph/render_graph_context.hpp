@@ -292,6 +292,17 @@ struct NodeExecutionContext {
 
     // Per-pixel DOF depth tracking (mirrors policy.track_dof_depth).
     std::vector<float> dof_depth;
+    // Per-node clones share the parent frame's depth buffer instead of
+    // copying it. The parent owns the vector for the duration of execution.
+    std::vector<float>* shared_dof_depth{nullptr};
+
+    [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept {
+        return shared_dof_depth ? *shared_dof_depth : dof_depth;
+    }
+
+    [[nodiscard]] const std::vector<float>& dof_depth_buffer() const noexcept {
+        return shared_dof_depth ? *shared_dof_depth : dof_depth;
+    }
 
     // ── Tile clip / early-exit / dirty rect (was RenderTileContext) ───
     std::optional<raster::BBox> clip_rect;
@@ -462,12 +473,9 @@ struct RenderGraphContext {
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const;
 
-    /// Lightweight copy for per-node execution.  Skips copying large
-    /// vectors (node_exec.node_telemetry, node_exec.layer_telemetry,
-    /// node_exec.dof_depth, node_exec.early_exit_skip,
-    /// node_exec.reusable_inputs) that are not read during node.execute();
-    /// reduces per-node copy overhead from O(n) heap allocations to
-    /// a handful of pointer/POD copies.
+    /// Lightweight copy for per-node execution. Skips copying large vectors
+    /// and shares the frame-owned DOF depth buffer through a non-owning
+    /// pointer.
     RenderGraphContext clone_for_node_execution() const;
 
     /// Resolve a relative asset path using ctx.frame_input.assets_root.

@@ -10,11 +10,36 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <atomic>
+#include <chrono>
+#include <fstream>
 using namespace chronon3d;
 
 using namespace chronon3d::test;
 
 namespace {
+
+// AssetPreflight validates the manifest before the injected mock decoder is
+// reached.  Keep the test self-contained by providing a real, empty fixture;
+// the mock decoder deliberately does not inspect the file contents.
+struct DummyVideoAsset {
+    DummyVideoAsset() {
+        static std::atomic<unsigned long long> sequence{0};
+        const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+        path = std::filesystem::temp_directory_path() /
+            ("chronon3d_video_card_dummy_" + std::to_string(nonce) + "_" +
+             std::to_string(sequence.fetch_add(1, std::memory_order_relaxed)) + ".mp4");
+        std::ofstream output(path, std::ios::binary);
+        REQUIRE(output.good());
+    }
+
+    ~DummyVideoAsset() {
+        std::error_code error;
+        std::filesystem::remove(path, error);
+    }
+
+    std::filesystem::path path;
+};
 
 // Mock decoder: returns a solid color at the requested size
 class MockVideoDecoder final : public video::VideoFrameDecoder {
@@ -42,19 +67,22 @@ std::shared_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mo
     return renderer.render(comp, 0);
 }
 
-Composition make_video_card_comp(float rotate_y, Vec2 card_size = {320, 180}) {
+Composition make_video_card_comp(
+    float rotate_y,
+    const std::string& video_path,
+    Vec2 card_size = {320, 180}) {
     return composition({
         .name = "VideoCard", .width = 640, .height = 360, .duration = 1
-    }, [rotate_y, card_size](const FrameContext& ctx) {
+    }, [rotate_y, card_size, video_path](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
         s.camera().enable(true).position({0, 0, -800}).zoom(800).look_at({0, 0, 0});
 
-        s.layer("video", [rotate_y, card_size](LayerBuilder& l) {
+        s.layer("video", [rotate_y, card_size, video_path](LayerBuilder& l) {
             l.enable_3d()
              .position({0, 0, 0})
              .rotate({0, rotate_y, 0})
-             .video("dummy.mp4")
+             .video(video_path)
              .video_size(card_size);
         });
 
@@ -65,7 +93,8 @@ Composition make_video_card_comp(float rotate_y, Vec2 card_size = {320, 180}) {
 } // namespace
 
 TEST_CASE("VideoCard: mock decoder renders non-blank frame") {
-    auto fb = render_video_comp(make_video_card_comp(0.0f));
+    DummyVideoAsset asset;
+    auto fb = render_video_comp(make_video_card_comp(0.0f, asset.path.string()));
     REQUIRE(fb != nullptr);
     save_debug(*fb, "output/debug/video_card/01_flat_video_card.png");
 
@@ -94,7 +123,8 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
         }
     };
 
-    auto comp = make_video_card_comp(0.0f, {320, 180});
+    DummyVideoAsset asset;
+    auto comp = make_video_card_comp(0.0f, asset.path.string(), {320, 180});
     auto renderer = test::make_renderer();
     RenderSettings settings;
         renderer.set_settings(settings);
@@ -108,8 +138,9 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
 }
 
 TEST_CASE("VideoCard: 3D rotation changes output") {
-    auto flat    = render_video_comp(make_video_card_comp(0.0f));
-    auto rotated = render_video_comp(make_video_card_comp(45.0f));
+    DummyVideoAsset asset;
+    auto flat    = render_video_comp(make_video_card_comp(0.0f, asset.path.string()));
+    auto rotated = render_video_comp(make_video_card_comp(45.0f, asset.path.string()));
     REQUIRE(flat    != nullptr);
     REQUIRE(rotated != nullptr);
 
