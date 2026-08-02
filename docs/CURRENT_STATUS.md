@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@60a2d028` (checkpoint locale non pushato) — foundation/core focalizzati PASS, `chronon3d_c_abi_tests` PASS con C ABI v2 e cambio asset runtime, `chronon3d_sdk_tests` PASS, CLI render-plan diretto PASS, architecture/doc-sync/test-registration/hygiene PASS. Golden ufficiale: 39 casi eseguiti, 19 riferimenti esistenti PASS e 19 mismatch; una fixture ha creato un riferimento ignorato mancante e non viene contato come certificazione. Sanitizer completo e packaging release restano BLOCKED. Full baseline 11/11 non ricalcolata.
+> Ultimo SHA osservato: `main@4dabf6e3` (checkpoint locale non pushato) — foundation/core focalizzati PASS, `chronon3d_c_abi_tests` PASS con C ABI v2 e cambio asset runtime, `chronon3d_sdk_tests` PASS, CLI render-plan diretto PASS, architecture/doc-sync/test-registration/hygiene PASS. Golden visuali focalizzati: 39/39 casi e 269.969/269.969 asserzioni PASS; `chronon3d_camera_visual_tests`: 9/9 casi e 27/27 asserzioni PASS. Sanitizer completo e packaging release restano BLOCKED. Full baseline 11/11 non ricalcolata.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,9 +28,9 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PARTIAL (storico) | Esistono implementazione e certificazione storica `main@5cfdf1cd`; la ricertificazione sul nuovo percorso compilato e sullo SHA corrente è ancora da eseguire. |
+| Camera V1 | PARTIAL (focused PASS) | La suite visuale corrente passa su `main@4dabf6e3` (9/9 casi, inclusi parallax/orbit); la certificazione produttiva completa sullo stesso SHA resta da eseguire. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow V1 | PARTIAL (storico) | Esistono implementazione e certificazione storica `main@5cfdf1cd`; le golden Glow correnti mostrano mismatch e la ricertificazione produttiva sullo SHA corrente è ancora aperta. |
+| Glow V1 | PARTIAL (focused PASS) | Golden Glow correnti e test di effetti passano su `main@4dabf6e3`; restano da certificare video 60 frame, budget, SDK/C ABI e matrice completa sullo stesso SHA. |
 | Text lightweight semantic profiles | PASS | `main@88704bde`: Base, phrase/title, name e word/emph verificati con parsing, alias, span fusion, UTF-8, budget animator/selector/keyframe e determinismo seriale/parallelo. |
 | Combined Product V1 | PARTIAL (storico) | `GlowCameraProductV1` è certificato storicamente su `main@5cfdf1cd`; non è ancora ricertificato sulla pipeline compilata e sullo SHA corrente. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
@@ -53,7 +53,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden ufficiale 39 casi: 19 riferimenti esistenti PASS, 19 mismatch e 1 riferimento ignorato auto-creato; restano Glow, testo, 2.5D, stroke e SSAA da chiudere. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali focalizzati 39/39 PASS e camera visual 9/9 PASS su `main@4dabf6e3`; restano baseline globale, sanitizer, packaging e certificazioni di prodotto da chiudere. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
