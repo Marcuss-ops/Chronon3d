@@ -237,15 +237,16 @@ void chronon_plan_destroy(chronon_plan* plan) { delete plan; }
 
 chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* plan,
                                     uint64_t frame, chronon_frame_buffer* output) {
-    if (!engine || !plan || !plan->prepared.composition || !output)
+    if (!engine || !plan || !plan->prepared.compiled_composition.definition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
     EngineUseGuard use(engine->in_use);
     if (!use.acquired())
         return CHRONON_ERROR_BUSY;
     std::memset(output, 0, sizeof(*output));
     engine->engine.set_settings(plan->settings);
-    auto result = engine->engine.render(*plan->prepared.composition,
-                                        chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
+    auto result = engine->engine.render_compiled(
+        plan->prepared.compiled_composition,
+        chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
     if (!result) return set_error(engine, CHRONON_ERROR_RENDER_FAILED, result.error().message);
     const auto& rendered = result.value();
     const auto size = rendered_byte_size(rendered);
@@ -271,7 +272,7 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
                                           uint64_t frame, void* destination,
                                           uint64_t destination_size,
                                           chronon_frame_info* output) {
-    if (!engine || !plan || !plan->prepared.composition || !output)
+    if (!engine || !plan || !plan->prepared.compiled_composition.definition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT,
                          "invalid render-into arguments");
     EngineUseGuard use(engine->in_use);
@@ -279,8 +280,8 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
         return CHRONON_ERROR_BUSY;
     std::memset(output, 0, sizeof(*output));
     engine->engine.set_settings(plan->settings);
-    auto result = engine->engine.render(
-        *plan->prepared.composition,
+    auto result = engine->engine.render_compiled(
+        plan->prepared.compiled_composition,
         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
     if (!result)
         return set_error(engine, CHRONON_ERROR_RENDER_FAILED,
@@ -306,14 +307,15 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
                                    const char* output_path, uint64_t start_frame,
                                    uint64_t end_frame, uint32_t fps_num,
                                    uint32_t fps_den, const chronon_render_callbacks* cb) {
-    if (!engine || !plan || !plan->prepared.composition || !output_path || fps_num == 0 || fps_den == 0)
+    if (!engine || !plan || !plan->prepared.compiled_composition.definition ||
+        !output_path || fps_num == 0 || fps_den == 0)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid file render arguments");
     EngineUseGuard use(engine->in_use);
     if (!use.acquired())
         return CHRONON_ERROR_BUSY;
     engine->engine.set_settings(plan->settings);
     chronon3d::sdk::RenderFileRequest request;
-    request.composition = plan->prepared.composition.get();
+    request.compiled_composition = &plan->prepared.compiled_composition;
     request.output_path = output_path;
     request.start_frame = {static_cast<std::int64_t>(start_frame)};
     request.end_frame = {static_cast<std::int64_t>(end_frame)};

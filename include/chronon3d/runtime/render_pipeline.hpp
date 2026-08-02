@@ -49,6 +49,7 @@
 
 namespace chronon3d {
 class SoftwareRenderer;
+struct CompiledComposition;
 namespace media { class MediaFrameProvider; }
 }
 
@@ -79,6 +80,12 @@ public:
     // ── Primary rendering entry point (Fase C3 canonical) ─────────
     [[nodiscard]] std::shared_ptr<Framebuffer> render_composition(
         const Composition& comp, Frame frame);
+
+    /// Canonical prepared-plan execution entry.  This uses the immutable
+    /// compiled definition/camera program and the same compositor as the
+    /// Composition compatibility entry above.
+    [[nodiscard]] std::shared_ptr<Framebuffer> render_compiled_composition(
+        const CompiledComposition& compiled, Frame frame);
 
     // ── @deprecated Fase C3 — thin wrappers, migrate to render_composition() ─
     /// @deprecated Fase C3 — use render_composition() with an explicit Composition.

@@ -51,8 +51,8 @@ struct RenderPlanFingerprintOptions {
 ///
 /// `compiled_composition` is the canonical execution value.  The
 /// `composition` member is a temporary source-compatibility view for the
-/// legacy CLI/runtime boundary; it is built from the same
-/// CompositionDefinition and has no independent compilation path.
+/// legacy CLI/runtime boundary; its scene callback delegates back to this
+/// immutable compiled value and has no independent compilation path.
 struct PreparedRenderPlan {
     CompiledComposition compiled_composition;
 

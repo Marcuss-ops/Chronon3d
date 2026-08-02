@@ -226,6 +226,16 @@ Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 evaluate(const CompiledComposition& compiled,
          const CompositionEvaluateContext& context,
          Frame frame) {
+    return evaluate(
+        compiled,
+        context,
+        SampleTime::from_frame_int(frame, context.frame_context.frame_rate()));
+}
+
+Result<EvaluatedCompositionFrame, CompositionEvaluateError>
+evaluate(const CompiledComposition& compiled,
+         const CompositionEvaluateContext& context,
+         SampleTime sample_time) {
     if (!compiled.definition) {
         CompositionEvaluateError err;
         err.kind    = CompositionEvaluateError::Kind::NullCompiledComposition;
@@ -243,8 +253,7 @@ evaluate(const CompiledComposition& compiled,
 
     // Thread SampleTime into FrameContext before invoking the scene fn.
     FrameContext fc = context.frame_context.with_local_time(
-        SampleTime::from_frame(static_cast<double>(frame), context.frame_context.frame_rate()),
-        context.frame_context.duration());
+        sample_time, context.frame_context.duration());
 
     EvaluatedCompositionFrame result;
     try {
@@ -269,9 +278,7 @@ evaluate(const CompiledComposition& compiled,
     if (compiled.camera_program && compiled.camera_program->is_compiled()) {
         camera_v1::CameraSession session;
         camera_v1::CameraEvalContext cam_ctx;
-        cam_ctx.sample_time = SampleTime::from_frame(
-            static_cast<double>(frame),
-            static_cast<FrameRate>(context.frame_context.frame_rate()));
+        cam_ctx.sample_time = sample_time;
         const auto cam_result =
             compiled.camera_program->evaluate(cam_ctx, session);
         if (cam_result.has_value()) {

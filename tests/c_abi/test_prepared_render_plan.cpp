@@ -105,6 +105,38 @@ TEST_CASE("prepared render plan owns the canonical compiled composition") {
     CHECK(repeated->fingerprint.request_digest == prepared.fingerprint.request_digest);
 }
 
+TEST_CASE("compiled composition preserves fractional evaluation time") {
+    double observed_frame = -1.0;
+    chronon3d::CompositionDefinition definition;
+    definition.composition = {
+        .name = "fractional-evaluation",
+        .width = 320,
+        .height = 180,
+        .frame_rate = {24, 1},
+        .duration = chronon3d::Frame{10}};
+    definition.scene = [&observed_frame](const chronon3d::FrameContext& context) {
+        observed_frame = context.effective_frame();
+        return chronon3d::Scene{};
+    };
+
+    const auto compiled = chronon3d::compile_composition(definition, {});
+    REQUIRE(compiled);
+
+    const auto base_context = chronon3d::make_frame_context({
+        .global_time = chronon3d::SampleTime::from_frame_int(
+            chronon3d::Frame{0}, {24, 1}),
+        .duration = chronon3d::Frame{10},
+        .width = 320,
+        .height = 180});
+    const auto evaluated = chronon3d::evaluate(
+        compiled.value(),
+        chronon3d::CompositionEvaluateContext{.frame_context = base_context},
+        chronon3d::SampleTime::from_frame(2.5, {24, 1}));
+
+    REQUIRE(evaluated);
+    CHECK(observed_frame == doctest::Approx(2.5));
+}
+
 TEST_CASE("prepared fingerprint is stable across asset roots and output metadata") {
     FingerprintTempDir temp;
     const auto root_a = temp.path / "root_a";
