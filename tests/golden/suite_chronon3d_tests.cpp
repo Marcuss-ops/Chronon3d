@@ -318,7 +318,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.rect("grad_rect", {
                 .size = {512, 128},
-                .pos = {0, 0, 0},
+                .pos = {256, 64, 0},
                 .fill = FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
@@ -355,7 +355,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.rect("multi_rect", {
                 .size = {512, 128},
-                .pos = {0, 0, 0},
+                .pos = {256, 64, 0},
                 .fill = FillStyle::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
@@ -393,7 +393,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.circle("radial_circle", {
                 .radius = 200.0f,
-                .pos = {0, 0, 0},
+                .pos = {200, 200, 0},
                 .fill = FillStyle::radial({0.5f, 0.5f}, 0.5f, stops)
             });
             return s.build();
@@ -423,7 +423,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.circle("conic_circle", {
                 .radius = 200.0f,
-                .pos = {0, 0, 0},
+                .pos = {200, 200, 0},
                 .fill = FillStyle::conic({0.5f, 0.5f}, 0.0f, stops)
             });
             return s.build();
