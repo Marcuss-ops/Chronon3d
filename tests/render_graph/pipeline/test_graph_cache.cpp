@@ -37,12 +37,7 @@ static std::shared_ptr<Framebuffer> render_frame(
     );
 }
 
-// DISABLED: TICKET-120 — graph cache hit/miss counters are sensitive
-// to internal engine implementation details and test ordering in unity
-// builds. The counters produce non-deterministic values across test runs.
-// TODO: investigate cache counter semantics and re-enable.
-// TICKET-120 | Issue: graph-cache-counter-non-determinism | Owner: scene-camera-team | Motivation: counter order-sensitivity in unity builds (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
-TEST_CASE("GraphCache - cache hit on structurally identical frames" * doctest::skip()) {
+TEST_CASE("GraphCache - cache hit on structurally identical frames") {
     SceneBuilder builder;
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
@@ -72,8 +67,7 @@ TEST_CASE("GraphCache - cache hit on structurally identical frames" * doctest::s
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before);
 }
 
-// DISABLED: TICKET-120 — same counter non-determinism as above.
-TEST_CASE("GraphCache - cache miss when dimensions change" * doctest::skip()) {
+TEST_CASE("GraphCache - cache miss when dimensions change") {
     SceneBuilder builder;
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
@@ -101,8 +95,7 @@ TEST_CASE("GraphCache - cache miss when dimensions change" * doctest::skip()) {
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
 }
 
-// DISABLED: TICKET-120 — same counter non-determinism as above.
-TEST_CASE("GraphCache - cache miss when layer added" * doctest::skip()) {
+TEST_CASE("GraphCache - cache miss when layer added") {
     SceneBuilder builder_a;
     builder_a.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene_a = builder_a.build();
@@ -135,8 +128,7 @@ TEST_CASE("GraphCache - cache miss when layer added" * doctest::skip()) {
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
 }
 
-// DISABLED: TICKET-120 — same counter non-determinism as above.
-TEST_CASE("GraphCache - pixel output matches non-cached path" * doctest::skip()) {
+TEST_CASE("GraphCache - pixel output matches non-cached path") {
     SceneBuilder builder;
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
