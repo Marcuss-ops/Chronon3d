@@ -7,12 +7,18 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
 
 namespace {
+
+TEST_CASE("C ABI reports the v2 contract") {
+    CHECK(chronon_abi_version() == 2);
+}
 
 constexpr char kPlan[] =
     "{\"schema\":\"chronon.render-plan\",\"version\":1,"
@@ -83,6 +89,48 @@ TEST_CASE("C ABI v2 create/destroy and explicit JSON length") {
     chronon_plan_destroy(plan);
     chronon_engine_destroy(engine);
     chronon_engine_destroy(nullptr);
+}
+
+TEST_CASE("C ABI v2 rejects a prepared asset changed before render") {
+    const auto source_root = std::filesystem::path(__FILE__)
+        .parent_path().parent_path().parent_path();
+    const auto temp_root = std::filesystem::temp_directory_path() /
+        ("chronon3d_c_api_asset_change_" +
+         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(temp_root / "assets");
+    std::filesystem::copy_file(
+        source_root / "assets/test_image.png",
+        temp_root / "assets/test_image.png",
+        std::filesystem::copy_options::overwrite_existing);
+
+    chronon_engine* engine = nullptr;
+    chronon_plan* plan = nullptr;
+    const auto root_string = temp_root.string();
+    chronon_engine_config config{
+        sizeof(config), chronon_abi_version(), root_string.c_str(), 0};
+    chronon_error_info error{sizeof(error), CHRONON_OK, nullptr};
+    REQUIRE(chronon_engine_create_v2(&config, &engine, &error) == CHRONON_OK);
+
+    const std::string source =
+        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps":30,"duration_frames":1},"layers":[{"id":"image","type":"image","asset":"assets/test_image.png"}],"output":{"path":"out.png"}})";
+    REQUIRE(chronon_plan_compile_json_n(
+        engine, source.data(), source.size(), &plan) == CHRONON_OK);
+
+    std::ofstream changed(temp_root / "assets/test_image.png",
+                          std::ios::binary | std::ios::trunc);
+    changed << "changed-after-preflight";
+    changed.close();
+
+    chronon_frame_info info{};
+    CHECK(chronon_render_frame_into(engine, plan, 0, nullptr, 0, &info) ==
+          CHRONON_ERROR_ASSET_CHANGED);
+    CHECK(std::string(chronon_engine_last_error(engine)).find(
+              "assets/test_image.png") != std::string::npos);
+
+    chronon_plan_destroy(plan);
+    chronon_engine_destroy(engine);
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(temp_root, cleanup_error);
 }
 
 TEST_CASE("C ABI v2 caller-owned buffer query, too-small failure, and second render") {

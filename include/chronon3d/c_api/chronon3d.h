@@ -46,7 +46,7 @@ typedef struct chronon_frame_buffer {
     uint32_t pixel_format;
 } chronon_frame_buffer;
 
-// V1 frame buffers point into storage owned by chronon_engine. Only one such
+// C ABI v2 frame buffers point into storage owned by chronon_engine. Only one such
 // buffer is valid at a time: the next render may replace it, and
 // chronon_buffer_free releases it. Calls on the same engine must be serialized.
 
@@ -74,6 +74,9 @@ typedef struct chronon_frame_info {
     uint64_t size;
 } chronon_frame_info;
 
+/// Current C ABI contract version. v2 includes create_v2(), explicit JSON
+/// lengths, caller-owned frame output, busy-state serialization, and
+/// structured asset-integrity/preflight statuses.
 CHRONON3D_API uint32_t chronon_abi_version(void);
 CHRONON3D_API chronon_engine* chronon_engine_create(
     const chronon_engine_config* config);

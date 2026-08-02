@@ -424,6 +424,26 @@ TEST_CASE("PreparedAssetManifest is deterministic and deduplicates assets") {
     CHECK(changed->manifest_digest() != root_b_result->manifest_digest());
 }
 
+TEST_CASE("PreparedAssetManifest detects bytes changed after preflight") {
+    write_file(g_temp.path, "images/changed.png", "AAAA");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+
+    const auto prepared = chronon3d::assets::prepare_asset_manifest(
+        image_plan("images/changed.png"), resolver);
+    REQUIRE(prepared);
+
+    // Keep the size stable: the integrity boundary must not rely on size
+    // alone. The timestamp fast path falls back to SHA-256 after this write.
+    write_file(g_temp.path, "images/changed.png", "BBBB");
+    const auto verified = chronon3d::assets::verify_asset_manifest(
+        prepared.value(), resolver);
+    REQUIRE_FALSE(verified);
+    CHECK(verified.error().code ==
+          chronon3d::assets::AssetPreflightErrorCode::AssetChangedAfterPreflight);
+    CHECK(verified.error().logical_path == "images/changed.png");
+}
+
 TEST_CASE("PreparedAssetStore owns subtitle bytes and keeps media metadata") {
     write_file(g_temp.path, "captions.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
     write_file(g_temp.path, "clip.mp4", "media");
