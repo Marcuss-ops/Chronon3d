@@ -109,8 +109,13 @@ chronon3d::render_plan::PreparedRenderPlan compile_plan(
     const json& root, chronon3d::assets::AssetResolver& resolver) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
     if (!decoded) throw std::runtime_error(decoded.error().message);
+    chronon3d::render_plan::RenderPlanFingerprintOptions fingerprint_options;
+    fingerprint_options.render_settings.width = decoded->canvas.width;
+    fingerprint_options.render_settings.height = decoded->canvas.height;
+    fingerprint_options.render_settings.deterministic = false;
+    fingerprint_options.render_settings.force_scalar_normal_blend = false;
     const auto compiled = chronon3d::render_plan::compile_render_plan(
-        decoded.value(), resolver);
+        decoded.value(), resolver, fingerprint_options);
     if (!compiled) throw std::runtime_error(compiled.error().message);
     return compiled.value();
 }

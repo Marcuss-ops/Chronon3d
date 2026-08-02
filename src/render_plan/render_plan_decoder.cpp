@@ -13,10 +13,12 @@
 namespace chronon3d::render_plan {
 namespace {
 
-std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan) {
+std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
+                                          bool include_output_settings) {
     auto hash = chronon3d::core::hash::HashBuilder{}
-        .add("chronon3d.render-plan.fingerprint.v1")
-        .add(plan.job_id)
+        .add("chronon3d.render-plan.fingerprint.v2")
+        // job_id is runtime routing metadata, not content identity.
+        .add("")
         .add(plan.canvas.width)
         .add(plan.canvas.height)
         .add(plan.canvas.fps)
@@ -60,12 +62,16 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan) {
             .add(track.ducking_enabled);
     }
 
-    return hash.add(plan.output.path)
-        .add_enum(plan.output.format)
-        .add_enum(plan.output.codec)
-        .add(plan.output.bitrate)
-        .add(plan.output.crf)
-        .finish();
+    // Output paths are always excluded because they identify a machine-local
+    // destination. Request identity may retain the deterministic output
+    // encoding settings; content identity must not.
+    if (include_output_settings) {
+        hash.add_enum(plan.output.format)
+            .add_enum(plan.output.codec)
+            .add(plan.output.bitrate)
+            .add(plan.output.crf);
+    }
+    return hash.finish();
 }
 
 template <typename T>
@@ -227,7 +233,7 @@ std::optional<PlanDecodeError> validate_render_plan_budget(
 }
 
 std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
-    return fingerprint_render_plan_impl(plan);
+    return fingerprint_render_plan_impl(plan, false);
 }
 
 Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& root) {
