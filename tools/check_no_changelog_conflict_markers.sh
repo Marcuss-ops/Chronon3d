@@ -2,16 +2,14 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # tools/check_no_changelog_conflict_markers.sh
 #
-# Forward-only CI gate for TICKET-CHANGELOG-CONFLICT-CLEANUP.
+# Forward-only CI gate for TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.
 #
-# Detects git merge conflict markers in docs/CHANGELOG.md that were
-# accidentally committed (e.g., commit f5551a13 introduced 3 conflict
-# markers that persisted in main for ~10 commits before being
-# resolved as a side effect of commit 5efcc301).
+# Detects git merge conflict markers in Markdown documentation. The historical
+# gate checked only docs/CHANGELOG.md, allowing the same rot in tickets,
+# roadmaps, archives, and baseline proofs.
 #
 # This gate prevents recurrence by hard-blocking any `git push` that
-# would commit unresolved `<<<<<<<`, `=======`, or `>>>>>>>` markers
-# in the CHANGELOG.
+# would commit unresolved `<<<<<<<`, `=======`, or `>>>>>>>` markers in docs.
 #
 # Exit codes:
 #   0 = clean (no conflict markers found)
@@ -37,38 +35,23 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT" || { echo "INTERNAL_ERROR: cannot cd to $REPO_ROOT" >&2; exit 2; }
 
-TARGET_FILE="docs/CHANGELOG.md"
+MARKERS_FILE="$(mktemp -t chronon3d_markdown_conflict_markers.XXXXXX)"
+cleanup() { rm -f "$MARKERS_FILE"; }
+trap cleanup EXIT
 
-if [ ! -f "$TARGET_FILE" ]; then
-    # If the file doesn't exist, there's nothing to check.
-    # Not a GATE_FAIL — just skip silently.
-    echo "OK: $TARGET_FILE not present (skipping check)"
-    exit 0
-fi
-
-# Match the three conflict marker patterns:
-#   - `<<<<<<< ` (7 '<' + space) — opening marker
-#   - `=======$` (exactly 7 '=') — separator
-#   - `>>>>>>> ` (7 '>' + space) — closing marker
-# Use grep -E for ERE + -c to count matches. -n for line numbers in
-# the remediation hint.
-if grep -nE '^(<<<<<<< |=======$|>>>>>>> )' "$TARGET_FILE" > /tmp/changelog_conflict_markers.txt 2>&1; then
-    if [ -s /tmp/changelog_conflict_markers.txt ]; then
-        echo "GATE_FAIL: git merge conflict markers detected in $TARGET_FILE" >&2
+# Scan every Markdown file under docs, including ARCHIVE and baseline proofs.
+# `find` also catches a newly-created untracked .md before the clean-tree gate.
+if find docs -type f -name '*.md' -print0 \
+    | xargs -0 grep -nHE '^(<<<<<<< |=======$|>>>>>>> )' >"$MARKERS_FILE" 2>/dev/null; then
+    if [ -s "$MARKERS_FILE" ]; then
+        echo "GATE_FAIL: git merge conflict markers detected in Markdown docs" >&2
         echo "  offending lines:" >&2
-        sed 's/^/    /' /tmp/changelog_conflict_markers.txt >&2
+        sed 's/^/    /' "$MARKERS_FILE" >&2
         echo "" >&2
-        echo "  fix: manually resolve the conflict in $TARGET_FILE by" >&2
-        echo "       removing the '<<<<<<<', '=======', and '>>>>>>>' lines" >&2
-        echo "       (take BOTH sides if both are legitimate work, then" >&2
-        echo "       verify the resulting file has no conflict markers)." >&2
-        echo "  verify: grep -nE '^(<<<<<<< |=======$|>>>>>>> )' $TARGET_FILE" >&2
-        echo "           should return no matches." >&2
-        rm -f /tmp/changelog_conflict_markers.txt
+        echo "  fix: resolve each listed file by removing the conflict markers." >&2
         exit 1
     fi
 fi
 
-rm -f /tmp/changelog_conflict_markers.txt
-echo "OK: no git merge conflict markers in $TARGET_FILE"
+echo "OK: no git merge conflict markers in Markdown docs (CHANGELOG + all docs/*.md)"
 exit 0
