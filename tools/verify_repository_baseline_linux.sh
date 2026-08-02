@@ -57,6 +57,7 @@ BUILD_DIR="build/chronon/${PRESET_CI_FULL}"
 PASS_COUNT=0
 FAIL_COUNT=0
 BLOCKED_COUNT=0
+BASELINE_SECTION_COUNT=7
 BUILD_BLOCKED=false
 ENV_BLOCKED=false
 CTEST_OUTPUT=""
@@ -447,7 +448,7 @@ elif [ "$FAIL_COUNT" -gt 0 ]; then
     exit 1
 else
     echo "BASELINE_FUNCTIONAL_PASS"
-    echo "  All $PASS_COUNT gates passed. Baseline clean-build certified."
-    echo "[INFO] ${GATE_NAME}: $PASS_COUNT/7 sections passed (repo state + env + configure + build + ctest + targets + labels)"
+    echo "  All ${BASELINE_SECTION_COUNT}/${BASELINE_SECTION_COUNT} required sections passed. Baseline clean-build certified."
+    echo "[INFO] ${GATE_NAME}: ${BASELINE_SECTION_COUNT}/${BASELINE_SECTION_COUNT} sections passed (repo state + env + configure + build + ctest + targets + labels)"
     exit 0
 fi
