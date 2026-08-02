@@ -42,6 +42,7 @@ namespace chronon3d {
 // this header never pulls the camera_v1 / asset_registry / asset
 // transitives from the timeline umbrella.
 class Composition;
+struct CompiledComposition;
 }
 
 namespace chronon3d::sdk {
@@ -72,6 +73,15 @@ public:
     [[nodiscard]]
     chronon3d::Result<RenderOutput, RenderError>
     render(const chronon3d::Composition& composition, Frame frame);
+
+    /// Render an immutable precompiled composition without recompiling its
+    /// scene/camera program at the frame boundary.  This is the execution
+    /// entry for PreparedRenderPlan consumers; the public header keeps the
+    /// compiled type opaque.
+    [[nodiscard]]
+    chronon3d::Result<RenderOutput, RenderError>
+    render_compiled(const chronon3d::CompiledComposition& compiled,
+                    Frame frame);
 
     /// Render a contiguous frame range into an encoded video file.
     /// This is a public wrapper over the same internal frame renderer and

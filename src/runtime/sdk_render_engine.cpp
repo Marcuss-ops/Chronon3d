@@ -8,6 +8,7 @@
 
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/api/render_engine.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #if CHRONON3D_ENABLE_VIDEO
@@ -140,6 +141,63 @@ struct RenderEngine::Impl {
     RenderSettings             settings{};
     RenderOutput              last_output{};
 
+    template <typename RenderFn>
+    chronon3d::Result<RenderOutput, RenderError>
+    render_frame(Frame frame, RenderFn&& render_fn) {
+        std::lock_guard lock(state_mutex);
+        try {
+            if (settings.width <= 0 || settings.height <= 0) {
+                return RenderError{
+                    .code = RenderErrorCode::InvalidSettings,
+                    .message = "RenderSettings width and height must be positive",
+                };
+            }
+            const auto started = std::chrono::steady_clock::now();
+            auto framebuffer = render_fn();
+
+            if (const auto error = engine.last_render_error()) {
+                const std::string message = error->message.empty()
+                    ? "internal render graph reported a frame error"
+                    : error->message;
+                return runtime_error(message);
+            }
+            if (!framebuffer) {
+                return runtime_error(
+                    "internal RenderEngine::render() returned a null framebuffer");
+            }
+
+            std::vector<std::uint8_t> rendered_pixels;
+            framebuffer_to_rgba8(*framebuffer, rendered_pixels);
+            if (framebuffer->width() == settings.width &&
+                framebuffer->height() == settings.height) {
+                pixel_buffer = std::move(rendered_pixels);
+            } else {
+                resize_rgba8_nearest(
+                    rendered_pixels, framebuffer->width(), framebuffer->height(),
+                    settings.width, settings.height, pixel_buffer);
+            }
+
+            RenderOutput output;
+            output.frame = frame;
+            output.width = settings.width;
+            output.height = settings.height;
+            output.format = PixelFormat::Rgba8;
+            output.bytes_per_row = static_cast<std::size_t>(output.width) * 4;
+            output.pixels = pixel_buffer.data();
+            output.elapsed_milliseconds = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - started).count();
+            last_output = output;
+            return output;
+        } catch (const std::exception& error) {
+            return runtime_error(std::string("render exception: ") + error.what());
+        } catch (...) {
+            return RenderError{
+                .code = RenderErrorCode::InternalError,
+                .message = "render: unknown exception",
+            };
+        }
+    }
+
     Impl() : engine() {}
 
     explicit Impl(RenderSettings settings_in)
@@ -170,64 +228,19 @@ RenderEngine& RenderEngine::operator=(RenderEngine&& other) noexcept {
 
 chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
-    std::lock_guard lock(m_impl->state_mutex);
-    try {
-        if (m_impl->settings.width <= 0 || m_impl->settings.height <= 0) {
-            return RenderError{
-                .code = RenderErrorCode::InvalidSettings,
-                .message = "RenderSettings width and height must be positive",
-            };
-        }
-        const auto started = std::chrono::steady_clock::now();
-        auto framebuffer = m_impl->engine.render(
+    return m_impl->render_frame(frame, [&] {
+        return m_impl->engine.render(
             composition, chronon3d::Frame{frame.integral()});
+    });
+}
 
-        // The internal graph may retain a transparent/partial framebuffer for
-        // diagnostics after a node failure. Public SDK callers must never
-        // mistake that buffer for a successful render.
-        if (const auto error = m_impl->engine.last_render_error()) {
-            const std::string message = error->message.empty()
-                ? "internal render graph reported a frame error"
-                : error->message;
-            return runtime_error(message);
-        }
-
-        if (!framebuffer) {
-            return runtime_error(
-                "internal RenderEngine::render() returned a null framebuffer");
-        }
-
-        std::vector<std::uint8_t> rendered_pixels;
-        framebuffer_to_rgba8(*framebuffer, rendered_pixels);
-        if (framebuffer->width() == m_impl->settings.width &&
-            framebuffer->height() == m_impl->settings.height) {
-            m_impl->pixel_buffer = std::move(rendered_pixels);
-        } else {
-            resize_rgba8_nearest(rendered_pixels, framebuffer->width(),
-                                 framebuffer->height(), m_impl->settings.width,
-                                 m_impl->settings.height, m_impl->pixel_buffer);
-        }
-
-        RenderOutput output;
-        output.frame         = frame;
-        output.width         = m_impl->settings.width;
-        output.height        = m_impl->settings.height;
-        output.format        = PixelFormat::Rgba8;
-        output.bytes_per_row = static_cast<std::size_t>(output.width) * 4;
-        output.pixels        = m_impl->pixel_buffer.data();
-        output.elapsed_milliseconds = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - started).count();
-
-        m_impl->last_output = output;
-        return output;
-    } catch (const std::exception& error) {
-        return runtime_error(std::string("render exception: ") + error.what());
-    } catch (...) {
-        return RenderError{
-            .code = RenderErrorCode::InternalError,
-            .message = "render: unknown exception",
-        };
-    }
+chronon3d::Result<RenderOutput, RenderError>
+RenderEngine::render_compiled(
+    const chronon3d::CompiledComposition& compiled, Frame frame) {
+    return m_impl->render_frame(frame, [&] {
+        return m_impl->engine.render_compiled(
+            compiled, chronon3d::Frame{frame.integral()});
+    });
 }
 
 chronon3d::Result<RenderReport, RenderError>
@@ -235,9 +248,9 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                              const RenderCallbacks& callbacks) {
     std::lock_guard lock(m_impl->state_mutex);
 
-    if (!request.composition) {
+    if (!request.composition && !request.compiled_composition) {
         return RenderError{RenderErrorCode::InvalidComposition,
-                            "RenderFileRequest composition must not be null"};
+                            "RenderFileRequest requires a composition or compiled_composition"};
     }
     if (request.output_path.empty()) {
         return RenderError{RenderErrorCode::InvalidSettings,
@@ -306,8 +319,11 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                                     "render cancelled by callback"});
         }
 
-        auto framebuffer = m_impl->engine.render(
-            *request.composition, chronon3d::Frame{frame});
+        auto framebuffer = request.compiled_composition
+            ? m_impl->engine.render_compiled(
+                *request.compiled_composition, chronon3d::Frame{frame})
+            : m_impl->engine.render(
+                *request.composition, chronon3d::Frame{frame});
         if (const auto error = m_impl->engine.last_render_error()) {
             return fail(runtime_error(error->message.empty()
                 ? "internal render graph reported a frame error" : error->message));

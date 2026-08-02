@@ -32,6 +32,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
@@ -178,6 +179,7 @@ std::shared_ptr<Framebuffer> RenderEngine::render_scene(
 std::shared_ptr<Framebuffer> RenderEngine::render(
     const Composition& comp, Frame frame)
 {
+    m_impl->m_renderer->session().clear_last_frame_error();
     // Canonical engine boundary: every Composition render performs the
     // synchronous preflight/resource barrier before graph execution. CLI
     // jobs may prepare earlier to report setup timing, but this boundary is
@@ -200,6 +202,17 @@ std::shared_ptr<Framebuffer> RenderEngine::render(
     // (which in turn routes through the SoftwareRenderer+Runtime graph
     // orchestration).  Returns the raw framebuffer for OPP consumers.
     return m_impl->m_pipeline->render_composition(comp, frame);
+}
+
+std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
+    const CompiledComposition& compiled, Frame frame)
+{
+    if (!compiled.definition) {
+        throw std::runtime_error(
+            "CompiledComposition has no definition");
+    }
+    m_impl->m_renderer->session().clear_last_frame_error();
+    return m_impl->m_pipeline->render_compiled_composition(compiled, frame);
 }
 
 std::shared_ptr<const graph::NodeExecutionError>
