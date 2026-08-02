@@ -9,10 +9,13 @@
 #include <chronon3d/animation/temporal/temporal_samples.hpp>     // PR1: single source of truth
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
 #include <optional>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 #include <spdlog/spdlog.h>
 #include <tbb/parallel_for.h>
@@ -97,8 +100,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     media::MediaFrameProvider* video_decoder,
     const Composition& comp,
     Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar
+    chronon3d::SoftwareRenderer* sw_sidecar,
+    const CompiledComposition* compiled
 ) {
+    if (compiled != nullptr && !compiled->definition) {
+        throw std::invalid_argument(
+            "compiled composition has no definition");
+    }
     // Materialise the RenderRuntime* once at the entry point so both the
     // single-frame and the motion-blur sub-frame evaluation paths below
     // share the same pointer.  Primary source: sw_sidecar (the
@@ -141,6 +149,26 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             comp.name(),
             sw_sidecar
         );
+    };
+
+    auto evaluate_scene = [&](const FrameContext& context) {
+        if (compiled == nullptr) return comp.evaluate(context);
+
+        auto evaluated = chronon3d::evaluate(
+            *compiled,
+            CompositionEvaluateContext{.frame_context = context},
+            context.local_time());
+        if (!evaluated) {
+            throw std::runtime_error(
+                "compiled composition evaluation failed: " +
+                evaluated.error().message);
+        }
+        const auto camera = evaluated.value().camera;
+        Scene scene = std::move(evaluated.value().scene);
+        if (camera.has_value()) {
+            scene.set_camera_2_5d(*camera);
+        }
+        return scene;
     };
 
     // PR1 — Mutually-exclusive motion-blur modes.  See MotionBlurMode.
@@ -243,13 +271,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
             .runtime = frame_runtime,
         });
-        scene = comp.evaluate(ctx);
+        scene = evaluate_scene(ctx);
         }
-        compile_scene_camera(scene);
+        if (compiled == nullptr) compile_scene_camera(scene);
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
 
-        apply_default_camera(scene, frame);
+        if (compiled == nullptr) apply_default_camera(scene, frame);
 
         const auto t_scene0 = profiling::now();
         {
@@ -306,12 +334,12 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                     .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
                     .runtime = frame_runtime,
                 });
-                Scene sub = comp.evaluate(sub_ctx);
+                Scene sub = evaluate_scene(sub_ctx);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
-                compile_scene_camera(sub);
+                if (compiled == nullptr) compile_scene_camera(sub);
 
                 // Apply the default camera to each sub-frame scene.
-                apply_default_camera(sub, frame);
+                if (compiled == nullptr) apply_default_camera(sub, frame);
 
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
 
@@ -391,6 +419,30 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     }
 
     return render_fb;
+}
+
+std::shared_ptr<Framebuffer> render_compiled_composition_frame(
+    RenderBackend& backend,
+    cache::NodeCache& node_cache,
+    const RenderSettings& settings,
+    const CompositionRegistry* registry,
+    media::MediaFrameProvider* video_decoder,
+    const CompiledComposition& compiled,
+    Frame frame,
+    chronon3d::SoftwareRenderer* sw_sidecar) {
+    if (!compiled.definition) {
+        throw std::invalid_argument(
+            "compiled composition has no definition");
+    }
+
+    const auto& spec = compiled.definition->composition;
+    Composition metadata(
+        spec,
+        [](const FrameContext&) { return Scene{}; },
+        compiled.definition->scene_content_fingerprint);
+    return render_composition_frame(
+        backend, node_cache, settings, registry, video_decoder,
+        metadata, frame, sw_sidecar, &compiled);
 }
 
 } // namespace chronon3d::graph

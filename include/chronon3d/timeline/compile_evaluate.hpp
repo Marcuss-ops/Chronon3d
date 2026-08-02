@@ -150,4 +150,14 @@ evaluate(const CompiledComposition& compiled,
          const CompositionEvaluateContext& context,
          Frame frame);
 
+/// Continuous-time counterpart used by temporal accumulation.  The scene
+/// function receives the supplied fractional SampleTime and the immutable
+/// compiled camera program is evaluated at that same instant.  Keeping this
+/// overload next to the integral convenience entry point prevents motion
+/// blur callers from silently falling back to the legacy Composition path.
+Result<EvaluatedCompositionFrame, CompositionEvaluateError>
+evaluate(const CompiledComposition& compiled,
+         const CompositionEvaluateContext& context,
+         SampleTime sample_time);
+
 } // namespace chronon3d

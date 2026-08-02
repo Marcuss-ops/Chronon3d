@@ -32,6 +32,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -96,6 +97,22 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     const Composition& comp,
+    Frame frame,
+    chronon3d::SoftwareRenderer* sw_sidecar = nullptr,
+    const CompiledComposition* compiled = nullptr
+);
+
+/// Executes the same compositor from an immutable CompiledComposition.  The
+/// compiled definition is the source of scene/camera evaluation; the
+/// metadata-only Composition adapter is internal to the implementation and
+/// is never exposed to callers.
+std::shared_ptr<Framebuffer> render_compiled_composition_frame(
+    RenderBackend& backend,
+    cache::NodeCache& node_cache,
+    const RenderSettings& settings,
+    const CompositionRegistry* registry,
+    media::MediaFrameProvider* video_decoder,
+    const CompiledComposition& compiled,
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar = nullptr
 );
