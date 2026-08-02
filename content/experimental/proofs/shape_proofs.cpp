@@ -11,6 +11,8 @@ namespace {
 
 constexpr f32 W = 1920.0f;
 constexpr f32 H = 1080.0f;
+constexpr const char* SHAPE_FONT_REGULAR = "assets/fonts/Inter-Regular.ttf";
+constexpr const char* SHAPE_FONT_BOLD = "assets/fonts/Inter-Bold.ttf";
 
 inline std::vector<PathCommand> make_ellipse_commands(Vec2 center, Vec2 radii) {
     constexpr f32 kappa = 0.55228474983f;
@@ -88,7 +90,7 @@ Composition shape_proofs() {
             l.text("lbl", TextDefinition{
     .content = {.value = text},
     .style = {
-        .font = {.font_size = 11.0f},
+        .font = {.font_path = SHAPE_FONT_REGULAR, .font_size = 11.0f},
         .color = {0.55f, 0.65f, 0.8f, 0.85f}
     },
     .frame = {
@@ -105,7 +107,7 @@ Composition shape_proofs() {
             l.text("t", TextDefinition{
     .content = {.value = "SHAPE / VECTOR SYSTEM PROOFS"},
     .style = {
-        .font = {.font_size = 28.0f},
+        .font = {.font_path = SHAPE_FONT_BOLD, .font_size = 28.0f},
         .color = {0.9f, 0.95f, 1.0f, 1.0f}
     },
     .frame = {
@@ -383,7 +385,7 @@ Composition shape_proofs() {
             l.text("t", TextDefinition{
     .content = {.value = "NEWS"},
     .style = {
-        .font = {.font_size = 13.0f},
+        .font = {.font_path = SHAPE_FONT_BOLD, .font_size = 13.0f},
         .color = {1,1,1,1}
     },
     .frame = {
@@ -410,7 +412,7 @@ Composition shape_proofs() {
             l.text("t", TextDefinition{
     .content = {.value = "!"},
     .style = {
-        .font = {.font_size = 18.0f},
+        .font = {.font_path = SHAPE_FONT_BOLD, .font_size = 18.0f},
         .color = {0,0,0,1}
     },
     .frame = {
@@ -434,7 +436,7 @@ Composition shape_proofs() {
             l.text("t", TextDefinition{
     .content = {.value = "10"},
     .style = {
-        .font = {.font_size = 14.0f},
+        .font = {.font_path = SHAPE_FONT_BOLD, .font_size = 14.0f},
         .color = {1,1,1,1}
     },
     .frame = {
@@ -472,7 +474,7 @@ Composition shape_proofs() {
             l.text("t", TextDefinition{
     .content = {.value = "SUBSCRIBE"},
     .style = {
-        .font = {.font_size = 10.0f},
+        .font = {.font_path = SHAPE_FONT_BOLD, .font_size = 10.0f},
         .color = {1,1,1,1}
     },
     .frame = {
