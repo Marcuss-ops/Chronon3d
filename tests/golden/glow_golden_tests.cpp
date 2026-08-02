@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 using namespace chronon3d;
@@ -94,12 +95,13 @@ void verify_glow_golden_or_create(const Framebuffer& rendered, const std::string
     // create-only contract.
     const bool update_mode = (std::getenv("CHRONON3D_UPDATE_GOLDENS") != nullptr);
 
-    if (!std::filesystem::exists(golden_path) || update_mode) {
+    if (update_mode) {
         REQUIRE(save_png(rendered, golden_path.string()));
-        if (update_mode) {
-            MESSAGE("Updated glow golden: ", golden_path.string());
-            return;
-        }
+        MESSAGE("Updated glow golden: ", golden_path.string());
+        return;
+    }
+    if (!std::filesystem::exists(golden_path)) {
+        FAIL("Golden missing: " << golden_path.string());
     }
 
     auto golden = load_png_as_framebuffer(golden_path.string());
