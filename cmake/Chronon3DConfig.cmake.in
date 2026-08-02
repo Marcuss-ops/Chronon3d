@@ -2,6 +2,15 @@
 
 include(CMakeFindDependencyMacro)
 
+# Some vcpkg CONFIG files (notably HarfBuzz) use the internal
+# `_VCPKG_INSTALLED_DIR` variable when they are consumed without the vcpkg
+# toolchain file.  Preserve the normal public vcpkg inputs as a sufficient
+# bridge for external consumers and packaging tests; never bake a build-host
+# path into this relocatable package config.
+if(DEFINED VCPKG_INSTALLED_DIR AND NOT DEFINED _VCPKG_INSTALLED_DIR)
+    set(_VCPKG_INSTALLED_DIR "${VCPKG_INSTALLED_DIR}")
+endif()
+
 # Required third-party dependencies that propagate through the SDK link
 # graph.  find_dependency() resolves them at config-time so consumers
 # don't have to call find_package() for each one themselves.
