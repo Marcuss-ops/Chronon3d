@@ -92,7 +92,7 @@ done
 
 # ── Precondition: chronon3d_cli binaries locatable (env-var driven per E) ──
 debug_default="$REPO_ROOT/build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli"
-release_default="$REPO_ROOT/build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli"
+release_default="$REPO_ROOT/build/chronon/linux-release-validation/apps/chronon3d_cli/chronon3d_cli"
 CLI_DEBUG_PATH="${CLI_DEBUG_PATH:-${CHRONON3D_CLI_DEBUG_PATH:-$debug_default}}"
 CLI_RELEASE_PATH="${CLI_RELEASE_PATH:-${CHRONON3D_CLI_RELEASE_PATH:-$release_default}}"
 
@@ -105,7 +105,7 @@ CLI_RELEASE_PATH="${CLI_RELEASE_PATH:-${CHRONON3D_CLI_RELEASE_PATH:-$release_def
 }
 [ -x "$CLI_RELEASE_PATH" ]  || {
     echo "GATE_FAIL_INTERNAL: Release CLI not found: $CLI_RELEASE_PATH (set CLI_RELEASE_PATH)" >&2
-    echo "  fix: cmake --preset linux-release && cmake --build build/chronon/linux-release -j\$(nproc)" >&2
+    echo "  fix: cmake --preset linux-release-validation && cmake --build build/chronon/linux-release-validation -j\$(nproc)" >&2
     echo "  Per AGENTS.md §honesty: macchina-verifica deferred to working build host" >&2
     echo "  (this VPS lacks vcpkg glm/magic_enum + tmpfs quota for full project build)." >&2
     exit 2

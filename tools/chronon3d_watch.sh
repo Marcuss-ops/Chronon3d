@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
-PRESET="${CHRONON_PRESET:-linux-release}"
+PRESET="${CHRONON_PRESET:-linux-release-validation}"
 BUILD_DIR="build/chronon/$PRESET"
 BIN="$BUILD_DIR/chronon3d_cli"
 

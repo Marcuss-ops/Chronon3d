@@ -6,7 +6,7 @@
 #
 # Verifies the SDK install is relocatable and consumer-ready per user spec
 # verbatim:
-#   1. cmake --install build/chronon/linux-release --prefix /tmp/chronon-install-a
+#   1. cmake --install build/chronon/linux-release-validation --prefix /tmp/chronon-install-a
 #   2. mv /tmp/chronon-install-a /tmp/chronon-install-b
 #   3. cmake -S tests/package_consumer -B /tmp/chronon-consumer -G Ninja \
 #         -DCMAKE_PREFIX_PATH=/tmp/chronon-install-b
@@ -38,7 +38,7 @@
 #   bash tools/verify_packaging_linux.sh
 #
 # Environment overrides:
-#   CHRONON3D_PKG_PRESET=<name>       CMake preset (default: linux-release)
+#   CHRONON3D_PKG_PRESET=<name>       CMake preset (default: linux-release-validation)
 #   CHRONON3D_PKG_BUILD_DIR=<path>    Build dir override (default: build/chronon/${PRESET})
 #   CHRONON3D_PKG_KEEP_DIRS=1         Keep temp install/build dirs after run
 # ═══════════════════════════════════════════════════════════════════════════
@@ -50,7 +50,7 @@ GATE_NAME="verify_packaging_linux"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-CHRONON3D_PKG_PRESET="${CHRONON3D_PKG_PRESET:-linux-release}"
+CHRONON3D_PKG_PRESET="${CHRONON3D_PKG_PRESET:-linux-release-validation}"
 CHRONON3D_PKG_KEEP_DIRS="${CHRONON3D_PKG_KEEP_DIRS:-0}"
 
 PREFIX_A="/tmp/chronon-install-a"

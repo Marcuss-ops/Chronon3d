@@ -4,7 +4,7 @@ Una PR Chronon3D e' davvero finita solo se passa questi blocchi:
 
 1. `git status -sb`, `git diff --check` e `git diff --stat` puliti.
 2. Build `linux-dev` o `linux-debug` ok.
-3. Build `linux-release` o `linux-release-full` ok se il cambiamento tocca performance, timing o render path.
+3. Build `linux-release-validation` ok se il cambiamento tocca performance, timing o render path.
 4. Test mirati ok.
 5. Render smoke ok.
 6. Benchmark prima/dopo incluso quando il lavoro tocca performance.

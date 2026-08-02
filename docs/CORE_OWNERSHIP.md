@@ -306,11 +306,11 @@ Un agente non deve invadere l'area di un altro senza dichiararlo.
 ./build-fast.sh
 ```
 
-Per build di release / verifica deterministica (preset `linux-release`, niente sloppiness/ccache):
+Per build di release / verifica deterministica (preset `linux-release-validation`, niente sloppiness/ccache):
 
 ```bash
-cmake --preset linux-release
-cmake --build build/chronon/linux-release -j$(nproc)
+cmake --preset linux-release-validation
+cmake --build build/chronon/linux-release-validation -j$(nproc)
 ```
 
 ### Test obbligatori (quando disponibili)

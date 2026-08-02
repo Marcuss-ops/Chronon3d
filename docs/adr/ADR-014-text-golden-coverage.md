@@ -104,7 +104,7 @@ The new infrastructure is bounded by:
 * **No new public C++ API** — no new header in `include/chronon3d/`. All new code lives under `tests/text_golden/` and `docs/`. The `tests/text_golden_tests.cmake` append is build-system only.
 * **No new registry/resolver/sampler/cache** — `verify_golden` reuses the existing `chronon3d::test` namespace and the existing `tests/visual/support/golden_test.cpp` source.
 * **Bash driver for convenience only** — `tools/test_golden_driver.sh` is a thin wrapper that:
-  1. Configures cmake with `linux-fast-dev` preset (or `linux-release` if `BUILD_TYPE=release`),
+  1. Configures cmake with `linux-fast-dev` preset (or `linux-release-validation` if `BUILD_TYPE=release`),
   2. Builds the `chronon3d_text_golden_user_spec_tests` target,
   3. Runs `ctest -R TextGoldenUserSpec --output-on-failure`,
   4. Reports pass/fail per test.
