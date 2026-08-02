@@ -3,7 +3,7 @@
 > Ultima revisione semantica: 2026-08-02.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@bf413d58` (checkpoint locale non pushato) — foundation/core focalizzati PASS, `chronon3d_c_abi_tests` PASS con C ABI v2 e cambio asset runtime, `chronon3d_sdk_tests` PASS, CLI render-plan diretto PASS, architecture/doc-sync/test-registration/hygiene PASS. Golden visuali focalizzati: 39/39 casi e 269.969/269.969 asserzioni PASS; `chronon3d_camera_visual_tests`: 9/9 casi e 27/27 asserzioni PASS. Marker gate Markdown PASS su `docs/**/*.md`; sanitizer completo e packaging release restano BLOCKED. Full baseline 11/11 non ricalcolata.
+> Ultimo SHA osservato: `main@234191dc` (checkpoint locale non pushato) — `linux-fast-dev` build PASS (453/453), core PASS (1422/1422, 1 test esplicitamente skip), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9) e CLI introspection PASS (26/26). AE parity visuale resta FAIL (31/41 casi, 10 fallimenti) e il test `TextUnitMap` word/whitespace resta un blocker visibile con `--no-skip`; sanitizer completo, baseline 11/11 e packaging release restano BLOCKED.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -28,13 +28,13 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | PARTIAL (focused PASS) | La suite visuale corrente passa su `main@4dabf6e3` (9/9 casi, inclusi parallax/orbit); la certificazione produttiva completa sullo stesso SHA resta da eseguire. |
+| Camera V1 | PARTIAL (focused PASS; AE parity FAIL) | Camera visual focalizzata corrente: 9/9 casi e 27/27 asserzioni PASS; AE parity: 31/41 casi PASS e 10 FAIL per golden/proiezione/DOF/motion-blur/cache. Certificazione produttiva completa sullo stesso SHA non autorizzata. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
-| Glow V1 | PARTIAL (focused PASS) | Golden Glow correnti e test di effetti passano su `main@4dabf6e3`; restano da certificare video 60 frame, budget, SDK/C ABI e matrice completa sullo stesso SHA. |
+| Glow V1 | PARTIAL (focused PASS) | Test effects/Glow: 208/208 casi e 15.715/15.715 asserzioni PASS; restano video 60 frame, budget, SDK/C ABI, landscape/portrait e fixture combinata sullo stesso SHA. |
 | Text lightweight semantic profiles | PASS | `main@88704bde`: Base, phrase/title, name e word/emph verificati con parsing, alias, span fusion, UTF-8, budget animator/selector/keyframe e determinismo seriale/parallelo. |
 | Combined Product V1 | PARTIAL (storico) | `GlowCameraProductV1` è certificato storicamente su `main@5cfdf1cd`; non è ancora ricertificato sulla pipeline compilata e sullo SHA corrente. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
-| Sanitizer gates (P2-A) | BLOCKED | Gate robusto e job limitati; ASan configure PASS, build/certificazione completa BLOCKED per spazio disco; full ctest non dichiarato. |
+| Sanitizer gates (P2-A) | BLOCKED | Gate robusto; il build ASan ha prodotto 121 GB di artefatti debug e saturato l'host, poi rimossi. TSan e certificazione completa non rieseguiti; nessun PASS dichiarato. |
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
 | Text Production / CapCut-grade V1 | PARTIAL | Canonical TextDefinition path, catalogo 20 preset generali + 8 subtitle, subtitle matrix 192/192 non-empty, alignment e auto-fit focused tests PASS. CapCut parity is now a strict release-blocking gate, but the repository still has zero blessed PNG exports from CapCut. Vedi [TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md). |
 | Test hardening (false-green audit) | PASS | Auto-fit e alignment sono assertions bloccanti; il parity harness non accetta più reference mancanti o corpus vuoti. Vedi [TICKET-FALSE-GREEN-TEST-AUDIT](tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md). |
@@ -53,7 +53,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | CompositionDescriptor migration | PASS (source audit) | `CompositionRegistry` exposes only `add(CompositionDescriptor)`; the legacy string/factory overload, duplicate `factories_` map, and global deprecated-warning suppression are absent. Remaining deprecated public APIs are tracked separately in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) and [TICKET-PUB-DEPRECATE-REMOVAL](tickets/TICKET-PUB-DEPRECATE-REMOVAL.md). |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali focalizzati 39/39 PASS e camera visual 9/9 PASS su `main@4dabf6e3`; restano baseline globale, sanitizer, packaging e certificazioni di prodotto da chiudere. |
+| Test coverage | PARTIAL | Foundation/core focalizzati PASS; golden visuali 39/39 PASS e camera visual 9/9 PASS sul percorso focalizzato; AE parity 31/41 PASS e core `--no-skip` espone il blocker TextUnitMap word/whitespace. Restano baseline globale, sanitizer, packaging e certificazioni di prodotto. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
