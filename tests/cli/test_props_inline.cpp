@@ -73,8 +73,8 @@ TEST_CASE("props_inline #2: nested object value rejected (ok=false)") {
         R"({"meta":{"nested":true},"title":"ok"})");
     REQUIRE_FALSE(r.ok);
     CHECK(r.props.values.contains("title") == false);  // rollback on failure
-    CHECK(r.error.find("nested") != std::string::npos
-          || r.error.find("scalar") != std::string::npos);
+    CHECK((r.error.find("nested") != std::string::npos
+           || r.error.find("scalar") != std::string::npos));
 }
 
 // #3 — load_props_inline: array value rejected.
@@ -82,8 +82,8 @@ TEST_CASE("props_inline #3: array value rejected (ok=false)") {
     const auto r = load_props_inline(
         R"({"tags":["breaking","news"],"title":"ok"})");
     REQUIRE_FALSE(r.ok);
-    CHECK(r.error.find("array") != std::string::npos
-          || r.error.find("scalar") != std::string::npos);
+    CHECK((r.error.find("array") != std::string::npos
+           || r.error.find("scalar") != std::string::npos));
 }
 
 // #4 — load_props_inline: null value rejected.
@@ -98,8 +98,8 @@ TEST_CASE("props_inline #4: null value rejected (ok=false)") {
 TEST_CASE("props_inline #5: malformed JSON rejected (ok=false)") {
     const auto r = load_props_inline("{ this is not valid JSON");
     REQUIRE_FALSE(r.ok);
-    CHECK(r.error.find("Invalid") != std::string::npos
-          || r.error.find("JSON") != std::string::npos);
+    CHECK((r.error.find("Invalid") != std::string::npos
+           || r.error.find("JSON") != std::string::npos));
 }
 
 // #6 — load_props_input: --props-file + --props-json mutually exclusive.

@@ -91,7 +91,7 @@ TEST_CASE("typed descriptor rejects external props without a codec") {
 
     CompositionProps props;
     props.values.set("title", "external");
-    CHECK_THROWS(registry.create("Typed", props));
+    CHECK_THROWS(static_cast<void>(registry.create("Typed", props)));
     CHECK(capture.calls == 0);
 }
 

@@ -357,6 +357,6 @@ struct CameraDescriptor {
 // (no blocker/canonical state change); subject envelope 73 chars
 // (the canonical envelope audit is in TICKET-GATE-SUBJECT-RANGE).
 namespace chronon3d::camera_v1 {
-inline std::uint64_t compute_camera_descriptor_fingerprint(
+std::uint64_t compute_camera_descriptor_fingerprint(
     const CameraDescriptor& desc) noexcept;
 } // namespace chronon3d::camera_v1

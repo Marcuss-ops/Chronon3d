@@ -15,6 +15,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 
 #include "content/common/background_helpers.hpp"
 #include "content/common/text/typewriter_block.hpp"
@@ -46,21 +47,18 @@ Composition make_anim_typewriter_glow_no_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        if (ctx.runtime) {
-            s.font_engine(&ctx.runtime->font_engine());
-        }
+        s.font_engine(ctx.runtime ? &ctx.runtime->font_engine() : nullptr);
 
         // Same scene as anim_typewriter_glow() but glow_intensity=0.0f.
         // All other parameters (text, sizes, line_spacing, start_delay_2,
         // slide_up=false) are identical to the production composition.
-        build_2line_typewriter(
-            s,
-            "THIS TEXT APPEARS",    88.0f,
-            "ONE LETTER AT A TIME", 104.0f,
-            68.0f,   // start_delay_2 (line 2 starts later) — matches production
-            120.0f,  // line_spacing — matches production
-            false,   // slide_up — matches production
-            0.0f);   // glow_intensity — THE ONLY DIFFERENCE (production: 0.5f)
+        build_2line_typewriter(s, {
+            .first  = {.text = "THIS TEXT APPEARS",    .font_size = 88.0f},
+            .second = {.text = "ONE LETTER AT A TIME", .font_size = 104.0f},
+            .second_delay   = 68.0f,
+            .line_spacing   = 120.0f,
+            .glow_intensity = 0.0f,
+        });
 
         return s.build();
     });

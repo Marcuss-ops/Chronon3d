@@ -35,6 +35,7 @@
 // headers in this lightweight collector header).
 namespace chronon3d {
     class Framebuffer;
+    struct TextRunAuditSnapshot;
 }
 
 namespace chronon3d::cli {
@@ -82,7 +83,7 @@ StatusMapping map_status_for_node(TextVisibilityStatus s,
 /// emit the `"frame": <int>` field without recomputing it.
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 InspectionRecord audit_for_snapshot(
-    const struct TextRunAuditSnapshot& snap,
+    const chronon3d::TextRunAuditSnapshot& snap,
     const Framebuffer*                 rendered_output,
     int                                frame
 ) noexcept;
@@ -98,7 +99,7 @@ struct StatusRecordPair {
 };
 
 StatusRecordPair map_to_status(
-    const struct TextRunAuditSnapshot& snap,
+    const chronon3d::TextRunAuditSnapshot& snap,
     const Framebuffer*                 rendered_output,
     int                                frame
 ) noexcept;

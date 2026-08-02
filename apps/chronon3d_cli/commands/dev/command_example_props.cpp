@@ -22,8 +22,6 @@
 #include <chronon3d/timeline/composition_descriptor.hpp>
 
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
-
 #include <iostream>
 #include <string>
 
@@ -34,7 +32,7 @@ int command_example_props(const CompositionRegistry& registry,
                           const ExamplePropsArgs& args) {
     const auto descriptor = registry.descriptor_of(args.comp_id);
     if (!descriptor) {
-        spdlog::error("example-props: unknown composition '{}'", args.comp_id);
+        std::cerr << "example-props: unknown composition '" << args.comp_id << "'\n";
         nlohmann::json err;
         err["error"]         = "composition_not_found";
         err["composition_id"] = args.comp_id;
@@ -44,9 +42,9 @@ int command_example_props(const CompositionRegistry& registry,
     }
 
     if (!descriptor->schema || descriptor->schema->fields.empty()) {
-        spdlog::error("example-props: no canonical example for '{}' "
-                      "(descriptor has no codec schema)",
-                      args.comp_id);
+        std::cerr << "example-props: no canonical example for '"
+                  << args.comp_id
+                  << "' (descriptor has no codec schema)\n";
         nlohmann::json err;
         err["error"]         = "no_canonical_example";
         err["composition_id"] = args.comp_id;

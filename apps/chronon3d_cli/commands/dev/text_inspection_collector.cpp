@@ -47,7 +47,7 @@ StatusMapping map_status_for_node(TextVisibilityStatus s,
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 
 InspectionRecord audit_for_snapshot(
-    const struct TextRunAuditSnapshot& snap,
+    const chronon3d::TextRunAuditSnapshot& snap,
     const Framebuffer*                 rendered_output,
     int                                frame
 ) noexcept {
@@ -94,7 +94,7 @@ InspectionRecord audit_for_snapshot(
 #endif // CHRONON3D_BUILD_DIAGNOSTICS
 
 StatusRecordPair map_to_status(
-    const struct TextRunAuditSnapshot& snap,
+    const chronon3d::TextRunAuditSnapshot& snap,
     const Framebuffer*                 rendered_output,
     int                                frame
 ) noexcept {
