@@ -356,6 +356,12 @@ echo "== 7. Skipped mandatory test audit =="
 
 if [ "$BUILD_BLOCKED" = true ] || [ "$ENV_BLOCKED" = true ]; then
     _gate_blocked "skipped_mandatory" "upstream blocker (env/configure/build/ctest failed)"
+elif [ "$CHRONON3D_BASELINE_SKIP_CTEST" = "1" ]; then
+    # The label audit is part of the CTest certification, so an explicit
+    # CTest bypass must not launch label suites behind the caller's back.
+    # Keep the result BLOCKED (rather than PASS) to preserve the baseline
+    # honesty contract while making audit-only invocations bounded.
+    _gate_blocked "skipped_mandatory" "skipped via CHRONON3D_BASELINE_SKIP_CTEST=1"
 else
     # ctest --print-labels lists available labels
     AVAILABLE_LABELS=$(ctest --preset "$PRESET_CI_FULL_TEST" --print-labels 2>/dev/null || echo "")
