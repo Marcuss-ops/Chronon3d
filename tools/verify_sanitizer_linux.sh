@@ -358,7 +358,7 @@ echo "  FAIL:    $FAIL_COUNT"
 echo "  BLOCKED: $BLOCKED_COUNT"
 echo ""
 
-if [ "$ENV_BLOCKED" = true ]; then
+if [ "$ENV_BLOCKED" = true ] || [ "$BLOCKED_COUNT" -gt 0 ]; then
     echo "SANITIZER_FUNCTIONAL_BLOCKED"
     echo ""
     echo "  Sanitizer certification blocked by environment (no presets,"
