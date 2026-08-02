@@ -78,7 +78,7 @@ THROUGHPUT_EFFICIENCY_FLOOR_4X_AT_100="${THROUGHPUT_EFFICIENCY_FLOOR_4X_AT_100:-
 SENTINEL_INF_RATIO="${SENTINEL_INF_RATIO:-9999.0}"
 
 debug_default="$REPO_ROOT/build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli"
-release_default="$REPO_ROOT/build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli"
+release_default="$REPO_ROOT/build/chronon/linux-release-validation/apps/chronon3d_cli/chronon3d_cli"
 CLI_DEBUG_PATH="${CLI_DEBUG_PATH:-${CHRONON3D_CLI_DEBUG_PATH:-$debug_default}}"
 CLI_RELEASE_PATH="${CLI_RELEASE_PATH:-${CHRONON3D_CLI_RELEASE_PATH:-$release_default}}"
 

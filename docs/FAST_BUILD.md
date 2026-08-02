@@ -198,6 +198,6 @@ Use:
 
 ## When NOT to use this workflow
 
-- **Release builds.** Use `cmake --preset linux-release` (or `linux-release-full`) — those runs are slower on purpose (no sloppiness, no tmpfs) and produce deterministic binaries meant for shipping.
+- **Release builds.** Use `cmake --preset linux-release-validation` — those runs are slower on purpose (no sloppiness, no tmpfs) and produce deterministic binaries meant for shipping.
 - **CI.** CI uses ephemeral, fresh ccache dirs and is intended to compile from scratch. The auto‑bootstrap detects a non‑default `CCACHE_DIR` and steps aside.
 - **`gcc`/`clang` ABI‑breaking header changes.** Touch the canonical headers (`feature_zone/*` or `core/*`) and the cache may serve a stale object — run `ccache -C` to invalidate, then rebuild.

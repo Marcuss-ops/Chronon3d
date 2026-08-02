@@ -499,7 +499,7 @@ def _find_cli() -> Path | None:
     """Search for chronon3d_cli binary in common build directories."""
     import subprocess
     candidates = [
-        PROJECT_ROOT / "build" / "chronon" / "linux-release" / "apps" / "chronon3d_cli" / "chronon3d_cli",
+        PROJECT_ROOT / "build" / "chronon" / "linux-release-validation" / "apps" / "chronon3d_cli" / "chronon3d_cli",
         PROJECT_ROOT / "build" / "chronon" / "linux-fast-dev" / "apps" / "chronon3d_cli" / "chronon3d_cli",
         PROJECT_ROOT / "build" / "chronon" / "linux-dev" / "apps" / "chronon3d_cli" / "chronon3d_cli",
         PROJECT_ROOT / "build" / "chronon" / "linux-ci" / "apps" / "chronon3d_cli" / "chronon3d_cli",

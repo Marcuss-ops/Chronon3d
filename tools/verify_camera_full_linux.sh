@@ -65,7 +65,7 @@ PRESET_ASAN="linux-asan"
 PRESET_CI_FULL="linux-ci-full-validation"
 
 # Build directories (preset-prefixed, per existing pattern:
-# build/chronon/linux-release/tests/chronon3d_scene_tests already exists)
+# build/chronon/linux-release-validation/tests/chronon3d_scene_tests already exists)
 BUILD_DEV="build/chronon/${PRESET_DEV}"
 BUILD_ASAN="build/chronon/${PRESET_ASAN}"
 BUILD_CI_FULL="build/chronon/${PRESET_CI_FULL}"

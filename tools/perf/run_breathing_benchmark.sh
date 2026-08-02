@@ -75,7 +75,7 @@ done
 find_default_bin() {
     for candidate in \
         "$PROJECT_DIR/build/apps/chronon3d_cli/chronon3d_cli" \
-        "$PROJECT_DIR/build/linux-release/apps/chronon3d_cli/chronon3d_cli" \
+        "$PROJECT_DIR/build/chronon/linux-release-validation/apps/chronon3d_cli/chronon3d_cli" \
         "$PROJECT_DIR/build/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli" \
         "$PROJECT_DIR/build/linux-ninja/apps/chronon3d_cli/chronon3d_cli" \
         "$PROJECT_DIR/build/default/apps/chronon3d_cli/chronon3d_cli"; do
