@@ -429,7 +429,18 @@ Result<PreparedAssetStore, AssetPreflightError> prepare_asset_store(
                              asset.logical_path,
                              "subtitle disappeared after asset preflight");
             }
-            std::ifstream input(*resolved, std::ios::binary);
+            std::error_code reopen_ec;
+            const auto canonical_root = std::filesystem::weakly_canonical(
+                resolver.mount_root(), reopen_ec);
+            const auto canonical = std::filesystem::canonical(*resolved, reopen_ec);
+            if (reopen_ec || canonical_root.empty() ||
+                !path_is_within(canonical_root, canonical) ||
+                (!policy.allow_symlinks_within_root && canonical != *resolved)) {
+                return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                             asset.logical_path,
+                             "subtitle path changed outside the mounted root after asset preflight");
+            }
+            std::ifstream input(canonical, std::ios::binary);
             if (!input)
                 return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                              asset.logical_path,
