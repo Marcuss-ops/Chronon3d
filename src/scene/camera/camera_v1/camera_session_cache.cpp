@@ -26,6 +26,7 @@
 // ==============================================================================
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
 
 #include <algorithm>
 

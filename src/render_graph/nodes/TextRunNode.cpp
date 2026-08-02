@@ -22,6 +22,8 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
+// Private definition needed by the per-session warn-once helper below.
+#include "../executor/text_bbox_reporter.hpp"
 
 namespace {
 // Convert optional renderer::TextRunLocalBounds to the project's canonical Rect.
@@ -82,14 +84,6 @@ inline void text_bbox_warn_once(
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-// TICKET-FIX-ALPHA-SCANNER-DUP-V1 — private include for per-session
-// TextBboxReporter dereference. Sibling-relative path (matches the
-// text_run/* sub-directory include convention used elsewhere in this
-// file: `text_run/text_run_execution.hpp` etc.).  Lives in
-// `src/render_graph/executor/text_bbox_reporter.hpp` (NOT in
-// `include/chronon3d/`); matches the AssetResolver + TextBboxReporter
-// forward-decl pattern in the public SDK header NodeExecutionContext.
-#include "../executor/text_bbox_reporter.hpp"
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include <chronon3d/text/text_visibility_audit.hpp>
 

@@ -12,6 +12,11 @@ struct MultiSourceItem {
     const ::chronon3d::RenderNode* node{nullptr};
     Mat4 matrix;
     f32 opacity;
+    // Projected 2D layers are camera-transformed by the layer's following
+    // TransformNode.  This prevents MultiSourceNode from applying the camera
+    // projection a second time when a scene camera is active. Legacy callers
+    // keep the existing per-item projection behaviour by default.
+    bool defer_camera_projection{false};
 };
 
 class MultiSourceNode final : public RenderGraphNode {

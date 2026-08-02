@@ -28,7 +28,9 @@ void register_grid_clean_background(CompositionRegistry& registry) {
                     SceneBuilder s(ctx);
                     auto path = scene::utils::detail::ensure_dark_grid_background_image(
                         ctx.width, ctx.height,
-                        {.bg_color = Color::black(), .grid_color = {1, 1, 1, 0.9f}, .spacing = 160, .extent = 4000, .centered = true});
+                        {.bg_color = {0.008f, 0.010f, 0.022f, 1.0f},
+                         .grid_color = {0.25f, 0.52f, 1.0f, 0.05f},
+                         .spacing = 140.0f, .extent = 4000.0f, .centered = true});
                     s.screen_layer("grid_clean", [path, w = ctx.width, h = ctx.height](auto& l) {
                         l.cache_static().image("img", {.path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
                     });

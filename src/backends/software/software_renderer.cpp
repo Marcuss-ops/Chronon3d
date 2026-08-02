@@ -81,6 +81,17 @@ namespace {
 
 void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
     auto* runtime = &renderer.runtime();
+    // RenderSession owns the service back-pointers used by nested precomp
+    // execution. Move operations transfer the session object, so refresh
+    // those pointers together with the backend processor context; otherwise
+    // a moved renderer silently loses its GraphExecutor/session wiring.
+    renderer.session().services = runtime::SessionServices{
+        .executor = &runtime->executor(),
+        .node_cache = &runtime->node_cache(),
+        .framebuffer_pool = &runtime->framebuffer_pool(),
+        .graph_cache = &runtime->graph_cache(),
+        .asset_registry = &runtime->assets(),
+    };
     if (!runtime->backend_attached()) return;
 
     auto* backend = dynamic_cast<SoftwareBackend*>(&runtime->backend());

@@ -36,7 +36,10 @@ std::shared_ptr<Framebuffer> load_image_as_framebuffer(
                 raw[idx + 2] / 255.0f,
                 raw[idx + 3] / 255.0f
             };
-            fb->set_pixel(x, y, c.to_linear());
+            // Framebuffers use premultiplied linear RGBA.  Keep the loader
+            // on the same contract as ImageCache so filtering/compositing do
+            // not see straight-alpha pixels from this legacy entrypoint.
+            fb->set_pixel(x, y, c.to_linear().premultiplied());
         }
     }
 
