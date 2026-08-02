@@ -243,16 +243,37 @@ compile_render_plan(
 
         // The explicit definition is compiled first and is the sole
         // canonical preparation path.  The legacy Composition below is only
-        // a view for consumers that have not yet migrated to CompiledComposition.
+        // a compatibility view whose callback delegates to that immutable
+        // compiled value for consumers that have not yet migrated to the
+        // direct CompiledComposition entry point.
         auto compiled = chronon3d::compile_composition(definition, {});
         if (!compiled) {
             return PlanDecodeError{"composition", compiled.error().message};
         }
 
+        auto compiled_value = std::move(compiled).value();
+        auto compiled_view = std::make_shared<const CompiledComposition>(
+            compiled_value);
         auto composition = std::make_shared<Composition>(
-            definition.composition, definition.scene, content_fingerprint);
+            definition.composition,
+            [compiled_view](const FrameContext& context) {
+                auto evaluated = chronon3d::evaluate(
+                    *compiled_view,
+                    CompositionEvaluateContext{.frame_context = context},
+                    context.local_time());
+                if (!evaluated) {
+                    throw std::runtime_error(
+                        "compiled render-plan evaluation failed: " +
+                        evaluated.error().message);
+                }
+                const auto camera = evaluated.value().camera;
+                Scene scene = std::move(evaluated.value().scene);
+                if (camera.has_value()) scene.set_camera_2_5d(*camera);
+                return scene;
+            },
+            content_fingerprint);
         PreparedRenderPlan prepared;
-        prepared.compiled_composition = std::move(compiled).value();
+        prepared.compiled_composition = std::move(compiled_value);
         prepared.composition = std::shared_ptr<const Composition>(std::move(composition));
         prepared.assets = std::move(assets);
         prepared.resources = std::move(resources);

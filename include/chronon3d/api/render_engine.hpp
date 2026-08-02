@@ -59,6 +59,7 @@ namespace runtime { class RenderRuntime; }
 // hatch in `advanced::RenderEngineAccess`, so a forward declaration is
 // sufficient (no full include).
 class SoftwareRenderer;
+struct CompiledComposition;
 
 /**
  * RenderEngine — INTERNAL ADAPTER for sdk::RenderEngine.
@@ -161,6 +162,13 @@ public:
     [[nodiscard]]
     std::shared_ptr<Framebuffer> render(
         const Composition& comp, Frame frame);
+
+    /// Execute an already compiled immutable composition.  This is the
+    /// internal bridge used by PreparedRenderPlan consumers; it avoids
+    /// recompiling camera and scene authoring state for every frame.
+    [[nodiscard]]
+    std::shared_ptr<Framebuffer> render_compiled(
+        const CompiledComposition& compiled, Frame frame);
 
     /// Immutable structured error snapshot from the most recent failed
     /// frame, or nullptr when no graph error was published. This exposes the
