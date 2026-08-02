@@ -94,8 +94,14 @@ void verify_golden_or_create(const Framebuffer& rendered, const std::string& fil
     std::filesystem::create_directories(golden_dir);
     const std::filesystem::path golden_path = golden_dir / filename;
 
-    if (!std::filesystem::exists(golden_path)) {
+    const bool update_mode = std::getenv("CHRONON3D_UPDATE_GOLDENS") != nullptr;
+    if (update_mode) {
         REQUIRE(save_png(rendered, golden_path.string()));
+        MESSAGE("Updated 2.5D golden: ", golden_path.string());
+        return;
+    }
+    if (!std::filesystem::exists(golden_path)) {
+        FAIL("Golden missing: " << golden_path.string());
     }
 
     auto golden = load_png_as_framebuffer(golden_path.string());

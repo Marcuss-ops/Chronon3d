@@ -11,6 +11,7 @@
 #include <cmath>
 #include <vector>
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 
 using namespace chronon3d::test;
@@ -93,16 +94,21 @@ void verify_suite_golden_or_create(const Framebuffer& rendered, const std::strin
     std::filesystem::create_directories(golden_dir);
     const std::filesystem::path golden_path = golden_dir / filename;
     
-    if (!std::filesystem::exists(golden_path)) {
-        std::cout << "Creating golden baseline image: " << golden_path.string() << std::endl;
+    const bool update_mode = std::getenv("CHRONON3D_UPDATE_GOLDENS") != nullptr;
+    if (update_mode) {
+        std::cout << "Updating golden baseline image: " << golden_path.string() << std::endl;
         REQUIRE(save_png(rendered, golden_path.string()));
+        return;
+    }
+    if (!std::filesystem::exists(golden_path)) {
+        FAIL("Golden missing: " << golden_path.string());
     }
     
     auto golden = load_png_as_framebuffer(golden_path.string());
     REQUIRE(golden != nullptr);
     
     auto comp = compare_suite_images(rendered, *golden);
-    INFO(comp.error_message);
+    INFO("golden=", filename, " ", comp.error_message);
     CHECK(comp.success);
 }
 
@@ -520,7 +526,9 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
         // Shadow offset by +20, +20: center 64+20 = 84, 84
         Color shadow_pixel = fb->get_pixel(84, 84);
         CHECK(shadow_pixel.r == 0.0f); // Should be black (shadow drawn behind)
-        CHECK(shadow_pixel.a == doctest::Approx(1.0f).epsilon(0.001f));
+        // The contact pass intentionally scales shadow coverage to 85%; the
+        // public color alpha remains the upper bound for the effect.
+        CHECK(shadow_pixel.a == doctest::Approx(0.85f).epsilon(0.001f));
     }
 }
 
