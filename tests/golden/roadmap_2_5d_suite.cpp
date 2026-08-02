@@ -46,7 +46,7 @@ ComparisonResult compare_images(const Framebuffer& rendered, const Framebuffer& 
 
     for (int y = 0; y < rendered.height(); ++y) {
         for (int x = 0; x < rendered.width(); ++x) {
-            const Color c1 = rendered.get_pixel(x, y).to_srgb();
+            const Color c1 = rendered.get_pixel(x, y).unpremultiplied().to_srgb();
             const Color c2 = golden.get_pixel(x, y);
 
             const float dr = std::abs(c1.r - c2.r);

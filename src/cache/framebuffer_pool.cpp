@@ -243,10 +243,25 @@ OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(other.width(), other.height(), &fresh_alloc);
     if (fb && other.data() != fb->data()) {
-        const usize count = std::min(static_cast<usize>(other.width() * other.height()),
-                                     static_cast<usize>(fb->width() * fb->height()));
-        std::memcpy(fb->data(), other.data(), count * sizeof(Color));
+        // Framebuffer storage is cache-line padded: logical rows are not
+        // necessarily contiguous at `width * sizeof(Color)`.  Copying the
+        // whole logical area as one block shifts every row after the first
+        // when the two strides differ, producing striped/corrupted effects.
+        const i32 copy_width = std::min(other.width(), fb->width());
+        const i32 copy_height = std::min(other.height(), fb->height());
+        const usize row_bytes = static_cast<usize>(copy_width) * sizeof(Color);
+        for (i32 y = 0; y < copy_height; ++y) {
+            std::memcpy(fb->pixels_row(y), other.pixels_row(y), row_bytes);
+        }
     }
+    // Pixel storage alone is not the framebuffer contract. Cropped graph
+    // nodes carry a canvas-space origin, and downstream compositors use it
+    // to translate global clip/bbox coordinates back to local rows. Losing
+    // it here relocates every pooled copy to (0,0), which is especially
+    // visible after Transform/Lighting/Shadow chains.
+    fb->set_origin(other.origin_x(), other.origin_y());
+    fb->set_opaque(other.is_opaque());
+    fb->set_content_cleared(other.is_content_cleared());
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 

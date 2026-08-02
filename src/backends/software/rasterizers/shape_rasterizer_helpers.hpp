@@ -89,9 +89,12 @@ namespace chronon3d::renderer {
             if (t >= a.offset && t <= b.offset) {
                 const f32 range = b.offset - a.offset;
                 const f32 local_t = (range < 1e-6f) ? 0.0f : (t - a.offset) / range;
-                Color c_a = a.color.to_linear();
-                Color c_b = b.color.to_linear();
-                c = c_a + (c_b - c_a) * local_t;
+                // Authoring stops are sRGB values. Interpolate in that
+                // authoring space, then convert the sampled colour once to
+                // the renderer's linear working space.
+                const Color c_a = a.color;
+                const Color c_b = b.color;
+                c = (c_a + (c_b - c_a) * local_t).to_linear();
                 break;
             }
         }

@@ -118,15 +118,12 @@ NodeExecResult TransformNode::execute(
         ctx.node_exec.counters->projected_winding_flips.fetch_add(flipped ? 1 : 0, std::memory_order_relaxed);
     }
 
-    // ── Correct UV orientation when winding is flipped ────────────────
-    // When the projected quad has negative winding, the UV coordinates are
-    // inverted (texture appears flipped).  We correct this by negating the
-    // V-component of the inverse homography's Y step, which flips the V
-    // direction in the row-by-row sampling.
-    glm::mat3 inv_H_corrected = inv_pixel_model_3x3;
-    if (flipped) {
-        inv_H_corrected[1] = -inv_H_corrected[1];
-    }
+    // The camera contract uses screen-Y-down coordinates, so a negative
+    // signed area is the normal orientation for an otherwise front-facing
+    // card.  The inverse homography already preserves that orientation;
+    // flipping its V column here changes the geometry-to-source mapping and
+    // can sample entirely outside the input (empty cards or scanline bands).
+    const glm::mat3& inv_H_corrected = inv_pixel_model_3x3;
 
     if (ctx.policy.diagnostics_enabled) {
 #ifdef CHRONON_DEBUG_VERBOSE

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <cstdint>
 
 namespace chronon3d::graph {
 
@@ -21,6 +22,10 @@ static constexpr GraphNodeId k_invalid_node = static_cast<GraphNodeId>(-1);
 struct BuilderContext {
     std::string layer_id;
     RenderGraphNode::OpacityEvaluator opacity_evaluator;
+    // Stable index into the resolved scene layer table. Root sources use
+    // UINT32_MAX so the compiled binding table can address them explicitly.
+    std::uint32_t layer_index{UINT32_MAX};
+    std::uint32_t item_index{0};
 };
 
 // ── RenderGraph lifecycle ─────────────────────────────────────────────────
@@ -70,6 +75,7 @@ public:
         }
         node->set_layer_id(ctx.layer_id);
         node->set_opacity_evaluator(ctx.opacity_evaluator);
+        node->set_binding_location(ctx.layer_index, ctx.item_index);
         GraphNodeId id = static_cast<GraphNodeId>(m_nodes.size());
         m_nodes.push_back(std::move(node));
         m_inputs.emplace_back();

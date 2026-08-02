@@ -89,7 +89,11 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                         const float g = src[idx + 1] / 255.0f;
                         const float b = src[idx + 2] / 255.0f;
                         const float a = src[idx + 3] / 255.0f;
-                        dst_row[x] = Color{r * a, g * a, b * a, a};
+                        // Framebuffers store premultiplied linear colors.
+                        // The image backend delivers straight sRGB bytes;
+                        // converting after premultiplication leaves dark
+                        // assets far too bright and breaks image/shape parity.
+                        dst_row[x] = Color{r, g, b, a}.to_linear().premultiplied();
                     }
                 }
             }

@@ -52,7 +52,7 @@ inline SuiteComparisonResult compare_suite_images(const Framebuffer& rendered, c
             // Both rendered and golden must be compared in valid sRGB [0,1] range.
         // Rendered may contain HDR values > 1.0 (e.g. bloom on HDR content); clamp
         // to [0,1] so the 8-bit PNG roundtrip comparison is fair.
-        Color c1 = rendered.get_pixel(x, y).to_srgb().clamped();
+        Color c1 = rendered.get_pixel(x, y).unpremultiplied().to_srgb().clamped();
         Color c2 = golden.get_pixel(x, y).clamped();
             
             float dr = std::abs(c1.r - c2.r);

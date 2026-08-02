@@ -26,33 +26,43 @@ void refresh_multi_source_node(
     }
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
+    const bool projected_2d = item.projected && !item.native_3d;
     const bool use_local = ctx.policy.modular_coordinates &&
         layer_needs_render_transform(item, ctx) &&
-        !item.native_3d;
+        !item.native_3d && !projected_2d;
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static || use_local;
-    const Mat4 item_source_world = use_local
-        ? item.world_matrix
-        : source_space_world_matrix(item, ctx);
+    const Mat4 item_source_world = item.projected && !item.native_3d
+        ? implicit_canvas_center_matrix(ctx)
+        : (use_local
+            ? item.world_matrix
+            : source_space_world_matrix(item, ctx));
 
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());
     u64 aggregated_params_hash = 0;
     for (const auto& src_node : layer.nodes) {
         const Mat4 node_matrix = src_node.world_transform.to_mat4();
-        const Mat4 render_matrix = use_local
+        const Mat4 raw_render_matrix = use_local
             ? node_matrix
             : (item_source_world * node_matrix);
-        const f32 render_opacity = use_local
+        const Mat4 render_matrix = use_local
+            ? raw_render_matrix
+            : (has_custom_absolute_text_transform(item, src_node, ctx)
+                ? resolve_custom_absolute_text_matrix(item, src_node, ctx)
+                : resolve_absolute_text_source_matrix(
+                    item, src_node, ctx, raw_render_matrix));
+        const f32 render_opacity = (use_local || projected_2d)
             ? src_node.world_transform.opacity
             : (item.transform.opacity * src_node.world_transform.opacity);
 
         items.push_back(MultiSourceItem{
             .node = &src_node,
             .matrix = render_matrix,
-            .opacity = render_opacity
+            .opacity = render_opacity,
+            .defer_camera_projection = item.projected && !item.native_3d,
         });
         aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));
         // Deliberately does NOT fold `hash_text_run_shape`

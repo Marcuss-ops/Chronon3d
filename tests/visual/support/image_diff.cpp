@@ -37,7 +37,7 @@ ImageDiffResult compare_framebuffers(
         for (int x = 0; x < W; ++x) {
             // Actual is linear float → convert to sRGB for RGB comparison.
             // Alpha is compared in linear space (preserved by to_srgb() as-is).
-            const Color actual_srgb = actual.get_pixel(x, y).to_srgb();
+            const Color actual_srgb = actual.get_pixel(x, y).unpremultiplied().to_srgb();
             const Color expected_srgb = expected.get_pixel(x, y);
 
             const double dr = static_cast<double>(std::abs(actual_srgb.r - expected_srgb.r));
@@ -102,7 +102,7 @@ Framebuffer create_diff_heatmap(
 
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
-            const Color actual_srgb = actual.get_pixel(x, y).to_srgb();
+            const Color actual_srgb = actual.get_pixel(x, y).unpremultiplied().to_srgb();
             const Color expected_srgb = expected.get_pixel(x, y);
 
             const float dr = std::abs(actual_srgb.r - expected_srgb.r);
@@ -153,7 +153,7 @@ double compute_ssim(
     std::vector<float> lb(static_cast<size_t>(W) * H);
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
-            const Color ca = a_fb.get_pixel(x, y).to_srgb();
+            const Color ca = a_fb.get_pixel(x, y).unpremultiplied().to_srgb();
             const Color cb = b_fb.get_pixel(x, y);
             la[y * W + x] = lum(ca);
             lb[y * W + x] = lum(cb);

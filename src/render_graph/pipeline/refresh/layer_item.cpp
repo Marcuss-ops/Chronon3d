@@ -20,9 +20,12 @@ LayerGraphItem make_layer_graph_item_for_refresh(
             ctx.policy.diagnostics_enabled
         );
         if (proj.visible) {
+            // Refresh must use the same full homography as the initial graph
+            // build.  A centroid+scale approximation drops layer rotation
+            // and perspective during cached-graph reuse.
             const Mat4 eff_proj = is_native_3d_layer(layer)
                 ? Mat4(1.0f)
-                : glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
+                : proj.projection_matrix;
             return LayerGraphItem{
                 .layer             = resolved_layer.layer,
                 .transform         = proj.transform,
