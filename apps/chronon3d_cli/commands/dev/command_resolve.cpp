@@ -31,8 +31,6 @@
 #include <chronon3d/timeline/composition_props.hpp>
 
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
-
 #include <iostream>
 #include <string>
 
@@ -83,7 +81,7 @@ int command_resolve(const CompositionRegistry& registry,
     CompositionInput input;
     const auto loaded = load_props_input(args.props_file, args.props_json);
     if (!loaded.ok) {
-        spdlog::error("resolve: {}", loaded.error);
+        std::cerr << "resolve: " << loaded.error << '\n';
         nlohmann::json err;
         err["error"]         = "invalid_props_input";
         err["composition_id"] = args.comp_id;
@@ -98,8 +96,9 @@ int command_resolve(const CompositionRegistry& registry,
     auto result = registry.resolve(args.comp_id, input);
     if (!result) {
         const auto err = result.error();
-        spdlog::error("resolve: '{}' props failed [{}]: {}",
-                      args.comp_id, err.key, err.message);
+        std::cerr << "resolve: '" << args.comp_id
+                  << "' props failed [" << err.key
+                  << "]: " << err.message << '\n';
         nlohmann::json js;
         js["resolved"]       = false;
         js["composition_id"] = args.comp_id;

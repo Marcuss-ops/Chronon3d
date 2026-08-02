@@ -185,7 +185,7 @@ TEST_CASE("CompositionRegistry: invalid typed props never reach construction") {
     CompositionProps props;
     props.values.set("duration_frames", "-5");
 
-    CHECK_THROWS(registry.create("PreparedComposition", props));
+    CHECK_THROWS(static_cast<void>(registry.create("PreparedComposition", props)));
     CHECK(decode_calls == 1);
     CHECK(factory_calls == 0);
 }

@@ -76,7 +76,7 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
 Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
     ChrononGlowProps p = chronon3d::content::glow_final::default_landscape_props();
     p.glow_enabled        = true;   // Phase 2: canonical cinematic additive glow
-    p.enable_scale_breath = true;   // Phase 2: 0.96/1.05/0.98 scale envelope
+    p.scale_breath        = true;   // Phase 2: 0.96/1.05/0.98 scale envelope
     return chronon3d::content::glow_final::make_chronon_glow_final(p);
 }
 
@@ -101,17 +101,21 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
             const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.80f : 1.00f);
             SceneBuilder s(ctx);
             s.layer("hero", [opacity](LayerBuilder& l) {
-                l.text("scale_pop", {
+                l.text("scale_pop", TextDefinition{
                     .content = {.value = "POP IN"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 240.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
+                    .style = {
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 240.0f},
+                        .color = Color::white(),
+                    },
+                    .frame = {
+                        .size = {1700.0f, 360.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle,
+                    },
                 });
                 l.opacity(opacity);
             });
@@ -140,17 +144,21 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
             const float opacity = (f == 0) ? 1.00f : (f <= 15 ? 0.92f : 1.00f);
             SceneBuilder s(ctx);
             s.layer("hero", [jitter, opacity](LayerBuilder& l) {
-                l.text("random_jitter", {
+                l.text("random_jitter", TextDefinition{
                     .content = {.value = "JITTER"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 240.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
+                    .style = {
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 240.0f},
+                        .color = Color::white(),
+                    },
+                    .frame = {
+                        .size = {1700.0f, 360.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle,
+                    },
                 });
                 l.position(Vec3{jitter.x, jitter.y, 0.0f});
                 l.opacity(opacity);
@@ -180,18 +188,22 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
             const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.70f : 1.00f);
             SceneBuilder s(ctx);
             s.layer("hero", [dy, opacity](LayerBuilder& l) {
-                l.text("multiline", {
+                l.text("multiline", TextDefinition{
                     .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f + dy}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 120.0f},
-                    .layout = {.box = {1700.0f, 500.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle,
-                               .max_lines = 3},
-                    .appearance = {.color = Color::white()},
+                    .style = {
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 120.0f},
+                        .color = Color::white(),
+                    },
+                    .frame = {
+                        .size = {1700.0f, 500.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f + dy}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle,
+                        .max_lines = 3,
+                    },
                 });
                 l.opacity(opacity);
             });
@@ -219,17 +231,21 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
             const float dx = (f <= 5) ? 8.0f : (f <= 15 ? 16.0f : 24.0f);
             SceneBuilder s(ctx);
             s.layer("hero", [dx](LayerBuilder& l) {
-                l.text("motion_blur", {
+                l.text("motion_blur", TextDefinition{
                     .content = {.value = "MOTION BLUR"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{640.0f + dx, 360.0f}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 180.0f},
-                    .layout = {.box = {1100.0f, 300.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
+                    .style = {
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 180.0f},
+                        .color = Color::white(),
+                    },
+                    .frame = {
+                        .size = {1100.0f, 300.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{640.0f + dx, 360.0f}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle,
+                    },
                 });
             });
             return s.build();

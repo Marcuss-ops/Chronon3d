@@ -17,8 +17,6 @@
 #include <chronon3d/timeline/composition_descriptor.hpp>
 
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
-
 #include <iostream>
 #include <string>
 
@@ -62,7 +60,7 @@ nlohmann::json field_to_json(const PropField& field) {
 int command_schema(const CompositionRegistry& registry, const SchemaArgs& args) {
     const auto descriptor = registry.descriptor_of(args.comp_id);
     if (!descriptor) {
-        spdlog::error("schema: unknown composition '{}'", args.comp_id);
+        std::cerr << "schema: unknown composition '" << args.comp_id << "'\n";
         nlohmann::json err;
         err["error"]         = "composition_not_found";
         err["composition_id"] = args.comp_id;

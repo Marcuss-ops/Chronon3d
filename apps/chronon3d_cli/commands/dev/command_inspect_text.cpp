@@ -24,11 +24,13 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 
 #include <cstdio>
 #include <sstream>
 #include <iomanip>
 #include <string>
+#include <utility>
 
 namespace chronon3d {
 namespace cli {
@@ -95,7 +97,15 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
     // the real `TextRunShape`, real per-node world matrix, and
     // producer-supplied predicted/clip bboxes (the 4 inputs to
     // `audit_text_visibility()`).
-    SoftwareRenderer renderer{Config{}};
+    auto runtime_result = runtime::RenderRuntime::create(
+        runtime::RuntimeConfig{Config{}, std::nullopt});
+    if (!runtime_result) {
+        emit_error_json("render_runtime_failed", args.comp_id,
+                        args.frame.integral());
+        return 1;
+    }
+    auto runtime = std::move(runtime_result).value();
+    SoftwareRenderer renderer{*runtime, Config{}};
     auto fb = renderer.render(comp, args.frame);
     if (!fb) {
         emit_error_json("render_failed", args.comp_id, args.frame.integral());
