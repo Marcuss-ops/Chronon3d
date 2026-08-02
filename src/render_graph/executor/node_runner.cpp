@@ -208,10 +208,9 @@ void execute_single_node(
         }
     }
 
-    // Use lightweight clone that skips copying large vectors
-    // (node_telemetry, layer_telemetry, dof_depth, early_exit_skip).
-    // These are not read during node.execute() — the full copy was the
-    // #1 bottleneck (~20K ms overhead for 90 node executions).
+    // Use lightweight clone that skips copying large vectors and shares the
+    // frame-owned DOF depth buffer. Copying a full depth plane for every node
+    // would both break DOF correctness and recreate the old allocation cost.
     const auto t_clone0 = profiling::now();
     auto node_ctx = ctx.clone_for_node_execution();
     const auto t_clone1 = profiling::now();

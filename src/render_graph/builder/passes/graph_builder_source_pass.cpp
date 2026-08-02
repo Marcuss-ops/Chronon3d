@@ -56,7 +56,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         const Mat4 item_source_world = item.projected && !item.native_3d
-            ? implicit_canvas_center_matrix(ctx)
+            // SourceNode receives a resolved matrix and does not run the
+            // camera projection itself. Add the canvas origin here while
+            // retaining the resolved layer translation, including Z; using
+            // only the canvas-center matrix discards layer position/depth.
+            ? (implicit_canvas_center_matrix(ctx) * item.world_matrix)
             : (use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx));

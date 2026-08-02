@@ -183,8 +183,16 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.parent_name = base.parent_name;
 
     cam.dof = base.dof;
-    if (src.focus_distance.is_time_dependent())
+    if (src.focus_distance.is_time_dependent()) {
         cam.dof.focus_distance = src.focus_distance.evaluate(ctx.sample_time);
+        // Camera V1 authors a rack-focus channel as a focus distance.  The
+        // legacy software DOF path consumes the world-space focus_z field,
+        // so bridge the animated channel explicitly when the physical lens
+        // model is not selected.  Static legacy callers that author focus_z
+        // directly remain unchanged.
+        if (!cam.dof.use_physical_model)
+            cam.dof.focus_z = cam.dof.focus_distance;
+    }
     if (src.aperture.is_time_dependent())
         cam.dof.aperture = src.aperture.evaluate(ctx.sample_time);
     if (src.max_blur.is_time_dependent())

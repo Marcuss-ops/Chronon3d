@@ -75,9 +75,9 @@ inline u64 mix_params_hash(u64 seed, u64 value) noexcept {
 }
 
 /// Compute a deterministic u64 digest of the evaluated Camera2_5D state.
-/// Includes: cam.zoom bit-pattern, cam.position.z bit-pattern, cam.fov_deg,
-/// cam.point_of_interest bytes (if enabled), cam.parent_name bytes (if
-/// non-empty), and cam.dof.focus_distance (if cam.dof.enabled). O(1).
+/// Includes: projection/camera identity, point-of-interest and hierarchy
+/// inputs, plus every DOF parameter consumed by the software backend when
+/// DOF is enabled. O(1).
 /// Empty parent_name contributes NOTHING (parent.is_null sentinel);
 /// cam.dof.disabled also contributes nothing (DOF lock for AE_CAM_02 + 04).
 [[nodiscard]] inline u64 camera_fingerprint_digest(const ::chronon3d::Camera2_5D& cam) {
@@ -92,7 +92,20 @@ inline u64 mix_params_hash(u64 seed, u64 value) noexcept {
         hb.add_bytes(cam.parent_name.data(), cam.parent_name.size());
     }
     if (cam.dof.enabled) {
+        hb.add(cam.dof.focus_z);
         hb.add(cam.dof.focus_distance);
+        hb.add(cam.dof.aperture);
+        hb.add(cam.dof.max_blur);
+        hb.add(cam.dof.use_physical_model);
+        hb.add(cam.dof.near_bokeh_radius);
+        hb.add(cam.dof.far_bokeh_radius);
+        hb.add(cam.lens.focal_length);
+        hb.add(cam.lens.f_stop);
+        hb.add(cam.lens.sensor_width);
+        hb.add(cam.lens.sensor_height);
+        hb.add(cam.lens.pixel_aspect);
+        hb.add(cam.lens.anamorphic_squeeze);
+        hb.add(static_cast<std::uint8_t>(cam.lens.gate_fit));
     }
     return hb.finish();
 }

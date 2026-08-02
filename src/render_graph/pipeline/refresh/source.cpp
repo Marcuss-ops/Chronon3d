@@ -79,9 +79,11 @@ void refresh_source_node(
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static || use_local;
-    const Mat4 item_source_world = use_local
-        ? item.world_matrix
-        : source_space_world_matrix(item, ctx);
+    const Mat4 item_source_world = item.projected && !item.native_3d
+        ? (implicit_canvas_center_matrix(ctx) * item.world_matrix)
+        : (use_local
+            ? item.world_matrix
+            : source_space_world_matrix(item, ctx));
     const Mat4 node_matrix = src_node.world_transform.to_mat4();
     const Mat4 render_matrix = use_local
         ? node_matrix

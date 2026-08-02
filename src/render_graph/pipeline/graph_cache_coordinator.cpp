@@ -59,6 +59,8 @@ namespace chronon3d::graph {
 
     // Carry forward context state set by the pipeline
     ctx.policy.skip_initial_clear = mutable_ctx.policy.skip_initial_clear;
+    ctx.policy.track_dof_depth = mutable_ctx.policy.track_dof_depth;
+    ctx.node_exec.dof_depth = std::move(mutable_ctx.node_exec.dof_depth);
     ctx.node_exec.early_exit_skip = std::move(mutable_ctx.node_exec.early_exit_skip);
 
     // Compile + optimize
@@ -88,6 +90,20 @@ namespace chronon3d::graph {
     CompiledFrameGraph compiled;
     if (maybe_compiled) {
         compiled = std::move(*maybe_compiled);
+    }
+
+    // DOF depth is execution state, not compiled-graph payload.  A reused
+    // graph must receive a fresh sentinel-filled buffer for every frame so
+    // CompositeNode can repopulate it before PerPixelDofNode executes.
+    if (ctx.frame_input.has_camera_2_5d &&
+        ctx.frame_input.camera_2_5d.dof.enabled) {
+        ctx.policy.track_dof_depth = true;
+        ctx.node_exec.dof_depth.assign(
+            static_cast<size_t>(width) * static_cast<size_t>(height),
+            1e18f);
+    } else {
+        ctx.policy.track_dof_depth = false;
+        ctx.node_exec.dof_depth.clear();
     }
 
     const auto t_refresh0 = profiling::now();
