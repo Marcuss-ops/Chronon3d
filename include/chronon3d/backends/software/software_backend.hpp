@@ -117,6 +117,9 @@ public:
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, int width, int height) override;
 
+    [[nodiscard]] std::optional<graph::RenderBackendError> validate_render_node(
+        const RenderNode& node) const override;
+
     // 06 R3b — `draw_text_run` and `capabilities` migrated to
     // SoftwareBackend.  SoftwareRenderer no longer exposes these.
     graph::RenderOpResult draw_text_run(Framebuffer& fb,
