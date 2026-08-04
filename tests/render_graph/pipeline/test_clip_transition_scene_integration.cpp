@@ -19,9 +19,11 @@ using namespace chronon3d;
 
 namespace {
 
-Composition make_clip_transition_comp(ClipTransitionKind kind) {
+Composition make_clip_transition_comp(ClipTransitionKind kind,
+                                      Frame from = Frame{0},
+                                      Frame duration = Frame{30}) {
     return composition({.width = 256, .height = 256, .duration = 60},
-        [kind](const FrameContext& ctx) {
+        [kind, from, duration](const FrameContext& ctx) {
             SceneBuilder s(ctx);
 
             s.layer("a", [](LayerBuilder& l) {
@@ -45,7 +47,7 @@ Composition make_clip_transition_comp(ClipTransitionKind kind) {
             ClipTransitionSpec spec;
             spec.kind = kind;
             spec.easing = Easing::Linear;
-            s.clip_transition("a", "b", spec, Frame{0}, Frame{30});
+            s.clip_transition("a", "b", spec, from, duration);
 
             return s.build();
         });
@@ -85,4 +87,36 @@ TEST_CASE("SceneBuilder clip_transition Dissolve blends A and B at midpoint") {
     CHECK(center.g == doctest::Approx(0.0f).epsilon(0.01f));
     CHECK(center.b == doctest::Approx(0.5f).epsilon(0.02f));
     CHECK(center.a == doctest::Approx(1.0f).epsilon(0.01f));
+}
+
+TEST_CASE("SceneBuilder clip_transition Flash advances across consecutive frames") {
+    auto renderer = test::make_renderer_shared();
+    auto comp = make_clip_transition_comp(
+        ClipTransitionKind::Flash, Frame{20}, Frame{12});
+
+    std::shared_ptr<Framebuffer> frame_19;
+    std::shared_ptr<Framebuffer> frame_26;
+    std::shared_ptr<Framebuffer> frame_32;
+    for (int frame = 19; frame <= 32; ++frame) {
+        auto rendered = renderer->render(comp, Frame{frame});
+        REQUIRE(rendered != nullptr);
+        if (frame == 19) frame_19 = std::move(rendered);
+        if (frame == 26) frame_26 = std::move(rendered);
+        if (frame == 32) frame_32 = std::move(rendered);
+    }
+
+    const auto before = sample_center(frame_19);
+    CHECK(before.r == doctest::Approx(1.0f));
+    CHECK(before.g == doctest::Approx(0.0f));
+    CHECK(before.b == doctest::Approx(0.0f));
+
+    const auto midpoint = sample_center(frame_26);
+    CHECK(midpoint.r == doctest::Approx(1.0f).epsilon(0.01f));
+    CHECK(midpoint.g == doctest::Approx(1.0f).epsilon(0.01f));
+    CHECK(midpoint.b == doctest::Approx(1.0f).epsilon(0.01f));
+
+    const auto after = sample_center(frame_32);
+    CHECK(after.r == doctest::Approx(0.0f));
+    CHECK(after.g == doctest::Approx(0.0f));
+    CHECK(after.b == doctest::Approx(1.0f));
 }

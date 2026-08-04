@@ -13,12 +13,16 @@
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <content/launches/product_launch.hpp>
+#include <content/launches/light_transition_sound_smoke.hpp>
 
 namespace chronon3d::content::launches {
 
 void register_launches_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("ProductLaunch", [](const CompositionProps&) -> Composition {
         return product_launch();
+    }));
+    registry.add(make_composition_descriptor("LightTransitionSoundSmoke", [](const CompositionProps&) -> Composition {
+        return light_transition_sound_smoke();
     }));
 }
 

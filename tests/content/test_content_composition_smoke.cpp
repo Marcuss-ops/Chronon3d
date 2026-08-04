@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/clip_transition.hpp>
 
 #include <string>
 #include <vector>
@@ -98,6 +99,32 @@ TEST_CASE("All registered compositions: every available composition evaluates fr
         CHECK(scene.layers().size() >= 0);
     }
 }
+
+#ifdef CHRONON3D_HAS_CONTENT_MINIMALIST
+TEST_CASE("LightTransitionSoundSmoke: registers 60-frame Flash composition") {
+    CompositionRegistry registry;
+    ensure_content_registered_smoke(registry);
+
+    REQUIRE(registry.contains("LightTransitionSoundSmoke"));
+    const auto comp = registry.create("LightTransitionSoundSmoke");
+    CHECK(comp.width() == 1920);
+    CHECK(comp.height() == 1080);
+    CHECK(comp.frame_rate().numerator == 30);
+    CHECK(comp.frame_rate().denominator == 1);
+    CHECK(comp.duration() == Frame{60});
+
+    const auto scene = comp.evaluate(Frame{20});
+    REQUIRE(scene.clip_transitions().size() == 1);
+    const auto& transition = scene.clip_transitions().front();
+    CHECK(transition.layer_a == "scene_a");
+    CHECK(transition.layer_b == "scene_b");
+    CHECK(transition.spec.kind == ClipTransitionKind::Flash);
+    CHECK(transition.spec.flash_color == Color::white());
+    CHECK(transition.from == Frame{20});
+    CHECK(transition.duration == Frame{12});
+}
+
+#endif
 
 TEST_CASE("All registered compositions: evaluate at mid-duration frame") {
     CompositionRegistry registry;

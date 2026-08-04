@@ -16,6 +16,7 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include <array>
+#include <cmath>
 #include <memory>
 
 using namespace chronon3d;
@@ -467,4 +468,68 @@ TEST_CASE("ClipTransitionNode: Flash peaks at midpoint with configured color") {
         CHECK(c.g > c.r);
         CHECK(c.g > c.b);
     }
+}
+
+TEST_CASE("ClipTransitionNode: one-frame Flash is an instantaneous safe pass") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Flash;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("flash_one_frame", spec, Frame{20}, Frame{1});
+
+    const auto before = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{19});
+    const auto first = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{20});
+    const auto after = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{21});
+
+    for (const auto* framebuffer : {before.get(), first.get(), after.get()}) {
+        REQUIRE(framebuffer != nullptr);
+        const auto pixel = framebuffer->get_pixel(32, 32);
+        CHECK(std::isfinite(pixel.r));
+        CHECK(std::isfinite(pixel.g));
+        CHECK(std::isfinite(pixel.b));
+        CHECK(std::isfinite(pixel.a));
+        CHECK(pixel.a >= 0.0f);
+        CHECK(pixel.a <= 1.0f);
+    }
+
+    CHECK(first->get_pixel(32, 32).r == doctest::Approx(1.0f));
+    CHECK(first->get_pixel(32, 32).b == doctest::Approx(0.0f));
+    CHECK(after->get_pixel(32, 32).r == doctest::Approx(0.0f));
+    CHECK(after->get_pixel(32, 32).b == doctest::Approx(1.0f));
+}
+
+TEST_CASE("ClipTransitionNode: Flash preserves transparent premultiplied endpoints") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::transparent());
+    auto b = make_fb(ctx, 64, 64, Color::transparent());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Flash;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("flash_alpha", spec, Frame{0}, Frame{2});
+
+    const auto before = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+    const auto midpoint = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{1});
+    const auto after = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{2});
+
+    const auto before_pixel = before->get_pixel(32, 32);
+    CHECK(before_pixel.r == doctest::Approx(0.0f));
+    CHECK(before_pixel.g == doctest::Approx(0.0f));
+    CHECK(before_pixel.b == doctest::Approx(0.0f));
+    CHECK(before_pixel.a == doctest::Approx(0.0f));
+
+    const auto midpoint_pixel = midpoint->get_pixel(32, 32);
+    CHECK(midpoint_pixel.r == doctest::Approx(1.0f));
+    CHECK(midpoint_pixel.g == doctest::Approx(1.0f));
+    CHECK(midpoint_pixel.b == doctest::Approx(1.0f));
+    CHECK(midpoint_pixel.a == doctest::Approx(1.0f));
+
+    const auto after_pixel = after->get_pixel(32, 32);
+    CHECK(after_pixel.r == doctest::Approx(0.0f));
+    CHECK(after_pixel.g == doctest::Approx(0.0f));
+    CHECK(after_pixel.b == doctest::Approx(0.0f));
+    CHECK(after_pixel.a == doctest::Approx(0.0f));
 }
