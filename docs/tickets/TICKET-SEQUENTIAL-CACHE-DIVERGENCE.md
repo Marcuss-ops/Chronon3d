@@ -46,6 +46,14 @@ sinistro, mentre il runtime indipendente lo disegna correttamente.
 - Riprodurre con diagnostics OFF come test rosso canonico (commit 1 del piano).
 - Correggere la classificazione static/dynamic (o l'authoring della fixture
   con animator) e la semantica bbox diagnostics-gated (commit 2).
-- Rimuovere ogni workaround; `opacity = 0.001` incluso se ancora presente.
 - Criterio di accettazione: verifier verde con diagnostics OFF su tutti e
   quattro gli ordini, frame 0–59.
+
+## Aggiornamenti
+
+- 2026-08-04: rimosso il workaround `opacity = 0.001` dalle composizioni
+  light transition (`content/launches/light_transition_sound_smoke.cpp`),
+  ripristinato `opacity = 0.0` reale; topologia dei layer invariata. Test
+  LightTransition (riproduzione cache 65/65, smoke 13+27+268, clip
+  12+167) e cache (129/129 + verifier sequenziale) verdi. La divergenza
+  diagnostics-OFF resta aperta qui.
