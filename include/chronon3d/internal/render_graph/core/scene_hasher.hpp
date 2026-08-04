@@ -32,10 +32,15 @@ public:
     /// fast-path to trigger for static compositions.
     uint64_t compute_static_fingerprint(const Scene& scene);
 
-    /// Frame-independent structure fingerprint used to decide whether a cached
-    /// compiled graph can be safely reused.  This intentionally ignores the
-    /// per-node render payload (for example changing text content) while still
-    /// tracking the layer topology and the graph-affecting layer settings.
+    /// Frame-independent canonical topology fingerprint used to decide
+    /// whether a cached compiled graph can be safely reused. It includes
+    /// layer/node identity, ordering, kinds, shape discriminators, graph
+    /// edges, and graph-affecting authored settings. It intentionally
+    /// excludes the current frame and dynamic render payloads such as
+    /// transforms, opacity, colours, text content, and shape dimensions.
+    ///
+    /// This is the single topology fingerprint for scene/cache decisions;
+    /// callers must not introduce a parallel topology hash.
     uint64_t compute_structure_fingerprint(const Scene& scene);
 
     /// Returns true if the scene is "static" — i.e. safe to reuse the same
