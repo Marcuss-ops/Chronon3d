@@ -30,8 +30,8 @@ uint64_t hash_clip_transition(const SceneClipTransition& transition) {
     h = hash_combine(h, hash_value(transition.spec.feather));
     h = hash_combine(h, hash_color(transition.spec.flash_color));
     h = hash_combine(h, hash_value(transition.spec.zoom_scale));
-    h = hash_combine(h, hash_value(transition.from.value));
-    h = hash_combine(h, hash_value(transition.duration.value));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(transition.from)));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(transition.duration)));
     return h;
 }
 
@@ -40,8 +40,8 @@ uint64_t clip_transition_phase(const SceneClipTransition& transition, Frame fram
     const Frame end = transition.from + duration;
 
     if (frame < transition.from) return 0;
-    if (frame >= end) return static_cast<uint64_t>(duration.value) + 1;
-    return static_cast<uint64_t>((frame - transition.from).value) + 1;
+    if (frame >= end) return static_cast<uint64_t>(static_cast<int64_t>(duration)) + 1;
+    return static_cast<uint64_t>(static_cast<int64_t>(frame - transition.from)) + 1;
 }
 
 } // namespace
