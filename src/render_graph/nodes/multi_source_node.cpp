@@ -20,7 +20,9 @@ namespace chronon3d::graph {
 MultiSourceNode::MultiSourceNode(
     std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
     RenderNodeCachePolicy policy
-) : RenderGraphNode(policy), m_name(std::move(name)), m_items(std::move(items)), m_key(key) {}
+) : RenderGraphNode(policy), m_name(std::move(name)), m_items(std::move(items)), m_key(key) {
+    normalize_items(m_items);
+}
 
 std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,

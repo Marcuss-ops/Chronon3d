@@ -16,12 +16,105 @@
 
 namespace chronon3d::graph::detail {
 
-void refresh_compiled_graph_payloads(
+namespace {
+
+SceneRefreshResult topology_mismatch(std::string message) {
+    return SceneRefreshResult{SceneRefreshStatus::TopologyMismatch, std::move(message)};
+}
+
+SceneRefreshResult missing_dynamic_data(std::string message) {
+    return SceneRefreshResult{SceneRefreshStatus::MissingDynamicData, std::move(message)};
+}
+
+const Layer* find_layer(const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
+                       std::string_view name) {
+    const auto it = resolved_by_name.find(std::string{name});
+    return it == resolved_by_name.end() || !it->second ? nullptr : it->second->layer;
+}
+
+SceneRefreshResult validate_compiled_structure(
+    const CompiledFrameGraph& compiled,
+    const Scene& scene,
+    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name)
+{
+    if (compiled.nodes.size() < compiled.graph.size()) {
+        return topology_mismatch("compiled node metadata is shorter than the graph");
+    }
+
+    for (size_t id = 0; id < compiled.graph.size(); ++id) {
+        if (!compiled.graph.has_node(static_cast<GraphNodeId>(id))) continue;
+        const auto& node = compiled.graph.node(static_cast<GraphNodeId>(id));
+        const auto& info = compiled.nodes[id];
+        if (info.id != static_cast<GraphNodeId>(id) || info.kind != node.kind() ||
+            info.inputs != compiled.graph.inputs(static_cast<GraphNodeId>(id))) {
+            return topology_mismatch("compiled graph metadata does not match node topology at node " + std::to_string(id));
+        }
+
+        if (node.kind() == RenderGraphNodeKind::Source) {
+            if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+                const auto layer_id = source->layer_id();
+                const RenderNode* expected = nullptr;
+                if (layer_id.empty()) {
+                    for (const auto& root : scene.nodes()) {
+                        if (root.name == source->name()) { expected = &root; break; }
+                    }
+                } else if (const auto* layer = find_layer(resolved_by_name, layer_id)) {
+                    if (layer->kind != LayerKind::Normal && layer->kind != LayerKind::Shape && layer->kind != LayerKind::Text) {
+                        return topology_mismatch("source node layer kind changed for '" + std::string(layer_id) + "'");
+                    }
+                    if (layer->nodes.size() != 1) {
+                        return topology_mismatch("single source node layer cardinality changed for '" + std::string(layer_id) + "'");
+                    }
+                    expected = &layer->nodes.front();
+                }
+                if (!expected) return missing_dynamic_data("source data missing for node '" + std::string(source->name()) + "'");
+                if (info.shape_type >= 0 && info.shape_type != static_cast<int>(expected->shape.type())) {
+                    return topology_mismatch("source shape type changed for node '" + std::string(source->name()) + "'");
+                }
+            } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
+                const auto* layer = find_layer(resolved_by_name, multi->layer_id());
+                if (!layer || layer->nodes.size() <= 1 ||
+                    (layer->kind != LayerKind::Normal && layer->kind != LayerKind::Shape && layer->kind != LayerKind::Text)) {
+                    return topology_mismatch("multi-source layer structure changed for '" + std::string(multi->layer_id()) + "'");
+                }
+                if (info.source_shape_types.size() != layer->nodes.size()) {
+                    return topology_mismatch("multi-source item count changed for '" + std::string(multi->layer_id()) + "'");
+                }
+                for (size_t item = 0; item < layer->nodes.size(); ++item) {
+                    if (info.source_shape_types[item] != static_cast<int>(layer->nodes[item].shape.type())) {
+                        return topology_mismatch("multi-source shape type changed for '" + std::string(multi->layer_id()) + "'");
+                    }
+                }
+            }
+        } else if (node.kind() == RenderGraphNodeKind::Transform || node.kind() == RenderGraphNodeKind::Effect ||
+                   node.kind() == RenderGraphNodeKind::TextRun) {
+            if (!find_layer(resolved_by_name, node.layer_id())) {
+                return missing_dynamic_data("refresh layer missing for node '" + std::string(node.name()) + "'");
+            }
+            if (node.kind() == RenderGraphNodeKind::TextRun) {
+                const auto* layer = find_layer(resolved_by_name, node.layer_id());
+                if (layer->kind != LayerKind::Text || layer->nodes.size() != 1 ||
+                    layer->nodes.front().shape.type() != ShapeType::TextRun) {
+                    return topology_mismatch("text-run structure changed for layer '" + std::string(node.layer_id()) + "'");
+                }
+            }
+        }
+    }
+    return SceneRefreshResult{};
+}
+
+} // namespace
+
+SceneRefreshResult refresh_compiled_graph_payloads(
     CompiledFrameGraph& compiled,
     const Scene& scene,
     RenderGraphContext& ctx,
     const LayerResolutionResult& resolved)
 {
+    // The graph is detached from CompiledGraphCache before this function is
+    // called. Validate every structural invariant first; no mutating refresher
+    // runs before this succeeds. A failed candidate is therefore discarded by
+    // the coordinator instead of being published as a partial cache entry.
     // ── 1. Compute recursive static analysis ─────────────────────────────
     // Must match the builder path (graph_builder_source_pass.cpp) which uses
     // item.is_static from this cache.  Without this, source_is_static uses
@@ -44,6 +137,9 @@ void refresh_compiled_graph_payloads(
     for (const auto& node : scene.nodes()) {
         root_nodes_by_name.emplace(std::string(node.name), &node);
     }
+
+    const auto validation = validate_compiled_structure(compiled, scene, resolved_by_name);
+    if (!validation) return validation;
 
     // ── 4. Iterate compiled graph nodes and dispatch refreshers ───────────
     for (size_t id = 0; id < compiled.graph.size(); ++id) {
@@ -111,6 +207,7 @@ void refresh_compiled_graph_payloads(
                 break;
         }
     }
+    return SceneRefreshResult{};
 }
 
 } // namespace chronon3d::graph::detail

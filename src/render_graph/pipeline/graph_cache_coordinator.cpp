@@ -17,6 +17,7 @@
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include <spdlog/spdlog.h>
+#include <exception>
 
 namespace chronon3d::graph {
 
@@ -143,9 +144,11 @@ static void log_graph_cache_diagnostics(
     const detail::LayerResolutionResult& resolved,
     int width,
     int height,
-    bool diagnostics_enabled)
+    bool diagnostics_enabled,
+    bool& graph_reused)
 {
     auto maybe_compiled = graph_cache.try_take(width, height);
+    graph_reused = false;
     CompiledFrameGraph compiled;
     if (maybe_compiled) {
         compiled = std::move(*maybe_compiled);
@@ -166,8 +169,41 @@ static void log_graph_cache_diagnostics(
     }
 
     const auto t_refresh0 = profiling::now();
-    detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
+    detail::SceneRefreshResult refresh_result;
+    try {
+        refresh_result = detail::refresh_compiled_graph_payloads(
+            compiled, scene, ctx, resolved);
+    } catch (const std::exception& error) {
+        // A refresher may allocate while preparing a dynamic payload. The
+        // detached candidate is deliberately discarded on any exception;
+        // never return or cache a graph that may have been mutated halfway
+        // through the refresh transaction.
+        if (diagnostics_enabled) {
+            spdlog::warn("[graph-cache] transactional refresh threw: {} — rebuilding fresh",
+                         error.what());
+        }
+        return build_fresh_graph(ctx, scene, resolved);
+    }
     const auto t_refresh1 = profiling::now();
+
+    if (!refresh_result) {
+        // `compiled` was detached from the cache before refresh. Never return
+        // a candidate that failed structural validation: rebuild a complete
+        // graph instead, leaving the old cache unpublished and avoiding any
+        // partially refreshed graph becoming the next cache entry.
+        if (diagnostics_enabled) {
+            spdlog::warn("[graph-cache] transactional refresh rejected: {} — rebuilding fresh",
+                         refresh_result.message);
+        }
+        // Validation is performed before any refresh mutation, so this
+        // detached candidate is still the original cache entry. Put it back
+        // before compiling the fallback graph; the caller will replace it
+        // only after the fresh graph has completed successfully.
+        graph_cache.store(std::move(compiled), width, height);
+        return build_fresh_graph(ctx, scene, resolved);
+    }
+
+    graph_reused = true;
 
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->compiled_graph_refresh_ms.fetch_add(
@@ -224,8 +260,8 @@ GraphBuildResult build_or_reuse_graph(
             ctx.node_exec.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
         result.compiled = reuse_cached_graph(
-            *graph_cache, scene, ctx, resolved, width, height, diagnostics_enabled);
-        result.graph_reused = true;
+            *graph_cache, scene, ctx, resolved, width, height,
+            diagnostics_enabled, result.graph_reused);
         result.skip_initial_clear = result.compiled.skip_initial_clear;
     } else {
         if (ctx.node_exec.counters) {
