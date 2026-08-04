@@ -14,6 +14,7 @@
 // Full definitions needed by the method bodies (only forward-declared in the header).
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 
 namespace chronon3d::graph {
 
@@ -33,6 +34,20 @@ uint64_t hash_clip_transition(const SceneClipTransition& transition) {
     h = hash_combine(h, hash_value(static_cast<int64_t>(transition.from)));
     h = hash_combine(h, hash_value(static_cast<int64_t>(transition.duration)));
     return h;
+}
+
+// Topology-only variants deliberately omit transition timing and visual
+// parameters. Those values affect per-frame evaluation, not the emitted
+// node/edge topology, and are handled by the dynamic refresh path.
+uint64_t hash_layer_transition_topology(const LayerTransitionSpec& spec) {
+    u64 h = hash_string(spec.transition_id);
+    return hash_combine(h, spec.transition_id == "none" ? 0ULL : 1ULL);
+}
+
+uint64_t hash_clip_transition_topology(const SceneClipTransition& transition) {
+    u64 h = hash_string(transition.layer_a);
+    h = hash_combine(h, hash_string(transition.layer_b));
+    return hash_combine(h, hash_value(static_cast<uint64_t>(transition.spec.kind)));
 }
 
 uint64_t clip_transition_phase(const SceneClipTransition& transition, Frame frame) {
@@ -93,20 +108,61 @@ uint64_t SceneHasher::compute_static_fingerprint(const Scene& scene) {
 
 uint64_t SceneHasher::compute_structure_fingerprint(const Scene& scene) {
     uint64_t h = 0;
-    h = hash_combine(h, hash_string("scene_root_structure"));
+    h = hash_combine(h, hash_string("chronon.scene-topology.v1"));
+
+    // Root-source order and identity are graph topology: root sources are
+    // emitted in this order by the builder.  Do not fold their render values
+    // (placement, colour, fill, opacity, or shape dimensions) here.
     h = hash_combine(h, hash_value(scene.nodes().size()));
     for (const auto& node : scene.nodes()) {
         h = hash_combine(h, hash_string(node.name));
+        h = hash_combine(h, hash_value(static_cast<int>(node.shape.type())));
+        h = hash_combine(h, hash_value(static_cast<int>(node.surface_policy)));
+        h = hash_combine(h, hash_value(static_cast<int>(node.transform_policy)));
     }
 
+    // Preserve authored layer order.  The graph builder composites layers in
+    // this order (with a separate deterministic 2.5D sort at execution), so
+    // sorting here would make two different graphs look cache-compatible.
+    h = hash_combine(h, hash_value(scene.layers().size()));
     for (const auto& layer : scene.layers()) {
-        const auto layer_h = hash_layer_structure(layer);
-        h = hash_combine(h, layer_h);
+        h = hash_combine(h, hash_layer_structure(layer));
+        h = hash_combine(h, hash_string(layer.parent_name));
         h = hash_combine(h, hash_value(layer.nodes.size()));
+        for (const auto& node : layer.nodes) {
+            // Node order, stable name and render-kind discriminator determine
+            // whether the source pass emits SourceNode, TextRunNode, or a
+            // MultiSource item.  All animated/render payload values stay out.
+            h = hash_combine(h, hash_string(node.name));
+            h = hash_combine(h, hash_value(static_cast<int>(node.shape.type())));
+            h = hash_combine(h, hash_value(static_cast<int>(node.surface_policy)));
+            h = hash_combine(h, hash_value(static_cast<int>(node.transform_policy)));
+        }
+
+        // The builder emits one graph node per enabled effect.  Effect
+        // parameters are refreshed dynamically, so only enabled/type/id are
+        // part of this topology contract.
+        // Disabled effects do not emit graph nodes in the builder, so they
+        // must not perturb the topology fingerprint. Preserve the authored
+        // order of enabled effects and hash only their processor identity;
+        // effect parameters are dynamic payload and are refreshed later.
+        u64 enabled_effect_count = 0;
+        for (const auto& effect : layer.effects()) {
+            if (effect.enabled) ++enabled_effect_count;
+        }
+        h = hash_combine(h, enabled_effect_count);
+        for (const auto& effect : layer.effects()) {
+            if (!effect.enabled) continue;
+            h = hash_combine(h, hash_string(effect.descriptor.id));
+            h = hash_combine(h, hash_value(static_cast<int>(effect.effect_type)));
+        }
     }
 
+    // Clip transitions add nodes and edges.  Their authored identity and
+    // kind are structural; timing, easing, colours and the current phase are
+    // dynamic transition payload and intentionally omitted.
     for (const auto& transition : scene.clip_transitions()) {
-        h = hash_combine(h, hash_clip_transition(transition));
+        h = hash_combine(h, hash_clip_transition_topology(transition));
     }
 
     return h;
@@ -181,23 +237,43 @@ uint64_t SceneHasher::hash_layer_structure(const Layer& layer) {
     uint64_t h = 0;
     h = hash_combine(h, hash_string(layer.name));
     h = hash_combine(h, static_cast<u64>(layer.kind));
-    h = hash_combine(h, layer.visible ? 1 : 0);
     h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
-    h = hash_combine(h, layer.cache_static ? 1 : 0);
+    // Cache policy is compile-time graph metadata (it changes the node
+    // cache policy captured by Source/Transform/Effect nodes), not a
+    // per-frame render value.
+    h = hash_combine(h, layer.cache_static ? 1ULL : 0ULL);
     h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+    // The current compositor contract emits SourceOver for this pass;
+    // do not invalidate the graph on an authored operator that the builder
+    // does not consume yet.
+    h = hash_combine(h, static_cast<u64>(layer.track_matte.type));
+    if (layer.track_matte.active()) {
+        h = hash_combine(h, hash_string(layer.track_matte.source_layer));
+    }
+    h = hash_combine(h, layer.mask.enabled() ? 1ULL : 0ULL);
+    if (layer.mask.enabled()) {
+        h = hash_combine(h, static_cast<u64>(layer.mask.type));
+    }
+
+    // A transition changes the emitted node chain.  Include its authored
+    // identity and static parameters, but not any evaluated frame phase.
+    const auto has_transition = [](const LayerTransitionSpec& spec) {
+        return !spec.transition_id.empty() && spec.transition_id != "none";
+    };
+    h = hash_combine(h, has_transition(layer.transition_in) ? 1ULL : 0ULL);
+    if (has_transition(layer.transition_in)) {
+        h = hash_combine(h, hash_layer_transition_topology(layer.transition_in));
+    }
+    h = hash_combine(h, has_transition(layer.transition_out) ? 1ULL : 0ULL);
+    if (has_transition(layer.transition_out)) {
+        h = hash_combine(h, hash_layer_transition_topology(layer.transition_out));
+    }
 
     if (layer.kind == LayerKind::Precomp) {
         h = hash_combine(h, hash_string(layer.precomp_composition_name));
     }
-    if (layer.kind == LayerKind::Video && layer.video_source) {
-        h = hash_combine(h, hash_string(layer.video_source->path));
-        h = hash_combine(h, hash_vec2(layer.video_source->size));
-        h = hash_combine(h, hash_value(layer.video_source->source_fps));
-    }
-    if (layer.time_remap.active()) {
-        h = hash_combine(h, hash_value(layer.time_remap.speed));
-        h = hash_combine(h, hash_value(static_cast<u64>(layer.time_remap.freeze_frame)));
-    }
+    // Video source identity and time-remap values are dynamic payload; the
+    // VideoNode topology is unchanged and refresh evaluates the sample.
     return h;
 }
 
