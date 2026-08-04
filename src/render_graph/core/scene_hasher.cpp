@@ -17,6 +17,35 @@
 
 namespace chronon3d::graph {
 
+namespace {
+
+uint64_t hash_clip_transition(const SceneClipTransition& transition) {
+    uint64_t h = hash_string(transition.layer_a);
+    h = hash_combine(h, hash_string(transition.layer_b));
+    h = hash_combine(h, hash_value(static_cast<uint64_t>(transition.spec.kind)));
+    h = hash_combine(h, hash_value(static_cast<uint64_t>(transition.spec.easing)));
+    h = hash_combine(h, hash_value(static_cast<uint64_t>(transition.spec.fit)));
+    h = hash_combine(h, hash_value(static_cast<uint64_t>(transition.spec.direction)));
+    h = hash_combine(h, hash_vec2(transition.spec.center));
+    h = hash_combine(h, hash_value(transition.spec.feather));
+    h = hash_combine(h, hash_color(transition.spec.flash_color));
+    h = hash_combine(h, hash_value(transition.spec.zoom_scale));
+    h = hash_combine(h, hash_value(transition.from.value));
+    h = hash_combine(h, hash_value(transition.duration.value));
+    return h;
+}
+
+uint64_t clip_transition_phase(const SceneClipTransition& transition, Frame frame) {
+    const Frame duration = transition.duration > 0 ? transition.duration : Frame{1};
+    const Frame end = transition.from + duration;
+
+    if (frame < transition.from) return 0;
+    if (frame >= end) return static_cast<uint64_t>(duration.value) + 1;
+    return static_cast<uint64_t>((frame - transition.from).value) + 1;
+}
+
+} // namespace
+
 // ── Public fingerprinting methods ───────────────────────────────────────────
 
 uint64_t SceneHasher::compute_fingerprint(const Scene& scene, Frame frame) {
@@ -33,7 +62,12 @@ uint64_t SceneHasher::compute_fingerprint(const Scene& scene, Frame frame) {
     for (const auto& node : scene.nodes()) {
         h = hash_combine(h, hash_render_node(node));
     }
-    
+
+    for (const auto& transition : scene.clip_transitions()) {
+        h = hash_combine(h, hash_clip_transition(transition));
+        h = hash_combine(h, clip_transition_phase(transition, frame));
+    }
+
     return h;
 }
 
@@ -48,6 +82,10 @@ uint64_t SceneHasher::compute_static_fingerprint(const Scene& scene) {
 
     for (const auto& node : scene.nodes()) {
         h = hash_combine(h, hash_render_node(node));
+    }
+
+    for (const auto& transition : scene.clip_transitions()) {
+        h = hash_combine(h, hash_clip_transition(transition));
     }
 
     return h;
@@ -65,6 +103,10 @@ uint64_t SceneHasher::compute_structure_fingerprint(const Scene& scene) {
         const auto layer_h = hash_layer_structure(layer);
         h = hash_combine(h, layer_h);
         h = hash_combine(h, hash_value(layer.nodes.size()));
+    }
+
+    for (const auto& transition : scene.clip_transitions()) {
+        h = hash_combine(h, hash_clip_transition(transition));
     }
 
     return h;
@@ -88,6 +130,11 @@ uint64_t SceneHasher::compute_active_at_fingerprint(const Scene& scene, Frame fr
     for (const auto& layer : scene.layers()) {
         h = hash_combine(h, hash_string(layer.name));
         h = hash_combine(h, layer.active_at(frame) ? 1 : 0);
+    }
+    for (const auto& transition : scene.clip_transitions()) {
+        h = hash_combine(h, hash_string(transition.layer_a));
+        h = hash_combine(h, hash_string(transition.layer_b));
+        h = hash_combine(h, clip_transition_phase(transition, frame));
     }
     return h;
 }
@@ -209,6 +256,12 @@ bool SceneHasher::camera_is_static(const Camera2_5DRuntime& cam) {
 [[nodiscard]] bool SceneHasher::is_effectively_static_at(const Scene& scene, Frame frame) const {
     for (const auto& layer : scene.layers()) {
         if (!layer_is_static_at(layer, frame)) return false;
+    }
+    for (const auto& transition : scene.clip_transitions()) {
+        const Frame duration = transition.duration > 0 ? transition.duration : Frame{1};
+        if (frame >= transition.from && frame < transition.from + duration) {
+            return false;
+        }
     }
     if (!camera_is_static(scene.camera_2_5d())) return false;
     return true;
