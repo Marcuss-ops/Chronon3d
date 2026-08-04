@@ -61,6 +61,7 @@ add_library(chronon3d_content OBJECT
     # factory function exposes `product_launch()` (see hpp) and is
     # registered into the CLI registry by the launches block below.
     launches/product_launch.cpp
+    launches/light_transition_sound_smoke.cpp
     launches/launches.cpp
 
     # ── Experimental gateway (only registers diagnostics when enabled) ─────
