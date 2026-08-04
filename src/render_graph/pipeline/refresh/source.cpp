@@ -66,7 +66,11 @@ void refresh_source_node(
 
     const ResolvedLayer& rl = *layer_it->second;
     const Layer& layer = *rl.layer;
-    if (layer.kind != LayerKind::Normal || layer.nodes.size() != 1) {
+    const bool source_layer_kind =
+        layer.kind == LayerKind::Normal ||
+        layer.kind == LayerKind::Shape ||
+        layer.kind == LayerKind::Text;
+    if (!source_layer_kind || layer.nodes.size() != 1) {
         return;
     }
 

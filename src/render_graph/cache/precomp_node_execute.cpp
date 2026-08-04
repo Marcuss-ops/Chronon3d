@@ -244,7 +244,12 @@ NodeExecResult PrecompNode::execute_with_scope(
 
     // ── 7. Refresh per-frame payloads ────────────────────────────────────
     const auto resolved = detail::resolve_layers(nested_scene, nested_ctx);
-    detail::refresh_compiled_graph_payloads(program->frame_graph, nested_scene, nested_ctx, resolved);
+    const auto refresh_result = detail::refresh_compiled_graph_payloads(
+        program->frame_graph, nested_scene, nested_ctx, resolved);
+    if (!refresh_result) {
+        return NodeExecResult{ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height)};
+    }
 
     // ── 8. §9.3 — Construct child Precomp ExecutionScope via make_child()
     //

@@ -52,6 +52,7 @@ public:
         const cache::NodeCacheKey& key,
         RenderNodeCachePolicy policy = static_memory_cache("multi_source")
     ) {
+        normalize_items(items);
         m_name = std::move(name);
         m_items = std::move(items);
         m_key = key;
@@ -72,8 +73,20 @@ public:
     [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && cache_policy().reusable_across_frames(); }
 
 private:
+    void normalize_items(std::vector<MultiSourceItem>& items) {
+        m_owned_nodes.clear();
+        m_owned_nodes.reserve(items.size());
+        for (auto& item : items) {
+            if (!item.node) continue;
+            auto owned = std::make_shared<::chronon3d::RenderNode>(*item.node);
+            item.node = owned.get();
+            m_owned_nodes.push_back(std::move(owned));
+        }
+    }
+
     std::string m_name;
     std::vector<MultiSourceItem> m_items;
+    std::vector<std::shared_ptr<::chronon3d::RenderNode>> m_owned_nodes;
     cache::NodeCacheKey m_key;
 
 

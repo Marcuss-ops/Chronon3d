@@ -41,6 +41,12 @@ struct CompiledNodeInfo {
     /// `cacheable` / `disk_cacheable` derived bools — do not re-introduce).
     RenderNodeCachePolicy cache_policy{};
 
+    // Structural render payload discriminator captured at compile time.
+    // -1 means the node has no shape payload; -2 means an aggregate source.
+    // Dynamic refresh may replace payload values, but never this discriminator.
+    int shape_type{-1};
+    std::vector<int> source_shape_types;
+
     SceneBindingMetadata binding_meta{};  // binding table metadata
 
     bool reachable{false};

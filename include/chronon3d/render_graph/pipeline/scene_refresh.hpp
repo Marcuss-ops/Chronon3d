@@ -15,6 +15,7 @@
 
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
+#include <string>
 
 namespace chronon3d {
     class Scene;
@@ -22,9 +23,27 @@ namespace chronon3d {
 
 namespace chronon3d::graph::detail {
 
-/// Re-populate all node payloads in a compiled graph with fresh scene data.
-/// Called when reusing a cached compiled graph from the previous frame.
-void refresh_compiled_graph_payloads(
+enum class SceneRefreshStatus {
+    Refreshed,
+    TopologyMismatch,
+    InvalidRenderableNode,
+    MissingDynamicData,
+};
+
+struct SceneRefreshResult {
+    SceneRefreshStatus status{SceneRefreshStatus::Refreshed};
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return status == SceneRefreshStatus::Refreshed;
+    }
+};
+
+/// Validate the complete compiled-node structure, then refresh only dynamic
+/// payloads. Validation runs before any node is mutated. The caller owns the
+/// detached candidate graph, so a failure is never published as a partially
+/// refreshed cache entry.
+[[nodiscard]] SceneRefreshResult refresh_compiled_graph_payloads(
     CompiledFrameGraph& compiled,
     const Scene& scene,
     RenderGraphContext& ctx,

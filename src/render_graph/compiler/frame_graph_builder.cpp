@@ -14,6 +14,9 @@
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 
 #include <algorithm>
 #include <stdexcept>
@@ -155,6 +158,23 @@ void FrameGraphCompiler::build_node_metadata(
                 }
 
                 node_info.cache_policy = node.cache_policy();
+
+                // Capture structural payload discriminators once at compile
+                // time. Refresh may replace dynamic content, matrices and
+                // cache keys, but it must never change a node's render kind
+                // or shape topology in place.
+                if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+                    node_info.shape_type = static_cast<int>(source->render_node().shape.type());
+                } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
+                    node_info.shape_type = -2;
+                    node_info.source_shape_types.reserve(multi->items().size());
+                    for (const auto& item : multi->items()) {
+                        node_info.source_shape_types.push_back(
+                            item.node ? static_cast<int>(item.node->shape.type()) : -1);
+                    }
+                } else if (const auto* text = dynamic_cast<const TextRunNode*>(&node)) {
+                    node_info.shape_type = static_cast<int>(text->render_node().shape.type());
+                }
 
                 if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
                     node_info.early_exit_skip = true;
