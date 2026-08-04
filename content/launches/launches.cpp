@@ -24,6 +24,15 @@ void register_launches_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("LightTransitionSoundSmoke", [](const CompositionProps&) -> Composition {
         return light_transition_sound_smoke();
     }));
+    registry.add(make_composition_descriptor("LightTransitionOrangeFlash", [](const CompositionProps&) -> Composition {
+        return light_transition_orange_flash();
+    }));
+    registry.add(make_composition_descriptor("LightTransitionAmberFlash", [](const CompositionProps&) -> Composition {
+        return light_transition_amber_flash();
+    }));
+    registry.add(make_composition_descriptor("LightTransitionCopperFlash", [](const CompositionProps&) -> Composition {
+        return light_transition_copper_flash();
+    }));
 }
 
 } // namespace chronon3d::content::launches

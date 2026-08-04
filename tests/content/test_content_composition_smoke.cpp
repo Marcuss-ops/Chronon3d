@@ -124,6 +124,25 @@ TEST_CASE("LightTransitionSoundSmoke: registers 60-frame Flash composition") {
     CHECK(transition.duration == Frame{12});
 }
 
+TEST_CASE("LightTransition orange variants: register distinct Flash colors") {
+    CompositionRegistry registry;
+    ensure_content_registered_smoke(registry);
+
+    for (const auto* name : {"LightTransitionOrangeFlash", "LightTransitionAmberFlash",
+                             "LightTransitionCopperFlash"}) {
+        REQUIRE(registry.contains(name));
+        const auto comp = registry.create(name);
+        const auto scene = comp.evaluate(Frame{26});
+        REQUIRE(scene.clip_transitions().size() == 1);
+        const auto& transition = scene.clip_transitions().front();
+        CHECK(transition.spec.kind == ClipTransitionKind::Flash);
+        CHECK(transition.spec.flash_color.r > transition.spec.flash_color.b);
+        CHECK(transition.spec.flash_color.g > transition.spec.flash_color.b);
+        CHECK(transition.from == Frame{20});
+        CHECK(transition.duration == Frame{12});
+    }
+}
+
 #endif
 
 TEST_CASE("All registered compositions: evaluate at mid-duration frame") {
