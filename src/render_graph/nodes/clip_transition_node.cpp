@@ -381,6 +381,28 @@ NodeExecResult ClipTransitionNode::execute(
             return NodeExecResult{std::move(out)};
         }
 
+        case ClipTransitionKind::LightLeak: {
+            // The visible leak is authored as animated scene layers. Keep
+            // this framebuffer node as the inexpensive A/B dissolve beneath
+            // them; a per-pixel procedural shader here is far too expensive
+            // for the CPU-first video renderer.
+            const float one_minus_p = 1.0f - p;
+            for (int y = 0; y < out_h; ++y) {
+                Color* row_out = out->pixels_row(y);
+                for (int x = 0; x < out_w; ++x) {
+                    const Color ca = sample_at(*a, x, y, out_w, out_h);
+                    const Color cb = sample_at(*b, x, y, out_w, out_h);
+                    row_out[x] = Color{
+                        ca.r * one_minus_p + cb.r * p,
+                        ca.g * one_minus_p + cb.g * p,
+                        ca.b * one_minus_p + cb.b * p,
+                        ca.a * one_minus_p + cb.a * p,
+                    };
+                }
+            }
+            return NodeExecResult{std::move(out)};
+        }
+
         default: {
             // Defensive fallback to Dissolve for any unhandled kind.
             const float one_minus_p = 1.0f - p;
