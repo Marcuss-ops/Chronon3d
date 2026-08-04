@@ -5,7 +5,7 @@
 // Verifies that a transition between two full-frame clips behaves as:
 //   Cut:      output = A for p < 1, output = B for p >= 1
 //   Dissolve: output = A*(1-p) + B*p in premultiplied alpha space
-//   Push/Slide/Wipe/Iris/Zoom/Flash: endpoints are A at p=0 and B at p=1,
+//   Push/Slide/Wipe/Iris/Zoom/Flash/LightLeak: endpoints are A at p=0 and B at p=1,
 //   and the midpoint shows the expected transition behavior.
 // ==============================================================================
 
@@ -468,6 +468,37 @@ TEST_CASE("ClipTransitionNode: Flash peaks at midpoint with configured color") {
         CHECK(c.g > c.r);
         CHECK(c.g > c.b);
     }
+}
+
+TEST_CASE("ClipTransitionNode: LightLeak keeps the node path as a fast dissolve") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color{0.03f, 0.08f, 0.22f, 1.0f});
+    auto b = make_fb(ctx, 64, 64, Color{0.28f, 0.03f, 0.04f, 1.0f});
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::LightLeak;
+    spec.flash_color = Color{1.0f, 0.30f, 0.02f, 1.0f};
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("light_leak", spec, Frame{0}, Frame{30});
+
+    const auto before = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+    const auto midpoint = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+    const auto after = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+
+    const auto before_pixel = before->get_pixel(32, 32);
+    CHECK(before_pixel.r == doctest::Approx(0.03f).epsilon(0.01f));
+    CHECK(before_pixel.g == doctest::Approx(0.08f).epsilon(0.01f));
+    CHECK(before_pixel.b == doctest::Approx(0.22f).epsilon(0.01f));
+
+    const auto midpoint_pixel = midpoint->get_pixel(32, 32);
+    CHECK(midpoint_pixel.r == doctest::Approx(0.155f).epsilon(0.01f));
+    CHECK(midpoint_pixel.g == doctest::Approx(0.055f).epsilon(0.01f));
+    CHECK(midpoint_pixel.b == doctest::Approx(0.13f).epsilon(0.01f));
+
+    const auto after_pixel = after->get_pixel(32, 32);
+    CHECK(after_pixel.r == doctest::Approx(0.28f).epsilon(0.01f));
+    CHECK(after_pixel.g == doctest::Approx(0.03f).epsilon(0.01f));
+    CHECK(after_pixel.b == doctest::Approx(0.04f).epsilon(0.01f));
 }
 
 TEST_CASE("ClipTransitionNode: one-frame Flash is an instantaneous safe pass") {
