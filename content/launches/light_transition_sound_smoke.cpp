@@ -98,12 +98,12 @@ Composition make_light_transition_variant(const char* name, const char* scene_b_
                         .key(Frame{60}, Vec3{1800.0f, y, 0.0f}, EasingCurve{Easing::Hold});
                     layer.rotate({0.0f, 0.0f, angle});
                     layer.opacity_anim()
-                        .key(Frame{0},  0.001f, EasingCurve{Easing::Hold})
-                        .key(Frame{20}, 0.001f, EasingCurve{Easing::Hold})
+                        .key(Frame{0},  0.0f, EasingCurve{Easing::Hold})
+                        .key(Frame{20}, 0.0f, EasingCurve{Easing::Hold})
                         .key(Frame{24}, i == 1 ? 0.76f : 0.42f, EasingCurve{Easing::OutCubic})
                         .key(Frame{28}, i == 1 ? 0.52f : 0.25f, EasingCurve{Easing::InOutCubic})
-                        .key(Frame{32}, 0.001f, EasingCurve{Easing::InCubic})
-                        .key(Frame{60}, 0.001f, EasingCurve{Easing::Hold});
+                        .key(Frame{32}, 0.0f, EasingCurve{Easing::InCubic})
+                        .key(Frame{60}, 0.0f, EasingCurve{Easing::Hold});
                     layer.blend(BlendMode::Screen);
                     layer.rect("streak", {
                         .size = {width, i == 1 ? 150.0f : 92.0f},
@@ -122,11 +122,11 @@ Composition make_light_transition_variant(const char* name, const char* scene_b_
         scene.layer("light_leak_flare", [flash_color](LayerBuilder& layer) {
             layer.position({0.0f, 0.0f, 0.0f});
             layer.opacity_anim()
-                .key(Frame{0}, 0.001f, EasingCurve{Easing::Hold})
-                .key(Frame{23}, 0.001f, EasingCurve{Easing::Hold})
+                .key(Frame{0}, 0.0f, EasingCurve{Easing::Hold})
+                .key(Frame{23}, 0.0f, EasingCurve{Easing::Hold})
                 .key(Frame{26}, 0.62f, EasingCurve{Easing::OutCubic})
-                .key(Frame{32}, 0.001f, EasingCurve{Easing::InCubic})
-                .key(Frame{60}, 0.001f, EasingCurve{Easing::Hold});
+                .key(Frame{32}, 0.0f, EasingCurve{Easing::InCubic})
+                .key(Frame{60}, 0.0f, EasingCurve{Easing::Hold});
             layer.blend(BlendMode::Screen);
             layer.circle("flare", {
                 .radius = 210.0f,
