@@ -5,6 +5,7 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 using namespace chronon3d;
 
@@ -101,7 +102,7 @@ TEST_CASE("All registered compositions: every available composition evaluates fr
 }
 
 #ifdef CHRONON3D_HAS_CONTENT_MINIMALIST
-TEST_CASE("LightTransitionSoundSmoke: registers 60-frame Flash composition") {
+TEST_CASE("LightTransitionSoundSmoke: registers 60-frame LightLeak composition") {
     CompositionRegistry registry;
     ensure_content_registered_smoke(registry);
 
@@ -118,13 +119,13 @@ TEST_CASE("LightTransitionSoundSmoke: registers 60-frame Flash composition") {
     const auto& transition = scene.clip_transitions().front();
     CHECK(transition.layer_a == "scene_a");
     CHECK(transition.layer_b == "scene_b");
-    CHECK(transition.spec.kind == ClipTransitionKind::Flash);
+    CHECK(transition.spec.kind == ClipTransitionKind::LightLeak);
     CHECK(transition.spec.flash_color == Color::white());
     CHECK(transition.from == Frame{20});
     CHECK(transition.duration == Frame{12});
 }
 
-TEST_CASE("LightTransition orange variants: register distinct Flash colors") {
+TEST_CASE("LightTransition orange variants: register distinct LightLeak colors") {
     CompositionRegistry registry;
     ensure_content_registered_smoke(registry);
 
@@ -135,11 +136,17 @@ TEST_CASE("LightTransition orange variants: register distinct Flash colors") {
         const auto scene = comp.evaluate(Frame{26});
         REQUIRE(scene.clip_transitions().size() == 1);
         const auto& transition = scene.clip_transitions().front();
-        CHECK(transition.spec.kind == ClipTransitionKind::Flash);
+        CHECK(transition.spec.kind == ClipTransitionKind::LightLeak);
         CHECK(transition.spec.flash_color.r > transition.spec.flash_color.b);
         CHECK(transition.spec.flash_color.g > transition.spec.flash_color.b);
         CHECK(transition.from == Frame{20});
         CHECK(transition.duration == Frame{12});
+
+        const auto& layers = scene.layers();
+        CHECK(layers.size() >= 4);
+        CHECK(std::any_of(layers.begin(), layers.end(), [](const auto& layer) {
+            return layer.name == "light_leak_flare";
+        }));
     }
 }
 

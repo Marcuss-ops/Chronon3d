@@ -19,6 +19,8 @@ enum class ClipTransitionKind : std::uint8_t {
     Iris,
     Zoom,
     Flash,
+    /// Cinematic diagonal light-leak sweep with a soft band and flare.
+    LightLeak,
 };
 
 /// Policy for handling input clips/sources with different resolutions.
