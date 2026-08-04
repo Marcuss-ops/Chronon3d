@@ -271,6 +271,50 @@ TEST_CASE("GraphContract: different scenes produce different graphs") {
 // 6. Scene fingerprint is frame-independent for static scenes
 // ─────────────────────────────────────────────────────────────────────────────
 
+TEST_CASE("GraphContract: topology fingerprint ignores dynamic payload values") {
+    Scene scene = make_simple_scene(256, 256);
+    graph::SceneHasher hasher;
+    const auto before = hasher.compute_structure_fingerprint(scene);
+
+    auto& layer = scene.layers()[0];
+    layer.visible = false;
+    layer.from = Frame{11};
+    layer.duration = Frame{7};
+    layer.transform.position = Vec3{37.0f, -12.0f, 4.0f};
+    layer.nodes[0].world_transform.position = Vec3{19.0f, 23.0f, 2.0f};
+    layer.nodes[0].world_transform.opacity = 0.25f;
+    layer.nodes[0].color = Color{0.8f, 0.1f, 0.4f, 0.7f};
+    layer.nodes[0].shape.rect().size = Vec2{17.0f, 29.0f};
+
+    const auto after = hasher.compute_structure_fingerprint(scene);
+    CHECK(after == before);
+}
+
+TEST_CASE("GraphContract: topology fingerprint changes for structural edits") {
+    Scene scene = make_simple_scene(256, 256);
+    graph::SceneHasher hasher;
+    const auto baseline = hasher.compute_structure_fingerprint(scene);
+
+    scene.layers()[0].nodes[0].shape.set_type(ShapeType::Circle);
+    CHECK(hasher.compute_structure_fingerprint(scene) != baseline);
+
+    Scene mask_scene = make_simple_scene(256, 256);
+    const auto mask_baseline = hasher.compute_structure_fingerprint(mask_scene);
+    mask_scene.layers()[0].mask.type = MaskType::Rect;
+    CHECK(hasher.compute_structure_fingerprint(mask_scene) != mask_baseline);
+
+    Scene policy_scene = make_simple_scene(256, 256);
+    const auto policy_baseline = hasher.compute_structure_fingerprint(policy_scene);
+    policy_scene.layers()[0].cache_static = true;
+    CHECK(hasher.compute_structure_fingerprint(policy_scene) != policy_baseline);
+
+    Scene matte_scene = make_simple_scene(256, 256);
+    const auto matte_baseline = hasher.compute_structure_fingerprint(matte_scene);
+    matte_scene.layers()[0].track_matte.type = TrackMatteType::Alpha;
+    matte_scene.layers()[0].track_matte.source_layer = "bg";
+    CHECK(hasher.compute_structure_fingerprint(matte_scene) != matte_baseline);
+}
+
 TEST_CASE("GraphContract: static fingerprint is identical across frames") {
     constexpr int W = 256;
     constexpr int H = 256;
