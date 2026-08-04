@@ -48,6 +48,7 @@ chronon3d_add_test_suite(
             # 5 scene types × 6 conditions (same renderer, new renderer,
             # cache invalidation, thread count, 50× stress, sanity).
             deterministic/test_determinism_matrix.cpp
+            deterministic/test_sequential_graph_cache.cpp
             # Test 17 / FPC — brute-force determinism: 20×{1,2,8} threads
             # × {cold,warm} cache permutations of ChrononGlowFinalAE --frame 15,
             # asserting sha256 equality on raw RGBA + alpha_bbox + glyph_count
