@@ -5,6 +5,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 #include <algorithm>
 
 using namespace chronon3d;
@@ -147,6 +148,47 @@ TEST_CASE("LightTransition orange variants: register distinct LightLeak colors")
         CHECK(std::any_of(layers.begin(), layers.end(), [](const auto& layer) {
             return layer.name == "light_leak_flare";
         }));
+    }
+}
+
+TEST_CASE("LightTransition: authored layer topology is stable across timeline boundaries") {
+    CompositionRegistry registry;
+    ensure_content_registered_smoke(registry);
+
+    const auto comp = registry.create("LightTransitionCopperFlash");
+    const std::array<Frame, 7> boundary_frames = {
+        Frame{0}, Frame{19}, Frame{20}, Frame{31}, Frame{32}, Frame{35}, Frame{59}
+    };
+
+    // Evaluate without a runtime font engine so this contract isolates the
+    // authored layer/node topology. The runtime-dependent text additions are
+    // not frame-dependent and are covered by the composition render tests.
+    const auto baseline = comp.evaluate(boundary_frames.front());
+    REQUIRE(baseline.clip_transitions().size() == 1);
+    const auto& baseline_layers = baseline.layers();
+    REQUIRE(baseline_layers.size() == 6);
+    const std::array<const char*, 6> expected_layer_names = {
+        "scene_a", "scene_b", "light_leak_band_0", "light_leak_band_1",
+        "light_leak_band_2", "light_leak_flare"
+    };
+    const std::array<const char*, 6> expected_node_names = {
+        "scene_a_background", "scene_b_background", "streak", "streak", "streak", "flare"
+    };
+
+    for (const auto frame : boundary_frames) {
+        const auto scene = comp.evaluate(frame);
+        REQUIRE(scene.clip_transitions().size() == baseline.clip_transitions().size());
+        REQUIRE(scene.layers().size() == baseline_layers.size());
+
+        for (std::size_t index = 0; index < baseline_layers.size(); ++index) {
+            INFO("frame=" << frame.integral() << " layer_index=" << index);
+            CHECK(scene.layers()[index].name == baseline_layers[index].name);
+            CHECK(scene.layers()[index].name == expected_layer_names[index]);
+            CHECK(scene.layers()[index].kind == baseline_layers[index].kind);
+            REQUIRE(scene.layers()[index].nodes.size() == baseline_layers[index].nodes.size());
+            REQUIRE(scene.layers()[index].nodes.size() == 1);
+            CHECK(scene.layers()[index].nodes.front().name == expected_node_names[index]);
+        }
     }
 }
 
