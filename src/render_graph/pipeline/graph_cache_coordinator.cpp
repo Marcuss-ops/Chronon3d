@@ -10,6 +10,10 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/core/enum_utils.hpp>
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include <spdlog/spdlog.h>
@@ -18,6 +22,61 @@ namespace chronon3d::graph {
 
 [[nodiscard]] static inline uint64_t to_ms_u64(double ms) {
     return static_cast<uint64_t>(std::llround(std::max(0.0, ms)));
+}
+
+// The current graph model does not expose a universal processor-id field.
+// Keep this diagnostic honest: report the canonical shape/node label rather
+// than inventing an identity that the runtime cannot provide.
+[[nodiscard]] static std::string diagnostic_processor_label(
+    const RenderGraphNode& node) {
+    if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+        return "shape:" + enum_utils::enum_name_lower_snake(source->render_node().shape.type());
+    }
+    if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
+        if (!multi->items().empty() && multi->items().front().node) {
+            return "shape:" + enum_utils::enum_name_lower_snake(
+                multi->items().front().node->shape.type());
+        }
+        return "shape:none";
+    }
+    return "node:" + std::string(to_string(node.kind()));
+}
+
+static void log_graph_cache_diagnostics(
+    const CompiledFrameGraph& compiled,
+    RenderGraphContext& ctx,
+    std::string_view decision,
+    std::string_view graph_cache_key)
+{
+    if (!ctx.policy.diagnostics_enabled) return;
+
+    spdlog::info(
+        "[graph-cache-diagnostic] frame={} graph_cache_scope={} graph_instance_id={} "
+        "structure_hash={} graph_reused={} decision={} generation=unavailable "
+        "graph_instance_id={} nodes={}",
+        static_cast<int>(ctx.frame_input.frame), graph_cache_key,
+        compiled.graph_instance_id.value, compiled.structure_hash,
+        decision == "refresh_cached" ? 1 : 0, decision,
+        compiled.graph_instance_id.value, compiled.graph.live_count());
+
+    for (size_t id = 0; id < compiled.graph.size(); ++id) {
+        if (!compiled.graph.has_node(static_cast<GraphNodeId>(id)) ||
+            id >= compiled.nodes.size() || !compiled.nodes[id].reachable) {
+            continue;
+        }
+        const auto& node = compiled.graph.node(static_cast<GraphNodeId>(id));
+        const auto key = node.cache_key(ctx);
+        const auto& info = compiled.nodes[id];
+        spdlog::info(
+            "[graph-node-diagnostic] frame={} node_cache_key_digest={} "
+            "graph_instance_id={} node_id={} stable_node_id={} node_kind={} "
+            "shape_label={} processor_id=unavailable processor_label={} "
+            "refresh_decision={} inputs={}",
+            static_cast<int>(ctx.frame_input.frame), key.digest(),
+            compiled.graph_instance_id.value, id, info.stable_node_id.value,
+            to_string(info.kind), diagnostic_processor_label(node),
+            diagnostic_processor_label(node), decision, info.inputs.size());
+    }
 }
 
 /// Shared built-in pipeline catalogs.  Initialized once and reused across
@@ -127,6 +186,9 @@ namespace chronon3d::graph {
             compiled.graph.live_count());
     }
 
+    log_graph_cache_diagnostics(
+        compiled, ctx, "refresh_cached",
+        "graph:" + std::to_string(width) + "x" + std::to_string(height));
     return compiled;
 }
 
@@ -172,6 +234,9 @@ GraphBuildResult build_or_reuse_graph(
         result.compiled = build_fresh_graph(ctx, scene, resolved);
         result.graph_reused = false;
         result.skip_initial_clear = ctx.policy.skip_initial_clear;
+        log_graph_cache_diagnostics(
+            result.compiled, ctx, "build_fresh",
+            "graph:" + std::to_string(width) + "x" + std::to_string(height));
     }
 
     const auto t_graph1 = profiling::now();

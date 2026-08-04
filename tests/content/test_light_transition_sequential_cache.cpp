@@ -33,6 +33,7 @@ std::shared_ptr<SoftwareRenderer> make_reproduction_renderer() {
     auto renderer = test::make_renderer_shared();
     RenderSettings settings = renderer->render_settings();
     settings.motion_blur.mode = MotionBlurMode::Off;
+    settings.diagnostics.enabled = true;
     renderer->set_settings(settings);
     return renderer;
 }
@@ -84,12 +85,19 @@ TEST_CASE("LightTransition cache reproduction: independent and sequential frames
     const auto independent = render_independent_frames(composition);
     const auto sequential = render_sequential_frames(composition);
 
+    int first_divergent_frame = -1;
     for (int frame = kObservedFirstFrame; frame <= kObservedLastFrame; ++frame) {
         const auto index = static_cast<std::size_t>(frame - kObservedFirstFrame);
-        INFO("LightTransitionCopperFlash divergence frame=" << frame
+        const bool matches = independent[index] == sequential[index];
+        if (!matches && first_divergent_frame < 0) {
+            first_divergent_frame = frame;
+        }
+        INFO("LightTransitionCopperFlash frame=" << frame
              << " independent_hash=" << independent[index]
-             << " sequential_hash=" << sequential[index]);
-        CHECK_MESSAGE(independent[index] == sequential[index],
+             << " sequential_hash=" << sequential[index]
+             << " first_divergent_frame=" << first_divergent_frame);
+        CHECK_MESSAGE(matches,
                       "fresh-runtime and sequential render diverged at frame " << frame);
     }
+    INFO("LightTransitionCopperFlash first_divergent_frame=" << first_divergent_frame);
 }
