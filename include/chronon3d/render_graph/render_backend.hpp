@@ -173,6 +173,15 @@ public:
         // (which inherits RenderBackend directly), not on SoftwareBackend.
     }
 
+    /// Validate a renderable shape before the graph reaches execution.
+    /// Backends with a processor registry override this to resolve the
+    /// processor once at the compiler/executor boundary.  The default is
+    /// intentionally permissive for lightweight/mock backends.
+    [[nodiscard]] virtual std::optional<RenderBackendError> validate_render_node(
+        const RenderNode& /*node*/) const {
+        return std::nullopt;
+    }
+
     virtual void apply_effect_stack(
         Framebuffer& fb,
         const EffectStack& effects,

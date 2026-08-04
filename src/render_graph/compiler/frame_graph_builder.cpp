@@ -169,8 +169,14 @@ void FrameGraphCompiler::build_node_metadata(
                     node_info.shape_type = -2;
                     node_info.source_shape_types.reserve(multi->items().size());
                     for (const auto& item : multi->items()) {
+                        if (!item.node) {
+                            throw std::runtime_error(
+                                "FrameGraphCompiler: multi-source node '" +
+                                std::string(node.name()) +
+                                "' contains a null renderable item");
+                        }
                         node_info.source_shape_types.push_back(
-                            item.node ? static_cast<int>(item.node->shape.type()) : -1);
+                            static_cast<int>(item.node->shape.type()));
                     }
                 } else if (const auto* text = dynamic_cast<const TextRunNode*>(&node)) {
                     node_info.shape_type = static_cast<int>(text->render_node().shape.type());
@@ -297,6 +303,77 @@ void FrameGraphCompiler::build_node_metadata(
                     + std::to_string(static_cast<int>(compiled.nodes[i].kind))
                     + ", consumers=" + describe_consumers(i) + ")"
                     + "; first_consumers=" + describe_consumers(it->second));
+            }
+        }
+    }
+}
+
+void FrameGraphCompiler::validate_renderable_shape(
+    const ::chronon3d::RenderNode& render_node,
+    const CompiledNodeInfo& node_info,
+    const RenderGraphContext& ctx
+) const {
+    const auto shape_type = render_node.shape.type();
+    if (shape_type == ShapeType::None) {
+        throw std::runtime_error(
+            "FrameGraphCompiler: renderable Shape node '" +
+            node_info.name + "' has ShapeType::None");
+    }
+
+    if (!ctx.services.backend) {
+        throw std::runtime_error(
+            "FrameGraphCompiler: renderable Shape node '" +
+            node_info.name + "' has no render backend");
+    }
+    if (const auto error = ctx.services.backend->validate_render_node(render_node)) {
+        throw std::runtime_error(
+            "FrameGraphCompiler: renderable Shape node '" +
+            node_info.name + "' is invalid: " + error->message);
+    }
+}
+
+void FrameGraphCompiler::validate_renderable_graph(
+    const RenderGraph& graph,
+    GraphNodeId output,
+    const RenderGraphContext& ctx
+) const {
+    const size_t node_count = graph.size();
+    std::vector<char> reachable(node_count, 0);
+    std::vector<GraphNodeId> stack{output};
+    while (!stack.empty()) {
+        const GraphNodeId id = stack.back();
+        stack.pop_back();
+        if (id >= node_count || reachable[id]) {
+            continue;
+        }
+        reachable[id] = 1;
+        for (const GraphNodeId parent : graph.inputs(id)) {
+            stack.push_back(parent);
+        }
+    }
+
+    for (GraphNodeId id = 0; id < node_count; ++id) {
+        if (!reachable[id] || !graph.has_node(id)) {
+            continue;
+        }
+        const auto& node = graph.node(id);
+        if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+            CompiledNodeInfo info;
+            info.id = id;
+            info.name = node.name();
+            validate_renderable_shape(source->render_node(), info, ctx);
+        } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
+            CompiledNodeInfo info;
+            info.id = id;
+            info.name = node.name();
+            for (const auto& item : multi->items()) {
+                if (!item.node) {
+                    throw std::runtime_error(
+                        "FrameGraphCompiler: multi-source node '" +
+                        std::string(node.name()) +
+                        "' contains a null renderable item");
+                }
+                validate_renderable_shape(*item.node, info, ctx);
             }
         }
     }

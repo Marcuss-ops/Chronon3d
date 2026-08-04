@@ -44,6 +44,7 @@ CompiledFrameGraph FrameGraphCompiler::compile(
         return compiled;
     }
 
+    validate_renderable_graph(graph, compiled.output, ctx);
     build_execution_levels(graph, compiled.output, compiled);
     build_node_metadata(graph, ctx, compiled, options);
 
@@ -151,6 +152,8 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         options.reuse_if_unchanged_predicate_safe()
         && ctx.policy.graph_structure_unchanged
         && prior_compiled.structure_hash == current_hash;
+
+    validate_renderable_graph(graph, compiled.output, ctx);
 
     if (skip_heavy_phases) {
         // Deep-copy topology-derived fields.

@@ -119,6 +119,26 @@ void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx
 // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.  We therefore
 // read `m_proc_ctx.registry` ONLY inside dispatch (never from
 // `~SoftwareBackend()`).
+std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
+    const RenderNode& node) const {
+    if (!m_proc_ctx.registry) {
+        return graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "processor registry is not attached"};
+    }
+
+    if (node.shape.type() == ShapeType::TextRun) {
+        return std::nullopt;
+    }
+    if (!m_proc_ctx.registry->get_shape(node.shape.type())) {
+        return graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput,
+            "missing shape processor for ShapeType=" +
+                std::to_string(static_cast<int>(node.shape.type()))};
+    }
+    return std::nullopt;
+}
+
 void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state,
                                  const Camera& camera, int width, int height) {

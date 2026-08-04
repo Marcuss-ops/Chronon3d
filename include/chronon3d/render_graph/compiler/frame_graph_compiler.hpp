@@ -5,6 +5,8 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 
+namespace chronon3d { struct RenderNode; }
+
 namespace chronon3d::graph {
 
 class FrameGraphCompiler {
@@ -102,6 +104,18 @@ private:
 
     void compute_resource_lifetimes(
         CompiledFrameGraph& compiled
+    ) const;
+
+    void validate_renderable_shape(
+        const ::chronon3d::RenderNode& render_node,
+        const CompiledNodeInfo& node_info,
+        const RenderGraphContext& ctx
+    ) const;
+
+    void validate_renderable_graph(
+        const RenderGraph& graph,
+        GraphNodeId output,
+        const RenderGraphContext& ctx
     ) const;
 
     void validate(
