@@ -43,6 +43,7 @@ endif()
 if(CHRONON3D_BUILD_CONTENT)
     target_sources(chronon3d_content_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/core/timeline/test_sequence_v2_compositions.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/content/test_light_transition_sequential_cache.cpp
     )
     target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content)
     target_compile_definitions(chronon3d_content_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST CHRONON3D_HAS_CONTENT_2D5)
