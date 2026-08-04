@@ -3,6 +3,9 @@
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <memory>
 #include <stdexcept>
@@ -11,6 +14,37 @@ using namespace chronon3d;
 using namespace chronon3d::graph;
 
 namespace {
+
+class ValidationBackend final : public RenderBackend {
+public:
+    explicit ValidationBackend(bool missing_processor)
+        : m_missing_processor(missing_processor) {}
+
+    std::optional<RenderBackendError> validate_render_node(
+        const RenderNode&) const override {
+        if (m_missing_processor) {
+            return RenderBackendError{
+                RenderBackendErrorCode::InvalidInput,
+                "missing shape processor (test backend)"};
+        }
+        return std::nullopt;
+    }
+
+    void apply_per_pixel_dof(
+        Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,
+        const LensModel&, const std::optional<raster::BBox>&) override {}
+    void apply_effect_stack(
+        Framebuffer&, const EffectStack&,
+        const effects::EffectExecutionContext&) override {}
+    void composite_layer(
+        Framebuffer&, const Framebuffer&, BlendMode,
+        const std::optional<raster::BBox>&, CompositeOperator) override {}
+    void apply_blur(
+        Framebuffer&, float, const std::optional<raster::BBox>&) override {}
+
+private:
+    bool m_missing_processor{false};
+};
 
 class CompilerTestNode final : public RenderGraphNode {
 public:
@@ -46,6 +80,17 @@ private:
     std::string m_name;
 };
 
+RenderGraph make_single_source_graph(ShapeType shape_type) {
+    RenderGraph graph;
+    RenderNode render_node;
+    render_node.shape.set_type(shape_type);
+    auto source = std::make_unique<SourceNode>(
+        "source", render_node, cache::NodeCacheKey{});
+    const auto source_id = graph.add_node(std::move(source));
+    graph.set_output(source_id);
+    return graph;
+}
+
 } // namespace
 
 TEST_CASE("FrameGraphCompiler - handles empty graph") {
@@ -56,6 +101,59 @@ TEST_CASE("FrameGraphCompiler - handles empty graph") {
     auto compiled = compiler.compile(std::move(graph), ctx);
 
     CHECK(compiled.empty());
+}
+
+TEST_CASE("FrameGraphCompiler - rejects renderable ShapeType::None before execution") {
+    auto graph = make_single_source_graph(ShapeType::None);
+    RenderGraphContext ctx;
+    FrameGraphCompiler compiler;
+
+    try {
+        static_cast<void>(compiler.compile(std::move(graph), ctx));
+        FAIL("expected ShapeType::None validation failure");
+    } catch (const std::runtime_error& error) {
+        CHECK(std::string(error.what()).find("ShapeType::None") != std::string::npos);
+    }
+}
+
+TEST_CASE("FrameGraphCompiler - rejects renderable without backend before execution") {
+    auto graph = make_single_source_graph(ShapeType::Rect);
+    RenderGraphContext ctx;
+    FrameGraphCompiler compiler;
+
+    try {
+        static_cast<void>(compiler.compile(std::move(graph), ctx));
+        FAIL("expected missing backend validation failure");
+    } catch (const std::runtime_error& error) {
+        CHECK(std::string(error.what()).find("no render backend") != std::string::npos);
+    }
+}
+
+TEST_CASE("FrameGraphCompiler - rejects missing render processor before execution") {
+    auto graph = make_single_source_graph(ShapeType::Rect);
+    ValidationBackend backend(/*missing_processor=*/true);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    FrameGraphCompiler compiler;
+
+    try {
+        static_cast<void>(compiler.compile(std::move(graph), ctx));
+        FAIL("expected missing processor validation failure");
+    } catch (const std::runtime_error& error) {
+        CHECK(std::string(error.what()).find("missing shape processor") != std::string::npos);
+    }
+}
+
+TEST_CASE("FrameGraphCompiler - accepts renderable shape with resolved processor") {
+    auto graph = make_single_source_graph(ShapeType::Rect);
+    ValidationBackend backend(/*missing_processor=*/false);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    FrameGraphCompiler compiler;
+
+    auto compiled = compiler.compile(std::move(graph), ctx);
+
+    CHECK(compiled.valid);
 }
 
 TEST_CASE("FrameGraphCompiler - linear graph compilation") {
