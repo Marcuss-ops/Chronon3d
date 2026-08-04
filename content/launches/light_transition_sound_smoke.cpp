@@ -32,14 +32,17 @@ TextDefinition scene_label(const char* value) {
 
 } // namespace
 
-Composition light_transition_sound_smoke() {
+namespace {
+
+Composition make_light_transition_variant(const char* name, const char* scene_b_label,
+                                          Color flash_color) {
     return composition({
-        .name = "LightTransitionSoundSmoke",
+        .name = name,
         .width = 1920,
         .height = 1080,
         .frame_rate = FrameRate{30, 1},
         .duration = Frame{60},
-    }, [](const FrameContext& ctx) {
+    }, [scene_b_label, flash_color](const FrameContext& ctx) {
         SceneBuilder scene(ctx);
         const bool has_runtime_font_engine = ctx.runtime != nullptr;
         if (has_runtime_font_engine) scene.font_engine(&ctx.runtime->font_engine());
@@ -56,7 +59,7 @@ Composition light_transition_sound_smoke() {
             }
         });
 
-        scene.layer("scene_b", [has_runtime_font_engine](LayerBuilder& layer) {
+        scene.layer("scene_b", [has_runtime_font_engine, scene_b_label](LayerBuilder& layer) {
             layer.rect("scene_b_background", {
                 .size = {1920.0f, 1080.0f},
                 .color = {0.28f, 0.03f, 0.04f, 1.0f},
@@ -64,14 +67,14 @@ Composition light_transition_sound_smoke() {
             });
             if (has_runtime_font_engine) {
                 layer.pin_to(Anchor::Center);
-                layer.text("scene_b_label", scene_label("SCENE B"));
+                layer.text("scene_b_label", scene_label(scene_b_label));
             }
         });
 
         ClipTransitionSpec transition;
         transition.kind = ClipTransitionKind::Flash;
         transition.easing = Easing::InOutCubic;
-        transition.flash_color = Color::white();
+        transition.flash_color = flash_color;
         scene.clip_transition(
             "scene_a",
             "scene_b",
@@ -81,6 +84,28 @@ Composition light_transition_sound_smoke() {
 
         return scene.build();
     });
+}
+
+} // namespace
+
+Composition light_transition_sound_smoke() {
+    return make_light_transition_variant("LightTransitionSoundSmoke", "SCENE B",
+                                         Color::white());
+}
+
+Composition light_transition_orange_flash() {
+    return make_light_transition_variant("LightTransitionOrangeFlash", "ORANGE FLASH",
+                                         Color{1.0f, 0.22f, 0.015f, 1.0f});
+}
+
+Composition light_transition_amber_flash() {
+    return make_light_transition_variant("LightTransitionAmberFlash", "AMBER FLASH",
+                                         Color{1.0f, 0.48f, 0.02f, 1.0f});
+}
+
+Composition light_transition_copper_flash() {
+    return make_light_transition_variant("LightTransitionCopperFlash", "COPPER FLASH",
+                                         Color{0.88f, 0.12f, 0.015f, 1.0f});
 }
 
 } // namespace chronon3d::content::launches
