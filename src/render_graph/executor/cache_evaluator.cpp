@@ -2,6 +2,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 
 namespace chronon3d::graph {
 
@@ -65,6 +66,20 @@ CacheEvalResult evaluate_cache(
         cr.key.tile_size = ctx.policy.tile_size > 0 ? ctx.policy.tile_size : 0;
     }
 
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::info(
+            "[node-cache-diagnostic] frame={} node_id={} stable_node_id={} "
+            "graph_instance_id={} node_cache_key_digest={} input_hash={} "
+            "temporal_frame={} temporal_tick={} temporal_version={} "
+            "cache_status=pending node_kind={}",
+            static_cast<int>(ctx.frame_input.frame), node_id,
+            ctx.node_exec.current_identity.node.value,
+            ctx.node_exec.current_identity.graph.value, cr.key.digest(),
+            cr.key.input_hash, static_cast<int>(cr.key.temporal_key.frame),
+            cr.key.temporal_key.subframe_tick, cr.key.temporal_key.version,
+            to_string(node.kind()));
+    }
+
     if (cr.use_cache) {
         cr.result = ctx.services.node_cache->get(cr.key);
 
@@ -104,6 +119,16 @@ CacheEvalResult evaluate_cache(
             }
         }
     }
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::info(
+            "[node-cache-decision] frame={} node_id={} cache_key_digest={} "
+            "cache_status={} cache_decision={} use_cache={} frame_dependent={}",
+            static_cast<int>(ctx.frame_input.frame), node_id, cr.key.digest(),
+            cr.cache_status, cr.cache_status == "hit" || cr.cache_status == "miss"
+                ? "cache_lookup" : "cache_bypass",
+            cr.use_cache ? 1 : 0, cr.node_frame_dependent ? 1 : 0);
+    }
+
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->cache_eval_ms.fetch_add(
             static_cast<uint64_t>(profiling::duration_ms(t_cache0, profiling::now())),

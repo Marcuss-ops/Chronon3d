@@ -115,6 +115,25 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         reuse_eval.frame_fp.active_at_fp ==
             (sw_renderer ? sw_renderer->frame_history().prev_active_at_fingerprint : 0);
 
+    if (ctx.policy.diagnostics_enabled) {
+        const auto& history = sw_renderer->frame_history();
+        const char* decision = reuse_eval.fast_path_reuse_fb
+            ? "early_reuse"
+            : (ctx.policy.graph_structure_unchanged
+                ? "refresh_cached_candidate"
+                : "build_fresh_candidate");
+        spdlog::info(
+            "[graph-frame-diagnostic] frame={} static_fp={} active_at_fp={} "
+            "structure_fp={} combined_fp={} cached_static_fp={} "
+            "cached_active_at_fp={} cached_structure_fp={} decision={}",
+            static_cast<int>(frame), reuse_eval.frame_fp.static_fp,
+            reuse_eval.frame_fp.active_at_fp, reuse_eval.frame_fp.structure_fp,
+            reuse_eval.frame_fp.combined_fp,
+            history.prev_static_scene_fingerprint,
+            history.prev_active_at_fingerprint,
+            history.prev_graph_structure_fingerprint, decision);
+    }
+
     if (settings.diagnostics.plan) {
         profiling::ProfilingGuard diag_guard(nullptr, profiling::g_current_framebuffer_pool);
         auto report = debug_preflight_render_graph(
