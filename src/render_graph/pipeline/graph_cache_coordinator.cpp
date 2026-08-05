@@ -23,6 +23,77 @@
 
 namespace chronon3d::graph {
 
+namespace {
+
+/// Owns a checked-out cache entry until the coordinator either publishes a
+/// refreshed candidate or restores the original entry. This keeps every
+/// failure path exception-safe: a fresh compile or processor-resolution error
+/// can never leave the previous cache slot empty.
+class CachedGraphLease {
+public:
+    CachedGraphLease(
+        CompiledGraphCache& cache,
+        std::optional<CompiledFrameGraph> candidate,
+        int width,
+        int height)
+        : cache_(cache)
+        , candidate_(std::move(candidate))
+        , width_(width)
+        , height_(height) {}
+
+    CachedGraphLease(const CachedGraphLease&) = delete;
+    CachedGraphLease& operator=(const CachedGraphLease&) = delete;
+
+    ~CachedGraphLease() noexcept {
+        if (!candidate_) return;
+        try {
+            cache_.store(std::move(*candidate_), width_, height_);
+        } catch (...) {
+            // Cache restoration is the last line of defense against losing a
+            // valid graph. An allocation failure here cannot be recovered
+            // without violating the cache ownership contract.
+            std::terminate();
+        }
+    }
+
+    [[nodiscard]] bool has_candidate() const noexcept {
+        return candidate_.has_value();
+    }
+
+    [[nodiscard]] CompiledFrameGraph& candidate() {
+        if (!candidate_) {
+            throw std::logic_error("graph cache lease has no candidate");
+        }
+        return *candidate_;
+    }
+
+    /// Restore the checked-out graph to its original cache slot.
+    void restore() {
+        if (!candidate_) return;
+        cache_.store(std::move(*candidate_), width_, height_);
+        candidate_.reset();
+    }
+
+    /// Transfer the checked-out graph to the caller. The cache slot remains
+    /// empty until the completed frame is published by frame_state_commit.
+    [[nodiscard]] CompiledFrameGraph release() {
+        if (!candidate_) {
+            throw std::logic_error("graph cache lease has no candidate");
+        }
+        auto result = std::move(*candidate_);
+        candidate_.reset();
+        return result;
+    }
+
+private:
+    CompiledGraphCache& cache_;
+    std::optional<CompiledFrameGraph> candidate_;
+    int width_;
+    int height_;
+};
+
+} // namespace
+
 [[nodiscard]] static inline uint64_t to_ms_u64(double ms) {
     return static_cast<uint64_t>(std::llround(std::max(0.0, ms)));
 }
@@ -158,25 +229,25 @@ static void log_graph_cache_diagnostics(
     bool diagnostics_enabled,
     bool& graph_reused)
 {
-    auto maybe_compiled = graph_cache.try_take(width, height);
     graph_reused = false;
-    CompiledFrameGraph compiled;
-    if (maybe_compiled) {
-        compiled = std::move(*maybe_compiled);
-    }
+    CachedGraphLease lease{
+        graph_cache,
+        graph_cache.try_take(width, height),
+        width,
+        height};
 
-    // A cache entry is reusable only when it is a valid compiled graph. Keep
-    // invalid legacy/corrupt entries out of the refresh path, but restore the
-    // prior entry before attempting a fresh build so a compile failure does
-    // not destroy the last known-good cache state.
-    if (!compiled.valid) {
-        graph_cache.store(std::move(compiled), width, height);
+    // A missing, invalid, or structurally stale candidate is a miss. Keep a
+    // checked-out candidate under the lease while rebuilding: if compilation
+    // or processor resolution throws, the lease restores the old graph.
+    if (!lease.has_candidate()) {
         return build_fresh_graph(ctx, scene, resolved);
     }
 
-    if (compiled.authored_structure_fingerprint == 0 ||
+    CompiledFrameGraph& compiled = lease.candidate();
+    if (!compiled.valid ||
+        compiled.authored_structure_fingerprint == 0 ||
         compiled.authored_structure_fingerprint != current_authored_topology) {
-        graph_cache.store(std::move(compiled), width, height);
+        lease.restore();
         return build_fresh_graph(ctx, scene, resolved);
     }
 
@@ -209,11 +280,11 @@ static void log_graph_cache_diagnostics(
             spdlog::warn("[graph-cache] transactional refresh threw: {} — restoring prior cache and rebuilding fresh",
                          error.what());
         }
-        graph_cache.store(std::move(compiled), width, height);
+        lease.restore();
         return build_fresh_graph(ctx, scene, resolved);
     } catch (...) {
         // Preserve the same cache invariant for non-standard exceptions.
-        graph_cache.store(std::move(compiled), width, height);
+        lease.restore();
         return build_fresh_graph(ctx, scene, resolved);
     }
     const auto t_refresh1 = profiling::now();
@@ -231,7 +302,7 @@ static void log_graph_cache_diagnostics(
         // detached candidate is still the original cache entry. Restore it
         // before compiling the fallback graph; the caller replaces it only
         // after the fresh graph has completed and the frame commits.
-        graph_cache.store(std::move(compiled), width, height);
+        lease.restore();
         return build_fresh_graph(ctx, scene, resolved);
     }
 
@@ -258,7 +329,7 @@ static void log_graph_cache_diagnostics(
     log_graph_cache_diagnostics(
         compiled, ctx, "refresh_cached",
         "graph:" + std::to_string(width) + "x" + std::to_string(height));
-    return compiled;
+    return lease.release();
 }
 
 GraphBuildResult build_or_reuse_graph(
@@ -297,12 +368,17 @@ GraphBuildResult build_or_reuse_graph(
             current_authored_topology, diagnostics_enabled, result.graph_reused);
         result.skip_initial_clear = result.compiled.skip_initial_clear;
     } else {
-        // Count the miss before compilation so a failed fresh build is still
-        // represented in telemetry. The old cache, when present on another
-        // dimension, is untouched by this path.
+        // A fresh build is prepared outside the cache slot. If compilation or
+        // processor resolution throws, the matching old entry is untouched.
+        // Invalidate that entry only after the fresh candidate is complete;
+        // frame_state_commit publishes the completed candidate atomically
+        // after execution succeeds.
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
+        // Keep any prior entry installed until frame_state_commit publishes
+        // this completed candidate. This preserves the old cache if execution
+        // or any later publication step fails after compilation succeeds.
         result.compiled = build_fresh_graph(ctx, scene, resolved);
         result.graph_reused = false;
         result.skip_initial_clear = ctx.policy.skip_initial_clear;
