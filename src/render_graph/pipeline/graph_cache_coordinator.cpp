@@ -10,6 +10,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
@@ -18,6 +19,7 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include <spdlog/spdlog.h>
 #include <exception>
+#include <stdexcept>
 
 namespace chronon3d::graph {
 
@@ -131,7 +133,15 @@ static void log_graph_cache_diagnostics(
     compile_options.compute_bboxes = true;
     compile_options.include_diagnostics = ctx.policy.diagnostics_enabled;
 
-    return compiler.compile(std::move(graph), ctx, compile_options);
+    auto compiled = compiler.compile(std::move(graph), ctx, compile_options);
+    compiled.authored_structure_fingerprint =
+        SceneHasher{}.compute_structure_fingerprint(
+            scene, ctx.services.registry_generation);
+    if (!compiled.valid) {
+        throw std::runtime_error(
+            "graph cache coordinator: fresh graph compilation produced an invalid graph");
+    }
+    return compiled;
 }
 
 /// Reuse the cached compiled graph, refreshing all node payloads
@@ -144,6 +154,7 @@ static void log_graph_cache_diagnostics(
     const detail::LayerResolutionResult& resolved,
     int width,
     int height,
+    std::uint64_t current_authored_topology,
     bool diagnostics_enabled,
     bool& graph_reused)
 {
@@ -152,6 +163,21 @@ static void log_graph_cache_diagnostics(
     CompiledFrameGraph compiled;
     if (maybe_compiled) {
         compiled = std::move(*maybe_compiled);
+    }
+
+    // A cache entry is reusable only when it is a valid compiled graph. Keep
+    // invalid legacy/corrupt entries out of the refresh path, but restore the
+    // prior entry before attempting a fresh build so a compile failure does
+    // not destroy the last known-good cache state.
+    if (!compiled.valid) {
+        graph_cache.store(std::move(compiled), width, height);
+        return build_fresh_graph(ctx, scene, resolved);
+    }
+
+    if (compiled.authored_structure_fingerprint == 0 ||
+        compiled.authored_structure_fingerprint != current_authored_topology) {
+        graph_cache.store(std::move(compiled), width, height);
+        return build_fresh_graph(ctx, scene, resolved);
     }
 
     // DOF depth is execution state, not compiled-graph payload.  A reused
@@ -174,14 +200,20 @@ static void log_graph_cache_diagnostics(
         refresh_result = detail::refresh_compiled_graph_payloads(
             compiled, scene, ctx, resolved);
     } catch (const std::exception& error) {
-        // A refresher may allocate while preparing a dynamic payload. The
-        // detached candidate is deliberately discarded on any exception;
-        // never return or cache a graph that may have been mutated halfway
-        // through the refresh transaction.
+        // `try_take()` is a checkout, not an invalidation. The refresh
+        // implementation prepares detached node patches and leaves this
+        // candidate structurally intact when preparation throws, so restore
+        // it before attempting the fallback build. If compilation fails,
+        // the previous cache entry is still available for the next frame.
         if (diagnostics_enabled) {
-            spdlog::warn("[graph-cache] transactional refresh threw: {} — rebuilding fresh",
+            spdlog::warn("[graph-cache] transactional refresh threw: {} — restoring prior cache and rebuilding fresh",
                          error.what());
         }
+        graph_cache.store(std::move(compiled), width, height);
+        return build_fresh_graph(ctx, scene, resolved);
+    } catch (...) {
+        // Preserve the same cache invariant for non-standard exceptions.
+        graph_cache.store(std::move(compiled), width, height);
         return build_fresh_graph(ctx, scene, resolved);
     }
     const auto t_refresh1 = profiling::now();
@@ -196,9 +228,9 @@ static void log_graph_cache_diagnostics(
                          refresh_result.message);
         }
         // Validation is performed before any refresh mutation, so this
-        // detached candidate is still the original cache entry. Put it back
-        // before compiling the fallback graph; the caller will replace it
-        // only after the fresh graph has completed successfully.
+        // detached candidate is still the original cache entry. Restore it
+        // before compiling the fallback graph; the caller replaces it only
+        // after the fresh graph has completed and the frame commits.
         graph_cache.store(std::move(compiled), width, height);
         return build_fresh_graph(ctx, scene, resolved);
     }
@@ -249,6 +281,9 @@ GraphBuildResult build_or_reuse_graph(
     // pointer (e.g. LayerTransitionCatalog).
     wire_catalog_pointers(ctx, builtin_pipeline_catalogs());
 
+    const auto current_authored_topology =
+        SceneHasher{}.compute_structure_fingerprint(
+            scene, ctx.services.registry_generation);
     result.can_reuse = scene_structure_unchanged &&
         graph_cache != nullptr &&
         graph_cache->has(width, height);
@@ -256,14 +291,14 @@ GraphBuildResult build_or_reuse_graph(
     const auto t_graph0 = profiling::now();
 
     if (result.can_reuse) {
-        if (ctx.node_exec.counters) {
-            ctx.node_exec.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
-        }
         result.compiled = reuse_cached_graph(
             *graph_cache, scene, ctx, resolved, width, height,
-            diagnostics_enabled, result.graph_reused);
+            current_authored_topology, diagnostics_enabled, result.graph_reused);
         result.skip_initial_clear = result.compiled.skip_initial_clear;
     } else {
+        // Count the miss before compilation so a failed fresh build is still
+        // represented in telemetry. The old cache, when present on another
+        // dimension, is untouched by this path.
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
@@ -273,6 +308,16 @@ GraphBuildResult build_or_reuse_graph(
         log_graph_cache_diagnostics(
             result.compiled, ctx, "build_fresh",
             "graph:" + std::to_string(width) + "x" + std::to_string(height));
+    }
+
+    // Count only the final decision on the checked-out candidate. A
+    // topology-rejected candidate is a rebuild/miss, not a cache hit.
+    if (ctx.node_exec.counters && result.can_reuse) {
+        if (result.graph_reused) {
+            ctx.node_exec.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            ctx.node_exec.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     const auto t_graph1 = profiling::now();
