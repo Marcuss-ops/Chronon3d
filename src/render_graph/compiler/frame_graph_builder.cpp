@@ -164,8 +164,11 @@ void FrameGraphCompiler::build_node_metadata(
                 // cache keys, but it must never change a node's render kind
                 // or shape topology in place.
                 if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+                    node_info.processor_id = "source:" +
+                        std::to_string(static_cast<int>(source->render_node().shape.type()));
                     node_info.shape_type = static_cast<int>(source->render_node().shape.type());
                 } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
+                    node_info.processor_id = "multi_source";
                     node_info.shape_type = -2;
                     node_info.source_shape_types.reserve(multi->items().size());
                     for (const auto& item : multi->items()) {
@@ -179,7 +182,10 @@ void FrameGraphCompiler::build_node_metadata(
                             static_cast<int>(item.node->shape.type()));
                     }
                 } else if (const auto* text = dynamic_cast<const TextRunNode*>(&node)) {
+                    node_info.processor_id = "text_run";
                     node_info.shape_type = static_cast<int>(text->render_node().shape.type());
+                } else {
+                    node_info.processor_id = std::string(to_string(node_info.kind));
                 }
 
                 if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
