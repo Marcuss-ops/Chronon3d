@@ -52,6 +52,11 @@ Composition make_light_transition_variant(const char* name, const char* scene_b_
         if (has_runtime_font_engine) scene.font_engine(&ctx.runtime->font_engine());
 
         scene.layer("scene_a", [has_runtime_font_engine](LayerBuilder& layer) {
+            // Keep the authored layer present for the whole composition. Its
+            // timeline controls activity; the frame callback never changes
+            // graph topology.
+            layer.from(Frame{0});
+            layer.duration(Frame{60});
             layer.rect("scene_a_background", {
                 .size = {1920.0f, 1080.0f},
                 .color = {0.03f, 0.08f, 0.22f, 1.0f},
@@ -64,6 +69,8 @@ Composition make_light_transition_variant(const char* name, const char* scene_b_
         });
 
         scene.layer("scene_b", [has_runtime_font_engine, scene_b_label](LayerBuilder& layer) {
+            layer.from(Frame{0});
+            layer.duration(Frame{60});
             layer.rect("scene_b_background", {
                 .size = {1920.0f, 1080.0f},
                 .color = {0.28f, 0.03f, 0.04f, 1.0f},
@@ -89,6 +96,8 @@ Composition make_light_transition_variant(const char* name, const char* scene_b_
             const f32 angle = -24.0f + static_cast<f32>(i) * 7.0f;
             scene.layer("light_leak_band_" + std::to_string(i),
                 [flash_color, y, width, angle, i](LayerBuilder& layer) {
+                    layer.from(Frame{0});
+                    layer.duration(Frame{60});
                     layer.position_anim()
                         .key(Frame{0},  Vec3{-1500.0f, y, 0.0f}, EasingCurve{Easing::Hold})
                         .key(Frame{19}, Vec3{-1500.0f, y, 0.0f}, EasingCurve{Easing::Hold})
@@ -120,6 +129,8 @@ Composition make_light_transition_variant(const char* name, const char* scene_b_
         }
 
         scene.layer("light_leak_flare", [flash_color](LayerBuilder& layer) {
+            layer.from(Frame{0});
+            layer.duration(Frame{60});
             layer.position({0.0f, 0.0f, 0.0f});
             layer.opacity_anim()
                 .key(Frame{0}, 0.0f, EasingCurve{Easing::Hold})

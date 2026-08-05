@@ -185,6 +185,8 @@ TEST_CASE("LightTransition: authored layer topology is stable across timeline bo
             CHECK(scene.layers()[index].name == baseline_layers[index].name);
             CHECK(scene.layers()[index].name == expected_layer_names[index]);
             CHECK(scene.layers()[index].kind == baseline_layers[index].kind);
+            CHECK(scene.layers()[index].from == Frame{0});
+            CHECK(scene.layers()[index].duration == Frame{60});
             REQUIRE(scene.layers()[index].nodes.size() == baseline_layers[index].nodes.size());
             REQUIRE(scene.layers()[index].nodes.size() == 1);
             CHECK(scene.layers()[index].nodes.front().name == expected_node_names[index]);
