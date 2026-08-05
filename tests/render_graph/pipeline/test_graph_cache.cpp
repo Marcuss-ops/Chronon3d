@@ -4,6 +4,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <algorithm>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -143,6 +144,52 @@ TEST_CASE("GraphCache - cache miss when renderable shape topology changes") {
 
     REQUIRE(rebuilt != nullptr);
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
+}
+
+TEST_CASE("GraphCache - topology mismatch rebuilds and republishes a valid graph") {
+    SceneBuilder builder;
+    builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
+    Scene scene = builder.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto first = render_frame(renderer, node_cache, scene, camera, Frame{0});
+    REQUIRE(first != nullptr);
+
+    // Corrupt only the cached structural metadata. The authored scene remains
+    // unchanged, so the coordinator enters the refresh path; scene_refresh
+    // must reject the candidate, restore the checked-out entry, and compile a
+    // fresh graph instead of publishing a partially refreshed graph.
+    auto cached = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(cached.has_value());
+    REQUIRE_FALSE(cached->nodes.empty());
+    auto node_it = std::find_if(cached->nodes.begin(), cached->nodes.end(),
+        [](const CompiledNodeInfo& info) { return info.reachable; });
+    REQUIRE(node_it != cached->nodes.end());
+    node_it->processor_id = "processor.mismatch";
+    renderer.graph_cache().store(std::move(*cached), 100, 100);
+
+    const auto hits_before = renderer.counters()->graph_cache_hits.load();
+    const auto misses_before = renderer.counters()->graph_cache_misses.load();
+    auto rebuilt = render_frame(renderer, node_cache, scene, camera, Frame{2});
+
+    REQUIRE(rebuilt != nullptr);
+    CHECK(renderer.counters()->graph_cache_hits.load() == hits_before);
+    CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
+    REQUIRE(renderer.graph_cache().has(100, 100));
+
+    auto repaired = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(repaired.has_value());
+    const auto repaired_node = std::find_if(repaired->nodes.begin(), repaired->nodes.end(),
+        [](const CompiledNodeInfo& info) { return info.reachable; });
+    REQUIRE(repaired_node != repaired->nodes.end());
+    CHECK(repaired_node->processor_id != "processor.mismatch");
+    renderer.graph_cache().store(std::move(*repaired), 100, 100);
 }
 
 TEST_CASE("GraphCache - cache miss when layer added") {
