@@ -7,12 +7,23 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <optional>
+#include <span>
 
 namespace chronon3d {
 namespace renderer {
 
 class SoftwareRegistry;
+class EffectProcessor;
 
+void apply_effect_stack(
+    Framebuffer& fb,
+    const EffectStack& stack,
+    const effects::EffectExecutionContext& context,
+    std::span<EffectProcessor* const> processors);
+
+// Legacy direct-dispatch entry point retained for standalone effect tests.
+// Compiled render-graph execution uses the overload above and never reaches
+// the registry lookup path.
 void apply_effect_stack(
     Framebuffer& fb,
     const EffectStack& stack,

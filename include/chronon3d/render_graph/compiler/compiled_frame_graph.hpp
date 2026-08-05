@@ -10,6 +10,11 @@
 #include <string>
 #include <vector>
 
+namespace chronon3d::renderer {
+class ShapeProcessor;
+class EffectProcessor;
+}
+
 namespace chronon3d::graph {
 using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
 
@@ -52,6 +57,13 @@ struct CompiledNodeInfo {
     // payload refresh must never replace it.
     std::string processor_id;
 
+    // Non-owning processor bindings resolved once during compilation. The
+    // owning registry lifetime is longer than the compiled graph, and its
+    // generation participates in cache validity.
+    ::chronon3d::renderer::ShapeProcessor* shape_processor{nullptr};
+    std::vector<::chronon3d::renderer::ShapeProcessor*> shape_processors;
+    std::vector<::chronon3d::renderer::EffectProcessor*> effect_processors;
+
     SceneBindingMetadata binding_meta{};  // binding table metadata
 
     bool reachable{false};
@@ -81,6 +93,10 @@ struct CompiledFrameGraph {
     GraphNodeId output{k_invalid_node};
 
     std::uint64_t structure_hash{0};
+
+    // Registry generation used to resolve the non-owning processor bindings.
+    // The coordinator includes this value in the structural cache key.
+    std::uint64_t registry_generation{0};
 
     // Authored-scene topology fingerprint captured by the coordinator when
     // this compiled graph was built. It is compared before refresh so an

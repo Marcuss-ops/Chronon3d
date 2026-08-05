@@ -120,6 +120,11 @@ public:
     [[nodiscard]] std::optional<graph::RenderBackendError> validate_render_node(
         const RenderNode& node) const override;
 
+    [[nodiscard]] renderer::ShapeProcessor* resolve_shape_processor(
+        const RenderNode& node) const noexcept override;
+    [[nodiscard]] renderer::EffectProcessor* resolve_effect_processor(
+        std::type_index params_type) const noexcept override;
+
     // 06 R3b — `draw_text_run` and `capabilities` migrated to
     // SoftwareBackend.  SoftwareRenderer no longer exposes these.
     graph::RenderOpResult draw_text_run(Framebuffer& fb,

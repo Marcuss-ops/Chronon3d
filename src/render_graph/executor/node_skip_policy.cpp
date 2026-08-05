@@ -1,8 +1,8 @@
 // ============================================================================
 // node_skip_policy.cpp — P1 §5 unified skip-policy implementation.
 // TILE-PRUNE-SKIP-UNIFICATION (2026-07-14): aggiunto SkipReason::TilePruned
-// + parametro `bbox_override` opzionale. EarlyExit/OpacityThreshold restano
-// byte-equivalent al body unificato P1. TilePruned riusa
+// + parametro `bbox_override` opzionale. EarlyExit resta byte-equivalente al
+// body unificato P1. TilePruned riusa
 // `state.shared_transparent` (no fresh 64×64 alloc) e bump `nodes_skipped`
 // (non `layers_culled`); `bbox_override` (default nullopt → BBox{0,0,0,0}
 // per retro-compat) si propaga a `state.resolved_bboxes[id]` per preservare
@@ -37,15 +37,15 @@ void commit_transparent_skip(
 {
     // ── Temp slot acquisition ───────────────────────────────────────────
     // TilePruned: riusa `state.shared_transparent` (no fresh 64×64 alloc,
-    // preserva Cat-3 single SSoT + riduce allocazioni).  EarlyExit /
-    // OpacityThreshold: acquire_owned_fb(64,64,false) + clear(transparent)
-    // preservato byte-equivalent al body P1.
+    // preserva Cat-3 single SSoT + riduce allocazioni). EarlyExit:
+    // acquire_owned_fb(64,64,false) + clear(transparent), preservato
+    // byte-equivalent al body P1.
     if (reason == SkipReason::TilePruned) {
         state.temp[id] = state.shared_transparent;
     } else {
         // ── Acquire + clear transparent 64×64 ──────────────────────────
-        // Preserva esattamente lo stesso path dei due blocchi originali P1:
-        //   early_exit_skip / opacity-threshold: acquire_owned_fb(64,64,false); clear(transparent)
+        // Preserva esattamente lo stesso path del blocco early-exit originale:
+        //   acquire_owned_fb(64,64,false); clear(transparent)
         // `false` = ownership-clear flag non viene impostato sul raw pointer
         // (OwnershipManaged=false), ownership transferred al PoolFbDeleter.
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
@@ -70,7 +70,7 @@ void commit_transparent_skip(
 
     // ── Counter bump ────────────────────────────────────────────────────
     // TilePruned: bump `nodes_skipped` (semantica distinguibile da
-    // EarlyExit/OpacityThreshold → `layers_culled`).  EarlyExit + Clear
+    // EarlyExit → `layers_culled`). EarlyExit + Clear
     // aggiunge i counter Clear-specific (preservato byte-equivalent P1).
     if (ctx.node_exec.counters) {
         if (reason == SkipReason::TilePruned) {

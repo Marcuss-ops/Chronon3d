@@ -119,6 +119,22 @@ void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx
 // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.  We therefore
 // read `m_proc_ctx.registry` ONLY inside dispatch (never from
 // `~SoftwareBackend()`).
+renderer::ShapeProcessor* SoftwareBackend::resolve_shape_processor(
+    const RenderNode& node) const noexcept {
+    if (!m_proc_ctx.registry || node.shape.type() == ShapeType::TextRun) {
+        return nullptr;
+    }
+    return m_proc_ctx.registry->get_shape(node.shape.type());
+}
+
+renderer::EffectProcessor* SoftwareBackend::resolve_effect_processor(
+    std::type_index params_type) const noexcept {
+    if (!m_proc_ctx.registry) {
+        return nullptr;
+    }
+    return m_proc_ctx.registry->get_effect(params_type);
+}
+
 std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
     const RenderNode& node) const {
     if (!m_proc_ctx.registry) {
@@ -143,20 +159,13 @@ void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state,
                                  const Camera& camera, int width, int height) {
     CHRONON_ZONE_C("backend_draw_node", trace_category::kRasterize);
-    if (!m_proc_ctx.registry) {
-        // Defensive: caller forgot to attach_processor_context() before
-        // dispatching.  Log loudly so the regression surfaces in CI.
-        spdlog::error(
-            "SoftwareBackend::draw_node called without an attached processor-context "
-            "(call attach_processor_context() after make_software_backend).  "
-            "Returning without rendering shape type={}.",
-            static_cast<int>(node.shape.type()));
-        return;
-    }
+    // Compiled graphs carry the resolved processor in RenderState. The
+    // registry is intentionally not required on this per-frame path;
+    // registry generation changes invalidate the graph before execution.
     if (m_image_renderer != nullptr && m_proc_ctx.image_renderer == nullptr) {
         m_proc_ctx.image_renderer = m_image_renderer;
     }
-    auto* processor = m_proc_ctx.registry->get_shape(node.shape.type());
+    auto* processor = state.shape_processor;
     if (!processor) {
         if (node.shape.type() == ShapeType::TextRun) {
             // Canonical TextRun integration is via TextRunNode →
@@ -230,16 +239,32 @@ void SoftwareBackend::apply_effect_stack(
         }
     }
 
+    effects::EffectExecutionContext local_context = context;
+    local_context.clip = local_clip;
+    local_context.curve_cache = m_proc_ctx.curve_cache;
+
+    if (context.processors_resolved) {
+        // Compiled graph path: processor identities were resolved once by the
+        // compiler and are invalidated with registry_generation. An empty
+        // binding is a compile/executor contract violation, not a reason to
+        // consult the registry on this frame.
+        if (context.effect_processors.size() != stack.size()) {
+            throw std::runtime_error(
+                "compiled effect execution has no complete processor binding");
+        }
+        renderer::apply_effect_stack(
+            fb, stack, local_context, local_context.effect_processors);
+        return;
+    }
+
+    // Direct legacy/test entry points do not carry compiled metadata. Keep
+    // their existing registry-backed behavior without weakening the compiled
+    // graph contract above.
     if (!m_proc_ctx.registry) {
         throw std::runtime_error(
             "SoftwareBackend::apply_effect_stack requires a processor registry");
     }
-
-    effects::EffectExecutionContext local_context = context;
-    local_context.clip = local_clip;
-    local_context.curve_cache = m_proc_ctx.curve_cache;
-    renderer::apply_effect_stack(
-        fb, stack, local_context, *m_proc_ctx.registry);
+    renderer::apply_effect_stack(fb, stack, local_context, *m_proc_ctx.registry);
 }
 
 // ── apply_per_pixel_dof ───────────────────────────────────────────────────

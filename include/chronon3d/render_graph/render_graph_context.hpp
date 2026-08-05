@@ -121,6 +121,8 @@ namespace chronon3d::effects {
 // type` cascade).
 namespace chronon3d::assets { class AssetResolver; }
 
+namespace chronon3d::renderer { class ShapeProcessor; class EffectProcessor; }
+
 namespace chronon3d::graph {
 
 class RenderBackend;
@@ -364,6 +366,14 @@ struct NodeExecutionContext {
     // relaxed for test paths that drive a PrecompNode without first
     // running it through the full GraphExecutor).
     NodeIdentity current_identity{kInvalidGraphInstanceId, kInvalidStableNodeId};
+
+    // Processor bindings captured by the compiler and exposed to the node
+    // execution path. These are non-owning views into CompiledFrameGraph;
+    // registry generation invalidates the graph before these can go stale.
+    ::chronon3d::renderer::ShapeProcessor* current_shape_processor{nullptr};
+    std::span<::chronon3d::renderer::ShapeProcessor* const> current_shape_processors{};
+    std::span<::chronon3d::renderer::EffectProcessor* const> current_effect_processors{};
+    bool processor_bindings_compiled{false};
 
     // ── TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session text-bbox reporter ────
     // Null-pointer typed access to the executor's per-session

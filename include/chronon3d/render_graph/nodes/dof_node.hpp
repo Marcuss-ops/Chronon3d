@@ -103,7 +103,9 @@ public:
                 .frame = ctx.frame_input.frame,
                 .clip = local_clip,
                 .quality = effects::RenderQuality::Final,
-                .diagnostics_enabled = ctx.policy.diagnostics_enabled
+                .diagnostics_enabled = ctx.policy.diagnostics_enabled,
+                .effect_processors = ctx.node_exec.current_effect_processors,
+                .processors_resolved = ctx.node_exec.processor_bindings_compiled
             };
             ctx.services.backend->apply_effect_stack(*result, dof_stack, dof_context);
             if (ctx.node_exec.counters) {
