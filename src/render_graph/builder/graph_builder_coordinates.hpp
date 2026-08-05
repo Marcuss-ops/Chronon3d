@@ -148,6 +148,9 @@ inline bool layer_needs_render_transform(const LayerGraphItem& item, const Rende
     // placement a second time. TransformNode is owned by the modular path;
     // keep the legacy path source-space only.
     if (!ctx.policy.modular_coordinates) return false;
+    // Native 3D layers apply the camera in their source processor path;
+    // adding a TransformNode would re-sample the already projected surface.
+    if (item.native_3d) return false;
 
     // Software SourceNode rasterizes 2D primitives directly with their world
     // matrix.  Sending a scaled/rotated shape through a local framebuffer

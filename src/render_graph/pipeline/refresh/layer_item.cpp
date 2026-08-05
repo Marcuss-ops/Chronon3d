@@ -21,11 +21,10 @@ LayerGraphItem make_layer_graph_item_for_refresh(
         );
         if (proj.visible) {
             // Refresh must use the same full homography as the initial graph
-            // build.  A centroid+scale approximation drops layer rotation
-            // and perspective during cached-graph reuse.
-            const Mat4 eff_proj = is_native_3d_layer(layer)
-                ? Mat4(1.0f)
-                : proj.projection_matrix;
+            // build. A native 3D layer still travels through this graph
+            // executor, so retaining the resolver matrix is required for
+            // cached renders to match the initial Camera2_5D projection.
+            const Mat4 eff_proj = proj.projection_matrix;
             return LayerGraphItem{
                 .layer             = resolved_layer.layer,
                 .transform         = proj.transform,
