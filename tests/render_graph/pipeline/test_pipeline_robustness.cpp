@@ -9,6 +9,7 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 #include <cmath>
+#include <array>
 #include "src/render_graph/builder/graph_builder_coordinates.hpp"
 #include "src/render_graph/builder/graph_builder_internal.hpp"
 #include <tests/helpers/test_utils.hpp>
@@ -412,6 +413,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 2D standard top left layer") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor =
+        renderer.backend().resolve_shape_processor(rnode);
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -450,6 +453,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D non-centered source") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor =
+        renderer.backend().resolve_shape_processor(rnode);
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -488,6 +493,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - Centered 2D source") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor =
+        renderer.backend().resolve_shape_processor(rnode);
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -526,6 +533,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D centered source") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor =
+        renderer.backend().resolve_shape_processor(rnode);
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -564,6 +573,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor =
+        renderer.backend().resolve_shape_processor(rnode);
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -609,10 +620,15 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
     items.push_back({&rnode_b, rnode_b.world_transform.to_mat4(), 1.0f});
 
     auto renderer = test::make_renderer();
+    std::array<renderer::ShapeProcessor*, 2> processors{
+        renderer.backend().resolve_shape_processor(rnode_a),
+        renderer.backend().resolve_shape_processor(rnode_b)};
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor = processors[0];
+    ctx.node_exec.current_shape_processors = processors;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("my_multi_node", std::move(items), key);

@@ -11,6 +11,8 @@
 
 namespace chronon3d {
 
+namespace renderer { class ShapeProcessor; }
+
 // Forward-declared to avoid a math/ -> scene/ include cycle.
 // Full definition is in <chronon3d/scene/model/layer/mask.hpp>.
 struct Mask;
@@ -97,6 +99,10 @@ struct RenderState {
     Mat4 matrix;
     f32  opacity{1.0f};
 
+    // Processor resolved by FrameGraphCompiler for this renderable node.
+    // Execution must use this binding; per-frame registry lookup is forbidden.
+    renderer::ShapeProcessor* shape_processor{nullptr};
+
     // 3D card rendering — set by SourceNode when a layer uses 2.5D projection and camera_2_5d is active.
     // Processors use projection to build ProjectedCard; world_matrix is layer TRS without camera.
     renderer::ProjectionContext projection{};
@@ -146,6 +152,7 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
     return RenderState{
         .matrix           = parent.matrix * child.to_matrix(),
         .opacity          = parent.opacity * child.opacity,
+        .shape_processor  = parent.shape_processor,
         .mask             = parent.mask,
         .layer_inv_matrix = parent.layer_inv_matrix,
         .mask_alpha_cache = parent.mask_alpha_cache,

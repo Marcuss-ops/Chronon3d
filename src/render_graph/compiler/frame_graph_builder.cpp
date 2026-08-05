@@ -17,10 +17,14 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include <chronon3d/render_graph/nodes/dof_node.hpp>
 
 #include <algorithm>
 #include <stdexcept>
 #include <unordered_map>
+#include <typeindex>
 
 namespace chronon3d::graph {
 
@@ -167,10 +171,18 @@ void FrameGraphCompiler::build_node_metadata(
                     node_info.processor_id = "source:" +
                         std::to_string(static_cast<int>(source->render_node().shape.type()));
                     node_info.shape_type = static_cast<int>(source->render_node().shape.type());
+                    node_info.shape_processor =
+                        ctx.services.backend->resolve_shape_processor(source->render_node());
+                    if (!node_info.shape_processor) {
+                        throw std::runtime_error(
+                            "FrameGraphCompiler: missing compiled shape processor for node '" +
+                            std::string(node.name()) + "'");
+                    }
                 } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
                     node_info.processor_id = "multi_source";
                     node_info.shape_type = -2;
                     node_info.source_shape_types.reserve(multi->items().size());
+                    node_info.shape_processors.reserve(multi->items().size());
                     for (const auto& item : multi->items()) {
                         if (!item.node) {
                             throw std::runtime_error(
@@ -180,10 +192,60 @@ void FrameGraphCompiler::build_node_metadata(
                         }
                         node_info.source_shape_types.push_back(
                             static_cast<int>(item.node->shape.type()));
+                        if (item.node->shape.type() == ShapeType::TextRun) {
+                            node_info.shape_processors.push_back(nullptr);
+                        } else {
+                            auto* processor =
+                                ctx.services.backend->resolve_shape_processor(*item.node);
+                            if (!processor) {
+                                throw std::runtime_error(
+                                    "FrameGraphCompiler: missing compiled shape processor for multi-source node '" +
+                                    std::string(node.name()) + "'");
+                            }
+                            node_info.shape_processors.push_back(processor);
+                        }
                     }
                 } else if (const auto* text = dynamic_cast<const TextRunNode*>(&node)) {
                     node_info.processor_id = "text_run";
                     node_info.shape_type = static_cast<int>(text->render_node().shape.type());
+                } else if (const auto* effect = dynamic_cast<const EffectStackNode*>(&node)) {
+                    node_info.processor_id = "effect_stack";
+                    node_info.effect_processors.reserve(effect->effects().size());
+                    for (const auto& instance : effect->effects()) {
+                        auto* processor = instance.enabled
+                            ? ctx.services.backend->resolve_effect_processor(instance.param_type_index())
+                            : nullptr;
+                        if (instance.enabled && !processor) {
+                            throw std::runtime_error(
+                                "FrameGraphCompiler: missing compiled effect processor for node '" +
+                                std::string(node.name()) + "'");
+                        }
+                        node_info.effect_processors.push_back(processor);
+                    }
+                } else if (const auto* adjustment = dynamic_cast<const AdjustmentNode*>(&node)) {
+                    node_info.processor_id = "adjustment";
+                    node_info.effect_processors.reserve(adjustment->effects().size());
+                    for (const auto& instance : adjustment->effects()) {
+                        auto* processor = instance.enabled
+                            ? ctx.services.backend->resolve_effect_processor(instance.param_type_index())
+                            : nullptr;
+                        if (instance.enabled && !processor) {
+                            throw std::runtime_error(
+                                "FrameGraphCompiler: missing compiled effect processor for node '" +
+                                std::string(node.name()) + "'");
+                        }
+                        node_info.effect_processors.push_back(processor);
+                    }
+                } else if (dynamic_cast<const DofEffectNode*>(&node)) {
+                    node_info.processor_id = "dof";
+                    auto* processor = ctx.services.backend->resolve_effect_processor(
+                        std::type_index(typeid(BlurParams)));
+                    if (!processor) {
+                        throw std::runtime_error(
+                            "FrameGraphCompiler: missing compiled effect processor for node '" +
+                            std::string(node.name()) + "'");
+                    }
+                    node_info.effect_processors.push_back(processor);
                 } else {
                     node_info.processor_id = std::string(to_string(node_info.kind));
                 }

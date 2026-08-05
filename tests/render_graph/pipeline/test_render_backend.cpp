@@ -2,6 +2,7 @@
 #include <cstring>
 #include <type_traits>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -23,6 +24,16 @@ public:
     int apply_effect_stack_called{0};
     int composite_layer_called{0};
     int apply_blur_called{0};
+
+    renderer::ShapeProcessor* resolve_shape_processor(
+        const RenderNode&) const noexcept override {
+        return reinterpret_cast<renderer::ShapeProcessor*>(1);
+    }
+
+    renderer::EffectProcessor* resolve_effect_processor(
+        std::type_index) const noexcept override {
+        return reinterpret_cast<renderer::EffectProcessor*>(1);
+    }
 
     void draw_node(Framebuffer&, const RenderNode&, const RenderState&,
                    const Camera&, int, int) override {

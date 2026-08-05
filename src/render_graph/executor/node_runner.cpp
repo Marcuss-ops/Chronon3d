@@ -15,7 +15,6 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
-#include <cstdlib>
 
 namespace chronon3d::graph {
 
@@ -70,6 +69,12 @@ void execute_single_node(
             compiled.graph_instance_id,
             compiled.nodes[id].stable_node_id
         };
+        // Processor bindings are installed only on the node-local clone below;
+        // writing them into the shared frame context would race when a level
+        // executes nodes concurrently.
+    } else {
+        // Leave processor bindings unset on the shared context. The node-local
+        // clone receives the complete binding contract below.
     }
 
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
@@ -77,31 +82,6 @@ void execute_single_node(
             state, id, ctx, parent_pool,
             SkipReason::EarlyExit,
             graph.node(id).name());
-        return;
-    }
-
-    // ── Opacity-threshold early-out (env-gated; OPT-OUT by default) ──
-    // For text-heavy compositions with many per-letter staggered layers
-    // (cinematic_text_camera's WhipPanHeroReveal, AbyssFreefallStagger) the
-    // per-layer orchestrator + transform + composite work costs ~10-30 ms per
-    // invisible layer. When the layer's effective opacity is below 0.1 %
-    // AND none of its blur/scale/transform animations are time-dependent we
-    // skip the full execute_single_node body and emit a 64x64 transparent fb
-    // (mirroring the early_exit_skip path above).
-    //
-    // Defaults to OFF. Set CHRONON3D_SKIP_INVISIBLE_LAYERS=1 once the populate
-    // site in executor_levels.cpp::resolve_level has been wired to evaluate
-    // each node's layer.opacity_anim() into pr.resolved_opacity — the field
-    // exists today but defaults to 1.0f so this guard is currently a no-op.
-    static const bool kSkipInvisibleOpacity = []() -> bool {
-        const char* e = std::getenv("CHRONON3D_SKIP_INVISIBLE_LAYERS");
-        if (!e) return false;
-        return e[0] == '1' && e[1] == '\0';
-    }();
-    if (kSkipInvisibleOpacity && pr.resolved_opacity <= 0.001f) {
-        commit_transparent_skip(
-            state, id, ctx, parent_pool,
-            SkipReason::OpacityThreshold);
         return;
     }
 
@@ -213,6 +193,25 @@ void execute_single_node(
     // would both break DOF correctness and recreate the old allocation cost.
     const auto t_clone0 = profiling::now();
     auto node_ctx = ctx.clone_for_node_execution();
+    // Bind processor metadata on the node-local clone, not on the shared
+    // frame context. Nodes in the same execution level may run concurrently;
+    // writing the shared span before cloning allowed one node to overwrite
+    // another node's binding and made effect execution appear unbound.
+    if (id < compiled.nodes.size() && compiled.nodes[id].reachable) {
+        node_ctx.node_exec.current_identity = NodeIdentity{
+            compiled.graph_instance_id,
+            compiled.nodes[id].stable_node_id
+        };
+        node_ctx.node_exec.current_shape_processor = compiled.nodes[id].shape_processor;
+        node_ctx.node_exec.current_shape_processors = compiled.nodes[id].shape_processors;
+        node_ctx.node_exec.current_effect_processors = compiled.nodes[id].effect_processors;
+        node_ctx.node_exec.processor_bindings_compiled = true;
+    } else {
+        node_ctx.node_exec.current_shape_processor = nullptr;
+        node_ctx.node_exec.current_shape_processors = {};
+        node_ctx.node_exec.current_effect_processors = {};
+        node_ctx.node_exec.processor_bindings_compiled = false;
+    }
     const auto t_clone1 = profiling::now();
     if (out_clone_context_ms) {
         *out_clone_context_ms = profiling::duration_ms(t_clone0, t_clone1);
