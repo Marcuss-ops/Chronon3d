@@ -290,6 +290,16 @@ TEST_CASE("GraphContract: topology fingerprint ignores dynamic payload values") 
     CHECK(after == before);
 }
 
+TEST_CASE("GraphContract: registry generation is part of topology fingerprint") {
+    Scene scene = make_simple_scene(256, 256);
+    graph::SceneHasher hasher;
+
+    CHECK(hasher.compute_structure_fingerprint(scene, 1) !=
+          hasher.compute_structure_fingerprint(scene, 2));
+    CHECK(hasher.compute_structure_fingerprint(scene, 7) ==
+          hasher.compute_structure_fingerprint(scene, 7));
+}
+
 TEST_CASE("GraphContract: topology fingerprint changes for structural edits") {
     Scene scene = make_simple_scene(256, 256);
     graph::SceneHasher hasher;

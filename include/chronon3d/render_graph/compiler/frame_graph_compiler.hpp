@@ -59,19 +59,12 @@ public:
     // unsafe.  The skip predicate is therefore gated on `!run_optimizer`
     // (see `reuse_if_unchanged_predicate_safe()`).
     //
-    // KNOWN LIMITATION: `compute_structure_hash` hashes node kind + input
-    // ids + output — it does NOT hash node names + layer_ids.  Two
-    // graphs with the same topology but DIFFERENT node names produce the
-    // same `structure_hash` and the SKIP path returns the prior's
-    // `nodes[]` array — whose `stable_node_id` field reflects the PRIOR
-    // names, not the NEW ones.  `compiled.structure_hash` and
-    // `compiled.graph_instance_id` are re-derived so the graph-level
-    // identity hash still reflects the new names, but per-node
-    // `stable_node_id` is NOT.  Callers that rely on
-    // `compiled.nodes[id].stable_node_id` across the reuse boundary
-    // must keep node names stable OR fall through (either by renaming
-    // both graphs identically, or by leaving `graph_structure_unchanged`
-    // false when names change).
+    // KNOWN LIMITATION: callers must keep dynamic payload values out of
+    // `compute_structure_hash`; it hashes compiled node identity,
+    // processor/type discriminators, node/layer identity, input edges,
+    // and output. The skip path still copies prior compiled metadata, so
+    // callers that change node identity must leave
+    // `graph_structure_unchanged` false and take the full compile path.
     //
     // See TICKET-008 in docs/FOLLOWUP_TICKETS.md and refactor-roadmap
     // §9.4 closure-note sub-sections (Skip-safety constraints +
@@ -83,9 +76,15 @@ public:
         const FrameGraphCompileOptions& options = {}
     ) const;
 
+    /// Canonical compiled-graph topology hash. This is the compiler-boundary
+    /// counterpart to SceneHasher's authored-scene fingerprint: both exclude
+    /// frame and dynamic payload values, while this form additionally hashes
+    /// concrete processor/type identity, graph edges, output, and registry
+    /// generation.
     [[nodiscard]] static std::uint64_t compute_structure_hash(
         const RenderGraph& graph,
-        GraphNodeId output
+        GraphNodeId output,
+        std::uint64_t registry_generation = 0
     );
 
 private:
