@@ -1,10 +1,16 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
+#include <chronon3d/render_graph/layer/layer_resolver.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include "src/render_graph/pipeline/helpers.hpp"
+#include "src/render_graph/pipeline/scene_context_setup.hpp"
 #include <algorithm>
+
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -205,6 +211,108 @@ TEST_CASE("GraphCache - topology mismatch rebuilds and republishes a valid graph
     REQUIRE(repaired_node != repaired->nodes.end());
     CHECK(repaired_node->processor_id != "processor.mismatch");
     renderer.graph_cache().store(std::move(*repaired), 100, 100);
+}
+
+TEST_CASE("GraphCache - failed refresh leaves every cached node unchanged") {
+    SceneBuilder builder_a;
+    builder_a.rect("a", {.size={30.0f, 30.0f}, .color=Color::red(), .pos={10.0f, 12.0f, 0.0f}});
+    builder_a.rect("b", {.size={24.0f, 24.0f}, .color=Color::blue(), .pos={42.0f, 18.0f, 0.0f}});
+    const Scene scene_a = builder_a.build();
+
+    SceneBuilder builder_b;
+    builder_b.rect("a", {.size={30.0f, 30.0f}, .color=Color::red(), .pos={710.0f, 612.0f, 0.0f}});
+    builder_b.rect("b", {.size={24.0f, 24.0f}, .color=Color::blue(), .pos={742.0f, 618.0f, 0.0f}});
+    const Scene scene_b = builder_b.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto first = render_frame(renderer, node_cache, scene_a, camera, Frame{0});
+    REQUIRE(first != nullptr);
+
+    // Detach the cached candidate exactly as graph_cache_coordinator does
+    // before attempting a refresh. Corrupt a later metadata entry so the
+    // complete structural validation fails after the first source node would
+    // have been prepared by a non-transactional implementation.
+    auto cached = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(cached.has_value());
+    REQUIRE(cached->graph.phase() == GraphPhase::Building);
+
+    GraphNodeId source_id = k_invalid_node;
+    for (GraphNodeId id = 0; id < cached->graph.size(); ++id) {
+        if (!cached->graph.has_node(id)) continue;
+        const auto* source = dynamic_cast<const SourceNode*>(&cached->graph.node(id));
+        if (source && source->name() == "a") {
+            source_id = id;
+            break;
+        }
+    }
+    REQUIRE(source_id != k_invalid_node);
+
+    const auto* source_before =
+        dynamic_cast<const SourceNode*>(&cached->graph.node(source_id));
+    REQUIRE(source_before != nullptr);
+    const auto old_position = source_before->render_node().world_transform.position;
+
+    auto later_metadata = std::find_if(
+        cached->nodes.begin(), cached->nodes.end(),
+        [source_id](const CompiledNodeInfo& info) {
+            return info.reachable && info.id > source_id;
+        });
+    REQUIRE(later_metadata != cached->nodes.end());
+    later_metadata->processor_id += ".forced-refresh-failure";
+    const auto forced_processor_id = later_metadata->processor_id;
+    const auto later_node_id = later_metadata->id;
+
+    auto refresh_ctx = make_graph_context(
+        renderer.backend(), node_cache, camera, 100, 100, Frame{2}, 0.0f,
+        renderer.render_settings(), renderer.composition_registry(),
+        renderer.video_decoder(), 30.0f);
+    chronon3d::graph::detail::setup_render_graph_context(refresh_ctx, scene_b, &renderer);
+    const auto resolved = chronon3d::graph::detail::resolve_layers(scene_b, refresh_ctx);
+
+    const auto key_before = source_before->cache_key(refresh_ctx);
+    const auto refresh_result = chronon3d::graph::detail::refresh_compiled_graph_payloads(
+        *cached, scene_b, refresh_ctx, resolved);
+
+    CHECK_FALSE(refresh_result);
+    CHECK(refresh_result.status ==
+          chronon3d::graph::detail::SceneRefreshStatus::TopologyMismatch);
+
+    // The scene deliberately moves both source nodes. A refresh that mutates
+    // the graph while validating would update source "a" before discovering
+    // the corrupted later metadata. The transaction must leave the detached
+    // candidate byte-for-byte equivalent at the node-payload boundary so the
+    // coordinator can restore it to the cache unchanged.
+    const auto* source_after =
+        dynamic_cast<const SourceNode*>(&cached->graph.node(source_id));
+    REQUIRE(source_after != nullptr);
+    CHECK(source_after->render_node().world_transform.position.x == old_position.x);
+    CHECK(source_after->render_node().world_transform.position.y == old_position.y);
+    CHECK(source_after->cache_key(refresh_ctx) == key_before);
+
+    // Reinsert the rejected candidate, mirroring the coordinator's restore
+    // path, and verify that the original cache entry remains available.
+    renderer.graph_cache().store(std::move(*cached), 100, 100);
+    CHECK(renderer.graph_cache().has(100, 100));
+    auto restored = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(restored.has_value());
+    const auto* restored_source =
+        dynamic_cast<const SourceNode*>(&restored->graph.node(source_id));
+    REQUIRE(restored_source != nullptr);
+    CHECK(restored_source->render_node().world_transform.position.x == old_position.x);
+    CHECK(restored_source->render_node().world_transform.position.y == old_position.y);
+    const auto restored_metadata = std::find_if(
+        restored->nodes.begin(), restored->nodes.end(),
+        [later_node_id](const CompiledNodeInfo& info) {
+            return info.id == later_node_id;
+        });
+    REQUIRE(restored_metadata != restored->nodes.end());
+    CHECK(restored_metadata->processor_id == forced_processor_id);
 }
 
 TEST_CASE("GraphCache - cache miss when layer added") {
