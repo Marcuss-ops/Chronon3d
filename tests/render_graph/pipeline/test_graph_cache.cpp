@@ -95,6 +95,56 @@ TEST_CASE("GraphCache - cache miss when dimensions change") {
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
 }
 
+TEST_CASE("GraphCache - refresh reuses topology for dynamic source changes") {
+    SceneBuilder builder_a;
+    builder_a.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
+    Scene scene_a = builder_a.build();
+
+    SceneBuilder builder_b;
+    builder_b.rect("r", {.size={50.0f, 50.0f}, .color=Color::blue(), .pos={17.0f, 11.0f, 0.0f}});
+    Scene scene_b = builder_b.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    render_frame(renderer, node_cache, scene_a, camera, Frame{0});
+    const auto hits_before = renderer.counters()->graph_cache_hits.load();
+    const auto misses_before = renderer.counters()->graph_cache_misses.load();
+    auto refreshed = render_frame(renderer, node_cache, scene_b, camera, Frame{2});
+
+    REQUIRE(refreshed != nullptr);
+    CHECK(renderer.counters()->graph_cache_hits.load() == hits_before + 1);
+    CHECK(renderer.counters()->graph_cache_misses.load() == misses_before);
+}
+
+TEST_CASE("GraphCache - cache miss when renderable shape topology changes") {
+    SceneBuilder rect_builder;
+    rect_builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
+    Scene rect_scene = rect_builder.build();
+
+    SceneBuilder circle_builder;
+    circle_builder.circle("r", {.radius=25.0f, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
+    Scene circle_scene = circle_builder.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    render_frame(renderer, node_cache, rect_scene, camera, Frame{0});
+    const auto misses_before = renderer.counters()->graph_cache_misses.load();
+    auto rebuilt = render_frame(renderer, node_cache, circle_scene, camera, Frame{2});
+
+    REQUIRE(rebuilt != nullptr);
+    CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
+}
+
 TEST_CASE("GraphCache - cache miss when layer added") {
     SceneBuilder builder_a;
     builder_a.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});

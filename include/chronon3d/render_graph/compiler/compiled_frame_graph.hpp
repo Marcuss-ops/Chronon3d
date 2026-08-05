@@ -47,6 +47,11 @@ struct CompiledNodeInfo {
     int shape_type{-1};
     std::vector<int> source_shape_types;
 
+    // Stable processor family/type identity captured at compilation. This is
+    // structural metadata used by scene_refresh validation; per-frame
+    // payload refresh must never replace it.
+    std::string processor_id;
+
     SceneBindingMetadata binding_meta{};  // binding table metadata
 
     bool reachable{false};
