@@ -533,6 +533,44 @@ TEST_CASE("GraphCache - cache miss when layer added") {
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
 }
 
+TEST_CASE("GraphCache - failed fresh compile preserves previous cache") {
+    SceneBuilder valid_builder;
+    valid_builder.rect("r", {.size={40.0f, 40.0f}, .color=Color::red(), .pos={5.0f, 7.0f, 0.0f}});
+    const Scene valid_scene = valid_builder.build();
+
+    SceneBuilder invalid_builder;
+    invalid_builder.rect("r", {.size={40.0f, 40.0f}, .color=Color::blue(), .pos={25.0f, 27.0f, 0.0f}});
+    Scene invalid_scene = invalid_builder.build();
+    REQUIRE_FALSE(invalid_scene.nodes().empty());
+    invalid_scene.nodes().front().shape.set_type(ShapeType::None);
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    REQUIRE(render_frame(renderer, node_cache, valid_scene, camera, Frame{0}) != nullptr);
+    REQUIRE(renderer.graph_cache().has(100, 100));
+    auto previous = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(previous.has_value());
+    REQUIRE(previous->valid);
+    const auto previous_instance = previous->graph_instance_id;
+    renderer.graph_cache().store(std::move(*previous), 100, 100);
+
+    // A changed scene structure forces a fresh compile. ShapeType::None is
+    // rejected by the compiler; the coordinator must not consume the valid
+    // graph that was already cached for this resolution.
+    CHECK_THROWS(render_frame(renderer, node_cache, invalid_scene, camera, Frame{2}));
+    REQUIRE(renderer.graph_cache().has(100, 100));
+    auto preserved = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(preserved.has_value());
+    CHECK(preserved->valid);
+    CHECK(preserved->graph_instance_id == previous_instance);
+    renderer.graph_cache().store(std::move(*preserved), 100, 100);
+}
+
 TEST_CASE("GraphCache - pixel output matches non-cached path") {
     SceneBuilder builder;
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
