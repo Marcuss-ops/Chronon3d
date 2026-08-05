@@ -259,6 +259,76 @@ TEST_CASE("FrameGraphCompiler - lifetimes computation") {
     CHECK(compiled.lifetimes[b].last_level > compiled.lifetimes[b].first_level);
 }
 
+TEST_CASE("FrameGraphCompiler - structure hash includes edges and output") {
+    FrameGraphCompiler compiler;
+    RenderGraphContext ctx;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+
+    RenderGraph chain;
+    GraphNodeId a = chain.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b = chain.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId c = chain.add_node(std::make_unique<CompilerTestNode>("C"));
+    chain.connect(a, b);
+    chain.connect(b, c);
+    chain.set_output(c);
+    const auto chain_hash = compiler.compile(std::move(chain), ctx, options).structure_hash;
+
+    RenderGraph reordered;
+    GraphNodeId ra = reordered.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId rb = reordered.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId rc = reordered.add_node(std::make_unique<CompilerTestNode>("C"));
+    reordered.connect(ra, rc);
+    reordered.connect(rb, rc);
+    reordered.set_output(rc);
+    const auto reordered_hash = compiler.compile(std::move(reordered), ctx, options).structure_hash;
+
+    CHECK(chain_hash != reordered_hash);
+
+    RenderGraph alternate_output;
+    GraphNodeId oa = alternate_output.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId ob = alternate_output.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId oc = alternate_output.add_node(std::make_unique<CompilerTestNode>("C"));
+    alternate_output.connect(oa, ob);
+    alternate_output.connect(ob, oc);
+    alternate_output.set_output(ob);  // same nodes/edges; only output differs
+    const auto alternate_output_hash = compiler.compile(
+        std::move(alternate_output), ctx, options).structure_hash;
+    CHECK(alternate_output_hash != chain_hash);
+}
+
+TEST_CASE("FrameGraphCompiler - structure hash excludes frame and dynamic context") {
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+
+    auto make_graph = [] {
+        RenderGraph graph;
+        const auto source = graph.add_node(
+            std::make_unique<CompilerTestNode>("source"));
+        graph.set_output(source);
+        return graph;
+    };
+
+    RenderGraphContext frame_zero;
+    frame_zero.frame_input.frame = Frame{0};
+    frame_zero.frame_input.time_seconds = 0.0f;
+    frame_zero.frame_input.width = 1920;
+    frame_zero.frame_input.height = 1080;
+    const auto hash_zero = compiler.compile(
+        make_graph(), frame_zero, options).structure_hash;
+
+    RenderGraphContext frame_later;
+    frame_later.frame_input.frame = Frame{59};
+    frame_later.frame_input.time_seconds = 1.966f;
+    frame_later.frame_input.width = 1920;
+    frame_later.frame_input.height = 1080;
+    const auto hash_later = compiler.compile(
+        make_graph(), frame_later, options).structure_hash;
+
+    CHECK(hash_later == hash_zero);
+}
+
 TEST_CASE("FrameGraphCompiler - stable structure hash") {
     RenderGraph graph1;
     GraphNodeId a1 = graph1.add_node(std::make_unique<CompilerTestNode>("A"));
@@ -281,6 +351,16 @@ TEST_CASE("FrameGraphCompiler - stable structure hash") {
     auto compiled2 = compiler.compile(std::move(graph2), ctx, options);
 
     CHECK(compiled1.structure_hash == compiled2.structure_hash);
+
+    ctx.services.registry_generation = 2;
+    RenderGraph graph3;
+    GraphNodeId a3 = graph3.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b3 = graph3.add_node(std::make_unique<CompilerTestNode>("B"));
+    graph3.connect(a3, b3);
+    graph3.set_output(b3);
+    auto compiled3 = compiler.compile(std::move(graph3), ctx, options);
+
+    CHECK(compiled3.structure_hash != compiled1.structure_hash);
 }
 
 // ── TICKET-008 / §9.4 closure — `compile_with_reuse` reuse-path tests ──────────
@@ -454,7 +534,8 @@ TEST_CASE("FrameGraphCompiler - compile_with_reuse: post-conditions hold (Test E
     REQUIRE(compiled.valid);
     // structure_hash freshly derived equals compute_structure_hash on compiled.graph
     CHECK(compiled.structure_hash ==
-          FrameGraphCompiler::compute_structure_hash(compiled.graph, compiled.output));
+          FrameGraphCompiler::compute_structure_hash(
+              compiled.graph, compiled.output, ctx.services.registry_generation));
     // early_exit_skip propagated from ctx (per-node, size == graph.size())
     REQUIRE(compiled.early_exit_skip.size() == compiled.graph.size());
     CHECK(compiled.early_exit_skip[0] == true);

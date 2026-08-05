@@ -121,6 +121,13 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
 }
 
 void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& catalogs) {
+    // Preserve an already-wired runtime generation. This helper is also used
+    // with the shared builtin catalogs by the graph builder; overwriting the
+    // owning runtime's generation here would make scene and compiled-graph
+    // fingerprints disagree after a catalog revision.
+    if (ctx.services.registry_generation == 0) {
+        ctx.services.registry_generation = catalogs.registry_generation;
+    }
     ctx.services.node_catalog         = &catalogs.graph_nodes;
     ctx.services.effect_catalog       = &catalogs.effects;
     ctx.services.transition_catalog   = &catalogs.transition_catalog;
