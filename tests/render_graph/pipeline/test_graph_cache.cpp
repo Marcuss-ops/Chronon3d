@@ -128,6 +128,80 @@ TEST_CASE("GraphCache - refresh reuses topology for dynamic source changes") {
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before);
 }
 
+TEST_CASE("GraphCache - successful refresh changes only dynamic source state") {
+    SceneBuilder builder_a;
+    builder_a.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
+    const Scene scene_a = builder_a.build();
+
+    SceneBuilder builder_b;
+    builder_b.rect("r", {.size={50.0f, 50.0f}, .color=Color::blue(), .pos={17.0f, 11.0f, 0.0f}});
+    const Scene scene_b = builder_b.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    REQUIRE(render_frame(renderer, node_cache, scene_a, camera, Frame{0}) != nullptr);
+    auto cached = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(cached.has_value());
+
+    GraphNodeId source_id = k_invalid_node;
+    for (GraphNodeId id = 0; id < cached->graph.size(); ++id) {
+        if (!cached->graph.has_node(id)) continue;
+        const auto* source = dynamic_cast<const SourceNode*>(&cached->graph.node(id));
+        if (source && source->name() == "r") {
+            source_id = id;
+            break;
+        }
+    }
+    REQUIRE(source_id != k_invalid_node);
+
+    const auto* before = dynamic_cast<const SourceNode*>(&cached->graph.node(source_id));
+    REQUIRE(before != nullptr);
+    const auto before_position = before->render_node().world_transform.position;
+    const auto before_kind = before->kind();
+    const auto before_name = std::string(before->name());
+    const auto before_layer_id = std::string(before->layer_id());
+    const auto before_inputs = cached->graph.inputs(source_id);
+    const auto before_info = cached->nodes[source_id];
+    const auto before_consumers = before_info.consumers;
+    const auto before_policy = before_info.cache_policy;
+
+    auto refresh_ctx = make_graph_context(
+        renderer.backend(), node_cache, camera, 100, 100, Frame{2}, 0.0f,
+        renderer.render_settings(), renderer.composition_registry(),
+        renderer.video_decoder(), 30.0f);
+    chronon3d::graph::detail::setup_render_graph_context(refresh_ctx, scene_b, &renderer);
+    const auto resolved = chronon3d::graph::detail::resolve_layers(scene_b, refresh_ctx);
+    const auto result = chronon3d::graph::detail::refresh_compiled_graph_payloads(
+        *cached, scene_b, refresh_ctx, resolved);
+
+    REQUIRE(result);
+    const auto* after = dynamic_cast<const SourceNode*>(&cached->graph.node(source_id));
+    REQUIRE(after != nullptr);
+    CHECK(after->render_node().world_transform.position.x == 17.0f);
+    CHECK(after->render_node().world_transform.position.y == 11.0f);
+    CHECK(after->render_node().world_transform.position != before_position);
+    CHECK(after->kind() == before_kind);
+    CHECK(after->name() == before_name);
+    CHECK(after->layer_id() == before_layer_id);
+    CHECK(cached->graph.inputs(source_id) == before_inputs);
+    CHECK(cached->nodes[source_id].consumers == before_consumers);
+    CHECK(cached->nodes[source_id].id == before_info.id);
+    CHECK(cached->nodes[source_id].kind == before_info.kind);
+    CHECK(cached->nodes[source_id].name == before_info.name);
+    CHECK(cached->nodes[source_id].layer_id == before_info.layer_id);
+    CHECK(cached->nodes[source_id].processor_id == before_info.processor_id);
+    CHECK(cached->nodes[source_id].shape_type == before_info.shape_type);
+    CHECK(cached->nodes[source_id].source_shape_types == before_info.source_shape_types);
+    CHECK(cached->nodes[source_id].cache_policy.mode == before_policy.mode);
+    CHECK(cached->nodes[source_id].cache_policy.invalidation == before_policy.invalidation);
+    CHECK(cached->nodes[source_id].cache_policy.reason == before_policy.reason);
+}
+
 TEST_CASE("GraphCache - cache miss when renderable shape topology changes") {
     SceneBuilder rect_builder;
     rect_builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
@@ -276,6 +350,11 @@ TEST_CASE("GraphCache - failed refresh leaves every cached node unchanged") {
     const auto resolved = chronon3d::graph::detail::resolve_layers(scene_b, refresh_ctx);
 
     const auto key_before = source_before->cache_key(refresh_ctx);
+    const auto original_inputs = cached->graph.inputs(source_id);
+    const auto original_consumers = cached->nodes[source_id].consumers;
+    const auto original_processor_id = cached->nodes[source_id].processor_id;
+    const auto original_shape_type = cached->nodes[source_id].shape_type;
+    const auto original_policy = cached->nodes[source_id].cache_policy;
     const auto refresh_result = chronon3d::graph::detail::refresh_compiled_graph_payloads(
         *cached, scene_b, refresh_ctx, resolved);
 
@@ -294,6 +373,12 @@ TEST_CASE("GraphCache - failed refresh leaves every cached node unchanged") {
     CHECK(source_after->render_node().world_transform.position.x == old_position.x);
     CHECK(source_after->render_node().world_transform.position.y == old_position.y);
     CHECK(source_after->cache_key(refresh_ctx) == key_before);
+    CHECK(cached->graph.inputs(source_id) == original_inputs);
+    CHECK(cached->nodes[source_id].consumers == original_consumers);
+    CHECK(cached->nodes[source_id].processor_id == original_processor_id);
+    CHECK(cached->nodes[source_id].shape_type == original_shape_type);
+    CHECK(cached->nodes[source_id].cache_policy.mode == original_policy.mode);
+    CHECK(cached->nodes[source_id].cache_policy.invalidation == original_policy.invalidation);
 
     // Reinsert the rejected candidate, mirroring the coordinator's restore
     // path, and verify that the original cache entry remains available.
@@ -313,6 +398,106 @@ TEST_CASE("GraphCache - failed refresh leaves every cached node unchanged") {
         });
     REQUIRE(restored_metadata != restored->nodes.end());
     CHECK(restored_metadata->processor_id == forced_processor_id);
+}
+
+TEST_CASE("GraphCache - scene refresh reports missing processor explicitly") {
+    SceneBuilder builder;
+    builder.rect("r", {.size={40.0f, 40.0f}, .color=Color::red(), .pos={5.0f, 7.0f, 0.0f}});
+    const Scene scene = builder.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+    REQUIRE(render_frame(renderer, node_cache, scene, camera, Frame{0}) != nullptr);
+
+    auto cached = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(cached.has_value());
+    auto processor = std::find_if(cached->nodes.begin(), cached->nodes.end(),
+        [](const CompiledNodeInfo& info) { return info.reachable; });
+    REQUIRE(processor != cached->nodes.end());
+    processor->processor_id.clear();
+
+    auto refresh_ctx = make_graph_context(
+        renderer.backend(), node_cache, camera, 100, 100, Frame{2}, 0.0f,
+        renderer.render_settings(), renderer.composition_registry(),
+        renderer.video_decoder(), 30.0f);
+    chronon3d::graph::detail::setup_render_graph_context(refresh_ctx, scene, &renderer);
+    const auto resolved = chronon3d::graph::detail::resolve_layers(scene, refresh_ctx);
+    const auto result = chronon3d::graph::detail::refresh_compiled_graph_payloads(
+        *cached, scene, refresh_ctx, resolved);
+
+    CHECK_FALSE(result);
+    CHECK(result.status == chronon3d::graph::detail::SceneRefreshStatus::MissingProcessor);
+}
+
+TEST_CASE("GraphCache - scene refresh reports invalid renderable node explicitly") {
+    SceneBuilder valid_builder;
+    valid_builder.rect("r", {.size={40.0f, 40.0f}, .color=Color::red(), .pos={5.0f, 7.0f, 0.0f}});
+    const Scene valid_scene = valid_builder.build();
+
+    SceneBuilder invalid_builder;
+    invalid_builder.rect("r", {.size={40.0f, 40.0f}, .color=Color::red(), .pos={5.0f, 7.0f, 0.0f}});
+    Scene invalid_scene = invalid_builder.build();
+    REQUIRE_FALSE(invalid_scene.nodes().empty());
+    invalid_scene.nodes().front().shape.set_type(ShapeType::None);
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+    REQUIRE(render_frame(renderer, node_cache, valid_scene, camera, Frame{0}) != nullptr);
+
+    auto cached = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(cached.has_value());
+    auto refresh_ctx = make_graph_context(
+        renderer.backend(), node_cache, camera, 100, 100, Frame{2}, 0.0f,
+        renderer.render_settings(), renderer.composition_registry(),
+        renderer.video_decoder(), 30.0f);
+    chronon3d::graph::detail::setup_render_graph_context(refresh_ctx, invalid_scene, &renderer);
+    const auto resolved = chronon3d::graph::detail::resolve_layers(invalid_scene, refresh_ctx);
+    const auto result = chronon3d::graph::detail::refresh_compiled_graph_payloads(
+        *cached, invalid_scene, refresh_ctx, resolved);
+
+    CHECK_FALSE(result);
+    CHECK(result.status == chronon3d::graph::detail::SceneRefreshStatus::InvalidRenderableNode);
+}
+
+TEST_CASE("GraphCache - scene refresh rejects consumer metadata changes") {
+    SceneBuilder builder;
+    builder.rect("r", {.size={40.0f, 40.0f}, .color=Color::red(), .pos={5.0f, 7.0f, 0.0f}});
+    const Scene scene = builder.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+    REQUIRE(render_frame(renderer, node_cache, scene, camera, Frame{0}) != nullptr);
+
+    auto cached = renderer.graph_cache().try_take(100, 100);
+    REQUIRE(cached.has_value());
+    auto metadata = std::find_if(cached->nodes.begin(), cached->nodes.end(),
+        [](const CompiledNodeInfo& info) { return info.reachable && !info.consumers.empty(); });
+    REQUIRE(metadata != cached->nodes.end());
+    metadata->consumers.clear();
+
+    auto refresh_ctx = make_graph_context(
+        renderer.backend(), node_cache, camera, 100, 100, Frame{2}, 0.0f,
+        renderer.render_settings(), renderer.composition_registry(),
+        renderer.video_decoder(), 30.0f);
+    chronon3d::graph::detail::setup_render_graph_context(refresh_ctx, scene, &renderer);
+    const auto resolved = chronon3d::graph::detail::resolve_layers(scene, refresh_ctx);
+    const auto result = chronon3d::graph::detail::refresh_compiled_graph_payloads(
+        *cached, scene, refresh_ctx, resolved);
+
+    CHECK_FALSE(result);
+    CHECK(result.status == chronon3d::graph::detail::SceneRefreshStatus::TopologyMismatch);
 }
 
 TEST_CASE("GraphCache - cache miss when layer added") {
