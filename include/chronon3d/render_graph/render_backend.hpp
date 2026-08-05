@@ -15,9 +15,14 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <typeindex>
 #include <variant>
 
 namespace chronon3d {
+    namespace renderer {
+        class ShapeProcessor;
+        class EffectProcessor;
+    }
     struct RenderNode;
     struct RenderState;
     struct RenderCounters;
@@ -180,6 +185,22 @@ public:
     [[nodiscard]] virtual std::optional<RenderBackendError> validate_render_node(
         const RenderNode& /*node*/) const {
         return std::nullopt;
+    }
+
+    /// Resolve a shape processor during graph compilation. The compiled
+    /// graph owns the resulting non-owning binding for execution; the
+    /// registry generation is part of cache validity, so a replaced
+    /// processor cannot be used by a stale graph.
+    [[nodiscard]] virtual renderer::ShapeProcessor* resolve_shape_processor(
+        const RenderNode& /*node*/) const noexcept {
+        return nullptr;
+    }
+
+    /// Resolve an effect processor during graph compilation. The default is
+    /// null for lightweight/mock backends that do not execute software effects.
+    [[nodiscard]] virtual renderer::EffectProcessor* resolve_effect_processor(
+        std::type_index /*params_type*/) const noexcept {
+        return nullptr;
     }
 
     virtual void apply_effect_stack(

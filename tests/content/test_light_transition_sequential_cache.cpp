@@ -22,7 +22,7 @@ namespace {
 
 constexpr int kWarmupFirstFrame = 0;
 constexpr int kWarmupLastFrame = 29;
-constexpr int kObservedFirstFrame = 30;
+constexpr int kObservedFirstFrame = 20;
 constexpr int kObservedLastFrame = 36;
 constexpr std::size_t kObservedFrameCount =
     static_cast<std::size_t>(kObservedLastFrame - kObservedFirstFrame + 1);
@@ -81,6 +81,7 @@ FrameHashes render_sequential_frames(const Composition& composition) {
 
 TEST_CASE("LightTransition cache reproduction: independent and sequential frames match") {
     const auto composition = content::launches::light_transition_copper_flash();
+
 
     const auto independent = render_independent_frames(composition);
     const auto sequential = render_sequential_frames(composition);

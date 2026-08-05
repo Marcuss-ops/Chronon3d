@@ -283,6 +283,11 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.node_exec.shared_dof_depth = node_exec.shared_dof_depth
         ? node_exec.shared_dof_depth
         : const_cast<std::vector<float>*>(&node_exec.dof_depth);
+    copy.node_exec.current_identity = node_exec.current_identity;
+    copy.node_exec.current_shape_processor = node_exec.current_shape_processor;
+    copy.node_exec.current_shape_processors = node_exec.current_shape_processors;
+    copy.node_exec.current_effect_processors = node_exec.current_effect_processors;
+    copy.node_exec.processor_bindings_compiled = node_exec.processor_bindings_compiled;
     // scratch views (transform_scratch, ping_write, reusable_inputs)
     // are intentionally default-initialised in the clone (no aliases to
     // the parent's per-node scratch state).

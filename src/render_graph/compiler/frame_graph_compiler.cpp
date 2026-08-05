@@ -35,6 +35,7 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     }
 
     CompiledFrameGraph compiled;
+    compiled.registry_generation = ctx.services.registry_generation;
     if (!graph.has_output()) {
         compiled.valid = false;
         compiled.graph = std::move(graph);
@@ -187,6 +188,7 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
     const FrameGraphCompileOptions& options
 ) const {
     CompiledFrameGraph compiled;
+    compiled.registry_generation = ctx.services.registry_generation;
     if (!graph.has_output()) {
         compiled.valid = false;
         compiled.graph = std::move(graph);
