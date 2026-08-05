@@ -50,7 +50,12 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
         auto source = graph.add_node(std::make_unique<SourceNode>(
             std::string(node.name), node, source_key,
             root_matrix,
-            std::optional<f32>(node.world_transform.opacity)
+            std::optional<f32>(node.world_transform.opacity),
+            // Root nodes are evaluated from the current Scene, and the
+            // authored root payload may change between frames. They do not
+            // have the layer static-analysis metadata used by layer sources,
+            // so the conservative correct policy is frame-variant.
+            frame_variant_cache("root_source")
         ));
 
         if (first_root_source) {

@@ -243,9 +243,10 @@ static void log_graph_cache_diagnostics(
             std::memory_order_relaxed);
     }
 
-    compiled.skip_initial_clear = false;
-    compiled.early_exit_skip.assign(compiled.graph.size(), false);
-
+    // Preserve optimization metadata computed during compilation. These
+    // fields are part of the cached graph contract; resetting them on a warm
+    // path can change clear/early-exit behavior and make sequential output
+    // diverge from an independent cold render.
     ctx.policy.skip_initial_clear = compiled.skip_initial_clear;
     ctx.node_exec.early_exit_skip = compiled.early_exit_skip;
 
