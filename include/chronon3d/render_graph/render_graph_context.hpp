@@ -241,6 +241,11 @@ struct RenderServices {
     /// MUST treat the build as unavailable and return empty output.
     const class PrecompBuilderService* precomp_builder{nullptr};
 
+    /// Canonical generation of the node/effect/transition registries used to
+    /// compile this graph. A registry change invalidates topology reuse even
+    /// when authored scene data is unchanged.
+    std::uint64_t registry_generation{0};
+
     /// TICKET-010 / TICKET-011 — PR-B scheduler accessor.  PrecompNode
     /// dereferences `*ctx.services.scheduler` to route its inner execute()
     /// through the same arena as the parent graph.  Set by

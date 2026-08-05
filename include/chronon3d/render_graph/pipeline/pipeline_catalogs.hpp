@@ -20,6 +20,7 @@
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 
 #include <memory>
+#include <cstdint>
 
 namespace chronon3d {
     struct ExtensionContext;
@@ -31,6 +32,11 @@ namespace chronon3d::graph {
 /// Constructed by the host, then passed by const-ref to the pipeline +
 /// graph coordinator.
 struct PipelineCatalogs {
+    /// Monotonic catalog generation supplied to topology fingerprints.
+    /// Hosts that replace or extend the frozen catalogs must advance this
+    /// value so compiled-graph reuse cannot cross registry revisions.
+    std::uint64_t                 registry_generation{1};
+
     GraphNodeCatalog             graph_nodes;
     effects::EffectCatalog       effects;
     LayerTransitionCatalog       transition_catalog;

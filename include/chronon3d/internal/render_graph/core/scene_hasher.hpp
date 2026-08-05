@@ -39,9 +39,14 @@ public:
     /// excludes the current frame and dynamic render payloads such as
     /// transforms, opacity, colours, text content, and shape dimensions.
     ///
-    /// This is the single topology fingerprint for scene/cache decisions;
-    /// callers must not introduce a parallel topology hash.
-    uint64_t compute_structure_fingerprint(const Scene& scene);
+    /// This is the canonical authored-scene topology fingerprint for
+    /// scene/cache decisions. The compiled-graph hash is a separate
+    /// representation at the compiler boundary and must use the same
+    /// structural/dynamic exclusion contract. The optional registry
+    /// generation is structural cache context, not scene payload.
+    uint64_t compute_structure_fingerprint(
+        const Scene& scene,
+        uint64_t registry_generation = 0);
 
     /// Returns true if the scene is "static" — i.e. safe to reuse the same
     /// framebuffer across consecutive frames. A scene is static when:

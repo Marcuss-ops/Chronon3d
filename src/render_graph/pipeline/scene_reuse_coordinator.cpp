@@ -56,7 +56,8 @@ ReuseEvaluation evaluate_early_reuse_phases(
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
 
         FrameFingerprints reuse_fps = compute_frame_fingerprints(
-            sw_renderer->scene_hasher(), scene, frame);
+            sw_renderer->scene_hasher(), scene, frame,
+            ctx.services.registry_generation);
 
         auto reuse = evaluate_resolved_scene_reuse(
             sw_renderer, scene, frame, cam, reuse_fps,
@@ -74,7 +75,8 @@ ReuseEvaluation evaluate_early_reuse_phases(
     // first frame (previous chicken-and-egg gating broke the first-frame
     // history population).
     ev.frame_fp = compute_frame_fingerprints(
-        sw_renderer->scene_hasher(), scene, frame);
+        sw_renderer->scene_hasher(), scene, frame,
+        ctx.services.registry_generation);
 
     if (sw_renderer->frame_history().prev_static_scene_fingerprint != 0) {
         ev.scene_structure_unchanged =
