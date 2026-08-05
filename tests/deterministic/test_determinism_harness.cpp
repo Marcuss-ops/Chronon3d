@@ -42,8 +42,11 @@ Composition make_animated_test_comp() {
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
             float x = static_cast<float>(ctx.frame()) * 2.0f;
-            s.rect("bg", {.size = {320, 180}, .color = Color{0.05f, 0.05f, 0.05f, 1.0f}, .pos = {0, 0, 0}});
-            s.rect("moving_box", {.size = {40, 40}, .color = Color::white(), .pos = {x - 160.0f, 0, 0}});
+            // Keep both frames in the visible canvas: the previous
+            // x-160/y=0 placement put frames 10 and 20 entirely off-screen,
+            // so the "different frames" assertion compared two backgrounds.
+            s.rect("bg", {.size = {320, 180}, .color = Color{0.05f, 0.05f, 0.05f, 1.0f}, .pos = {160, 90, 0}});
+            s.rect("moving_box", {.size = {40, 40}, .color = Color::white(), .pos = {x, 90, 0}});
             return s.build();
         }
     );
