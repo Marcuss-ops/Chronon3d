@@ -4,6 +4,8 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/transition_node.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -116,6 +118,41 @@ TEST_CASE("FrameGraphCompiler - rejects renderable ShapeType::None before execut
     }
 }
 
+TEST_CASE("FrameGraphCompiler - accepts Image Shape with resolved processor") {
+    auto graph = make_single_source_graph(ShapeType::Image);
+    ValidationBackend backend(/*missing_processor=*/false);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    FrameGraphCompiler compiler;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx);
+    CHECK(compiled.valid);
+}
+
+TEST_CASE("FrameGraphCompiler - TextRun bypasses Shape processor validation") {
+    RenderGraph graph;
+    RenderNode render_ref;
+    render_ref.shape.set_type(ShapeType::None);
+    const auto text_id = graph.add_node(std::make_unique<TextRunNode>(
+        "text", "layer", nullptr, render_ref, cache::NodeCacheKey{},
+        TextRunPlacement{}));
+    graph.set_output(text_id);
+
+    // TextRunNode owns a dedicated text processor path. Its render reference
+    // is intentionally ShapeType::None and must not be sent to a ShapeProcessor.
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 100;
+    ctx.frame_input.height = 100;
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.compute_bboxes = false;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx, options);
+    CHECK(compiled.valid);
+    REQUIRE(compiled.nodes.size() > text_id);
+    CHECK(compiled.nodes[text_id].kind == RenderGraphNodeKind::TextRun);
+}
+
 TEST_CASE("FrameGraphCompiler - rejects renderable without backend before execution") {
     auto graph = make_single_source_graph(ShapeType::Rect);
     RenderGraphContext ctx;
@@ -127,6 +164,33 @@ TEST_CASE("FrameGraphCompiler - rejects renderable without backend before execut
     } catch (const std::runtime_error& error) {
         CHECK(std::string(error.what()).find("no render backend") != std::string::npos);
     }
+}
+
+TEST_CASE("FrameGraphCompiler - Transition bypasses ShapeType validation") {
+    RenderGraph graph;
+    LayerTransitionSpec transition_spec{
+        .transition_id = "crossfade",
+        .duration = 1.0,
+        .delay = 0.0,
+        .easing = Easing::Linear,
+    };
+    const auto transition_id = graph.add_node(std::make_unique<TransitionNode>(
+        "layer", transition_spec, false, Frame{0}, Frame{30}));
+    graph.set_output(transition_id);
+
+    // No backend or shape processor is needed: TransitionNode is a
+    // framebuffer operator, not a Shape processor input.
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 100;
+    ctx.frame_input.height = 100;
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.compute_bboxes = false;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx, options);
+    CHECK(compiled.valid);
+    REQUIRE(compiled.nodes.size() > transition_id);
+    CHECK(compiled.nodes[transition_id].kind == RenderGraphNodeKind::Transition);
 }
 
 TEST_CASE("FrameGraphCompiler - rejects missing render processor before execution") {

@@ -314,6 +314,21 @@ void FrameGraphCompiler::build_node_metadata(
     }
 }
 
+namespace {
+
+// The graph taxonomy deliberately keeps non-shape nodes out of the shape
+// processor boundary. Null/Group/Control are not RenderGraphNodeKind values
+// in this repository; TextRun has its own processor path, Image is an
+// ordinary renderable ShapeType, and Transition is a graph node that operates
+// on framebuffer inputs. Only SourceNode/MultiSourceNode payloads enter this
+// validator, so a non-shape node can never be rejected as ShapeType::None.
+[[nodiscard]] bool uses_shape_processor(const RenderGraphNode& node) noexcept {
+    return dynamic_cast<const SourceNode*>(&node) != nullptr ||
+           dynamic_cast<const MultiSourceNode*>(&node) != nullptr;
+}
+
+} // namespace
+
 void FrameGraphCompiler::validate_renderable_shape(
     const ::chronon3d::RenderNode& render_node,
     const CompiledNodeInfo& node_info,
@@ -323,7 +338,7 @@ void FrameGraphCompiler::validate_renderable_shape(
     if (shape_type == ShapeType::None) {
         throw std::runtime_error(
             "FrameGraphCompiler: renderable Shape node '" +
-            node_info.name + "' has ShapeType::None");
+            node_info.name + "' has ShapeType::None and cannot reach a shape processor");
     }
 
     if (!ctx.services.backend) {
@@ -363,6 +378,14 @@ void FrameGraphCompiler::validate_renderable_graph(
             continue;
         }
         const auto& node = graph.node(id);
+        if (!uses_shape_processor(node)) {
+            // TextRunNode, TransitionNode, and the remaining graph operators
+            // have dedicated processor/input paths. They must not be forced
+            // through ShapeType validation; Null/Group/Control are likewise
+            // absent from this graph taxonomy rather than represented by a
+            // fake ShapeType::None placeholder.
+            continue;
+        }
         if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
             CompiledNodeInfo info;
             info.id = id;
