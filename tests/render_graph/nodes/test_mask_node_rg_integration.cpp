@@ -54,14 +54,9 @@ uint64_t alpha_hash(const Framebuffer& fb) {
 }
 }  // namespace
 
-// TICKET-007.a (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; mask rect alpha clipping math regressed.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — alpha threshold assertions fail for mask clipping.
-// TODO(chronon3d): fix mask rect rendering and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square" * doctest::skip()) {
+// The background is intentionally opaque, so the post-composite alpha remains
+// 1.0 both inside and outside the mask. Sample foreground RGB instead.
+TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square") {
     auto r = mask_rg_impl::make_mask_rg_renderer();
     auto comp = composition({.width = 256, .height = 256, .duration = 1},
         [](const FrameContext& ctx) {
@@ -87,21 +82,16 @@ TEST_CASE("PR2-RG-Mask: rectangular mask_rect clips a circle into a square" * do
     auto fb = r.render(comp, 0);
     REQUIRE(fb != nullptr);
 
-    const Color outside_clip = fb->get_pixel(20, 20);
-    CHECK(outside_clip.a < 0.05f);
+    // (60,128) is inside the radius-80 circle but outside the centered
+    // 120x120 mask rectangle.  The opaque background must show through.
+    const Color outside_clip = fb->get_pixel(55, 128);
+    CHECK(outside_clip.r < 0.20f);
 
     const Color center = fb->get_pixel(128, 128);
-    CHECK(center.a > 0.85f);
+    CHECK(center.r > 0.85f);
 }
 
-// TICKET-007.b (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; inverted mask alpha scaling bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — alpha threshold assertions fail for inverted mask.
-// TODO(chronon3d): fix inverted mask rendering and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("PR2-RG-Mask: inverted mask_rect zeroes interior alpha" * doctest::skip()) {
+TEST_CASE("PR2-RG-Mask: inverted mask_rect suppresses interior foreground") {
     auto r = mask_rg_impl::make_mask_rg_renderer();
     auto comp = composition({.width = 256, .height = 256, .duration = 1},
         [](const FrameContext& ctx) {
@@ -127,11 +117,13 @@ TEST_CASE("PR2-RG-Mask: inverted mask_rect zeroes interior alpha" * doctest::ski
     auto fb = r.render(comp, 0);
     REQUIRE(fb != nullptr);
 
+    // In the inverted case the centered mask suppresses the circle at its
+    // center, while this point remains inside the circle and outside the mask.
     const Color centre = fb->get_pixel(128, 128);
-    CHECK(centre.a < 0.05f);
+    CHECK(centre.r < 0.20f);
 
-    const Color outside = fb->get_pixel(20, 20);
-    CHECK(outside.a > 0.50f);
+    const Color outside = fb->get_pixel(55, 128);
+    CHECK(outside.r > 0.85f);
 }
 
 TEST_CASE("PR2-RG-Mask: render is deterministic across two calls") {
