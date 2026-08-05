@@ -42,6 +42,9 @@ add_library(chronon3d_content OBJECT
     showcases/important-words/important_words_animations.cpp
     showcases/grid/grid_showcase.cpp
 
+    # ── Core 2.5D showcases ───────────────────────────────────────────────
+    showcases/2d5/two_point_five_d_compositions.cpp
+
     # Anim registration gateway (bridges showcases + examples + experimental)
     animation_compositions.cpp
 
