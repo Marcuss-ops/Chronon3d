@@ -194,6 +194,51 @@ TEST_CASE("LightTransition: authored layer topology is stable across timeline bo
     }
 }
 
+TEST_CASE("LightTransition: opacity zero preserves authored node identity and shape validity") {
+    CompositionRegistry registry;
+    ensure_content_registered_smoke(registry);
+
+    const auto comp = registry.create("LightTransitionCopperFlash");
+    const std::array<Frame, 3> zero_opacity_frames = {
+        Frame{0}, Frame{20}, Frame{32}
+    };
+    const std::array<const char*, 4> expected_zero_opacity_layers = {
+        "light_leak_band_0", "light_leak_band_1", "light_leak_band_2",
+        "light_leak_flare"
+    };
+    const auto baseline = comp.evaluate(zero_opacity_frames.front());
+
+    for (const auto frame : zero_opacity_frames) {
+        const auto scene = comp.evaluate(frame);
+        REQUIRE(scene.layers().size() == 6);
+
+        for (const auto* expected_name : expected_zero_opacity_layers) {
+            const auto baseline_it = std::find_if(
+                baseline.layers().begin(), baseline.layers().end(),
+                [expected_name](const auto& layer) {
+                    return layer.name == expected_name;
+                });
+            REQUIRE(baseline_it != baseline.layers().end());
+            REQUIRE(baseline_it->nodes.size() == 1);
+
+            const auto layer_it = std::find_if(
+                scene.layers().begin(), scene.layers().end(),
+                [expected_name](const auto& layer) {
+                    return layer.name == expected_name;
+                });
+            REQUIRE(layer_it != scene.layers().end());
+            CHECK(layer_it->kind == baseline_it->kind);
+            CHECK(layer_it->nodes.size() == baseline_it->nodes.size());
+            CHECK(layer_it->transform.opacity == doctest::Approx(0.0f));
+            REQUIRE(layer_it->nodes.size() == 1);
+            CHECK(layer_it->nodes.front().name == baseline_it->nodes.front().name);
+            CHECK(layer_it->nodes.front().shape.type() ==
+                  baseline_it->nodes.front().shape.type());
+            CHECK(layer_it->nodes.front().shape.type() != ShapeType::None);
+        }
+    }
+}
+
 #endif
 
 TEST_CASE("All registered compositions: evaluate at mid-duration frame") {
