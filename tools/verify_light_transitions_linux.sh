@@ -147,24 +147,29 @@ frame_path() {
     printf '%s/frame_%04d.png' "$1" "$2"
 }
 
-pixel_values() {
-    convert "$1" -format '%[fx:r] %[fx:g] %[fx:b] %[fx:a]\n' info:
+pixel_values_at() {
+    local image=$1
+    local x=$2
+    local y=$3
+    convert "$image" -format "%[fx:p{$x,$y}.r] %[fx:p{$x,$y}.g] %[fx:p{$x,$y}.b] %[fx:p{$x,$y}.a]\n" info:
 }
 
-assert_pixel_near() {
+assert_pixel_near_at() {
     local image=$1
-    local expected_r=$2
-    local expected_g=$3
-    local expected_b=$4
-    local epsilon=$5
+    local x=$2
+    local y=$3
+    local expected_r=$4
+    local expected_g=$5
+    local expected_b=$6
+    local epsilon=$7
     local values
-    values=$(pixel_values "$image") || fail "cannot inspect pixel: $image"
+    values=$(pixel_values_at "$image" "$x" "$y") || fail "cannot inspect pixel: $image ($x,$y)"
     read -r r g b a <<< "$values"
     awk -v r="$r" -v g="$g" -v b="$b" -v a="$a" \
         -v er="$expected_r" -v eg="$expected_g" -v eb="$expected_b" \
         -v e="$epsilon" \
         'BEGIN { exit !(a >= 0.0 && a <= 1.0 && r >= er-e && r <= er+e && g >= eg-e && g <= eg+e && b >= eb-e && b <= eb+e) }' \
-        || fail "unexpected boundary pixel in $image: $values"
+        || fail "unexpected pixel at ($x,$y) in $image: $values"
 }
 
 assert_not_black() {
@@ -219,10 +224,12 @@ done
 
 cmp -s "$(frame_path "$WORK_DIR/run_a" 19)" "$(frame_path "$WORK_DIR/run_a" 20)" \
     || fail "frame 20 does not begin at the declared half-open boundary"
-assert_pixel_near "$(frame_path "$WORK_DIR/run_a" 19)" 0.03 0.08 0.22 0.04
-assert_pixel_near "$(frame_path "$WORK_DIR/run_a" 20)" 0.03 0.08 0.22 0.04
-assert_pixel_near "$(frame_path "$WORK_DIR/run_a" 26)" 1.0 1.0 1.0 0.02
-assert_pixel_near "$(frame_path "$WORK_DIR/run_a" 32)" 0.28 0.03 0.04 0.04
+# Corner probes avoid the centered scene labels; frame 26 uses the
+# integration test's canonical center probe for the flare peak.
+assert_pixel_near_at "$(frame_path "$WORK_DIR/run_a" 19)" 0 0 0.03 0.08 0.22 0.04
+assert_pixel_near_at "$(frame_path "$WORK_DIR/run_a" 20)" 0 0 0.03 0.08 0.22 0.04
+assert_pixel_near_at "$(frame_path "$WORK_DIR/run_a" 26)" 960 540 1.0 1.0 1.0 0.02
+assert_pixel_near_at "$(frame_path "$WORK_DIR/run_a" 32)" 0 0 0.28 0.03 0.04 0.04
 
 for frame in 19 20 23 26 29 31 32; do
     random_image=$(frame_path "$WORK_DIR/run_random" "$frame")
