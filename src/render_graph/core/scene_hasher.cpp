@@ -106,9 +106,13 @@ uint64_t SceneHasher::compute_static_fingerprint(const Scene& scene) {
     return h;
 }
 
-uint64_t SceneHasher::compute_structure_fingerprint(const Scene& scene) {
+uint64_t SceneHasher::compute_structure_fingerprint(
+    const Scene& scene,
+    uint64_t registry_generation) {
     uint64_t h = 0;
-    h = hash_combine(h, hash_string("chronon.scene-topology.v1"));
+    h = hash_combine(h, hash_string("chronon.scene-topology.v2"));
+    h = hash_combine(h, hash_string("registry-generation"));
+    h = hash_combine(h, registry_generation);
 
     // Root-source order and identity are graph topology: root sources are
     // emitted in this order by the builder.  Do not fold their render values
@@ -137,6 +141,10 @@ uint64_t SceneHasher::compute_structure_fingerprint(const Scene& scene) {
             h = hash_combine(h, hash_value(static_cast<int>(node.shape.type())));
             h = hash_combine(h, hash_value(static_cast<int>(node.surface_policy)));
             h = hash_combine(h, hash_value(static_cast<int>(node.transform_policy)));
+            // The authored node's processor family is its structural shape
+            // discriminator. Input edges are represented by authored order
+            // and parent/track-matte identities below; dynamic payloads stay
+            // excluded from this fingerprint.
         }
 
         // The builder emits one graph node per enabled effect.  Effect

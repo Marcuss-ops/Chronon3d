@@ -41,6 +41,7 @@ struct FrameFingerprints {
 [[nodiscard]] FrameFingerprints compute_frame_fingerprints(
     graph::SceneHasher& hasher,
     const Scene& scene,
-    Frame frame);
+    Frame frame,
+    std::uint64_t registry_generation = 0);
 
 } // namespace chronon3d::graph

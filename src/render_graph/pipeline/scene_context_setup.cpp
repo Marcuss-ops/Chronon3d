@@ -19,6 +19,8 @@
 #include "camera_change_policy.hpp"  // chronon3d::graph::detail::camera_changed used by Phase 2
 #include "helpers.hpp"               // resolve_scene_camera, build_graph_context, make_default_pipeline_flags
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 #include <cassert>
 
@@ -83,6 +85,12 @@ SoftwareRenderer* setup_render_graph_context(
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
         ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
+        // The runtime owns the canonical pipeline catalogs. Propagate their
+        // generation before scene fingerprinting (which runs immediately
+        // after this setup phase), so reuse decisions are registry-aware.
+        ctx.services.registry_generation = hash_combine(
+            sw_renderer->runtime().catalogs().registry_generation,
+            sw_renderer->software_registry().generation());
         ctx.services.node_catalog = &sw_renderer->graph_node_registry();
         ctx.services.effect_catalog = &sw_renderer->effect_catalog();
         // ── PR-B: propagate scheduler to nested graph call sites ──────

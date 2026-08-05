@@ -10,8 +10,14 @@
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
-#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include <chronon3d/render_graph/nodes/transition_node.hpp>
+#include <chronon3d/render_graph/nodes/clip_transition_node.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <algorithm>
 #include <functional>
 #include <stdexcept>
@@ -55,7 +61,8 @@ CompiledFrameGraph FrameGraphCompiler::compile(
         compute_resource_lifetimes(compiled);
     }
 
-    compiled.structure_hash = compute_structure_hash(compiled.graph, compiled.output);
+    compiled.structure_hash = compute_structure_hash(
+        compiled.graph, compiled.output, ctx.services.registry_generation);
     compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
 
     compiled.early_exit_skip.assign(node_count, false);
@@ -107,18 +114,68 @@ CompiledFrameGraph FrameGraphCompiler::compile(
 
 std::uint64_t FrameGraphCompiler::compute_structure_hash(
     const RenderGraph& graph,
-    GraphNodeId output
+    GraphNodeId output,
+    std::uint64_t registry_generation
 ) {
-    uint64_t sig = hash_value(graph.size());
+    uint64_t sig = hash_string("chronon.compiled-topology.v2");
+    sig = hash_combine(sig, hash_value(registry_generation));
+    sig = hash_combine(sig, hash_value(graph.size()));
     for (GraphNodeId id = 0; id < graph.size(); ++id) {
         if (!graph.has_node(id)) continue;
-        sig = hash_combine(sig, hash_value(static_cast<int>(graph.node(id).kind())));
+        const auto& node = graph.node(id);
+        sig = hash_combine(sig, hash_value(id));
+        sig = hash_combine(sig, hash_value(static_cast<int>(node.kind())));
+        sig = hash_combine(sig, hash_string(node.name()));
+        sig = hash_combine(sig, hash_string(node.layer_id()));
+        sig = hash_combine(sig, hash_value(static_cast<int>(node.cache_policy().mode)));
+        sig = hash_combine(sig, hash_value(static_cast<int>(node.cache_policy().invalidation)));
+
+        // Processor/type identity is represented by the concrete node's
+        // structural discriminator. Dynamic matrices, opacity and sampled
+        // values are intentionally excluded.
+        if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+            sig = hash_combine(sig, hash_string("processor.source"));
+            sig = hash_combine(sig, hash_value(static_cast<int>(source->render_node().shape.type())));
+        } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
+            sig = hash_combine(sig, hash_string("processor.multi_source"));
+            sig = hash_combine(sig, hash_value(multi->items().size()));
+            for (const auto& item : multi->items()) {
+                sig = hash_combine(sig, item.node
+                    ? hash_value(static_cast<int>(item.node->shape.type()))
+                    : hash_string("null-item"));
+            }
+        } else if (const auto* effect = dynamic_cast<const EffectStackNode*>(&node)) {
+            sig = hash_combine(sig, hash_string("processor.effect_stack"));
+            for (const auto& instance : effect->effects()) {
+                if (!instance.enabled) continue;
+                sig = hash_combine(sig, hash_string(instance.descriptor.id));
+                sig = hash_combine(sig, hash_value(static_cast<int>(instance.effect_type)));
+            }
+        } else if (const auto* adjustment = dynamic_cast<const AdjustmentNode*>(&node)) {
+            sig = hash_combine(sig, hash_string("processor.adjustment"));
+            for (const auto& instance : adjustment->effects()) {
+                if (!instance.enabled) continue;
+                sig = hash_combine(sig, hash_string(instance.descriptor.id));
+                sig = hash_combine(sig, hash_value(static_cast<int>(instance.effect_type)));
+            }
+        } else if (dynamic_cast<const TransitionNode*>(&node)) {
+            sig = hash_combine(sig, hash_string("processor.transition"));
+            sig = hash_combine(sig, hash_string(node.name()));
+        } else if (dynamic_cast<const ClipTransitionNode*>(&node)) {
+            sig = hash_combine(sig, hash_string("processor.clip_transition"));
+            sig = hash_combine(sig, hash_string(node.name()));
+        } else {
+            sig = hash_combine(sig, hash_string("processor."));
+        }
+
         const auto& inputs = graph.inputs(id);
         sig = hash_combine(sig, hash_value(inputs.size()));
         for (GraphNodeId input : inputs) {
             sig = hash_combine(sig, hash_value(input));
         }
     }
+    // The output node is part of the compiled graph contract.
+    sig = hash_combine(sig, hash_string("output"));
     sig = hash_combine(sig, hash_value(output));
     return sig;
 }
@@ -147,7 +204,8 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
 
     // ── TICKET-008 / §9.4 — skip predicate ──────────────────────────────────
     const std::uint64_t current_hash =
-        compute_structure_hash(graph, compiled.output);
+        compute_structure_hash(
+            graph, compiled.output, ctx.services.registry_generation);
     const bool skip_heavy_phases =
         options.reuse_if_unchanged_predicate_safe()
         && ctx.policy.graph_structure_unchanged
@@ -180,7 +238,8 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         compute_resource_lifetimes(compiled);
     }
 
-    compiled.structure_hash = compute_structure_hash(compiled.graph, compiled.output);
+    compiled.structure_hash = compute_structure_hash(
+        compiled.graph, compiled.output, ctx.services.registry_generation);
     compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
 
     compiled.early_exit_skip.assign(node_count, false);
