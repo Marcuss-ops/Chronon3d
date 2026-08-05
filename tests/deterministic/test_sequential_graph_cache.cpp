@@ -19,12 +19,12 @@
 //   * Temporal effects (motion blur) and dirty-rect/tile reuse are DISABLED so
 //     the comparison isolates graph/node-cache output, not framebuffer
 //     accumulation across frames.
-//   * `settings.diagnostics.enabled = true` follows the documented pattern in
-//     tests/content/test_light_transition_sequential_cache.cpp: the
-//     diagnostics flag changes the predicted-bbox semantics
-//     (SourceNode/MultiSourceNode clip bboxes to the frame only when
-//     diagnostics are disabled), which is a runtime behavior owned by the
-//     graph-cache fix tranche — this verifier locks the parity contract.
+//   * Diagnostics are intentionally disabled. A logging flag must not change
+//     rendered pixels; keeping it OFF reproduces the production configuration
+//     and exposes the currently documented bbox/cache divergence.
+//
+// This commit is the reproduction phase only: the expected result is a red
+// test until the cache/static-classification fix is implemented.
 // =============================================================================
 
 #include <doctest/doctest.h>
@@ -129,9 +129,14 @@ void verify_order(const std::string& order_name,
     settings.dirty.enabled = false;
     settings.dirty.use_bitmask = false;
     settings.dirty.use_tiles = false;
-    // Canonical fixture pattern — see the file header comment.
-    settings.diagnostics.enabled = true;
+    // Reproduce the production configuration. Diagnostics must not alter the
+    // rendered result, and OFF is the known-red path for this fixture.
+    settings.diagnostics.enabled = false;
     shared_runtime->set_settings(settings);
+
+    int mismatch_count = 0;
+    int first_divergent_position = -1;
+    int first_divergent_frame = -1;
 
     // One shared runtime is intentionally used for the complete order. This
     // is the cache-under-test: every call observes the prior frame's graph
@@ -160,13 +165,33 @@ void verify_order(const std::string& order_name,
         REQUIRE(independent_frame->height() == kHeight);
         const std::uint64_t independent_hash = framebuffer_hash(*independent_frame);
 
+        const bool matches = shared_hash == independent_hash;
+        if (!matches) {
+            ++mismatch_count;
+            if (first_divergent_position < 0) {
+                first_divergent_position = static_cast<int>(position);
+                first_divergent_frame = frame_value;
+            }
+        }
+
         INFO("order=", order_name,
              " position=", position,
              " frame=", frame_value,
              " shared_hash=", shared_hash,
-             " independent_hash=", independent_hash);
-        CHECK(shared_hash == independent_hash);
+             " independent_hash=", independent_hash,
+             " first_divergent_position=", first_divergent_position,
+             " first_divergent_frame=", first_divergent_frame);
     }
+
+    INFO("order=", order_name,
+         " mismatch_count=", mismatch_count,
+         " first_divergent_position=", first_divergent_position,
+         " first_divergent_frame=", first_divergent_frame);
+    CHECK_MESSAGE(mismatch_count == 0,
+                  "sequential graph-cache parity failed for order='" << order_name
+                  << "' first_divergent_position=" << first_divergent_position
+                  << " first_divergent_frame=" << first_divergent_frame
+                  << " mismatch_count=" << mismatch_count);
 }
 
 } // namespace
