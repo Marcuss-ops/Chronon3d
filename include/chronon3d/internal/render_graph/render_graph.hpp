@@ -107,6 +107,18 @@ public:
         m_nodes[id].reset();
     }
 
+    /// Atomically replace a node payload while preserving its graph id and
+    /// edges. Used by transactional scene refresh: moving a unique_ptr into
+    /// the node slot is noexcept, unlike copy-assigning polymorphic payloads.
+    void replace_node(GraphNodeId id, std::unique_ptr<RenderGraphNode> node) {
+        require_building("replace_node");
+        validate_node_id(id);
+        if (!node) {
+            throw std::invalid_argument("RenderGraph::replace_node: node must not be null");
+        }
+        m_nodes[id] = std::move(node);
+    }
+
     void replace_input(GraphNodeId node_id, GraphNodeId old_input, GraphNodeId new_input) {
         require_building("replace_input");
         validate_node_id(node_id);
