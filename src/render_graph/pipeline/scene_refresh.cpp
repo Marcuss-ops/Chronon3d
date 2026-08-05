@@ -11,8 +11,13 @@
 
 #include "../builder/graph_builder_pipeline.hpp"
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
+#include <variant>
+#include <vector>
 
 namespace chronon3d::graph::detail {
 
@@ -37,6 +42,9 @@ SceneRefreshResult validate_compiled_structure(
     const Scene& scene,
     const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name)
 {
+    if (compiled.graph.phase() != GraphPhase::Building) {
+        return topology_mismatch("compiled graph is immutable; refresh requires a mutable graph candidate");
+    }
     if (compiled.nodes.size() < compiled.graph.size()) {
         return topology_mismatch("compiled node metadata is shorter than the graph");
     }
@@ -48,6 +56,19 @@ SceneRefreshResult validate_compiled_structure(
         if (info.id != static_cast<GraphNodeId>(id) || info.kind != node.kind() ||
             info.inputs != compiled.graph.inputs(static_cast<GraphNodeId>(id))) {
             return topology_mismatch("compiled graph metadata does not match node topology at node " + std::to_string(id));
+        }
+
+        const auto expected_processor_id = [&]() {
+            if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+                return std::string{"source:"} + std::to_string(
+                    static_cast<int>(source->render_node().shape.type()));
+            }
+            if (dynamic_cast<const MultiSourceNode*>(&node)) return std::string{"multi_source"};
+            if (dynamic_cast<const TextRunNode*>(&node)) return std::string{"text_run"};
+            return std::string{to_string(node.kind())};
+        }();
+        if (info.processor_id != expected_processor_id) {
+            return topology_mismatch("compiled processor identity changed at node " + std::to_string(id));
         }
 
         if (node.kind() == RenderGraphNodeKind::Source) {
@@ -68,6 +89,11 @@ SceneRefreshResult validate_compiled_structure(
                     expected = &layer->nodes.front();
                 }
                 if (!expected) return missing_dynamic_data("source data missing for node '" + std::string(source->name()) + "'");
+                if (expected->shape.type() == ShapeType::None) {
+                    return SceneRefreshResult{SceneRefreshStatus::InvalidRenderableNode,
+                        "source renderable node has ShapeType::None for '" +
+                        std::string(source->name()) + "'"};
+                }
                 if (info.shape_type >= 0 && info.shape_type != static_cast<int>(expected->shape.type())) {
                     return topology_mismatch("source shape type changed for node '" + std::string(source->name()) + "'");
                 }
@@ -81,6 +107,11 @@ SceneRefreshResult validate_compiled_structure(
                     return topology_mismatch("multi-source item count changed for '" + std::string(multi->layer_id()) + "'");
                 }
                 for (size_t item = 0; item < layer->nodes.size(); ++item) {
+                    if (layer->nodes[item].shape.type() == ShapeType::None) {
+                        return SceneRefreshResult{SceneRefreshStatus::InvalidRenderableNode,
+                            "multi-source renderable node has ShapeType::None for '" +
+                            std::string(multi->layer_id()) + "'"};
+                    }
                     if (info.source_shape_types[item] != static_cast<int>(layer->nodes[item].shape.type())) {
                         return topology_mismatch("multi-source shape type changed for '" + std::string(multi->layer_id()) + "'");
                     }
@@ -96,6 +127,11 @@ SceneRefreshResult validate_compiled_structure(
                 if (layer->kind != LayerKind::Text || layer->nodes.size() != 1 ||
                     layer->nodes.front().shape.type() != ShapeType::TextRun) {
                     return topology_mismatch("text-run structure changed for layer '" + std::string(node.layer_id()) + "'");
+                }
+                if (info.shape_type >= 0 &&
+                    info.shape_type != static_cast<int>(layer->nodes.front().shape.type())) {
+                    return topology_mismatch("text-run shape type changed for layer '" +
+                        std::string(node.layer_id()) + "'");
                 }
             }
         }
@@ -141,43 +177,76 @@ SceneRefreshResult refresh_compiled_graph_payloads(
     const auto validation = validate_compiled_structure(compiled, scene, resolved_by_name);
     if (!validation) return validation;
 
-    // ── 4. Iterate compiled graph nodes and dispatch refreshers ───────────
+    // ── 4. Build the complete refresh patch ─────────────────────────────
+    // Prepare each dynamic payload on a copy of its original node. Helpers
+    // can allocate and mutate these copies freely; the compiled graph remains
+    // untouched until every node has been prepared successfully.
+    struct NodeRefreshPatch {
+        GraphNodeId id{k_invalid_node};
+        std::variant<
+            std::unique_ptr<SourceNode>,
+            std::unique_ptr<MultiSourceNode>,
+            std::unique_ptr<EffectStackNode>,
+            std::unique_ptr<TransformNode>,
+            std::unique_ptr<TextRunNode>> prepared;
+    };
+    struct GraphRefreshPatch {
+        std::vector<NodeRefreshPatch> nodes;
+    } patch;
+    patch.nodes.reserve(compiled.graph.live_count());
+
     for (size_t id = 0; id < compiled.graph.size(); ++id) {
-        if (!compiled.graph.has_node(static_cast<GraphNodeId>(id))) {
-            continue;
-        }
+        const auto node_id = static_cast<GraphNodeId>(id);
+        if (!compiled.graph.has_node(node_id)) continue;
+        const auto& graph_node = compiled.graph.node(node_id);
 
-        auto& graph_node = compiled.graph.node(static_cast<GraphNodeId>(id));
-
-        // Dispatch via kind() to avoid sequential dynamic_cast RTTI lookups.
-        // SourceNode and MultiSourceNode both report Source kind, so the
-        // Source case still needs a single dynamic_cast to disambiguate.
         switch (graph_node.kind()) {
             case RenderGraphNodeKind::Source:
-                if (auto* source_node = dynamic_cast<SourceNode*>(&graph_node)) {
-                    refresh_source_node(*source_node, resolved_by_name,
+                if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph_node)) {
+                    auto prepared = std::make_unique<SourceNode>(*source_node);
+                    refresh_source_node(*prepared, resolved_by_name,
                         root_nodes_by_name, is_static_cache, ctx);
-                } else if (auto* multi = dynamic_cast<MultiSourceNode*>(&graph_node)) {
-                    refresh_multi_source_node(*multi, resolved_by_name,
+                    patch.nodes.push_back({node_id, std::move(prepared)});
+                } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&graph_node)) {
+                    auto prepared = std::make_unique<MultiSourceNode>(*multi);
+                    refresh_multi_source_node(*prepared, resolved_by_name,
                         is_static_cache, ctx);
+                    patch.nodes.push_back({node_id, std::move(prepared)});
+                } else {
+                    return topology_mismatch("source graph node has an unknown concrete implementation at node " + std::to_string(id));
                 }
                 break;
-            case RenderGraphNodeKind::Effect:
-                refresh_effect_stack_node(
-                    static_cast<EffectStackNode&>(graph_node),
-                    resolved_by_name, ctx);
+            case RenderGraphNodeKind::Effect: {
+                const auto* effect_node = dynamic_cast<const EffectStackNode*>(&graph_node);
+                if (!effect_node) {
+                    return topology_mismatch("effect graph node has an invalid concrete implementation at node " + std::to_string(id));
+                }
+                auto prepared = std::make_unique<EffectStackNode>(*effect_node);
+                refresh_effect_stack_node(*prepared, resolved_by_name, ctx);
+                patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
-            case RenderGraphNodeKind::Transform:
-                refresh_transform_node(
-                    static_cast<TransformNode&>(graph_node),
-                    resolved_by_name, ctx);
+            }
+            case RenderGraphNodeKind::Transform: {
+                const auto* transform_node = dynamic_cast<const TransformNode*>(&graph_node);
+                if (!transform_node) {
+                    return topology_mismatch("transform graph node has an invalid concrete implementation at node " + std::to_string(id));
+                }
+                auto prepared = std::make_unique<TransformNode>(*transform_node);
+                refresh_transform_node(*prepared, resolved_by_name, ctx);
+                patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
+            }
             case RenderGraphNodeKind::TextRun: {
-                auto& text = static_cast<TextRunNode&>(graph_node);
+                const auto* text_node = dynamic_cast<const TextRunNode*>(&graph_node);
+                if (!text_node) {
+                    return topology_mismatch("text-run graph node has an invalid concrete implementation at node " + std::to_string(id));
+                }
+                auto prepared = std::make_unique<TextRunNode>(*text_node);
+                bool found = false;
                 for (const auto& [name, rl] : resolved_by_name) {
                     if (!rl || !rl->layer || rl->layer->kind != LayerKind::Text
                         || rl->layer->nodes.size() != 1
-                        || rl->layer->name != text.layer_id()) {
+                        || rl->layer->name != prepared->layer_id()) {
                         continue;
                     }
                     const auto& render_ref = rl->layer->nodes[0];
@@ -196,16 +265,39 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                             hash_string(render_ref.name),
                             hash_render_node_placement_only(render_ref))
                     };
-                    text.refresh_placement(
+                    prepared->refresh_placement(
                         render_ref, placement, key,
                         std::optional<f32>(opacity));
+                    found = true;
                     break;
                 }
+                if (!found) {
+                    return missing_dynamic_data("text-run refresh data missing for node '" +
+                        std::string(graph_node.name()) + "'");
+                }
+                patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
             }
             default:
                 break;
         }
+    }
+
+    // ── 5. Commit the complete patch ────────────────────────────────────
+    // No refresh helper runs here. Each assignment transfers an already
+    // prepared typed state into its original node; all fallible preparation
+    // has completed before the first original node is touched.
+    for (auto& node_patch : patch.nodes) {
+        std::visit([&](auto& prepared) {
+            using Prepared = std::decay_t<decltype(prepared)>;
+            if constexpr (std::is_same_v<Prepared, std::unique_ptr<SourceNode>> ||
+                          std::is_same_v<Prepared, std::unique_ptr<MultiSourceNode>> ||
+                          std::is_same_v<Prepared, std::unique_ptr<EffectStackNode>> ||
+                          std::is_same_v<Prepared, std::unique_ptr<TransformNode>> ||
+                          std::is_same_v<Prepared, std::unique_ptr<TextRunNode>>) {
+                compiled.graph.replace_node(node_patch.id, std::move(prepared));
+            }
+        }, node_patch.prepared);
     }
     return SceneRefreshResult{};
 }
