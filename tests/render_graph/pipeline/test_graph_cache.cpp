@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/layer/layer_resolver.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <tests/helpers/test_utils.hpp>
@@ -72,6 +73,38 @@ TEST_CASE("GraphCache - cache hit on structurally identical frames") {
 
     CHECK(renderer.counters()->graph_cache_hits.load() == hits_before + 1);
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before);
+}
+
+TEST_CASE("GraphCache - registry generation change forces recompilation") {
+    SceneBuilder builder;
+    builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
+    const Scene scene = builder.build();
+
+    auto renderer = test::make_renderer();
+    RenderSettings settings = renderer.render_settings();
+    settings.dirty.enabled = false;
+    renderer.set_settings(settings);
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    REQUIRE(render_frame(renderer, node_cache, scene, camera, Frame{0}) != nullptr);
+
+    const auto hits_before = renderer.counters()->graph_cache_hits.load();
+    REQUIRE(render_frame(renderer, node_cache, scene, camera, Frame{2}) != nullptr);
+    CHECK(renderer.counters()->graph_cache_hits.load() == hits_before + 1);
+
+    const auto generation_before = renderer.software_registry().generation();
+    struct RegistryGenerationProbe {};
+    renderer.software_registry().register_effect_processor<RegistryGenerationProbe>(nullptr);
+    CHECK(renderer.software_registry().generation() == generation_before + 1);
+
+    const auto misses_before = renderer.counters()->graph_cache_misses.load();
+    REQUIRE(render_frame(renderer, node_cache, scene, camera, Frame{4}) != nullptr);
+    CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
+
+    const auto hits_after_rebuild = renderer.counters()->graph_cache_hits.load();
+    REQUIRE(render_frame(renderer, node_cache, scene, camera, Frame{6}) != nullptr);
+    CHECK(renderer.counters()->graph_cache_hits.load() == hits_after_rebuild + 1);
 }
 
 TEST_CASE("GraphCache - cache miss when dimensions change") {

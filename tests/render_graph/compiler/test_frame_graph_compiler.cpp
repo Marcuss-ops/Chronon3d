@@ -6,7 +6,10 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <memory>
@@ -22,8 +25,21 @@ public:
     explicit ValidationBackend(bool missing_processor)
         : m_missing_processor(missing_processor) {}
 
+    renderer::ShapeProcessor* resolve_shape_processor(
+        const RenderNode&) const noexcept override {
+        ++m_shape_resolve_calls;
+        return reinterpret_cast<renderer::ShapeProcessor*>(1);
+    }
+
+    renderer::EffectProcessor* resolve_effect_processor(
+        std::type_index) const noexcept override {
+        ++m_effect_resolve_calls;
+        return reinterpret_cast<renderer::EffectProcessor*>(1);
+    }
+
     std::optional<RenderBackendError> validate_render_node(
         const RenderNode&) const override {
+        ++m_validation_calls;
         if (m_missing_processor) {
             return RenderBackendError{
                 RenderBackendErrorCode::InvalidInput,
@@ -44,8 +60,21 @@ public:
     void apply_blur(
         Framebuffer&, float, const std::optional<raster::BBox>&) override {}
 
+    [[nodiscard]] int validation_calls() const noexcept {
+        return m_validation_calls;
+    }
+    [[nodiscard]] int shape_resolve_calls() const noexcept {
+        return m_shape_resolve_calls;
+    }
+    [[nodiscard]] int effect_resolve_calls() const noexcept {
+        return m_effect_resolve_calls;
+    }
+
 private:
     bool m_missing_processor{false};
+    mutable int m_validation_calls{0};
+    mutable int m_shape_resolve_calls{0};
+    mutable int m_effect_resolve_calls{0};
 };
 
 class CompilerTestNode final : public RenderGraphNode {
@@ -208,16 +237,65 @@ TEST_CASE("FrameGraphCompiler - rejects missing render processor before executio
     }
 }
 
-TEST_CASE("FrameGraphCompiler - accepts renderable shape with resolved processor") {
+TEST_CASE("FrameGraphCompiler - resolves processor identity during compilation") {
     auto graph = make_single_source_graph(ShapeType::Rect);
     ValidationBackend backend(/*missing_processor=*/false);
     RenderGraphContext ctx;
     ctx.services.backend = &backend;
     FrameGraphCompiler compiler;
 
-    auto compiled = compiler.compile(std::move(graph), ctx);
+    const auto compiled = compiler.compile(std::move(graph), ctx);
 
-    CHECK(compiled.valid);
+    REQUIRE(compiled.valid);
+    REQUIRE_FALSE(compiled.nodes.empty());
+    CHECK(backend.validation_calls() == 1);
+    CHECK(compiled.nodes.front().processor_id ==
+          "source:" + std::to_string(static_cast<int>(ShapeType::Rect)));
+}
+
+TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
+    EffectStack effects;
+    effects.push_back(EffectInstance{BlurParams{5.0f}});
+
+    RenderGraph graph;
+    const auto effect_id = graph.add_node(std::make_unique<EffectStackNode>(
+        std::move(effects)));
+    graph.set_output(effect_id);
+
+    ValidationBackend backend(/*missing_processor=*/false);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    ctx.services.registry_generation = 17;
+    FrameGraphCompiler compiler;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx);
+
+    REQUIRE(compiled.valid);
+    REQUIRE(compiled.nodes.size() > effect_id);
+    CHECK(compiled.registry_generation == 17);
+    CHECK(compiled.nodes[effect_id].effect_processors.size() == 1);
+    CHECK(compiled.nodes[effect_id].effect_processors.front() != nullptr);
+    CHECK(backend.effect_resolve_calls() == 1);
+}
+
+TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
+    FrameGraphCompiler compiler;
+    ValidationBackend backend(/*missing_processor=*/false);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    ctx.policy.graph_structure_unchanged = true;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+
+    auto prior = compiler.compile(make_single_source_graph(ShapeType::Rect), ctx, options);
+    REQUIRE(prior.valid);
+    CHECK(backend.shape_resolve_calls() == 1);
+
+    auto reused = compiler.compile_with_reuse(
+        make_single_source_graph(ShapeType::Rect), ctx, prior, options);
+    REQUIRE(reused.valid);
+    CHECK(backend.shape_resolve_calls() == 1);
+    CHECK(reused.registry_generation == ctx.services.registry_generation);
 }
 
 TEST_CASE("FrameGraphCompiler - linear graph compilation") {
@@ -425,6 +503,8 @@ TEST_CASE("FrameGraphCompiler - stable structure hash") {
     auto compiled3 = compiler.compile(std::move(graph3), ctx, options);
 
     CHECK(compiled3.structure_hash != compiled1.structure_hash);
+    CHECK(compiled1.registry_generation == 0);
+    CHECK(compiled3.registry_generation == 2);
 }
 
 // ── TICKET-008 / §9.4 closure — `compile_with_reuse` reuse-path tests ──────────

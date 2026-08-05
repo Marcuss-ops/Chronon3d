@@ -4,6 +4,9 @@
 #include <chronon3d/math/raster_utils.hpp>
 
 #include <optional>
+#include <span>
+
+namespace chronon3d::renderer { class EffectProcessor; }
 
 namespace chronon3d { class DebugConfig; class CurveCache; }   // TICKET-007: per-instance debug gating
 
@@ -29,6 +32,12 @@ struct EffectExecutionContext {
     /// nullptr, debug overlays / per-pass artifacts are skipped.
     const chronon3d::DebugConfig* debug_cfg{nullptr};
     chronon3d::CurveCache* curve_cache{nullptr};
+
+    // Effect processors are resolved while compiling the render graph.
+    // The span is aligned with the authored EffectStack (disabled entries
+    // retain a null slot), so execution never performs a registry lookup.
+    std::span<chronon3d::renderer::EffectProcessor* const> effect_processors{};
+    bool processors_resolved{false};
 };
 
 } // namespace chronon3d::effects

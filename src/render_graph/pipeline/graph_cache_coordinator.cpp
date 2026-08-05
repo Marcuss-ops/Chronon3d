@@ -245,6 +245,7 @@ static void log_graph_cache_diagnostics(
 
     CompiledFrameGraph& compiled = lease.candidate();
     if (!compiled.valid ||
+        compiled.registry_generation != ctx.services.registry_generation ||
         compiled.authored_structure_fingerprint == 0 ||
         compiled.authored_structure_fingerprint != current_authored_topology) {
         lease.restore();

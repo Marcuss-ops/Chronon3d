@@ -270,7 +270,6 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 #endif
 
     const f32 final_opacity = image.opacity * state.opacity;
-    if (final_opacity <= 0.001f) return true;
 
     // Handle ImageCrop (if enabled, crop origin and size are normalized relative to cached image)
     Vec2 original_source_size = Vec2(static_cast<float>(img_w), static_cast<float>(img_h));
@@ -471,7 +470,6 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     }
 
     const f32 final_opacity = image.opacity * state.opacity;
-    if (final_opacity <= 0.001f) return true;
 
     const float sx = image.size.x / static_cast<float>(cached->width);
     const float sy = image.size.y / static_cast<float>(cached->height);
