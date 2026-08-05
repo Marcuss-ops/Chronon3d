@@ -30,19 +30,22 @@ void refresh_multi_source_node(
     }
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-    const bool projected_2d = item.projected && !item.native_3d;
+    const bool projected_item = item.projected;
+    const bool projected_2d = projected_item && !item.native_3d;
     const bool use_local = ctx.policy.modular_coordinates &&
         layer_needs_render_transform(item, ctx) &&
-        !item.native_3d && !projected_2d;
+        !item.native_3d && !projected_item;
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static || use_local;
-    const Mat4 item_source_world = item.projected && !item.native_3d
-        ? item.world_matrix
+    const Mat4 item_source_world = item.native_3d
+        ? source_space_world_matrix(item, ctx)
+        : (projected_item
+        ? implicit_canvas_center_matrix(ctx)
         : (use_local
             ? item.world_matrix
-            : source_space_world_matrix(item, ctx));
+            : source_space_world_matrix(item, ctx)));
 
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());
