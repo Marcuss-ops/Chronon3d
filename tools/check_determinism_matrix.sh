@@ -25,13 +25,22 @@ BINARY_CANDIDATES=(
     "$REPO_ROOT/build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli"
     "$REPO_ROOT/build/manual-test/apps/chronon3d_cli/chronon3d_cli"
 )
-CHRONON_CLI=""
-for cand in "${BINARY_CANDIDATES[@]}"; do
-    if [ -x "$cand" ]; then
-        CHRONON_CLI="$cand"
-        break
-    fi
-done
+# A caller-provided binary is authoritative when executable. This keeps the
+# gate usable with the exact CLI selected by a build-host preflight rather than
+# silently choosing an older candidate from the fallback list.
+CHRONON_CLI="${CHRONON_CLI_BIN:-}"
+if [ -n "$CHRONON_CLI" ] && [ ! -x "$CHRONON_CLI" ]; then
+    echo "GATE_FAIL: CHRONON_CLI_BIN is not executable: $CHRONON_CLI" >&2
+    exit 1
+fi
+if [ -z "$CHRONON_CLI" ]; then
+    for cand in "${BINARY_CANDIDATES[@]}"; do
+        if [ -x "$cand" ]; then
+            CHRONON_CLI="$cand"
+            break
+        fi
+    done
+fi
 
 if [ -z "$CHRONON_CLI" ]; then
     echo "GATE_FAIL: chronon3d_cli binary not found in standard build paths" >&2
@@ -60,9 +69,9 @@ render_pair() {
     local label="$1" env_prefix="$2"
     local P1="$OUT_DIR/${label}_a.png" P2="$OUT_DIR/${label}_b.png"
     # shellcheck disable=SC2086  # env_prefix intentionally word-split for VAR=VAL assignments
-    env $env_prefix "$CHRONON_CLI" still "$COMPOSITION" "$P1" --frame "$FRAME" \
+    env $env_prefix "$CHRONON_CLI" render "$COMPOSITION" --frame "$FRAME" --output "$P1" \
         || { echo "  [${label}] render_a FAILED" >&2; return 2; }
-    env $env_prefix "$CHRONON_CLI" still "$COMPOSITION" "$P2" --frame "$FRAME" \
+    env $env_prefix "$CHRONON_CLI" render "$COMPOSITION" --frame "$FRAME" --output "$P2" \
         || { echo "  [${label}] render_b FAILED" >&2; return 2; }
     local H1 H2 N
     H1=$(sha256sum "$P1" | awk '{print $1}')
