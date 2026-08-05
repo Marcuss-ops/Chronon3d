@@ -53,7 +53,12 @@ void refresh_source_node(
             src_node,
             key,
             matrix_override,
-            std::optional<f32>(src_node.world_transform.opacity)
+            std::optional<f32>(src_node.world_transform.opacity),
+            // Root sources have no layer-level static analysis. Their
+            // authored payload can vary with the current frame, so refresh
+            // must keep the compiled node frame-variant just like the fresh
+            // builder path.
+            frame_variant_cache("root_source")
         );
         return;
     }
