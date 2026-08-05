@@ -11,6 +11,7 @@
 
 #include "../builder/graph_builder_pipeline.hpp"
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -25,6 +26,10 @@ namespace {
 
 SceneRefreshResult topology_mismatch(std::string message) {
     return SceneRefreshResult{SceneRefreshStatus::TopologyMismatch, std::move(message)};
+}
+
+SceneRefreshResult missing_processor(std::string message) {
+    return SceneRefreshResult{SceneRefreshStatus::MissingProcessor, std::move(message)};
 }
 
 SceneRefreshResult missing_dynamic_data(std::string message) {
@@ -53,9 +58,40 @@ SceneRefreshResult validate_compiled_structure(
         if (!compiled.graph.has_node(static_cast<GraphNodeId>(id))) continue;
         const auto& node = compiled.graph.node(static_cast<GraphNodeId>(id));
         const auto& info = compiled.nodes[id];
-        if (info.id != static_cast<GraphNodeId>(id) || info.kind != node.kind() ||
-            info.inputs != compiled.graph.inputs(static_cast<GraphNodeId>(id))) {
+        if (!info.reachable) continue;
+        const auto graph_inputs = compiled.graph.inputs(static_cast<GraphNodeId>(id));
+        if (info.id != static_cast<GraphNodeId>(id) ||
+            info.kind != node.kind() ||
+            info.name != node.name() ||
+            info.layer_id != node.layer_id() ||
+            info.inputs != graph_inputs ||
+            info.cache_policy.mode != node.cache_policy().mode ||
+            info.cache_policy.invalidation != node.cache_policy().invalidation ||
+            info.cache_policy.reason != node.cache_policy().reason) {
             return topology_mismatch("compiled graph metadata does not match node topology at node " + std::to_string(id));
+        }
+
+        std::vector<GraphNodeId> expected_consumers;
+        expected_consumers.reserve(compiled.graph.size());
+        for (GraphNodeId consumer = 0; consumer < compiled.graph.size(); ++consumer) {
+            if (!compiled.graph.has_node(consumer) ||
+                consumer >= compiled.nodes.size() || !compiled.nodes[consumer].reachable) {
+                continue;
+            }
+            const auto& inputs = compiled.graph.inputs(consumer);
+            if (std::find(inputs.begin(), inputs.end(), static_cast<GraphNodeId>(id)) != inputs.end()) {
+                expected_consumers.push_back(consumer);
+            }
+        }
+        if (info.consumers != expected_consumers) {
+            return topology_mismatch("compiled graph consumer metadata does not match node topology at node " + std::to_string(id));
+        }
+
+        if (const auto* source = dynamic_cast<const SourceNode*>(&node);
+            source && source->render_node().shape.type() == ShapeType::None) {
+            return SceneRefreshResult{SceneRefreshStatus::InvalidRenderableNode,
+                "cached source renderable node has ShapeType::None at node " +
+                std::to_string(id)};
         }
 
         const auto expected_processor_id = [&]() {
@@ -67,8 +103,11 @@ SceneRefreshResult validate_compiled_structure(
             if (dynamic_cast<const TextRunNode*>(&node)) return std::string{"text_run"};
             return std::string{to_string(node.kind())};
         }();
+        if (info.processor_id.empty()) {
+            return missing_processor("compiled processor identity is missing at node " + std::to_string(id));
+        }
         if (info.processor_id != expected_processor_id) {
-            return topology_mismatch("compiled processor identity changed at node " + std::to_string(id));
+            return topology_mismatch("compiled processor identity does not match node topology at node " + std::to_string(id));
         }
 
         if (node.kind() == RenderGraphNodeKind::Source) {
@@ -94,7 +133,8 @@ SceneRefreshResult validate_compiled_structure(
                         "source renderable node has ShapeType::None for '" +
                         std::string(source->name()) + "'"};
                 }
-                if (info.shape_type >= 0 && info.shape_type != static_cast<int>(expected->shape.type())) {
+                if (info.shape_type != static_cast<int>(source->render_node().shape.type()) ||
+                    info.shape_type != static_cast<int>(expected->shape.type())) {
                     return topology_mismatch("source shape type changed for node '" + std::string(source->name()) + "'");
                 }
             } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
@@ -103,8 +143,22 @@ SceneRefreshResult validate_compiled_structure(
                     (layer->kind != LayerKind::Normal && layer->kind != LayerKind::Shape && layer->kind != LayerKind::Text)) {
                     return topology_mismatch("multi-source layer structure changed for '" + std::string(multi->layer_id()) + "'");
                 }
-                if (info.source_shape_types.size() != layer->nodes.size()) {
+                if (info.shape_type != -2 ||
+                    info.source_shape_types.size() != multi->items().size() ||
+                    info.source_shape_types.size() != layer->nodes.size()) {
                     return topology_mismatch("multi-source item count changed for '" + std::string(multi->layer_id()) + "'");
+                }
+                for (size_t item = 0; item < multi->items().size(); ++item) {
+                    if (!multi->items()[item].node ||
+                        info.source_shape_types[item] != static_cast<int>(multi->items()[item].node->shape.type())) {
+                        return topology_mismatch("cached multi-source shape topology changed for '" +
+                            std::string(multi->layer_id()) + "'");
+                    }
+                    if (item >= layer->nodes.size() ||
+                        multi->items()[item].node->name != layer->nodes[item].name) {
+                        return topology_mismatch("cached multi-source item identity changed for '" +
+                            std::string(multi->layer_id()) + "'");
+                    }
                 }
                 for (size_t item = 0; item < layer->nodes.size(); ++item) {
                     if (layer->nodes[item].shape.type() == ShapeType::None) {
@@ -116,9 +170,27 @@ SceneRefreshResult validate_compiled_structure(
                         return topology_mismatch("multi-source shape type changed for '" + std::string(multi->layer_id()) + "'");
                     }
                 }
+            } else {
+                return missing_processor("source graph node has no registered processor at node " +
+                    std::to_string(id));
             }
         } else if (node.kind() == RenderGraphNodeKind::Transform || node.kind() == RenderGraphNodeKind::Effect ||
                    node.kind() == RenderGraphNodeKind::TextRun) {
+            if (node.kind() == RenderGraphNodeKind::Transform &&
+                dynamic_cast<const TransformNode*>(&node) == nullptr) {
+                return missing_processor("transform graph node has no registered processor at node " +
+                    std::to_string(id));
+            }
+            if (node.kind() == RenderGraphNodeKind::Effect &&
+                dynamic_cast<const EffectStackNode*>(&node) == nullptr) {
+                return missing_processor("effect graph node has no registered processor at node " +
+                    std::to_string(id));
+            }
+            if (node.kind() == RenderGraphNodeKind::TextRun &&
+                dynamic_cast<const TextRunNode*>(&node) == nullptr) {
+                return missing_processor("text-run graph node has no registered processor at node " +
+                    std::to_string(id));
+            }
             if (!find_layer(resolved_by_name, node.layer_id())) {
                 return missing_dynamic_data("refresh layer missing for node '" + std::string(node.name()) + "'");
             }
@@ -128,7 +200,10 @@ SceneRefreshResult validate_compiled_structure(
                     layer->nodes.front().shape.type() != ShapeType::TextRun) {
                     return topology_mismatch("text-run structure changed for layer '" + std::string(node.layer_id()) + "'");
                 }
-                if (info.shape_type >= 0 &&
+                const auto* text_node = dynamic_cast<const TextRunNode*>(&node);
+                if (info.shape_type < 0 ||
+                    !text_node ||
+                    info.shape_type != static_cast<int>(text_node->render_node().shape.type()) ||
                     info.shape_type != static_cast<int>(layer->nodes.front().shape.type())) {
                     return topology_mismatch("text-run shape type changed for layer '" +
                         std::string(node.layer_id()) + "'");
@@ -197,7 +272,10 @@ SceneRefreshResult refresh_compiled_graph_payloads(
 
     for (size_t id = 0; id < compiled.graph.size(); ++id) {
         const auto node_id = static_cast<GraphNodeId>(id);
-        if (!compiled.graph.has_node(node_id)) continue;
+        if (!compiled.graph.has_node(node_id) ||
+            node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable) {
+            continue;
+        }
         const auto& graph_node = compiled.graph.node(node_id);
 
         switch (graph_node.kind()) {
@@ -278,12 +356,102 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
             }
-            default:
+            case RenderGraphNodeKind::Mask:
+            case RenderGraphNodeKind::Composite:
+            case RenderGraphNodeKind::Precomp:
+            case RenderGraphNodeKind::Video:
+            case RenderGraphNodeKind::Adjustment:
+            case RenderGraphNodeKind::MotionBlur:
+            case RenderGraphNodeKind::ColorConvert:
+            case RenderGraphNodeKind::TrackMatte:
+            case RenderGraphNodeKind::Output:
+            case RenderGraphNodeKind::Transition:
+            case RenderGraphNodeKind::ClipTransition:
+                // These node kinds have no dynamic scene refresher in this
+                // path; their compiled processor identity was validated above.
                 break;
+            default:
+                return missing_processor("graph node kind has no registered scene refresher at node " +
+                    std::to_string(id));
         }
     }
 
-    // ── 5. Commit the complete patch ────────────────────────────────────
+    // ── 5. Validate the prepared patch before commit ────────────────────
+    // Refresh helpers may update dynamic payloads, but they must preserve
+    // every structural discriminator and the node cache policy captured by
+    // the compiler. If a helper ever attempts to cross that boundary, fail
+    // without touching the original graph.
+    for (const auto& node_patch : patch.nodes) {
+        if (node_patch.id >= compiled.nodes.size()) {
+            return topology_mismatch("refresh patch contains an unknown node id " +
+                std::to_string(node_patch.id));
+        }
+        const auto& original_info = compiled.nodes[node_patch.id];
+        bool structural_mismatch = false;
+        bool invalid_renderable = false;
+        std::visit([&](const auto& prepared) {
+            using Prepared = std::decay_t<decltype(prepared)>;
+            if (!prepared) {
+                structural_mismatch = true;
+                return;
+            }
+            const auto& prepared_node = *prepared;
+            std::string prepared_processor_id;
+            if (const auto* source = dynamic_cast<const SourceNode*>(&prepared_node)) {
+                const auto shape_type = source->render_node().shape.type();
+                invalid_renderable = shape_type == ShapeType::None;
+                prepared_processor_id = "source:" +
+                    std::to_string(static_cast<int>(shape_type));
+                structural_mismatch = original_info.shape_type != static_cast<int>(shape_type);
+            } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&prepared_node)) {
+                prepared_processor_id = "multi_source";
+                structural_mismatch = original_info.shape_type != -2 ||
+                    original_info.source_shape_types.size() != multi->items().size();
+                for (size_t index = 0; !structural_mismatch && index < multi->items().size(); ++index) {
+                    if (!multi->items()[index].node) {
+                        invalid_renderable = true;
+                        break;
+                    }
+                    if (index >= original_info.source_shape_types.size() ||
+                        original_info.source_shape_types[index] !=
+                        static_cast<int>(multi->items()[index].node->shape.type())) {
+                        structural_mismatch = true;
+                    }
+                }
+            } else if (const auto* text = dynamic_cast<const TextRunNode*>(&prepared_node)) {
+                prepared_processor_id = "text_run";
+                structural_mismatch = original_info.shape_type !=
+                    static_cast<int>(text->render_node().shape.type());
+            } else {
+                prepared_processor_id = std::string(to_string(prepared_node.kind()));
+            }
+            const auto& binding = original_info.binding_meta;
+            const bool binding_mismatch = binding.active &&
+                (prepared_node.layer_index() != binding.layer_index ||
+                 prepared_node.item_index() != binding.item_index);
+            structural_mismatch = structural_mismatch ||
+                prepared_processor_id != original_info.processor_id ||
+                prepared_node.kind() != original_info.kind ||
+                prepared_node.name() != original_info.name ||
+                prepared_node.layer_id() != original_info.layer_id ||
+                binding_mismatch ||
+                prepared_node.cache_policy().mode != original_info.cache_policy.mode ||
+                prepared_node.cache_policy().invalidation != original_info.cache_policy.invalidation ||
+                prepared_node.cache_policy().reason != original_info.cache_policy.reason;
+        }, node_patch.prepared);
+        if (invalid_renderable) {
+            return SceneRefreshResult{SceneRefreshStatus::InvalidRenderableNode,
+                "refresh prepared an invalid renderable node at node " +
+                std::to_string(node_patch.id)};
+        }
+        if (structural_mismatch) {
+            return topology_mismatch(
+                "scene refresh prepared a node with changed structural metadata at node " +
+                std::to_string(node_patch.id));
+        }
+    }
+
+    // ── 6. Commit the complete patch ────────────────────────────────────
     // No refresh helper runs here. Each assignment transfers an already
     // prepared typed state into its original node; all fallible preparation
     // has completed before the first original node is touched.
