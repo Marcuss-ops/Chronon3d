@@ -33,12 +33,9 @@ LayerGraphItem make_layer_graph_item(const ResolvedLayer& resolved_layer,
             static_cast<f32>(rctx.frame_input.width), static_cast<f32>(rctx.frame_input.height),
             rctx.policy.diagnostics_enabled);
         if (proj.visible) {
-            // The resolver already produced the complete camera * view *
-            // layer homography.  Keeping only the projected centroid and a
-            // uniform scale loses Y/X rotations and perspective at the
-            // render boundary, so the 2.5D card becomes a flat 2D rectangle.
-            // Native 3D nodes own their projection and therefore retain the
-            // identity placeholder here.
+            // Native 3D layers resolve their camera projection in the source
+            // processor path; the transform node remains an identity stage.
+            // Projected cards receive the complete homography here.
             const Mat4 eff_proj = is_native_3d_layer(layer)
                 ? Mat4(1.0f)
                 : proj.projection_matrix;

@@ -31,9 +31,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
-        const bool projected_2d = item.projected && !item.native_3d;
+        // A projected item is transformed by the downstream TransformNode.
+        // Keep its source local; including the resolved layer world matrix
+        // here would apply the layer translation twice.
+        const bool projected_item = item.projected;
+        const bool projected_2d = projected_item && !item.native_3d;
         const bool use_local = ctx.policy.modular_coordinates &&
-            layer_needs_transform && !item.native_3d && !projected_2d;
+            layer_needs_transform && !item.native_3d && !projected_item;
         // A local transform changes the rasterized placement, but it does not
         // make an animated layer's source frame-invariant.  Treating
         // `use_local` as static reused the first moving shape in dirty/tile
@@ -55,15 +59,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             );
         }
 
-        const Mat4 item_source_world = item.projected && !item.native_3d
-            // SourceNode receives a resolved matrix and does not run the
-            // camera projection itself. Add the canvas origin here while
-            // retaining the resolved layer translation, including Z; using
-            // only the canvas-center matrix discards layer position/depth.
-            ? (implicit_canvas_center_matrix(ctx) * item.world_matrix)
+        const Mat4 item_source_world = item.native_3d
+            ? source_space_world_matrix(item, ctx)
+            : (projected_item
+            // Projected TransformNode input is canvas-space; retain the
+            // single canvas origin but leave authored layer translation to
+            // the projection matrix so it is not applied twice.
+            ? implicit_canvas_center_matrix(ctx)
             : (use_local
             ? item.world_matrix
-            : source_space_world_matrix(item, ctx));
+            : source_space_world_matrix(item, ctx)));
 
         if (layer.nodes.size() == 1) {
             const auto& node = layer.nodes[0];
@@ -176,7 +181,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
                     ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source"),
-                    false
+                    item.native_3d
                 ), node_ctx);
             }
             return source;
