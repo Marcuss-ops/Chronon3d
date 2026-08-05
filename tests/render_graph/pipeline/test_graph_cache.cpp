@@ -181,6 +181,21 @@ TEST_CASE("GraphCache - topology mismatch rebuilds and republishes a valid graph
     REQUIRE(rebuilt != nullptr);
     CHECK(renderer.counters()->graph_cache_hits.load() == hits_before);
     CHECK(renderer.counters()->graph_cache_misses.load() == misses_before + 1);
+
+    // Compare the mismatch fallback with a genuinely cold renderer. This
+    // proves that the rejected candidate did not publish a partially
+    // refreshed graph whose output would only happen to be non-null.
+    auto cold_renderer = test::make_renderer();
+    auto cold_settings = cold_renderer.render_settings();
+    cold_settings.dirty.enabled = false;
+    cold_renderer.set_settings(cold_settings);
+    cache::NodeCache cold_node_cache;
+    auto cold_reference = render_frame(
+        cold_renderer, cold_node_cache, scene, camera, Frame{2});
+    REQUIRE(cold_reference != nullptr);
+    CHECK(test::framebuffer_hash(*rebuilt) ==
+          test::framebuffer_hash(*cold_reference));
+
     REQUIRE(renderer.graph_cache().has(100, 100));
 
     auto repaired = renderer.graph_cache().try_take(100, 100);

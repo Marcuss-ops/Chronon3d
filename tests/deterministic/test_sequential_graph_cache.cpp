@@ -21,10 +21,11 @@
 //     accumulation across frames.
 //   * Diagnostics are intentionally disabled. A logging flag must not change
 //     rendered pixels; keeping it OFF reproduces the production configuration
-//     and exposes the currently documented bbox/cache divergence.
+//     and guards against regressions that only appear when logging is disabled.
 //
-// This commit is the reproduction phase only: the expected result is a red
-// test until the cache/static-classification fix is implemented.
+// The verifier runs with diagnostics OFF and remains green after the
+// cache/static-classification fix. A failure reports the first divergent
+// position and frame instead of hiding the mismatch behind logging.
 // =============================================================================
 
 #include <doctest/doctest.h>
@@ -35,6 +36,7 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include <algorithm>
+#include <limits>
 #include <cmath>
 #include <cstdint>
 #include <random>
@@ -77,6 +79,18 @@ Composition make_sequential_cache_composition() {
                 .pos = {x, y, 0.0f},
             });
 
+            // A permanently authored node with exact zero opacity keeps the
+            // zero-visibility contract in the same stable topology. It must
+            // not be replaced by an epsilon workaround or removed per frame.
+            scene.layer("zero_opacity", [&](LayerBuilder& layer) {
+                layer.opacity(0.0f);
+                layer.rect("zero_opacity_shape", {
+                    .size = {12.0f, 12.0f},
+                    .color = Color::white(),
+                    .pos = {80.0f, 40.0f, 0.0f},
+                });
+            });
+
             return scene.build();
         });
 }
@@ -112,6 +126,14 @@ std::vector<int> repeated_order() {
         repeated.push_back(frame);
     }
     return repeated;
+}
+
+bool has_non_black_frame(const Framebuffer& framebuffer) {
+    const float mean_luma = average_luma_rect(
+        framebuffer, 0, 0, framebuffer.width(), framebuffer.height());
+    // This fixture is intentionally dark; the authored background baseline is
+    // approximately 0.0011, while a fully black framebuffer is exactly zero.
+    return mean_luma > 0.0005f;
 }
 
 void verify_order(const std::string& order_name,
@@ -152,6 +174,8 @@ void verify_order(const std::string& order_name,
         REQUIRE(shared_frame->width() == kWidth);
         REQUIRE(shared_frame->height() == kHeight);
         const std::uint64_t shared_hash = framebuffer_hash(*shared_frame);
+        REQUIRE_MESSAGE(has_non_black_frame(*shared_frame),
+                            "shared render produced a black/empty frame at frame " << frame_value);
 
         // A new renderer means a new RenderRuntime, graph cache, node cache,
         // framebuffer pool and render session for this exact frame. Match the
@@ -164,6 +188,8 @@ void verify_order(const std::string& order_name,
         REQUIRE(independent_frame->width() == kWidth);
         REQUIRE(independent_frame->height() == kHeight);
         const std::uint64_t independent_hash = framebuffer_hash(*independent_frame);
+        REQUIRE_MESSAGE(has_non_black_frame(*independent_frame),
+                        "independent render produced a black/empty frame at frame " << frame_value);
 
         const bool matches = shared_hash == independent_hash;
         if (!matches) {
@@ -195,6 +221,38 @@ void verify_order(const std::string& order_name,
 }
 
 } // namespace
+
+TEST_CASE("Sequential graph cache verifier: opacity is exactly zero without changing topology") {
+    const auto composition_to_render = make_sequential_cache_composition();
+    const auto scene_at_zero = composition_to_render.evaluate(
+        make_ctx(Frame{0}, kWidth, kHeight));
+
+    const auto zero_opacity_layer = std::find_if(
+        scene_at_zero.layers().begin(), scene_at_zero.layers().end(),
+        [](const Layer& layer) { return layer.name == "zero_opacity"; });
+    REQUIRE(zero_opacity_layer != scene_at_zero.layers().end());
+    CHECK(zero_opacity_layer->transform.opacity == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Sequential graph cache verifier: cold and warm renders stay stable") {
+    const auto composition_to_render = make_sequential_cache_composition();
+    auto renderer = make_renderer_shared();
+    auto settings = renderer->render_settings();
+    settings.motion_blur.mode = MotionBlurMode::Off;
+    settings.dirty.enabled = false;
+    settings.diagnostics.enabled = false;
+    renderer->set_settings(settings);
+
+    auto first = renderer->render(composition_to_render, Frame{0});
+    REQUIRE(first != nullptr);
+    const auto first_hash = framebuffer_hash(*first);
+
+    auto second = renderer->render(composition_to_render, Frame{0});
+    REQUIRE(second != nullptr);
+    CHECK(framebuffer_hash(*second) == first_hash);
+    CHECK(average_luma_rect(*first, 0, 0, kWidth, kHeight) > 0.0005f);
+    CHECK(average_luma_rect(*second, 0, 0, kWidth, kHeight) > 0.0005f);
+}
 
 TEST_CASE("Sequential graph cache verifier: frames 0-59 match independent runtime in every order") {
     const auto composition_to_render = make_sequential_cache_composition();
