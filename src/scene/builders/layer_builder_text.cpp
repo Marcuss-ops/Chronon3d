@@ -210,14 +210,11 @@ Layer LayerBuilder::build() {
             // Per-spec FontEngine override (set via trb.font_engine(...))
             // wins over the layer's default font_engine when present.
             FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
+            // CanvasCenter positions the authored box on the canvas; it does
+            // not replace the box's own glyph alignment. Preserve the caller's
+            // VerticalAlign so middle/bottom layouts are resolved exactly once
+            // by the text layout compiler.
             TextRunDefinition materialize_params = spec.params;
-            if (materialize_params.text.placement.kind ==
-                TextPlacementKind::CanvasCenter) {
-                // CanvasCenter already centers the rasterized ink.  Applying
-                // box-relative vertical middle alignment as well would add
-                // the same centering offset a second time.
-                materialize_params.text.layout.vertical_align = VerticalAlign::Top;
-            }
 
             auto shape = materialize_text_run_shape(
                 materialize_params, engine_for_shape, local_time,
