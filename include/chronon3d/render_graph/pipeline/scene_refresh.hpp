@@ -27,6 +27,7 @@ enum class SceneRefreshStatus {
     Refreshed,
     TopologyMismatch,
     InvalidRenderableNode,
+    MissingProcessor,
     MissingDynamicData,
 };
 
@@ -42,7 +43,8 @@ struct SceneRefreshResult {
 /// Validate the complete compiled-node structure, then refresh only dynamic
 /// payloads. Validation runs before any node is mutated. The caller owns the
 /// detached candidate graph, so a failure is never published as a partially
-/// refreshed cache entry.
+/// refreshed cache entry. Structural metadata and cache policy remain
+/// unchanged; only dynamic node payloads are committed.
 [[nodiscard]] SceneRefreshResult refresh_compiled_graph_payloads(
     CompiledFrameGraph& compiled,
     const Scene& scene,
