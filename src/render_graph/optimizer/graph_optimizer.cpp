@@ -257,8 +257,14 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
             }
         }
 
-        // Nodes with empty predicted bbox — bypass if single-input
-        if (!bypassed && ctx.frame_input.width > 0 && ctx.frame_input.height > 0) {
+        // Nodes with empty predicted bbox — bypass if single-input.
+        // A frame-variant node may be outside the viewport at the build
+        // frame and enter it later (for example, a moving root source).
+        // Its empty bbox is therefore a frame-local observation, not a
+        // structural proof that the node can be removed from a graph that
+        // will be refreshed across frames.
+        if (!bypassed && !node.cache_policy().frame_dependent() &&
+            ctx.frame_input.width > 0 && ctx.frame_input.height > 0) {
             auto bbox = node.predicted_bbox(ctx, {});
             if (bbox && bbox->is_empty()) {
                 const auto& our_inputs = graph.inputs(id);
