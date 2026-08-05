@@ -25,6 +25,7 @@ namespace chronon3d::content::light_text   { void register_light_text_compositio
 namespace chronon3d::content::effects      { void register_effect_compositions(CompositionRegistry&); }
 namespace chronon3d::content::grid         { void register_grid_compositions(CompositionRegistry&); }
 namespace chronon3d::content::backgrounds  { void register_grid_clean_background(CompositionRegistry&); }
+namespace chronon3d::content::two_point_five_d { void register_two_point_five_d_compositions(CompositionRegistry&); }
 // TICKET-CLI-ISOLATE-RUNTIME-DEV — AE_CAM_* live in `chronon3d_cli_dev` only
 // (DEV-gated, registered via `apps/chronon3d_cli/register_dev_compositions.cpp`
 // when CHRONON3D_BUILD_CLI_DEV=ON).  The content module no longer registers
@@ -66,6 +67,7 @@ public:
         content::effects::register_effect_compositions(ctx.compositions);
         content::grid::register_grid_compositions(ctx.compositions);
         content::backgrounds::register_grid_clean_background(ctx.compositions);
+        content::two_point_five_d::register_two_point_five_d_compositions(ctx.compositions);
         // TICKET-CLI-ISOLATE-RUNTIME-DEV — AE_CAM_* moved to DEV registration
         // (apps/chronon3d_cli/register_dev_compositions.cpp).  See
         // content/CMakeLists.txt for the matching factory-source relocation
