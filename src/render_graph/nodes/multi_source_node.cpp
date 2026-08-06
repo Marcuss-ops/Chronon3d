@@ -94,14 +94,30 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             bbox = renderer::compute_world_bbox(item.node->shape, matrix, spread);
         }
 
-        if (!ctx.policy.diagnostics_enabled) {
-            bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+        // Keep the diagnostic/world-space bounds separate from the execution
+        // bounds. Diagnostics may inspect the unclipped item bbox, but the
+        // aggregate consumed by culling, tile pruning, dirty clipping, and
+        // cache state must always be canvas-clipped.
+        const auto diagnostic_bbox = bbox;
+        auto execution_bbox = diagnostic_bbox;
+        execution_bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+
+        if (ctx.policy.diagnostics_enabled) {
+            spdlog::debug(
+                "[multi-source-bbox] node='{}' item#{} diagnostic=[{},{},{},{}] execution=[{},{},{},{}]",
+                m_name,
+                bbox_i,
+                diagnostic_bbox.x0, diagnostic_bbox.y0,
+                diagnostic_bbox.x1, diagnostic_bbox.y1,
+                execution_bbox.x0, execution_bbox.y0,
+                execution_bbox.x1, execution_bbox.y1);
         }
-        if (!bbox.is_empty()) {
-            x0 = std::min(x0, bbox.x0);
-            y0 = std::min(y0, bbox.y0);
-            x1 = std::max(x1, bbox.x1);
-            y1 = std::max(y1, bbox.y1);
+
+        if (!execution_bbox.is_empty()) {
+            x0 = std::min(x0, execution_bbox.x0);
+            y0 = std::min(y0, execution_bbox.y0);
+            x1 = std::max(x1, execution_bbox.x1);
+            y1 = std::max(y1, execution_bbox.y1);
             has_any = true;
         }
     }
