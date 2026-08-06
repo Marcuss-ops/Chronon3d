@@ -1,6 +1,7 @@
 #include "graph_builder_passes.hpp"
 #include "../graph_builder_pipeline.hpp"
 #include "../graph_builder_coordinates.hpp"
+#include "../evaluated_layer_placement.hpp"
 #include "graph_builder_layer_passes.hpp"
 #include "graph_builder_lighting_passes.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
@@ -18,54 +19,11 @@ namespace chronon3d::graph::detail {
 
 using namespace chronon3d::graph;
 
-namespace {
-
-LayerGraphItem make_layer_graph_item(const ResolvedLayer& resolved_layer,
-                                     const Camera2_5DRuntime& cam25d,
+namespace {LayerGraphItem make_layer_graph_item(const ResolvedLayer& resolved_layer,
+                                     const Camera2_5DRuntime&,
                                      const RenderGraphContext& rctx,
                                      bool is_static_val) {
-    const Layer& layer = *resolved_layer.layer;
-    if (cam25d.enabled && layer.uses_2_5d_projection) {
-        Transform effective_transform = resolved_layer.world_transform;
-        const Mat4 projection_world_matrix = effective_transform.to_mat4();
-        auto proj = project_layer_2_5d(
-            effective_transform, projection_world_matrix, cam25d,
-            static_cast<f32>(rctx.frame_input.width), static_cast<f32>(rctx.frame_input.height),
-            rctx.policy.diagnostics_enabled);
-        if (proj.visible) {
-            // Native 3D layers resolve their camera projection in the source
-            // processor path; the transform node remains an identity stage.
-            // Projected cards receive the complete homography here.
-            const Mat4 eff_proj = is_native_3d_layer(layer)
-                ? Mat4(1.0f)
-                : proj.projection_matrix;
-            return LayerGraphItem{
-                .layer             = resolved_layer.layer,
-                .transform         = proj.transform,
-                .world_matrix      = resolved_layer.world_matrix,
-                .projection_matrix = eff_proj,
-                .depth             = proj.depth,
-                .world_z           = resolved_layer.world_transform.position.z,
-                .projected         = true,
-                .native_3d         = is_native_3d_layer(layer),
-                .insertion_index   = resolved_layer.insertion_index,
-                .matte_node        = k_invalid_node,
-                .is_static         = is_static_val,
-            };
-        }
-    }
-    return LayerGraphItem{
-        .layer           = resolved_layer.layer,
-        .transform       = resolved_layer.world_transform,
-        .world_matrix    = resolved_layer.world_matrix,
-        .depth           = 0.0f,
-        .world_z         = resolved_layer.world_transform.position.z,
-        .projected       = false,
-        .native_3d       = is_native_3d_layer(layer),
-        .insertion_index = resolved_layer.insertion_index,
-        .matte_node      = k_invalid_node,
-        .is_static         = is_static_val,
-    };
+    return resolve_layer_graph_item(resolved_layer, rctx, is_static_val);
 }
 
 } // namespace
