@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
+#include "../builder/evaluated_layer_placement.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -28,9 +29,6 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-
     i32 x0 = std::numeric_limits<i32>::max();
     i32 y0 = std::numeric_limits<i32>::max();
     i32 x1 = std::numeric_limits<i32>::min();
@@ -44,32 +42,20 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     for (std::size_t bbox_i = 0; bbox_i < m_items.size(); ++bbox_i) {
         const auto& item = m_items[bbox_i];
         if (!item.node) continue;
-        Mat4 matrix;
-        if (ctx.frame_input.has_camera_2_5d && !item.defer_camera_projection) {
-            // Condition the 2.5D projection on the global `has_camera_2_5d`
-            // trigger (Soluzione B).  Mirrors the SourceNode pattern for
-            // key/pixel consistency.
-            //
-            // Dedup (round-2/3 code-reviewer #2 follow-up): the
-            // projection+continue logic (from_mat4 + project_layer_2_5d +
-            // CHRONON3D_PROJ_DIAG diagnostic + canvas_center*ssaa_scale
-            // composition) is extracted to
-            // `chronon3d::graph::detail::project_to_camera_space` in
-            // `src/render_graph/nodes/detail/projection_helpers.hpp` and  // drift-allow: stale-ref
-            // shared with the 2 source_node.cpp sites + the 2 sibling
-            // multi_source_node sites below.  See the helper header for
-            // the full design rationale.
-            auto matrix_opt = chronon3d::graph::detail::project_to_camera_space(
-                item.matrix, item.opacity, ctx, m_name, "predicted_bbox", bbox_i);
-            if (!matrix_opt) {
-                continue;
-            }
-            matrix = *matrix_opt;
-        } else {
-            // TICKET-TEXT-CLEANUP-5: centering is now baked into item.matrix
-            // by the source pass / refresh.  m_centered removed.
-            matrix = ssaa_scale * item.matrix;
+        const auto placement = detail::evaluate_layer_placement(
+            item.matrix,
+            item.opacity,
+            ctx,
+            item.apply_camera_projection,
+            item.defer_camera_projection,
+            item.native_3d,
+            m_name,
+            "predicted_bbox",
+            bbox_i);
+        if (!placement) {
+            continue;
         }
+        const Mat4 matrix = placement->render_matrix;
 
         f32 spread = 0.0f;
         spread += 8.0f;
@@ -196,9 +182,6 @@ NodeExecResult MultiSourceNode::execute(
 
     auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
 
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-
     // ── text_run items are dispatched to `RenderBackend::draw_text_run`
     // instead of the generic `RenderBackend::draw_node` because the
     // former routes through the dedicated text-run processor with the
@@ -241,15 +224,20 @@ NodeExecResult MultiSourceNode::execute(
                 // 2.5D-aware placement: if camera is active, project
                 // the item matrix; otherwise the source pass already
                 // resolved the final matrix.
-                Mat4 resolved_matrix = item.matrix;
-                if (ctx.frame_input.has_camera_2_5d && !item.defer_camera_projection) {
-                    auto proj_opt = chronon3d::graph::detail::project_to_camera_space(
-                        item.matrix, item.opacity, ctx, m_name, "text_run_execute", i);
-                    if (!proj_opt) {
-                        continue;
-                    }
-                    resolved_matrix = *proj_opt;
+                const auto placement = detail::evaluate_layer_placement(
+                    item.matrix,
+                    item.opacity,
+                    ctx,
+                    true,
+                    item.defer_camera_projection,
+                    false,
+                    m_name,
+                    "text_run_execute",
+                    i);
+                if (!placement) {
+                    continue;
                 }
+                const Mat4 resolved_matrix = placement->render_matrix;
 
                 auto result = text_run::render_text_run_item(
                     ctx, *ctx.services.backend, *fb, *run_shape,
@@ -294,26 +282,20 @@ NodeExecResult MultiSourceNode::execute(
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;
-            if (ctx.frame_input.has_camera_2_5d && !item.defer_camera_projection) {
-                // TICKET-ae-cam-hash-collision Soluzione B
-                // (MultiSourceNode consistency follow-up): same
-                // global-trigger pattern as predicted_bbox site
-                // above.  Dedup (round-2/3 code-reviewer #2): the
-                // projection+continue logic is extracted to
-                // `chronon3d::graph::detail::project_to_camera_space`
-                // and shared across all 5 sites.  See the helper
-                // header for the full design rationale.
-                auto state_matrix_opt = chronon3d::graph::detail::project_to_camera_space(
-                    item.matrix, item.opacity, ctx, m_name, "regular_execute", i);
-                if (!state_matrix_opt) {
-                    continue;
-                }
-                state.matrix = *state_matrix_opt;
-            } else {
-                // TICKET-TEXT-CLEANUP-5: centering is now baked into item.matrix
-                // by the source pass / refresh.  m_centered removed.
-                state.matrix = ssaa_scale * item.matrix;
+            const auto placement = detail::evaluate_layer_placement(
+                item.matrix,
+                item.opacity,
+                ctx,
+                true,
+                item.defer_camera_projection,
+                false,
+                m_name,
+                "regular_execute",
+                i);
+            if (!placement) {
+                continue;
             }
+            state.matrix = placement->render_matrix;
 
             state.opacity = item.opacity;
             if (i < ctx.node_exec.current_shape_processors.size()) {

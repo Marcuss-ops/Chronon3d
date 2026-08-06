@@ -177,6 +177,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
                     ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source"),
+                    true,
+                    item.projected && !item.native_3d,
                     item.native_3d
                 ), node_ctx);
             }
@@ -265,6 +267,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .matrix = shape_matrix,
                 .opacity = shape_opacity,
                 .defer_camera_projection = item.projected && !item.native_3d,
+                .apply_camera_projection = true,
+                .native_3d = item.native_3d,
             });
         }
 
