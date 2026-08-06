@@ -12,6 +12,7 @@
 #include <array>
 #include "src/render_graph/builder/graph_builder_coordinates.hpp"
 #include "src/render_graph/builder/graph_builder_internal.hpp"
+#include "src/render_graph/executor/tile_pruning.hpp"
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
@@ -767,4 +768,207 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
     // Pixel color checks removed: with the new SourceNode API,
     // centering is handled by the graph builder, not the node.
     // The bbox containment checks above already verify correctness.
+}
+
+namespace {
+
+struct DiagnosticsParityObservation {
+    raster::BBox bbox{};
+    std::optional<raster::BBox> dirty_clip;
+    bool bbox_empty{false};
+    u64 pixel_hash{0};
+};
+
+bool same_bbox(const raster::BBox& a, const raster::BBox& b) {
+    return a.x0 == b.x0 && a.y0 == b.y0 &&
+           a.x1 == b.x1 && a.y1 == b.y1;
+}
+
+DiagnosticsParityObservation observe_source_diagnostics(
+    SoftwareRenderer& renderer,
+    const RenderNode& render_node,
+    bool diagnostics_enabled,
+    bool camera_2_5d)
+{
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 320;
+    ctx.frame_input.height = 240;
+    ctx.frame_input.frame = 0;
+    ctx.policy.diagnostics_enabled = diagnostics_enabled;
+    ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor =
+        renderer.backend().resolve_shape_processor(render_node);
+    if (camera_2_5d) {
+        ctx.frame_input.has_camera_2_5d = true;
+        ctx.frame_input.camera_2_5d.enabled = true;
+        ctx.frame_input.camera_2_5d.position = {0.0f, 0.0f, -800.0f};
+        ctx.frame_input.camera_2_5d.zoom = 800.0f;
+    }
+
+    SourceNode node("diagnostics_source", render_node, cache::NodeCacheKey{});
+    const auto predicted = node.predicted_bbox(ctx);
+    REQUIRE(predicted.has_value());
+
+    // Exercise the real executor dirty-clip decision consumed after
+    // predicted_bbox(). Source/Text/Transform nodes intentionally preserve
+    // their full predicted bounds here; parity proves diagnostics cannot
+    // alter that execution decision.
+    ctx.node_exec.dirty_rect = raster::BBox{0, 0, 160, 120};
+    const auto dirty_clip = compute_dirty_clip(ctx, node, predicted);
+
+    auto result = node.execute(ctx, {}, {});
+    REQUIRE(result.has_value());
+    auto framebuffer = result.take_value();
+    REQUIRE(framebuffer != nullptr);
+
+    return DiagnosticsParityObservation{
+        .bbox = *predicted,
+        .dirty_clip = dirty_clip,
+        .bbox_empty = predicted->is_empty(),
+        .pixel_hash = test::framebuffer_hash(*framebuffer),
+    };
+}
+
+DiagnosticsParityObservation observe_multi_source_diagnostics(
+    SoftwareRenderer& renderer,
+    const RenderNode& first,
+    const RenderNode& second,
+    bool diagnostics_enabled,
+    bool camera_2_5d)
+{
+    std::vector<MultiSourceItem> items{
+        MultiSourceItem{&first, first.world_transform.to_mat4(), 1.0f},
+        MultiSourceItem{&second, second.world_transform.to_mat4(), 1.0f},
+    };
+    std::array<renderer::ShapeProcessor*, 2> processors{
+        renderer.backend().resolve_shape_processor(first),
+        renderer.backend().resolve_shape_processor(second),
+    };
+
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 320;
+    ctx.frame_input.height = 240;
+    ctx.frame_input.frame = 0;
+    ctx.policy.diagnostics_enabled = diagnostics_enabled;
+    ctx.services.backend = &renderer.backend();
+    ctx.node_exec.current_shape_processor = processors[0];
+    ctx.node_exec.current_shape_processors = processors;
+    if (camera_2_5d) {
+        ctx.frame_input.has_camera_2_5d = true;
+        ctx.frame_input.camera_2_5d.enabled = true;
+        ctx.frame_input.camera_2_5d.position = {0.0f, 0.0f, -800.0f};
+        ctx.frame_input.camera_2_5d.zoom = 800.0f;
+    }
+
+    MultiSourceNode node("diagnostics_multi_source", std::move(items), cache::NodeCacheKey{});
+    const auto predicted = node.predicted_bbox(ctx);
+    REQUIRE(predicted.has_value());
+
+    // Exercise the real executor dirty-clip decision consumed after
+    // predicted_bbox(), not just a duplicated test-side intersection.
+    ctx.node_exec.dirty_rect = raster::BBox{0, 0, 160, 120};
+    const auto dirty_clip = compute_dirty_clip(ctx, node, predicted);
+
+    auto result = node.execute(ctx, {}, {});
+    REQUIRE(result.has_value());
+    auto framebuffer = result.take_value();
+    REQUIRE(framebuffer != nullptr);
+
+    return DiagnosticsParityObservation{
+        .bbox = *predicted,
+        .dirty_clip = dirty_clip,
+        .bbox_empty = predicted->is_empty(),
+        .pixel_hash = test::framebuffer_hash(*framebuffer),
+    };
+}
+
+void check_parity_decision_and_pixels(
+    const DiagnosticsParityObservation& off,
+    const DiagnosticsParityObservation& on)
+{
+    // The bbox is the node's culling/tile/dirty decision input. Exact equality
+    // plus equality of the real dirty-clip result proves diagnostics cannot
+    // change the execution decision, not merely the final pixels.
+    CHECK(same_bbox(off.bbox, on.bbox));
+    REQUIRE(off.dirty_clip.has_value());
+    REQUIRE(on.dirty_clip.has_value());
+    CHECK(same_bbox(*off.dirty_clip, *on.dirty_clip));
+    CHECK(off.bbox_empty == on.bbox_empty);
+    CHECK(off.pixel_hash == on.pixel_hash);
+}
+
+} // namespace
+
+TEST_CASE("Diagnostics parity: SourceNode 2D keeps bbox decisions and pixels identical") {
+    auto renderer = test::make_renderer();
+    auto* resource = std::pmr::get_default_resource();
+    const RenderNode source = RenderNodeFactory::rect(resource, "source_2d_parity", {
+        .size = {120.0f, 80.0f},
+        .color = Color::red(),
+        .pos = {280.0f, 100.0f, 0.0f},
+    });
+
+    const auto off = observe_source_diagnostics(renderer, source, false, false);
+    const auto on = observe_source_diagnostics(renderer, source, true, false);
+    check_parity_decision_and_pixels(off, on);
+    CHECK(off.bbox.x1 == 320);
+    CHECK(off.bbox.y1 <= 240);
+}
+
+TEST_CASE("Diagnostics parity: MultiSourceNode 2D keeps bbox decisions and pixels identical") {
+    auto renderer = test::make_renderer();
+    auto* resource = std::pmr::get_default_resource();
+    const RenderNode first = RenderNodeFactory::rect(resource, "multi_2d_a", {
+        .size = {140.0f, 90.0f},
+        .color = Color::red(),
+        .pos = {260.0f, 70.0f, 0.0f},
+    });
+    const RenderNode second = RenderNodeFactory::rect(resource, "multi_2d_b", {
+        .size = {80.0f, 100.0f},
+        .color = Color::blue(),
+        .pos = {40.0f, 120.0f, 0.0f},
+    });
+
+    const auto off = observe_multi_source_diagnostics(renderer, first, second, false, false);
+    const auto on = observe_multi_source_diagnostics(renderer, first, second, true, false);
+    check_parity_decision_and_pixels(off, on);
+    CHECK(off.bbox.x0 >= 0);
+    CHECK(off.bbox.y0 >= 0);
+    CHECK(off.bbox.x1 <= 320);
+    CHECK(off.bbox.y1 <= 240);
+}
+
+TEST_CASE("Diagnostics parity: SourceNode Camera2_5D keeps bbox decisions and pixels identical") {
+    auto renderer = test::make_renderer();
+    auto* resource = std::pmr::get_default_resource();
+    const RenderNode source = RenderNodeFactory::rect(resource, "source_camera_parity", {
+        .size = {120.0f, 80.0f},
+        .color = Color::green(),
+        .pos = {40.0f, -30.0f, 0.0f},
+    });
+
+    const auto off = observe_source_diagnostics(renderer, source, false, true);
+    const auto on = observe_source_diagnostics(renderer, source, true, true);
+    check_parity_decision_and_pixels(off, on);
+    CHECK(!off.bbox.is_empty());
+}
+
+TEST_CASE("Diagnostics parity: MultiSourceNode Camera2_5D keeps bbox decisions and pixels identical") {
+    auto renderer = test::make_renderer();
+    auto* resource = std::pmr::get_default_resource();
+    const RenderNode first = RenderNodeFactory::rect(resource, "multi_camera_a", {
+        .size = {100.0f, 70.0f},
+        .color = Color::yellow(),
+        .pos = {-50.0f, 20.0f, 0.0f},
+    });
+    const RenderNode second = RenderNodeFactory::rect(resource, "multi_camera_b", {
+        .size = {70.0f, 110.0f},
+        .color = Color::blue(),
+        .pos = {80.0f, -30.0f, 0.0f},
+    });
+
+    const auto off = observe_multi_source_diagnostics(renderer, first, second, false, true);
+    const auto on = observe_multi_source_diagnostics(renderer, first, second, true, true);
+    check_parity_decision_and_pixels(off, on);
+    CHECK(!off.bbox.is_empty());
 }
