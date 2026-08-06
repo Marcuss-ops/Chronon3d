@@ -83,20 +83,14 @@ void refresh_source_node(
     const auto& src_node = layer.nodes[0];
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const auto placement = evaluate_layer_placement(item, ctx);
-    const bool projected_2d = placement.defer_camera_projection;
     const bool use_local = placement.space == EvaluatedCoordinateSpace::Local;
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static || use_local;
-    const Mat4 item_source_world = placement.source_matrix;
-    const Mat4 node_matrix = src_node.world_transform.to_mat4();
-    const Mat4 render_matrix = use_local
-        ? node_matrix
-        : (item_source_world * node_matrix);
-    const f32 render_opacity = use_local
-        ? src_node.world_transform.opacity
-        : (placement.opacity * src_node.world_transform.opacity);
+    const auto source_placement = evaluate_source_placement(item, src_node, ctx);
+    const Mat4 render_matrix = source_placement.matrix;
+    const f32 render_opacity = source_placement.opacity;
     cache::NodeCacheKey key{
         .scope = "layer.source:" + layer_name_str + ":" + std::string(src_node.name),
         .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
@@ -114,21 +108,12 @@ void refresh_source_node(
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
 
-    // Compatibility bake for the non-modular refresh path. The placement
-    // decision itself comes from the canonical resolver.
-    Mat4 resolved_matrix = render_matrix;
-    if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
-        const Mat4 cc = glm::translate(Mat4(1.0f),
-            Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-        resolved_matrix = cc * render_matrix;
-    }
-
     node.refresh(
         std::string(src_node.name),
         src_node,
         key,
-        ctx.policy.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::optional<Mat4>(resolved_matrix),
-        ctx.policy.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
+        std::optional<Mat4>(render_matrix),
+        std::optional<f32>(render_opacity),
         node.cache_policy(),
         placement.defer_camera_projection,
         item.native_3d

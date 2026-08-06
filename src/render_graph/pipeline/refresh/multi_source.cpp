@@ -32,31 +32,24 @@ void refresh_multi_source_node(
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const auto placement = evaluate_layer_placement(item, ctx);
-    const bool projected_2d = placement.defer_camera_projection;
     const bool use_local = placement.space == EvaluatedCoordinateSpace::Local;
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static || use_local;
-    const Mat4 item_source_world = placement.source_matrix;
-
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());
     u64 aggregated_params_hash = 0;
     for (const auto& src_node : layer.nodes) {
-        const Mat4 node_matrix = src_node.world_transform.to_mat4();
-        const Mat4 raw_render_matrix = use_local
-            ? node_matrix
-            : (item_source_world * node_matrix);
+        const auto source_placement = evaluate_source_placement(item, src_node, ctx);
+        const Mat4 raw_render_matrix = source_placement.matrix;
         const Mat4 render_matrix = use_local
             ? raw_render_matrix
             : (has_custom_absolute_text_transform(item, src_node, ctx)
                 ? resolve_custom_absolute_text_matrix(item, src_node, ctx)
                 : resolve_absolute_text_source_matrix(
                     item, src_node, ctx, raw_render_matrix));
-        const f32 render_opacity = (use_local || projected_2d)
-            ? src_node.world_transform.opacity
-            : (placement.opacity * src_node.world_transform.opacity);
+        const f32 render_opacity = source_placement.opacity;
 
         items.push_back(MultiSourceItem{
             .node = &src_node,
@@ -90,16 +83,6 @@ void refresh_multi_source_node(
     // (AE_CAM_04) at the cache-key level.
     if (ctx.frame_input.has_camera_2_5d) {
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
-    }
-
-    // Compatibility bake for the non-modular refresh path. The placement
-    // decision itself comes from the canonical resolver.
-    if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
-        const Mat4 cc = glm::translate(Mat4(1.0f),
-            Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-        for (auto& mi : items) {
-            mi.matrix = cc * mi.matrix;
-        }
     }
 
     node.refresh(

@@ -1,4 +1,5 @@
 #include "layer_item.hpp"
+#include "../../builder/evaluated_layer_placement.hpp"
 
 namespace chronon3d::graph::detail {
 
@@ -6,51 +7,7 @@ LayerGraphItem make_layer_graph_item_for_refresh(
     const ResolvedLayer& resolved_layer,
     const RenderGraphContext& ctx)
 {
-    const Layer& layer = *resolved_layer.layer;
-
-    if (ctx.frame_input.camera_2_5d.enabled && layer.uses_2_5d_projection) {
-        Transform effective_transform = resolved_layer.world_transform;
-        const Mat4 projection_world_matrix = effective_transform.to_mat4();
-        auto proj = project_layer_2_5d(
-            effective_transform,
-            projection_world_matrix,
-            ctx.frame_input.camera_2_5d,
-            static_cast<f32>(ctx.frame_input.width),
-            static_cast<f32>(ctx.frame_input.height),
-            ctx.policy.diagnostics_enabled
-        );
-        if (proj.visible) {
-            // Refresh must use the same full homography as the initial graph
-            // build. A native 3D layer still travels through this graph
-            // executor, so retaining the resolver matrix is required for
-            // cached renders to match the initial Camera2_5D projection.
-            const Mat4 eff_proj = proj.projection_matrix;
-            return LayerGraphItem{
-                .layer             = resolved_layer.layer,
-                .transform         = proj.transform,
-                .world_matrix      = resolved_layer.world_matrix,
-                .projection_matrix = eff_proj,
-                .depth             = proj.depth,
-                .world_z           = resolved_layer.world_transform.position.z,
-                .projected         = true,
-                .native_3d         = is_native_3d_layer(layer),
-                .insertion_index   = resolved_layer.insertion_index,
-                .matte_node        = k_invalid_node,
-            };
-        }
-    }
-
-    return LayerGraphItem{
-        .layer           = resolved_layer.layer,
-        .transform       = resolved_layer.world_transform,
-        .world_matrix    = resolved_layer.world_matrix,
-        .depth           = 0.0f,
-        .world_z         = resolved_layer.world_transform.position.z,
-        .projected       = false,
-        .native_3d       = is_native_3d_layer(layer),
-        .insertion_index = resolved_layer.insertion_index,
-        .matte_node      = k_invalid_node,
-    };
+    return resolve_layer_graph_item(resolved_layer, ctx);
 }
 
 } // namespace chronon3d::graph::detail
