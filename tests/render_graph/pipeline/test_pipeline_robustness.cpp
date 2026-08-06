@@ -598,6 +598,77 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D centered source") {
     CHECK(inside > 0);
 }
 
+TEST_CASE("SourceNode execution bbox is invariant under diagnostics") {
+    auto* res = std::pmr::get_default_resource();
+    RenderNode rnode = RenderNodeFactory::rect(res, "partially_clipped_rect", {
+        .size = {100.0f, 100.0f},
+        .color = Color::red(),
+        .pos = {1900.0f, 500.0f, 0.0f}
+    });
+
+    auto renderer = test::make_renderer();
+    auto make_context = [&renderer](bool diagnostics_enabled) {
+        RenderGraphContext ctx;
+        ctx.frame_input.width = 1920;
+        ctx.frame_input.height = 1080;
+        ctx.policy.diagnostics_enabled = diagnostics_enabled;
+        ctx.services.backend = &renderer.backend();
+        return ctx;
+    };
+
+    cache::NodeCacheKey key{};
+    SourceNode node("partially_clipped_node", rnode, key);
+
+    auto off_ctx = make_context(false);
+    auto on_ctx = make_context(true);
+    const auto off_bbox = node.predicted_bbox(off_ctx);
+    const auto on_bbox = node.predicted_bbox(on_ctx);
+
+    REQUIRE(off_bbox.has_value());
+    REQUIRE(on_bbox.has_value());
+    CHECK(off_bbox->x0 >= 0);
+    CHECK(off_bbox->y0 >= 0);
+    CHECK(off_bbox->x1 <= off_ctx.frame_input.width);
+    CHECK(off_bbox->y1 <= off_ctx.frame_input.height);
+    CHECK(off_bbox->x1 == off_ctx.frame_input.width);
+    CHECK(off_bbox->x0 < off_bbox->x1);
+    CHECK(off_bbox->y0 < off_bbox->y1);
+    CHECK(off_bbox->x0 == on_bbox->x0);
+    CHECK(off_bbox->y0 == on_bbox->y0);
+    CHECK(off_bbox->x1 == on_bbox->x1);
+    CHECK(off_bbox->y1 == on_bbox->y1);
+
+    // Compare actual framebuffer output through the public renderer path so
+    // the backend's compiled processor catalog is wired exactly as in
+    // production.  The diagnostics flag may log, but it must not alter pixels.
+    SceneBuilder builder;
+    builder.layer("diagnostics_parity_layer", [](LayerBuilder& layer) {
+        layer.rect("diagnostics_parity_rect", {
+            .size = {160.0f, 120.0f},
+            .color = Color::red(),
+            .pos = {180.0f, 0.0f, 0.0f}
+        });
+    });
+    const Scene scene = builder.build();
+    Camera camera;
+
+    auto off_renderer = test::make_renderer();
+    auto off_settings = off_renderer.render_settings();
+    off_settings.diagnostics.enabled = false;
+    off_renderer.set_settings(off_settings);
+    const auto off_frame = off_renderer.render_scene(scene, camera, 320, 240, 30.0f);
+    REQUIRE(off_frame != nullptr);
+
+    auto on_renderer = test::make_renderer();
+    auto on_settings = on_renderer.render_settings();
+    on_settings.diagnostics.enabled = true;
+    on_renderer.set_settings(on_settings);
+    const auto on_frame = on_renderer.render_scene(scene, camera, 320, 240, 30.0f);
+    REQUIRE(on_frame != nullptr);
+
+    CHECK(test::framebuffer_hash(*off_frame) == test::framebuffer_hash(*on_frame));
+}
+
 TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
     auto* res = std::pmr::get_default_resource();
     RenderNode rnode = RenderNodeFactory::rect(res, "my_rect", {

@@ -165,14 +165,29 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
-    auto bbox = renderer::compute_world_bbox(m_node.shape, matrix, spread);
-    if (!ctx.policy.diagnostics_enabled) {
-        bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+    // Keep the diagnostic/world-space bounds separate from the execution
+    // bounds.  Diagnostics may inspect the unclipped geometry, but culling,
+    // tile pruning, dirty clipping, and cache state must always consume the
+    // same canvas-clipped bbox regardless of the logging flag.
+    const auto diagnostic_bbox =
+        renderer::compute_world_bbox(m_node.shape, matrix, spread);
+    auto execution_bbox = diagnostic_bbox;
+    execution_bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::debug(
+            "[source-bbox] node='{}' diagnostic=[{},{},{},{}] execution=[{},{},{},{}]",
+            m_name,
+            diagnostic_bbox.x0, diagnostic_bbox.y0,
+            diagnostic_bbox.x1, diagnostic_bbox.y1,
+            execution_bbox.x0, execution_bbox.y0,
+            execution_bbox.x1, execution_bbox.y1);
     }
-    if (bbox.is_empty()) {
+
+    if (execution_bbox.is_empty()) {
         return raster::BBox{0, 0, 0, 0};
     }
-    return bbox;
+    return execution_bbox;
 }
 
 cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
