@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
+#include "../builder/evaluated_layer_placement.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -93,63 +94,24 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
     const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-    Mat4 matrix;
-    // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) — mirror
-    // Condition the 2.5D projection on the global `has_camera_2_5d`
-    // trigger (TICKET-ae-cam-hash-collision Soluzione B).  Only
-    // FakeBox3D is excluded — it routes through
-    // `detail::projected_native_3d_bbox` further down and expects an
-    // unprojected world matrix there.  GridPlane was formerly excluded
-    // too (TICKET-122 FASE 3: removed so grid scales with zoom).
-    const ShapeType shape_type = m_node.shape.type();
-    // TICKET-122 FASE 3: GridPlane (grid_background) now participates
-    // in 2.5D projection so the grid scales with zoom.  Previously
-    // excluded, it always rendered full-canvas identically regardless
-    // of zoom — the root cause of AE_CAM_02 hash collision.
-    const bool apply_2_5d_projection =
-        m_apply_camera_projection &&
-        ctx.frame_input.has_camera_2_5d &&
-        shape_type != ShapeType::FakeBox3D;
-    if (apply_2_5d_projection) {
-        // TICKET-ae-cam-hash-collision SourceNode forward-fix (per
-        // ## Verification gap): pass the actual layer TRS to
-        // project_layer_2_5d, NOT a default-constructed Transform
-        // (which would collapse `input.layer_size = (1,1)` and cause
-        // the projected bbox to be sub-pixel-clipped at the rasterizer,
-        // rendering 2D layers as transparent-black and producing
-        // framebuffer_hash collisions).
-        //
-        // Dedup (round-2/3 code-reviewer #2 follow-up): the
-        // projection+continue logic is extracted to
-        // `chronon3d::graph::detail::project_to_camera_space` in
-        // `src/render_graph/nodes/detail/projection_helpers.hpp` and  // drift-allow: stale-ref
-        // shared with the 3 multi_source_node.cpp sites.  This handles
-        // the m_matrix_override case correctly: base_matrix is either
-        // the override or the world transform's matrix, and from_mat4
-        // (called inside the helper) decomposes the source of truth.
-        //  m_opacity_override.value_or(m_node.world_transform.opacity)
-        //  precedence is preserved (override > world transform).
-        auto matrix_opt = chronon3d::graph::detail::project_to_camera_space(
-            base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity),
-            ctx, m_name, "predicted_bbox");
-        if (!matrix_opt) {
-            // Behind camera / off frustum: return no bbox so the graph
-            // aggressively culls the node (saves context acquisition
-            // overhead).  Native 3D shapes are excluded above so this
-            // path is only hit for 2.5D-projected 2D layers.  The
-            // CHRONON3D_PROJ_DIAG diagnostic has already been emitted
-            // by the helper.
-            return std::nullopt;
-        }
-        matrix = *matrix_opt;
-    } else {
-        // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
-        // by the source pass / refresh.  m_centered removed.
-        matrix = ssaa_scale * base_matrix;
+    const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+    const bool exclude_from_projection = m_node.shape.type() == ShapeType::FakeBox3D;
+    const auto placement = detail::evaluate_layer_placement(
+        base_matrix,
+        opacity,
+        ctx,
+        m_apply_camera_projection,
+        m_defer_camera_projection,
+        m_native_3d,
+        m_name,
+        "predicted_bbox",
+        static_cast<std::size_t>(-1),
+        exclude_from_projection);
+    if (!placement) {
+        return std::nullopt;
     }
+    const Mat4 matrix = placement->render_matrix;
 
     f32 spread = 0.0f;
     spread += 8.0f;
@@ -240,69 +202,37 @@ NodeExecResult SourceNode::execute(
     }
 
     auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, !skip_clear);
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
     const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+    const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
 
     if (ctx.services.backend) {
         RenderState state;
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
         state.ssaa_factor = ctx.policy.ssaa_factor;
 
-        // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) —
-        // Condition the 2.5D projection on the global `has_camera_2_5d`
-        // trigger (Soluzione B).  Only FakeBox3D is excluded (GridPlane now projected per TICKET-122
-        // FASE 3).
-        // TICKET-122 FASE 3: GridPlane participates in 2.5D projection
-        // so the grid scales with zoom (matches predicted_bbox above).
-        const ShapeType exec_shape_type = m_node.shape.type();
-        const bool exec_apply_2_5d_projection =
-            m_apply_camera_projection &&
-            ctx.frame_input.has_camera_2_5d &&
-            exec_shape_type != ShapeType::FakeBox3D;
-        if (exec_apply_2_5d_projection) {
-            // TICKET-ae-cam-hash-collision SourceNode forward-fix (per
-            // ## Verification gap): same `from_mat4(base_matrix, ...)`
-            // pattern as predicted_bbox site above.  See site-1 comment
-            // for the full rationale (extracts actual layer scale from
-            // base_matrix's column vectors, pre-empting the
-            // empty-Transform-tr transparent-black bug).
-            //
-            // Dedup (round-2/3 code-reviewer #2 follow-up): the
-            // projection+continue logic is extracted to
-            // `chronon3d::graph::detail::project_to_camera_space` and
-            // shared with the 3 multi_source_node sites + the sibling
-            // predicted_bbox site.  The helper emits the
-            // CHRONON3D_PROJ_DIAG diagnostic internally.  After the
-            // helper returns nullopt, this site adds the
-            // `[source-skip]` per-site diagnostic (gated on
-            // `ctx.policy.diagnostics_enabled`, not on
-            // CHRONON3D_PROJ_DIAG) + the defensive `fb->set_opaque(false)`
-            // + the early-return of the cleared fb.
-            auto state_matrix_opt = chronon3d::graph::detail::project_to_camera_space(
-                base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity),
-                ctx, m_name, "execute");
-            if (!state_matrix_opt) {
-                // Layer is behind camera plane / off frustum: skip the
-                // draw call and return the empty (cleared) fb so the
-                // graph continues.  Matches MultiSourceNode skip-path
-                // semantics (execute continue;).
-                if (ctx.policy.diagnostics_enabled) {
-                    spdlog::info(
-                        "[source-skip] node='{}' proj.visible=false frame={} — returning empty fb",
-                        m_name,
-                        ctx.frame_input.sample_time.integral_frame());
-                }
-                fb->set_opaque(false);  // empty fb is not opaque (defensive)
-                return NodeExecResult{std::move(fb)};
+        const auto placement = detail::evaluate_layer_placement(
+            base_matrix,
+            opacity,
+            ctx,
+            m_apply_camera_projection,
+            m_defer_camera_projection,
+            false,
+            m_name,
+            "execute",
+            static_cast<std::size_t>(-1),
+            m_node.shape.type() == ShapeType::FakeBox3D);
+        if (!placement) {
+            if (ctx.policy.diagnostics_enabled) {
+                spdlog::info(
+                    "[source-skip] node='{}' proj.visible=false frame={} — returning empty fb",
+                    m_name,
+                    ctx.frame_input.sample_time.integral_frame());
             }
-            state.matrix = *state_matrix_opt;
-        } else {
-            // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
-            // by the source pass / refresh.  m_centered removed.
-            state.matrix = ssaa_scale * base_matrix;
+            fb->set_opaque(false);
+            return NodeExecResult{std::move(fb)};
         }
-        state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+        state.matrix = placement->render_matrix;
+        state.opacity = opacity;
         state.shape_processor = ctx.node_exec.current_shape_processor;
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
@@ -391,14 +321,27 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
         return false;
     }
 
-    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
     // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
     // by the source pass / refresh.  m_centered removed.
-    const Mat4 effective_matrix = ssaa_scale * local_matrix;
+    const auto placement = detail::evaluate_layer_placement(
+        local_matrix,
+        opacity,
+        ctx,
+        false,
+        false,
+        false,
+        m_name,
+        "can_seed_full_frame");
+    if (!placement) {
+        return false;
+    }
 
-    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.frame_input.width), static_cast<f32>(ctx.frame_input.height), false);
+    return covers_full_frame_as_rectangle(
+        placement->render_matrix,
+        static_cast<f32>(ctx.frame_input.width),
+        static_cast<f32>(ctx.frame_input.height),
+        false);
 }
 
 } // namespace chronon3d::graph

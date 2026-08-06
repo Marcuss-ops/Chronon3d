@@ -19,8 +19,11 @@
 // ---------------------------------------------------------------------------
 
 #include "graph_builder_coordinates.hpp"
+#include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 
 #include <optional>
+#include <string>
+#include <string_view>
 
 namespace chronon3d::graph::detail {
 
@@ -66,6 +69,72 @@ struct EvaluatedLayerPlacement {
 
     std::optional<raster::BBox> projected_bbox;
 };
+
+/// Resolve the render-stage placement for a source payload that has already
+/// been lowered by the graph builder. This is the node/executor counterpart
+/// of `evaluate_layer_placement`: it owns the final SSAA, canvas-centre and
+/// camera-projection composition so `predicted_bbox()` and `execute()` cannot
+/// drift apart. `source_matrix` is the builder/refresh payload, not an
+/// authored transform to be re-derived here.
+[[nodiscard]] inline std::optional<EvaluatedLayerPlacement> evaluate_layer_placement(
+    const Mat4& source_matrix,
+    f32 opacity,
+    const RenderGraphContext& ctx,
+    bool apply_camera_projection,
+    bool defer_camera_projection = false,
+    bool native_3d = false,
+    std::string_view node_name = {},
+    const char* stage = nullptr,
+    std::size_t item_index = static_cast<std::size_t>(-1),
+    bool exclude_from_2_5d_projection = false)
+{
+    EvaluatedLayerPlacement result;
+    result.world_matrix = source_matrix;
+    result.source_matrix = source_matrix;
+    result.opacity = opacity;
+    result.defer_camera_projection = defer_camera_projection;
+    result.applies_camera_in_processor =
+        ctx.frame_input.has_camera_2_5d && native_3d;
+
+    const bool project_camera =
+        apply_camera_projection &&
+        !defer_camera_projection &&
+        !native_3d &&
+        !exclude_from_2_5d_projection &&
+        ctx.frame_input.has_camera_2_5d;
+
+    if (project_camera) {
+        const auto projected = project_to_camera_space(
+            source_matrix,
+            opacity,
+            ctx,
+            std::string(node_name),
+            stage,
+            item_index);
+        if (!projected) {
+            result.visible = false;
+            result.space = EvaluatedCoordinateSpace::CameraProjected;
+            return std::nullopt;
+        }
+        result.visible = true;
+        result.space = EvaluatedCoordinateSpace::CameraProjected;
+        result.render_matrix = *projected;
+        result.requires_transform_node = true;
+        return result;
+    }
+
+    result.visible = true;
+    result.space = native_3d
+        ? EvaluatedCoordinateSpace::Native3D
+        : (defer_camera_projection
+            ? EvaluatedCoordinateSpace::CameraProjected
+            : EvaluatedCoordinateSpace::Canvas);
+    const Mat4 ssaa_scale = glm::scale(
+        Mat4(1.0f),
+        Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
+    result.render_matrix = ssaa_scale * source_matrix;
+    return result;
+}
 
 /// Evaluate one LayerGraphItem using the repository's existing coordinate
 /// conventions.  No graph node is created and no render state is mutated.

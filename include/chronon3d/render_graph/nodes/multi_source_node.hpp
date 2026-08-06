@@ -17,6 +17,8 @@ struct MultiSourceItem {
     // projection a second time when a scene camera is active. Legacy callers
     // keep the existing per-item projection behaviour by default.
     bool defer_camera_projection{false};
+    bool apply_camera_projection{true};
+    bool native_3d{false};
 };
 
 class MultiSourceNode final : public RenderGraphNode {

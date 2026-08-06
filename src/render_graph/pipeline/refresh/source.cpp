@@ -129,7 +129,9 @@ void refresh_source_node(
         key,
         ctx.policy.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::optional<Mat4>(resolved_matrix),
         ctx.policy.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
-        node.cache_policy()
+        node.cache_policy(),
+        placement.defer_camera_projection,
+        item.native_3d
     );
 }
 
