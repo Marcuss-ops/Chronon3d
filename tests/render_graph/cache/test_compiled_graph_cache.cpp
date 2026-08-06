@@ -3,6 +3,15 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <tests/helpers/test_utils.hpp>
+
+#include <memory>
+#include <string>
+#include <array>
+#include <vector>
 
 using namespace chronon3d::graph;
 
@@ -118,6 +127,72 @@ TEST_CASE("cache compatible → reuse available") {
     ctx.services.compiled_graph_cache = &cache;
 
     CHECK(cache.has(3840, 2160));
+}
+
+TEST_CASE("cache domains reset independently") {
+    auto renderer = chronon3d::test::make_renderer_shared();
+    auto& runtime = renderer->runtime();
+
+    chronon3d::cache::NodeCacheKey node_key{
+        .scope = "reset-domain-test",
+        .frame = chronon3d::Frame{7},
+        .width = 16,
+        .height = 16,
+        .params_hash = 0x11,
+        .source_hash = 0x22,
+        .input_hash = 0x33,
+    };
+    runtime.node_cache().store(
+        node_key, std::make_shared<chronon3d::Framebuffer>(16, 16));
+    REQUIRE(runtime.node_cache().contains(node_key));
+
+    chronon3d::graph::RenderGraph graph;
+    chronon3d::graph::CompiledFrameGraph compiled(std::move(graph));
+    runtime.graph_cache().store(std::move(compiled), 16, 16);
+    REQUIRE(runtime.graph_cache().has(16, 16));
+
+    renderer->frame_history().prev_frame = chronon3d::Frame{7};
+    renderer->frame_history().prev_scene_fingerprint = 0xCAFE;
+
+    renderer->reset_compiled_cache();
+    CHECK_FALSE(runtime.graph_cache().has(16, 16));
+    CHECK(runtime.node_cache().contains(node_key));
+    CHECK(renderer->frame_history().prev_scene_fingerprint == 0xCAFE);
+
+    renderer->reset_frame_value_cache();
+    CHECK_FALSE(runtime.node_cache().contains(node_key));
+    CHECK(renderer->frame_history().prev_frame == chronon3d::Frame{7});
+
+    runtime.node_cache().store(
+        node_key, std::make_shared<chronon3d::Framebuffer>(16, 16));
+    renderer->reset_temporal_history();
+    CHECK_FALSE(renderer->frame_history().prev_camera_valid);
+    CHECK(renderer->frame_history().prev_frame == chronon3d::Frame{-1});
+    CHECK(runtime.node_cache().contains(node_key));
+
+    // Exercise every required access order while applying domain resets
+    // between orders. The retained node value must survive topology and
+    // temporal resets, then disappear only when frame values are reset.
+    const std::array<std::vector<int>, 4> orders{{
+        {0, 1, 2, 3},
+        {2, 0, 3, 1},
+        {3, 2, 1, 0},
+        {0, 0, 1, 1, 2, 2, 3, 3},
+    }};
+    for (const auto& order : orders) {
+        for (const int frame : order) {
+            node_key.frame = chronon3d::Frame{frame};
+            runtime.node_cache().store(
+                node_key, std::make_shared<chronon3d::Framebuffer>(16, 16));
+            CHECK(runtime.node_cache().contains(node_key));
+        }
+        CHECK(runtime.node_cache().contains(node_key));
+        renderer->reset_compiled_cache();
+        renderer->reset_temporal_history();
+        CHECK(runtime.node_cache().contains(node_key));
+    }
+    renderer->reset_frame_value_cache();
+    CHECK_FALSE(runtime.node_cache().contains(node_key));
 }
 
 TEST_CASE("try_take consumes the value (coordinator path)") {
