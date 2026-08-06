@@ -4,9 +4,8 @@
 // evaluated_layer_placement.hpp
 //
 // Internal, build-tree-only contract for the evaluated placement of one
-// resolved layer.  This is the first increment of the placement unification:
-// it introduces one result type and one decision point without changing the
-// existing builder/refresh consumers yet.
+// resolved layer. This increment makes the placement result the shared
+// decision point for initial graph construction and scene refresh.
 //
 // The resolver deliberately composes the conventions already established in
 // graph_builder_coordinates.hpp:
@@ -73,10 +72,9 @@ struct EvaluatedLayerPlacement {
 ///
 /// The function is intentionally pure with respect to the context: it only
 /// reads frame dimensions, camera presence, policy, and the already-resolved
-/// LayerGraphItem.  A projected LayerGraphItem is expected to carry the
-/// projection matrix produced by `project_layer_2_5d()`; this first increment
-/// centralises the placement *decision* while the build/refresh migration that
-/// produces that item lands separately.
+/// LayerGraphItem. A projected LayerGraphItem carries the projection matrix
+/// produced by `project_layer_2_5d()`; the same result is consumed by build
+/// and refresh paths.
 [[nodiscard]] inline EvaluatedLayerPlacement evaluate_layer_placement(
     const LayerGraphItem& item,
     const RenderGraphContext& ctx)
@@ -92,7 +90,8 @@ struct EvaluatedLayerPlacement {
         item.native_3d && ctx.frame_input.has_camera_2_5d;
 
     // Keep this branch structurally identical to the source-pass and refresh
-    // formulas until those consumers are migrated to this result.  In
+    // formulas where compatibility baking remains outside the placement
+    // result. In
     // particular, projected 2D layers retain only the implicit canvas origin
     // in their source stage; their complete homography belongs to the
     // TransformNode. Native 3D layers retain their source-space matrix and
@@ -120,7 +119,20 @@ struct EvaluatedLayerPlacement {
     if (use_local) {
         result.space = EvaluatedCoordinateSpace::Local;
         result.source_matrix = item.world_matrix;
-        result.render_matrix = result.source_matrix;
+        if (should_use_centered_rendering(item, ctx)) {
+            Mat4 ssaa_world = item.world_matrix;
+            ssaa_world[3][0] *= ctx.policy.ssaa_factor;
+            ssaa_world[3][1] *= ctx.policy.ssaa_factor;
+            ssaa_world[3][2] *= ctx.policy.ssaa_factor;
+            result.render_matrix = glm::translate(
+                Mat4(1.0f),
+                Vec3(-ctx.frame_input.width * 0.5f,
+                     -ctx.frame_input.height * 0.5f,
+                     0.0f)) * ssaa_world;
+        } else {
+            result.render_matrix = strip_implicit_canvas_centering(
+                item.world_matrix, item, ctx);
+        }
         return result;
     }
 

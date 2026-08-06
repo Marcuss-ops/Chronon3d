@@ -1,5 +1,6 @@
 #include "graph_builder_source_pass.hpp"
 #include "../graph_builder_coordinates.hpp"
+#include "../evaluated_layer_placement.hpp"
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
@@ -30,14 +31,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
         }
 
-        const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
+        const auto placement = evaluate_layer_placement(item, ctx);
         // A projected item is transformed by the downstream TransformNode.
         // Keep its source local; including the resolved layer world matrix
         // here would apply the layer translation twice.
-        const bool projected_item = item.projected;
-        const bool projected_2d = projected_item && !item.native_3d;
-        const bool use_local = ctx.policy.modular_coordinates &&
-            layer_needs_transform && !item.native_3d && !projected_item;
+        const bool projected_2d = placement.defer_camera_projection;
+        const bool use_local = placement.space == EvaluatedCoordinateSpace::Local;
         // A local transform changes the rasterized placement, but it does not
         // make an animated layer's source frame-invariant.  Treating
         // `use_local` as static reused the first moving shape in dirty/tile
@@ -59,16 +58,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             );
         }
 
-        const Mat4 item_source_world = item.native_3d
-            ? source_space_world_matrix(item, ctx)
-            : (projected_item
-            // Projected TransformNode input is canvas-space; retain the
-            // single canvas origin but leave authored layer translation to
-            // the projection matrix so it is not applied twice.
-            ? implicit_canvas_center_matrix(ctx)
-            : (use_local
-            ? item.world_matrix
-            : source_space_world_matrix(item, ctx)));
+        // The resolver owns source-stage matrix selection. Projected
+        // TransformNode input is canvas-space; native 3D keeps processor
+        // camera ownership; local and canvas paths retain their existing
+        // source matrices.
+        const Mat4 item_source_world = placement.source_matrix;
 
         if (layer.nodes.size() == 1) {
             const auto& node = layer.nodes[0];
@@ -159,10 +153,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 }
                 const f32 shape_opacity = (use_local || projected_2d)
                     ? node.world_transform.opacity
-                    : (item.transform.opacity * node.world_transform.opacity);
+                    : (placement.opacity * node.world_transform.opacity);
 
-                // Bake canvas_center into the matrix when (centered || projected)
-                // && !modular_coordinates, so the node no longer needs to
+                // Compatibility bake for the non-modular source path;
+                // placement ownership remains in the canonical result.
+                // Bake canvas_center when (centered || projected) &&
+                // !modular_coordinates, so the node no longer needs to
                 // know about centering.  The `item.projected` condition
                 // ensures projected layers always get canvas_center even
                 // without implicit centering.
@@ -253,7 +249,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         for (const auto& node : layer.nodes) {
             const Mat4 raw_shape_matrix = use_local
                 ? node.world_transform.to_mat4()
-                : (item_source_world * node.world_transform.to_mat4());
+                : (placement.source_matrix * node.world_transform.to_mat4());
             const Mat4 shape_matrix = use_local
                 ? raw_shape_matrix
                 : (has_custom_absolute_text_transform(item, node, ctx)
@@ -262,7 +258,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         item, node, ctx, raw_shape_matrix));
             const f32 shape_opacity = (use_local || projected_2d)
                 ? node.world_transform.opacity
-                : (item.transform.opacity * node.world_transform.opacity);
+                : (placement.opacity * node.world_transform.opacity);
 
             items.push_back(MultiSourceItem{
                 .node = &node,
