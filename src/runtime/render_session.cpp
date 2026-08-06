@@ -28,6 +28,17 @@
 
 namespace chronon3d {
 
+void RenderSession::reset_temporal_history() {
+    // Temporal state is deliberately independent from frame values and
+    // compiled topology. Resetting it must not evict either runtime cache.
+    frame_history = FrameHistory{};
+    dirty_telemetry.previous_layers.clear();
+}
+
+void RenderSession::reset_scene_state() noexcept {
+    scene_hasher_state = chronon3d::graph::SceneHasher{};
+}
+
 void RenderSession::reset_job() {
     // Frame-scoped telemetry counter first (folded PR 3.2 — the
     // reset_frame_temporaries body still lives inline in the header
@@ -35,28 +46,17 @@ void RenderSession::reset_job() {
     // DirtyHistory has no user-defined ctor, just per-field defaults).
     reset_frame_temporaries();
 
-    // WP-3 PR 3.2 — per-session per-job histories reset.  The
-    // `previous_layers` field is no longer in a separate wrapper
-    // struct (RendererLayerHistory was removed); it's now part of
-    // DirtyHistory and is also reset here so a full job reset
-    // wipes the per-layer diff source-of-truth as well.
-    frame_history = FrameHistory{};
-    dirty_telemetry.previous_layers.clear();
+    // Per-session temporal history reset is kept separate from frame-value
+    // state so callers can choose the required invalidation domain.
+    reset_temporal_history();
 
     // Per-session scene-hasher reset (PR 3.1 — moved from runtime-owned
-    // to per-session-owned).  The reset reaches only THIS session's
-    // local instance; two concurrent sessions mint from one runtime
-    // therefore never clear each other's scene_hasher_state.
-    scene_hasher_state = chronon3d::graph::SceneHasher{};
+    // to per-session-owned). The reset reaches only THIS session's local
+    // instance; two concurrent sessions never clear each other's state.
+    reset_scene_state();
 
-    // Per-session scene-program-store reset (PR 3.1).  The clear()
-    // call affects only this session's program cache.
-    program_store_state->clear();
-
-    // P1 #3 — per-session layout cache reset.  Immutable layouts are
-    // safe to discard across jobs; a fresh job with different fonts or
-    // text should not reuse stale cached entries from the previous job.
-    layout_cache.clear();
+    // Frame-value state is reset independently from temporal history.
+    reset_frame_values();
 }
 
 } // namespace chronon3d

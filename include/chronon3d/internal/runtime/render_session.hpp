@@ -198,13 +198,24 @@ struct RenderSession {
     [[nodiscard]] FrameArena&       arena()       noexcept { return *arena_ptr; }
     [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
 
-    /// Full per-job reset (telemetry + history + per-session scene_hasher
-    /// + per-session program_store.clear()).  WP-3 collapsed the legacy
-    /// full-reset shim into this method; WP-3 PR 3.1 made the per-session
-    /// ownership explicit so the reset reaches only the current session's
-    /// state — never another session's, even when both were minted from
-    /// the same RenderRuntime.
-    // WP-3 PR 3.2 — rename-friendly; canonical types only.
+    /// Reset only frame-scoped values and diagnostics. Preserves temporal
+    /// history, compiled topology and runtime-owned caches.
+    void reset_frame_values() {
+        reset_frame_temporaries();
+        program_store_state->clear();
+        layout_cache.clear();
+    }
+
+    /// Reset only temporal/session history and framebuffer-related state.
+    /// Compiled topology and runtime-owned frame-value caches are preserved.
+    void reset_temporal_history();
+
+    /// Reset session-local scene evaluation state without touching caches.
+    void reset_scene_state() noexcept;
+
+    /// Full per-job reset (values + temporal history + per-session state).
+    /// Runtime-owned compiled topology and node-value caches are intentionally
+    /// not touched here; their independent reset APIs live on RenderRuntime.
     void reset_job();
 };
 

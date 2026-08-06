@@ -110,9 +110,24 @@ struct SoftwareRenderSession {
     /// are managed exclusively by reset_frame_temporaries(), so
     /// re-running render() within the same job preserves the
     /// last-frame visibility for `chronon3d_cli inspect-text`.
+    /// Reset only frame values; temporal history and runtime caches survive.
+    void reset_frame_values() {
+        common.reset_frame_values();
+        text_audit_snapshots.clear();
+    }
+
+    /// Reset only temporal/session history and software framebuffer state.
+    void reset_temporal_history() {
+        common.reset_temporal_history();
+        software.reset_temporal_history();
+    }
+
+    /// Full per-job reset. Runtime-owned caches are reset independently by
+    /// RenderRuntime's domain-specific APIs and remain untouched here.
     void reset_job() {
-        common.reset_job();
-        software.reset_job();
+        reset_frame_values();
+        reset_temporal_history();
+        common.reset_scene_state();
     }
 };
 
