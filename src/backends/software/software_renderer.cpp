@@ -211,12 +211,29 @@ void SoftwareRenderer::clear_caches() {
     // were deleted wholesale with the `software_text_processor` tree
     // (M1.5#9 step 4).  Modern text effects are routed through the
     // per-renderer `TextRenderResources` and the canonical EffectStack.
-    node_cache().clear();
     if (auto* pool = m_runtime->framebuffer_pool_shared().get()) {
         pool->clear();
     }
-    m_runtime->graph_cache() = {};
-    m_session.reset_job();
+    reset_compiled_cache();
+    reset_frame_value_cache();
+    // The public full-clear operation retains its historical contract:
+    // clear all session state, including the scene hasher, after the three
+    // independently addressable cache/history domains are reset.
+    reset_temporal_history();
+    m_session.common.reset_scene_state();
+}
+
+void SoftwareRenderer::reset_compiled_cache() noexcept {
+    m_runtime->reset_compiled_cache();
+}
+
+void SoftwareRenderer::reset_frame_value_cache() noexcept {
+    m_runtime->reset_frame_value_cache();
+    m_session.reset_frame_values();
+}
+
+void SoftwareRenderer::reset_temporal_history() noexcept {
+    m_session.reset_temporal_history();
 }
 
 void SoftwareRenderer::set_image_backend(std::shared_ptr<image::ImageBackend> backend) {

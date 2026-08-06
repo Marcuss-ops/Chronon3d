@@ -231,6 +231,15 @@ public:
     [[nodiscard]] const chronon3d::cache::PersistentFramebufferStore* framebuffer_store() const noexcept;
     [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
     [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
+
+    /// Reset only compiled topology state. Frame values and temporal history
+    /// remain untouched so callers can invalidate graph structure independently.
+    void reset_compiled_cache() noexcept { m_owned_graph_cache.reset(); }
+
+    /// Reset only runtime-owned evaluated node values. The compiled topology
+    /// and temporal history remain available for reuse.
+    void reset_frame_value_cache() noexcept { m_owned_node_cache.clear(); }
+
     [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
     [[nodiscard]] chronon3d::cache::FramebufferPool&       framebuffer_pool() noexcept {
         return *m_owned_framebuffer_pool;
