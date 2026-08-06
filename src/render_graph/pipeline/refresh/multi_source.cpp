@@ -63,6 +63,8 @@ void refresh_multi_source_node(
             .matrix = render_matrix,
             .opacity = render_opacity,
             .defer_camera_projection = item.projected && !item.native_3d,
+            .apply_camera_projection = true,
+            .native_3d = item.native_3d,
         });
         aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));
         // Deliberately does NOT fold `hash_text_run_shape`
