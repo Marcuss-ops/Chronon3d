@@ -7,11 +7,11 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
-#include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // TICKET-026 is_motion_blur_active()
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include "../../builder/graph_builder_internal.hpp"
 #include "../../builder/graph_builder_pipeline.hpp"
 #include "../../builder/graph_builder_bbox.hpp"
+#include "../../builder/evaluated_layer_placement.hpp"
 #include "../dirty_safety_policy.hpp"
 
 #include <tbb/parallel_for.h>
@@ -31,43 +31,14 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
     Frame frame
 ) {
     auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl) -> raster::BBox {
-        LayerGraphItem item;
-        if (cam25d.enabled && rl.layer->uses_2_5d_projection) {
-            Transform effective_transform = rl.world_transform;
-            auto proj = project_layer_2_5d(
-                effective_transform, effective_transform.to_mat4(), cam25d,
-                static_cast<f32>(width), static_cast<f32>(height), ctx.policy.diagnostics_enabled);
-            if (proj.visible) {
-                const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
-                item = LayerGraphItem{
-                    .layer = rl.layer,
-                    .transform = proj.transform,
-                    .world_matrix = rl.world_matrix,
-                    .projection_matrix = eff_proj,
-                    .depth = proj.depth,
-                    .world_z = rl.world_transform.position.z,
-                    .projected = true,
-                    .native_3d = detail::is_native_3d_layer(*rl.layer),
-                    .insertion_index = rl.insertion_index
-                };
-            } else {
-                return raster::BBox{0, 0, 0, 0};
-            }
-        } else {
-            item = LayerGraphItem{
-                .layer = rl.layer,
-                .transform = rl.world_transform,
-                .world_matrix = rl.world_matrix,
-                .depth = 0.0f,
-                .world_z = rl.world_transform.position.z,
-                .projected = false,
-                .native_3d = detail::is_native_3d_layer(*rl.layer),
-                .insertion_index = rl.insertion_index
-            };
+        const LayerGraphItem item = resolve_layer_graph_item(rl, ctx);
+        if (!item.visible) {
+            return raster::BBox{0, 0, 0, 0};
         }
         return detail::compute_layer_bbox(item, ctx, sw_renderer);
     };
 
+    (void)cam25d;
     tbb::enumerable_thread_specific<std::unordered_map<std::string, LayerBBoxState>> tls_bboxes;
 
     tbb::parallel_for(
@@ -88,11 +59,6 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                                 DirtyFallbackReason::EffectBoundsUnknown);
                         }
                     } else {
-                        // Layer is dirty-rect safe, but Blur/Light effects
-                        // can extend the effective region beyond the geometric
-                        // bbox. Dilate by the computed spatial spread so we
-                        // get partial-dirty tracking instead of full-frame
-                        // every active frame.
                         const f32 spread = compute_layer_spatial_spread(*rl.layer);
                         if (spread > 0.0f) {
                             bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - spread)));
@@ -111,8 +77,6 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     state.uses_2_5d_projection = rl.layer->uses_2_5d_projection;
                     uint64_t content_h = rl.layer->get_static_hash();
                     if (rl.layer->anim_transform.blur.is_time_dependent()) {
-                        // Sequence V2: evaluate blur at the canonical
-                        // sub-frame-aware local time.
                         const SampleTime blur_time =
                             rl.layer->local_time(ctx.frame_input.sample_time);
                         content_h = hash_combine(

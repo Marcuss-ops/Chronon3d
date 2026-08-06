@@ -24,8 +24,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <algorithm>
+#include <cmath>
+#include <glm/gtc/matrix_transform.hpp>
+#include <limits>
 
 namespace chronon3d::graph::detail {
+
+[[nodiscard]] bool is_native_3d_layer(const Layer& layer);
 
 /// Coordinate space of the matrix consumed by the next render stage.
 enum class EvaluatedCoordinateSpace {
@@ -56,13 +62,17 @@ enum class EvaluatedCoordinateSpace {
 struct EvaluatedLayerPlacement {
     EvaluatedCoordinateSpace space{EvaluatedCoordinateSpace::Canvas};
 
+    /// Visibility is resolved together with projection. A layer that is
+    /// behind the camera (or explicitly hidden) is not a valid render input.
+    /// Callers must use this bit instead of repeating projection checks.
+    bool visible{false};
+
     Mat4 source_matrix{1.0f};
     Mat4 world_matrix{1.0f};
     Mat4 render_matrix{1.0f};
     Mat4 projection_matrix{1.0f};
 
     f32 opacity{1.0f};
-    bool visible{false};
     bool requires_transform_node{false};
     bool applies_camera_in_processor{false};
     bool defer_camera_projection{false};
@@ -136,6 +146,46 @@ struct EvaluatedLayerPlacement {
     return result;
 }
 
+/// Convert a local/node bbox through a canonical placement matrix into
+/// canvas pixels. This is kept beside the placement resolver so projected
+/// bbox math cannot drift between build, refresh, and dirty analysis.
+[[nodiscard]] inline raster::BBox project_bbox_to_canvas(
+    const raster::BBox& bbox,
+    const Mat4& model,
+    const RenderGraphContext& ctx)
+{
+    const Mat4 canvas = implicit_canvas_center_matrix(ctx);
+    const Mat4 pixel_model = canvas * model * glm::inverse(canvas);
+    const Vec4 corners[4] = {
+        pixel_model * Vec4(static_cast<f32>(bbox.x0), static_cast<f32>(bbox.y0), 0.0f, 1.0f),
+        pixel_model * Vec4(static_cast<f32>(bbox.x1), static_cast<f32>(bbox.y0), 0.0f, 1.0f),
+        pixel_model * Vec4(static_cast<f32>(bbox.x1), static_cast<f32>(bbox.y1), 0.0f, 1.0f),
+        pixel_model * Vec4(static_cast<f32>(bbox.x0), static_cast<f32>(bbox.y1), 0.0f, 1.0f),
+    };
+    f32 min_x = std::numeric_limits<f32>::max();
+    f32 min_y = std::numeric_limits<f32>::max();
+    f32 max_x = std::numeric_limits<f32>::lowest();
+    f32 max_y = std::numeric_limits<f32>::lowest();
+    for (const auto& corner : corners) {
+        if (std::abs(corner.w) < 1e-6f) continue;
+        const f32 x = corner.x / corner.w;
+        const f32 y = corner.y / corner.w;
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+    }
+    if (min_x > max_x || min_y > max_y) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+    return raster::BBox{
+        static_cast<i32>(std::floor(min_x)),
+        static_cast<i32>(std::floor(min_y)),
+        static_cast<i32>(std::ceil(max_x)),
+        static_cast<i32>(std::ceil(max_y)),
+    };
+}
+
 /// Evaluate one LayerGraphItem using the repository's existing coordinate
 /// conventions.  No graph node is created and no render state is mutated.
 ///
@@ -152,7 +202,7 @@ struct EvaluatedLayerPlacement {
     result.world_matrix = item.world_matrix;
     result.projection_matrix = item.projection_matrix;
     result.opacity = item.transform.opacity;
-    result.visible = item.layer && item.layer->visible;
+    result.visible = item.visible && item.layer && item.layer->visible;
     result.requires_transform_node = layer_needs_render_transform(item, ctx);
     result.defer_camera_projection = item.projected && !item.native_3d;
     result.applies_camera_in_processor =
@@ -207,8 +257,131 @@ struct EvaluatedLayerPlacement {
 
     result.space = EvaluatedCoordinateSpace::Canvas;
     result.source_matrix = source_space_world_matrix(item, ctx);
+    if (!ctx.policy.modular_coordinates &&
+        (should_use_centered_rendering(item, ctx) || item.projected) &&
+        !(item.layer && item.layer->uses_2_5d_projection)) {
+        result.source_matrix = implicit_canvas_center_matrix(ctx) * result.source_matrix;
+    }
     result.render_matrix = result.source_matrix;
     return result;
+}
+
+/// Finalize a bbox that was measured with the resolver's render matrix.
+/// The input is already in the node's execution/render space; this helper
+/// performs only the canonical visibility check and canvas clipping. It must
+/// not apply `projection_matrix` again (doing so would double-project a bbox).
+[[nodiscard]] inline std::optional<raster::BBox> resolve_execution_bbox(
+    const EvaluatedLayerPlacement& placement,
+    raster::BBox diagnostic_bbox,
+    const RenderGraphContext& ctx)
+{
+    if (!placement.visible) {
+        return raster::BBox{0, 0, 0, 0};
+    }
+    diagnostic_bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+    if (diagnostic_bbox.is_empty()) {
+        return raster::BBox{0, 0, 0, 0};
+    }
+    return diagnostic_bbox;
+}
+
+[[nodiscard]] inline EvaluatedLayerPlacement evaluate_layer_placement(
+    const LayerGraphItem& item,
+    const RenderGraphContext& ctx,
+    const std::optional<raster::BBox>& diagnostic_bbox)
+{
+    auto result = evaluate_layer_placement(item, ctx);
+    if (diagnostic_bbox) {
+        result.projected_bbox = resolve_execution_bbox(
+            result, *diagnostic_bbox, ctx);
+    }
+    return result;
+}
+
+/// Canonical source placement for one regular render node. TextRun has
+/// additional authored-placement rules and continues to use its dedicated
+/// resolver, but ordinary SourceNode/MultiSourceNode build and refresh paths
+/// share this exact matrix and opacity composition.
+struct EvaluatedSourcePlacement {
+    EvaluatedLayerPlacement layer;
+    Mat4 matrix{1.0f};
+    f32 opacity{1.0f};
+    bool use_local{false};
+};
+
+[[nodiscard]] inline EvaluatedSourcePlacement evaluate_source_placement(
+    const LayerGraphItem& item,
+    const RenderNode& node,
+    const RenderGraphContext& ctx)
+{
+    EvaluatedSourcePlacement result{
+        .layer = evaluate_layer_placement(item, ctx),
+        .matrix = Mat4(1.0f),
+        .opacity = node.world_transform.opacity,
+        .use_local = false,
+    };
+    result.use_local = result.layer.space == EvaluatedCoordinateSpace::Local;
+    result.matrix = result.use_local
+        ? node.world_transform.to_mat4()
+        : result.layer.source_matrix * node.world_transform.to_mat4();
+    result.opacity = (result.use_local || result.layer.defer_camera_projection)
+        ? node.world_transform.opacity
+        : result.layer.opacity * node.world_transform.opacity;
+    return result;
+}
+
+/// Build the canonical intermediate layer item used by graph construction,
+/// refresh, dirty-bbox collection, and matte sub-pipelines. Projection is
+/// evaluated exactly once here; callers no longer need to reconstruct
+/// `project_layer_2_5d()` or decide how native 3D owns the camera.
+[[nodiscard]] inline LayerGraphItem resolve_layer_graph_item(
+    const ResolvedLayer& resolved_layer,
+    const RenderGraphContext& ctx,
+    bool is_static = false)
+{
+    const Layer& layer = *resolved_layer.layer;
+    const bool native_3d = is_native_3d_layer(layer);
+
+    LayerGraphItem item{
+        .layer = resolved_layer.layer,
+        .transform = resolved_layer.world_transform,
+        .world_matrix = resolved_layer.world_matrix,
+        .depth = 0.0f,
+        .world_z = resolved_layer.world_transform.position.z,
+        .projected = false,
+        .native_3d = native_3d,
+        .visible = layer.visible,
+        .insertion_index = resolved_layer.insertion_index,
+        .matte_node = k_invalid_node,
+        .is_static = is_static,
+    };
+
+    if (ctx.frame_input.has_camera_2_5d && layer.uses_2_5d_projection) {
+        const auto projected = project_layer_2_5d(
+            resolved_layer.world_transform,
+            resolved_layer.world_matrix,
+            ctx.frame_input.camera_2_5d,
+            static_cast<f32>(ctx.frame_input.width),
+            static_cast<f32>(ctx.frame_input.height),
+            ctx.policy.diagnostics_enabled);
+        item.projected = true;
+        item.visible = item.visible && projected.visible;
+        if (!projected.visible) {
+            return item;
+        }
+
+        item.transform = projected.transform;
+        item.depth = projected.depth;
+        item.world_z = resolved_layer.world_transform.position.z;
+        // Native 3D keeps camera ownership in the source processor.  Its
+        // graph item therefore carries identity for transform/shadow users;
+        // projected 2D owns the complete homography in the TransformNode.
+        item.projection_matrix = native_3d
+            ? Mat4(1.0f)
+            : projected.projection_matrix;
+    }
+
+    return item;
 }
 
 } // namespace chronon3d::graph::detail
