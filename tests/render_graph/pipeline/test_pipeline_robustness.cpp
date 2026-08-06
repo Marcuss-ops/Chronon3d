@@ -1344,3 +1344,57 @@ TEST_CASE("Diagnostics parity: MultiSourceNode Camera2_5D keeps bbox decisions a
     check_parity_decision_and_pixels(off, on);
     CHECK(!off.bbox.is_empty());
 }
+
+TEST_CASE("EvaluatedLayerPlacement resolves hidden and projected visibility") {
+    SceneBuilder builder;
+    builder.layer("placement_hidden", [](LayerBuilder& layer) {
+        layer.visible(false);
+        layer.rect("hidden_rect", {
+            .size = {40.0f, 40.0f},
+            .color = Color::red(),
+            .pos = {0.0f, 0.0f, 0.0f},
+        });
+    });
+    const Scene scene = builder.build();
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 320;
+    ctx.frame_input.height = 240;
+    const auto resolved = chronon3d::graph::detail::resolve_layers(scene, ctx);
+    REQUIRE(resolved.layers.size() == 1);
+    const auto hidden = chronon3d::graph::detail::resolve_layer_graph_item(
+        resolved.layers.front(), ctx);
+    const auto hidden_placement =
+        chronon3d::graph::detail::evaluate_layer_placement(hidden, ctx);
+    CHECK_FALSE(hidden_placement.visible);
+
+    SceneBuilder projected_builder;
+    projected_builder.layer("placement_projected", [](LayerBuilder& layer) {
+        layer.enable_3d(true).position({0.0f, 0.0f, 500.0f}).rect(
+            "projected_rect", {
+                .size = {40.0f, 40.0f},
+                .color = Color::blue(),
+                .pos = {0.0f, 0.0f, 0.0f},
+            });
+    });
+    const Scene projected_scene = projected_builder.build();
+    RenderGraphContext projected_ctx;
+    projected_ctx.frame_input.width = 320;
+    projected_ctx.frame_input.height = 240;
+    projected_ctx.frame_input.camera_2_5d.enabled = true;
+    projected_ctx.frame_input.has_camera_2_5d = true;
+    projected_ctx.frame_input.camera_2_5d.position = {0.0f, 0.0f, -800.0f};
+    projected_ctx.frame_input.camera_2_5d.zoom = 800.0f;
+    const auto projected_resolved =
+        chronon3d::graph::detail::resolve_layers(projected_scene, projected_ctx);
+    REQUIRE(projected_resolved.layers.size() == 1);
+    const auto projected_item =
+        chronon3d::graph::detail::resolve_layer_graph_item(
+            projected_resolved.layers.front(), projected_ctx);
+    const auto projected_placement =
+        chronon3d::graph::detail::evaluate_layer_placement(
+            projected_item, projected_ctx);
+    CHECK(projected_item.projected);
+    CHECK(projected_placement.visible);
+    CHECK(projected_placement.space ==
+          chronon3d::graph::detail::EvaluatedCoordinateSpace::CameraProjected);
+}

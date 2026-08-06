@@ -35,7 +35,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // A projected item is transformed by the downstream TransformNode.
         // Keep its source local; including the resolved layer world matrix
         // here would apply the layer translation twice.
-        const bool projected_2d = placement.defer_camera_projection;
         const bool use_local = placement.space == EvaluatedCoordinateSpace::Local;
         // A local transform changes the rasterized placement, but it does not
         // make an animated layer's source frame-invariant.  Treating
@@ -62,8 +61,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // TransformNode input is canvas-space; native 3D keeps processor
         // camera ownership; local and canvas paths retain their existing
         // source matrices.
-        const Mat4 item_source_world = placement.source_matrix;
-
         if (layer.nodes.size() == 1) {
             const auto& node = layer.nodes[0];
             const u64 content_hash = hash_render_node_content_only(node);
@@ -144,38 +141,18 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
                 }
 
-                Mat4 shape_matrix = use_local
-                    ? node.world_transform.to_mat4()
-                    : (item_source_world * node.world_transform.to_mat4());
+                const auto source_placement = evaluate_source_placement(item, node, ctx);
+                Mat4 shape_matrix = source_placement.matrix;
                 if (ctx.policy.modular_coordinates &&
                     is_pinned_full_canvas_rect(item, node, ctx)) {
                     shape_matrix = implicit_canvas_center_matrix(ctx) * shape_matrix;
                 }
-                const f32 shape_opacity = (use_local || projected_2d)
-                    ? node.world_transform.opacity
-                    : (placement.opacity * node.world_transform.opacity);
-
-                // Compatibility bake for the non-modular source path;
-                // placement ownership remains in the canonical result.
-                // Bake canvas_center when (centered || projected) &&
-                // !modular_coordinates, so the node no longer needs to
-                // know about centering.  The `item.projected` condition
-                // ensures projected layers always get canvas_center even
-                // without implicit centering.
-                Mat4 resolved_source_matrix = shape_matrix;
-                f32 resolved_source_opacity = shape_opacity;
-                if (!use_local && !ctx.policy.modular_coordinates &&
-                    (should_use_centered_rendering(item, ctx) || item.projected) &&
-                    !(item.layer && item.layer->uses_2_5d_projection)) {
-                    const Mat4 cc = glm::translate(Mat4(1.0f),
-                        Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-                    resolved_source_matrix = cc * shape_matrix;
-                }
+                const f32 shape_opacity = source_placement.opacity;
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
-                    ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
+                    std::optional<Mat4>(shape_matrix),
+                    std::optional<f32>(shape_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source"),
                     true,
                     item.projected && !item.native_3d,
@@ -249,18 +226,15 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // earlier ones on the shared framebuffer (matches pre-PR-6
         // behaviour for non-text items).
         for (const auto& node : layer.nodes) {
-            const Mat4 raw_shape_matrix = use_local
-                ? node.world_transform.to_mat4()
-                : (placement.source_matrix * node.world_transform.to_mat4());
+            const auto source_placement = evaluate_source_placement(item, node, ctx);
+            const Mat4 raw_shape_matrix = source_placement.matrix;
             const Mat4 shape_matrix = use_local
                 ? raw_shape_matrix
                 : (has_custom_absolute_text_transform(item, node, ctx)
                     ? resolve_custom_absolute_text_matrix(item, node, ctx)
                     : resolve_absolute_text_source_matrix(
                         item, node, ctx, raw_shape_matrix));
-            const f32 shape_opacity = (use_local || projected_2d)
-                ? node.world_transform.opacity
-                : (placement.opacity * node.world_transform.opacity);
+            const f32 shape_opacity = source_placement.opacity;
 
             items.push_back(MultiSourceItem{
                 .node = &node,
@@ -270,19 +244,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .apply_camera_projection = true,
                 .native_3d = item.native_3d,
             });
-        }
-
-        // Bake canvas_center into each item matrix when (centered || projected)
-        // && !modular_coordinates.  The `item.projected` condition
-        // ensures projected layers always get canvas_center.
-        if (!use_local && !ctx.policy.modular_coordinates &&
-            (should_use_centered_rendering(item, ctx) || item.projected) &&
-            !(item.layer && item.layer->uses_2_5d_projection)) {
-            const Mat4 cc = glm::translate(Mat4(1.0f),
-                Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-            for (auto& mi : items) {
-                mi.matrix = cc * mi.matrix;
-            }
         }
 
         auto multi_source = graph.add_node(std::make_unique<MultiSourceNode>(
