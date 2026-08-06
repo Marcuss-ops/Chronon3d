@@ -7,9 +7,9 @@
     "runs": 20,
     "warmup": 2
   },
-  "after_ms": 2236.11,
-  "before_alloc_copy_ms": 1.15438,
-  "before_total_ms": 2237.27,
-  "delta_per_frame_ms": 1.15438,
-  "delta_pct": 0.0515979
+  "after_ms": 2433.54,
+  "before_alloc_copy_ms": 0.897658,
+  "before_total_ms": 2434.44,
+  "delta_per_frame_ms": 0.897658,
+  "delta_pct": 0.0368733
 }
