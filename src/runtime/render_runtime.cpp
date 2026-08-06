@@ -32,6 +32,7 @@
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/internal/runtime/cache_domains.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
@@ -92,6 +93,14 @@ RenderRuntime::create(RuntimeConfig cfg) {
 }
 
 RenderRuntime::~RenderRuntime() = default;
+
+void RenderRuntime::reset_compiled_cache() {
+    CompiledTopologyCache{m_owned_graph_cache}.reset();
+}
+
+void RenderRuntime::reset_frame_value_cache() {
+    FrameValueCache{m_owned_node_cache}.reset();
+}
 
 chronon3d::cache::PersistentFramebufferStore* RenderRuntime::framebuffer_store() noexcept {
     return m_framebuffer_store.get();

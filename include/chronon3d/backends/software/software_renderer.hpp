@@ -78,9 +78,9 @@ public:
     void clear_caches();
 
     /// Reset compiled topology only; frame values and temporal history survive.
-    void reset_compiled_cache() noexcept;
+    void reset_compiled_cache();
     /// Reset runtime-owned node/frame values only; topology and history survive.
-    void reset_frame_value_cache() noexcept;
+    void reset_frame_value_cache();
     /// Reset temporal/session history only; compiled and frame-value caches survive.
     void reset_temporal_history() noexcept;
 
