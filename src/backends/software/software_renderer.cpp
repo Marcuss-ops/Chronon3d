@@ -223,11 +223,11 @@ void SoftwareRenderer::clear_caches() {
     m_session.common.reset_scene_state();
 }
 
-void SoftwareRenderer::reset_compiled_cache() noexcept {
+void SoftwareRenderer::reset_compiled_cache() {
     m_runtime->reset_compiled_cache();
 }
 
-void SoftwareRenderer::reset_frame_value_cache() noexcept {
+void SoftwareRenderer::reset_frame_value_cache() {
     m_runtime->reset_frame_value_cache();
     m_session.reset_frame_values();
 }
