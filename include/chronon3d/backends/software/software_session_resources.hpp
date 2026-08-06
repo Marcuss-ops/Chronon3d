@@ -113,15 +113,20 @@ struct SoftwareSessionResources {
         // canonical scene_hasher is on RenderSession (per-session).
     }
 
-    /// Full job-level reset: release the previous frame buffer ring
-    /// and release the transform scratch.  Persistent caches
-    /// (image cache, node cache, framebuffer pool) are NOT touched
-    /// here — those belong to the runtime, not the session.
-    /// WP-3 PR 3.1: scene_hasher reset no longer happens here
-    /// (canonical scene_hasher is on RenderSession).
-    void reset_job() {
+    /// Reset temporal/session resources without touching runtime caches.
+    /// The previous-frame ring and transform scratch belong to temporal
+    /// history, not to compiled topology or frame-value caches.
+    void reset_temporal_history() {
         buffer_ring.reset();
         scratch_buffer.reset();
+    }
+
+    /// Full job-level reset. Persistent caches (image cache, node cache,
+    /// framebuffer pool) are NOT touched here — those belong to the runtime.
+    /// WP-3 PR 3.1: scene_hasher reset no longer happens here (canonical
+    /// scene_hasher is on RenderSession).
+    void reset_job() {
+        reset_temporal_history();
     }
 };
 

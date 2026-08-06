@@ -76,6 +76,14 @@ public:
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
     // ── Cache operations ───────────────────────────────────────────────
     void clear_caches();
+
+    /// Reset compiled topology only; frame values and temporal history survive.
+    void reset_compiled_cache() noexcept;
+    /// Reset runtime-owned node/frame values only; topology and history survive.
+    void reset_frame_value_cache() noexcept;
+    /// Reset temporal/session history only; compiled and frame-value caches survive.
+    void reset_temporal_history() noexcept;
+
     void clear_node_cache()   { node_cache().clear(); }
     void set_composition_registry(const CompositionRegistry* r) { m_registry = r; }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
