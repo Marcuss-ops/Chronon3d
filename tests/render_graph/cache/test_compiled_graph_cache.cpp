@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/internal/runtime/cache_domains.hpp>
+#include <chronon3d/internal/runtime/history_state.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
@@ -193,6 +195,68 @@ TEST_CASE("cache domains reset independently") {
     }
     renderer->reset_frame_value_cache();
     CHECK_FALSE(runtime.node_cache().contains(node_key));
+}
+
+TEST_CASE("cache domain facades reset independently in sequential random and reverse orders") {
+    auto renderer = chronon3d::test::make_renderer_shared();
+    auto& runtime = renderer->runtime();
+    auto topology = chronon3d::runtime::CompiledTopologyCache{runtime.graph_cache()};
+    auto values = chronon3d::runtime::FrameValueCache{runtime.node_cache()};
+    auto history = renderer->session().history_state();
+
+    chronon3d::cache::NodeCacheKey key{
+        .scope = "formal-cache-domains",
+        .frame = chronon3d::Frame{3},
+        .width = 8,
+        .height = 8,
+        .params_hash = 0x101,
+        .source_hash = 0x202,
+        .input_hash = 0x303,
+    };
+
+    const std::array<std::array<int, 3>, 3> orders{{
+        {{0, 1, 2}}, // sequential: topology, values, history
+        {{2, 1, 0}}, // reverse
+        {{1, 2, 0}}, // deterministic random permutation
+    }};
+
+    for (const auto& order : orders) {
+        chronon3d::graph::RenderGraph graph;
+        chronon3d::graph::CompiledFrameGraph compiled(std::move(graph));
+        runtime.graph_cache().store(std::move(compiled), 8, 8);
+        runtime.node_cache().store(
+            key, std::make_shared<chronon3d::Framebuffer>(8, 8));
+        renderer->frame_history().prev_frame = chronon3d::Frame{3};
+        renderer->frame_history().prev_scene_fingerprint = 0xCAFE;
+
+        REQUIRE(runtime.graph_cache().has(8, 8));
+        REQUIRE(runtime.node_cache().contains(key));
+        REQUIRE(renderer->frame_history().prev_scene_fingerprint == 0xCAFE);
+
+        bool topology_alive = true;
+        bool values_alive = true;
+        bool history_alive = true;
+        for (const int domain : order) {
+            if (domain == 0) {
+                topology.reset();
+                topology_alive = false;
+            } else if (domain == 1) {
+                values.reset();
+                values_alive = false;
+            } else {
+                history.reset();
+                history_alive = false;
+            }
+
+            CHECK(runtime.graph_cache().has(8, 8) == topology_alive);
+            CHECK(runtime.node_cache().contains(key) == values_alive);
+            CHECK((renderer->frame_history().prev_scene_fingerprint == 0xCAFE) == history_alive);
+            if (!history_alive) {
+                CHECK(renderer->frame_history().prev_frame == chronon3d::Frame{-1});
+                CHECK_FALSE(renderer->frame_history().prev_camera_valid);
+            }
+        }
+    }
 }
 
 TEST_CASE("try_take consumes the value (coordinator path)") {
