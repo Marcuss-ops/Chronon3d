@@ -1,5 +1,6 @@
 #include "graph_builder_layer_passes.hpp"
 #include "../graph_builder_coordinates.hpp"
+#include "../evaluated_layer_placement.hpp"
 
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -136,35 +137,12 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     std::unique_ptr<TransformNode> transform_node;
     const bool is_static = layer.cache_static || item.is_static;
     const Frame cache_frame = is_static ? Frame{0} : Frame{-1};
-    if (item.projected) {
-        transform_node = std::make_unique<TransformNode>(item.projection_matrix,
-                                                         layer.transform.opacity,
-                                                         cache_frame,
-                                                         SamplingMode::Bilinear,
-                                                         is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
-    } else {
-        Mat4 effective_matrix = item.world_matrix;
-        if (should_use_centered_rendering(item, ctx)) {
-            Mat4 ssaa_world = item.world_matrix;
-            ssaa_world[3][0] *= ctx.policy.ssaa_factor;
-            ssaa_world[3][1] *= ctx.policy.ssaa_factor;
-            ssaa_world[3][2] *= ctx.policy.ssaa_factor;
-            effective_matrix =
-                glm::translate(Mat4(1.0f), Vec3(-ctx.frame_input.width * 0.5f, -ctx.frame_input.height * 0.5f, 0.0f)) *
-                ssaa_world;
-        } else {
-            // Delegate to the shared helper so the build-path stays in sync
-            // with the refresh-path (scene_refresh.hpp) — both now strip the
-            // implicit canvas-center translation for non-3D Normal layers,
-            // preventing the double-centring bug.
-            effective_matrix = strip_implicit_canvas_centering(effective_matrix, item, ctx);
-        }
-        transform_node = std::make_unique<TransformNode>(effective_matrix,
-                                                         item.transform.opacity,
-                                                         cache_frame,
-                                                         SamplingMode::Bilinear,
-                                                         is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
-    }
+    const auto placement = evaluate_layer_placement(item, ctx);
+    transform_node = std::make_unique<TransformNode>(placement.render_matrix,
+                                                     placement.opacity,
+                                                     cache_frame,
+                                                     SamplingMode::Bilinear,
+                                                     is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
 
     // PR2-cleanup: TransformNode carries its policy in `m_cache_policy` (ctor-time).
     {
