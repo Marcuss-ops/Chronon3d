@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 #include "../builder/evaluated_layer_placement.hpp"
+#include "detail/preflight_bbox.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -42,7 +43,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     for (std::size_t bbox_i = 0; bbox_i < m_items.size(); ++bbox_i) {
         const auto& item = m_items[bbox_i];
         if (!item.node) continue;
-        const auto placement = detail::evaluate_layer_placement(
+        const auto placement = detail::evaluate_source_payload_placement(
             item.matrix,
             item.opacity,
             ctx,
@@ -85,8 +86,12 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         // aggregate consumed by culling, tile pruning, dirty clipping, and
         // cache state must always be canvas-clipped.
         const auto diagnostic_bbox = bbox;
-        auto execution_bbox = diagnostic_bbox;
-        execution_bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+        const auto execution = detail::resolve_execution_bbox(
+            *placement, diagnostic_bbox, ctx);
+        if (!execution) {
+            continue;
+        }
+        const auto execution_bbox = *execution;
 
         if (ctx.policy.diagnostics_enabled) {
             spdlog::debug(
@@ -111,6 +116,55 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     if (!has_any) {
         return raster::BBox{0, 0, 0, 0};
     }
+    return raster::BBox{x0, y0, x1, y1};
+}
+
+std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
+    const MultiSourceNode& node,
+    const RenderGraphContext& ctx) {
+    i32 x0 = std::numeric_limits<i32>::max();
+    i32 y0 = std::numeric_limits<i32>::max();
+    i32 x1 = std::numeric_limits<i32>::min();
+    i32 y1 = std::numeric_limits<i32>::min();
+    bool has_any = false;
+
+    for (std::size_t item_index = 0; item_index < node.m_items.size(); ++item_index) {
+        const auto& item = node.m_items[item_index];
+        if (!item.node) continue;
+        const auto placement = detail::evaluate_source_payload_placement(
+            item.matrix, item.opacity, ctx, item.apply_camera_projection,
+            item.defer_camera_projection, item.native_3d, node.m_name,
+            "diagnostic_bbox", item_index);
+        if (!placement) continue;
+
+        raster::BBox bbox;
+#ifdef CHRONON3D_ENABLE_TEXT
+        if (item.node->shape.type() == ShapeType::TextRun &&
+            item.node->shape.text_run_shape_handle().value) {
+            bbox = renderer::compute_text_run_world_bbox(
+                *item.node->shape.text_run_shape_handle().value,
+                placement->render_matrix, 8.0f);
+        } else
+#endif
+        if (ctx.frame_input.has_camera_2_5d &&
+            item.node->shape.type() == ShapeType::FakeBox3D) {
+            const auto projected = detail::projected_native_3d_bbox(
+                ctx, *item.node, item.matrix, 8.0f);
+            if (!projected) continue;
+            bbox = *projected;
+        } else {
+            bbox = renderer::compute_world_bbox(
+                item.node->shape, placement->render_matrix, 8.0f);
+        }
+
+        x0 = std::min(x0, bbox.x0);
+        y0 = std::min(y0, bbox.y0);
+        x1 = std::max(x1, bbox.x1);
+        y1 = std::max(y1, bbox.y1);
+        has_any = true;
+    }
+
+    if (!has_any) return raster::BBox{0, 0, 0, 0};
     return raster::BBox{x0, y0, x1, y1};
 }
 
@@ -224,7 +278,7 @@ NodeExecResult MultiSourceNode::execute(
                 // 2.5D-aware placement: if camera is active, project
                 // the item matrix; otherwise the source pass already
                 // resolved the final matrix.
-                const auto placement = detail::evaluate_layer_placement(
+                const auto placement = detail::evaluate_source_payload_placement(
                     item.matrix,
                     item.opacity,
                     ctx,
@@ -282,7 +336,7 @@ NodeExecResult MultiSourceNode::execute(
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;
-            const auto placement = detail::evaluate_layer_placement(
+            const auto placement = detail::evaluate_source_payload_placement(
                 item.matrix,
                 item.opacity,
                 ctx,

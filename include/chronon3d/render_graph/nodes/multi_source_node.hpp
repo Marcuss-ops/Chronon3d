@@ -8,6 +8,12 @@
 
 namespace chronon3d::graph {
 
+class MultiSourceNode;
+namespace detail {
+std::optional<raster::BBox> preflight_diagnostic_bbox(
+    const MultiSourceNode&, const RenderGraphContext&);
+}
+
 struct MultiSourceItem {
     const ::chronon3d::RenderNode* node{nullptr};
     Mat4 matrix;
@@ -33,8 +39,6 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override;
-
-
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
@@ -75,6 +79,9 @@ public:
     [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && cache_policy().reusable_across_frames(); }
 
 private:
+    friend std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
+        const MultiSourceNode&, const RenderGraphContext&);
+
     void normalize_items(std::vector<MultiSourceItem>& items) {
         m_owned_nodes.clear();
         m_owned_nodes.reserve(items.size());
