@@ -672,6 +672,65 @@ TEST_CASE("SourceNode execution bbox is invariant under diagnostics") {
     REQUIRE(on_frame != nullptr);
 
     CHECK(test::framebuffer_hash(*off_frame) == test::framebuffer_hash(*on_frame));
+}    TEST_CASE("Diagnostics OFF == ON: SourceNode bbox dirty clip cache key and pixels") {
+    auto* resource = std::pmr::get_default_resource();
+    const RenderNode source = RenderNodeFactory::rect(resource, "diagnostics_off_on_source", {
+        .size = {120.0f, 80.0f},
+        .color = Color::green(),
+        .pos = {280.0f, 100.0f, 0.0f},
+    });
+
+    auto renderer = test::make_renderer();
+    auto make_context = [&renderer, &source](bool diagnostics_enabled) {
+        RenderGraphContext ctx;
+        ctx.frame_input.width = 320;
+        ctx.frame_input.height = 240;
+        ctx.frame_input.frame = 0;
+        ctx.policy.diagnostics_enabled = diagnostics_enabled;
+        ctx.node_exec.dirty_rect = raster::BBox{0, 0, 160, 120};
+        ctx.services.backend = &renderer.backend();
+        ctx.node_exec.current_shape_processor =
+            renderer.backend().resolve_shape_processor(source);
+        return ctx;
+    };
+
+    SourceNode node("diagnostics_off_on_source", source, cache::NodeCacheKey{});
+    auto off_ctx = make_context(false);
+    auto on_ctx = make_context(true);
+
+    const auto off_bbox = node.predicted_bbox(off_ctx);
+    const auto on_bbox = node.predicted_bbox(on_ctx);
+    REQUIRE(off_bbox.has_value());
+    REQUIRE(on_bbox.has_value());
+    CHECK(off_bbox->x0 == on_bbox->x0);
+    CHECK(off_bbox->y0 == on_bbox->y0);
+    CHECK(off_bbox->x1 == on_bbox->x1);
+    CHECK(off_bbox->y1 == on_bbox->y1);
+    CHECK(off_bbox->x0 >= 0);
+    CHECK(off_bbox->y0 >= 0);
+    CHECK(off_bbox->x1 <= off_ctx.frame_input.width);
+    CHECK(off_bbox->y1 <= off_ctx.frame_input.height);
+
+    const auto off_dirty_clip = compute_dirty_clip(off_ctx, node, off_bbox);
+    const auto on_dirty_clip = compute_dirty_clip(on_ctx, node, on_bbox);
+    REQUIRE(off_dirty_clip.has_value());
+    REQUIRE(on_dirty_clip.has_value());
+    CHECK(off_dirty_clip->x0 == on_dirty_clip->x0);
+    CHECK(off_dirty_clip->y0 == on_dirty_clip->y0);
+    CHECK(off_dirty_clip->x1 == on_dirty_clip->x1);
+    CHECK(off_dirty_clip->y1 == on_dirty_clip->y1);
+
+    CHECK(node.cache_key(off_ctx) == node.cache_key(on_ctx));
+
+    auto off_result = node.execute(off_ctx, {}, {});
+    auto on_result = node.execute(on_ctx, {}, {});
+    REQUIRE(off_result.has_value());
+    REQUIRE(on_result.has_value());
+    auto off_frame = off_result.take_value();
+    auto on_frame = on_result.take_value();
+    REQUIRE(off_frame != nullptr);
+    REQUIRE(on_frame != nullptr);
+    CHECK(test::framebuffer_hash(*off_frame) == test::framebuffer_hash(*on_frame));
 }
 
 TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
