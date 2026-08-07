@@ -5,15 +5,12 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
+#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
-
-namespace chronon3d::renderer {
-class ShapeProcessor;
-class EffectProcessor;
-}
 
 namespace chronon3d::graph {
 using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
@@ -57,12 +54,17 @@ struct CompiledNodeInfo {
     // payload refresh must never replace it.
     std::string processor_id;
 
-    // Non-owning processor bindings resolved once during compilation. The
-    // owning registry lifetime is longer than the compiled graph, and its
-    // generation participates in cache validity.
-    ::chronon3d::renderer::ShapeProcessor* shape_processor{nullptr};
-    std::vector<::chronon3d::renderer::ShapeProcessor*> shape_processors;
-    std::vector<::chronon3d::renderer::EffectProcessor*> effect_processors;
+    // Processor bindings are immutable handles into the graph-owned
+    // ProcessorRegistrySnapshot. The executor uses the graph-level
+    // pre-resolved pointer tables below, never the mutable registry.
+    renderer::ShapeProcessorHandle shape_processor{};
+    // Offset/count into CompiledFrameGraph::shape_processor_table. For a
+    // single source the count is one; multi-source entries retain null slots
+    // for TextRun items so authored item indices remain aligned.
+    std::uint32_t shape_processors_offset{0};
+    std::uint32_t shape_processors_count{0};
+    std::uint32_t effect_processors_offset{0};
+    std::uint32_t effect_processors_count{0};
 
     SceneBindingMetadata binding_meta{};  // binding table metadata
 
@@ -94,9 +96,18 @@ struct CompiledFrameGraph {
 
     std::uint64_t structure_hash{0};
 
-    // Registry generation used to resolve the non-owning processor bindings.
-    // The coordinator includes this value in the structural cache key.
+    // Registry generation and immutable ownership used to resolve compiled
+    // processor handles. The snapshot keeps processors alive after the
+    // originating SoftwareRegistry or engine is destroyed.
     std::uint64_t registry_generation{0};
+    std::uint64_t processor_snapshot_identity{0};
+    std::shared_ptr<const renderer::ProcessorRegistrySnapshot> processor_snapshot;
+
+    // Immutable handle tables populated once at compile time. Raw processor
+    // addresses are never persisted in the compiled graph; they are resolved
+    // only at the final backend dispatch boundary through processor_snapshot.
+    std::vector<renderer::ShapeProcessorHandle> shape_processor_table;
+    std::vector<renderer::EffectProcessorHandle> effect_processor_table;
 
     // Authored-scene topology fingerprint captured by the coordinator when
     // this compiled graph was built. It is compared before refresh so an

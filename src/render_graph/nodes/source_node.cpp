@@ -265,6 +265,7 @@ NodeExecResult SourceNode::execute(
         state.matrix = placement->render_matrix;
         state.opacity = opacity;
         state.shape_processor = ctx.node_exec.current_shape_processor;
+        state.processor_snapshot = ctx.node_exec.processor_snapshot;
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
 

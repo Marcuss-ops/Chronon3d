@@ -12,7 +12,8 @@ void apply_effect_stack(
     Framebuffer& fb,
     const EffectStack& stack,
     const effects::EffectExecutionContext& context,
-    std::span<EffectProcessor* const> processors) {
+    std::span<const EffectProcessorHandle> processors,
+    std::shared_ptr<const ProcessorRegistrySnapshot> snapshot) {
     if (processors.size() != stack.size()) {
         throw std::runtime_error(
             "Compiled effect processor binding count does not match effect stack");
@@ -21,7 +22,9 @@ void apply_effect_stack(
         const auto& effect = stack[index];
         if (!effect.enabled) continue;
 
-        auto* processor = processors[index];
+        auto* processor = snapshot
+            ? snapshot->effect(processors[index])
+            : nullptr;
         if (!processor) {
             throw std::runtime_error(
                 "Missing compiled software effect processor for effect type " +

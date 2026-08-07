@@ -105,6 +105,7 @@ public:
                 .quality = effects::RenderQuality::Final,
                 .diagnostics_enabled = ctx.policy.diagnostics_enabled,
                 .effect_processors = ctx.node_exec.current_effect_processors,
+                .processor_snapshot = ctx.node_exec.processor_snapshot,
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
             };
             ctx.services.backend->apply_effect_stack(*result, dof_stack, dof_context);

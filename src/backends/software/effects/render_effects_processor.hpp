@@ -6,6 +6,7 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <optional>
 #include <span>
 
@@ -19,7 +20,8 @@ void apply_effect_stack(
     Framebuffer& fb,
     const EffectStack& stack,
     const effects::EffectExecutionContext& context,
-    std::span<EffectProcessor* const> processors);
+    std::span<const EffectProcessorHandle> processors,
+    std::shared_ptr<const ProcessorRegistrySnapshot> snapshot);
 
 // Legacy direct-dispatch entry point retained for standalone effect tests.
 // Compiled render-graph execution uses the overload above and never reaches
