@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 #include "../builder/evaluated_layer_placement.hpp"
+#include "detail/preflight_bbox.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -97,7 +98,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
     const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
     const bool exclude_from_projection = m_node.shape.type() == ShapeType::FakeBox3D;
-    const auto placement = detail::evaluate_layer_placement(
+    const auto placement = detail::evaluate_source_payload_placement(
         base_matrix,
         opacity,
         ctx,
@@ -133,8 +134,12 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     // same canvas-clipped bbox regardless of the logging flag.
     const auto diagnostic_bbox =
         renderer::compute_world_bbox(m_node.shape, matrix, spread);
-    auto execution_bbox = diagnostic_bbox;
-    execution_bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+    const auto execution = detail::resolve_execution_bbox(
+        *placement, diagnostic_bbox, ctx);
+    if (!execution) {
+        return raster::BBox{0, 0, 0, 0};
+    }
+    const auto execution_bbox = *execution;
 
     if (ctx.policy.diagnostics_enabled) {
         spdlog::debug(
@@ -150,6 +155,32 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
         return raster::BBox{0, 0, 0, 0};
     }
     return execution_bbox;
+}
+
+std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
+    const SourceNode& node,
+    const RenderGraphContext& ctx) {
+    const Mat4 base_matrix = node.m_matrix_override.value_or(node.m_node.world_transform.to_mat4());
+    const f32 opacity = node.m_opacity_override.value_or(node.m_node.world_transform.opacity);
+    const bool exclude_from_projection = node.m_node.shape.type() == ShapeType::FakeBox3D;
+    const auto placement = detail::evaluate_source_payload_placement(
+        base_matrix, opacity, ctx, node.m_apply_camera_projection,
+        node.m_defer_camera_projection, node.m_native_3d, node.m_name, "diagnostic_bbox",
+        static_cast<std::size_t>(-1), exclude_from_projection);
+    if (!placement) {
+        return std::nullopt;
+    }
+
+    const f32 spread = 8.0f;
+    if (node.m_apply_camera_projection && ctx.frame_input.has_camera_2_5d &&
+        node.m_node.shape.type() == ShapeType::FakeBox3D) {
+        return detail::projected_native_3d_bbox(
+            ctx, node.m_node,
+            node.m_matrix_override.value_or(node.m_node.world_transform.to_mat4()),
+            spread);
+    }
+    return renderer::compute_world_bbox(
+        node.m_node.shape, placement->render_matrix, spread);
 }
 
 cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
@@ -210,7 +241,7 @@ NodeExecResult SourceNode::execute(
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
         state.ssaa_factor = ctx.policy.ssaa_factor;
 
-        const auto placement = detail::evaluate_layer_placement(
+        const auto placement = detail::evaluate_source_payload_placement(
             base_matrix,
             opacity,
             ctx,
