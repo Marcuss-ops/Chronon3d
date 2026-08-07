@@ -37,24 +37,8 @@ for gate in "${DEVELOPER_GATES[@]}"; do
     idx=$((idx + 1))
     echo "  [${idx}/${GATE_COUNT}] ${gate}"
 
-    case "$gate" in
-        *.py)
-            python3 "${SCRIPT_DIR}/${gate}" \
-                || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
-            ;;
-        check_commit_subject_length.sh)
-            bash "${SCRIPT_DIR}/${gate}" "${COMPARISON_REF}" \
-                || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
-            ;;
-        check_push_divergence_window.sh)
-            bash "${SCRIPT_DIR}/${gate}" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
-                || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
-            ;;
-        *)
-            bash "${SCRIPT_DIR}/${gate}" \
-                || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
-            ;;
-    esac
+    bash "${SCRIPT_DIR}/execute_gate.sh" "$gate" "$TARGET_REMOTE" "$TARGET_BRANCH" \
+        || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
 done
 
 echo "run_developer_gates.sh: ${GATE_COUNT}/${GATE_COUNT} developer gates PASSED"
