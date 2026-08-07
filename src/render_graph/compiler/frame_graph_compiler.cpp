@@ -208,18 +208,34 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
     const std::uint64_t current_hash =
         compute_structure_hash(
             graph, compiled.output, ctx.services.registry_generation);
+    const auto current_snapshot = ctx.services.backend
+        ? ctx.services.backend->processor_snapshot()
+        : nullptr;
+    const auto current_snapshot_identity = current_snapshot
+        ? current_snapshot->identity()
+        : 0;
+    const bool snapshot_identity_unchanged =
+        prior_compiled.processor_snapshot_identity == current_snapshot_identity;
     const bool skip_heavy_phases =
         options.reuse_if_unchanged_predicate_safe()
         && ctx.policy.graph_structure_unchanged
-        && prior_compiled.structure_hash == current_hash;
+        && prior_compiled.structure_hash == current_hash
+        && snapshot_identity_unchanged;
 
     validate_renderable_graph(graph, compiled.output, ctx);
 
     if (skip_heavy_phases) {
-        // Deep-copy topology-derived fields.
-        compiled.levels         = prior_compiled.levels;
-        compiled.nodes          = prior_compiled.nodes;
-        compiled.consumer_counts = prior_compiled.consumer_counts;
+        // Deep-copy topology-derived fields and the immutable processor
+        // binding payload. The warm path must not re-resolve processors, nor
+        // leave the copied CompiledNodeInfo handles pointing at empty tables.
+        compiled.levels                  = prior_compiled.levels;
+        compiled.nodes                   = prior_compiled.nodes;
+        compiled.consumer_counts         = prior_compiled.consumer_counts;
+        compiled.processor_snapshot      = prior_compiled.processor_snapshot;
+        compiled.processor_snapshot_identity =
+            prior_compiled.processor_snapshot_identity;
+        compiled.shape_processor_table   = prior_compiled.shape_processor_table;
+        compiled.effect_processor_table  = prior_compiled.effect_processor_table;
     } else {
         if (options.run_optimizer) {
             [[maybe_unused]] const auto optimization_result =

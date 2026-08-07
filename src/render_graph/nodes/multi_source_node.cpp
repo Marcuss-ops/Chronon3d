@@ -354,12 +354,14 @@ NodeExecResult MultiSourceNode::execute(
             state.opacity = item.opacity;
             if (i < ctx.node_exec.current_shape_processors.size()) {
                 state.shape_processor = ctx.node_exec.current_shape_processors[i];
+                state.processor_snapshot = ctx.node_exec.processor_snapshot;
             } else {
                 // Direct node tests may execute outside GraphExecutor; the
                 // production compiled path always supplies the indexed
                 // binding above. Keep the fallback explicit and non-registry
                 // based so this path never performs per-frame resolution.
                 state.shape_processor = ctx.node_exec.current_shape_processor;
+                state.processor_snapshot = ctx.node_exec.processor_snapshot;
             }
             state.world_matrix = item.matrix;
             state.clip_rect = ctx.node_exec.clip_rect;

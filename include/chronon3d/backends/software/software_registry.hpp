@@ -1,23 +1,35 @@
 #pragma once
 
-#include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
+#include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
-#include <unordered_map>
+
+#include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <typeindex>
-#include <cstdint>
+#include <unordered_map>
+#include <vector>
 
 namespace chronon3d::renderer {
 
 class SoftwareRegistry {
 public:
     void register_shape(ShapeType type, std::unique_ptr<ShapeProcessor> processor) {
+        register_shape(type, std::shared_ptr<ShapeProcessor>(std::move(processor)));
+    }
+
+    void register_shape(ShapeType type, std::shared_ptr<ShapeProcessor> processor) {
         m_shapes[type] = std::move(processor);
         ++m_generation;
     }
 
     void register_effect(std::type_index type, std::unique_ptr<EffectProcessor> processor) {
+        register_effect(type, std::shared_ptr<EffectProcessor>(std::move(processor)));
+    }
+
+    void register_effect(std::type_index type, std::shared_ptr<EffectProcessor> processor) {
         m_effects[type] = std::move(processor);
         ++m_generation;
     }
@@ -40,14 +52,44 @@ public:
         return it != m_effects.end() ? it->second.get() : nullptr;
     }
 
+    /// Capture the current engine-local processor ownership and mapping.
+    /// Entries are sorted so handle indices are deterministic despite the
+    /// unordered-map storage used by the mutable registry. The returned
+    /// snapshot owns shared references to every captured processor.
+    [[nodiscard]] std::shared_ptr<const ProcessorRegistrySnapshot> snapshot() const {
+        std::vector<ProcessorRegistrySnapshot::ShapeEntry> shapes;
+        shapes.reserve(m_shapes.size());
+        for (const auto& [type, processor] : m_shapes) {
+            shapes.emplace_back(type, processor);
+        }
+        std::sort(shapes.begin(), shapes.end(), [](const auto& lhs, const auto& rhs) {
+            return static_cast<int>(lhs.first) < static_cast<int>(rhs.first);
+        });
+
+        std::vector<ProcessorRegistrySnapshot::EffectEntry> effects;
+        effects.reserve(m_effects.size());
+        for (const auto& [type, processor] : m_effects) {
+            effects.emplace_back(type, processor);
+        }
+        std::sort(effects.begin(), effects.end(), [](const auto& lhs, const auto& rhs) {
+            const auto lhs_hash = lhs.first.hash_code();
+            const auto rhs_hash = rhs.first.hash_code();
+            if (lhs_hash != rhs_hash) return lhs_hash < rhs_hash;
+            return lhs.first.name() < rhs.first.name();
+        });
+
+        return std::make_shared<const ProcessorRegistrySnapshot>(
+            std::move(shapes), std::move(effects), m_generation);
+    }
+
     /// Monotonic generation for processor registrations/replacements.
     /// Used to invalidate compiled topology reuse when a processor mapping
     /// changes without changing authored scene data.
     [[nodiscard]] std::uint64_t generation() const noexcept { return m_generation; }
 
 private:
-    std::unordered_map<ShapeType, std::unique_ptr<ShapeProcessor>> m_shapes;
-    std::unordered_map<std::type_index, std::unique_ptr<EffectProcessor>> m_effects;
+    std::unordered_map<ShapeType, std::shared_ptr<ShapeProcessor>> m_shapes;
+    std::unordered_map<std::type_index, std::shared_ptr<EffectProcessor>> m_effects;
     std::uint64_t m_generation{1};
 };
 

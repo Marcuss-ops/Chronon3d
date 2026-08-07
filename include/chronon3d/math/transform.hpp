@@ -3,6 +3,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <cstdint>
 #include <memory>
@@ -11,7 +12,11 @@
 
 namespace chronon3d {
 
-namespace renderer { class ShapeProcessor; }
+namespace renderer {
+class ShapeProcessor;
+class ProcessorRegistrySnapshot;
+struct ShapeProcessorHandle;
+}
 
 // Forward-declared to avoid a math/ -> scene/ include cycle.
 // Full definition is in <chronon3d/scene/model/layer/mask.hpp>.
@@ -98,10 +103,12 @@ struct Transform {
 struct RenderState {
     Mat4 matrix;
     f32  opacity{1.0f};
+    std::shared_ptr<const renderer::ProcessorRegistrySnapshot> processor_snapshot;
 
-    // Processor resolved by FrameGraphCompiler for this renderable node.
-    // Execution must use this binding; per-frame registry lookup is forbidden.
-    renderer::ShapeProcessor* shape_processor{nullptr};
+    // Processor handle resolved by FrameGraphCompiler for this renderable
+    // node. The owning snapshot is carried by the node execution context;
+    // no processor pointer persists in RenderState.
+    renderer::ShapeProcessorHandle shape_processor{};
 
     // 3D card rendering — set by SourceNode when a layer uses 2.5D projection and camera_2_5d is active.
     // Processors use projection to build ProjectedCard; world_matrix is layer TRS without camera.
@@ -152,6 +159,7 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
     return RenderState{
         .matrix           = parent.matrix * child.to_matrix(),
         .opacity          = parent.opacity * child.opacity,
+        .processor_snapshot = parent.processor_snapshot,
         .shape_processor  = parent.shape_processor,
         .mask             = parent.mask,
         .layer_inv_matrix = parent.layer_inv_matrix,

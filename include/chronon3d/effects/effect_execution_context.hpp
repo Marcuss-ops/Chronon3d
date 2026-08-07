@@ -3,10 +3,15 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 
+#include <memory>
 #include <optional>
 #include <span>
 
-namespace chronon3d::renderer { class EffectProcessor; }
+namespace chronon3d::renderer {
+class EffectProcessor;
+class ProcessorRegistrySnapshot;
+struct EffectProcessorHandle;
+}
 
 namespace chronon3d { class DebugConfig; class CurveCache; }   // TICKET-007: per-instance debug gating
 
@@ -35,8 +40,11 @@ struct EffectExecutionContext {
 
     // Effect processors are resolved while compiling the render graph.
     // The span is aligned with the authored EffectStack (disabled entries
-    // retain a null slot), so execution never performs a registry lookup.
-    std::span<chronon3d::renderer::EffectProcessor* const> effect_processors{};
+    // retain an invalid handle), so execution never consults the mutable
+    // registry. The owning snapshot is retained by the node-local context.
+    std::span<const chronon3d::renderer::EffectProcessorHandle> effect_processors{};
+    std::shared_ptr<const chronon3d::renderer::ProcessorRegistrySnapshot>
+        processor_snapshot;
     bool processors_resolved{false};
 };
 

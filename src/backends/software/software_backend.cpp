@@ -135,6 +135,14 @@ renderer::EffectProcessor* SoftwareBackend::resolve_effect_processor(
     return m_proc_ctx.registry->get_effect(params_type);
 }
 
+std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+SoftwareBackend::processor_snapshot() const noexcept {
+    if (!m_proc_ctx.registry) {
+        return nullptr;
+    }
+    return m_proc_ctx.registry->snapshot();
+}
+
 std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
     const RenderNode& node) const {
     if (!m_proc_ctx.registry) {
@@ -159,13 +167,14 @@ void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state,
                                  const Camera& camera, int width, int height) {
     CHRONON_ZONE_C("backend_draw_node", trace_category::kRasterize);
-    // Compiled graphs carry the resolved processor in RenderState. The
-    // registry is intentionally not required on this per-frame path;
-    // registry generation changes invalidate the graph before execution.
+    // Compiled graphs carry an immutable processor handle plus the owning
+    // snapshot in RenderState. Resolve the pointer only for this dispatch.
     if (m_image_renderer != nullptr && m_proc_ctx.image_renderer == nullptr) {
         m_proc_ctx.image_renderer = m_image_renderer;
     }
-    auto* processor = state.shape_processor;
+    auto* processor = state.processor_snapshot
+        ? state.processor_snapshot->shape(state.shape_processor)
+        : nullptr;
     if (!processor) {
         if (node.shape.type() == ShapeType::TextRun) {
             // Canonical TextRun integration is via TextRunNode →
@@ -253,7 +262,8 @@ void SoftwareBackend::apply_effect_stack(
                 "compiled effect execution has no complete processor binding");
         }
         renderer::apply_effect_stack(
-            fb, stack, local_context, local_context.effect_processors);
+            fb, stack, local_context, local_context.effect_processors,
+            local_context.processor_snapshot);
         return;
     }
 
