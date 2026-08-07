@@ -146,27 +146,6 @@ struct EvaluatedLayerPlacement {
     return result;
 }
 
-/// Backward-compatible spelling for internal callers that already use the
-/// source-payload resolver. New node code should call the explicit
-/// `evaluate_source_payload_placement` name above.
-[[nodiscard]] inline std::optional<EvaluatedLayerPlacement> evaluate_layer_placement(
-    const Mat4& source_matrix,
-    f32 opacity,
-    const RenderGraphContext& ctx,
-    bool apply_camera_projection,
-    bool defer_camera_projection = false,
-    bool native_3d = false,
-    std::string_view node_name = {},
-    const char* stage = nullptr,
-    std::size_t item_index = static_cast<std::size_t>(-1),
-    bool exclude_from_2_5d_projection = false)
-{
-    return evaluate_source_payload_placement(
-        source_matrix, opacity, ctx, apply_camera_projection,
-        defer_camera_projection, native_3d, node_name, stage, item_index,
-        exclude_from_2_5d_projection);
-}
-
 /// Convert a local/node bbox through a canonical placement matrix into
 /// canvas pixels. This is kept beside the placement resolver so projected
 /// bbox math cannot drift between build, refresh, and dirty analysis.

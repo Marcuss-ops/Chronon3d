@@ -355,7 +355,7 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
     // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
     // by the source pass / refresh.  m_centered removed.
-    const auto placement = detail::evaluate_layer_placement(
+    const auto placement = detail::evaluate_source_payload_placement(
         local_matrix,
         opacity,
         ctx,
