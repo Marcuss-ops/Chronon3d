@@ -456,8 +456,10 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 2D standard top left layer") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
-        renderer.backend().resolve_shape_processor(rnode);
+        ctx.node_exec.processor_snapshot->shape_handle(rnode.shape.type());
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -496,8 +498,10 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D non-centered source") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
-        renderer.backend().resolve_shape_processor(rnode);
+        ctx.node_exec.processor_snapshot->shape_handle(rnode.shape.type());
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -536,8 +540,10 @@ TEST_CASE("SourceNode predicted_bbox vs execute - Centered 2D source") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
-        renderer.backend().resolve_shape_processor(rnode);
+        ctx.node_exec.processor_snapshot->shape_handle(rnode.shape.type());
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -576,8 +582,10 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D centered source") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
-        renderer.backend().resolve_shape_processor(rnode);
+        ctx.node_exec.processor_snapshot->shape_handle(rnode.shape.type());
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -689,8 +697,10 @@ TEST_CASE("SourceNode execution bbox is invariant under diagnostics") {
         ctx.policy.diagnostics_enabled = diagnostics_enabled;
         ctx.node_exec.dirty_rect = raster::BBox{0, 0, 160, 120};
         ctx.services.backend = &renderer.backend();
+        ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+        REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
         ctx.node_exec.current_shape_processor =
-            renderer.backend().resolve_shape_processor(source);
+            ctx.node_exec.processor_snapshot->shape_handle(source.shape.type());
         return ctx;
     };
 
@@ -746,8 +756,10 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
-        renderer.backend().resolve_shape_processor(rnode);
+        ctx.node_exec.processor_snapshot->shape_handle(rnode.shape.type());
 
     cache::NodeCacheKey key{};
     SourceNode node("my_node", rnode, key);
@@ -793,13 +805,16 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
     items.push_back({&rnode_b, rnode_b.world_transform.to_mat4(), 1.0f});
 
     auto renderer = test::make_renderer();
-    std::array<renderer::ShapeProcessor*, 2> processors{
-        renderer.backend().resolve_shape_processor(rnode_a),
-        renderer.backend().resolve_shape_processor(rnode_b)};
+    const auto snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(snapshot != nullptr);
+    std::array<renderer::ShapeProcessorHandle, 2> processors{
+        snapshot->shape_handle(rnode_a.shape.type()),
+        snapshot->shape_handle(rnode_b.shape.type())};
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = snapshot;
     ctx.node_exec.current_shape_processor = processors[0];
     ctx.node_exec.current_shape_processors = processors;
 
@@ -859,8 +874,10 @@ DiagnosticsParityObservation observe_source_diagnostics(
     ctx.frame_input.frame = 0;
     ctx.policy.diagnostics_enabled = diagnostics_enabled;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
-        renderer.backend().resolve_shape_processor(render_node);
+        ctx.node_exec.processor_snapshot->shape_handle(render_node.shape.type());
     if (camera_2_5d) {
         ctx.frame_input.has_camera_2_5d = true;
         ctx.frame_input.camera_2_5d.enabled = true;
@@ -903,9 +920,11 @@ DiagnosticsParityObservation observe_multi_source_diagnostics(
         MultiSourceItem{&first, first.world_transform.to_mat4(), 1.0f},
         MultiSourceItem{&second, second.world_transform.to_mat4(), 1.0f},
     };
-    std::array<renderer::ShapeProcessor*, 2> processors{
-        renderer.backend().resolve_shape_processor(first),
-        renderer.backend().resolve_shape_processor(second),
+    const auto snapshot = renderer.backend().processor_snapshot();
+    REQUIRE(snapshot != nullptr);
+    std::array<renderer::ShapeProcessorHandle, 2> processors{
+        snapshot->shape_handle(first.shape.type()),
+        snapshot->shape_handle(second.shape.type()),
     };
 
     RenderGraphContext ctx;
@@ -914,6 +933,7 @@ DiagnosticsParityObservation observe_multi_source_diagnostics(
     ctx.frame_input.frame = 0;
     ctx.policy.diagnostics_enabled = diagnostics_enabled;
     ctx.services.backend = &renderer.backend();
+    ctx.node_exec.processor_snapshot = snapshot;
     ctx.node_exec.current_shape_processor = processors[0];
     ctx.node_exec.current_shape_processors = processors;
     if (camera_2_5d) {

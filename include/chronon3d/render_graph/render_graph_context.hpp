@@ -79,6 +79,7 @@ namespace chronon3d { class DebugConfig; }
 #include <span>
 #include <atomic>
 #include <chronon3d/render_graph/core/node_identity.hpp>
+#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>  // P0-1 — NodeExecutionError for frame_error slot
 
 namespace chronon3d {
@@ -121,7 +122,13 @@ namespace chronon3d::effects {
 // type` cascade).
 namespace chronon3d::assets { class AssetResolver; }
 
-namespace chronon3d::renderer { class ShapeProcessor; class EffectProcessor; }
+namespace chronon3d::renderer {
+class ShapeProcessor;
+class EffectProcessor;
+class ProcessorRegistrySnapshot;
+struct ShapeProcessorHandle;
+struct EffectProcessorHandle;
+}
 
 namespace chronon3d::graph {
 
@@ -367,12 +374,14 @@ struct NodeExecutionContext {
     // running it through the full GraphExecutor).
     NodeIdentity current_identity{kInvalidGraphInstanceId, kInvalidStableNodeId};
 
-    // Processor bindings captured by the compiler and exposed to the node
-    // execution path. These are non-owning views into CompiledFrameGraph;
-    // registry generation invalidates the graph before these can go stale.
-    ::chronon3d::renderer::ShapeProcessor* current_shape_processor{nullptr};
-    std::span<::chronon3d::renderer::ShapeProcessor* const> current_shape_processors{};
-    std::span<::chronon3d::renderer::EffectProcessor* const> current_effect_processors{};
+    // Processor bindings captured by the compiler. These are immutable
+    // handles; the owning snapshot is retained by the compiled graph and
+    // copied into the node-local context for final dispatch resolution.
+    ::chronon3d::renderer::ShapeProcessorHandle current_shape_processor{};
+    std::span<const ::chronon3d::renderer::ShapeProcessorHandle> current_shape_processors{};
+    std::span<const ::chronon3d::renderer::EffectProcessorHandle> current_effect_processors{};
+    std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot>
+        processor_snapshot;
     bool processor_bindings_compiled{false};
 
     // ── TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session text-bbox reporter ────

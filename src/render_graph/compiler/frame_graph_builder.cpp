@@ -107,6 +107,40 @@ void FrameGraphCompiler::build_node_metadata(
     const size_t node_count = graph.size();
     compiled.nodes.resize(node_count);
 
+    // Capture processor ownership once at the compiler boundary. Real
+    // SoftwareBackend instances provide an immutable owning snapshot. A
+    // backend that participates in shape/effect compilation without one is
+    // rejected at the first binding request; non-renderable graph operators
+    // remain compilable without a backend.
+    compiled.processor_snapshot = ctx.services.backend
+        ? ctx.services.backend->processor_snapshot()
+        : nullptr;
+    compiled.registry_generation = ctx.services.registry_generation;
+    compiled.processor_snapshot_identity = compiled.processor_snapshot
+        ? compiled.processor_snapshot->identity()
+        : 0;
+    if (compiled.processor_snapshot &&
+        compiled.processor_snapshot->generation() != compiled.registry_generation) {
+        throw std::runtime_error(
+            "FrameGraphCompiler: processor snapshot generation does not match "
+            "RenderGraphContext registry generation");
+    }
+
+    const auto require_snapshot = [&]() -> const renderer::ProcessorRegistrySnapshot& {
+        if (!compiled.processor_snapshot) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: backend must provide an owning processor snapshot");
+        }
+        return *compiled.processor_snapshot;
+    };
+    const bool requires_snapshot = ctx.services.backend &&
+        ctx.services.backend->requires_processor_snapshot();
+    const auto resolve_shape = [&](ShapeType type) {
+        return require_snapshot().shape_handle(type);
+    };
+    const auto resolve_effect = [&](std::type_index type) {
+        return require_snapshot().effect_handle(type);
+    };
     std::vector<char> reachable(node_count, 0);
     for (const auto& level : compiled.levels) {
         for (GraphNodeId id : level) {
@@ -171,18 +205,26 @@ void FrameGraphCompiler::build_node_metadata(
                     node_info.processor_id = "source:" +
                         std::to_string(static_cast<int>(source->render_node().shape.type()));
                     node_info.shape_type = static_cast<int>(source->render_node().shape.type());
-                    node_info.shape_processor =
-                        ctx.services.backend->resolve_shape_processor(source->render_node());
-                    if (!node_info.shape_processor) {
+                    node_info.shape_processor = requires_snapshot
+                        ? resolve_shape(source->render_node().shape.type())
+                        : renderer::ShapeProcessorHandle{};
+                    if (requires_snapshot && !node_info.shape_processor.valid()) {
                         throw std::runtime_error(
                             "FrameGraphCompiler: missing compiled shape processor for node '" +
                             std::string(node.name()) + "'");
                     }
+                    node_info.shape_processors_offset = static_cast<std::uint32_t>(
+                        compiled.shape_processor_table.size());
+                    node_info.shape_processors_count = 1;
+                    compiled.shape_processor_table.push_back(node_info.shape_processor);
                 } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&node)) {
                     node_info.processor_id = "multi_source";
                     node_info.shape_type = -2;
                     node_info.source_shape_types.reserve(multi->items().size());
-                    node_info.shape_processors.reserve(multi->items().size());
+                    node_info.shape_processors_offset = static_cast<std::uint32_t>(
+                        compiled.shape_processor_table.size());
+                    node_info.shape_processors_count = static_cast<std::uint32_t>(
+                        multi->items().size());
                     for (const auto& item : multi->items()) {
                         if (!item.node) {
                             throw std::runtime_error(
@@ -193,16 +235,17 @@ void FrameGraphCompiler::build_node_metadata(
                         node_info.source_shape_types.push_back(
                             static_cast<int>(item.node->shape.type()));
                         if (item.node->shape.type() == ShapeType::TextRun) {
-                            node_info.shape_processors.push_back(nullptr);
+                            compiled.shape_processor_table.push_back(renderer::ShapeProcessorHandle{});
                         } else {
-                            auto* processor =
-                                ctx.services.backend->resolve_shape_processor(*item.node);
-                            if (!processor) {
+                            const auto handle = requires_snapshot
+                                ? resolve_shape(item.node->shape.type())
+                                : renderer::ShapeProcessorHandle{};
+                            if (requires_snapshot && !handle.valid()) {
                                 throw std::runtime_error(
                                     "FrameGraphCompiler: missing compiled shape processor for multi-source node '" +
                                     std::string(node.name()) + "'");
                             }
-                            node_info.shape_processors.push_back(processor);
+                            compiled.shape_processor_table.push_back(handle);
                         }
                     }
                 } else if (const auto* text = dynamic_cast<const TextRunNode*>(&node)) {
@@ -210,42 +253,52 @@ void FrameGraphCompiler::build_node_metadata(
                     node_info.shape_type = static_cast<int>(text->render_node().shape.type());
                 } else if (const auto* effect = dynamic_cast<const EffectStackNode*>(&node)) {
                     node_info.processor_id = "effect_stack";
-                    node_info.effect_processors.reserve(effect->effects().size());
+                    node_info.effect_processors_offset = static_cast<std::uint32_t>(
+                        compiled.effect_processor_table.size());
+                    node_info.effect_processors_count = static_cast<std::uint32_t>(
+                        effect->effects().size());
                     for (const auto& instance : effect->effects()) {
-                        auto* processor = instance.enabled
-                            ? ctx.services.backend->resolve_effect_processor(instance.param_type_index())
-                            : nullptr;
-                        if (instance.enabled && !processor) {
+                        const auto handle = instance.enabled && requires_snapshot
+                            ? resolve_effect(instance.param_type_index())
+                            : renderer::EffectProcessorHandle{};
+                        if (instance.enabled && requires_snapshot && !handle.valid()) {
                             throw std::runtime_error(
                                 "FrameGraphCompiler: missing compiled effect processor for node '" +
                                 std::string(node.name()) + "'");
                         }
-                        node_info.effect_processors.push_back(processor);
+                        compiled.effect_processor_table.push_back(handle);
                     }
                 } else if (const auto* adjustment = dynamic_cast<const AdjustmentNode*>(&node)) {
                     node_info.processor_id = "adjustment";
-                    node_info.effect_processors.reserve(adjustment->effects().size());
+                    node_info.effect_processors_offset = static_cast<std::uint32_t>(
+                        compiled.effect_processor_table.size());
+                    node_info.effect_processors_count = static_cast<std::uint32_t>(
+                        adjustment->effects().size());
                     for (const auto& instance : adjustment->effects()) {
-                        auto* processor = instance.enabled
-                            ? ctx.services.backend->resolve_effect_processor(instance.param_type_index())
-                            : nullptr;
-                        if (instance.enabled && !processor) {
+                        const auto handle = instance.enabled && requires_snapshot
+                            ? resolve_effect(instance.param_type_index())
+                            : renderer::EffectProcessorHandle{};
+                        if (instance.enabled && requires_snapshot && !handle.valid()) {
                             throw std::runtime_error(
                                 "FrameGraphCompiler: missing compiled effect processor for node '" +
                                 std::string(node.name()) + "'");
                         }
-                        node_info.effect_processors.push_back(processor);
+                        compiled.effect_processor_table.push_back(handle);
                     }
                 } else if (dynamic_cast<const DofEffectNode*>(&node)) {
                     node_info.processor_id = "dof";
-                    auto* processor = ctx.services.backend->resolve_effect_processor(
-                        std::type_index(typeid(BlurParams)));
-                    if (!processor) {
+                    const auto handle = requires_snapshot
+                        ? resolve_effect(std::type_index(typeid(BlurParams)))
+                        : renderer::EffectProcessorHandle{};
+                    if (requires_snapshot && !handle.valid()) {
                         throw std::runtime_error(
                             "FrameGraphCompiler: missing compiled effect processor for node '" +
                             std::string(node.name()) + "'");
                     }
-                    node_info.effect_processors.push_back(processor);
+                    node_info.effect_processors_offset = static_cast<std::uint32_t>(
+                        compiled.effect_processor_table.size());
+                    node_info.effect_processors_count = 1;
+                    compiled.effect_processor_table.push_back(handle);
                 } else {
                     node_info.processor_id = std::string(to_string(node_info.kind));
                 }

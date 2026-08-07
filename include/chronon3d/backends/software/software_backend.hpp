@@ -124,6 +124,11 @@ public:
         const RenderNode& node) const noexcept override;
     [[nodiscard]] renderer::EffectProcessor* resolve_effect_processor(
         std::type_index params_type) const noexcept override;
+    [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+    processor_snapshot() const noexcept override;
+    [[nodiscard]] bool requires_processor_snapshot() const noexcept override {
+        return true;
+    }
 
     // 06 R3b — `draw_text_run` and `capabilities` migrated to
     // SoftwareBackend.  SoftwareRenderer no longer exposes these.

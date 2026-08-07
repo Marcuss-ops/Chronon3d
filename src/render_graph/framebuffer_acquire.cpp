@@ -287,6 +287,7 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.node_exec.current_shape_processor = node_exec.current_shape_processor;
     copy.node_exec.current_shape_processors = node_exec.current_shape_processors;
     copy.node_exec.current_effect_processors = node_exec.current_effect_processors;
+    copy.node_exec.processor_snapshot = node_exec.processor_snapshot;
     copy.node_exec.processor_bindings_compiled = node_exec.processor_bindings_compiled;
     // scratch views (transform_scratch, ping_write, reusable_inputs)
     // are intentionally default-initialised in the clone (no aliases to
