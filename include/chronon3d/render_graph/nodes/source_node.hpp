@@ -7,6 +7,12 @@
 
 namespace chronon3d::graph {
 
+class SourceNode;
+namespace detail {
+std::optional<raster::BBox> preflight_diagnostic_bbox(
+    const SourceNode&, const RenderGraphContext&);
+}
+
 class SourceNode final : public RenderGraphNode {
 public:
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
@@ -30,8 +36,6 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override;
-
-
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
@@ -72,6 +76,9 @@ public:
 
 
 private:
+    friend std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
+        const SourceNode&, const RenderGraphContext&);
+
     std::string m_name;
     ::chronon3d::RenderNode m_node;
     cache::NodeCacheKey m_key;

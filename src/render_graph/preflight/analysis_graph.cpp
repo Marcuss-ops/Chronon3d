@@ -18,6 +18,7 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include "../nodes/detail/preflight_bbox.hpp"
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -66,9 +67,16 @@ void populate_node_basics(
         rec.input_count  = static_cast<int>(graph.inputs(i).size());
         rec.output_count = output_degree[i];
 
-        auto bbox_opt = node.predicted_bbox(ctx, {});
-        if (bbox_opt.has_value()) {
-            rec.predicted_bbox = *bbox_opt;
+        std::optional<raster::BBox> diagnostic_bbox_opt;
+        if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
+            diagnostic_bbox_opt = detail::preflight_diagnostic_bbox(*source, ctx);
+        } else if (const auto* multi_source = dynamic_cast<const MultiSourceNode*>(&node)) {
+            diagnostic_bbox_opt = detail::preflight_diagnostic_bbox(*multi_source, ctx);
+        } else {
+            diagnostic_bbox_opt = node.predicted_bbox(ctx, {});
+        }
+        if (diagnostic_bbox_opt.has_value()) {
+            rec.predicted_bbox = *diagnostic_bbox_opt;
         } else {
             rec.predicted_bbox = canvas;
         }
@@ -89,7 +97,7 @@ void populate_node_basics(
             rec.outside_canvas  = true;
             rec.partially_clipped = false;
             rec.visibility      = VisibilityStatus::OutsideCanvas;
-        } else if (bbox_opt.has_value() &&
+        } else if (diagnostic_bbox_opt.has_value() &&
                    rec.predicted_bbox.x0 <= 0 &&
                    rec.predicted_bbox.y0 <= 0 &&
                    rec.predicted_bbox.x1 >= ctx.frame_input.width &&
@@ -98,7 +106,7 @@ void populate_node_basics(
             rec.partially_clipped = false;
             rec.visibility        = VisibilityStatus::FullyVisible;
             rec.visible_ratio     = 1.0f;
-        } else if (bbox_opt.has_value() && (
+        } else if (diagnostic_bbox_opt.has_value() && (
                 rec.predicted_bbox.x0 < 0 ||
                 rec.predicted_bbox.y0 < 0 ||
                 rec.predicted_bbox.x1 > ctx.frame_input.width ||
@@ -113,7 +121,7 @@ void populate_node_basics(
             rec.visibility        = VisibilityStatus::FullyVisible;
         }
 
-        if (bbox_opt.has_value()) {
+        if (diagnostic_bbox_opt.has_value()) {
             if (rec.outside_canvas) {
                 rec.warning = std::string(to_string(VisibilityStatus::OutsideCanvas)) +
                     ": node=\"" + rec.name + "\""

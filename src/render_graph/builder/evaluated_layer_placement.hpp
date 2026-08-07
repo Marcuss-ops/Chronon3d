@@ -86,7 +86,7 @@ struct EvaluatedLayerPlacement {
 /// camera-projection composition so `predicted_bbox()` and `execute()` cannot
 /// drift apart. `source_matrix` is the builder/refresh payload, not an
 /// authored transform to be re-derived here.
-[[nodiscard]] inline std::optional<EvaluatedLayerPlacement> evaluate_layer_placement(
+[[nodiscard]] inline std::optional<EvaluatedLayerPlacement> evaluate_source_payload_placement(
     const Mat4& source_matrix,
     f32 opacity,
     const RenderGraphContext& ctx,
@@ -144,6 +144,27 @@ struct EvaluatedLayerPlacement {
         Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
     result.render_matrix = ssaa_scale * source_matrix;
     return result;
+}
+
+/// Backward-compatible spelling for internal callers that already use the
+/// source-payload resolver. New node code should call the explicit
+/// `evaluate_source_payload_placement` name above.
+[[nodiscard]] inline std::optional<EvaluatedLayerPlacement> evaluate_layer_placement(
+    const Mat4& source_matrix,
+    f32 opacity,
+    const RenderGraphContext& ctx,
+    bool apply_camera_projection,
+    bool defer_camera_projection = false,
+    bool native_3d = false,
+    std::string_view node_name = {},
+    const char* stage = nullptr,
+    std::size_t item_index = static_cast<std::size_t>(-1),
+    bool exclude_from_2_5d_projection = false)
+{
+    return evaluate_source_payload_placement(
+        source_matrix, opacity, ctx, apply_camera_projection,
+        defer_camera_projection, native_3d, node_name, stage, item_index,
+        exclude_from_2_5d_projection);
 }
 
 /// Convert a local/node bbox through a canonical placement matrix into
