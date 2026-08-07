@@ -202,14 +202,36 @@ void execute_single_node(
             compiled.graph_instance_id,
             compiled.nodes[id].stable_node_id
         };
-        node_ctx.node_exec.current_shape_processor = compiled.nodes[id].shape_processor;
-        node_ctx.node_exec.current_shape_processors = compiled.nodes[id].shape_processors;
-        node_ctx.node_exec.current_effect_processors = compiled.nodes[id].effect_processors;
-        node_ctx.node_exec.processor_bindings_compiled = true;
-    } else {
-        node_ctx.node_exec.current_shape_processor = nullptr;
+        const auto& node_info = compiled.nodes[id];
+        node_ctx.node_exec.current_shape_processor = {};
         node_ctx.node_exec.current_shape_processors = {};
         node_ctx.node_exec.current_effect_processors = {};
+        node_ctx.node_exec.processor_snapshot = compiled.processor_snapshot;
+        if (node_info.shape_processors_count > 0 &&
+            node_info.shape_processors_offset <= compiled.shape_processor_table.size() &&
+            node_info.shape_processors_count <=
+                compiled.shape_processor_table.size() - node_info.shape_processors_offset) {
+            const auto* shape_begin = compiled.shape_processor_table.data() +
+                node_info.shape_processors_offset;
+            node_ctx.node_exec.current_shape_processors = {
+                shape_begin, node_info.shape_processors_count};
+            node_ctx.node_exec.current_shape_processor = shape_begin[0];
+        }
+        if (node_info.effect_processors_count > 0 &&
+            node_info.effect_processors_offset <= compiled.effect_processor_table.size() &&
+            node_info.effect_processors_count <=
+                compiled.effect_processor_table.size() - node_info.effect_processors_offset) {
+            const auto* effect_begin = compiled.effect_processor_table.data() +
+                node_info.effect_processors_offset;
+            node_ctx.node_exec.current_effect_processors = {
+                effect_begin, node_info.effect_processors_count};
+        }
+        node_ctx.node_exec.processor_bindings_compiled = true;
+    } else {
+        node_ctx.node_exec.current_shape_processor = {};
+        node_ctx.node_exec.current_shape_processors = {};
+        node_ctx.node_exec.current_effect_processors = {};
+        node_ctx.node_exec.processor_snapshot = compiled.processor_snapshot;
         node_ctx.node_exec.processor_bindings_compiled = false;
     }
     const auto t_clone1 = profiling::now();

@@ -22,6 +22,7 @@ namespace chronon3d {
     namespace renderer {
         class ShapeProcessor;
         class EffectProcessor;
+        class ProcessorRegistrySnapshot;
     }
     struct RenderNode;
     struct RenderState;
@@ -187,20 +188,35 @@ public:
         return std::nullopt;
     }
 
-    /// Resolve a shape processor during graph compilation. The compiled
-    /// graph owns the resulting non-owning binding for execution; the
-    /// registry generation is part of cache validity, so a replaced
-    /// processor cannot be used by a stale graph.
+    /// Legacy direct resolver retained for non-compiled backend callers.
+    /// Compiled graph construction uses processor_snapshot() instead and
+    /// never calls this method during frame execution.
     [[nodiscard]] virtual renderer::ShapeProcessor* resolve_shape_processor(
         const RenderNode& /*node*/) const noexcept {
         return nullptr;
     }
 
-    /// Resolve an effect processor during graph compilation. The default is
-    /// null for lightweight/mock backends that do not execute software effects.
+    /// Legacy direct resolver retained for non-compiled backend callers.
+    /// Compiled graph construction resolves effects through the immutable
+    /// processor snapshot, with no per-frame registry lookup.
     [[nodiscard]] virtual renderer::EffectProcessor* resolve_effect_processor(
         std::type_index /*params_type*/) const noexcept {
         return nullptr;
+    }
+
+    /// Immutable engine-local processor ownership captured at compile time.
+    /// A backend that compiles renderable shape/effect nodes must return an
+    /// owning snapshot; the compiled graph retains it for its full lifetime.
+    [[nodiscard]] virtual std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+    processor_snapshot() const noexcept {
+        return nullptr;
+    }
+
+    /// True for backends whose compiled shape/effect dispatch requires an
+    /// owning processor snapshot. Lightweight test backends may leave this
+    /// false and compile graph operators without processor bindings.
+    [[nodiscard]] virtual bool requires_processor_snapshot() const noexcept {
+        return false;
     }
 
     virtual void apply_effect_stack(

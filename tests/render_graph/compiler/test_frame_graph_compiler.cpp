@@ -10,6 +10,7 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <memory>
@@ -20,10 +21,62 @@ using namespace chronon3d::graph;
 
 namespace {
 
+class LifetimeShapeProcessor final : public renderer::ShapeProcessor {
+public:
+    explicit LifetimeShapeProcessor(int& destructions) : m_destructions(&destructions) {}
+    ~LifetimeShapeProcessor() override { ++*m_destructions; }
+
+    void draw(const SoftwareProcessorContext&, Framebuffer&, const RenderNode&,
+              const RenderState&, const Camera&, i32, i32) override {}
+    raster::BBox compute_world_bbox(const Shape&, const Mat4&, f32) override {
+        return raster::BBox{};
+    }
+    bool hit_test(const Shape&, Vec2, f32) override { return false; }
+
+private:
+    int* m_destructions;
+};
+
+class NoopShapeProcessor final : public renderer::ShapeProcessor {
+public:
+    void draw(const SoftwareProcessorContext&, Framebuffer&, const RenderNode&,
+              const RenderState&, const Camera&, i32, i32) override {}
+    raster::BBox compute_world_bbox(const Shape&, const Mat4&, f32) override {
+        return raster::BBox{};
+    }
+    bool hit_test(const Shape&, Vec2, f32) override { return false; }
+};
+
+class NoopEffectProcessor final : public renderer::EffectProcessor {
+public:
+    void apply(Framebuffer&, const EffectParams&,
+               const effects::EffectExecutionContext&) override {}
+};
+
 class ValidationBackend final : public RenderBackend {
 public:
-    explicit ValidationBackend(bool missing_processor)
-        : m_missing_processor(missing_processor) {}
+    explicit ValidationBackend(
+        bool missing_processor,
+        std::shared_ptr<const renderer::ProcessorRegistrySnapshot> snapshot = nullptr)
+        : m_missing_processor(missing_processor)
+        , m_snapshot(snapshot ? std::move(snapshot)
+                              : std::make_shared<const renderer::ProcessorRegistrySnapshot>(
+                                    std::vector<renderer::ProcessorRegistrySnapshot::ShapeEntry>{
+                                        {ShapeType::Rect, std::make_shared<NoopShapeProcessor>()},
+                                        {ShapeType::Image, std::make_shared<NoopShapeProcessor>()}},
+                                    std::vector<renderer::ProcessorRegistrySnapshot::EffectEntry>{
+                                        {std::type_index(typeid(BlurParams)),
+                                         std::make_shared<NoopEffectProcessor>()}},
+                                    0)) {}
+
+    std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+    processor_snapshot() const noexcept override {
+        return m_snapshot;
+    }
+
+    bool requires_processor_snapshot() const noexcept override {
+        return true;
+    }
 
     renderer::ShapeProcessor* resolve_shape_processor(
         const RenderNode&) const noexcept override {
@@ -72,6 +125,7 @@ public:
 
 private:
     bool m_missing_processor{false};
+    std::shared_ptr<const renderer::ProcessorRegistrySnapshot> m_snapshot;
     mutable int m_validation_calls{0};
     mutable int m_shape_resolve_calls{0};
     mutable int m_effect_resolve_calls{0};
@@ -123,6 +177,64 @@ RenderGraph make_single_source_graph(ShapeType shape_type) {
 }
 
 } // namespace
+
+TEST_CASE("ProcessorRegistrySnapshot owns processors after registry lifetime ends") {
+    int destructions = 0;
+    std::shared_ptr<const renderer::ProcessorRegistrySnapshot> snapshot;
+    renderer::ShapeProcessor* processor_address = nullptr;
+
+    {
+        renderer::SoftwareRegistry registry;
+        registry.register_shape(
+            ShapeType::Rect,
+            std::make_shared<LifetimeShapeProcessor>(destructions));
+        snapshot = registry.snapshot();
+        REQUIRE(snapshot != nullptr);
+        const auto handle = snapshot->shape_handle(ShapeType::Rect);
+        REQUIRE(handle.valid());
+        processor_address = snapshot->shape(handle);
+        CHECK(processor_address != nullptr);
+        CHECK(snapshot->generation() == registry.generation());
+    }
+
+    CHECK(destructions == 0);
+    REQUIRE(snapshot != nullptr);
+    const auto handle = snapshot->shape_handle(ShapeType::Rect);
+    CHECK(snapshot->shape(handle) == processor_address);
+    snapshot.reset();
+    CHECK(destructions == 1);
+}
+
+TEST_CASE("CompiledFrameGraph retains processor snapshot ownership") {
+    int destructions = 0;
+    CompiledFrameGraph compiled;
+
+    {
+        auto processor = std::make_shared<LifetimeShapeProcessor>(destructions);
+        auto snapshot = std::make_shared<const renderer::ProcessorRegistrySnapshot>(
+            std::vector<renderer::ProcessorRegistrySnapshot::ShapeEntry>{
+                {ShapeType::Rect, processor}},
+            std::vector<renderer::ProcessorRegistrySnapshot::EffectEntry>{},
+            9);
+        ValidationBackend backend(false, snapshot);
+        RenderGraphContext ctx;
+        ctx.services.backend = &backend;
+        ctx.services.registry_generation = 9;
+        FrameGraphCompiler compiler;
+
+        compiled = compiler.compile(make_single_source_graph(ShapeType::Rect), ctx);
+        REQUIRE(compiled.valid);
+        REQUIRE(compiled.processor_snapshot != nullptr);
+        CHECK(compiled.processor_snapshot->shape(
+                  compiled.nodes.front().shape_processor) == processor.get());
+        snapshot.reset();
+        processor.reset();
+    }
+
+    CHECK(destructions == 0);
+    compiled = CompiledFrameGraph{};
+    CHECK(destructions == 1);
+}
 
 TEST_CASE("FrameGraphCompiler - handles empty graph") {
     RenderGraph graph;
@@ -251,6 +363,13 @@ TEST_CASE("FrameGraphCompiler - resolves processor identity during compilation")
     CHECK(backend.validation_calls() == 1);
     CHECK(compiled.nodes.front().processor_id ==
           "source:" + std::to_string(static_cast<int>(ShapeType::Rect)));
+    REQUIRE(compiled.processor_snapshot != nullptr);
+    CHECK(compiled.processor_snapshot->generation() == ctx.services.registry_generation);
+    const auto shape_handle = compiled.nodes.front().shape_processor;
+    CHECK(shape_handle.valid());
+    REQUIRE(compiled.nodes.front().shape_processors_count == 1);
+    CHECK(compiled.shape_processor_table[
+              compiled.nodes.front().shape_processors_offset] == shape_handle);
 }
 
 TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
@@ -262,7 +381,15 @@ TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
         std::move(effects)));
     graph.set_output(effect_id);
 
-    ValidationBackend backend(/*missing_processor=*/false);
+    auto snapshot = std::make_shared<const renderer::ProcessorRegistrySnapshot>(
+        std::vector<renderer::ProcessorRegistrySnapshot::ShapeEntry>{
+            {ShapeType::Rect, std::make_shared<NoopShapeProcessor>()},
+            {ShapeType::Image, std::make_shared<NoopShapeProcessor>()}},
+        std::vector<renderer::ProcessorRegistrySnapshot::EffectEntry>{
+            {std::type_index(typeid(BlurParams)),
+             std::make_shared<NoopEffectProcessor>()}},
+        17);
+    ValidationBackend backend(/*missing_processor=*/false, snapshot);
     RenderGraphContext ctx;
     ctx.services.backend = &backend;
     ctx.services.registry_generation = 17;
@@ -273,9 +400,61 @@ TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
     REQUIRE(compiled.valid);
     REQUIRE(compiled.nodes.size() > effect_id);
     CHECK(compiled.registry_generation == 17);
-    CHECK(compiled.nodes[effect_id].effect_processors.size() == 1);
-    CHECK(compiled.nodes[effect_id].effect_processors.front() != nullptr);
-    CHECK(backend.effect_resolve_calls() == 1);
+    CHECK(compiled.nodes[effect_id].effect_processors_count == 1);
+    CHECK(compiled.nodes[effect_id].effect_processors_offset <
+          compiled.effect_processor_table.size());
+    CHECK(compiled.effect_processor_table[
+              compiled.nodes[effect_id].effect_processors_offset].valid());
+    CHECK(compiled.processor_snapshot != nullptr);
+    CHECK(backend.effect_resolve_calls() == 0);
+}
+
+TEST_CASE("FrameGraphCompiler - rejects snapshot generation mismatch") {
+    ValidationBackend backend(/*missing_processor=*/false);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    ctx.services.registry_generation = 1;
+    FrameGraphCompiler compiler;
+
+    CHECK_THROWS_WITH(
+        static_cast<void>(compiler.compile(make_single_source_graph(ShapeType::Rect), ctx)),
+        "FrameGraphCompiler: processor snapshot generation does not match RenderGraphContext registry generation");
+}
+
+TEST_CASE("FrameGraphCompiler - reuse rejects a different same-generation snapshot") {
+    auto first_snapshot = std::make_shared<const renderer::ProcessorRegistrySnapshot>(
+        std::vector<renderer::ProcessorRegistrySnapshot::ShapeEntry>{
+            {ShapeType::Rect, std::make_shared<NoopShapeProcessor>()}},
+        std::vector<renderer::ProcessorRegistrySnapshot::EffectEntry>{},
+        0);
+    auto second_snapshot = std::make_shared<const renderer::ProcessorRegistrySnapshot>(
+        std::vector<renderer::ProcessorRegistrySnapshot::ShapeEntry>{
+            {ShapeType::Rect, std::make_shared<NoopShapeProcessor>()}},
+        std::vector<renderer::ProcessorRegistrySnapshot::EffectEntry>{},
+        0);
+    REQUIRE(first_snapshot->identity() != second_snapshot->identity());
+
+    FrameGraphCompiler compiler;
+    ValidationBackend first_backend(false, first_snapshot);
+    RenderGraphContext first_ctx;
+    first_ctx.services.backend = &first_backend;
+    first_ctx.policy.graph_structure_unchanged = true;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+    auto prior = compiler.compile(make_single_source_graph(ShapeType::Rect), first_ctx, options);
+    REQUIRE(prior.valid);
+
+    ValidationBackend second_backend(false, second_snapshot);
+    RenderGraphContext second_ctx;
+    second_ctx.services.backend = &second_backend;
+    second_ctx.policy.graph_structure_unchanged = true;
+    auto rebuilt = compiler.compile_with_reuse(
+        make_single_source_graph(ShapeType::Rect), second_ctx, prior, options);
+
+    REQUIRE(rebuilt.valid);
+    CHECK(rebuilt.processor_snapshot_identity == second_snapshot->identity());
+    CHECK(rebuilt.processor_snapshot != prior.processor_snapshot);
+    CHECK(second_backend.shape_resolve_calls() == 0);
 }
 
 TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
@@ -289,13 +468,19 @@ TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
 
     auto prior = compiler.compile(make_single_source_graph(ShapeType::Rect), ctx, options);
     REQUIRE(prior.valid);
-    CHECK(backend.shape_resolve_calls() == 1);
+    CHECK(backend.shape_resolve_calls() == 0);
 
     auto reused = compiler.compile_with_reuse(
         make_single_source_graph(ShapeType::Rect), ctx, prior, options);
     REQUIRE(reused.valid);
-    CHECK(backend.shape_resolve_calls() == 1);
+    CHECK(backend.shape_resolve_calls() == 0);
     CHECK(reused.registry_generation == ctx.services.registry_generation);
+    CHECK(reused.processor_snapshot == prior.processor_snapshot);
+    CHECK(reused.processor_snapshot_identity == prior.processor_snapshot_identity);
+    CHECK(reused.shape_processor_table == prior.shape_processor_table);
+    CHECK(reused.effect_processor_table == prior.effect_processor_table);
+    REQUIRE(reused.nodes.size() == prior.nodes.size());
+    CHECK(reused.nodes.front().shape_processor == prior.nodes.front().shape_processor);
 }
 
 TEST_CASE("FrameGraphCompiler - linear graph compilation") {
