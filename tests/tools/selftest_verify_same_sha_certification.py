@@ -114,9 +114,9 @@ raise SystemExit(1 if status == 'failed' else 0)
     return repo, env
 
 
-def execute(repo: Path, env: dict[str, str], *extra: str) -> subprocess.CompletedProcess[str]:
+def execute(repo: Path, env: dict[str, str], *extra: str, profile: str = "developer") -> subprocess.CompletedProcess[str]:
     return run([sys.executable, str(CERT), "--repo-root", str(repo), "--build-dir", str(repo / "build"),
-                "--profile", "developer", "--manifest", str(repo.parent / "result.json"), *extra], repo, env)
+                "--profile", profile, "--manifest", str(repo.parent / "result.json"), *extra], repo, env)
 
 
 def require(condition: bool, message: str, output: str = "") -> None:
@@ -132,6 +132,17 @@ def main() -> int:
         require(result.returncode == 0, "happy path did not pass", result.stdout)
         manifest = json.loads((repo.parent / "result.json").read_text(encoding="utf-8"))
         require(manifest["registered_tests"] == 2, "NAME COMMAND test was not discovered", result.stdout)
+        require(manifest["schema"].endswith(".v2"), "manifest schema was not bumped", result.stdout)
+        require(manifest["suite_registration"]["status"] == "passed", "suite registration was not certified", result.stdout)
+        require(manifest["suite_registration"]["missing_execution"] == [], "registered suite was not executed", result.stdout)
+        require(manifest["suite_registration"]["missing_command_registration"] == [], "discovered suite lacked add_test registration", result.stdout)
+        require(manifest["suite_registration"]["unlisted_commands"] == [], "add_test command was absent from discovery", result.stdout)
+        require(manifest["gate_summary"]["declared"] == 1, "declared gate count missing", result.stdout)
+        require(manifest["gate_summary"]["executed"] == 1, "executed gate count missing", result.stdout)
+        require(manifest["gate_summary"]["status"] == "passed", "gate summary was not green", result.stdout)
+        binary_record = next(item for item in manifest["artifacts"]["test_commands"] if item["name"] == "fake_suite")
+        require(binary_record["freshness"]["checked"], "binary freshness was not checked", result.stdout)
+        require(binary_record["freshness"]["status"] == "fresh", "binary was not recorded fresh", result.stdout)
 
         current = repo / "docs" / "CURRENT_STATUS.md"
         original_docs = current.read_text(encoding="utf-8")
@@ -167,9 +178,14 @@ def main() -> int:
         os.utime(binary, ns=(now, now))
 
         env_skip = dict(env, FAKE_CTEST_SKIP="1")
-        skipped = execute(repo, env_skip, "--skip-doc-sha")
+        skipped = execute(repo, env_skip, "--skip-doc-sha", profile="ci")
         require(skipped.returncode == 1 and "skipped without allowlist" in skipped.stdout,
                 "unallowlisted skip was not rejected", skipped.stdout)
+        skipped_manifest = json.loads((repo.parent / "result.json").read_text(encoding="utf-8"))
+        require(skipped_manifest["gate_summary"]["status"] == "failed",
+                "gate summary stayed green for an unallowlisted skip", skipped.stdout)
+        require(skipped_manifest["gates"]["unit_tests"]["status"] == "failed",
+                "unit_tests gate stayed green for an unallowlisted skip", skipped.stdout)
 
         state = Path(env["FAKE_CTEST_STATE"])
         state.write_text("0")
