@@ -98,6 +98,12 @@ SoftwareBackend::~SoftwareBackend() = default;
 // underlying `SoftwareProcessorContext` type is already public.
 void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx) {
     m_proc_ctx = proc_ctx;
+    m_processor_snapshot = m_proc_ctx.registry
+        ? m_proc_ctx.registry->snapshot()
+        : nullptr;
+    m_registry_lifetime = m_proc_ctx.registry
+        ? m_proc_ctx.registry->lifetime_token()
+        : std::weak_ptr<const void>{};
 }
 
 // ── draw_node (real — TICKET-118 closure) ───────────────────────────────
@@ -121,40 +127,48 @@ void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx
 // `~SoftwareBackend()`).
 renderer::ShapeProcessor* SoftwareBackend::resolve_shape_processor(
     const RenderNode& node) const noexcept {
-    if (!m_proc_ctx.registry || node.shape.type() == ShapeType::TextRun) {
+    // Legacy ABI adapter only. Compiled and direct dispatch use the owning
+    // snapshot path below; callers of this deprecated method must not retain
+    // the returned non-owning pointer.
+    if (node.shape.type() == ShapeType::TextRun) {
         return nullptr;
     }
-    return m_proc_ctx.registry->get_shape(node.shape.type());
+    const auto snapshot = processor_snapshot();
+    return snapshot
+        ? snapshot->shape_shared(snapshot->shape_handle(node.shape.type())).get()
+        : nullptr;
 }
 
 renderer::EffectProcessor* SoftwareBackend::resolve_effect_processor(
     std::type_index params_type) const noexcept {
-    if (!m_proc_ctx.registry) {
-        return nullptr;
-    }
-    return m_proc_ctx.registry->get_effect(params_type);
+    // Legacy ABI adapter only; new code must retain the owning snapshot.
+    const auto snapshot = processor_snapshot();
+    return snapshot
+        ? snapshot->effect_shared(snapshot->effect_handle(params_type)).get()
+        : nullptr;
 }
 
 std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
 SoftwareBackend::processor_snapshot() const noexcept {
-    if (!m_proc_ctx.registry) {
-        return nullptr;
+    if (m_proc_ctx.registry && !m_registry_lifetime.expired()) {
+        // Refresh only while the mutable registry is alive. The owning
+        // snapshot remains available if the engine is already shutting down.
+        const auto current = m_proc_ctx.registry->snapshot();
+        if (current) {
+            m_processor_snapshot = current;
+        }
     }
-    return m_proc_ctx.registry->snapshot();
+    return m_processor_snapshot;
 }
 
 std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
     const RenderNode& node) const {
-    if (!m_proc_ctx.registry) {
-        return graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput,
-            "processor registry is not attached"};
-    }
-
     if (node.shape.type() == ShapeType::TextRun) {
         return std::nullopt;
     }
-    if (!m_proc_ctx.registry->get_shape(node.shape.type())) {
+    const auto snapshot = processor_snapshot();
+    if (!snapshot || !snapshot->shape_shared(
+            snapshot->shape_handle(node.shape.type()))) {
         return graph::RenderBackendError{
             graph::RenderBackendErrorCode::InvalidInput,
             "missing shape processor for ShapeType=" +
@@ -172,9 +186,15 @@ void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
     if (m_image_renderer != nullptr && m_proc_ctx.image_renderer == nullptr) {
         m_proc_ctx.image_renderer = m_image_renderer;
     }
-    auto* processor = state.processor_snapshot
-        ? state.processor_snapshot->shape(state.shape_processor)
-        : nullptr;
+    const auto snapshot = state.processor_snapshot
+        ? state.processor_snapshot
+        : processor_snapshot();
+    const auto handle = snapshot
+        ? (state.shape_processor.valid()
+            ? state.shape_processor
+            : snapshot->shape_handle(node.shape.type()))
+        : renderer::ShapeProcessorHandle{};
+    const auto processor = snapshot ? snapshot->shape_shared(handle) : nullptr;
     if (!processor) {
         if (node.shape.type() == ShapeType::TextRun) {
             // Canonical TextRun integration is via TextRunNode →
@@ -274,7 +294,23 @@ void SoftwareBackend::apply_effect_stack(
         throw std::runtime_error(
             "SoftwareBackend::apply_effect_stack requires a processor registry");
     }
-    renderer::apply_effect_stack(fb, stack, local_context, *m_proc_ctx.registry);
+    const auto snapshot = processor_snapshot();
+    if (!snapshot) {
+        throw std::runtime_error(
+            "SoftwareBackend::apply_effect_stack has no processor snapshot");
+    }
+    std::vector<renderer::EffectProcessorHandle> handles;
+    handles.reserve(stack.size());
+    for (const auto& effect : stack) {
+        handles.push_back(effect.enabled
+            ? snapshot->effect_handle(effect.param_type_index())
+            : renderer::EffectProcessorHandle{});
+    }
+    local_context.effect_processors = handles;
+    local_context.processor_snapshot = snapshot;
+    local_context.processors_resolved = true;
+    renderer::apply_effect_stack(
+        fb, stack, local_context, handles, std::move(snapshot));
 }
 
 // ── apply_per_pixel_dof ───────────────────────────────────────────────────
