@@ -7,8 +7,7 @@
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include "../../builder/evaluated_layer_placement.hpp"
 
 namespace chronon3d::graph::detail {
 
@@ -20,13 +19,10 @@ void compute_scene_root_bboxes(
 ) {
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
-        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-        Mat4 matrix;
-        matrix = ssaa_scale * node.world_transform.to_mat4();
-        if (ctx.policy.modular_coordinates && node.shape.type() == ShapeType::Line) {
-            matrix = canvas_center * matrix;
-        }
+        const auto placement = evaluate_root_source_placement(
+            node, ctx, node.name, "root_bbox");
+        if (!placement) continue;
+        const Mat4 matrix = placement->render_matrix;
         auto* processor = sw_renderer->software_registry().get_shape(node.shape.type());
         if (!processor) continue;
         f32 spread = 0.0f;
@@ -38,7 +34,7 @@ void compute_scene_root_bboxes(
         state.opacity = node.world_transform.opacity;
         state.visible = node.visible;
         state.cache_static = true;
-        state.uses_2_5d_projection = false;
+        state.uses_2_5d_projection = ctx.frame_input.has_camera_2_5d;
         state.content_hash = hash_render_node(node);
         bboxes["root.node:" + std::string(node.name)] = state;
     }
