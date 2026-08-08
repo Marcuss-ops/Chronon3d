@@ -20,7 +20,6 @@
 #include "helpers.hpp"               // resolve_scene_camera, build_graph_context, make_default_pipeline_flags
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
-#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 #include <cassert>
 
@@ -85,12 +84,16 @@ SoftwareRenderer* setup_render_graph_context(
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
         ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
-        // The runtime owns the canonical pipeline catalogs. Propagate their
-        // generation before scene fingerprinting (which runs immediately
-        // after this setup phase), so reuse decisions are registry-aware.
-        ctx.services.registry_generation = hash_combine(
-            sw_renderer->runtime().catalogs().registry_generation,
-            sw_renderer->software_registry().generation());
+        // The processor snapshot captured by SoftwareBackend is owned by
+        // SoftwareRegistry and carries that registry's generation. Use the
+        // same canonical generation for graph compilation; hashing it with
+        // the separate pipeline-catalog generation would make every valid
+        // snapshot look stale and reject cacheable graphs before execution.
+        ctx.services.registry_generation =
+            sw_renderer->software_registry().generation();
+        // Pipeline catalogs are frozen for the runtime lifetime; their
+        // generation remains part of the runtime-owned topology policy and
+        // must not be mixed into the processor-snapshot generation contract.
         ctx.services.node_catalog = &sw_renderer->graph_node_registry();
         ctx.services.effect_catalog = &sw_renderer->effect_catalog();
         // ── PR-B: propagate scheduler to nested graph call sites ──────
