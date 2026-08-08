@@ -55,14 +55,14 @@ struct LocalEngine {
     {}
 };
 
-[[nodiscard]] TextRunDefinition make_autofit_params(
+[[nodiscard]] PreparedText make_autofit_params(
     const std::string& utf8,
     float font_size,
     bool auto_fit,
     float min_font_size = 8.0f,
     float max_font_size = 96.0f
 ) {
-    TextRunDefinition params;
+    PreparedText params;
     params.text.content.value              = utf8;
     // Family-only resolution is intentionally not a process-wide service;
     // use the tracked fixture so this contract test is deterministic on a
@@ -105,7 +105,7 @@ TEST_CASE("ADR-018: auto-fit shrinks font when text overflows box") {
     // Set the box on the layout spec via params
     params.text.layout.box = {200.0f, 600.0f};
 
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -133,7 +133,7 @@ TEST_CASE("ADR-018: auto-fit is no-op when text fits the box") {
         24.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/96.0f);
     params.text.layout.box = {1920.0f, 1080.0f};
 
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -159,7 +159,7 @@ TEST_CASE("ADR-018: auto-fit respects min_font_size clamp") {
         72.0f, /*auto_fit=*/true, /*min_fs=*/20.0f, /*max_fs=*/96.0f);
     params.text.layout.box = {50.0f, 600.0f};
 
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -195,7 +195,7 @@ TEST_CASE("ADR-018: auto-fit is deterministic across 20 runs") {
     heights.reserve(kRuns);
 
     for (int i = 0; i < kRuns; ++i) {
-        auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+        auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
         if (!shape || !shape->layout) {
             MESSAGE("test skipped: system fonts unavailable");
             return;
@@ -228,7 +228,7 @@ TEST_CASE("ADR-018: auto-fit clamps authored font to max_font_size when authored
         72.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/40.0f);
     params.text.layout.box = {1920.0f, 1080.0f};
 
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -265,7 +265,7 @@ TEST_CASE("ADR-018: auto-fit terminates (fixed 12-iter bound, no infinite loop)"
     // regression log).  The fixed 12-iter guarantee is the only
     // contract that makes this test safe — adaptive / while-loop
     // implementations would regress here.
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -298,7 +298,7 @@ TEST_CASE("ADR-018: auto-fit fits_inside gate under degenerate box") {
         60.0f, /*auto_fit=*/true, /*min_fs=*/16.0f, /*max_fs=*/40.0f);
     params.text.layout.box = {1.0f, 1.0f};  // 1px box — degenerate
 
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -340,7 +340,7 @@ TEST_CASE("ADR-018: auto-fit 100-run determinism certification") {
     heights.reserve(kRuns);
 
     for (int i = 0; i < kRuns; ++i) {
-        auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+        auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
         if (!shape || !shape->layout) {
             MESSAGE("test skipped: system fonts unavailable");
             return;

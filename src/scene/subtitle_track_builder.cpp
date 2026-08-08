@@ -303,15 +303,15 @@ void SubtitleTrackBuilder::build() {
         const Frame duration_frames =
             std::max(Frame{1}, end_frame - start_frame);
 
-        TextRunDefinition run_spec =
+        PreparedText run_spec =
             registry::wire_preset_text_run_params(preset_id_, spec);
 
         // Existing timed-word selectors drive preset-specific active-word
         // effects such as karaoke fill and active-word pop.
         std::vector<GlyphSelectorSpec> word_selectors =
             build_word_selectors(cue, active_frame_rate(), start_frame, i);
-        if (!run_spec.animators.empty()) {
-            auto& preset_animator = run_spec.animators.front();
+        if (!run_spec.animation.animators.empty()) {
+            auto& preset_animator = run_spec.animation.animators.front();
             for (auto& word_selector : word_selectors) {
                 preset_animator.selectors.push_back(
                     std::move(word_selector));
@@ -324,7 +324,7 @@ void SubtitleTrackBuilder::build() {
         auto semantic_animators = build_semantic_emphasis_animators(
             cue, active_frame_rate(), i);
         for (auto& animator : semantic_animators) {
-            run_spec.animators.push_back(std::move(animator));
+            run_spec.animation.animators.push_back(std::move(animator));
         }
 
         builder_->text_run(

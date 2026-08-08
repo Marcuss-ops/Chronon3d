@@ -142,6 +142,9 @@ struct TextFrame {
 
     /// Append ellipsis on overflow (maps to TextDefaults::layout.ellipsis).
     bool ellipsis{false};
+
+    /// Paragraph-level composition and typography options.
+    ParagraphStyle paragraph{};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

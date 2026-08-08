@@ -171,7 +171,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // ── M1.5#9 steps 2-4 — RenderNodeFactory::text() (DONE) ─────────────────
 //
 // Refactor: `text(...)` now wraps the supplied `TextDefaults` into a
-// `TextRunDefinition` and delegates to `materialize_text_run_shape(...)`,
+// `PreparedText` and delegates to `materialize_prepared_text(...)`,
 // the single canonical materializer shared with `text_run()` and
 // `LayerBuilder::build()`.  The legacy text-shape code path
 // that built a `TextShape` (paint / shadows / material / font fields /
@@ -187,7 +187,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // still compile and behave identically for non-materialization
 // properties (anchor, position, color, fill, layout.box-derived
 // transform).  Materialization of paint / shadows / material / font
-// glyphs is now ROUTED through `materialize_text_run_shape` so
+// glyphs is now ROUTED through `materialize_prepared_text` so
 // downstream consumers see a unified `TextRunShapeHandle` (variant
 // index 14).  When `engine == nullptr` the materializer logs an
 // `spdlog::error` and returns nullptr — the factory still produces a
@@ -221,8 +221,8 @@ RenderNode RenderNodeFactory::text(
     // even when materialization fails (e.g. engine == nullptr).
     //
     // ORDERING INVARIANT: read `p.layout.{anchor,box}` and
-    // `p.position` and `p.appearance.{color,shadows,paint,material}`
-    // HERE, before the std::move(p) into run_spec.text below.
+    // `p.placement` and `p.appearance.{color,shadows,paint,material}`
+    // HERE, before the std::move(p) into run_spec below.
     // Reordering breaks world_transform resolution (the source TextDefaults
     // members would be moved-from by the time these reads happen).
     const TextAnchor   box_anchor = p.layout.anchor;
@@ -248,17 +248,40 @@ RenderNode RenderNodeFactory::text(
 
     // ── Delegate to canonical materializer ──
     //
-    // Wrap the legacy TextDefaults into the canonical TextRunDefinition and
-    // delegate to `materialize_text_run_shape(...)`.  cache_layout=true
+    // Wrap the legacy TextDefaults into the unified PreparedText transport.
+    // cache_layout=true
     // mirrors the TextRunBuilder default; animators/selectors are
     // empty for the simple text() path (callers wanting animated
     // text should use `text_run()` or `LayerBuilder::text_run(...)`).
-    TextRunDefinition run_spec;
-    run_spec.text         = std::move(p);
-    run_spec.cache_layout = true;
+    TextDefinition definition;
+    definition.content = std::move(p.content);
+    definition.spans = std::move(p.spans);
+    definition.style.font = p.font;
+    definition.style.color = p.appearance.color;
+    definition.style.paint = p.appearance.paint;
+    definition.style.shadows = p.appearance.shadows;
+    definition.style.material = p.appearance.material;
+    definition.style.box_style = p.appearance.box_style;
+    definition.frame.size = p.layout.box;
+    definition.frame.placement = p.placement;
+    definition.frame.anchor = p.layout.anchor;
+    definition.frame.align = p.layout.align;
+    definition.frame.vertical_align = p.layout.vertical_align;
+    definition.frame.wrap = p.layout.wrap;
+    definition.frame.overflow = p.layout.overflow;
+    definition.frame.centering_mode = p.layout.centering_mode;
+    definition.frame.line_height = p.layout.line_height;
+    definition.frame.tracking = p.layout.tracking;
+    definition.frame.auto_fit = p.layout.auto_fit;
+    definition.frame.min_font_size = p.layout.min_font_size;
+    definition.frame.max_font_size = p.layout.max_font_size;
+    definition.frame.max_lines = p.layout.max_lines;
+    definition.frame.ellipsis = p.layout.ellipsis;
+    definition.paragraph = p.layout.paragraph;
+    PreparedText run_spec = prepare_text(definition);
 
 #ifdef CHRONON3D_USE_BLEND2D
-    auto shape = materialize_text_run_shape(run_spec, engine, SampleTime{});
+    auto shape = materialize_prepared_text(run_spec, engine, SampleTime{});
     if (shape) {
         // Materialization succeeded — engine + shaping/compile/cache
         // chain resolved.  Stash the materialized TextRunShape on the
@@ -296,21 +319,21 @@ RenderNode RenderNodeFactory::text(
 RenderNode RenderNodeFactory::text_run(
     std::pmr::memory_resource* res,
     std::string name,
-    TextRunDefinition p,    // canonical composable (TextRunDefinition was the prior alias)
+    PreparedText p,
     FontEngine* engine,
     SampleTime sample_time
 ) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TextRun);
 
-    // World transform from TextRunDefinition (deep-nested field paths).
-    node.world_transform.position = Vec3{p.text.placement.offset.x, p.text.placement.offset.y, 0.0f};
+    // World transform from the unified PreparedText transport.
+    node.world_transform.position = Vec3{p.frame.placement.offset.x, p.frame.placement.offset.y, 0.0f};
     node.world_transform.anchor = resolve_text_anchor(
-        p.text.layout.anchor, p.text.layout.box);
+        p.frame.anchor, p.frame.size);
 
 #ifdef CHRONON3D_USE_BLEND2D
-    // ── Pass canonical composite TextRunDefinition directly ───────────────
-    auto shape = materialize_text_run_shape(p, engine, sample_time);
+    // ── Pass canonical composite PreparedText directly ───────────────
+    auto shape = materialize_prepared_text(p, engine, sample_time);
     if (!shape) {
         // Materialization failed (shaping / empty text).  Leave
         // text_run_shape_handle().value null so the graph-builder
@@ -322,8 +345,8 @@ RenderNode RenderNodeFactory::text_run(
     }
 #endif
 
-    node.color = p.text.appearance.color;
-    node.fill = Fill::solid_color(p.text.appearance.color);
+    node.color = p.style.color;
+    node.fill = Fill::solid_color(p.style.color);
     return node;
 }
 

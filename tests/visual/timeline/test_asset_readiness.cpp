@@ -104,7 +104,7 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
     SUBCASE("single missing font") {
         SceneBuilder s(asset_ctx());
         s.layer("title", [](LayerBuilder& l) {
-            TextRunDefinition p;
+            PreparedText p;
             p.text.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
             p.text.content.value = "Hello";
             (void)l.text_run("label", std::move(p));
@@ -124,7 +124,7 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
     SUBCASE("font issue has owner/layer info") {
         SceneBuilder s(asset_ctx());
         s.layer("my_title_layer", [](LayerBuilder& l) {
-            TextRunDefinition p;
+            PreparedText p;
             p.text.font.font_path = "assets/fonts/Missing-Bold.ttf";
             p.text.content.value = "Test";
             (void)l.text_run("text_node", std::move(p));
@@ -142,7 +142,7 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
     SUBCASE("preflight failure blocks render") {
         SceneBuilder s(asset_ctx());
         s.layer("title", [](LayerBuilder& l) {
-            TextRunDefinition p;
+            PreparedText p;
             p.text.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
             p.text.content.value = "Hello";
             (void)l.text_run("label", std::move(p));
@@ -227,7 +227,7 @@ TEST_CASE("Assets.MissingVideoFailsPreflight") {
     SUBCASE("font + image both missing = both reported") {
         SceneBuilder s(asset_ctx());
         s.layer("text_layer", [](LayerBuilder& l) {
-            TextRunDefinition p;
+            PreparedText p;
             p.text.font.font_path = "assets/fonts/Nope.ttf";
             p.text.content.value = "X";
             (void)l.text_run("text", std::move(p));
@@ -278,7 +278,7 @@ static Scene make_two_asset_scene(Frame build_frame) {
     // Early layer: active at frame 0-29, uses font
     s.layer("early", [](LayerBuilder& l) {
         l.from(Frame{0}).duration(Frame{30});
-        TextRunDefinition p;
+        PreparedText p;
         p.text.font.font_path = "assets/fonts/Early.ttf";
         p.text.content.value = "EARLY";
         (void)l.text_run("label", std::move(p));

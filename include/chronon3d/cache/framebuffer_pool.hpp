@@ -147,6 +147,7 @@ struct FramebufferPoolStats {
     double hit_rate{0.0};               // reuse / (alloc + reuse)
     size_t budget_bytes{0};             // configured max_retained_bytes (0 = unlimited)
     size_t retained_bytes{0};           // current bytes retained in pool free list
+    size_t peak_retained_bytes{0};      // high-water retained bytes since reset
     size_t evicted_count{0};            // FBs evicted due to budget pressure
     size_t evicted_bytes{0};            // total bytes evicted
     size_t pressure_count{0};           // number of eviction events
@@ -339,6 +340,7 @@ private:
     mutable std::mutex m_mutex;
     FramebufferPoolConfig m_config;
     size_t m_current_bytes{0};
+    size_t m_peak_retained_bytes{0};
     uint64_t m_tick{0};  // monotonic LRU tick
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
     // P1-21: clear policy (default TrimAfterJob matches pre-P1-21

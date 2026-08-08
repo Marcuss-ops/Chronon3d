@@ -344,6 +344,7 @@ void FramebufferPool::release(Framebuffer* fb) {
 
     // Insert into pool
     m_current_bytes += weight;
+    m_peak_retained_bytes = std::max(m_peak_retained_bytes, m_current_bytes);
     m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
 
     if (profiling::g_current_counters) {
@@ -443,6 +444,7 @@ FramebufferPoolStats FramebufferPool::stats() const {
         .hit_rate = total > 0 ? static_cast<double>(reuses) / static_cast<double>(total) : 0.0,
         .budget_bytes = m_config.max_retained_bytes,
         .retained_bytes = m_current_bytes,
+        .peak_retained_bytes = m_peak_retained_bytes,
         .evicted_count = m_evicted_count.load(std::memory_order_relaxed),
         .evicted_bytes = m_evicted_bytes.load(std::memory_order_relaxed),
         .pressure_count = m_pressure_count.load(std::memory_order_relaxed),
@@ -455,6 +457,8 @@ void FramebufferPool::reset_counters() {
     m_total_reuses.store(0, std::memory_order_relaxed);
     m_total_returns.store(0, std::memory_order_relaxed);
     m_total_clears.store(0, std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_peak_retained_bytes = m_current_bytes;
     m_evicted_count.store(0, std::memory_order_relaxed);
     m_evicted_bytes.store(0, std::memory_order_relaxed);
     m_pressure_count.store(0, std::memory_order_relaxed);

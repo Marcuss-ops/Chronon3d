@@ -16,17 +16,18 @@ struct TextRunShape;
 // It compiles layout through compile_text_layout(), evaluates the animator
 // stack at sample_time, optionally samples AnimatedTextDocument, and returns
 // nullptr when shaping/materialization cannot produce a valid run.
-[[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunDefinition& params,
+[[nodiscard]] std::shared_ptr<TextRunShape> materialize_prepared_text(
+    const PreparedText& prepared,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr
 );
 
-// X2 canonical materializer: consumes a PreparedText directly without
-// round-tripping through TextRunDefinition / TextDefaults.
-[[nodiscard]] std::shared_ptr<TextRunShape> materialize_prepared_text(
-    const PreparedText& prepared,
+// Source compatibility only: TextRunDefinition is an alias of PreparedText,
+// and this entry point delegates to the canonical prepared-text materializer.
+[[deprecated("Use materialize_prepared_text")]]
+[[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
+    const TextRunDefinition& prepared,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr

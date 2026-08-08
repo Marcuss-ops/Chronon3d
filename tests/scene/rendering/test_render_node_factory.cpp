@@ -104,7 +104,7 @@ TEST_CASE("RenderNodeFactory preserves gradient text paint") {
 
     auto node = RenderNodeFactory::text(res, "title", p);
     // M1.5#9 step 2: factory now flags `ShapeType::TextRun` and routes
-    // paint/material/shadows through `materialize_text_run_shape(...)`.
+    // paint/material/shadows through `materialize_prepared_text(...)`.
     // Without an explicit `FontEngine* engine` (default null), the
     // materializer logs spdlog::error + returns nullptr; the test
     // asserts the post-failure contract: type=TextRun + handle exists,

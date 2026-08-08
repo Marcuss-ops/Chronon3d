@@ -153,7 +153,7 @@ inline TextDefinition make_test_text_spec() {
 //   - appearance.paint.stroke_style populated  (optional, has_value() proxy)
 // With ANY of those signals firing, the resolver pushes a global-selector
 // TextAnimatorSpec with id prefix "ctc_rich_cinematic_text_camera" onto
-// the TextRunDefinition.animators vector BEFORE the canonical motion-preset
+// the PreparedText.animators vector BEFORE the canonical motion-preset
 // chain runs (depth_reveal + scale_drop + soft_pop).
 inline TextDefinition make_chronon_rich_text_spec() {
     return TextDefinition{
@@ -886,7 +886,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
                 // safe nullopt branch in AnimatorResolver::compose_for —
                 // see Sub-case 32a). The PendingTextRun entry IS pushed
                 // (preserving the single-path contract); its animators
-                // vector is empty so `materialize_text_run_shape` produces
+                // vector is empty so `materialize_prepared_text` produces
                 // a valid shape without per-frame driver work.
                 CHECK(canonical.animators.empty());
                 continue;
@@ -917,7 +917,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // TIER G — Cluster B public API surface (Sub-case 31)
 // ─────────────────────────────────────────────────────────────────────────
 // Stage 5+ exposes the AnimatorResolver table via a SINGLE public free
-// function: `wire_preset_text_run_params(preset_id, spec) -> TextRunDefinition`.
+// function: `wire_preset_text_run_params(preset_id, spec) -> PreparedText`.
 // This is the deterministic verification entry point the test harness and
 // downstream authoring facade use — no LayerBuilder, no SceneBuilder,
 // no factory-body invocation.  Sub-case 31 iterates all 28 presets and
@@ -932,21 +932,21 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // follow — Sub-case 30 stays as the integration regression test.
 TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
-    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunDefinition for all 28 presets") {
+    SUBCASE("31) wire_preset_text_run_params returns deterministic PreparedText for all 28 presets") {
         const auto& reg = make_default_text_preset_registry();
         const auto plain = make_test_text_spec();
 
         // Signature contract check — the public free function lives
         // in <chronon3d/registry/text_preset_resolver.hpp> with the
-        // exact signature (string_view, TextDefaults) -> TextRunDefinition.
+        // exact signature (string_view, TextDefaults) -> PreparedText.
         // The compile-time assertion below verifies the resolved type
         // via `decltype(function-name)` which yields the function type.
         static_assert(
             std::is_same_v<
-                decltype(static_cast<TextRunDefinition(*)(std::string_view,
+                decltype(static_cast<PreparedText(*)(std::string_view,
                                                      const TextDefinition&) noexcept>(
                     &wire_preset_text_run_params)),
-                TextRunDefinition(*)(std::string_view, const TextDefinition&) noexcept>,
+                PreparedText(*)(std::string_view, const TextDefinition&) noexcept>,
             "wire_preset_text_run_params must expose the canonical TextDefinition overload");
 
         // ── Per-preset pure-function probe ─────────────────────────────────
@@ -976,7 +976,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
             if (id == "minimal_white") {
                 // No canonical motion → public function returns
-                // TextRunDefinition with animators.empty() == true.  The
+                // PreparedText with animators.empty() == true.  The
                 // caller routes via plain lb.text(...) which does not
                 // require an AnimatorResolver entry.
                 CHECK(params.animators.empty());
@@ -1037,7 +1037,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         }
 
         // ── Unknown id contract (fail-safe path) ───────────────────────────
-        // The public function must return TextRunDefinition with empty
+        // The public function must return PreparedText with empty
         // animators when called with an id that is not in the registered
         // catalog.  This is the fail-safe fallback for any downstream
         // authoring facade that misroutes a preset id.

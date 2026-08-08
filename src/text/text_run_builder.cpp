@@ -150,7 +150,7 @@ compile_text_layout(
     const ResolvedTextTree* pre_resolved
 ) {
     // Keep authoring auto-fit on the canonical PreparedText path as well as
-    // the compatibility TextRunDefinition path.  Probe through the same
+    // the compatibility PreparedText path.  Probe through the same
     // compiler with auto-fit disabled, then compile the selected size once.
     PreparedText effective = prepared;
     if (prepared.frame.auto_fit) {

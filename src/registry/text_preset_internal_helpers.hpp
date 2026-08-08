@@ -19,7 +19,7 @@
 //  (c) `wire_through_resolver(lb, preset_id, spec)` — engine-side factory
 //      body helper that delegates to the Cluster B public API
 //      (`::chronon3d::registry::wire_preset_text_run_params`) then
-//      routes the returned `TextRunDefinition` through the canonical text builder.
+//      routes the returned `PreparedText` through the canonical text builder.
 //      Single canonical pipeline for all 28 built-ins.
 //
 // ## Architectural invariants (AGENTS.md v0.1 freeze)
@@ -108,7 +108,7 @@ make_presetc_template(std::string_view preset_id) {
 //
 // Thin factory-body helper that delegates to the Cluster B public API
 // (`wire_preset_text_run_params`) and then routes the returned
-// TextRunDefinition through `lb.text_run(<entry_name>, params).commit()`.
+// PreparedText through `lb.text_run(<entry_name>, params).commit()`.
 // Single canonical pipeline: every text preset enters the render graph
 // as a TextRunShape (ShapeType::TextRun), regardless of whether the
 // resolver wired a TextAnimatorSpec or not.
@@ -122,16 +122,16 @@ make_presetc_template(std::string_view preset_id) {
 wire_through_resolver(LayerBuilderT& lb,
                       std::string_view preset_id,
                       const TextDefinitionT& spec) {
-    TextRunDefinition params = ::chronon3d::registry::wire_preset_text_run_params(
+    PreparedText params = ::chronon3d::registry::wire_preset_text_run_params(
         preset_id, spec);
     const std::string entry_name = std::string{preset_id} + "_text";
     TextDefinitionT canonical = spec;
-    canonical.animation.animators = std::move(params.animators);
-    canonical.animation.selectors = std::move(params.selectors);
-    canonical.animation.direction = params.direction;
-    canonical.animation.language = std::move(params.language);
-    canonical.animation.script = params.script;
-    canonical.animation.cache_layout = params.cache_layout;
+    canonical.animation.animators = std::move(params.animation.animators);
+    canonical.animation.selectors = std::move(params.animation.selectors);
+    canonical.animation.direction = params.shaping.direction;
+    canonical.animation.language = std::move(params.shaping.language);
+    canonical.animation.script = params.shaping.script;
+    canonical.animation.cache_layout = params.animation.cache_layout;
     return lb.text(entry_name, canonical);
 }
 

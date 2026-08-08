@@ -116,7 +116,7 @@ struct TextRunBuildResult {
 //     TextUnitMap — leaked an empty `units` field to per-frame code paths
 //     and broke the selector's `total_units` query in Scramble/Morph/
 //     DissolveLayouts drivers)
-//   - `materialize_text_run_shape()` in `scene/builders/text_run_builder.cpp`
+//   - `materialize_prepared_text()` in `scene/builders/text_run_builder.cpp`
 //     (populated the unit map, but via its OWN inline pipeline)
 //
 // After this refactor, both call sites route through `compile_text_layout`,
@@ -295,7 +295,7 @@ enum class ShapingFailurePolicy {
 ///
 /// `paragraph_index` (TICKET-101, cat-3 freeze-compliant extension)
 /// selects WHICH paragraph of `*doc` to compile.  `build_text_run()`
-/// iterates 0..N and passes the i-th index; `materialize_text_run_shape`
+/// iterates 0..N and passes the i-th index; `materialize_prepared_text`
 /// passes 0.  Default 0 preserves backward compatibility for callers
 /// that supply a single-paragraph TextDocument (the common case).
 struct TextLayoutRequest {
