@@ -59,37 +59,37 @@ struct TextHealthEnvironment {
     return std::nullopt;
 }
 
-[[nodiscard]] TextRunDefinition make_health_spec(
+[[nodiscard]] PreparedText make_health_spec(
     std::string text,
     FontSpec font,
     float box_width = 1000.0f
 ) {
-    TextRunDefinition spec;
-    spec.text.content.value = std::move(text);
-    spec.text.font = std::move(font);
-    spec.text.layout.box = {box_width, 320.0f};
-    spec.text.layout.anchor = TextAnchor::Center;
-    spec.text.layout.align = TextAlign::Center;
-    spec.text.layout.vertical_align = VerticalAlign::Middle;
-    spec.text.layout.wrap = TextWrap::Word;
-    spec.text.layout.line_height = 1.2f;
-    spec.text.placement = TextPlacement{
+    PreparedText spec;
+    spec.document.utf8 = std::move(text);
+    spec.style.font = std::move(font);
+    spec.frame.size = {box_width, 320.0f};
+    spec.frame.anchor = TextAnchor::Center;
+    spec.frame.align = TextAlign::Center;
+    spec.frame.vertical_align = VerticalAlign::Middle;
+    spec.frame.wrap = TextWrap::Word;
+    spec.frame.line_height = 1.2f;
+    spec.frame.placement = TextPlacement{
         TextPlacementKind::CanvasCenter,
         {0.0f, 0.0f}
     };
-    spec.text.appearance.color = Color{0.92f, 0.96f, 1.0f, 1.0f};
-    spec.text.appearance.paint.fill = spec.text.appearance.color;
-    spec.direction = TextDirection::LTR;
-    spec.language = "en";
-    spec.cache_layout = true;
+    spec.style.color = Color{0.92f, 0.96f, 1.0f, 1.0f};
+    spec.style.paint.fill = spec.style.color;
+    spec.shaping.direction = TextDirection::LTR;
+    spec.shaping.language = "en";
+    spec.animation.cache_layout = true;
     return spec;
 }
 
 [[nodiscard]] std::shared_ptr<TextRunShape> materialize_or_fail(
-    const TextRunDefinition& spec,
+    const PreparedText& spec,
     FontEngine& engine
 ) {
-    return materialize_text_run_shape(spec, &engine, SampleTime{});
+    return materialize_prepared_text(spec, &engine, SampleTime{});
 }
 
 void require_valid_shape(
@@ -129,10 +129,10 @@ TEST_CASE("Text health / real font creates a valid glyph-bearing TextRunShape") 
     const auto spec = make_health_spec("Chronon3D text health", *font);
     const auto shape = materialize_or_fail(spec, env.font_engine);
 
-    require_valid_shape(shape, spec.text.content.value);
+    require_valid_shape(shape, spec.document.utf8);
     CHECK(shape->layout->font.font_size == doctest::Approx(48.0f));
     CHECK(shape->layout->font_size == doctest::Approx(48.0f));
-    CHECK(shape->paint.fill == spec.text.appearance.paint.fill);
+    CHECK(shape->paint.fill == spec.style.paint.fill);
     CHECK(shape->layout->direction == TextDirection::LTR);
     CHECK(shape->layout->language == "en");
 }
@@ -196,15 +196,15 @@ TEST_CASE("Text health / word wrapping increases layout height and respects box 
         "Chronon3D wraps this sentence across multiple visible lines",
         *font,
         260.0f);
-    spec.text.layout.box.y = 500.0f;
-    spec.text.layout.align = TextAlign::Left;
+    spec.frame.size.y = 500.0f;
+    spec.frame.align = TextAlign::Left;
 
     const auto shape = materialize_or_fail(spec, env.font_engine);
-    require_valid_shape(shape, spec.text.content.value);
+    require_valid_shape(shape, spec.document.utf8);
     CHECK(shape->layout->wrap == TextWrap::Word);
     CHECK(shape->layout->line_height > 0.0f);
     CHECK(shape->layout->bounds.y > shape->layout->line_height * 1.5f);
-    CHECK(shape->layout->bounds.x <= spec.text.layout.box.x * 1.05f);
+    CHECK(shape->layout->bounds.x <= spec.frame.size.x * 1.05f);
 }
 
 TEST_CASE("Text health / repeated materialization reuses the cached layout") {
@@ -216,8 +216,8 @@ TEST_CASE("Text health / repeated materialization reuses the cached layout") {
     const auto first = materialize_or_fail(spec, env.font_engine);
     const auto second = materialize_or_fail(spec, env.font_engine);
 
-    require_valid_shape(first, spec.text.content.value);
-    require_valid_shape(second, spec.text.content.value);
+    require_valid_shape(first, spec.document.utf8);
+    require_valid_shape(second, spec.document.utf8);
     CHECK(first->layout.get() == second->layout.get());
     CHECK(first->layout->layout_hash() == second->layout->layout_hash());
 }
@@ -228,12 +228,12 @@ TEST_CASE("Text health / Unicode and RTL text survive shaping and materializatio
     REQUIRE_MESSAGE(font.has_value(), "No usable font found for Unicode text test.");
 
     auto spec = make_health_spec("مرحبا بالعالم", *font, 800.0f);
-    spec.direction = TextDirection::RTL;
-    spec.language = "ar";
-    spec.script = 0x41726162u; // OpenType 'Arab'.
+    spec.shaping.direction = TextDirection::RTL;
+    spec.shaping.language = "ar";
+    spec.shaping.script = 0x41726162u; // OpenType 'Arab'.
 
     const auto shape = materialize_or_fail(spec, env.font_engine);
-    require_valid_shape(shape, spec.text.content.value);
+    require_valid_shape(shape, spec.document.utf8);
     CHECK(shape->layout->direction == TextDirection::RTL);
     CHECK(shape->layout->language == "ar");
     CHECK(shape->layout->units.grapheme_count > 0);
