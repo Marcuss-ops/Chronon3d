@@ -308,6 +308,13 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     const auto started = std::chrono::steady_clock::now();
     const auto total = ((end - start) / step) + 1;
 
+    auto fail = [&](RenderError error) -> chronon3d::Result<RenderReport, RenderError> {
+        sink->close();
+        std::error_code cleanup_error;
+        std::filesystem::remove(temp_path, cleanup_error);
+        return error;
+    };
+
     // Compile authoring input once before entering the frame loop. Runtime
     // execution below is intentionally compiled-only, so a multi-frame file
     // render cannot rebuild scene/camera state for every frame.
@@ -328,13 +335,6 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
 
     std::vector<std::uint8_t> pixels;
     std::uint64_t rendered = 0;
-
-    auto fail = [&](RenderError error) -> chronon3d::Result<RenderReport, RenderError> {
-        sink->close();
-        std::error_code cleanup_error;
-        std::filesystem::remove(temp_path, cleanup_error);
-        return error;
-    };
 
     for (std::int64_t frame = start; frame <= end; frame += step) {
         if (callbacks.is_cancelled && callbacks.is_cancelled()) {
