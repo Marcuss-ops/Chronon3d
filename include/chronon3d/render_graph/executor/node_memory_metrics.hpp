@@ -31,7 +31,12 @@ struct NodeMemoryMetrics {
     std::atomic<std::uint64_t> allocations{0};
     /// Sum of bytes associated with those allocation events.
     std::atomic<std::uint64_t> allocated_bytes{0};
+    /// Number of temporary buffers acquired, independent of heap allocations.
     std::atomic<std::uint64_t> temporary_buffers{0};
+    /// Current live bytes held by this node's temporary workspaces.
+    std::atomic<std::uint64_t> live_bytes{0};
+    /// High-water mark of live bytes held by this node.
+    std::atomic<std::uint64_t> peak_live_bytes{0};
 };
 
 /// Value snapshot of one node's accumulated counters.
@@ -46,6 +51,8 @@ struct NodeStatsSnapshot {
     std::uint64_t allocations{0};
     std::uint64_t allocated_bytes{0};
     std::uint64_t temporary_buffers{0};
+    std::uint64_t live_bytes{0};
+    std::uint64_t peak_live_bytes{0};
 };
 
 /// Per-session, thread-safe monotonic reporter.
@@ -67,6 +74,30 @@ public:
         add_into(*it->second, metrics);
     }
 
+    void observe_live_bytes(
+        const std::string& node_id,
+        std::uint64_t live_bytes,
+        std::uint64_t peak_live_bytes)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto it = m_acc.find(node_id);
+        if (it == m_acc.end()) {
+            auto fresh = std::make_unique<NodeMemoryMetrics>();
+            fresh->live_bytes.store(live_bytes, std::memory_order_relaxed);
+            fresh->peak_live_bytes.store(peak_live_bytes, std::memory_order_relaxed);
+            m_acc.emplace(node_id, std::move(fresh));
+            return;
+        }
+        it->second->live_bytes.store(live_bytes, std::memory_order_relaxed);
+        auto observed_peak = it->second->peak_live_bytes.load(std::memory_order_relaxed);
+        while (observed_peak < peak_live_bytes &&
+               !it->second->peak_live_bytes.compare_exchange_weak(
+                   observed_peak, peak_live_bytes,
+                   std::memory_order_relaxed,
+                   std::memory_order_relaxed)) {
+        }
+    }
+
     [[nodiscard]] std::vector<NodeStatsSnapshot> snapshot() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         std::vector<NodeStatsSnapshot> out;
@@ -84,6 +115,8 @@ public:
                 .allocations = metrics.allocations.load(std::memory_order_relaxed),
                 .allocated_bytes = metrics.allocated_bytes.load(std::memory_order_relaxed),
                 .temporary_buffers = metrics.temporary_buffers.load(std::memory_order_relaxed),
+                .live_bytes = metrics.live_bytes.load(std::memory_order_relaxed),
+                .peak_live_bytes = metrics.peak_live_bytes.load(std::memory_order_relaxed),
             });
         }
         return out;
@@ -105,6 +138,10 @@ private:
         dst.allocations.fetch_add(src.allocations.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dst.allocated_bytes.fetch_add(src.allocated_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dst.temporary_buffers.fetch_add(src.temporary_buffers.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        // live_bytes and peak_live_bytes are point-in-time state, not
+        // monotonic deltas. They are updated exclusively by
+        // observe_live_bytes() so allocation observations cannot overwrite
+        // the current workspace state.
     }
 
     mutable std::mutex m_mutex;

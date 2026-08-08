@@ -20,10 +20,10 @@ NODE-MEMORY-V1).
 
 ## Pattern precedent
 
-- `tests/perf/test_node_memory_counters_v1.cpp` — Phase 1 SYNTHETIC STAND-
-  IN (locks the 8-name shape via 8 `static_assert`s), the per-session zero-
-  static-state invariant, the monotonic accumulation, and the defensive
-  B03 CinematicGlow1088p 90-frame gate.
+- `tests/perf/test_node_memory_counters_v1.cpp` — canonical contract tests
+  lock allocation count/byte volume, temporary acquisition count, live-byte
+  residency, per-session zero-static-state, monotonic accumulation, and the
+  defensive B03 CinematicGlow1080p gate.
 - `include/chronon3d/render_graph/executor/text_bbox_reporter.hpp` —
   header-only inline reporter pattern (forward-decl on
   `render_graph_context.hpp`).
@@ -40,6 +40,8 @@ The allocation metrics intentionally separate event count from byte volume:
 
 - `allocations` counts distinct heap allocation events.
 - `allocated_bytes` sums the bytes associated with those events.
+- `temporary_buffers` counts temporary acquisitions, while `live_bytes` and
+  `peak_live_bytes` describe current and peak temporary workspace residency.
 
 ## Canonical metric fields
 
@@ -53,7 +55,9 @@ The allocation metrics intentionally separate event count from byte volume:
 | `framebuffer_clears` | `std::atomic<u64>` | count of explicit full/partial clears |
 | `allocations` | `std::atomic<u64>` | count of distinct heap allocation events |
 | `allocated_bytes` | `std::atomic<u64>` | byte-total associated with allocation events |
-| `temporary_buffers` | `std::atomic<u64>` | count of allocated scratch / ping-pong FBs |
+| `temporary_buffers` | `std::atomic<u64>` | count of temporary buffer acquisitions, including reuse |
+| `live_bytes` | `std::atomic<u64>` | current temporary workspace bytes held by the node |
+| `peak_live_bytes` | `std::atomic<u64>` | high-water mark of live temporary workspace bytes |
 
 The accounting contract intentionally prioritizes separate event-count and
 byte-volume fields; the additional `allocated_bytes` field means this struct
@@ -86,8 +90,8 @@ v1.cpp` "contract: per-session zero static state" TEST_CASE.
 
 - ALL atomic ops use `std::memory_order_relaxed` (relaxed = the right
   choice for monotonic counters with no causal-ordering requirement).
-- 64-byte cache-line alignment (one cache line per accumulator = zero
-  cross-thread false-sharing in dedicated allocator slot).
+- The allocation/live split is intentionally explicit; no cache-line-size
+  claim is made for the expanded accumulator.
 - `observe_node` does ONE mutex-protected std::map find + atomic fetch_add
   operations for the memory fields + one std::map emplace on first
   observation. No atomics on the
@@ -151,8 +155,7 @@ already declares the per-session per-node aggregate shape.
 ### (d) TICKET-COUNTERS-NODE-MEMORY-V1-V2-GLOW-KERNEL
 
 CinemáticoGlow1088p smoke-test from the synthesis contract: 90-frame
-stream of glow kernel traffic on gpu-down + blur3x3 + threshold mask +
-1088p accumulation, all 8 counters > 0.  Macchina-verifica DEFERRED-WBH.
+stream of glow kernel traffic on gpu-down + blur3x3 + threshold mask +  1088p accumulation, all populated counters > 0.  Macchina-verifica DEFERRED-WBH.
 
 ### (e) TICKET-COUNTERS-NODE-MEMORY-V1-V2-SESSION-LIFECYCLE-VERIFY
 

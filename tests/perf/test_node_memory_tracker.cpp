@@ -16,24 +16,31 @@ TEST_CASE("ScopedNodeMemory tracks live and peak bytes without implicit allocati
         outer.record_allocation(2048);
         {
             ScopedNodeMemory inner(tracker, "blur", sample, 4096);
-            CHECK(tracker.snapshot().current_temporary_bytes == 5120);
-            CHECK(tracker.snapshot().peak_temporary_bytes == 5120);
+            CHECK(tracker.snapshot().current_live_bytes == 5120);
+            CHECK(tracker.snapshot().peak_live_bytes == 5120);
         }
-        CHECK(tracker.snapshot().current_temporary_bytes == 1024);
+        const auto live_report = tracker.snapshot();
+        CHECK(live_report.current_live_bytes == 1024);
+        REQUIRE(live_report.nodes.size() == 1);
+        CHECK(live_report.nodes.front().live_bytes == 1024);
+        CHECK(live_report.nodes.front().peak_live_bytes == 5120);
     }
 
     const auto report = tracker.snapshot();
-    CHECK(report.current_temporary_bytes == 0);
-    CHECK(report.peak_temporary_bytes == 5120);
+    CHECK(report.current_live_bytes == 0);
+    CHECK(report.peak_live_bytes == 5120);
     REQUIRE(report.nodes.size() == 1);
     CHECK(report.nodes.front().node_id == "blur");
     CHECK(report.nodes.front().allocations == 1);
     CHECK(report.nodes.front().allocated_bytes == 2048);
-    CHECK(report.nodes.front().temporary_buffers == 1);
+    CHECK(report.nodes.front().temporary_buffers == 2);
+    CHECK(report.nodes.front().live_bytes == 0);
+    CHECK(report.nodes.front().peak_live_bytes == 5120);
     REQUIRE(report.samples.size() == 1);
     CHECK(report.samples.front().sample_key == sample);
-    CHECK(report.samples.front().allocation_bytes == 1024 + 4096);
-    CHECK(report.samples.front().peak_bytes == 5120);
+    CHECK(report.samples.front().temporary_bytes_observed == 1024 + 4096);
+    CHECK(report.samples.front().live_bytes == 0);
+    CHECK(report.samples.front().peak_live_bytes == 5120);
 }
 
 TEST_CASE("NodeMemoryTracker isolates temporal sample domains") {
@@ -44,14 +51,21 @@ TEST_CASE("NodeMemoryTracker isolates temporal sample domains") {
     {
         ScopedNodeMemory a(tracker, "node", first, 100);
         ScopedNodeMemory b(tracker, "node", second, 300);
+        a.record_allocation(64);
         const auto report = tracker.snapshot();
         REQUIRE(report.samples.size() == 2);
         CHECK(report.samples[0].sample_key == first);
         CHECK(report.samples[1].sample_key == second);
-        CHECK(report.samples[0].current_bytes == 100);
-        CHECK(report.samples[1].current_bytes == 300);
-    }
-    CHECK(tracker.snapshot().current_temporary_bytes == 0);
+        CHECK(report.samples[0].live_bytes == 100);
+        CHECK(report.samples[1].live_bytes == 300);
+        CHECK(report.samples[0].peak_live_bytes == 100);
+        CHECK(report.samples[1].peak_live_bytes == 300);
+        REQUIRE(report.nodes.size() == 1);
+        CHECK(report.nodes.front().live_bytes == 400);
+        CHECK(report.nodes.front().peak_live_bytes == 400);
+        CHECK(report.nodes.front().allocations == 1);
+        CHECK(report.nodes.front().allocated_bytes == 64);
+    }        CHECK(tracker.snapshot().current_live_bytes == 0);
 }
 
 TEST_CASE("NodeMemoryTracker supports concurrent observations without lost counters") {
@@ -92,14 +106,14 @@ TEST_CASE("NodeMemoryTracker reset clears node, sample, pool, and peak domains")
     REQUIRE(allocation_report.nodes.size() == 1);
     CHECK(allocation_report.nodes.front().allocations == 1);
     CHECK(allocation_report.nodes.front().allocated_bytes == 512);
-    CHECK(tracker.snapshot().peak_temporary_bytes == 4096);
+    CHECK(tracker.snapshot().peak_live_bytes == 4096);
 
     tracker.reset();
     const auto report = tracker.snapshot();
     CHECK(report.nodes.empty());
     CHECK(report.samples.empty());
-    CHECK(report.current_temporary_bytes == 0);
-    CHECK(report.peak_temporary_bytes == 0);
+    CHECK(report.current_live_bytes == 0);
+    CHECK(report.peak_live_bytes == 0);
     CHECK(report.peak_rss_bytes == 0);
     CHECK(report.framebuffer_pool.current_bytes == 0);
     CHECK(report.framebuffer_pool.peak_retained_bytes == 0);

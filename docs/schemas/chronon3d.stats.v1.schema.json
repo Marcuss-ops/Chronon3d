@@ -67,7 +67,9 @@
           "framebuffer_clears":{ "type": "integer", "minimum": 0, "description": "Total framebuffer clear operations emitted by this node." },
           "allocations":       { "type": "integer", "minimum": 0, "description": "Number of heap allocation events observed for this node." },
           "allocated_bytes":   { "type": "integer", "minimum": 0, "description": "Total bytes associated with this node's heap allocation events." },
-          "temporary_buffers": { "type": "integer", "minimum": 0, "description": "Total temporary framebuffer-shaped buffers allocated/released by this node." }
+          "temporary_buffers": { "type": "integer", "minimum": 0, "description": "Total temporary framebuffer-shaped buffers acquired by this node." },
+          "live_bytes":        { "type": "integer", "minimum": 0, "description": "Current live temporary workspace bytes held by this node." },
+          "peak_live_bytes":   { "type": "integer", "minimum": 0, "description": "High-water mark of live temporary workspace bytes held by this node." }
         },
         "additionalProperties": false
       }

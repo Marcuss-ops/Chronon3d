@@ -41,7 +41,7 @@ La tranche canonical sostituisce il synthetic stand-in con `chronon3d::graph::No
 - ZERO nuovi simboli pubblici in `include/chronon3d/`.
 - ZERO nuovi flag CLI su `chronon3d_cli` (lo schema canonico detta la shape; il flag `--stats-json` argomento del `--json-file` cluster rimane deferred al forward-point `<a>` impl chore).
 - ZERO `#include <msdfgen>/<libtess2>/<unicode[/...]>` (script + test only, no C++ modification).
-- I campi di accounting (`allocations` come conteggio eventi e `allocated_bytes` come volume in byte) sono **lockati** dai test contract e dalla superficie schema; il campo `allocated_bytes` è opzionale in `chronon3d.stats.v1` per preservare la compatibilità dei payload v1 esistenti.
+- I campi di accounting (`allocations` come conteggio eventi, `allocated_bytes` come volume in byte, `temporary_buffers` come acquisizioni e `live_bytes`/`peak_live_bytes` come residency) sono **lockati** dai test contract; i campi aggiuntivi restano opzionali in `chronon3d.stats.v1` per preservare la compatibilità dei payload v1 esistenti.
 
 ### Cat-5 2-doc same-commit alignment
 
