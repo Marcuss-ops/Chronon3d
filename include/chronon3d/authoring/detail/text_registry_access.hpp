@@ -32,7 +32,7 @@ Text& motion(std::string_view id, const MotionRegistry& registry) {
         last_motion_outcome_ = ResolutionOutcome::Missing;
         return *this;
     }
-    pending_->params.animators.push_back(*resolved);
+    pending_->params.animation.animators.push_back(*resolved);
     last_motion_outcome_ = ResolutionOutcome::Found;
     return *this;
 }
@@ -47,7 +47,7 @@ Text& motion(std::string_view id) {
         last_motion_outcome_ = ResolutionOutcome::Missing;
         return *this;
     }
-    pending_->params.animators.push_back(*resolved);
+    pending_->params.animation.animators.push_back(*resolved);
     last_motion_outcome_ = ResolutionOutcome::Found;
     return *this;
 }

@@ -111,7 +111,7 @@ Composition build_scale_composition(
                 } else {
                     l.scale({scale_uniform, scale_uniform, 1.0f});
                 }
-                l.text_run("title", TextRunDefinition{
+                l.text_run("title", PreparedText{
                     .text = {
                         .content = {.value = "SCALED"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},

@@ -121,7 +121,7 @@ static FrameContext manifest_ctx() {
 TEST_CASE("AssetManifest — text_run collects font asset") {
     SceneBuilder s(manifest_ctx());
     s.layer("title", [](LayerBuilder& l) {
-        TextRunDefinition p;
+        PreparedText p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
         (void)l.text_run("label", std::move(p));
@@ -177,7 +177,7 @@ TEST_CASE("AssetManifest — empty path not collected") {
 TEST_CASE("AssetManifest — multiple layers aggregate") {
     SceneBuilder s(manifest_ctx());
     s.layer("title", [](LayerBuilder& l) {
-        TextRunDefinition p;
+        PreparedText p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
         (void)l.text_run("label", std::move(p));
@@ -198,7 +198,7 @@ TEST_CASE("AssetManifest — sequence layers propagate to scene") {
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
         [](SceneBuilder& s) {
             s.layer("title", [](LayerBuilder& l) {
-                TextRunDefinition p;
+                PreparedText p;
                 p.text.font.font_path = "assets/fonts/Poppins-Bold.ttf";
                 p.text.content.value = "INTRO";
                 (void)l.text_run("label", std::move(p));

@@ -61,7 +61,7 @@ TEST_CASE("Shape model and SceneBuilder") {
                 //
                 // M1.5#9 step 2: `LayerBuilder::text(...)` routes through
                 // `RenderNodeFactory::text(...)` which delegates to
-                // `materialize_text_run_shape(...)` and emits
+                // `materialize_prepared_text(...)` and emits
                 // `ShapeType::TextRun` (variant index 14).  The legacy
                 // The retired legacy text payload (variant index 6) is not
                 // producible through ShapeType.

@@ -43,13 +43,13 @@ public:
     static RenderNode tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     static RenderNode grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p);
 
-    // ── text factory (M1.5#9 step 2 — delegate to materialize_text_run_shape) ──
+    // ── text factory (M1.5#9 step 2 — delegate to materialize_prepared_text) ──
     //
     // Public signature is back-compat: callers that pass only
     // `(res, name, TextDefaults)` still compile (engine gets the default
     // `nullptr`).  Internally `text(...)` now wraps the supplied
-    // `TextDefaults` into a `TextRunDefinition{.text = p}` and delegates to the
-    // canonical materializer `materialize_text_run_shape(...)`, sharing
+    // `TextDefaults` into a `PreparedText{.text = p}` and delegates to the
+    // canonical materializer `materialize_prepared_text(...)`, sharing
     // the same core used by `text_run()` and `LayerBuilder::build()`.
     //
     // When `engine == nullptr` the materializer logs an `spdlog::error`
@@ -69,11 +69,11 @@ public:
 
     // ── text-run factory ──
     //
-    // Materializes a TextRunDefinition (canonical composable; TextRunDefinition was
+    // Materializes a PreparedText (canonical composable; PreparedText was
     // the prior alias) into a `RenderNode` flagged with
     // `is_text_run_shape=true`.  Shares its core with
     // `LayerBuilder::text_run(...)` via the helper
-    // `materialize_text_run_shape(...)`.
+    // `materialize_prepared_text(...)`.
     //
     // Evaluates animators at `sample_time` (default: frame 0, 30fps).
     // For per-frame fidelity within a composition, callers should
@@ -82,7 +82,7 @@ public:
     static RenderNode text_run(
         std::pmr::memory_resource* res,
         std::string name,
-        TextRunDefinition p,
+        PreparedText p,
         FontEngine* engine = nullptr,
         SampleTime sample_time = {});
 

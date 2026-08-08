@@ -96,7 +96,7 @@ Composition build_b01_static_text_1080p_comp(SoftwareRenderer& renderer) {
             s.layer("b01_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
-                l.text_run("b01_text", TextRunDefinition{
+                l.text_run("b01_text", PreparedText{
                     .text = TextDefaults{
                         .content = {.value = kSampleText},
                         .font = {.font_path = "assets/fonts/Inter-Bold.ttf",

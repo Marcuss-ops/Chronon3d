@@ -144,17 +144,17 @@ TextPresetDescriptor cinematic_text_camera_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
-        TextRunDefinition params = ::chronon3d::registry::wire_preset_text_run_params(
+        PreparedText params = ::chronon3d::registry::wire_preset_text_run_params(
             "cinematic_text_camera", spec);
         if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
             // The rich-paint anchor is the semantic authoring signal and
             // therefore precedes the canonical preset animator.
-            params.animators.insert(
-                params.animators.begin(),
+            params.animation.animators.insert(
+                params.animation.animators.begin(),
                 ::chronon3d::registry::AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
         }
         if (auto canonical = ::chronon3d::registry::AnimatorResolver::compose_for("cinematic_text_camera")) {
-            params.animators.push_back(*canonical);
+            params.animation.animators.push_back(*canonical);
         }
         lb.text_run("camera_text", params)
           .commit()

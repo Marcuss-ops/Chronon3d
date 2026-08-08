@@ -29,7 +29,7 @@
 //
 // ── Coverage matrix ──────────────────────────────────────────────────
 //
-//   test (1) frame identity after scramble ......... materialize_text_run_shape
+//   test (1) frame identity after scramble ......... materialize_prepared_text
 //                                                  ≡ compile_text_layout
 //                                                  same shared_ptr + same
 //                                                  cache_key across frame N
@@ -73,7 +73,7 @@
 // (via text_run.hpp → text_run_layout.hpp) which defines the NARROW
 // `struct TextUnitMap`.  Jointly including it with the CANONICAL
 // `class TextUnitMap` (from this file's text_unit_map.hpp) violates
-// ODR (class-vs-struct redefinition).  Test 1 (materialize_text_run_shape
+// ODR (class-vs-struct redefinition).  Test 1 (materialize_prepared_text
 // identity) is deferred to TICKET-083 (post-baseline-verde canonical
 // migration).  Tests 2+3 exercise the canonical header only.
 //
@@ -141,7 +141,7 @@ PlacedGlyphRun make_placed_ascii(const std::string& ascii_text) {
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST CASE (1) — DEFERRED to TICKET-083 (post-baseline-verde).
 //
-// The original test exercised materialize_text_run_shape ≡ compile_text_layout
+// The original test exercised materialize_prepared_text ≡ compile_text_layout
 // identity across scramble frames, but it required includes that pull in
 // the NARROW `struct TextUnitMap` (via glyph_selector.hpp), causing an ODR
 // conflict with the CANONICAL `class TextUnitMap` in this TU.  When

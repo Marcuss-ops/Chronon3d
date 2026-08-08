@@ -183,7 +183,7 @@ LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundPara
 
 LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
     // X2 canonical static text path: lower the authoring DTO to PreparedText
-    // and store it directly.  No reverse adapter to TextRunDefinition / TextDefaults.
+    // and store it directly.  No reverse adapter to PreparedText / TextDefaults.
     m_layer.kind = LayerKind::Text;
 
     PreparedText prepared = prepare_text(def);
@@ -196,7 +196,7 @@ LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
 
     auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
-        .prepared = std::move(prepared),
+        .params = std::move(prepared),
         .consumed = false,
     });
     m_text_runs.push_back(std::move(spec_uptr));

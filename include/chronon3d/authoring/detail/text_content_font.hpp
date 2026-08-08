@@ -19,18 +19,18 @@ Text& id(std::string value) {
 }
 
 Text& content(std::string value) {
-    pending_->params.text.content.value = std::move(value);
+    pending_->params.document.utf8 = std::move(value);
     return *this;
 }
 
 Text& pre_shaped(std::shared_ptr<PlacedGlyphRun> shaped) {
-    pending_->params.text.content.pre_shaped = std::move(shaped);
+    pending_->params.document.defaults.content.pre_shaped = std::move(shaped);
     return *this;
 }
 
 Text& font(std::string font_path, f32 size) {
-    pending_->params.text.font.font_path = std::move(font_path);
-    pending_->params.text.font.font_size = size;
+    pending_->params.style.font.font_path = std::move(font_path);
+    pending_->params.style.font.font_size = size;
     return *this;
 }
 
@@ -39,22 +39,22 @@ Text& font(assets::FontRef ref, f32 size) {
 }
 
 Text& font_family(std::string family) {
-    pending_->params.text.font.font_family = std::move(family);
+    pending_->params.style.font.font_family = std::move(family);
     return *this;
 }
 
 Text& weight(int value) {
-    pending_->params.text.font.font_weight = value;
+    pending_->params.style.font.font_weight = value;
     return *this;
 }
 
 Text& italic(bool value = true) {
-    pending_->params.text.font.font_style = value ? "italic" : "normal";
+    pending_->params.style.font.font_style = value ? "italic" : "normal";
     return *this;
 }
 
 Text& font_size(f32 size) {
-    pending_->params.text.font.font_size = size;
+    pending_->params.style.font.font_size = size;
     return *this;
 }
 

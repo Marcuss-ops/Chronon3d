@@ -42,7 +42,7 @@
 #include "text_preset_register_helpers.hpp"
 #include "text_preset_internal_helpers.hpp"  // M1.5#13 (1/4) — shared factory helpers (NOT installed; lives under src/registry/).
 
-#include <chronon3d/scene/builders/builder_params.hpp>   // full TextDefaults (canonical), TextRunDefinition, AnimatorResolver types.
+#include <chronon3d/scene/builders/builder_params.hpp>   // full TextDefaults (canonical), PreparedText, AnimatorResolver types.
 
 #include <stdexcept>
 #include <utility>      // std::move for wire_preset_text_run_params implementation.
@@ -234,50 +234,49 @@ void register_builtin_presets(TextPresetRegistry& r) {
 // This is the SINGLE source of truth for the per-id mapping — adding
 // a 23rd preset is now a single `*_entry()` factory above, NOTHING in
 // `src/registry/animator_resolver.cpp` changes.
-TextRunDefinition
+PreparedText
 wire_preset_text_run_params(std::string_view preset_id,
                             TextDefaults spec) noexcept {
-    auto composed = ::chronon3d::registry::AnimatorResolver::compose_for(preset_id);
-    TextRunDefinition out;
-    out.text = std::move(spec);
-    if (composed) {
-        out.animators.push_back(std::move(*composed));
+    PreparedText out;
+    out.document.utf8 = spec.content.value;
+    out.document.defaults = std::move(spec);
+    out.document.spans.clear();
+    out.document.split_paragraphs(out.document.defaults.layout.paragraph);
+    out.style.font = out.document.defaults.font;
+    out.style.color = out.document.defaults.appearance.color;
+    out.style.paint = out.document.defaults.appearance.paint;
+    out.style.shadows = out.document.defaults.appearance.shadows;
+    out.style.material = out.document.defaults.appearance.material;
+    out.style.box_style = out.document.defaults.appearance.box_style;
+    out.frame.size = out.document.defaults.layout.box;
+    out.frame.placement = out.document.defaults.placement;
+    out.frame.anchor = out.document.defaults.layout.anchor;
+    out.frame.align = out.document.defaults.layout.align;
+    out.frame.vertical_align = out.document.defaults.layout.vertical_align;
+    out.frame.wrap = out.document.defaults.layout.wrap;
+    out.frame.overflow = out.document.defaults.layout.overflow;
+    out.frame.centering_mode = out.document.defaults.layout.centering_mode;
+    out.frame.line_height = out.document.defaults.layout.line_height;
+    out.frame.tracking = out.document.defaults.layout.tracking;
+    out.frame.auto_fit = out.document.defaults.layout.auto_fit;
+    out.frame.min_font_size = out.document.defaults.layout.min_font_size;
+    out.frame.max_font_size = out.document.defaults.layout.max_font_size;
+    out.frame.max_lines = out.document.defaults.layout.max_lines;
+    out.frame.ellipsis = out.document.defaults.layout.ellipsis;
+    if (auto composed = ::chronon3d::registry::AnimatorResolver::compose_for(preset_id)) {
+        out.animation.animators.push_back(std::move(*composed));
     }
     return out;
 }
 
-TextRunDefinition
+PreparedText
 wire_preset_text_run_params(std::string_view preset_id,
                             const TextDefinition& definition) noexcept {
-    TextDefaults spec;
-    spec.content = definition.content;
-    spec.spans = definition.spans;
-    spec.font = definition.style.font;
-    spec.layout.box = definition.frame.size;
-    spec.layout.anchor = definition.frame.anchor;
-    spec.layout.align = definition.frame.align;
-    spec.layout.vertical_align = definition.frame.vertical_align;
-    spec.layout.wrap = definition.frame.wrap;
-    spec.layout.overflow = definition.frame.overflow;
-    spec.layout.centering_mode = definition.frame.centering_mode;
-    spec.layout.line_height = definition.frame.line_height;
-    spec.layout.tracking = definition.frame.tracking;
-    spec.layout.auto_fit = definition.frame.auto_fit;
-    spec.layout.min_font_size = definition.frame.min_font_size;
-    spec.layout.max_font_size = definition.frame.max_font_size;
-    spec.layout.max_lines = definition.frame.max_lines;
-    spec.layout.ellipsis = definition.frame.ellipsis;
-    spec.layout.paragraph = definition.paragraph;
-    spec.appearance.color = definition.style.color;
-    spec.appearance.paint = definition.style.paint;
-    spec.appearance.shadows = definition.style.shadows;
-    spec.appearance.material = definition.style.material;
-    spec.appearance.box_style = definition.style.box_style;
-    spec.placement = {
-        TextPlacementKind::Absolute,
-        {definition.frame.placement.offset.x, definition.frame.placement.offset.y}
-    };
-    return wire_preset_text_run_params(preset_id, std::move(spec));
+    PreparedText out = prepare_text(definition);
+    if (auto composed = ::chronon3d::registry::AnimatorResolver::compose_for(preset_id)) {
+        out.animation.animators.push_back(std::move(*composed));
+    }
+    return out;
 }
 
 // ── make_default_text_preset_registry ──────────────────────────────────────
