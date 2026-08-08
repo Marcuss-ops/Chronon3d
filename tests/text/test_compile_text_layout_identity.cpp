@@ -3,7 +3,7 @@
 // ============================================================================
 // test_compile_text_layout_identity.cpp
 //
-// TICKET-100 — identity regression lock for the materialize_text_run_shape
+// TICKET-100 — identity regression lock for the materialize_prepared_text
 // refactor.  After the refactor the materializer delegates the 5 layout
 // phases (cache lookup + shape_text + resolve_placed_glyph_run + manual
 // TextRunLayout build + cache store) to compile_text_layout via the
@@ -11,7 +11,7 @@
 // `src/scene/builders/text_run_builder.cpp`.
 //
 // What this TU locks:
-//   (1)  Path A = materialize_text_run_shape via helper.
+//   (1)  Path A = materialize_prepared_text via helper.
 //        Path B = direct compile_text_layout on equivalent Request/Services.
 //        Both pathways populate the SAME TextRunLayout fields (after the
 //        helper's post-compile direction+language override):
@@ -30,7 +30,7 @@
 //        cache_key contract — including direction + language — that the
 //        refactor promised not to regress.
 //   (3)  After TICKET-100's post-compile override, the materialized
-//        TextRunLayout carries params.direction (not Auto) and params.language
+//        TextRunLayout carries params.shaping.direction (not Auto) and params.shaping.language
 //        (not empty).  compile_text_layout's hardcoded defaults would
 //        otherwise leak through if the helper's override were skipped.
 //
@@ -78,21 +78,21 @@ inline void reset_layout_cache_for_test() {
     // cache reset deferred: TICKET-011 (build-rot fix) — s_text_cache scope is file-local
 }
 
-[[nodiscard]] TextRunDefinition make_test_params(
+[[nodiscard]] PreparedText make_test_params(
     const std::string& utf8,
     float font_size,
     TextDirection direction = TextDirection::LTR,
     const std::string& language = "en"
 ) {
-    TextRunDefinition params;
-    params.text.content.value          = utf8;
-    params.text.font.font_family       = "DejaVu Sans";   // system fallback
-    params.text.font.font_size         = font_size;
-    params.text.font.font_weight       = 400;
+    PreparedText params;
+    params.document.utf8          = utf8;
+    params.style.font.font_family       = "DejaVu Sans";   // system fallback
+    params.style.font.font_size         = font_size;
+    params.style.font.font_weight       = 400;
     // font_path intentionally empty → resolver fallback to font_family.
-    params.direction                   = direction;
-    params.language                    = language;
-    params.cache_layout                = true;
+    params.shaping.direction                   = direction;
+    params.shaping.language                    = language;
+    params.animation.cache_layout                = true;
     return params;
 }
 
@@ -110,23 +110,23 @@ inline void reset_layout_cache_for_test() {
 // 1. Identity — materialize ≡ compile_text_layout on equivalent input
 // ────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("materialize_text_run_shape ≡ compile_text_layout (post-refactor identity)") {
+TEST_CASE("materialize_prepared_text ≡ compile_text_layout (post-refactor identity)") {
     LocalEngine env;
     reset_layout_cache_for_test();
 
     auto params    = make_test_params("Identity Check", 32.0f);
     auto layout_sp = make_test_layout();
 
-    // ── Path A — through materialize_text_run_shape (post-refactor) ──
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    // ── Path A — through materialize_prepared_text (post-refactor) ──
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     // ── Path B — direct compile_text_layout on equivalent input ────
     TextDocument doc;
-    doc.utf8          = params.text.content.value;
-    doc.defaults.font = params.text.font;
+    doc.utf8          = params.document.utf8;
+    doc.defaults.font = params.style.font;
     doc.split_paragraphs();
 
-    TextLayoutRequest   req{&doc, &layout_sp, params.text.font};
+    TextLayoutRequest   req{&doc, &layout_sp, params.style.font};
     TextCompileServices svc{&env.engine, /*cache=*/nullptr};
     auto direct = compile_text_layout(req, svc);
 
@@ -143,7 +143,7 @@ TEST_CASE("materialize_text_run_shape ≡ compile_text_layout (post-refactor ide
     // (a) source_text — both paths concatenate resolved-run text identically.
     CHECK(materialized.source_text == canonical.source_text);
 
-    // (b) font_size — both mirror params.text.font.font_size.
+    // (b) font_size — both mirror params.style.font.font_size.
     CHECK(materialized.font_size == doctest::Approx(canonical.font_size));
     CHECK(materialized.font_size == doctest::Approx(32.0f));
 
@@ -157,8 +157,8 @@ TEST_CASE("materialize_text_run_shape ≡ compile_text_layout (post-refactor ide
     //     hardcoded Auto/empty defaults to params; direct path leaves
     //     compile_text_layout's defaults.  DIFFERENCE is intentional:
     //     the materializer honours the original request's direction.
-    CHECK(materialized.direction == params.direction);
-    CHECK(materialized.language  == params.language);
+    CHECK(materialized.direction == params.shaping.direction);
+    CHECK(materialized.language  == params.shaping.language);
     CHECK(canonical.direction    == TextDirection::Auto);
     CHECK(canonical.language.empty());
 
@@ -207,21 +207,21 @@ TEST_CASE("materialize_text_run_shape ≡ compile_text_layout (post-refactor ide
 // 2. Cache-hit identity — repeated materialize calls return the same shared_ptr
 // ────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("materialize_text_run_shape: cache hit returns the same TextRunLayout shared_ptr") {
+TEST_CASE("materialize_prepared_text: cache hit returns the same TextRunLayout shared_ptr") {
     LocalEngine env;
     reset_layout_cache_for_test();
 
     auto params = make_test_params("Cache Hit Identity", 32.0f);
 
-    auto shape_a = materialize_text_run_shape(params, &env.engine, SampleTime{});
-    auto shape_b = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape_a = materialize_prepared_text(params, &env.engine, SampleTime{});
+    auto shape_b = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape_a || !shape_b || !shape_a->layout || !shape_b->layout) {
         MESSAGE("test skipped: system fonts unavailable");
         return;
     }
 
-    // Cache-key preservation (params.cache_layout=true) — the helper
+    // Cache-key preservation (params.animation.cache_layout=true) — the helper
     // stores with the legacy-canonical key (including direction +
     // language), so a second call hits the cache and returns the same
     // shared_ptr.  Locking pointer identity freezes the cache_key
@@ -238,7 +238,7 @@ TEST_CASE("materialize_text_run_shape: cache hit returns the same TextRunLayout 
 // 3. direction + language — override survives across materialize paths
 // ────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("materialize_text_run_shape: direction + language override applied after compile_text_layout") {
+TEST_CASE("materialize_prepared_text: direction + language override applied after compile_text_layout") {
     LocalEngine env;
     reset_layout_cache_for_test();
 
@@ -246,7 +246,7 @@ TEST_CASE("materialize_text_run_shape: direction + language override applied aft
         auto params = make_test_params("Hello", 32.0f,
                                        TextDirection::RTL, "ar");
 
-        auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+        auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
         if (!shape || !shape->layout) {
             MESSAGE("test skipped: system fonts unavailable");
             return;
@@ -263,7 +263,7 @@ TEST_CASE("materialize_text_run_shape: direction + language override applied aft
         auto params = make_test_params("Hello", 32.0f,
                                        TextDirection::LTR, "en");
 
-        auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+        auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
         if (!shape || !shape->layout) {
             MESSAGE("test skipped: system fonts unavailable");
             return;
@@ -278,12 +278,12 @@ TEST_CASE("materialize_text_run_shape: direction + language override applied aft
 // 4. font.font_size — closes review P0 #6 (legacy 0.0f default bug)
 // ────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("materialize_text_run_shape: text_layout->font.font_size mirrors params (P0 #6 closure)") {
+TEST_CASE("materialize_prepared_text: text_layout->font.font_size mirrors params (P0 #6 closure)") {
     LocalEngine env;
     reset_layout_cache_for_test();
 
     auto params = make_test_params("Font Size Closure", 44.0f);
-    auto shape  = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape  = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");

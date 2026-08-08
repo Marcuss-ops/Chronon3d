@@ -18,7 +18,7 @@
 //      font_size + bounds (lighter than the 100-run cert in
 //      tests/text/test_auto_fit_font_size.cpp; suitable for fast CI).
 //
-// Pattern A — uses `LocalEngine` + `materialize_text_run_shape()` for
+// Pattern A — uses `LocalEngine` + `materialize_prepared_text()` for
 // pre-raster layout (no full render needed; faster + more deterministic).
 // Graceful skip when system fonts are absent (matches the precedent in
 // tests/text/test_auto_fit_font_size.cpp).
@@ -74,7 +74,7 @@ struct LocalEngine {
 //
 // All 3 tests share this helper; each test overrides the fields it cares
 // about (cache_layout, min/max, font_size) directly on the returned spec.
-[[nodiscard]] TextRunDefinition make_autofit_params(
+[[nodiscard]] PreparedText make_autofit_params(
     const std::string& utf8,
     float font_size,
     bool auto_fit,
@@ -82,18 +82,18 @@ struct LocalEngine {
     float max_font_size = 200.0f,
     bool cache_layout   = true
 ) {
-    TextRunDefinition params;
-    params.text.content.value                    = utf8;
-    params.text.font.font_family                 = "DejaVu Sans";
-    params.text.font.font_size                   = font_size;
-    params.text.font.font_weight                 = 400;
-    params.text.layout.paragraph.auto_fit_font_size = auto_fit;
-    params.text.layout.paragraph.min_font_size      = min_font_size;
-    params.text.layout.paragraph.max_font_size      = max_font_size;
-    params.text.layout.box                          = {400.0f, 200.0f};
-    params.direction                             = TextDirection::LTR;
-    params.language                              = "en";
-    params.cache_layout                          = cache_layout;
+    PreparedText params;
+    params.document.utf8                    = utf8;
+    params.style.font.font_family                 = "DejaVu Sans";
+    params.style.font.font_size                   = font_size;
+    params.style.font.font_weight                 = 400;
+    params.frame.auto_fit = auto_fit;
+    params.frame.min_font_size      = min_font_size;
+    params.frame.max_font_size      = max_font_size;
+    params.frame.size                          = {400.0f, 200.0f};
+    params.shaping.direction                             = TextDirection::LTR;
+    params.shaping.language                              = "en";
+    params.animation.cache_layout                          = cache_layout;
     return params;
 }
 
@@ -116,10 +116,10 @@ TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit cache on/off determinism") 
         120.0f, /*auto_fit=*/true, /*min=*/40.0f, /*max=*/200.0f,
         /*cache_layout=*/true);
     auto params_cache_off = params_cache_on;
-    params_cache_off.cache_layout = false;
+    params_cache_off.animation.cache_layout = false;
 
-    auto shape_on  = materialize_text_run_shape(params_cache_on,  &env.engine, SampleTime{});
-    auto shape_off = materialize_text_run_shape(params_cache_off, &env.engine, SampleTime{});
+    auto shape_on  = materialize_prepared_text(params_cache_on,  &env.engine, SampleTime{});
+    auto shape_off = materialize_prepared_text(params_cache_off, &env.engine, SampleTime{});
 
     if (!shape_on || !shape_on->layout || !shape_off || !shape_off->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -156,7 +156,7 @@ TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit impossible min_font_size pr
         120.0f, /*auto_fit=*/true, /*min=*/200.0f, /*max=*/200.0f,
         /*cache_layout=*/false);
 
-    auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
     if (!shape || !shape->layout) {
         MESSAGE("test skipped: system fonts unavailable");
@@ -196,7 +196,7 @@ TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit 5-run determinism certifica
     heights.reserve(kRuns);
 
     for (int i = 0; i < kRuns; ++i) {
-        auto shape = materialize_text_run_shape(params, &env.engine, SampleTime{});
+        auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
         if (!shape || !shape->layout) {
             MESSAGE("test skipped: system fonts unavailable");
             return;

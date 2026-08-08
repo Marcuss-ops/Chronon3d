@@ -36,14 +36,14 @@ TEST_CASE("Rich text: span() appends text and creates a TextSpanOverride") {
     auto t = lyr.text("");
     t.span("QUESTA ").color(Color::yellow());
 
-    CHECK(t.pending().params.text.content.value == "QUESTA ");
-    REQUIRE(t.pending().params.text.spans.size() == 1);
-    CHECK(t.pending().params.text.spans[0].byte_start == 0);
-    CHECK(t.pending().params.text.spans[0].byte_end == 7);
-    REQUIRE(t.pending().params.text.spans[0].color.has_value());
-    CHECK(t.pending().params.text.spans[0].color->r == doctest::Approx(1.0f));
-    CHECK(t.pending().params.text.spans[0].color->g == doctest::Approx(1.0f));
-    CHECK(t.pending().params.text.spans[0].color->b == doctest::Approx(0.0f));
+    CHECK(t.pending().params.document.utf8 == "QUESTA ");
+    REQUIRE(t.pending().params.spans.size() == 1);
+    CHECK(t.pending().params.spans[0].byte_start == 0);
+    CHECK(t.pending().params.spans[0].byte_end == 7);
+    REQUIRE(t.pending().params.spans[0].color.has_value());
+    CHECK(t.pending().params.spans[0].color->r == doctest::Approx(1.0f));
+    CHECK(t.pending().params.spans[0].color->g == doctest::Approx(1.0f));
+    CHECK(t.pending().params.spans[0].color->b == doctest::Approx(0.0f));
 }
 
 TEST_CASE("Rich text: chained spans preserve byte ranges and styles") {
@@ -55,8 +55,8 @@ TEST_CASE("Rich text: chained spans preserve byte ranges and styles") {
      .span("PAROLA").color(Color::yellow()).weight(800)
      .span(" IMPORTANTE");
 
-    const auto& spans = t.pending().params.text.spans;
-    const auto& content = t.pending().params.text.content.value;
+    const auto& spans = t.pending().params.spans;
+    const auto& content = t.pending().params.document.utf8;
 
     CHECK(content == "QUESTA PAROLA IMPORTANTE");
     REQUIRE(spans.size() == 3);
@@ -89,7 +89,7 @@ TEST_CASE("Rich text: span supports tracking, stroke, semantic_id") {
         .stroke(3.0f, Color::red())
         .semantic_id("greeting");
 
-    const auto& spans = t.pending().params.text.spans;
+    const auto& spans = t.pending().params.spans;
     REQUIRE(spans.size() == 1);
     REQUIRE(spans[0].tracking.has_value());
     CHECK(spans[0].tracking.value() == doctest::Approx(2.5f));
@@ -110,9 +110,9 @@ TEST_CASE("Rich text: to_text_document converts span overrides to TextStyleSpan"
      .span("B").stroke(2.0f, Color::white());
 
     TextDefinition def;
-    def.content.value = t.pending().params.text.content.value;
-    def.style.font = t.pending().params.text.font;
-    def.spans = t.pending().params.text.spans;
+    def.content.value = t.pending().params.document.utf8;
+    def.style.font = t.pending().params.style.font;
+    def.spans = t.pending().params.spans;
 
     TextDocument doc = to_text_document(def);
 
@@ -148,10 +148,10 @@ TEST_CASE("Rich text: ligature preservation across same-font spans") {
     t.span("fi").color(Color::red());
 
     TextDefinition def;
-    def.content.value = t.pending().params.text.content.value;
+    def.content.value = t.pending().params.document.utf8;
     def.style.font.font_path = "assets/fonts/Inter-Bold.ttf";
     def.style.font.font_size = 64.0f;
-    def.spans = t.pending().params.text.spans;
+    def.spans = t.pending().params.spans;
 
     TextDocument doc = to_text_document(def);
     doc.split_paragraphs();
