@@ -142,11 +142,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 }
 
                 const auto source_placement = evaluate_source_placement(item, node, ctx);
-                Mat4 shape_matrix = source_placement.matrix;
-                if (ctx.policy.modular_coordinates &&
-                    is_pinned_full_canvas_rect(item, node, ctx)) {
-                    shape_matrix = implicit_canvas_center_matrix(ctx) * shape_matrix;
-                }
+                const Mat4 shape_matrix = finalize_source_placement_matrix(
+                    source_placement, item, node, ctx);
                 const f32 shape_opacity = source_placement.opacity;
 
                 source = graph.add_node(std::make_unique<SourceNode>(
@@ -227,13 +224,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // behaviour for non-text items).
         for (const auto& node : layer.nodes) {
             const auto source_placement = evaluate_source_placement(item, node, ctx);
-            const Mat4 raw_shape_matrix = source_placement.matrix;
-            const Mat4 shape_matrix = use_local
-                ? raw_shape_matrix
-                : (has_custom_absolute_text_transform(item, node, ctx)
-                    ? resolve_custom_absolute_text_matrix(item, node, ctx)
-                    : resolve_absolute_text_source_matrix(
-                        item, node, ctx, raw_shape_matrix));
+            const Mat4 shape_matrix = finalize_source_placement_matrix(
+                source_placement, item, node, ctx);
             const f32 shape_opacity = source_placement.opacity;
 
             items.push_back(MultiSourceItem{

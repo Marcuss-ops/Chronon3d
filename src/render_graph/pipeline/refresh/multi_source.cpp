@@ -32,23 +32,17 @@ void refresh_multi_source_node(
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const auto placement = evaluate_layer_placement(item, ctx);
-    const bool use_local = placement.space == EvaluatedCoordinateSpace::Local;
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
-    const bool source_is_static = item_static || use_local;
+    const bool source_is_static = item_static;
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());
     u64 aggregated_params_hash = 0;
     for (const auto& src_node : layer.nodes) {
         const auto source_placement = evaluate_source_placement(item, src_node, ctx);
-        const Mat4 raw_render_matrix = source_placement.matrix;
-        const Mat4 render_matrix = use_local
-            ? raw_render_matrix
-            : (has_custom_absolute_text_transform(item, src_node, ctx)
-                ? resolve_custom_absolute_text_matrix(item, src_node, ctx)
-                : resolve_absolute_text_source_matrix(
-                    item, src_node, ctx, raw_render_matrix));
+        const Mat4 render_matrix = finalize_source_placement_matrix(
+            source_placement, item, src_node, ctx);
         const f32 render_opacity = source_placement.opacity;
 
         items.push_back(MultiSourceItem{
