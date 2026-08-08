@@ -34,10 +34,7 @@ public:
     // ── Render entry points ──────────────────────────────────────────
     // The compiled entry is canonical for graph execution. The authoring
     // overload below is a boundary adapter only; it must compile once and
-    // delegate to render_compiled(). The render_scene() overloads are legacy
-    // scene adapters.
-    /// Compatibility authoring adapter: compiles once, then delegates to the
-    /// canonical compiled execution entry.
+    // delegate to render_compiled().
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_compiled(
         const CompiledComposition& compiled, Frame frame);
@@ -50,7 +47,6 @@ public:
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                               const std::optional<Camera2_5D>& camera,
                                               i32 width, i32 height, float fps) override;
-    /// @deprecated diagnostics-only wrapper.
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
                                                  i32 width, i32 height, float fps,
                                                  Frame frame = 0,
