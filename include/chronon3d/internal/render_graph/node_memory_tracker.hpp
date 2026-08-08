@@ -93,7 +93,8 @@ public:
 
     void record_allocation(std::string_view node_id, std::uint64_t bytes) {
         NodeMemoryMetrics metrics;
-        metrics.allocations.store(bytes, std::memory_order_relaxed);
+        metrics.allocations.store(1, std::memory_order_relaxed);
+        metrics.allocated_bytes.store(bytes, std::memory_order_relaxed);
         metrics.temporary_buffers.store(1, std::memory_order_relaxed);
         observe_node(node_id, metrics);
     }

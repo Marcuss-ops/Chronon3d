@@ -5,7 +5,7 @@
 ## Scope (per user spec verbatim)
 
 > "FASE 2.1 — implementa TICKET-COUNTERS-NODE-MEMORY-V1-V2: integrare
-> `NodeMemoryMetrics` struct (8 field `atomic<uint64_t>`) nel solver render
+> `NodeMemoryMetrics` struct with atomic memory-accounting fields nel solver render
 > graph executor + hot-path instrumentation in `node_runner` + `NodeStatsRepo-
 > rter` per-session lifecycle verificato.  Same Cat-3 minimal-surface dis-
 > cipline; ADR-024-style forward-point se servono nuovi simboli in `include/
@@ -34,7 +34,14 @@ NODE-MEMORY-V1).
   for graph-wide totals but does NOT support per-node-keyed aggregation;
   the canonical NodeMemoryMetrics is a parallel dedicated struct.
 
-## 8 named fields (LOCKED, locked by `static_assert` test suite)
+## Allocation fields (LOCKED by the accounting tests)
+
+The allocation metrics intentionally separate event count from byte volume:
+
+- `allocations` counts distinct heap allocation events.
+- `allocated_bytes` sums the bytes associated with those events.
+
+## Canonical metric fields
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -44,12 +51,13 @@ NODE-MEMORY-V1).
 | `bytes_written` | `std::atomic<u64>` | per-node byte-touch accounting (write side) |
 | `framebuffer_copies` | `std::atomic<u64>` | count of fallback `acquire_owned_fb(const FB&)` `std::copy` paths |
 | `framebuffer_clears` | `std::atomic<u64>` | count of explicit full/partial clears |
-| `allocations` | `std::atomic<u64>` | byte-total of FB-pool allocations |
+| `allocations` | `std::atomic<u64>` | count of distinct heap allocation events |
+| `allocated_bytes` | `std::atomic<u64>` | byte-total associated with allocation events |
 | `temporary_buffers` | `std::atomic<u64>` | count of allocated scratch / ping-pong FBs |
 
-Total = 64 bytes per `NodeMemoryMetrics` struct = exactly one 64-byte
-cache line.  Cache-line sized for NO false-sharing in dedicated allocator
-slot.
+The accounting contract intentionally prioritizes separate event-count and
+byte-volume fields; the additional `allocated_bytes` field means this struct
+is no longer constrained to the former 64-byte cache-line footprint.
 
 ## Per-session NodeStatsReporter — lifecycle invariant
 
@@ -80,20 +88,21 @@ v1.cpp` "contract: per-session zero static state" TEST_CASE.
   choice for monotonic counters with no causal-ordering requirement).
 - 64-byte cache-line alignment (one cache line per accumulator = zero
   cross-thread false-sharing in dedicated allocator slot).
-- `observe_node` does ONE mutex-free std::map find + 8 atomic fetch_add +
-  one std::map emplace on first observation.  No locks; no atomics on the
+- `observe_node` does ONE mutex-protected std::map find + atomic fetch_add
+  operations for the memory fields + one std::map emplace on first
+  observation. No atomics on the
   map traversal (std::map is std::allocator-backed; the map's own thread-
   safety is the consumer's responsibility — typically one writer thread +
   one reader thread, both serialized at the session boundary).
 
-## Criteri di accettazione (8)
+## Criteri di accettazione
 
 1. **NEW canonical header** `include/chronon3d/render_graph/executor/node_memory_metrics.hpp`
    with `chronon3d::graph::NodeMemoryMetrics` + `NodeStatsSnapshot` +
    `NodeStatsReporter`.
-2. **8 named `std::atomic<std::uint64_t>` fields** — the EXACT 8 names from
-   the synthetic stand-in (locked by 8 `static_assert`s in the test
-   bridge).
+2. **Allocation accounting fields** — `allocations` counts events and
+   `allocated_bytes` counts bytes; both are locked by `static_assert`s in
+   the test bridge.
 3. **Test bridge** in `tests/perf/test_node_memory_counters_v1.cpp` —
    replacement of `using synthetic_node_memory_metrics_v1::NodeMemoryMet-
    rics` → `using chronon3d::graph::NodeMemoryMetrics`; the test's existing
