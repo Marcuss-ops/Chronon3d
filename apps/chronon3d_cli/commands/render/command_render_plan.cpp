@@ -13,6 +13,8 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include <chronon3d/core/cancellation_token.hpp>
+
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -146,8 +148,20 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
-        if (video_output(output) && !AudioMuxer{}.mux(output, prepared.audio_tracks,
-                                                       resolver))
+        chronon3d::CancellationToken mux_cancellation;
+        chronon3d::install_signal_cancellation(mux_cancellation);
+        bool mux_ok = true;
+        try {
+            mux_ok = video_output(output)
+                ? AudioMuxer{}.mux(output, prepared.audio_tracks, resolver,
+                                   &mux_cancellation)
+                : true;
+        } catch (...) {
+            chronon3d::restore_default_signal_handlers();
+            throw;
+        }
+        chronon3d::restore_default_signal_handlers();
+        if (!mux_ok)
             return 1;
         return 0;
     } catch (const std::exception& error) {
