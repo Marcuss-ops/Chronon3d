@@ -114,7 +114,8 @@ namespace chronon3d::graph {
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
-    float fps
+    float fps,
+    TemporalSampleKey temporal_key = {}
 ) {
     // Preserve fractional FPS precision (e.g. 29.97 NTSC).
     const FrameRate frm = FrameRate{static_cast<i32>(fps * 1000.0f + 0.5f), 1000};
@@ -124,7 +125,9 @@ namespace chronon3d::graph {
         .frame_input = FrameInput{
             .frame        = frame,
             .sample_time  = st,
-            .temporal_key = make_temporal_key(st, 0),
+            .temporal_key = temporal_key == TemporalSampleKey{}
+                ? make_temporal_key(st, 0)
+                : temporal_key,
             .time_seconds = fps > 0.0f
                 ? (static_cast<float>(frame) + frame_time) / fps
                 : 0.0f,
