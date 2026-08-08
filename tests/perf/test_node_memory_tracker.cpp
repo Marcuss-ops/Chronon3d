@@ -27,7 +27,8 @@ TEST_CASE("ScopedNodeMemory tracks live and peak bytes without implicit allocati
     CHECK(report.peak_temporary_bytes == 5120);
     REQUIRE(report.nodes.size() == 1);
     CHECK(report.nodes.front().node_id == "blur");
-    CHECK(report.nodes.front().allocations == 2048);
+    CHECK(report.nodes.front().allocations == 1);
+    CHECK(report.nodes.front().allocated_bytes == 2048);
     CHECK(report.nodes.front().temporary_buffers == 1);
     REQUIRE(report.samples.size() == 1);
     CHECK(report.samples.front().sample_key == sample);
@@ -87,6 +88,10 @@ TEST_CASE("NodeMemoryTracker reset clears node, sample, pool, and peak domains")
         ScopedNodeMemory scope(tracker, "node", TemporalSampleKey{}, 4096);
         scope.record_allocation(512);
     }
+    const auto allocation_report = tracker.snapshot();
+    REQUIRE(allocation_report.nodes.size() == 1);
+    CHECK(allocation_report.nodes.front().allocations == 1);
+    CHECK(allocation_report.nodes.front().allocated_bytes == 512);
     CHECK(tracker.snapshot().peak_temporary_bytes == 4096);
 
     tracker.reset();

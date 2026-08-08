@@ -65,7 +65,8 @@
           "bytes_written":     { "type": "integer", "minimum": 0, "description": "Total bytes written by this node across the session." },
           "framebuffer_copies":{ "type": "integer", "minimum": 0, "description": "Total framebuffer copy operations (incl. partial-tile copies) emitted by this node." },
           "framebuffer_clears":{ "type": "integer", "minimum": 0, "description": "Total framebuffer clear operations emitted by this node." },
-          "allocations":       { "type": "integer", "minimum": 0, "description": "Total bytes allocated by this node." },
+          "allocations":       { "type": "integer", "minimum": 0, "description": "Number of heap allocation events observed for this node." },
+          "allocated_bytes":   { "type": "integer", "minimum": 0, "description": "Total bytes associated with this node's heap allocation events." },
           "temporary_buffers": { "type": "integer", "minimum": 0, "description": "Total temporary framebuffer-shaped buffers allocated/released by this node." }
         },
         "additionalProperties": false

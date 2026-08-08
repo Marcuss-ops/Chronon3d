@@ -1,9 +1,9 @@
 # ADR-026 — node memory metrics canonical struct + per-session reporter
 
-**Status**: ACCEPTED (locked commit `<sha-after-this-pr>`)
+**Status**: ACCEPTED (allocation count/byte-volume refinement)
 
 ## Contest
-- User spec FASE 2.1 verbatim: "integrare `NodeMemoryMetrics` struct (8 field
+- User spec FASE 2.1 verbatim: "integrare `NodeMemoryMetrics` struct with atomic memory-accounting fields
   `atomic<uint64_t>`) nel solver render graph executor + hot-path instrument-
   ation in `node_runner` + `NodeStatsReporter` per-session lifecycle veri-
   ficato".
@@ -15,7 +15,7 @@
   ficato".
 - Existing infrastructure: `tests/perf/test_node_memory_counters_v1.cpp`
   holds the SYNTHETIC STAND-IN for the canonical type — `static_assert`
-  suite that locks the 8-name shape, the per-session zero-static-state
+  suite that locks the allocation-count/byte-shape, the per-session zero-static-state
   invariant, the monotonic accumulation contract, and the defensive
   B03 CinematicGlow1088p 90-frame gate.
 
@@ -26,12 +26,14 @@ replacing the synthetic stand-in's `using` alias with `using
 NodeMemoryMetrics = chronon3d::graph::NodeMemoryMetrics;` in the SAME
 commit (atomic-replace pattern).  The canonical surface:
 
-- `chronon3d::graph::NodeMemoryMetrics` — 8 named `std::atomic<std::uint64_t>`
-  fields (`pixels_read`, `pixels_written`, `bytes_read`, `bytes_written`,
-  `framebuffer_copies`, `framebuffer_clears`, `allocations`, `temporary_buf-
-  fers`).  Total = 64 bytes = 1 cache line (cache-line aligned; NO false-
-  sharing in dedicated allocator slot).
-- `chronon3d::graph::NodeStatsSnapshot` — value-typed `Id + 8 counts`
+- `chronon3d::graph::NodeMemoryMetrics` — the memory counters
+  (`pixels_read`, `pixels_written`, `bytes_read`, `bytes_written`,
+  `framebuffer_copies`, `framebuffer_clears`, `allocations`,
+  `allocated_bytes`, `temporary_buffers`). `allocations` counts heap events;
+  `allocated_bytes` sums their byte volume. The nine atomic counters occupy
+  72 bytes; the accounting contract is more important than the former
+  cache-line-size assumption.
+- `chronon3d::graph::NodeStatsSnapshot` — value-typed `Id + memory counts`
   read-out of a single node's accumulator state.
 - `chronon3d::graph::NodeStatsReporter` — per-session `std::map<std::string,
   NodeMemoryMetrics>` aggregator.  Default-constructible; copy DELETED
@@ -60,7 +62,7 @@ Rationale:
 
 ## Alternative considerate
 - **ALT-A: REUSE existing `CHRONON_COUNTERS_GRAPH` macro** (extend with
-  8 new counters + add per-node-keyed aggregation logic to the existing
+  new counters + add per-node-keyed aggregation logic to the existing
   counter macro).  Rejected: the existing macro covers render-GRAPH-wide
   totals keyed by counter NAME, not per-NODE aggregations keyed by
   `node_id`.  The user spec explicitly mandates per-node-keyed accounting;
@@ -117,8 +119,8 @@ NEG:
 - TICKET-PERF-COUNTERS-NODE-MEMORY-V1: §forward-point `<a>`.
 - ADR-024 (composite-node-counter): parallel singleton → DI refactor
   precedent.  ADR-026 is the parallel "new public SDK API surface" precedent.
-- `tests/perf/test_node_memory_counters_v1.cpp`: synthetic stand-in +
-  `static_assert` suite (locks the 8-name shape contractually).
+- `tests/perf/test_node_memory_counters_v1.cpp`: canonical contract tests +
+  `static_assert` suite (locks allocation event count and byte volume).
 - `docs/schemas/chronon3d.stats.v1.schema.json`: per-session aggregate
   of per-node NodeMemoryMetrics snapshots (forward-point: CLI emission).
 
