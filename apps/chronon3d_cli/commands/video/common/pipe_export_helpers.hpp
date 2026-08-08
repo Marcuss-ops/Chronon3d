@@ -37,7 +37,7 @@ void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::excep
 [[nodiscard]] size_t compute_pipe_arena_size(int width, int height);
 
 [[nodiscard]] FfmpegPipeOptions make_pipe_options(
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const FfmpegExportOptions& opts,
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget);
@@ -53,7 +53,7 @@ void track_pipe_encoder_process(
                                 chronon3d::runtime::PreparationError>
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const FfmpegExportOptions& opts);
 
 [[nodiscard]] double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder);

@@ -33,6 +33,7 @@
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -180,29 +181,16 @@ std::shared_ptr<Framebuffer> RenderEngine::render_scene(
 std::shared_ptr<Framebuffer> RenderEngine::render(
     const Composition& comp, Frame frame)
 {
-    m_impl->m_renderer->session().clear_last_frame_error();
-    // Canonical engine boundary: every Composition render performs the
-    // synchronous preflight/resource barrier before graph execution. CLI
-    // jobs may prepare earlier to report setup timing, but this boundary is
-    // the final protection for SDK and direct engine consumers.
-    const auto preparation = runtime::prepare_render(
-        m_impl->m_renderer.get(), comp,
-        runtime::RenderPreparationOptions{
-            .warmup_renderer = false,
-            .reference_frame = frame,
-        });
-    if (!preparation.ok()) {
+    // Authoring compatibility adapter only: compile once at the boundary,
+    // then execute exclusively through the immutable compiled path.
+    auto compiled = chronon3d::compile_composition(
+        comp, CompositionCompileContext{});
+    if (!compiled) {
         throw std::runtime_error(
-            "Render preparation failed for composition '" +
-            comp.name() + "': " + preparation.diagnostic());
+            "Composition compilation failed for '" + comp.name() +
+            "': " + compiled.error().message);
     }
-
-    // P1-F Pass D — replaces the removed `render_frame()` (which had been
-    // `[[deprecated("Use RenderEngine::render()")]]` since Pass A).  Same
-    // implementation: delegates into the OPP-side `RenderPipeline` facade
-    // (which in turn routes through the SoftwareRenderer+Runtime graph
-    // orchestration).  Returns the raw framebuffer for OPP consumers.
-    return m_impl->m_pipeline->render_composition(comp, frame);
+    return render_compiled(std::move(compiled).value(), frame);
 }
 
 std::shared_ptr<Framebuffer> RenderEngine::render_compiled(

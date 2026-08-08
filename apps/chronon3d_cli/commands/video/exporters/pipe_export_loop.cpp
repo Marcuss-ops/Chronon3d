@@ -12,7 +12,7 @@ namespace chronon3d::cli {
 RenderLoopOutput run_pipe_export_loop(
     PipeExportSession& session,
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const RenderSettings& settings,
     Frame start,
     Frame end,
@@ -40,7 +40,7 @@ RenderLoopOutput run_pipe_export_loop(
         .settings = settings,
         .registry = registry,
         .video_decoder = video_decoder,
-        .comp = comp,
+        .compiled = compiled,
         .start = start,
         .end = end,
         .opts = opts,

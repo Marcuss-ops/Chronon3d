@@ -13,7 +13,7 @@
 namespace chronon3d::cli {
 
 /// Writes a single render frame to disk and records telemetry.
-bool write_render_frame(const Composition& comp,
+bool write_render_frame(const CompiledComposition& compiled,
                          SoftwareRenderer & renderer,
                          Frame frame,
                          const FrameRange& range,

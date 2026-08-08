@@ -18,7 +18,7 @@
 
 namespace chronon3d::cli {
 
-bool write_render_frame(const Composition& comp,
+bool write_render_frame(const CompiledComposition& compiled,
                         SoftwareRenderer& renderer,
                         Frame frame,
                         const FrameRange& range,
@@ -30,7 +30,7 @@ bool write_render_frame(const Composition& comp,
                         int& frames_written) {
     const auto hits_before = renderer.node_cache().stats().hits;
     const auto t0 = profiling::now();
-    auto fb = renderer.render(comp, frame);
+    auto fb = renderer.render_compiled(compiled, frame);
     const auto t1 = profiling::now();
     const auto hits_after = renderer.node_cache().stats().hits;
     const double dirty_ratio = renderer.last_dirty_area_ratio();
@@ -38,7 +38,8 @@ bool write_render_frame(const Composition& comp,
     if (!fb) {
         const auto structured = renderer.session().last_frame_error();
         if (structured) {
-            print_render_error(*structured, comp.name(), frame);
+            print_render_error(*structured,
+                               compiled.definition->composition.name, frame);
         } else {
             print_render_error(
                 graph::NodeExecutionError{
@@ -46,7 +47,7 @@ bool write_render_frame(const Composition& comp,
                     "render",
                     "renderer returned a null framebuffer without a structured node error"
                 },
-                comp.name(),
+                compiled.definition->composition.name,
                 frame);
         }
         ok = false;
@@ -63,7 +64,8 @@ bool write_render_frame(const Composition& comp,
             : 0);
 
     const double encode_ms = write_frame_to_disk(
-        fb, frame, range, output_pattern, comp.name(), cache_hit, dirty_ratio,
+        fb, frame, range, output_pattern,
+        compiled.definition->composition.name, cache_hit, dirty_ratio,
         render_ms, prog_cache_cap, ok, telemetry_frames, total_encode_ms,
         frames_written);
 

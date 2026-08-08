@@ -6,6 +6,7 @@
 
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 
 #include <CLI/CLI.hpp>
@@ -110,7 +111,8 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
         RenderRequest request;
         const auto& prepared = compiled.value();
         request.comp_id = prepared.job_id;
-        request.prepared_comp = prepared.composition;
+        request.compiled_composition = std::make_shared<const CompiledComposition>(
+            prepared.compiled_composition);
         request.output = output;
         request.execution.assets_root = effective_assets_root.empty()
             ? std::nullopt

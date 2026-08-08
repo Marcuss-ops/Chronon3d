@@ -19,6 +19,8 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>
 #include <filesystem>
@@ -71,7 +73,7 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
 
 [[nodiscard]] ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -88,32 +90,40 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
 /// SampleTime overload — preserves sub-frame evaluation without a hidden
 /// engine argument.
 inline Scene evaluate_video_scene(
-    const Composition& comp,
+    const CompiledComposition& compiled,
     SampleTime time,
     SoftwareRenderer& renderer)
 {
-    return comp.evaluate(make_frame_context({
+    const auto& spec = compiled.definition->composition;
+    const auto context = make_frame_context({
         .global_time = time,
-        .duration = comp.duration(),
-        .width = comp.width(),
-        .height = comp.height(),
+        .duration = spec.duration,
+        .width = spec.width,
+        .height = spec.height,
         .assets_root = renderer.runtime().resolver().mount_root().string(),
         .font_engine = &renderer.runtime().font_engine(),
         .runtime = &renderer.runtime(),
-    }));
+    });
+    const auto evaluated = chronon3d::evaluate(
+        compiled, CompositionEvaluateContext{.frame_context = context}, time);
+    if (!evaluated) throw std::runtime_error(evaluated.error().message);
+    auto& frame = evaluated.value();
+    Scene scene = frame.scene.clone();
+    if (frame.camera) scene.set_camera_2_5d(*frame.camera);
+    return scene;
 }
 
 /// Convenience overload for callers that only have a discrete Frame
 /// (e.g. integer frame loops in chunked/pipe exporters).  Converts to
 /// SampleTime at the composition's native frame rate.
 inline Scene evaluate_video_scene(
-    const Composition& comp,
+    const CompiledComposition& compiled,
     Frame frame,
     SoftwareRenderer& renderer)
 {
-    return evaluate_video_scene(comp,
-                                SampleTime::from_frame_int(frame, comp.frame_rate()),
-                                renderer);
+    return evaluate_video_scene(compiled,
+        SampleTime::from_frame_int(frame, compiled.definition->composition.frame_rate),
+        renderer);
 }
 
 

@@ -25,6 +25,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <cstdio>
 #include <sstream>
@@ -106,7 +107,15 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
     }
     auto runtime = std::move(runtime_result).value();
     SoftwareRenderer renderer{*runtime, Config{}};
-    auto fb = renderer.render(comp, args.frame);
+    auto compiled = chronon3d::compile_composition(
+        comp, CompositionCompileContext{});
+    if (!compiled) {
+        emit_error_json("composition_compile_failed", args.comp_id,
+                        args.frame.integral(), compiled.error().message.c_str());
+        return 1;
+    }
+    auto compiled_value = std::move(compiled).value();
+    auto fb = renderer.render_compiled(compiled_value, args.frame);
     if (!fb) {
         emit_error_json("render_failed", args.comp_id, args.frame.integral());
         return 1;

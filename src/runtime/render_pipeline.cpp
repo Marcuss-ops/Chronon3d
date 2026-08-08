@@ -75,20 +75,6 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     );
 }
 
-std::shared_ptr<Framebuffer> RenderPipeline::render_composition(
-    const Composition& comp, Frame frame)
-{
-    return chronon3d::graph::render_composition_frame(
-        m_runtime.backend(),
-        m_runtime.node_cache(),
-        m_renderer->render_settings(),
-        m_renderer->composition_registry(),
-        m_renderer->video_decoder(),
-        comp, frame,
-        m_renderer  /*R3 sidecar*/
-    );
-}
-
 std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
     const CompiledComposition& compiled, Frame frame)
 {

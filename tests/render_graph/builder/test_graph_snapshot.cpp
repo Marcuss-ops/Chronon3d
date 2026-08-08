@@ -16,6 +16,7 @@
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -138,18 +139,30 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
     auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
 
-    // Render twice and collect DOT from debug output
-    auto fb1 = render_composition_frame(renderer.backend(), node_cache, {}, nullptr, nullptr,
-        Composition(CompositionSpec{.name = "snap1", .width = W, .height = H, .duration = 1},
-                    [&](const FrameContext&) { return scene.clone(); }), 0);
+    // Compile authoring input before invoking the graph-only API.
+    auto comp1 = Composition(
+        CompositionSpec{.name = "snap1", .width = W, .height = H, .duration = 1},
+        [&](const FrameContext&) { return scene.clone(); });
+    auto compiled1 = chronon3d::compile_composition(
+        comp1, CompositionCompileContext{});
+    REQUIRE(compiled1);
+    auto fb1 = render_compiled_composition_frame(
+        renderer.backend(), node_cache, {}, nullptr, nullptr,
+        compiled1.value(), 0);
     auto dot1 = debug_scene_graph(renderer.backend(), node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, 30.0f);
 
     // Reset and render again
     auto renderer2 = test::make_renderer();
     cache::NodeCache node_cache2;
-    auto fb2 = render_composition_frame(renderer2.backend(), node_cache2, {}, nullptr, nullptr,
-        Composition(CompositionSpec{.name = "snap2", .width = W, .height = H, .duration = 1},
-                    [&](const FrameContext&) { return scene.clone(); }), 0);
+    auto comp2 = Composition(
+        CompositionSpec{.name = "snap2", .width = W, .height = H, .duration = 1},
+        [&](const FrameContext&) { return scene.clone(); });
+    auto compiled2 = chronon3d::compile_composition(
+        comp2, CompositionCompileContext{});
+    REQUIRE(compiled2);
+    auto fb2 = render_compiled_composition_frame(
+        renderer2.backend(), node_cache2, {}, nullptr, nullptr,
+        compiled2.value(), 0);
     auto dot2 = debug_scene_graph(renderer2.backend(), node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, 30.0f);
 
     CHECK(dot1 == dot2);

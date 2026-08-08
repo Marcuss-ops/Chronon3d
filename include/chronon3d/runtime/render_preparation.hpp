@@ -3,6 +3,7 @@
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <optional>
 #include <string>
@@ -43,6 +44,13 @@ struct RenderPreparationResult {
 [[nodiscard]] RenderPreparationResult prepare_render(
     SoftwareRenderer* renderer,
     const Composition& composition,
+    const RenderPreparationOptions& options = {});
+
+/// Prepare an immutable compiled composition without re-entering the
+/// authoring registry or creating a second runtime composition.
+[[nodiscard]] RenderPreparationResult prepare_render(
+    SoftwareRenderer* renderer,
+    const CompiledComposition& compiled,
     const RenderPreparationOptions& options = {});
 
 } // namespace runtime

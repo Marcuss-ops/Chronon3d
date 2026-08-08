@@ -77,29 +77,25 @@ public:
     /// the call site (the owning engine's renderer is always wired).
     RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtime) noexcept;
 
-    // ── Primary rendering entry point (Fase C3 canonical) ─────────
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_composition(
-        const Composition& comp, Frame frame);
-
-    /// Canonical prepared-plan execution entry.  This uses the immutable
-    /// compiled definition/camera program and the same compositor as the
-    /// Composition compatibility entry above.
+    // ── Canonical prepared-plan execution entry ────────────────────
+    /// Executes only an immutable compiled composition. Authoring
+    /// Composition values must be compiled before reaching this facade.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_compiled_composition(
         const CompiledComposition& compiled, Frame frame);
 
-    // ── @deprecated Fase C3 — thin wrappers, migrate to render_composition() ─
-    /// @deprecated Fase C3 — use render_composition() with an explicit Composition.
+    // ── Scene/debug adapters ───────────────────────────────────────
+    /// @deprecated Fase C3 — scene authoring adapter.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
         const Scene& scene, const Camera& camera, i32 width, i32 height,
         float fps);
 
-    /// @deprecated Fase C3 — use render_composition() with an explicit Composition.
+    /// @deprecated Fase C3 — scene authoring adapter.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
         const Scene& scene, const std::optional<Camera2_5D>& camera,
         i32 width, i32 height,
         float fps);
 
-    // ── Diagnostics (Fase C3 @deprecated — use render_composition()) ──
+    // ── Diagnostics ───────────────────────────────────────────────
     /// @deprecated Fase C3 — diagnostics-only wrapper; use preflight tools instead.
     // TICKET-GATE-10-PHASE-4 fix-up: upstream `6df9b429` removed the `fps`
     // default but not from frames 5/6 (Frame, frame_time), violating the

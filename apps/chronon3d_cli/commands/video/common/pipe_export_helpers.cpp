@@ -61,7 +61,7 @@ size_t compute_pipe_arena_size(int width, int height) {
 }
 
 FfmpegPipeOptions make_pipe_options(
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const FfmpegExportOptions& opts,
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget)
@@ -76,8 +76,8 @@ FfmpegPipeOptions make_pipe_options(
             : ((opts.encoder.codec == "libx264" && opts.encoder.encoder_backend != "native") ? "zerolatency" : "");
 
     FfmpegPipeOptions pipe_options{
-        .width = comp.width(),
-        .height = comp.height(),
+        .width = compiled.definition->composition.width,
+        .height = compiled.definition->composition.height,
         .fps = opts.output.fps,
         .crf = opts.encoder.crf,
         .preset = effective_preset,
@@ -134,7 +134,7 @@ chronon3d::Result<chronon3d::runtime::RendererWarmupResult,
                   chronon3d::runtime::PreparationError>
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const FfmpegExportOptions& opts)
 {
     if (!opts.warmup.warmup_renderer) {
@@ -148,12 +148,12 @@ warmup_pipe_renderer(
 
     const auto warmup_t0 = profiling::now();
     const auto preparation = runtime::prepare_render(
-        &renderer, comp,
+        &renderer, compiled,
         runtime::RenderPreparationOptions{
             .warmup_renderer = true,
             .warmup = runtime::RendererWarmupOptions{
-                .width = comp.width(),
-                .height = comp.height(),
+                .width = compiled.definition->composition.width,
+                .height = compiled.definition->composition.height,
                 .framebuffer_count = opts.warmup.warmup_framebuffers,
                 .preallocate_framebuffers = true,
                 .touch_memory = true,

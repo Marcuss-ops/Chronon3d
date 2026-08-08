@@ -8,7 +8,7 @@ namespace chronon3d::cli {
 
 PipeExportResult render_and_encode_ffmpeg_pipe(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -19,7 +19,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const auto wall_t0 = profiling::now();
 
     // Phase 1 — Setup
-    auto session = setup_pipe_export_session(registry, comp, settings, opts, start, end, cpu_budget);
+    auto session =setup_pipe_export_session(registry, compiled, settings, opts, start, end, cpu_budget)
+;
     if (!session || !session->encoder || !session->renderer) {
         return PipeExportResult{};
     }
@@ -30,7 +31,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     // Phase 2-4 — Warmup
     RenderSettings render_opts = settings;
-    const auto warmup_result = warmup_pipe_renderer(*session->renderer, comp, opts);
+    const auto warmup_result =warmup_pipe_renderer(*session->renderer, compiled, opts)
+;
     if (!warmup_result) {
         spdlog::error("[video] export aborted: render preparation failed: {}",
                       warmup_result.error().message);
@@ -40,8 +42,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     session->sys_metrics.sample_cpu_start();
 
     // Phase 5 — Render loop + writer join
-    auto loop_output = run_pipe_export_loop(
-        *session, registry, comp, render_opts, start, end, opts);
+    auto loop_output = run_pipe_export_loop(*session, registry, compiled, render_opts, start, end, opts
+);
 
     // Phase 6 — Encoder close
     auto close_result = close_pipe_encoder(*session);

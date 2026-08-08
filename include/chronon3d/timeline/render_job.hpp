@@ -14,6 +14,7 @@
 #include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -103,9 +104,9 @@ struct RenderJobOutput {
 /// pointer, renderer, resolver, cache, or runtime state.
 struct RenderRequest {
     std::string comp_id;
-    /// Optional precompiled plan path. When present, resolution does not
+    /// Optional canonical compiled plan. When present, resolution does not
     /// re-enter the composition registry or construct a second composition.
-    std::shared_ptr<const Composition> prepared_comp;
+    std::shared_ptr<const CompiledComposition> compiled_composition;
     CompositionInput input;
     RenderMode mode{RenderMode::Still};
     Frame still_frame{0};
@@ -123,13 +124,13 @@ struct RenderRequest {
 /// Single resolved execution value covering still, sequence, and video.
 ///
 /// `registry` is a non-owning execution dependency pinned by the CLI/host.
-/// Composition ownership stays explicit through `comp`. Metadata resolved from
-/// the descriptor is retained on the same value; no parallel plan/job type is
-/// introduced.
+/// Execution owns only the immutable compiled composition. Metadata resolved
+/// from its definition is retained on the same value; no direct Composition
+/// execution path is present.
 struct RenderJob {
     const CompositionRegistry* registry{nullptr};
     std::string comp_id;
-    std::shared_ptr<const Composition> comp;
+    std::shared_ptr<const CompiledComposition> compiled;
     CompositionMetadata metadata{};
 
     RenderMode mode{RenderMode::Still};
@@ -149,12 +150,12 @@ struct RenderJob {
     RenderDiagnostics diagnostics{};
 
     static RenderJob still(std::string id,
-                           std::shared_ptr<const Composition> c,
+                           std::shared_ptr<const CompiledComposition> c,
                            Frame frame,
                            std::string out) {
         RenderJob job;
         job.comp_id = std::move(id);
-        job.comp = std::move(c);
+        job.compiled = std::move(c);
         job.mode = RenderMode::Still;
         job.still_frame = frame;
         job.output = std::move(out);
@@ -162,13 +163,13 @@ struct RenderJob {
     }
 
     static RenderJob sequence(std::string id,
-                              std::shared_ptr<const Composition> c,
+                              std::shared_ptr<const CompiledComposition> c,
                               Frame first,
                               Frame last,
                               std::string out) {
         RenderJob job;
         job.comp_id = std::move(id);
-        job.comp = std::move(c);
+        job.compiled = std::move(c);
         job.mode = RenderMode::Sequence;
         job.first_frame = first;
         job.last_frame = last;
@@ -177,13 +178,13 @@ struct RenderJob {
     }
 
     static RenderJob video_job(std::string id,
-                               std::shared_ptr<const Composition> c,
+                               std::shared_ptr<const CompiledComposition> c,
                                Frame first,
                                Frame last,
                                std::string out) {
         RenderJob job;
         job.comp_id = std::move(id);
-        job.comp = std::move(c);
+        job.compiled = std::move(c);
         job.mode = RenderMode::Video;
         job.first_frame = first;
         job.last_frame = last;
@@ -202,7 +203,7 @@ struct RenderJob {
     /// Composition-bound probe retained for factory-created jobs. The executor
     /// separately validates the non-owning registry dependency before running.
     [[nodiscard]] explicit operator bool() const noexcept {
-        return comp != nullptr;
+        return compiled != nullptr && compiled->definition != nullptr;
     }
 };
 

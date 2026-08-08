@@ -25,10 +25,10 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no CompositionRegistry"};
     }
-    if (!job.comp) {
+    if (!job.compiled || !job.compiled->definition) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
-            "RenderJob has no resolved Composition"};
+            "RenderJob has no compiled composition"};
     }
 
     if (job.mode == RenderMode::Video) {
@@ -59,7 +59,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
 
             rc = render_and_encode_ffmpeg(
                 *job.registry,
-                *job.comp,
+                *job.compiled,
                 job.comp_id,
                 job.settings,
                 job.first_frame,
