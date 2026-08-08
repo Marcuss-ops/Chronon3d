@@ -41,13 +41,18 @@ if(CHRONON3D_ENABLE_VIDEO)
         video/ffmpeg_frame_submit.cpp
         video/process_runner.cpp
         video/process_runner_posix.cpp
+        video/mux_plan.cpp
         video/video_sink_factory.cpp
         video/video_config_validator.cpp
     )
+    set_target_properties(chronon3d_media_video PROPERTIES UNITY_BUILD OFF)
     target_link_libraries(chronon3d_media_video PUBLIC
         chronon3d_media_interface
     )
     target_include_directories(chronon3d_media_video PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(chronon3d_media_video PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
