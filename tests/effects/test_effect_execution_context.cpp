@@ -117,7 +117,9 @@ TEST_CASE("EffectExecutionContext: context flows through EffectProcessor") {
     auto processor = std::make_unique<ContextSpyProcessor>(captured);
 
     SoftwareRegistry registry;
-    registry.register_effect(typeid(BlurParams), std::move(processor));
+    registry.register_effect(
+        std::type_index(typeid(BlurParams)),
+        std::unique_ptr<EffectProcessor>(std::move(processor)));
 
     EffectStack stack;
     stack.push_back(EffectInstance{BlurParams{5.0f}});
@@ -136,7 +138,7 @@ TEST_CASE("EffectExecutionContext: context flows through EffectProcessor") {
 
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
-        if (auto* proc = registry.get_effect(effect.param_type_index())) {
+        if (const auto proc = registry.get_effect_shared(effect.param_type_index())) {
             proc->apply(fb, effect.params, context);
         }
     }
@@ -228,7 +230,9 @@ TEST_CASE("EffectExecutionContext: disabled effect is skipped") {
     auto processor = std::make_unique<ContextSpyProcessor>(captured);
 
     SoftwareRegistry registry;
-    registry.register_effect(typeid(BlurParams), std::move(processor));
+    registry.register_effect(
+        std::type_index(typeid(BlurParams)),
+        std::unique_ptr<EffectProcessor>(std::move(processor)));
 
     EffectStack stack;
     EffectInstance inst{BlurParams{5.0f}};
@@ -240,7 +244,7 @@ TEST_CASE("EffectExecutionContext: disabled effect is skipped") {
     const EffectExecutionContext context{};
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
-        if (auto* proc = registry.get_effect(effect.param_type_index())) {
+        if (const auto proc = registry.get_effect_shared(effect.param_type_index())) {
             proc->apply(fb, effect.params, context);
         }
     }
