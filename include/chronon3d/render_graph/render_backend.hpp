@@ -189,16 +189,22 @@ public:
     }
 
     /// Legacy direct resolver retained for non-compiled backend callers.
-    /// Compiled graph construction uses processor_snapshot() instead and
-    /// never calls this method during frame execution.
+    /// It returns a non-owning pointer valid only for the immediate call;
+    /// callers must not retain it across registry/engine shutdown. Compiled
+    /// graph construction uses processor_snapshot() instead and never calls
+    /// this method during frame execution.
+    [[deprecated("Use processor_snapshot() and handles instead")]]
     [[nodiscard]] virtual renderer::ShapeProcessor* resolve_shape_processor(
         const RenderNode& /*node*/) const noexcept {
         return nullptr;
     }
 
     /// Legacy direct resolver retained for non-compiled backend callers.
-    /// Compiled graph construction resolves effects through the immutable
-    /// processor snapshot, with no per-frame registry lookup.
+    /// It returns a non-owning pointer valid only for the immediate call;
+    /// callers must not retain it across registry/engine shutdown. Compiled
+    /// graph construction resolves effects through the immutable processor
+    /// snapshot, with no per-frame registry lookup.
+    [[deprecated("Use processor_snapshot() and handles instead")]]
     [[nodiscard]] virtual renderer::EffectProcessor* resolve_effect_processor(
         std::type_index /*params_type*/) const noexcept {
         return nullptr;

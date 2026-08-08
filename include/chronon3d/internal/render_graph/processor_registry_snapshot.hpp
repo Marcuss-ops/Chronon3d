@@ -112,18 +112,38 @@ public:
             : EffectProcessorHandle{it->second};
     }
 
-    [[nodiscard]] ShapeProcessor* shape(ShapeProcessorHandle handle) const noexcept {
+    /// Owning access used by dispatch boundaries. The returned shared pointer
+    /// keeps the processor alive for the entire operation, including when the
+    /// originating registry or engine is shutting down.
+    [[nodiscard]] std::shared_ptr<ShapeProcessor> shape_shared(
+        ShapeProcessorHandle handle) const noexcept {
         if (!handle.valid() || handle.index >= m_shapes.size()) {
             return nullptr;
         }
-        return m_shapes[handle.index].second.get();
+        return m_shapes[handle.index].second;
     }
 
-    [[nodiscard]] EffectProcessor* effect(EffectProcessorHandle handle) const noexcept {
+    [[nodiscard]] std::shared_ptr<EffectProcessor> effect_shared(
+        EffectProcessorHandle handle) const noexcept {
         if (!handle.valid() || handle.index >= m_effects.size()) {
             return nullptr;
         }
-        return m_effects[handle.index].second.get();
+        return m_effects[handle.index].second;
+    }
+
+    /// Legacy non-owning adapters retained for source compatibility. The
+    /// returned pointer is valid only while this snapshot (and any other
+    /// owner of the processor) remains alive; callers must not retain it
+    /// across registry/engine shutdown. New dispatch code must use
+    /// shape_shared()/effect_shared() or handles.
+    [[deprecated("Use shape_shared() to retain processor lifetime")]]
+    [[nodiscard]] ShapeProcessor* shape(ShapeProcessorHandle handle) const noexcept {
+        return shape_shared(handle).get();
+    }
+
+    [[deprecated("Use effect_shared() to retain processor lifetime")]]
+    [[nodiscard]] EffectProcessor* effect(EffectProcessorHandle handle) const noexcept {
+        return effect_shared(handle).get();
     }
 
 private:

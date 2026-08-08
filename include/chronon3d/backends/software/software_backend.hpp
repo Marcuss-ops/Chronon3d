@@ -120,8 +120,10 @@ public:
     [[nodiscard]] std::optional<graph::RenderBackendError> validate_render_node(
         const RenderNode& node) const override;
 
+    [[deprecated("Use processor_snapshot() and handles instead")]]
     [[nodiscard]] renderer::ShapeProcessor* resolve_shape_processor(
         const RenderNode& node) const noexcept override;
+    [[deprecated("Use processor_snapshot() and handles instead")]]
     [[nodiscard]] renderer::EffectProcessor* resolve_effect_processor(
         std::type_index params_type) const noexcept override;
     [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
@@ -156,6 +158,12 @@ private:
     // `m_proc_ctx.renderer` field is always nullptr after the new
     // construction path — no back-pointer to the SoftwareRenderer exists.
     SoftwareProcessorContext                       m_proc_ctx{};                    // TICKET-118 cached ctx
+    // Owning snapshot captured when the context is attached. This keeps
+    // direct backend dispatch independent from registry shutdown and makes
+    // the backend's processor lifetime explicit.
+    mutable std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+                                                    m_processor_snapshot;
+    std::weak_ptr<const void>                       m_registry_lifetime;
     ImageRenderer*                                  m_image_renderer{nullptr};
 };
 

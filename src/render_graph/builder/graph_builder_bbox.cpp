@@ -86,7 +86,9 @@ raster::BBox compute_layer_bbox(
             matrix = ssaa_scale * actual_world_matrix;
         }
 
-        auto* processor = renderer->software_registry().get_shape(node.shape.type());
+        const auto snapshot = renderer->software_registry().snapshot();
+        const auto processor = snapshot->shape_shared(
+            snapshot->shape_handle(node.shape.type()));
         if (!processor) {
             return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
         }

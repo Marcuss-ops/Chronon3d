@@ -5,6 +5,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 
 #include <stdexcept>
+#include <vector>
 
 namespace chronon3d::renderer {
 
@@ -22,8 +23,8 @@ void apply_effect_stack(
         const auto& effect = stack[index];
         if (!effect.enabled) continue;
 
-        auto* processor = snapshot
-            ? snapshot->effect(processors[index])
+        const auto processor = snapshot
+            ? snapshot->effect_shared(processors[index])
             : nullptr;
         if (!processor) {
             throw std::runtime_error(
@@ -39,17 +40,15 @@ void apply_effect_stack(
     const EffectStack& stack,
     const effects::EffectExecutionContext& context,
     SoftwareRegistry& registry) {
+    const auto snapshot = registry.snapshot();
+    std::vector<EffectProcessorHandle> handles;
+    handles.reserve(stack.size());
     for (const auto& effect : stack) {
-        if (!effect.enabled) continue;
-
-        auto* processor = registry.get_effect(effect.param_type_index());
-        if (!processor) {
-            throw std::runtime_error(
-                "No software effect processor registered for effect type " +
-                std::to_string(static_cast<int>(effect.effect_type)));
-        }
-        processor->apply(fb, effect.params, context);
+        handles.push_back(effect.enabled
+            ? snapshot->effect_handle(effect.param_type_index())
+            : EffectProcessorHandle{});
     }
+    apply_effect_stack(fb, stack, context, handles, snapshot);
 }
 
 } // namespace chronon3d::renderer
