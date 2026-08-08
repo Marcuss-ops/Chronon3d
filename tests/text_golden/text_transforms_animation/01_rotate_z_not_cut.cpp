@@ -112,7 +112,7 @@ Composition build_rotate_z_composition(
                 // path correctly produces a rotated text run without
                 // clipping the visible ink at the canvas edges.
                 l.rotate(Vec3{0.0f, 0.0f, rotate_z_deg});
-                l.text_run("title", TextRunDefinition{
+                l.text_run("title", PreparedText{
                     .text = {
                         // TextDefaults field order: content, position, font,
                         // layout, appearance (C++20 designated-init order

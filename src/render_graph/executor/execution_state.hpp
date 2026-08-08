@@ -1,6 +1,7 @@
 #pragma once
 
 #include "text_bbox_reporter.hpp"
+#include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -40,10 +41,11 @@ struct ExecutionState {
     // Per-session reporter for text-bbox expansion warnings.  Lives for the
     // duration of a single graph execution; no static/process-wide state.
     TextBboxReporter text_bbox_reporter;
+    NodeMemoryTracker* node_memory_tracker{nullptr};
 
-    explicit ExecutionState(std::pmr::memory_resource* res)
+    explicit ExecutionState(std::pmr::memory_resource* res, NodeMemoryTracker* tracker = nullptr)
         : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),
-          resolved_cache_hit(res), resolved_bboxes(res) {}
+          resolved_cache_hit(res), resolved_bboxes(res), node_memory_tracker(tracker) {}
 };
 
 struct PreResolvedNode {

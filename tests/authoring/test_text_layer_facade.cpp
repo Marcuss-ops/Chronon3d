@@ -26,8 +26,8 @@ TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated n
     Text t2 = layer.text("WORLD");
     CHECK(TextRunBuilderInspector::pending_of(t1).name == "text_0");
     CHECK(TextRunBuilderInspector::pending_of(t2).name == "text_1");
-    CHECK(TextRunBuilderInspector::pending_of(t1)->params.text.content.value == "HELLO");
-    CHECK(TextRunBuilderInspector::pending_of(t2)->params.text.content.value == "WORLD");
+    CHECK(TextRunBuilderInspector::pending_of(t1)->params.document.defaults.content.value == "HELLO");
+    CHECK(TextRunBuilderInspector::pending_of(t2)->params.document.defaults.content.value == "WORLD");
     const auto snap_t1 = TextRunBuilderInspector::pending_of(t1);
     const auto snap_t2 = TextRunBuilderInspector::pending_of(t2);
     CHECK(snap_t1.pending != snap_t2.pending);
@@ -40,7 +40,7 @@ TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying sp
     Text t = layer.text("initial");
     t.id("hero-title").content("UPDATED");
     CHECK(TextRunBuilderInspector::pending_of(t).name == "hero-title");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.content.value == "UPDATED");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.document.defaults.content.value == "UPDATED");
 }
 
 TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_size() cover FontSpec") {
@@ -54,7 +54,7 @@ TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_s
      .italic(true)
      .font_size(120.0f);
 
-    const auto& font = TextRunBuilderInspector::pending_of(t)->params.text.font;
+    const auto& font = TextRunBuilderInspector::pending_of(t)->params.document.defaults.font;
     CHECK(font.font_path == "assets/fonts/Inter-Bold.ttf");
     CHECK(font.font_family == "Inter");
     CHECK(font.font_weight == 800);
@@ -69,17 +69,17 @@ TEST_CASE("Authoring/Text: at(Vec2) and at(Vec3) store two-dimensional placement
 
     Text t_v2 = layer.text("v2");
     t_v2.at(Vec2{100.0f, 200.0f});
-    CHECK(TextRunBuilderInspector::pending_of(t_v2)->params.text.placement.offset
+    CHECK(TextRunBuilderInspector::pending_of(t_v2)->params.document.defaults.placement.offset
           == doctest::Approx2D(Vec2{100.0f, 200.0f}));
 
     Text t_v3 = layer.text("v3");
     t_v3.at(Vec3{11.0f, 22.0f, 33.0f});
-    CHECK(TextRunBuilderInspector::pending_of(t_v3)->params.text.placement.offset
+    CHECK(TextRunBuilderInspector::pending_of(t_v3)->params.document.defaults.placement.offset
           == doctest::Approx2D(Vec2{11.0f, 22.0f}));
 
     Text t_2arg = layer.text("2arg");
     t_2arg.at(7.0f, 8.0f);
-    CHECK(TextRunBuilderInspector::pending_of(t_2arg)->params.text.placement.offset
+    CHECK(TextRunBuilderInspector::pending_of(t_2arg)->params.document.defaults.placement.offset
           == doctest::Approx2D(Vec2{7.0f, 8.0f}));
 }
 
@@ -88,9 +88,9 @@ TEST_CASE("Authoring/Text: center() uses explicit CanvasInfo") {
     Layer layer(lb, canvas(800.0f, 600.0f));
     Text t = layer.text("hero");
     t.place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.placement.offset
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.document.defaults.placement.offset
           == doctest::Approx2D(Vec2{400.0f, 300.0f}));
-    const auto& layout = TextRunBuilderInspector::pending_of(t)->params.text.layout;
+    const auto& layout = TextRunBuilderInspector::pending_of(t)->params.document.defaults.layout;
     CHECK(layout.anchor == TextAnchor::Center);
     CHECK(layout.align == TextAlign::Center);
     CHECK(layout.vertical_align == VerticalAlign::Middle);
@@ -102,7 +102,7 @@ TEST_CASE("Authoring/Text: center() uses CanvasInfo derived by Layer ctor") {
     Layer layer(lb);
     Text t = layer.text("x");
     t.place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.placement.offset
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.document.defaults.placement.offset
           == doctest::Approx2D(Vec2{640.0f, 360.0f}));
 }
 
@@ -126,7 +126,7 @@ TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
      .auto_fit(48.0f, 2)
      .max_font_size(160.0f);
 
-    const auto& layout = TextRunBuilderInspector::pending_of(t)->params.text.layout;
+    const auto& layout = TextRunBuilderInspector::pending_of(t)->params.document.defaults.layout;
     CHECK(layout.box == Vec2{1500.0f, 220.0f});
     CHECK(layout.anchor == TextAnchor::Center);
     CHECK(layout.align == TextAlign::Center);
@@ -149,7 +149,7 @@ TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
     Layer layer(lb);
     Text t = layer.text("x");
     t.color(Color{0.9f, 0.1f, 0.2f, 1.0f});
-    const auto& appearance = TextRunBuilderInspector::pending_of(t)->params.text.appearance;
+    const auto& appearance = TextRunBuilderInspector::pending_of(t)->params.document.defaults.appearance;
     CHECK(appearance.color == Color{0.9f, 0.1f, 0.2f, 1.0f});
     CHECK(appearance.paint.fill == Color{1.0f, 1.0f, 1.0f, 1.0f});
     CHECK(appearance.shadows.empty());
@@ -164,7 +164,7 @@ TEST_CASE("Authoring/Text: material(Material) consumes Material into appearance.
     Text t = layer.text("x");
     Material m = material::premium().bevel(2.0f);
     t.material(std::move(m));
-    const auto& captured = TextRunBuilderInspector::pending_of(t)->params.text.appearance.material;
+    const auto& captured = TextRunBuilderInspector::pending_of(t)->params.document.defaults.appearance.material;
     CHECK(captured.enabled == true);
     CHECK(captured.bevel_px == doctest::Approx(2.0f));
 }
@@ -180,8 +180,8 @@ TEST_CASE("Authoring/Text: animate(Animator) consumes Animator into animators ve
     a.select(std::move(sel)).position(Vec3{0.0f, 46.0f, 0.0f}).scale(0.94f).opacity(0.0f);
     t.animate(std::move(a));
 
-    REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animators.size() == 1);
-    const auto& appended = TextRunBuilderInspector::pending_of(t)->params.animators.back();
+    REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animation.animators.size() == 1);
+    const auto& appended = TextRunBuilderInspector::pending_of(t)->params.animation.animators.back();
     CHECK(appended.id == "reveal");
     CHECK(appended.enabled == true);
     REQUIRE(appended.selectors.size() == 1);
@@ -198,7 +198,7 @@ TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
     t.animate(animator("in").opacity(0.0f));
     t.animate(animator("out").opacity(1.0f));
     t.animate(animator("idle").tracking(2.0f));
-    const auto& list = TextRunBuilderInspector::pending_of(t)->params.animators;
+    const auto& list = TextRunBuilderInspector::pending_of(t)->params.animation.animators;
     REQUIRE(list.size() == 3);
     CHECK(list[0].id == "in");
     CHECK(list[1].id == "out");
@@ -227,9 +227,9 @@ TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text
     Text t = layer.text("CHRONON");
     t.style("youtube.hero.premium", styles);
     CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Found);
-    const auto& font = TextRunBuilderInspector::pending_of(t)->params.text.font;
-    const auto& layout = TextRunBuilderInspector::pending_of(t)->params.text.layout;
-    const auto& appearance = TextRunBuilderInspector::pending_of(t)->params.text.appearance;
+    const auto& font = TextRunBuilderInspector::pending_of(t)->params.document.defaults.font;
+    const auto& layout = TextRunBuilderInspector::pending_of(t)->params.document.defaults.layout;
+    const auto& appearance = TextRunBuilderInspector::pending_of(t)->params.document.defaults.appearance;
     CHECK(font.font_path == "assets/fonts/Inter-Bold.ttf");
     CHECK(font.font_family == "Inter");
     CHECK(font.font_weight == 700);
@@ -273,27 +273,27 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
     t.font("Inter-Bold.ttf", 106.0f)
      .place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center)
      .motion("text.reveal.soft", motions);
-    REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animators.size() == 1);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.animators[0].id == "text.reveal.soft");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.animators[0].properties.size() == 2);
+    REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animation.animators.size() == 1);
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators[0].id == "text.reveal.soft");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators[0].properties.size() == 2);
 }
 
-TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw TextRunDefinition") {
+TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw PreparedText") {
     LayerBuilder lb("configure", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("Anti-Dup");
     t.font("Anton.ttf", 200.0f);
-    t.configure_core([](chronon3d::TextRunDefinition& p) {
+    t.configure_core([](chronon3d::PreparedText& p) {
         p.direction = TextDirection::RTL;
         p.language = "ar";
         p.cache_layout = false;
     });
     const auto& params = TextRunBuilderInspector::pending_of(t)->params;
-    CHECK(params.direction == TextDirection::RTL);
-    CHECK(params.language == "ar");
-    CHECK(params.cache_layout == false);
-    CHECK(params.text.font.font_path == "Anton.ttf");
+    CHECK(params.shaping.direction == TextDirection::RTL);
+    CHECK(params.shaping.language == "ar");
+    CHECK(params.animation.cache_layout == false);
+    CHECK(params.document.defaults.font.font_path == "Anton.ttf");
 }
 
 TEST_CASE("Authoring/Text: end-to-end hero chain is mutator-agnostic to TextRunBuilder") {

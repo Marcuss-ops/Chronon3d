@@ -8,37 +8,37 @@ friend class testing::TextRunBuilderInspector;
 }
 
 void apply_text_style(const chronon3d::TextStyle& style) {
-    auto& spec = pending_->params.text;
-    spec.font.font_path = style.font_path;
-    spec.font.font_family = style.font_family;
-    spec.font.font_weight = style.font_weight;
-    spec.font.font_style = style.font_style;
-    spec.font.font_size = style.size;
-    spec.appearance.color = style.color;
-    spec.layout.anchor = style.anchor;
-    spec.layout.align = style.align;
-    spec.layout.vertical_align = style.vertical_align;
-    spec.layout.centering_mode = style.centering_mode;
-    spec.layout.line_height = style.line_height;
-    spec.layout.tracking = style.tracking;
-    spec.layout.max_lines = style.max_lines;
-    spec.layout.ellipsis = style.ellipsis;
-    spec.layout.auto_fit = style.auto_fit || style.auto_scale;
-    spec.layout.min_font_size = style.min_size;
-    spec.layout.max_font_size = style.max_size;
-    spec.layout.overflow = style.overflow;
-    spec.layout.wrap = style.wrap;
-    spec.appearance.paint = style.paint;
-    spec.appearance.shadows = style.shadows;
-    spec.appearance.box_style = style.box_style;
-    spec.appearance.material = style.material;
-    pending_->params.direction = style.shaping.direction;
-    pending_->params.language = style.shaping.language;
+    auto& spec = pending_->params;
+    spec.style.font.font_path = style.font_path;
+    spec.style.font.font_family = style.font_family;
+    spec.style.font.font_weight = style.font_weight;
+    spec.style.font.font_style = style.font_style;
+    spec.style.font.font_size = style.size;
+    spec.style.color = style.color;
+    spec.frame.anchor = style.anchor;
+    spec.frame.align = style.align;
+    spec.frame.vertical_align = style.vertical_align;
+    spec.frame.centering_mode = style.centering_mode;
+    spec.frame.line_height = style.line_height;
+    spec.frame.tracking = style.tracking;
+    spec.frame.max_lines = style.max_lines;
+    spec.frame.ellipsis = style.ellipsis;
+    spec.frame.auto_fit = style.auto_fit || style.auto_scale;
+    spec.frame.min_font_size = style.min_size;
+    spec.frame.max_font_size = style.max_size;
+    spec.frame.overflow = style.overflow;
+    spec.frame.wrap = style.wrap;
+    spec.style.paint = style.paint;
+    spec.style.shadows = style.shadows;
+    spec.style.box_style = style.box_style;
+    spec.style.material = style.material;
+    pending_->params.shaping.direction = style.shaping.direction;
+    pending_->params.shaping.language = style.shaping.language;
     if (style.shaping.script != 0) {
-        pending_->params.script = style.shaping.script;
+        pending_->params.shaping.script = style.shaping.script;
     }
     if (style.pre_shaped) {
-        spec.content.pre_shaped = style.pre_shaped;
+        spec.document.defaults.content.pre_shaped = style.pre_shaped;
     }
 }
 

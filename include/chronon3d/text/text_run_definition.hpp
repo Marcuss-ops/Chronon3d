@@ -7,25 +7,13 @@
 // per-glyph animation stack used by the text compiler.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <chronon3d/text/text_direction.hpp>
-#include <chronon3d/text/text_defaults.hpp>
-#include <chronon3d/text/glyph_selector_spec.hpp>
-#include <chronon3d/text/text_animator_property.hpp>
-
-#include <cstdint>
-#include <string>
-#include <vector>
+#include <chronon3d/text/prepared_text.hpp>
 
 namespace chronon3d {
 
-struct TextRunDefinition {
-    TextDefaults text;
-    TextDirection direction{TextDirection::Auto};
-    std::string language;
-    std::uint32_t script{0u};
-    std::vector<TextAnimatorSpec> animators;
-    std::vector<GlyphSelectorSpec> selectors;
-    bool cache_layout{true};
-};
+// Compatibility name only.  PreparedText is the sole text-run transport;
+// legacy callers keep compiling while all production materialization routes
+// through materialize_prepared_text().
+using TextRunDefinition = PreparedText;
 
 } // namespace chronon3d

@@ -178,7 +178,7 @@ public:
     LayerBuilder& text(std::string name, const TextDefinition& definition);
 
     [[nodiscard]] TextRunBuilder& text_run(
-        std::string name, TextRunDefinition params);
+        std::string name, PreparedText params);
 
     LayerBuilder& shape(
         std::string_view id, std::string name, registry::ShapeParams params);

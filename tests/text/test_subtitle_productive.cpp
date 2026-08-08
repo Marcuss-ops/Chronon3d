@@ -592,7 +592,7 @@ TEST_CASE("SubtitleTrackBuilder emits one GlyphSelectorSpec per TimedWord (karao
 TEST_CASE("Per-word selectors are wired into the preset animator (round-2 reviewer lock)") {
     // Round-2 reviewer lock (TICKET-TIMED-WORD-BINDING Finding #1): the
     // production builder moves word selectors into the preset animator's
-    // selectors list, not TextRunDefinition::selectors.  This test locks the
+    // selectors list, not PreparedText::selectors.  This test locks the
     // structural contract by replicating the wiring step.
     SubtitleCue cue;
     cue.text = "Hello world again";

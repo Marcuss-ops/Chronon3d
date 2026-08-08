@@ -15,6 +15,7 @@
 // include in src/scene/builders/layer_builder.cpp.  Relative path
 // from src/scene/builders/ to src/text/ = "../../text/...".
 #include "../../text/pending_text_run_impl.hpp"
+#include "../../text/prepared_text_internal.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -63,7 +64,7 @@ GlyphSelectorSpec TextRunBuilder::make_global_glyph_selector(std::string id) {
 }
 
 void TextRunBuilder::append_animator(TextAnimatorSpec spec) {
-    m_spec->params.animators.push_back(std::move(spec));
+    m_spec->params.animation.animators.push_back(std::move(spec));
 }
 
 // ── Per-glyph mutators (inject implicit animator) ───────────────────────
@@ -139,14 +140,14 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // / 19 misses) because virtually every composition calls .font_size().
     // This setter is called at BUILD TIME (once); animation goes through
     // the animator stack, not through this mutator.
-    m_spec->params.text.font.font_size = v;
+    m_spec->params.style.font.font_size = v;
     return *this;
 }
 
 TextRunBuilder& TextRunBuilder::font(std::string path) {
     // Font path shorthand — sets the composable TextDefaults's font_path
     // directly.  This triggers font resolution at materialization time.
-    m_spec->params.text.font.font_path = std::move(path);
+    m_spec->params.style.font.font_path = std::move(path);
     return *this;
 }
 
@@ -199,7 +200,7 @@ TextRunBuilder& TextRunBuilder::animator(TextAnimatorSpec spec) {
     // reallocate; indexing into the up-to-date size is safe in the very
     // next selector() call because nothing else mutates the vector size
     // in between).
-    m_last_explicit_animator_idx = m_spec->params.animators.size() - 1;
+    m_last_explicit_animator_idx = m_spec->params.animation.animators.size() - 1;
     m_has_explicit_animator = true;
     return *this;
 }
@@ -224,7 +225,7 @@ TextRunBuilder& TextRunBuilder::selector(GlyphSelectorSpec spec) {
         // Case A: append to the most recent explicit animator's selector list.
         // `splitors[i]` never grows beyond what's inserted (selectors are the
         // new ones from `.selector(...)` calls); safe to push_back here.
-        m_spec->params.animators[m_last_explicit_animator_idx]
+        m_spec->params.animation.animators[m_last_explicit_animator_idx]
             .selectors.push_back(std::move(spec));
     } else {
         // Case B: queue for an upcoming `.animator(...)`.
@@ -249,7 +250,7 @@ TextRunBuilder& TextRunBuilder::cache_layout(bool value) {
     m_cache_layout = value;
     // PR 2: sync to spec immediately so observers / auto-build can read
     // the value without an explicit `.commit()` call.
-    m_spec->params.cache_layout = value;
+    m_spec->params.animation.cache_layout = value;
     return *this;
 }
 
@@ -315,7 +316,7 @@ LayerBuilder& TextRunBuilder::commit() {
     // a re-shape even if the layout cache already contains an entry
     // for the spec's TextRunDefinition (because user edits may have
     // changed shaping inputs).
-    m_spec->params.cache_layout = m_cache_layout;
+    m_spec->params.animation.cache_layout = m_cache_layout;
 
     // TICKET-104 — consumed-flag lifecycle: commit() finalizes ONLY the
     // animator/selector stack onto the spec.  The `consumed` flag MUST
@@ -399,440 +400,17 @@ namespace text_run_materialize_detail {
 
 } // namespace text_run_materialize_detail
 
-// ═════════════════════════════════════════════════════════════════════════
-// TICKET-100 — compile_or_cache_layout (anonymous-namespace helper)
-//
-// Replaces the 5 inline phases that previously lived inside
-// materialize_text_run_shape:
-//   1. Build cache_key with 9 fields (text + font + tracking + layout
-//      + box_width + wrap + direction + language).
-//   2. shape.cache.find(cache_key).
-//   3. Engine.shape_text(text, shaped_font, font_spec.font_size, shaping).
-//   4. resolve_placed_glyph_run(*hb_run, layout.tracking, text).
-//   5. Manual TextRunLayout field-by-field assignment + cache.store.
-//
-// The helper routes ALL of them through compile_text_layout (the canonical
-// compiler living in src/text/text_run_builder.cpp).  The legacy cache_key
-// is preserved BIT-IDENTICAL (including direction + language) so cache
-// hits/misses match the pre-refactor behaviour.  compile_text_layout's own
-// cache dance is BYPASSED by passing services.cache = nullptr — its
-// internal cache_key collapses direction to Auto and language to "" which
-// would silently collide bidi-distinct / locale-distinct layouts.  Post-
-// compile we override text_layout->direction + text_layout->language to
-// match the original params so the materialized shape matches the
-// pre-refactor output.
-//
-// Closing this loop ALSO fixes review P0 #6 for free:
-//   `text_layout->font = shaped_font` used to drop font_size (default FontSpec
-//   font_size is 0.0f).  After this refactor compile_text_layout sets
-//   `text_layout->font = primary_font` (full 5-field FontSpec) so the
-//   layout carries the resolved font size and the transition path no
-//   longer reads back a stale 0.0f / 72.0f.
-// ═════════════════════════════════════════════════════════════════════════
-
-namespace {
-
-[[nodiscard]] Result<std::shared_ptr<TextRunLayout>, TextLayoutError> compile_or_cache_layout(
-    const TextRunDefinition& params,
-    FontEngine& engine
-) {
-    // ═════════════════════════════════════════════════════════════════
-    // FU02next — pre-render invariant: InvalidLayout.
-    // Box dimensions < 0 (zero IS allowed for unbounded mode);
-    // font_size <= 0; line_height <= 0.  Each rejected fail-loud
-    // returns TextLayoutErrorKind::InvalidLayout; missing this
-    // gate would silently produce a zero-glyph layout whose
-    // compositor output looks healthy.  Box == 0 explicitly
-    // permitted (single-line unbounded mode).
-    // ═════════════════════════════════════════════════════════════════
-    if (params.text.layout.box.x < 0.0f || params.text.layout.box.y < 0.0f ||
-        !(params.text.font.font_size > 0.0f) ||
-        !(params.text.layout.line_height > 0.0f)) {
-        return TextLayoutError{
-            TextLayoutErrorKind::InvalidLayout,
-            "compile_or_cache_layout: invalid layout "
-            "(box/font_size/line_height)"
-        };
-    }
-
-    const std::string&    text       = params.text.content.value;
-    FontSpec              font_spec  = params.text.font;
-    const TextLayoutSpec& layout     = params.text.layout;
-    TextLayoutSpec        effective_layout = layout;
-    // Authoring TextFrame::auto_fit is lowered onto TextLayoutSpec.  The
-    // canonical compiler gate is ParagraphStyle::auto_fit_font_size.
-    effective_layout.paragraph.auto_fit_font_size =
-        layout.paragraph.auto_fit_font_size || layout.auto_fit;
-
-    // Default to Inter-Bold when no font_path or font_family is set.
-    // Prevents "failed to load font '' (error=1)" downstream when the
-    // TextRunDefinition was authored without a font (e.g. scene tests that
-    // don't wire a FontEngine or set a default font_path on the layer).
-    // This matches the longstanding default in
-    // src/scene/model/render_node_factory.cpp and
-    // include/chronon3d/presets/scene_presets.hpp.
-    if (font_spec.font_path.empty() && font_spec.font_family.empty()) {
-        font_spec.font_path = "assets/fonts/Inter-Bold.ttf";
-    }
-
-    // TICKET-TEXT-CLEANUP-6: replaced legacy 10-field cache key with
-    // canonical key that includes ALL visual-affecting fields.
-    TextLayoutCacheKey cache_key;
-    cache_key.text           = text;
-    cache_key.font_path      = font_spec.font_path;
-    cache_key.font_family    = font_spec.font_family;
-    cache_key.font_weight    = font_spec.font_weight;
-    cache_key.font_style     = font_spec.font_style;
-    cache_key.font_size      = font_spec.font_size;
-    cache_key.tracking       = layout.tracking;
-    cache_key.box_width      = layout.box.x;
-    cache_key.box_height     = layout.box.y;
-    cache_key.wrap           = layout.wrap;
-    cache_key.direction      = params.direction;
-    cache_key.language       = params.language;
-    cache_key.paragraph      = layout.paragraph;
-    cache_key.align          = static_cast<int>(layout.align);
-    cache_key.vertical_align = static_cast<int>(layout.vertical_align);
-    cache_key.anchor         = static_cast<int>(layout.anchor);
-    cache_key.centering_mode = static_cast<int>(layout.centering_mode);
-    cache_key.line_height    = layout.line_height;
-    cache_key.max_lines      = layout.max_lines;
-    cache_key.overflow       = static_cast<int>(layout.overflow);
-    cache_key.ellipsis       = layout.ellipsis;
-    cache_key.features       = layout.features;
-
-    // ── ADR-018: Auto-fit font size binary search ─────────────────
-    // Shrink-only: when auto_fit_font_size is true and the authored
-    // text overflows the box, binary search for the largest font size
-    // in [min_font_size, min(authored, max_font_size)] that fits.
-    // 12 fixed iterations → ~0.02pt precision.  Intermediate
-    // compile_text_layout calls use cache=nullptr.  The resolved
-    // font size replaces the authored size in the cache key.
-    f32 effective_font_size = font_spec.font_size;
-    if (effective_layout.paragraph.auto_fit_font_size) {
-        const f32 min_fs = layout.paragraph.min_font_size;
-        const f32 max_fs = std::min(font_spec.font_size,
-                                    layout.paragraph.max_font_size);
-        if (max_fs > min_fs) {
-            // ── ADR-018 / user-spec: fits_inside(layout_box) gate ──────
-            // Local lambda (Cat-3 safe: no new public symbol).  Returns
-            // true iff `bounds` fit within `box`.  The named gate is
-            // documented in the user spec; using a named lambda here
-            // makes the intent self-documenting and keeps the 2 call
-            // sites (probe + per-iter mid) byte-identical.
-            const auto fits_inside = [](const Vec2& box, const Vec2& bounds) {
-                return bounds.x <= box.x && bounds.y <= box.y;
-            };
-
-            // Quick check: does text already fit at authored size?
-            f32 low  = min_fs;
-            f32 high = max_fs;
-            f32 best = min_fs;  // fallback = smallest allowed if nothing fits
-            bool fits_at_authored = false;
-            {
-                FontSpec probe_font = font_spec;
-                probe_font.font_size = high;
-                TextDocument probe_doc;
-                probe_doc.utf8 = text;
-                probe_doc.defaults.font = probe_font;
-                probe_doc.split_paragraphs();
-                TextLayoutRequest probe_req{
-                    &probe_doc, &effective_layout, probe_font};
-                probe_req.features = effective_layout.features;
-                TextCompileServices probe_svc{
-                    &engine, nullptr, bundled_font_root_for(probe_font)};
-                auto probe = compile_text_layout(probe_req, probe_svc);
-                if (probe) {
-                    const auto& b = probe.value()->bounds;
-                    fits_at_authored = fits_inside(layout.box, b);
-                }
-            }
-            if (!fits_at_authored) {
-                spdlog::debug(
-                    "auto-fit: triggered — authored={:.1f}pt, "
-                    "box={:.0f}x{:.0f}, range=[{:.1f}, {:.1f}]",
-                    font_spec.font_size, layout.box.x, layout.box.y,
-                    min_fs, max_fs);
-                constexpr int kMaxIter = 12;
-                for (int i = 0; i < kMaxIter; ++i) {
-                    const f32 mid = (low + high) * 0.5f;
-                    FontSpec mid_font = font_spec;
-                    mid_font.font_size = mid;
-                    TextDocument mid_doc;
-                    mid_doc.utf8 = text;
-                    mid_doc.defaults.font = mid_font;
-                    mid_doc.split_paragraphs();
-                    TextLayoutRequest mid_req{
-                        &mid_doc, &effective_layout, mid_font};
-                    mid_req.features = effective_layout.features;
-                    TextCompileServices mid_svc{
-                        &engine, nullptr, bundled_font_root_for(mid_font)};
-                    auto mid_res =
-                        compile_text_layout(mid_req, mid_svc);
-                    if (mid_res) {
-                        const auto& b = mid_res.value()->bounds;
-                        if (fits_inside(layout.box, b)) {
-                            best = mid;
-                            low = mid;   // fits — try larger
-                        } else {
-                            high = mid;  // overflow — try smaller
-                        }
-                    } else {
-                        high = mid;  // compile failed — try smaller
-                    }
-                }
-                spdlog::debug(
-                    "auto-fit: resolved {:.1f}pt → {:.1f}pt",
-                    font_spec.font_size, best);
-            }
-            // Preserve the authored size when the probe already fits.  The
-            // binary-search fallback (`best = min_fs`) is only valid after
-            // an actual overflow/compile failure enters the search branch.
-            effective_font_size = fits_at_authored ? max_fs : best;
-            cache_key.font_size = effective_font_size;
-        }
-    }
-
-    // Cache ownership follows the runtime-owned FontEngine; no process-wide
-    // cache is retained by this materializer.
-    auto& cache = engine.text_layout_cache();
-    if (params.cache_layout) {
-        if (auto cached = cache.find(cache_key)) {
-            auto text_layout = std::const_pointer_cast<TextRunLayout>(cached);
-            // Cached layouts were written with compile_text_layout's defaults
-            // (direction=Auto, language="").  Override to match the new params
-            // so the materialized shape's direction/language match the request.
-            text_layout->direction = params.direction;
-            text_layout->language  = params.language;
-            return text_layout;
-        }
-    }
-
-    // ── Build per-shape TextDocument for compile_text_layout ──────
-    TextDocument doc;
-    doc.utf8          = text;
-    FontSpec effective_font = font_spec;
-    effective_font.font_size = effective_font_size;
-    doc.defaults.font = effective_font;
-
-    // Apply authoring-level span overrides so the materializer respects
-    // per-range font, color, tracking, stroke, etc.  The resolver will
-    // merge spans that share the same effective font, preserving
-    // ligatures and contextual shaping.
-    for (const auto& over : params.text.spans) {
-        append_span_override(doc, over, effective_font);
-    }
-
-    doc.split_paragraphs();
-
-    TextLayoutRequest request{&doc, &layout, effective_font};
-    request.features = layout.features;
-
-    // cache=nullptr to suppress compile_text_layout's internal cache dance
-    // (its key collapses direction/language).  We own the cache here.
-    TextCompileServices services{
-        &engine, /*cache=*/nullptr, bundled_font_root_for(effective_font)};
-
-    auto compiled = compile_text_layout(request, services);
-    if (!compiled) {
-        // FU02next — propagate compile_text_layout Err through Result
-        // (remap MissingFont → FontResolutionFailed so the caller sees
-        // a materializer-level semantic label rather than a compiler
-        // internal kind; spdlog emits the kind for diagnostic surfaces).
-        TextLayoutError propagated = compiled.error();
-        if (propagated.kind == TextLayoutErrorKind::MissingFont) {
-            propagated.kind =
-                TextLayoutErrorKind::FontResolutionFailed;
-            propagated.message =
-                "[materializer remap] " + propagated.message;
-        }
-        spdlog::warn(
-            "compile_or_cache_layout: compile_text_layout failed — "
-            "kind={} msg={}",
-            static_cast<int>(propagated.kind),
-            propagated.message);
-        return propagated;
-    }
-
-    auto text_layout = compiled.value();
-
-    // FU02next — defense-in-depth: ShapingProducedNoGlyphs.
-    // Canonical guard is validate_concatenated_run (stage 4.5)
-    // deep in compile_text_layout; here at the materializer
-    // boundary we ALSO check so future regressions in upstream
-    // guards are caught immediately at compile time.
-    // Belt-and-suspenders.
-    if (text_layout->placed.glyphs.empty() && !text.empty()) {
-        return TextLayoutError{
-            TextLayoutErrorKind::ShapingProducedNoGlyphs,
-            "compile_or_cache_layout: merged PlacedGlyphRun has "
-            "zero glyphs for non-empty input"
-        };
-    }
-
-    // ── Override compile_text_layout's defaults ───────────────────
-    // compile_text_layout hardcodes text_layout->direction = Auto and
-    // leaves text_layout->language empty.  Override to match the original
-    // params so behaviour matches the pre-refactor materialize_text_run_shape.
-    text_layout->direction = params.direction;
-    text_layout->language  = params.language;
-
-    if (params.cache_layout) {
-        cache.store(std::move(cache_key), text_layout);
-    }
-    return text_layout;
-}
-
-} // anonymous namespace
-
 std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunDefinition& params,
+    const PreparedText& prepared,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc
 ) {
-    using namespace text_run_materialize_detail;
-
-    // ── Composable nested field paths (PR4 canonical form) ──────────
-    // ── Composable nested field paths (PR4 canonical form) ──────────
-    // TICKET-100 — the legacy inline 5-phase pipeline (cache lookup +
-    // shape_text + resolve_placed_glyph_run + manual TextRunLayout build +
-    // cache store) is now consolidated inside the `compile_or_cache_layout`
-    // anonymous-namespace helper above.  Local `font_spec` / `layout`
-    // references are no longer needed here because the helper reads them
-    // itself from `params.text.font` / `params.text.layout`.  `text` and
-    // `appearance` are still consumed below (animator stack + paint).
-    const std::string& text      = params.text.content.value;
-    const TextAppearanceSpec& appearance = params.text.appearance;
-
-    // TICKET-TEXT-CLIP-ASCENT (extension — layer 3 of render-pipeline-integrity):
-    // Surface and gate the actual text content the materializer receives.
-    //
-    // History: the previous guard short-circuited ONLY on truly empty text.
-    // Whitespace-only text fell through to compile_text_layout, which then
-    // failed with Err(PerRunShapingFailed) ("HarfBuzz produced zero glyphs
-    // for non-empty text") observed e.g. on MinimalistTextFadeUp @ frame=30
-    // where the per-frame scramble animation resolves to a single " ".
-    //
-    // Two changes here:
-    //   (a) Diagnostic — log len + first-byte hex + head sample, so future
-    //       "zero-glyphs" failures are diagnosable from the log alone
-    //       (empty vs whitespace-only vs scramble vs genuine content).
-    //   (b) Broaden the early-return guard to cover whitespace-only.
-    {
-        const std::string head =
-            text.size() > 80 ? text.substr(0, 80) + "..." : text;
-        const unsigned char first_byte =
-            text.empty() ? 0u : static_cast<unsigned char>(text.front());
-        spdlog::debug(
-            "materialize_text_run_shape: incoming text content: "
-            "len={} first_byte=0x{:02x} head='{}'",
-            text.size(),
-            static_cast<unsigned int>(first_byte),
-            head);
-    }
-    const bool only_whitespace =
-        text.empty() ||
-        std::all_of(text.begin(), text.end(),
-            [](unsigned char c) { return std::isspace(c); });
-    if (only_whitespace) {
-        const std::string sample =
-            text.size() > 16 ? text.substr(0, 16) + "..." : text;
-        spdlog::warn(
-            "materialize_text_run_shape: text is empty or whitespace-only "
-            "(len={}, sample='{}') — skipping compile_text_layout",
-            text.size(), sample);
-        return nullptr;
-    }
-
-    FontEngine* use_engine = resolve_engine(engine);
-    // F1.D: resolve_engine() now guarantees non-null via fallback.
-    // The old null-check + spdlog::error + return nullptr block was removed
-    // because the fallback engine is always valid (unmounted resolver works
-    // for absolute paths and system fonts).
-
-    // ── Delegate 5 pipeline phases to compile_or_cache_layout ──────
-    // TICKET-100 — the legacy inline cache/shape/placed/build/store
-    // pipeline lives in the `compile_or_cache_layout()` anonymous-namespace
-    // helper above.  All 5 phases (cache_key construction, cache lookup,
-    // shape_text, resolve_placed_glyph_run, manual TextRunLayout build,
-    // cache store) route through `compile_text_layout()` internally.
-    // Helper logs the underlying cause via spdlog::warn on Err and
-    // returns nullptr; the materializer preserves the pre-refactor
-    // "skip on shaping failure" contract.
-    //
-    // Side-benefit (closes review P0 #6 for free): the legacy inline code
-    // built `shaped_font` from 4 fields only and assigned it to
-    // `text_layout->font`, dropping font_size implicitly to 0.0f; the
-    // post-refactor path stores `primary_font` (full 5-field FontSpec)
-    // on `text_layout->font`, so transition paths that read back the
-    // size no longer observe a stale 0.0f / 72.0f.
-    auto text_layout_res = compile_or_cache_layout(params, *use_engine);
-    if (!text_layout_res) {
-        spdlog::warn(
-            "materialize_text_run_shape: compile_or_cache_layout "
-            "failed — kind={} msg={}",
-            static_cast<int>(text_layout_res.error().kind),
-            text_layout_res.error().message);
-        return nullptr;
-    }
-    auto text_layout = text_layout_res.value();
-
-    // ── Evaluate animators at sample_time ───────────────────────────
-    auto glyph_states = evaluate_animator_stack(
-        params.animators, text_layout->placed, text, sample_time);
-
-    // ── Materialize TextRunShape ────────────────────────────────────
-    auto shape = std::make_shared<TextRunShape>();
-    shape->layout   = text_layout;
-    shape->glyphs   = std::move(glyph_states);
-    shape->paint    = appearance.paint;
-    shape->material = appearance.material;
-    shape->shadows  = appearance.shadows;
-
-    // ── PR 8 wiring ──────────────────────────────────────────────────
-    // Stash the animator list on the shape so the per-frame driver
-    // (update_text_run_shape_per_frame in text_run_driver.hpp) can
-    // re-evaluate glyph state on each render frame without
-    // re-materializing the shape.  Empty list = static layout; the
-    // driver treats it as no-op.
-    shape->animators = params.animators;
-
-    // ── PR 9 wiring — bind animated_doc + helpers onto the shape ──────
-    //
-    // Storing `animated_doc`, the FontEngine, and the TextLayoutSpec
-    // ON THE SHAPE lets the per-frame driver
-    // (`update_text_run_shape_per_frame`) re-sample the doc on every
-    // frame and forward the resulting ActiveTextState through
-    // `apply_active_state_to_text_run_shape`.  Without this, only the
-    // build-time (one-shot) call would resolve the doc — subsequent
-    // frames would render the layout text FROM the first frame, not
-    // the current `transition_text` (Scramble / Morph) or
-    // active-document text.
-    shape->animated_doc = animated_doc;
-    shape->engine      = use_engine;
-    shape->layout_spec = params.text.layout;
-
-    // Also run a single preliminary materialization-time apply so the
-    // shape is already mid-transition-state-correct on the very first
-    // frame the compositor reads (avoids one frame of "initial literal"
-    // ghosting before the per-frame driver kicks in).
-    if (animated_doc && use_engine) {
-        const Frame integral = sample_time.integral_frame();
-        const ActiveTextState state = animated_doc->sample_at(integral);
-        if (state.active != nullptr) {
-            (void)apply_active_state_to_text_run_shape(
-                *shape, state, *use_engine, params.text.layout);
-            // TODO(PR 10+): cache-key invalidation tracking.  When
-            // transition_text drives a layout swap, the executor's
-            // pre-mutation cache key doesn't reflect the new layout
-            // and we end up keying stale entries.  See the matching
-            // TODO in src/text/text_run_driver.cpp update_text_run_shape_per_frame
-            // for the per-frame analogue.
-        }
-    }
-
-    return shape;
+    return materialize_prepared_text(
+        text_internal::normalize_prepared_text(prepared),
+        engine,
+        sample_time,
+        std::move(animated_doc));
 }
 
 std::shared_ptr<TextRunShape> materialize_prepared_text(
@@ -843,7 +421,8 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
 ) {
     using namespace text_run_materialize_detail;
 
-    const std::string& text = prepared.document.utf8;
+    const PreparedText normalized = text_internal::normalize_prepared_text(prepared);
+    const std::string& text = normalized.document.utf8;
 
     // Early-out for empty / whitespace-only input (mirror the legacy path).
     const bool only_whitespace =
@@ -863,7 +442,7 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     FontEngine* use_engine = resolve_engine(engine);
 
     // Default font fallback to preserve the legacy convenience behaviour.
-    PreparedText prepared_with_font = prepared;
+    PreparedText prepared_with_font = normalized;
     if (prepared_with_font.style.font.font_path.empty() &&
         prepared_with_font.style.font.font_family.empty()) {
         prepared_with_font.style.font.font_path = "assets/fonts/Inter-Bold.ttf";

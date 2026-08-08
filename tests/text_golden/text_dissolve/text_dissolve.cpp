@@ -128,7 +128,7 @@ Composition build_dissolve_composition(
             auto animated_doc = make_dissolve_document();
 
             s.layer("dissolve", [cx, cy, canvas_w, canvas_h, animated_doc](LayerBuilder& l) {
-                TextRunDefinition spec;
+                PreparedText spec;
                 spec.text.content.value = "DISSOLVE";
                 spec.text.placement = TextPlacement{
                     TextPlacementKind::Absolute, {cx, cy}};

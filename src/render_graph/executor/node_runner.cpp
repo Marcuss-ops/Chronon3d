@@ -13,10 +13,28 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
 
 namespace chronon3d::graph {
+
+namespace {
+
+[[nodiscard]] std::string memory_node_id(
+    const CompiledFrameGraph& compiled,
+    GraphNodeId id,
+    std::string_view fallback) {
+    if (id < compiled.nodes.size() && compiled.nodes[id].reachable &&
+        compiled.graph_instance_id != kInvalidGraphInstanceId &&
+        compiled.nodes[id].stable_node_id != kInvalidStableNodeId) {
+        return "g" + std::to_string(compiled.graph_instance_id.value) +
+               ":n" + std::to_string(compiled.nodes[id].stable_node_id.value);
+    }
+    return std::string(fallback);
+}
+
+} // namespace
 
 void execute_single_node(
     ExecutionState& state,
@@ -272,6 +290,19 @@ void execute_single_node(
         }
     }
 
+    std::optional<TemporalSampleKey> sample_key;
+    if (ctx.frame_input.temporal_key != TemporalSampleKey{}) {
+        sample_key = ctx.frame_input.temporal_key;
+    }
+    std::optional<ScopedNodeMemory> node_memory_scope;
+    if (state.node_memory_tracker) {
+        node_memory_scope.emplace(
+            *state.node_memory_tracker,
+            memory_node_id(compiled, id, node.name()),
+            sample_key,
+            0);
+    }
+
     const double duration_ms = run_node(
         node, node_ctx,
         pr.inputs, pr.input_bboxes,
@@ -283,6 +314,9 @@ void execute_single_node(
     );
     if (out_execute_ms) {
         *out_execute_ms = duration_ms;
+    }
+    if (state.node_memory_tracker && cache_eval.result) {
+        node_memory_scope->set_live_bytes(cache_eval.result->size_bytes());
     }
 
     // TICKET-SIMPLICITY-CONSERVATIVE-BBOX — F1.C post-render alpha_bbox
