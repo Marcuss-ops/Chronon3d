@@ -1,15 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Fase C3 — Canonical composition pipeline (single unified path):
 //
-//   Definition      → Composition::evaluate(FrameContext)
-//   Compiler        → build_or_reuse_graph() → CompiledFrameGraph
-//   Evaluator       → render_composition_frame() [SSAA, motion blur]
-//   GraphCompiler   → render_scene_via_graph() [12-phase pipeline]
-//   Executor        → execute_tile_or_fallback() [tile/single-pass]
+//   Definition      → compile_composition() → CompiledComposition
+//   Evaluator       → evaluate(CompiledComposition, FrameContext)
+//   GraphCompiler   → build_or_reuse_graph() → CompiledFrameGraph
+//   Executor        → render_scene_via_graph() → execute_tile_or_fallback()
 //
-// The canonical entry point for ALL rendering is:
-//   SoftwareRenderer::render(Composition, Frame)
-//     → graph::render_composition_frame()
+// The canonical entry point for ALL graph rendering is:
+//   render_compiled_composition_frame(CompiledComposition, Frame)
+//     → evaluate()
 //       → render_scene_via_graph()
 //
 // Deprecated paths (thin wrappers, migrate to render()):
@@ -48,7 +47,7 @@ namespace chronon3d::graph {
 /// resolve layers→dirty rect→empty-dirty reuse→ping-pong setup→
 /// build/reuse graph→preallocate→execute tile/fallback→telemetry→commit.
 ///
-/// Called by render_composition_frame() and directly by test infrastructure.
+/// Called by render_compiled_composition_frame() and directly by test infrastructure.
 std::shared_ptr<Framebuffer> render_scene_via_graph(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
@@ -85,27 +84,14 @@ std::string debug_scene_graph(
 );
 
 /// Canonical render path — single unified pipeline entry point.
-/// All rendering flows through: Composition::evaluate → build_or_reuse_graph
-/// → render_scene_via_graph → execute_tile_or_fallback.
+/// All rendering flows through an immutable CompiledComposition:
+/// evaluate → build_or_reuse_graph → render_scene_via_graph → execute.
+/// Handles SSAA, motion blur (temporal accumulation + velocity), and
+/// telemetry in a single backend-agnostic orchestrator.
 ///
-/// Handles SSAA, motion blur (temporal accumulation + velocity),
-/// and telemetry in a single backend-agnostic orchestrator.
-std::shared_ptr<Framebuffer> render_composition_frame(
-    RenderBackend& backend,
-    cache::NodeCache& node_cache,
-    const RenderSettings& settings,
-    const CompositionRegistry* registry,
-    media::MediaFrameProvider* video_decoder,
-    const Composition& comp,
-    Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr,
-    const CompiledComposition* compiled = nullptr
-);
-
-/// Executes the same compositor from an immutable CompiledComposition.  The
-/// compiled definition is the source of scene/camera evaluation; the
-/// metadata-only Composition adapter is internal to the implementation and
-/// is never exposed to callers.
+/// Authoring Composition values are compiled by the request/runtime boundary;
+/// this graph API intentionally has no direct Composition overload.
+///
 std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     RenderBackend& backend,
     cache::NodeCache& node_cache,

@@ -23,7 +23,7 @@ bool is_shell_safe(const std::string& s) {
 
 ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -67,7 +67,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         auto preflight_renderer = create_renderer(
             registry, settings, std::move(preflight_cfg), opts.assets_root);
         const auto preparation = runtime::prepare_render(
-            preflight_renderer.get(), comp,
+            preflight_renderer.get(), compiled,
             runtime::RenderPreparationOptions{.warmup_renderer = false,
                                               .reference_frame = start});
         if (!preparation.ok()) {
@@ -124,12 +124,12 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 if (opts.warmup.warmup_renderer) {
                     const auto warmup_t0 = profiling::now();
                     const auto worker_preparation = runtime::prepare_render(
-                        renderer.get(), comp,
+                        renderer.get(), compiled,
                         runtime::RenderPreparationOptions{
                             .warmup_renderer = true,
                             .warmup = runtime::RendererWarmupOptions{
-                                .width = comp.width(),
-                                .height = comp.height(),
+                                .width = compiled.definition->composition.width,
+                                .height = compiled.definition->composition.height,
                                 .framebuffer_count = opts.warmup.warmup_framebuffers,
                                 .preallocate_framebuffers = true,
                                 .touch_memory = true,
@@ -180,7 +180,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     if (failed.load()) return;
                     const auto frame_t0 = profiling::now();
                     const auto hits_before = renderer->node_cache().stats().hits;
-                    auto fb = renderer->render(comp, f);
+                    auto fb = renderer->render_compiled(compiled, f);
                     const auto hits_after_render = renderer->node_cache().stats().hits;
                     const double dirty_ratio = renderer->last_dirty_area_ratio();
                     if (!fb) {

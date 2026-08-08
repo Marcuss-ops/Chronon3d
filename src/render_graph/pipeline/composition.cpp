@@ -22,10 +22,6 @@
 #include <tbb/blocked_range.h>
 #include <hwy/highway.h>
 
-// The pipeline still uses Composition's deprecated convenience overloads
-// while the canonical compiled-composition path is adopted by all callers.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Refactor 6 rationale — composition.cpp is intentionally kept whole.
@@ -37,7 +33,7 @@
 //     render_output_stage.cpp / pipeline_diagnostics.cpp
 //
 // After review we decided NOT to split. The file is ONE function
-// (`render_composition_frame`) with three control-flow branches that
+// (`render_compiled_composition_frame`) with three control-flow branches that
 // share state throughout the call:
 //
 //   * single-frame render (no motion blur)
@@ -92,21 +88,21 @@ namespace chronon3d::graph {
 //   sub_frame_u     = (s + 0.5 + jitter) / num_samples    ∈ [0, 1]
 // sum_i w_i = 1.0 (premultiplied-RGBA-correct accumulation).
 
-std::shared_ptr<Framebuffer> render_composition_frame(
+std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar,
-    const CompiledComposition* compiled
+    chronon3d::SoftwareRenderer* sw_sidecar
 ) {
-    if (compiled != nullptr && !compiled->definition) {
+    if (!compiled.definition) {
         throw std::invalid_argument(
             "compiled composition has no definition");
     }
+    const auto& spec = compiled.definition->composition;
     // Materialise the RenderRuntime* once at the entry point so both the
     // single-frame and the motion-blur sub-frame evaluation paths below
     // share the same pointer.  Primary source: sw_sidecar (the
@@ -118,8 +114,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         (sw_sidecar != nullptr) ? &sw_sidecar->runtime() : nullptr;
     const auto hits_before = node_cache.stats().hits;
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
-    const int w = comp.width();
-    const int h = comp.height();
+    const int w = spec.width;
+    const int h = spec.height;
     const int rw = static_cast<int>(w * ssaa);
     const int rh = static_cast<int>(h * ssaa);
     // 06 R3b — `sw_sidecar` is the typed channel from the caller
@@ -145,17 +141,15 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         return render_scene_via_graph(
             backend, node_cache, scene, context_camera,
             rw, rh, fr, t, settings, registry, video_decoder,
-            static_cast<float>(comp.frame_rate().fps()),
-            comp.name(),
+            static_cast<float>(spec.frame_rate.fps()),
+            spec.name,
             sw_sidecar
         );
     };
 
     auto evaluate_scene = [&](const FrameContext& context) {
-        if (compiled == nullptr) return comp.evaluate(context);
-
         auto evaluated = chronon3d::evaluate(
-            *compiled,
+            compiled,
             CompositionEvaluateContext{.frame_context = context},
             context.local_time());
         if (!evaluated) {
@@ -185,59 +179,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation) &&
         (settings.motion_blur.samples > 1);
 
-    // Compile the default camera descriptor once per render.  The descriptor
-    // may come from Composition or from the SceneBuilder V1 pose surface.
-    // The resulting immutable program is reused across all motion-blur samples.
-    camera_v1::CameraSession camera_session;
-    std::optional<camera_v1::CameraProgram> compiled_program;
-    auto compile_scene_camera = [&](const Scene& scene) {
-        if (compiled_program.has_value()) return;
-
-        const camera_v1::CameraDescriptor* descriptor = nullptr;
-        if (comp.has_default_camera_descriptor()) {
-            descriptor = &comp.default_camera_descriptor();
-        } else if (scene.default_camera_descriptor().has_value()) {
-            descriptor = &scene.default_camera_descriptor().value();
-        }
-        if (descriptor == nullptr) return;
-
-        camera_v1::CameraCompileContext compile_ctx{};
-        auto result = camera_v1::compile_camera(*descriptor, nullptr, compile_ctx);
-        if (result.has_value()) {
-            compiled_program.emplace(std::move(result).value());
-        } else {
-            spdlog::warn(
-                "[default-camera] compile_camera failed for '{}': "
-                "keeping scene default camera",
-                comp.name());
-        }
-    };
-
-    // Helper: evaluate the ONCE-compiled camera program for the given
-    // frame and stamp the resulting Camera2_5D onto the scene.
-    auto apply_default_camera = [&](Scene& s, Frame fr) {
-        if (!compiled_program.has_value()) return;
-        auto cam_ctx = camera_v1::CameraEvalContext::at(
-            fr, comp.frame_rate(), comp.width(), comp.height());
-        auto result = compiled_program->evaluate(cam_ctx, camera_session);
-        if (result.has_value()) {
-            s.set_camera_2_5d(result->camera);
-            spdlog::debug(
-                "[default-camera] applied '{}' at frame={} "
-                "pos=({:.0f},{:.0f},{:.0f}) zoom={:.0f}",
-                comp.name(), static_cast<int>(fr),
-                result->camera.position.x,
-                result->camera.position.y,
-                result->camera.position.z,
-                result->camera.zoom);
-        } else {
-            spdlog::warn(
-                "[default-camera] evaluate failed for '{}': keeping "
-                "scene default camera",
-                comp.name());
-        }
-    };
-
     if (!want_temporal_accumulation) {
         if (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation &&
             settings.motion_blur.samples <= 1) {
@@ -261,10 +202,10 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
             const FrameContext ctx = make_frame_context({
-            .global_time = SampleTime::from_frame(static_cast<double>(frame), comp.frame_rate()),
-            .duration = comp.duration(),
-            .width = comp.width(),
-            .height = comp.height(),
+            .global_time = SampleTime::from_frame(static_cast<double>(frame), spec.frame_rate),
+            .duration = spec.duration,
+            .width = spec.width,
+            .height = spec.height,
             .assets_root = frame_runtime
                 ? frame_runtime->resolver().mount_root().string()
                 : std::string{},
@@ -273,11 +214,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         });
         scene = evaluate_scene(ctx);
         }
-        if (compiled == nullptr) compile_scene_camera(scene);
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
-
-        if (compiled == nullptr) apply_default_camera(scene, frame);
 
         const auto t_scene0 = profiling::now();
         {
@@ -324,10 +262,10 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const FrameContext sub_ctx = make_frame_context({
                     .global_time = SampleTime::from_frame(
                         static_cast<double>(frame) + static_cast<double>(t),
-                        comp.frame_rate()),
-                    .duration = comp.duration(),
-                    .width = comp.width(),
-                    .height = comp.height(),
+                        spec.frame_rate),
+                    .duration = spec.duration,
+                    .width = spec.width,
+                    .height = spec.height,
                     .assets_root = frame_runtime
                         ? frame_runtime->resolver().mount_root().string()
                         : std::string{},
@@ -336,11 +274,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 });
                 Scene sub = evaluate_scene(sub_ctx);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
-                if (compiled == nullptr) compile_scene_camera(sub);
-
-                // Apply the default camera to each sub-frame scene.
-                if (compiled == nullptr) apply_default_camera(sub, frame);
-
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
 
                 tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
@@ -421,30 +354,4 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     return render_fb;
 }
 
-std::shared_ptr<Framebuffer> render_compiled_composition_frame(
-    RenderBackend& backend,
-    cache::NodeCache& node_cache,
-    const RenderSettings& settings,
-    const CompositionRegistry* registry,
-    media::MediaFrameProvider* video_decoder,
-    const CompiledComposition& compiled,
-    Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar) {
-    if (!compiled.definition) {
-        throw std::invalid_argument(
-            "compiled composition has no definition");
-    }
-
-    const auto& spec = compiled.definition->composition;
-    Composition metadata(
-        spec,
-        [](const FrameContext&) { return Scene{}; },
-        compiled.definition->scene_content_fingerprint);
-    return render_composition_frame(
-        backend, node_cache, settings, registry, video_decoder,
-        metadata, frame, sw_sidecar, &compiled);
-}
-
 } // namespace chronon3d::graph
-
-#pragma GCC diagnostic pop

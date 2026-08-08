@@ -27,9 +27,12 @@ std::string RenderPreparationResult::diagnostic() const {
     return out.str();
 }
 
-RenderPreparationResult prepare_render(
+namespace {
+
+RenderPreparationResult prepare_render_scene(
     SoftwareRenderer* renderer,
-    const Composition& composition,
+    const Scene& scene,
+    const CompositionSpec& spec,
     const RenderPreparationOptions& options) {
     RenderPreparationResult result;
     if (renderer == nullptr) {
@@ -41,24 +44,8 @@ RenderPreparationResult prepare_render(
         return result;
     }
 
-    // Composition evaluation is intentionally random-access and collects
-    // inactive sequence assets as part of the canonical scene manifest.  Use
-    // the same runtime-bound context as the subsequent render; evaluating
-    // through Composition::evaluate(Frame) here would silently drop the
-    // engine-local asset resolver and FontEngine at the preparation barrier.
-    const auto sample = SampleTime::from_frame_int(
-        options.reference_frame, composition.frame_rate());
-    const auto& runtime = renderer->runtime();
-    const FrameContext preparation_context = make_frame_context({
-        .global_time = sample,
-        .duration = composition.duration(),
-        .width = composition.width(),
-        .height = composition.height(),
-        .assets_root = runtime.resolver().mount_root().string(),
-        .font_engine = &runtime.font_engine(),
-        .runtime = &runtime,
-    });
-    const Scene scene = composition.evaluate(preparation_context);
+    // The scene has already been materialized by the canonical compiled
+    // composition path. Preparation validates exactly that payload.
     result.preflight = AssetPreflightResolver::check(
         scene, renderer->runtime().resolver(), options.preflight_mode,
         options.reference_frame);
@@ -139,9 +126,83 @@ RenderPreparationResult prepare_render(
         }
     }
 
-    if (options.warmup_renderer) {
-        result.warmup = warmup_renderer(
-            *renderer, composition, options.warmup);
+    return result;
+}
+
+} // namespace
+
+RenderPreparationResult prepare_render(
+    SoftwareRenderer* renderer,
+    const Composition& composition,
+    const RenderPreparationOptions& options) {
+    if (renderer == nullptr) {
+        return prepare_render_scene(renderer, Scene{},
+            CompositionSpec{}, options);
+    }
+    const auto sample = SampleTime::from_frame_int(
+        options.reference_frame, composition.frame_rate());
+    const auto& runtime = renderer->runtime();
+    const auto context = make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+        .assets_root = runtime.resolver().mount_root().string(),
+        .font_engine = &runtime.font_engine(),
+        .runtime = &runtime,
+    });
+    auto result = prepare_render_scene(renderer, composition.evaluate(context),
+        CompositionSpec{
+            .name = composition.name(),
+            .width = composition.width(),
+            .height = composition.height(),
+            .frame_rate = composition.frame_rate(),
+            .duration = composition.duration()}, options);
+    if (result.ok() && options.warmup_renderer) {
+        result.warmup = warmup_renderer(*renderer, composition, options.warmup);
+        result.warmup_performed = true;
+    }
+    return result;
+}
+
+RenderPreparationResult prepare_render(
+    SoftwareRenderer* renderer,
+    const CompiledComposition& compiled,
+    const RenderPreparationOptions& options) {
+    if (renderer == nullptr || !compiled.definition) {
+        return prepare_render_scene(renderer, Scene{}, CompositionSpec{}, options);
+    }
+    const auto& runtime = renderer->runtime();
+    const auto context = make_frame_context({
+        .global_time = SampleTime::from_frame_int(
+            options.reference_frame, compiled.definition->composition.frame_rate),
+        .duration = compiled.definition->composition.duration,
+        .width = compiled.definition->composition.width,
+        .height = compiled.definition->composition.height,
+        .assets_root = runtime.resolver().mount_root().string(),
+        .font_engine = &runtime.font_engine(),
+        .runtime = &runtime,
+    });
+    const auto evaluated = chronon3d::evaluate(
+        compiled,
+        CompositionEvaluateContext{.frame_context = context},
+        options.reference_frame);
+    if (!evaluated) {
+        RenderPreparationResult result;
+        result.preparation_error = PreparationError{
+            .code = PreparationError::Code::InternalError,
+            .message = evaluated.error().message,
+            .phase = "compiled evaluation",
+        };
+        return result;
+    }
+    auto& evaluated_frame = evaluated.value();
+    Scene scene = evaluated_frame.scene.clone();
+    if (evaluated_frame.camera) scene.set_camera_2_5d(*evaluated_frame.camera);
+    auto result = prepare_render_scene(renderer, scene,
+        compiled.definition->composition, options);
+    if (result.ok() && options.warmup_renderer) {
+        result.warmup = warmup_renderer(*renderer, compiled, options.warmup);
         result.warmup_performed = true;
     }
     return result;

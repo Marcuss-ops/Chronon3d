@@ -36,14 +36,15 @@ void setup_render_job(const CompositionRegistry& registry,
     }
 
     const auto warmup_t0 = profiling::now();
-    const auto preparation = runtime::prepare_render(out.renderer.get(), *job.comp,
+    const auto preparation = runtime::prepare_render(
+        out.renderer.get(), *job.compiled,
         runtime::RenderPreparationOptions{
             .preflight_mode = PreflightMode::FullComposition,
             .resources = {},
             .warmup_renderer = job.execution.warmup_renderer,
             .warmup = runtime::RendererWarmupOptions{
-                .width = static_cast<int>(job.comp->width()),
-                .height = static_cast<int>(job.comp->height()),
+                .width = job.metadata.width,
+                .height = job.metadata.height,
                 .framebuffer_count = job.execution.warmup_framebuffers,
                 .preallocate_framebuffers = true,
                 .touch_memory = true,
@@ -58,7 +59,7 @@ void setup_render_job(const CompositionRegistry& registry,
     out.preparation_diagnostic = preparation.diagnostic();
     if (!out.preparation_ok) {
         spdlog::error("Render preparation failed for '{}': {}",
-                      job.comp->name(), out.preparation_diagnostic);
+                      job.comp_id, out.preparation_diagnostic);
     }
     const auto warmup_t1 = profiling::now();
 

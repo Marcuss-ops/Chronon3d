@@ -62,7 +62,7 @@ namespace chronon3d::graph {
 
 // ── Framebuffer downsampling ────────────────────────────────────
 //
-// Box-filter downsample used by the SSAA path in render_composition_frame().
+// Box-filter downsample used by the SSAA path in render_compiled_composition_frame().
 [[nodiscard]] inline std::unique_ptr<Framebuffer> downsample_fb(
     const Framebuffer& src, i32 dst_w, i32 dst_h
 ) {

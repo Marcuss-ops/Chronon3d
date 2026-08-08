@@ -25,28 +25,32 @@ namespace graph { class RenderBackend; class CompiledGraphCache; class GraphNode
 namespace effects { class EffectCatalog; struct EffectExecutionContext; }
 namespace renderer { class SoftwareRegistry; }
 
+struct CompiledComposition;
 struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel; struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
 struct EffectStack; enum class BlendMode : unsigned char; enum class CompositeOperator : unsigned char;
 
 class SoftwareRenderer : public Renderer {
 public:
     // ── Render entry points ──────────────────────────────────────────
-    // Fase C3 — canonical entry: render(Composition, Frame) → render_composition_frame()
-    // → render_scene_via_graph().  The render_scene() overloads below are @deprecated thin
-    // wrappers.  Canonical V0.2 SDK entry point:
+    // The compiled entry is canonical for graph execution. The authoring
+    // overload below is a boundary adapter only; it must compile once and
+    // delegate to render_compiled(). The render_scene() overloads are legacy
+    // scene adapters.
+    /// Compatibility authoring adapter: compiles once, then delegates to the
+    /// canonical compiled execution entry.
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
+    std::shared_ptr<Framebuffer> render_compiled(
+        const CompiledComposition& compiled, Frame frame);
 
-    /// @deprecated Fase C3 — use render(Composition, Frame) instead.
-    /// Constructs a temporary Composition from Scene + Camera internally.
+    /// @deprecated scene authoring adapter.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height, float fps);
 
-    /// @deprecated Fase C3 — use render(Composition, Frame) instead.
-    /// Clones the scene, stamps the optional Camera2_5D, then delegates.
+    /// @deprecated scene authoring adapter with optional camera.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                               const std::optional<Camera2_5D>& camera,
                                               i32 width, i32 height, float fps) override;
-    /// @deprecated Fase C3 — diagnostics-only wrapper; use render() for production.
+    /// @deprecated diagnostics-only wrapper.
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
                                                  i32 width, i32 height, float fps,
                                                  Frame frame = 0,

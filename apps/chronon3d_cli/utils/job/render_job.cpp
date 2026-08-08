@@ -2,6 +2,8 @@
 
 #include "../common/cli_utils.hpp"
 
+#include <chronon3d/timeline/compile_evaluate.hpp>
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -74,12 +76,12 @@ void finalize_video_settings(RenderJob& job) {
 
 #if defined(__linux__)
     if (job.video_settings.pipe_pixfmt == "rgba" &&
-        job.comp->width() % 2 == 0 && job.comp->height() % 2 == 0 &&
+        job.metadata.width % 2 == 0 && job.metadata.height % 2 == 0 &&
         job.video_settings.codec != "libx264rgb") {
         job.video_settings.pipe_pixfmt = "yuv420p";
         spdlog::info(
             "[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
-            job.comp->width(), job.comp->height());
+            job.metadata.width, job.metadata.height);
     }
 
     if (job.video_settings.pipe_writer == "io_uring") {
@@ -88,15 +90,6 @@ void finalize_video_settings(RenderJob& job) {
             "use classic for stable exports");
     }
 #endif
-}
-
-CompositionMetadata metadata_from_composition(const Composition& comp) {
-    return CompositionMetadata{
-        .width = comp.width(),
-        .height = comp.height(),
-        .fps = comp.frame_rate(),
-        .duration = comp.duration(),
-    };
 }
 
 } // namespace
@@ -156,9 +149,10 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
-    std::shared_ptr<const Composition> prepared = std::move(request.prepared_comp);
+    std::shared_ptr<const CompiledComposition> compiled =
+        std::move(request.compiled_composition);
     std::optional<ResolvedCompositionSpec> resolved;
-    if (!prepared) {
+    if (!compiled) {
         auto registry_result = registry.resolve(composition_id, request.input);
         if (!registry_result) {
             return RenderJobError{
@@ -176,16 +170,30 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     }
 
     try {
-        if (!prepared) {
+        if (!compiled) {
             Composition comp = resolved->construct();
-            prepared = std::make_shared<const Composition>(std::move(comp));
+            auto compiled_result = chronon3d::compile_composition(
+                comp, CompositionCompileContext{});
+            if (!compiled_result) {
+                return RenderJobError{
+                    RenderJobErrorCode::SetupFailed,
+                    "Composition compilation failed for '" + composition_id +
+                        "': " + compiled_result.error().message};
+            }
+            compiled = std::make_shared<const CompiledComposition>(
+                std::move(compiled_result).value());
         }
 
         RenderJob job;
         job.registry = &registry;
         job.comp_id = std::move(request.comp_id);
-        job.comp = std::move(prepared);
-        job.metadata = metadata_from_composition(*job.comp);
+        job.compiled = std::move(compiled);
+        job.metadata = CompositionMetadata{
+            .width = job.compiled->definition->composition.width,
+            .height = job.compiled->definition->composition.height,
+            .fps = job.compiled->definition->composition.frame_rate,
+            .duration = job.compiled->definition->composition.duration,
+        };
         if (resolved && resolved->metadata) job.metadata = *resolved->metadata;
         job.mode = request.mode;
         job.still_frame = request.still_frame;

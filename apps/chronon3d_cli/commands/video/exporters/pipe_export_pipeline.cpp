@@ -19,7 +19,7 @@ namespace chronon3d::cli {
 
 std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
@@ -52,8 +52,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->opts.output.output = partial_output_path.string();
     session->start_frame = start;
     session->end_frame = end;
-    session->canvas_width = comp.width();
-    session->canvas_height = comp.height();
+    session->canvas_width = compiled.definition->composition.width;
+    session->canvas_height = compiled.definition->composition.height;
     session->total_frames = static_cast<int64_t>(end - start);
     session->started_at_iso =
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
@@ -88,7 +88,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
     }
 
-    auto pipe_options = make_pipe_options(comp, session->opts, codec, cpu_budget);
+    auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
     if (!session->encoder->open(pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
@@ -127,7 +127,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // producing black frames.
     {
         const auto preparation = runtime::prepare_render(
-            sw_renderer, comp,
+            sw_renderer, compiled,
             runtime::RenderPreparationOptions{.warmup_renderer = false});
         if (!preparation.ok()) {
             spdlog::error("[video] Render preparation FAILED:\n{}",
@@ -148,7 +148,10 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // ── Arena ──────────────────────────────────────────────────────────────
     // Note: the queue itself is owned by PipeExportSession (constructed above
     // with kArenaPoolCount as capacity).  We only allocate the arena pool here.
-    const size_t arena_size = compute_pipe_arena_size(comp.width(), comp.height());
+    const size_t arena_size =compute_pipe_arena_size(
+        compiled.definition->composition.width,
+        compiled.definition->composition.height)
+;
     session->triple_arena = std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
 
     // ── Writer thread (context stored in session so it outlives the thread) ─
@@ -172,7 +175,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 RenderLoopOutput run_pipe_export_loop(
     PipeExportSession& session,
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const RenderSettings& settings,
     Frame start,
     Frame end,
@@ -200,7 +203,7 @@ RenderLoopOutput run_pipe_export_loop(
         .settings = settings,
         .registry = registry,
         .video_decoder = video_decoder,
-        .comp = comp,
+        .compiled = compiled,
         .start = start,
         .end = end,
         .opts = opts,
