@@ -176,13 +176,13 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     LayerBuilder layer("ticket_104_layer_1", SampleTime{});
 
     // Push a text_run spec via the canonical `.text_run(name, params)`
-    // entry point.  Use minimal TextRunDefinition (only the required
+    // entry point.  Use minimal PreparedText (only the required
     // fields populated -- the rest get their default member init).
-    TextRunDefinition params;
-    params.text.content.value          = "orphan-selectors";
-    params.text.font.font_family       = "DejaVu Sans";   // system fallback
-    params.text.font.font_size         = 32.0f;
-    params.text.font.font_weight       = 400;
+    PreparedText params;
+    params.document.utf8          = "orphan-selectors";
+    params.style.font.font_family       = "DejaVu Sans";   // system fallback
+    params.style.font.font_size         = 32.0f;
+    params.style.font.font_weight       = 400;
     // No direction/language/features defaults -- cat-3 freeze uses defaults.
     TextRunBuilder& trb = layer.text_run("orphan_entry", std::move(params));
 
@@ -230,7 +230,7 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     // Primary assertion: the spec has NO animators (nothing was wired),
     // so the orphan selectors had no host.  Post-commit, the spec is
     // empty (no leakage from the dropped selectors).
-    CHECK(spec.params.animators.size() == 0u);  // wire failure → no animators
+    CHECK(spec.params.animation.animators.size() == 0u);  // wire failure → no animators
 
     // ── spdlog::warn CAPTURE contract (TICKET-104 follow-up) ──
     // The user-visible fail-fast contract per AGENTS.md v0.1 freeze
@@ -255,7 +255,7 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
 
     // Secondary structural assertion: the spec's selector list is NOT
     // populated (orphan was dropped, not silently attached).  In the
-    // current TextRunDefinition surface, selectors live on
+    // current PreparedText surface, selectors live on
     // `TextAnimatorSpec::selectors` -- with no animators registered,
     // the implicit per-mutator animator would still be the only entry
     // — and ONLY if a mutator was invoked.  `.selector(...)` alone
