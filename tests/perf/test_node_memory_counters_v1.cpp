@@ -3,9 +3,9 @@
 // STAND-IN with a canonical include + `using` alias bridge to the
 // canonical `chronon3d::graph::NodeMemoryMetrics` (full def lives in
 // `<chronon3d/render_graph/executor/node_memory_metrics.hpp>`, committed by
-// this chore).  The 8 named `std::atomic<std::uint64_t>` field SHAPE +
+// this chore).  The allocation-count/byte-volume field SHAPE +
 // `NodeStatsReporter` lifetime invariant + per-session zero-static-state
-// contract are LOCKED by the 8 `static_assert`s in TEST_CASEs below.
+// contract are LOCKED by the `static_assert`s in the TEST_CASE below.
 // The canonical struct must satisfy these same assertions — verified
 // by `using NodeMemoryMetrics = chronon3d::graph::NodeMemoryMetrics;` alias
 // bridge per V1 forward-point `<a>` closure discipline.
@@ -32,7 +32,7 @@ constexpr bool kCanonicalMemoryContract = true;
 // CONTRACT-LOCK TESTS
 // ============================================================================
 
-TEST_CASE("contract: NodeMemoryMetrics has 8 named atomic<uint64_t> fields per TICKET spec") {
+TEST_CASE("contract: NodeMemoryMetrics has allocation count and byte fields") {
     using N = NodeMemoryMetrics;
     static_assert(std::is_same_v<decltype(N::pixels_read),        std::atomic<std::uint64_t>>,
                   "pixels_read must be std::atomic<std::uint64_t>");
@@ -48,6 +48,8 @@ TEST_CASE("contract: NodeMemoryMetrics has 8 named atomic<uint64_t> fields per T
                   "framebuffer_clears must be std::atomic<std::uint64_t>");
     static_assert(std::is_same_v<decltype(N::allocations),        std::atomic<std::uint64_t>>,
                   "allocations must be std::atomic<std::uint64_t>");
+    static_assert(std::is_same_v<decltype(N::allocated_bytes),    std::atomic<std::uint64_t>>,
+                  "allocated_bytes must be std::atomic<std::uint64_t>");
     static_assert(std::is_same_v<decltype(N::temporary_buffers),  std::atomic<std::uint64_t>>,
                   "temporary_buffers must be std::atomic<std::uint64_t>");
     CHECK(true);
@@ -81,6 +83,7 @@ TEST_CASE("contract: NodeStatsReporter per-session zero static state (lifetime i
     CHECK(snap_a[0].framebuffer_copies == 0);
     CHECK(snap_a[0].framebuffer_clears == 0);
     CHECK(snap_a[0].allocations        == 0);
+    CHECK(snap_a[0].allocated_bytes    == 0);
     CHECK(snap_a[0].temporary_buffers  == 0);
 
     CHECK(true);
@@ -91,16 +94,22 @@ TEST_CASE("contract: repeated observations aggregate monotonically (atomic accum
     constexpr std::uint64_t kPerNodePixelsRead = 1920ULL * 1080ULL;  // 1-frame pixel count
     constexpr std::size_t   kObservations      = 5;
 
+    constexpr std::uint64_t kAllocatedBytesPerObservation = 4096;
     for (std::size_t i = 0; i < kObservations; ++i) {
         NodeMemoryMetrics snap;
         snap.pixels_read.fetch_add(kPerNodePixelsRead, std::memory_order_relaxed);
+        snap.allocations.fetch_add(1, std::memory_order_relaxed);
+        snap.allocated_bytes.fetch_add(kAllocatedBytesPerObservation,
+                                       std::memory_order_relaxed);
         reporter.observe_node("Syn", snap);
     }
 
     auto snap = reporter.snapshot();
     REQUIRE(snap.size() == 1);
-    CHECK(snap[0].node_id     == "Syn");
-    CHECK(snap[0].pixels_read == kPerNodePixelsRead * kObservations);
+    CHECK(snap[0].node_id          == "Syn");
+    CHECK(snap[0].pixels_read      == kPerNodePixelsRead * kObservations);
+    CHECK(snap[0].allocations      == kObservations);
+    CHECK(snap[0].allocated_bytes  == kAllocatedBytesPerObservation * kObservations);
 
     CHECK(true);
 }
@@ -130,7 +139,8 @@ TEST_CASE("gate: B03 CinematicGlow1080p glow kernel counters all > 0") {
         glow.bytes_written      .fetch_add(kPixelsPerFrame * 4, std::memory_order_relaxed);
         glow.framebuffer_copies .fetch_add(1,                   std::memory_order_relaxed);
         glow.framebuffer_clears .fetch_add(1,                   std::memory_order_relaxed);
-        glow.allocations        .fetch_add(kBytesAllocatedFrame,std::memory_order_relaxed);
+        glow.allocations        .fetch_add(1,                    std::memory_order_relaxed);
+        glow.allocated_bytes    .fetch_add(kBytesAllocatedFrame,std::memory_order_relaxed);
         glow.temporary_buffers  .fetch_add(kTempBuffersPerFrame,std::memory_order_relaxed);
 
         reporter.observe_node("glow", glow);
@@ -149,7 +159,8 @@ TEST_CASE("gate: B03 CinematicGlow1080p glow kernel counters all > 0") {
     CHECK(g.bytes_written      == (kPixelsPerFrame * 4) * kFrameCount);
     CHECK(g.framebuffer_copies == kFrameCount);
     CHECK(g.framebuffer_clears == kFrameCount);
-    CHECK(g.allocations        == kBytesAllocatedFrame * kFrameCount);
+    CHECK(g.allocations        == kFrameCount);
+    CHECK(g.allocated_bytes    == kBytesAllocatedFrame * kFrameCount);
     CHECK(g.temporary_buffers  == kTempBuffersPerFrame * kFrameCount);
 
     // GATE: every counter strictly > 0 (user spec "contatori ≠ 0 per kernel glow")

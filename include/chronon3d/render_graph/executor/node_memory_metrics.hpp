@@ -27,7 +27,10 @@ struct NodeMemoryMetrics {
     std::atomic<std::uint64_t> bytes_written{0};
     std::atomic<std::uint64_t> framebuffer_copies{0};
     std::atomic<std::uint64_t> framebuffer_clears{0};
+    /// Number of distinct heap allocation events observed for this node.
     std::atomic<std::uint64_t> allocations{0};
+    /// Sum of bytes associated with those allocation events.
+    std::atomic<std::uint64_t> allocated_bytes{0};
     std::atomic<std::uint64_t> temporary_buffers{0};
 };
 
@@ -41,6 +44,7 @@ struct NodeStatsSnapshot {
     std::uint64_t framebuffer_copies{0};
     std::uint64_t framebuffer_clears{0};
     std::uint64_t allocations{0};
+    std::uint64_t allocated_bytes{0};
     std::uint64_t temporary_buffers{0};
 };
 
@@ -78,6 +82,7 @@ public:
                 .framebuffer_copies = metrics.framebuffer_copies.load(std::memory_order_relaxed),
                 .framebuffer_clears = metrics.framebuffer_clears.load(std::memory_order_relaxed),
                 .allocations = metrics.allocations.load(std::memory_order_relaxed),
+                .allocated_bytes = metrics.allocated_bytes.load(std::memory_order_relaxed),
                 .temporary_buffers = metrics.temporary_buffers.load(std::memory_order_relaxed),
             });
         }
@@ -98,6 +103,7 @@ private:
         dst.framebuffer_copies.fetch_add(src.framebuffer_copies.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dst.framebuffer_clears.fetch_add(src.framebuffer_clears.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dst.allocations.fetch_add(src.allocations.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dst.allocated_bytes.fetch_add(src.allocated_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dst.temporary_buffers.fetch_add(src.temporary_buffers.load(std::memory_order_relaxed), std::memory_order_relaxed);
     }
 
