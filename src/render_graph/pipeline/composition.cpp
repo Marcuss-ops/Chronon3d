@@ -10,6 +10,10 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/backends/software/scratch_buffer.hpp>
+#include "temporal_render_pipeline.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
@@ -88,7 +92,7 @@ namespace chronon3d::graph {
 //   sub_frame_u     = (s + 0.5 + jitter) / num_samples    ∈ [0, 1]
 // sum_i w_i = 1.0 (premultiplied-RGBA-correct accumulation).
 
-std::shared_ptr<Framebuffer> render_compiled_composition_frame(
+std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
     const RenderSettings& settings,
@@ -96,7 +100,8 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     media::MediaFrameProvider* video_decoder,
     const CompiledComposition& compiled,
     Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar
+    chronon3d::SoftwareRenderer* sw_sidecar,
+    chronon3d::CancellationToken* cancellation
 ) {
     if (!compiled.definition) {
         throw std::invalid_argument(
@@ -133,18 +138,25 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     double downsample_ms = 0.0;
     int layer_count = 0;
 
-    auto call_graph = [&](const Scene& scene, Frame fr, f32 t) {
+    auto call_graph = [&](const Scene& scene,
+                          Frame fr,
+                          f32 t,
+                          const TemporalRenderContext* temporal_context = nullptr) {
         // The scene camera is the sole authored runtime camera state.
         // The graph receives a neutral context camera for plain 2D scenes;
         // authored Camera2_5D state is applied by the scene itself.
         Camera context_camera{};
+        if (temporal_context) {
+            return render_scene_via_graph_temporal(
+                backend, node_cache, scene, context_camera,
+                rw, rh, fr, t, settings, registry, video_decoder,
+                static_cast<float>(spec.frame_rate.fps()), spec.name,
+                sw_sidecar, temporal_context);
+        }
         return render_scene_via_graph(
             backend, node_cache, scene, context_camera,
             rw, rh, fr, t, settings, registry, video_decoder,
-            static_cast<float>(spec.frame_rate.fps()),
-            spec.name,
-            sw_sidecar
-        );
+            static_cast<float>(spec.frame_rate.fps()), spec.name, sw_sidecar);
     };
 
     auto evaluate_scene = [&](const FrameContext& context) {
@@ -177,9 +189,13 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     //                            a warning).
     const bool want_temporal_accumulation =
         (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation) &&
-        (settings.motion_blur.samples > 1);
+        (settings.motion_blur.samples > 1) &&
+        (settings.motion_blur.shutter_angle_deg > 0.0f);
 
     if (!want_temporal_accumulation) {
+        if (cancellation && cancellation->is_cancelled()) {
+            return nullptr;
+        }
         if (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation &&
             settings.motion_blur.samples <= 1) {
             spdlog::warn(
@@ -225,6 +241,13 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
         scene_ms = profiling::duration_ms(t_scene0, profiling::now());
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
+        constexpr std::size_t kMaxTemporalPixels = 128ULL * 1024ULL * 1024ULL;
+        const auto total_sample_pixels = static_cast<std::size_t>(N) *
+            static_cast<std::size_t>(rw) * static_cast<std::size_t>(rh);
+        if (total_sample_pixels > kMaxTemporalPixels) {
+            throw std::invalid_argument(
+                "motion-blur temporal sample budget exceeded");
+        }
 
         chronon3d::temporal::TemporalSampleParams mb_params;
         mb_params.shutter_angle_deg = settings.motion_blur.shutter_angle_deg;
@@ -233,36 +256,55 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
         mb_params.filter            = settings.motion_blur.filter;
         mb_params.jitter_seed       = settings.motion_blur.jitter_seed;
 
-        const chronon3d::temporal::TemporalSampleSet samples =
-            chronon3d::temporal::generate_temporal_samples(
-                mb_params, N, frame);
-
-        std::vector<float> sample_times(static_cast<size_t>(N));
-
-        {
-            const double opening_offset = samples.window_start_normalized;
-            const double exposure_norm  = samples.exposure_normalized;
-            for (int s = 0; s < N; ++s) {
-                sample_times[s] = static_cast<float>(
-                    opening_offset + samples.sample_times[s] * exposure_norm);
-            }
+        const chronon3d::temporal::TemporalSamplePlan sample_plan =
+            chronon3d::temporal::make_temporal_sample_plan(
+                mb_params, N, frame, spec.frame_rate);
+        if (!sample_plan.valid()) {
+            throw std::invalid_argument("motion-blur temporal sample plan is invalid");
         }
 
-        render_fb = backend.framebuffer_pool()->acquire(rw, rh, /*clear=*/true);
+        // Every temporal sample owns all mutable frame domains.  In
+        // particular, do not reuse the main NodeCache, CompiledGraphCache,
+        // RenderSession, or transform scratch: those domains belong to the
+        // integer-frame render and its history.  Sample contexts are kept
+        // alive for the complete accumulation window and are never published
+        // through commit_frame_state().
+        std::vector<std::unique_ptr<cache::NodeCache>> sample_value_caches;
+        std::vector<std::unique_ptr<CompiledGraphCache>> sample_topology_caches;
+        std::vector<std::unique_ptr<RenderSession>> sample_sessions;
+        std::vector<std::unique_ptr<TransformScratchBuffer>> sample_scratches;
+        std::vector<std::shared_ptr<cache::FramebufferPool>> sample_framebuffer_pools;
+        sample_value_caches.reserve(sample_plan.contexts.size());
+        sample_topology_caches.reserve(sample_plan.contexts.size());
+        sample_sessions.reserve(sample_plan.contexts.size());
+        sample_scratches.reserve(sample_plan.contexts.size());
+        sample_framebuffer_pools.reserve(sample_plan.contexts.size());
+        for (std::size_t i = 0; i < sample_plan.contexts.size(); ++i) {
+            sample_value_caches.push_back(std::make_unique<cache::NodeCache>());
+            sample_topology_caches.push_back(std::make_unique<CompiledGraphCache>());
+            sample_sessions.push_back(std::make_unique<RenderSession>());
+            sample_scratches.push_back(std::make_unique<TransformScratchBuffer>());
+            sample_framebuffer_pools.push_back(cache::FramebufferPool::create_shared());
+        }
+
+        render_fb = sample_framebuffer_pools.front()->acquire(
+            rw, rh, /*clear=*/true);
 
         float actual_weight_sum = 0.0f;
 
         const auto t_mb0 = profiling::now();
         {
             CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
-            for (int s = 0; s < N; ++s) {
-                const float t = sample_times[s];
-                const float w = samples.normalized_weights[s];
+            for (int s = 0; s < sample_plan.num_samples(); ++s) {
+                if (cancellation && cancellation->is_cancelled()) {
+                    return nullptr;
+                }
+                const auto& sample = sample_plan[static_cast<std::size_t>(s)];
+                const float t = static_cast<float>(sample.time.frame - static_cast<double>(frame));
+                const float w = sample.weight;
                 actual_weight_sum += w;
                 const FrameContext sub_ctx = make_frame_context({
-                    .global_time = SampleTime::from_frame(
-                        static_cast<double>(frame) + static_cast<double>(t),
-                        spec.frame_rate),
+                    .global_time = sample.time,
                     .duration = spec.duration,
                     .width = spec.width,
                     .height = spec.height,
@@ -274,8 +316,25 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
                 });
                 Scene sub = evaluate_scene(sub_ctx);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
-                const Framebuffer& sub_fb = *call_graph(sub, frame, t);
+                const TemporalRenderContext sample_context{
+                    .sample_key = sample.cache_key,
+                    .sample_time = sample.time,
+                    .value_cache = sample_value_caches[static_cast<std::size_t>(s)].get(),
+                    .topology_cache = sample_topology_caches[static_cast<std::size_t>(s)].get(),
+                    .session = sample_sessions[static_cast<std::size_t>(s)].get(),
+                    .scratch = sample_scratches[static_cast<std::size_t>(s)].get(),
+                    .counters = nullptr,
+                    .framebuffer_pool = sample_framebuffer_pools[static_cast<std::size_t>(s)],
+                };
+                auto sample_fb = call_graph(sub, frame, t, &sample_context);
+                if (!sample_fb) {
+                    return nullptr;
+                }
+                const Framebuffer& sub_fb = *sample_fb;
 
+                if (cancellation && cancellation->is_cancelled()) {
+                    return nullptr;
+                }
                 tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
                     [&](const tbb::blocked_range<int>& range) {
                         using namespace hwy::HWY_NAMESPACE;
@@ -337,7 +396,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
         }
     }
 
-    if (sw_sidecar) {
+    if (sw_sidecar && !want_temporal_accumulation) {
         sw_sidecar->dirty_telemetry().last_layer_count = layer_count;
     }
 
@@ -352,6 +411,21 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     }
 
     return render_fb;
+}
+
+std::shared_ptr<Framebuffer> render_compiled_composition_frame(
+    RenderBackend& backend,
+    cache::NodeCache& node_cache,
+    const RenderSettings& settings,
+    const CompositionRegistry* registry,
+    media::MediaFrameProvider* video_decoder,
+    const CompiledComposition& compiled,
+    Frame frame,
+    chronon3d::SoftwareRenderer* sw_sidecar)
+{
+    return render_compiled_composition_frame_temporal(
+        backend, node_cache, settings, registry, video_decoder, compiled,
+        frame, sw_sidecar, nullptr);
 }
 
 } // namespace chronon3d::graph
