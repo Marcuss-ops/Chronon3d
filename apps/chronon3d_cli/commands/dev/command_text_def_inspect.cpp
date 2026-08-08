@@ -21,6 +21,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <nlohmann/json.hpp>
@@ -29,6 +30,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <utility>
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include <chronon3d/text/text_visibility_audit.hpp>
@@ -90,7 +92,25 @@ int command_text_def_inspect(const CompositionRegistry& registry,
         ? std::optional<std::filesystem::path>{}
         : std::optional<std::filesystem::path>{args.assets_root};
     auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
-    auto fb = renderer->render(comp, args.frame);
+    auto compiled = chronon3d::compile_composition(
+        comp, CompositionCompileContext{});
+    if (!compiled) {
+        nlohmann::json js;
+        js["error"] = "composition_compile_failed";
+        js["composition"] = args.comp_id;
+        js["frame"] = static_cast<int>(args.frame);
+        js["message"] = compiled.error().message;
+        js["status"] = "FAIL";
+        if (!args.json_output.empty()) {
+            std::ofstream out(args.json_output);
+            if (out) out << js.dump(2) << "\\n";
+        } else {
+            fmt::print("{}\\n", js.dump(2));
+        }
+        return 1;
+    }
+    auto compiled_value = std::move(compiled).value();
+    auto fb = renderer->render_compiled(compiled_value, args.frame);
     if (!fb) {
         nlohmann::json js;
         js["error"] = "render_failed";

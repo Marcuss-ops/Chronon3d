@@ -19,6 +19,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -77,33 +78,37 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 /// `render_scene()` overloads are @deprecated thin wrappers.
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                                                      Frame frame) {
-    // Top-level invocation boundary: nested tile/precomp executors must not
-    // clear errors from sibling scopes. Reset exactly once before dispatch.
-    m_session.common.clear_last_frame_error();
+    // Authoring compatibility adapter only: compile once at the boundary,
+    // then execute exclusively through the immutable compiled path.
+    auto compiled = chronon3d::compile_composition(
+        comp, CompositionCompileContext{});
+    if (!compiled) {
+        throw std::runtime_error(
+            "Composition compilation failed for '" + comp.name() +
+            "': " + compiled.error().message);
+    }
+    return render_compiled(std::move(compiled).value(), frame);
+}
 
-    // Keep the direct SoftwareRenderer entrypoint on the same preparation
-    // contract as RenderEngine: preflight and resource decode must complete
-    // before graph execution, otherwise image nodes fall back to placeholders
-    // even though the asset is valid on disk.
+std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
+    const CompiledComposition& compiled, Frame frame) {
+    m_session.common.clear_last_frame_error();
     const auto preparation = runtime::prepare_render(
-        this, comp,
+        this, compiled,
         runtime::RenderPreparationOptions{
             .warmup_renderer = false,
             .reference_frame = frame,
         });
     if (!preparation.ok()) {
         throw std::runtime_error(
-            "Render preparation failed for composition '" +
-            comp.name() + "': " + preparation.diagnostic());
+            "Render preparation failed for compiled composition: " +
+            preparation.diagnostic());
     }
 
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
-
-    auto res = graph::render_composition_frame(
-        m_runtime->backend(), node_cache(), m_settings, m_registry, m_video_decoder.get(), comp, frame,
-        this /*R3 sidecar: typed SoftwareRenderer channel for software-only state*/
-    );
-    return res;
+    return graph::render_compiled_composition_frame(
+        m_runtime->backend(), node_cache(), m_settings, m_registry,
+        m_video_decoder.get(), compiled, frame, this);
 }
 
 /// @deprecated Fase C3 — use render(Composition, Frame) instead.

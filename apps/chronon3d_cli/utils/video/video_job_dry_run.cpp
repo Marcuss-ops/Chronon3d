@@ -21,7 +21,7 @@ int dry_run_video_job(const RenderJob& job) {
 
     spdlog::info("[dry-run] Composition: {}", job.comp_id);
     spdlog::info("[dry-run]   Resolution: {}×{}",
-                 job.comp->width(), job.comp->height());
+                 job.metadata.width, job.metadata.height);
     spdlog::info("[dry-run]   Frame range: {} – {} inclusive ({} frames)",
                  job.first_frame, job.last_frame, total);
     spdlog::info("[dry-run]   FPS: {}", job.video_settings.fps);
@@ -38,7 +38,7 @@ int dry_run_video_job(const RenderJob& job) {
             *job.registry, job.settings, job.execution.config, job.execution.assets_root);
 
         const auto preparation = runtime::prepare_render(
-            renderer.get(), *job.comp,
+            renderer.get(), *job.compiled,
             runtime::RenderPreparationOptions{
                 .warmup_renderer = false,
                 .reference_frame = job.first_frame,
@@ -50,10 +50,8 @@ int dry_run_video_job(const RenderJob& job) {
         }
 
         spdlog::info("[dry-run]   Backend: SoftwareRenderer");
-        cache::NodeCache node_cache;
-        auto fb = graph::render_composition_frame(
-            renderer->backend(), node_cache, job.settings, job.registry,
-            nullptr, *job.comp, job.first_frame, renderer.get());
+        auto fb = renderer->render_compiled(
+            *job.compiled, job.first_frame);
         if (!fb) {
             spdlog::warn("[dry-run]   First frame render returned null");
         } else {

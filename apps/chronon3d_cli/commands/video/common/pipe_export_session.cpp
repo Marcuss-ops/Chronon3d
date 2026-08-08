@@ -110,10 +110,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
             const auto frame_t0 = profiling::now();
-            auto fb = graph::render_composition_frame(
+            auto fb = graph::render_compiled_composition_frame(
                 ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
-                ctx.video_decoder, ctx.comp, current_frame,
-                ctx.sw_renderer);  // sw_renderer is already SoftwareRenderer*
+                ctx.video_decoder, ctx.compiled, current_frame,
+                ctx.sw_renderer);
             const auto frame_t1 = profiling::now();
             const double frame_ms =
                 profiling::duration_ms(frame_t0, frame_t1);

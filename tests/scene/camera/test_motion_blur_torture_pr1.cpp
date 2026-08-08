@@ -4,7 +4,7 @@
 // PR1 — 5 mandatory END-TO-END torture tests for the motion-blur unification
 // refactor.  Unlike `test_temporal_samples_pr1.cpp` which validates the
 // `temporal_samples` API contract at the unit level, these tests exercise
-// the FULL compositor pipeline (`render_composition_frame()`) under
+// the FULL compositor pipeline (`render_compiled_composition_frame()`) under
 // representative motion-blur settings and assert on actual framebuffer
 // behaviour.
 //

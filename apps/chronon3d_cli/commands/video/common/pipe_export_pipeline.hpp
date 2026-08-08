@@ -18,7 +18,7 @@ namespace chronon3d::cli {
 /// Phase 1: Create encoder, renderer, arena, queue, writer thread.
 [[nodiscard]] std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
@@ -46,7 +46,7 @@ void record_pipe_telemetry(
 [[nodiscard]] RenderLoopOutput run_pipe_export_loop(
     PipeExportSession& session,
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const RenderSettings& settings,
     Frame start,
     Frame end,
@@ -65,7 +65,7 @@ void record_pipe_telemetry(
 
 [[nodiscard]] PipeExportResult render_and_encode_ffmpeg_pipe(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,

@@ -173,14 +173,14 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     const Frame frame{args.frame};
     spdlog::info("Rendering frame {} of '{}' for conversion benchmark...", frame, plan->comp_id);
 
-    auto fb = renderer->render(*plan->comp, frame);
+    auto fb = renderer->render_compiled(*plan->compiled, frame);
     if (!fb) {
         spdlog::error("Failed to render frame {}", frame);
         return 1;
     }
 
-    const int w = plan->comp->width();
-    const int h = plan->comp->height();
+    const int w = plan->metadata.width;
+    const int h = plan->metadata.height;
     if (w % 2 != 0 || h % 2 != 0) {
         spdlog::error("Frame dimensions must be even for YUV420P/NV12 (got {}x{})", w, h);
         return 1;

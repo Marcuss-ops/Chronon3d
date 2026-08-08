@@ -8,7 +8,7 @@
 // blur — the visible motion-blur streak on screen is produced by the
 // compositor calling comp.evaluate(frame, t) for each sub-frame and
 // accumulating the resulting framebuffers (see
-// `src/render_graph/pipeline/composition.cpp :: render_composition_frame()`).
+// `src/render_graph/pipeline/composition.cpp :: render_compiled_composition_frame()`).
 //
 // This is a pose-side helper used by CameraProgram / CameraDescriptor,
 // not an application-facing API.
