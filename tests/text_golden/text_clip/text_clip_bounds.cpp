@@ -113,7 +113,7 @@ Composition build_clip_composition(
                 if (glow_params.intensity > 0.0f) {
                     l.effect(glow_params);
                 }
-                l.text_run("title", TextRunDefinition{
+                l.text_run("title", PreparedText{
                     .text = {
                         .content = {.value = "HAMBURGER"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},

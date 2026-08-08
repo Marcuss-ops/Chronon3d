@@ -5,7 +5,6 @@
 #include <chronon3d/text/prepared_text.hpp>
 
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -18,8 +17,8 @@ class FontEngine;
 // payload before consumption but does not own or commit this entry.
 struct PendingTextRun {
     std::string name;
-    TextRunDefinition params;
-    std::optional<PreparedText> prepared;
+    // One unified payload for both authoring and compiled text paths.
+    PreparedText params;
     FontEngine* font_engine{nullptr};
     bool consumed{false};
     std::shared_ptr<const AnimatedTextDocument> animated_doc{};

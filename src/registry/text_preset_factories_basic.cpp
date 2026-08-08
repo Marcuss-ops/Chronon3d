@@ -185,7 +185,7 @@ TextPresetDescriptor minimal_white_entry() {
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "No-motion baseline. Routes through `wire_through_resolver` "
                          "(single canonical path) — empty animators produce a "
-                         "static TextRunNode via `materialize_text_run_shape`.  "
+                         "static TextRunNode via `materialize_prepared_text`.  "
                          "Use for static captions or burnt-in subs.";
     meta.builtin      = true;
 

@@ -48,10 +48,10 @@ public:
     /// bytes is created.  Returns a TextSpanBuilder for chaining style
     /// overrides (color, weight, tracking, stroke, ...).
     TextSpanBuilder span(std::string_view text) {
-        auto& spans = pending_->params.text.spans;
-        const std::size_t start = pending_->params.text.content.value.size();
-        pending_->params.text.content.value.append(text);
-        const std::size_t end = pending_->params.text.content.value.size();
+        auto& spans = pending_->params.spans;
+        const std::size_t start = pending_->params.document.utf8.size();
+        pending_->params.document.utf8.append(text);
+        const std::size_t end = pending_->params.document.utf8.size();
         spans.push_back(TextSpanOverride{.byte_start = start, .byte_end = end});
         return TextSpanBuilder{*this, spans.size() - 1};
     }
@@ -66,7 +66,7 @@ inline TextSpanBuilder TextSpanBuilder::span(std::string_view text) {
 }
 
 inline TextSpanOverride& TextSpanBuilder::current_span() noexcept {
-    return parent_->pending_->params.text.spans[span_index_];
+    return parent_->pending_->params.spans[span_index_];
 }
 
 } // namespace chronon3d::authoring

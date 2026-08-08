@@ -69,6 +69,7 @@
 #include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/internal/runtime/session_services.hpp>
 #include <chronon3d/internal/runtime/history_state.hpp>
+#include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 
 // P1 #3 — include for the per-session TextLayoutCache member.
 // TextLayoutCache has NO backend dependencies — it is a pure LRU
@@ -155,6 +156,12 @@ struct RenderSession {
     // is 64 MiB, tunable via Config post-baseline.
     TextLayoutCache layout_cache;
 
+    // Per-session node/sample memory accounting. The implementation is
+    // internal; ownership follows the session so temporal samples cannot
+    // publish counters into the main render session.
+    std::unique_ptr<graph::NodeMemoryTracker> memory_tracker{
+        std::make_unique<graph::NodeMemoryTracker>()};
+
     // Heap-owned because RenderSession must remain movable while the slot
     // itself contains a mutex. Reset happens once at the top-level renderer
     // boundary; nested executors only publish_first().
@@ -205,6 +212,9 @@ struct RenderSession {
         reset_frame_temporaries();
         program_store_state->clear();
         layout_cache.clear();
+        // Memory reports are session-scoped and must not leak into the next
+        // frame-value lifetime boundary.
+        memory_tracker->reset();
     }
 
     /// Formal non-owning temporal-history domain facade. The session remains

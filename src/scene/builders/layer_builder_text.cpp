@@ -30,6 +30,7 @@
 // convention used by tests/text/test_builder_consumed_commit_validation.cpp
 // and reach the internalization header directly.
 #include "../../text/pending_text_run_impl.hpp"
+#include "../../text/prepared_text_internal.hpp"
 #include <spdlog/spdlog.h>
 
 #include <cmath>
@@ -41,16 +42,16 @@ namespace chronon3d {
 // TextRunBuilder — PR 4 (TextAnimator V2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunDefinition params) {
+TextRunBuilder& LayerBuilder::text_run(std::string name, PreparedText params) {
     // Text runs use the text-specific coordinate path in the render graph.
     // Keep the layer kind aligned with the primitive being registered;
     // otherwise a normal-layer canvas transform shifts glyphs off-screen.
     m_layer.kind = LayerKind::Text;
 
     // Sequence V2: collect font asset reference
-    if (!params.text.font.font_path.empty()) {
+    if (!params.style.font.font_path.empty()) {
         m_layer.asset_manifest.add_font(
-            params.text.font.font_path,
+            params.style.font.font_path,
             std::string(m_layer.name) + "/" + name);
     }
 
@@ -122,7 +123,7 @@ Layer LayerBuilder::build() {
     // ── PR 4 — Materialize pending text-run specs ───────────────────
     //
     // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
-    // TextRunDefinition)`, evaluate the animator stack at the layer's
+    // PreparedText)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
     // flagged with ShapeType::TextRun.  The graph-builder
     // source-pass (PR 3) auto-routes these to a TextRunNode.
@@ -154,79 +155,33 @@ Layer LayerBuilder::build() {
             node.name = std::pmr::string{spec.name, res};
             node.shape.set_type(ShapeType::TextRun);
 
-            // X2 canonical static-text path: use PreparedText directly.
-            if (spec.prepared.has_value()) {
-                const PreparedText& prepared = *spec.prepared;
-
-                node.world_transform.position = Vec3{
-                    prepared.frame.placement.offset.x,
-                    prepared.frame.placement.offset.y,
-                    0.0f
-                };
-                node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
-                node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
-                node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-                node.color = prepared.style.color;
-                node.fill = Fill::solid_color(prepared.style.color);
-
-#ifdef CHRONON3D_USE_BLEND2D
-                FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
-                auto shape = materialize_prepared_text(
-                    prepared, engine_for_shape, local_time, spec.animated_doc);
-                if (shape) {
-                    shape->placement_kind = prepared.frame.placement.kind;
-                    node.world_transform.anchor = resolve_text_anchor(
-                        prepared.frame.anchor,
-                        // Placement anchors the authored layout box.  Using
-                        // the ink bounds here applies horizontal/vertical
-                        // alignment a second time and shifts centered text
-                        // away from its canvas pin.
-                        prepared.frame.size);
-                    node.shape.text_run_shape_handle().value = std::move(shape);
-                }
-#endif
-                (void)chronon3d::text_internal::mark_consumed(spec);
-                continue;
-            }
-
-            // Legacy TextRunDefinition path (kept for text_run and deprecated
-            // text_run entry points until X5).
+            // The pending payload is the one unified text transport for
+            // authoring and compiled construction.
+            const PreparedText prepared =
+                text_internal::normalize_prepared_text(spec.params);
             node.world_transform.position = Vec3{
-                spec.params.text.placement.offset.x,
-                spec.params.text.placement.offset.y,
+                prepared.frame.placement.offset.x,
+                prepared.frame.placement.offset.y,
                 0.0f
             };
-            // The raster surface is sized to the laid-out ink, not to the
-            // authored layout box.  Resolve the anchor against that actual
-            // surface after materialization so CanvasCenter centers the ink
-            // exactly once while TopLeft remains box-local.
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-            node.color = spec.params.text.appearance.color;
-            node.fill = Fill::solid_color(spec.params.text.appearance.color);
+            node.color = prepared.style.color;
+            node.fill = Fill::solid_color(prepared.style.color);
 
 #ifdef CHRONON3D_USE_BLEND2D
-            // Per-spec FontEngine override (set via trb.font_engine(...))
-            // wins over the layer's default font_engine when present.
             FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
-            // CanvasCenter positions the authored box on the canvas; it does
-            // not replace the box's own glyph alignment. Preserve the caller's
-            // VerticalAlign so middle/bottom layouts are resolved exactly once
-            // by the text layout compiler.
-            TextRunDefinition materialize_params = spec.params;
-
-            auto shape = materialize_text_run_shape(
-                materialize_params, engine_for_shape, local_time,
-                spec.animated_doc);
+            auto shape = materialize_prepared_text(
+                prepared, engine_for_shape, local_time, spec.animated_doc);
             if (shape) {
-                shape->placement_kind = materialize_params.text.placement.kind;
+                shape->placement_kind = prepared.frame.placement.kind;
                 node.world_transform.anchor = resolve_text_anchor(
-                    materialize_params.text.layout.anchor,
+                    prepared.frame.anchor,
                     // The transform pins the authored layout box; the ink
                     // bounds already include alignment and must not become a
                     // second anchor reference.
-                    materialize_params.text.layout.box);
+                    prepared.frame.size);
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }
 #endif

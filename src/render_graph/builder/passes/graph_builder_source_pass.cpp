@@ -197,7 +197,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 "[source-pass] layer='" + std::string(layer.name) + "' contains a TextRun-typed node "
                 "with null text_run_shape_handle().value in a multi-node layer. "
                 "Wiring failed to attach the shape; check LayerBuilder::text_run() + "
-                "materialize_text_run_shape().");
+                "materialize_prepared_text().");
         }
 
         cache::NodeCacheKey source_key{

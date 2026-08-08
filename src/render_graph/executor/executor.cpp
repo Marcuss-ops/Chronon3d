@@ -30,6 +30,7 @@
 #include <chronon3d/core/scope/execution_scope.hpp>      // PR 6.1 — would_overflow() + scope.session()/arena() accessors
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <spdlog/spdlog.h>                                // PR 6.5 — deterministic overflow log
 #include <algorithm>
 #include <cmath>
@@ -81,7 +82,7 @@ namespace chronon3d::graph {
     } guard{arena};
 
     const size_t node_count = graph.size();
-    ExecutionState state(res);
+    ExecutionState state(res, session.memory_tracker.get());
     state.temp.resize(node_count);
     state.resolved_key_digest.assign(node_count, 0);
     state.resolved_frame_dependent.assign(node_count, 0);
@@ -115,6 +116,19 @@ namespace chronon3d::graph {
     // node surfaced a backend failure. The original NodeExecutionError is
     // kept on ctx.frame_error for direct callers and published to the
     // synchronized job-owned slot for CLI/daemon consumers.
+    if (parent_pool && state.node_memory_tracker) {
+        const auto pool = parent_pool->stats();
+        state.node_memory_tracker->record_pool(NodeMemoryPoolSnapshot{
+            .current_bytes = pool.current_bytes,
+            .retained_bytes = pool.retained_bytes,
+            .peak_retained_bytes = pool.peak_retained_bytes,
+            .total_allocations = pool.total_allocations,
+            .total_reuses = pool.total_reuses,
+            .total_returns = pool.total_returns,
+            .evicted_bytes = pool.evicted_bytes,
+        });
+    }
+
     if (ctx.frame_error && ctx.frame_error->has_value()) {
         const auto& err = ctx.frame_error->value();
         session.publish_last_frame_error(err);
