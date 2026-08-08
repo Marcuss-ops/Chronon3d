@@ -42,14 +42,30 @@ public:
         register_effect(std::type_index(typeid(T)), std::move(processor));
     }
 
-    ShapeProcessor* get_shape(ShapeType type) const {
+    [[nodiscard]] std::shared_ptr<ShapeProcessor> get_shape_shared(
+        ShapeType type) const {
         auto it = m_shapes.find(type);
-        return it != m_shapes.end() ? it->second.get() : nullptr;
+        return it != m_shapes.end() ? it->second : nullptr;
     }
 
-    EffectProcessor* get_effect(std::type_index type) const {
+    [[nodiscard]] std::shared_ptr<EffectProcessor> get_effect_shared(
+        std::type_index type) const {
         auto it = m_effects.find(type);
-        return it != m_effects.end() ? it->second.get() : nullptr;
+        return it != m_effects.end() ? it->second : nullptr;
+    }
+
+    /// Legacy non-owning adapters. Returned pointers are valid only for the
+    /// immediate call and must not be retained across registry/engine
+    /// shutdown. New dispatch code must use the shared accessors or capture
+    /// a ProcessorRegistrySnapshot.
+    [[deprecated("Use get_shape_shared() to retain processor lifetime")]]
+    ShapeProcessor* get_shape(ShapeType type) const {
+        return get_shape_shared(type).get();
+    }
+
+    [[deprecated("Use get_effect_shared() to retain processor lifetime")]]
+    EffectProcessor* get_effect(std::type_index type) const {
+        return get_effect_shared(type).get();
     }
 
     /// Capture the current engine-local processor ownership and mapping.
@@ -87,7 +103,15 @@ public:
     /// changes without changing authored scene data.
     [[nodiscard]] std::uint64_t generation() const noexcept { return m_generation; }
 
+    /// Lifetime token for consumers that may outlive this mutable registry.
+    /// A backend can refresh while the registry exists and safely fall back to
+    /// its last owning snapshot after registry/engine shutdown.
+    [[nodiscard]] std::weak_ptr<const void> lifetime_token() const noexcept {
+        return m_lifetime_token;
+    }
+
 private:
+    std::shared_ptr<const void> m_lifetime_token{std::make_shared<int>(0)};
     std::unordered_map<ShapeType, std::shared_ptr<ShapeProcessor>> m_shapes;
     std::unordered_map<std::type_index, std::shared_ptr<EffectProcessor>> m_effects;
     std::uint64_t m_generation{1};

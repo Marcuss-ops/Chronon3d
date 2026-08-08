@@ -23,7 +23,9 @@ void compute_scene_root_bboxes(
             node, ctx, node.name, "root_bbox");
         if (!placement) continue;
         const Mat4 matrix = placement->render_matrix;
-        auto* processor = sw_renderer->software_registry().get_shape(node.shape.type());
+        const auto snapshot = sw_renderer->software_registry().snapshot();
+        const auto processor = snapshot->shape_shared(
+            snapshot->shape_handle(node.shape.type()));
         if (!processor) continue;
         f32 spread = 0.0f;
         raster::BBox bbox = processor->compute_world_bbox(node.shape, matrix, spread);
