@@ -8,6 +8,7 @@
 #include <chronon3d/core/profiling/benchmark_report.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -58,7 +59,7 @@ private:
 };
 
 struct BenchRuntimeContext {
-    std::optional<Composition> composition;
+    std::shared_ptr<const CompiledComposition> compiled;
     std::shared_ptr<SoftwareRenderer> renderer;
     int frames{0};
     int warmup{0};
@@ -161,7 +162,7 @@ void run_render_benchmark(benchmark::State& state) {
     for (auto _ : state) {
         for (int i = 0; i < ctx.frames; ++i) {
             const auto frame = static_cast<Frame>(ctx.warmup + i);
-            ctx.renderer->render(*ctx.composition, frame);
+            ctx.renderer->render_compiled(*ctx.compiled, frame);
         }
         benchmark::DoNotOptimize(counters);
         benchmark::ClobberMemory();
@@ -254,6 +255,15 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     }
 
     auto composition = registry.create(args.comp_id);
+    auto compiled_result = chronon3d::compile_composition(
+        composition, CompositionCompileContext{});
+    if (!compiled_result) {
+        spdlog::error("Composition compilation failed: {}",
+                      compiled_result.error().message);
+        return 1;
+    }
+    auto compiled = std::make_shared<const CompiledComposition>(
+        std::move(compiled_result).value());
     RenderSettings settings;
     if (args.no_dirty_rects) {
         settings.dirty.enabled = false;
@@ -273,7 +283,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     if (args.warmup_renderer) {
         const auto preparation = runtime::prepare_render(
-            renderer.get(), composition,
+            renderer.get(), *compiled,
             runtime::RenderPreparationOptions{
                 .warmup_renderer = true,
                 .warmup = runtime::RendererWarmupOptions{
@@ -304,7 +314,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     for (int i = 0; i < args.warmup; ++i) {
         const auto frame = static_cast<Frame>(i);
-        renderer->render(composition, frame);
+        renderer->render_compiled(*compiled, frame);
     }
 
     uint64_t saved_fb_alloc = 0;
@@ -331,7 +341,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     chronon3d::telemetry::clear_telemetry_stores();
 
     BenchRuntimeContext context;
-    context.composition = std::move(composition);
+    context.compiled = std::move(compiled);
     context.renderer = std::move(renderer);
     context.frames = args.frames;
     context.warmup = args.warmup;

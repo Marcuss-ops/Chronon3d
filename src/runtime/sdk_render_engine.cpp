@@ -9,6 +9,7 @@
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #if CHRONON3D_ENABLE_VIDEO
@@ -22,6 +23,8 @@
 #include <stdexcept>
 #include <mutex>
 #include <vector>
+#include <optional>
+#include <utility>
 
 namespace chronon3d::sdk {
 
@@ -304,6 +307,25 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
 
     const auto started = std::chrono::steady_clock::now();
     const auto total = ((end - start) / step) + 1;
+
+    // Compile authoring input once before entering the frame loop. Runtime
+    // execution below is intentionally compiled-only, so a multi-frame file
+    // render cannot rebuild scene/camera state for every frame.
+    std::optional<chronon3d::CompiledComposition> local_compiled;
+    const chronon3d::CompiledComposition* active_compiled =
+        request.compiled_composition;
+    if (active_compiled == nullptr) {
+        auto compiled = chronon3d::compile_composition(
+            *request.composition, chronon3d::CompositionCompileContext{});
+        if (!compiled) {
+            return fail(RenderError{
+                RenderErrorCode::InvalidComposition,
+                "composition compilation failed: " + compiled.error().message});
+        }
+        local_compiled.emplace(std::move(compiled).value());
+        active_compiled = &*local_compiled;
+    }
+
     std::vector<std::uint8_t> pixels;
     std::uint64_t rendered = 0;
 
@@ -320,11 +342,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                                     "render cancelled by callback"});
         }
 
-        auto framebuffer = request.compiled_composition
-            ? m_impl->engine.render_compiled(
-                *request.compiled_composition, chronon3d::Frame{frame})
-            : m_impl->engine.render(
-                *request.composition, chronon3d::Frame{frame});
+        auto framebuffer = m_impl->engine.render_compiled(
+            *active_compiled, chronon3d::Frame{frame});
         if (const auto error = m_impl->engine.last_render_error()) {
             return fail(runtime_error(error->message.empty()
                 ? "internal render graph reported a frame error" : error->message));

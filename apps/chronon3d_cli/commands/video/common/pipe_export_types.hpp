@@ -83,7 +83,7 @@ struct RenderLoopContext {
     const RenderSettings& settings;
     const CompositionRegistry& registry;
     media::MediaFrameProvider* video_decoder;
-    const Composition& comp;
+    const CompiledComposition& compiled;
     Frame start;
     Frame end;
     const FfmpegExportOptions& opts;

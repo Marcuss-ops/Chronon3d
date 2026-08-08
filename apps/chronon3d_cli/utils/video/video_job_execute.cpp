@@ -51,7 +51,7 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
 
 int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -84,13 +84,13 @@ int render_and_encode_ffmpeg(
 
     if (opts.sink.ffmpeg_mode == "pipe") {
         auto result = render_and_encode_ffmpeg_pipe(
-            registry, comp, composition_id,
+            registry, compiled, composition_id,
             settings, start, end, opts, cpu_budget);
         return result.return_code;
     }
     if (opts.sink.ffmpeg_mode == "png") {
         auto result = render_and_encode_ffmpeg_chunked(
-            registry, comp, composition_id,
+            registry, compiled, composition_id,
             settings, start, end, opts, cpu_budget);
         return result.return_code;
     }

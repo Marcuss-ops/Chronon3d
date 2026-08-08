@@ -4,6 +4,7 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include "utils/common/render_error_formatter.hpp"
 
@@ -161,15 +162,18 @@ void DaemonService::cmd_render(const std::vector<std::string>& args) {
     }
 
     auto comp = m_registry.create(comp_id);
+    auto compiled = chronon3d::compile_composition(
+        comp, CompositionCompileContext{});
+    if (!compiled) {
+        spdlog::error("Failed to compile composition '{}': {}",
+                      comp_id, compiled.error().message);
+        return;
+    }
 
     const auto t0 = profiling::now();
-    // P1-F Pass D — `engine->render(comp, frame)` is the canonical OPP-side
-    // entry (replacing the now-removed `render_frame()` which had been
-    // `[[deprecated]]` since Pass A).  Returns the `shared_ptr<Framebuffer>`
-    // surface exactly as the OPP render loop expects; the SDK façade
-    // (chronon3d::sdk::RenderEngine::render) returns Result<RenderOutput, …>
-    // for V0.2 consumers.
-    auto fb = m_engine->render(comp, frame);
+    // Runtime execution accepts only the immutable compiled composition.
+    auto fb = m_engine->render_compiled(
+        std::move(compiled).value(), frame);
     const auto t1 = profiling::now();
 
     if (!fb) {
