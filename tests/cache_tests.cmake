@@ -31,6 +31,7 @@ chronon3d_add_test_suite(
             # cannot regress to pre-Soluzione-B state. See
             # `tests/cache/test_node_cache_hash_includes_camera.cpp`.
             cache/test_node_cache_hash_includes_camera.cpp
+            cache/test_node_cache_identity_builder.cpp
             # TICKET-ae-cam-hash-collision / Soluzione B - opt-in regression lock
             # + first captured-in-a-test activation of the
             # `node_cache_hash_collisions` counter (declared via X-macro at
