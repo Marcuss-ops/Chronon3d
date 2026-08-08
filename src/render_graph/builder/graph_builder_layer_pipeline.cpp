@@ -13,6 +13,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 
 #include <algorithm>
+#include "evaluated_layer_placement.hpp"
 
 namespace chronon3d::graph::detail {
 
@@ -37,16 +38,9 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
         }
 
         // Root nodes already carry top-left pixel placement in their
-        // world transform (including the anchor baked by RenderNodeFactory).
-        // A canvas translation here would shift every standalone shape by
-        // half the frame and make dirty-region bboxes disagree with execute.
-        std::optional<Mat4> root_matrix;
-        if (ctx.policy.modular_coordinates && node.shape.type() == ShapeType::Line) {
-            root_matrix = glm::translate(Mat4(1.0f), Vec3(
-                ctx.frame_input.width * 0.5f,
-                ctx.frame_input.height * 0.5f,
-                0.0f));
-        }
+        // world transform. The canonical root-source resolver owns the
+        // only compatibility bake retained for modular line sources.
+        const auto root_matrix = root_source_matrix_override(node, ctx);
         auto source = graph.add_node(std::make_unique<SourceNode>(
             std::string(node.name), node, source_key,
             root_matrix,
