@@ -321,13 +321,44 @@ struct EvaluatedSourcePlacement {
         .use_local = false,
     };
     result.use_local = result.layer.space == EvaluatedCoordinateSpace::Local;
+    const Mat4 node_matrix = node.world_transform.to_mat4();
     result.matrix = result.use_local
-        ? node.world_transform.to_mat4()
-        : result.layer.source_matrix * node.world_transform.to_mat4();
+        ? node_matrix
+        : result.layer.source_matrix * node_matrix;
+
+    // All source-producing paths (single source, multisource, fresh build,
+    // and refresh) share the same authored-text and pinned-canvas rules.
+    // Keeping these adjustments here prevents a refresh from silently
+    // reconstructing a different source payload than the fresh builder.
+    if (!result.use_local) {
+        if (has_custom_absolute_text_transform(item, node, ctx)) {
+            result.matrix = resolve_custom_absolute_text_matrix(item, node, ctx);
+        } else {
+            result.matrix = resolve_absolute_text_source_matrix(
+                item, node, ctx, result.matrix);
+        }
+    }
     result.opacity = (result.use_local || result.layer.defer_camera_projection)
         ? node.world_transform.opacity
         : result.layer.opacity * node.world_transform.opacity;
     return result;
+}
+
+/// Apply source-payload compatibility baking after canonical placement.
+/// This final step is shared by fresh graph construction and refresh so a
+/// pinned fullscreen rectangle cannot drift between the two paths.
+[[nodiscard]] inline Mat4 finalize_source_placement_matrix(
+    const EvaluatedSourcePlacement& placement,
+    const LayerGraphItem& item,
+    const RenderNode& node,
+    const RenderGraphContext& ctx)
+{
+    Mat4 matrix = placement.matrix;
+    if (ctx.policy.modular_coordinates &&
+        is_pinned_full_canvas_rect(item, node, ctx)) {
+        matrix = implicit_canvas_center_matrix(ctx) * matrix;
+    }
+    return matrix;
 }
 
 /// Build the canonical intermediate layer item used by graph construction,
