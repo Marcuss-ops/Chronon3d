@@ -1,17 +1,17 @@
 # TICKET-SEQUENTIAL-CACHE-DIVERGENCE — Sequential graph-cache parity divergence
 
-## Stato: OPEN (2026-08-04)
+## Stato: DONE per il percorso diagnostics-OFF verificato (2026-08-08, `main@377995d4`)
 
 ## Problema
 
-Rendering di frame consecutivi con un unico runtime condiviso non è
-byte-identico al rendering dello stesso frame con un runtime nuovo (freddo)
-quando una sorgente dinamica entra nello schermo. Con la configurazione di
-default (diagnostics **OFF**) il verifier
-`tests/deterministic/test_sequential_graph_cache.cpp` fallisce: 108/2700
-assertion, primo mismatch al **frame 24** dell'ordine lineare — il runtime
-condiviso non disegna il rettangolo in movimento che entra dal bordo
-sinistro, mentre il runtime indipendente lo disegna correttamente.
+Il ticket tracciava una divergenza tra rendering sequenziale con runtime
+condiviso e rendering dello stesso frame con runtime freddo quando una
+sorgente dinamica entra nello schermo. La regressione è ora chiusa nel percorso verificato: sul build
+`linux-fast-dev` con `CHRONON3D_BUILD_DIAGNOSTICS=OFF` e con
+`settings.diagnostics.enabled = false`, il verifier passa senza mismatch.
+Il build mantiene separata l'opzione `CHRONON3D_ENABLE_DIAGNOSTICS=ON`; la
+chiusura qui documentata riguarda esclusivamente il flag di build
+`CHRONON3D_BUILD_DIAGNOSTICS` e l'impostazione runtime esplicita.
 
 ## Evidenza
 
@@ -19,41 +19,41 @@ sinistro, mentre il runtime indipendente lo disegna correttamente.
   `35c062a9 test(cache): add sequential graph cache verifier`), ordini
   linear/random/reverse/repeated, frame 0–59, hash XXH64 via
   `test::framebuffer_hash`.
-- Con `settings.diagnostics.enabled = true` (pattern canonico del repo, vedi
-  `tests/content/test_light_transition_sequential_cache.cpp`) il verifier
-  passa 2700/2700. La flag cambia la semantica del bbox in
-  `SourceNode::predicted_bbox` / `MultiSourceNode::predicted_bbox`:
-  `bbox.clip_to(frame)` viene applicato **solo** quando la diagnostics è
-  disabilitata.
-- Con diagnostics OFF la sorgente `moving_source` esegue (cache node miss,
-  `frame_dep=0`) e disegna gli stessi pixel in entrambi i runtime; la
-  differenza emerge a valle nel composito, e solo dal frame in cui l'oggetto
-  entra nello schermo (per frame 0–23 l'output è background-only in entrambi).
+- Evidenza storica: il percorso diagnostics ON passava mentre il percorso OFF
+  falliva al frame 24; questa era la condizione che il ticket doveva risolvere.
+- Evidenza corrente su `main@377995d4`: `bash tools/verify_sequential_graph_cache_linux.sh`
+  ha ricostruito `chronon3d_deterministic_tests` e `chronon3d_scene_tests`,
+  verificato la freschezza rispetto a test, CMake e sorgenti runtime, quindi
+  ha eseguito il verifier con diagnostics runtime OFF.
+- Risultato: `chronon3d_deterministic_tests` — 3/3 test case PASS,
+  3011 assertions PASS, 0 failure; `chronon3d_scene_tests` — 14/14 test case
+  PASS, 117 assertions PASS, 0 failure; marker
+  `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`, exit code 0.
 
-## Ipotesi di causa (non ancora verificata)
+## Ipotesi di causa (storica, superata dalla verifica)
 
-1. La sorgente animata è autored con valori per-frame in C++ grezzo
+1. La sorgente animata era autored con valori per-frame in C++ grezzo
    (`.pos = {x, y}` calcolato da `ctx.frame()`) senza oggetti animator:
-   l'analisi statica la classifica `static`, quindi la cache nodo condivisa
-   riusa il risultato di un frame precedente (vuoto/off-screen) invece di
-   rieseguire — mentre un runtime freddo esegue sempre.
-2. La semantica `bbox.clip_to` gated su `diagnostics_enabled` è una
+   l’analisi statica la classificava `static`, quindi la cache nodo condivisa
+   riusava il risultato di un frame precedente (vuoto/off-screen) invece di
+   rieseguire — mentre un runtime freddo eseguiva sempre.
+2. La semantica `bbox.clip_to` gated su `diagnostics_enabled` era una
    dipendenza fragile: una flag di logging non dovrebbe cambiare il pixel
    output.
 
-## Prossimi passi (tranche fix cache)
+## Criterio di chiusura
 
-- Riprodurre con diagnostics OFF come test rosso canonico (commit 1 del piano).
-- Correggere la classificazione static/dynamic (o l'authoring della fixture
-  con animator) e la semantica bbox diagnostics-gated (commit 2).
-- Criterio di accettazione: verifier verde con diagnostics OFF su tutti e
-  quattro gli ordini, frame 0–59.
+Chiuso per il percorso verificato: il verifier passa con
+`CHRONON3D_BUILD_DIAGNOSTICS=OFF` e `settings.diagnostics.enabled = false`
+su tutti gli ordini (lineare, random, reverse e repeated), sui frame 0–59,
+includendo il contratto di rendering cold/warm e il controllo
+transactional/topology della suite `chronon3d_scene_tests`. Questa evidenza
+non estende la conclusione ad altre configurazioni diagnostiche.
 
 ## Aggiornamenti
 
 - 2026-08-04: rimosso il workaround `opacity = 0.001` dalle composizioni
   light transition (`content/launches/light_transition_sound_smoke.cpp`),
-  ripristinato `opacity = 0.0` reale; topologia dei layer invariata. Test
-  LightTransition (riproduzione cache 65/65, smoke 13+27+268, clip
-  12+167) e cache (129/129 + verifier sequenziale) verdi. La divergenza
-  diagnostics-OFF resta aperta qui.
+  ripristinato `opacity = 0.0` reale; topologia dei layer invariata.
+- 2026-08-08: verifica finale diagnostics-OFF su `main@377995d4` completata
+  con `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`; ticket chiuso.
