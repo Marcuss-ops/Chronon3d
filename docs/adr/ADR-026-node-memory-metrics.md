@@ -29,10 +29,11 @@ commit (atomic-replace pattern).  The canonical surface:
 - `chronon3d::graph::NodeMemoryMetrics` — the memory counters
   (`pixels_read`, `pixels_written`, `bytes_read`, `bytes_written`,
   `framebuffer_copies`, `framebuffer_clears`, `allocations`,
-  `allocated_bytes`, `temporary_buffers`). `allocations` counts heap events;
-  `allocated_bytes` sums their byte volume. The nine atomic counters occupy
-  72 bytes; the accounting contract is more important than the former
-  cache-line-size assumption.
+  `allocated_bytes`, `temporary_buffers`, `live_bytes`, `peak_live_bytes`).
+  `allocations` counts heap events; `allocated_bytes` sums their byte volume;
+  `temporary_buffers` counts acquisitions; live fields report current and
+  peak temporary workspace residency. The accounting contract is more
+  important than the former cache-line-size assumption.
 - `chronon3d::graph::NodeStatsSnapshot` — value-typed `Id + memory counts`
   read-out of a single node's accumulator state.
 - `chronon3d::graph::NodeStatsReporter` — per-session `std::map<std::string,
