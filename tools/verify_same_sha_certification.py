@@ -39,7 +39,7 @@ from typing import Any, Iterable
 
 
 SCRIPT_NAME = "verify_same_sha_certification"
-MANIFEST_SCHEMA = "chronon3d.same-sha-certification.v1"
+MANIFEST_SCHEMA = "chronon3d.same-sha-certification.v2"
 
 
 class CertificationError(RuntimeError):
@@ -278,8 +278,12 @@ def relevant_input_mtime(repo: Path, build_dir: Path, candidate: Path) -> tuple[
     build while avoiding a repository-wide watermark that creates unrelated
     stale failures.
     """
+    try:
+        ninja_target = candidate.relative_to(build_dir).as_posix()
+    except ValueError:
+        ninja_target = candidate.name
     result = run_command(
-        ["ninja", "-C", str(build_dir), "-t", "inputs", candidate.name], cwd=repo
+        ["ninja", "-C", str(build_dir), "-t", "inputs", ninja_target], cwd=repo
     )
     if result.returncode == 0:
         inputs: list[Path] = []
@@ -317,7 +321,13 @@ def check_test_artifacts(
         name = str(test["name"])
         argv = commands.get(name, [])
         command = " ".join(shlex.quote(part) for part in argv)
-        record: dict[str, Any] = {"name": name, "command": command, "argv": argv, "kind": "unknown"}
+        record: dict[str, Any] = {
+            "name": name,
+            "command": command,
+            "argv": argv,
+            "kind": "unknown",
+            "freshness": {"checked": False, "status": "not_applicable"},
+        }
         if not argv:
             failures.append(f"registered test has no resolvable command: {name}")
             record["kind"] = "missing"
@@ -369,7 +379,13 @@ def check_test_artifacts(
 
             if record["kind"] == "binary":
                 newest_input, stale_method = relevant_input_mtime(repo, build_dir, candidate)
-                record["stale_check"] = stale_method
+                record["freshness"] = {
+                    "checked": True,
+                    "status": "unknown" if newest_input is None else "stale" if candidate.stat().st_mtime_ns < newest_input else "fresh",
+                    "method": stale_method,
+                    "binary_mtime_ns": candidate.stat().st_mtime_ns,
+                    "newest_input_mtime_ns": newest_input,
+                }
                 if newest_input is None:
                     failures.append(f"cannot verify freshness of test binary: {name} ({candidate})")
                 elif candidate.stat().st_mtime_ns < newest_input:
@@ -379,6 +395,7 @@ def check_test_artifacts(
         elif argv[0].endswith((".sh", ".py")) or "gate" in name:
             record["kind"] = "script"
             record["path"] = argv[0]
+            record["freshness"] = {"checked": True, "status": "not_applicable"}
             if not Path(argv[0]).is_file():
                 failures.append(f"missing test script: {name} ({argv[0]})")
         else:
@@ -478,7 +495,22 @@ def certify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "skipped": 0,
         "allowed_skips": args.allow_skip,
         "tests": [],
+        "suite_registration": {
+            "registered": [],
+            "executed": [],
+            "missing_execution": [],
+            "unexpected_execution": [],
+            "status": "not_run",
+        },
         "gates": {},
+        "gate_summary": {
+            "declared": 0,
+            "executed": 0,
+            "passed": 0,
+            "failed": 0,
+            "not_executed": [],
+            "status": "not_run",
+        },
         "artifacts": {},
         "failures": [],
         "deterministic_second_run": False,
@@ -513,6 +545,7 @@ def certify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         # invariant is evaluated; a stale binary must never be certified merely
         # because the build phase appears later in the report.
         gates = load_gate_manifest(repo, args.profile)
+        manifest["gate_summary"]["declared"] = len(gates)
         for gate in gates:
             # Run each concrete gate twice. We compare the observable verdict
             # (status + exit code), not log bytes: timings and temporary paths
@@ -536,7 +569,11 @@ def certify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "exit_code": 0 if deterministic and all(run.get("exit_code") == 0 for run in runs) else 1,
             }
             manifest["gates"][gate] = record
+            manifest["gate_summary"]["executed"] += int(record["executed"])
+            manifest["gate_summary"]["passed"] += int(record["executed"] and record["status"] == "passed")
+            manifest["gate_summary"]["failed"] += int(record["status"] == "failed")
             if not record["executed"]:
+                manifest["gate_summary"]["not_executed"].append(gate)
                 manifest["failures"].append(f"gate was not executed: {gate}")
             if not record["deterministic"]:
                 manifest["failures"].append(f"gate verdict changed between runs: {gate}")
@@ -564,9 +601,34 @@ def certify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
         expected = {str(test["name"]) for test in tests}
         first = run_summaries[0]["statuses"]
-        for name in expected - set(first):
+        missing_execution = sorted(expected - set(first))
+        unexpected_execution = sorted(set(first) - expected)
+        ctest_commands = parse_ctest_commands(build_dir)
+        command_names = set(ctest_commands)
+        missing_command_registration = sorted(expected - command_names)
+        unlisted_commands = sorted(command_names - expected)
+        manifest["suite_registration"] = {
+            "registered": sorted(expected),
+            "ctest_commands": sorted(command_names),
+            "executed": sorted(first),
+            "missing_command_registration": missing_command_registration,
+            "unlisted_commands": unlisted_commands,
+            "missing_execution": missing_execution,
+            "unexpected_execution": unexpected_execution,
+            "status": "passed" if (
+                not missing_command_registration
+                and not unlisted_commands
+                and not missing_execution
+                and not unexpected_execution
+            ) else "failed",
+        }
+        for name in missing_command_registration:
+            manifest["failures"].append(f"registered test has no generated add_test command: {name}")
+        for name in unlisted_commands:
+            manifest["failures"].append(f"generated add_test command absent from CTest discovery: {name}")
+        for name in missing_execution:
             manifest["failures"].append(f"registered test was not executed: {name}")
-        for name in set(first) - expected:
+        for name in unexpected_execution:
             manifest["failures"].append(f"unregistered test executed: {name}")
         if len(run_summaries) >= 2:
             signatures = [
@@ -601,10 +663,42 @@ def certify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
         if "unit_tests" in manifest["gates"]:
             unit = manifest["gates"]["unit_tests"]
-            unit["status"] = "passed" if manifest["executed_tests"] and not manifest["failed"] and manifest["deterministic_second_run"] else "failed"
+            unit["status"] = "passed" if (
+                manifest["executed_tests"] == manifest["registered_tests"]
+                and not manifest["failed"]
+                and not unexpected_skips
+                and not artifact_failures
+                and manifest["suite_registration"]["status"] == "passed"
+                and manifest["deterministic_second_run"]
+            ) else "failed"
             unit["exit_code"] = 0 if unit["status"] == "passed" else 1
             unit["runs"][0]["status"] = unit["status"]
             unit["runs"][0]["exit_code"] = unit["exit_code"]
+
+        # Recompute the aggregate after delegated gates (notably unit_tests)
+        # receive their final CTest-backed verdict. This prevents a skipped,
+        # stale, or incomplete suite from leaving gate_summary falsely green.
+        gate_records = list(manifest["gates"].values())
+        manifest["gate_summary"]["executed"] = sum(
+            int(record.get("executed", False)) for record in gate_records
+        )
+        manifest["gate_summary"]["passed"] = sum(
+            int(record.get("executed", False) and record.get("status") == "passed")
+            for record in gate_records
+        )
+        manifest["gate_summary"]["failed"] = sum(
+            int(record.get("status") == "failed") for record in gate_records
+        )
+        manifest["gate_summary"]["not_executed"] = sorted(
+            name for name, record in manifest["gates"].items()
+            if not record.get("executed", False)
+        )
+        manifest["gate_summary"]["status"] = (
+            "passed"
+            if manifest["gate_summary"]["executed"] == manifest["gate_summary"]["declared"]
+            and manifest["gate_summary"]["failed"] == 0
+            else "failed"
+        )
 
     except CertificationFailure as exc:
         manifest["failures"].append(str(exc))
@@ -657,7 +751,19 @@ def main(argv: list[str]) -> int:
             "skipped": 0,
             "allowed_skips": args.allow_skip,
             "tests": [],
+            "suite_registration": {
+                "registered": [], "executed": [],
+                "ctest_commands": [],
+                "missing_command_registration": [],
+                "unlisted_commands": [],
+                "missing_execution": [], "unexpected_execution": [],
+                "status": "not_run",
+            },
             "gates": {},
+            "gate_summary": {
+                "declared": 0, "executed": 0, "passed": 0, "failed": 0,
+                "not_executed": [], "status": "not_run",
+            },
             "artifacts": {},
             "failures": [f"CERTIFICATION_BLOCKED: {exc}"],
             "deterministic_second_run": False,
