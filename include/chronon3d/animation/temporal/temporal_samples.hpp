@@ -27,9 +27,12 @@
 // identical output. Two calls in two processes → byte-equal TemporalSampleSet.
 // ==============================================================================
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/model/camera/camera_common_types.hpp>  // TemporalSamplePattern, TemporalFilter
 
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -102,5 +105,85 @@ TemporalSampleSet generate_temporal_samples(
     const TemporalSampleParams& params,
     int num_samples,
     Frame center_frame);
+
+// ── Isolated render sample contract ─────────────────────────────────────────
+//
+// A SampleContext is the complete identity of one temporal render.  The
+// renderer uses `time` for evaluation and `cache_key` for every frame/node
+// cache lookup.  Keeping both values together prevents a sample from being
+// evaluated at one instant while being cached as another.
+struct SampleContext {
+    std::size_t index{0};
+    double normalized_time{0.0};
+    SampleTime time{};
+    TemporalSampleKey cache_key{};
+    float weight{0.0f};
+};
+
+/// Explicit shutter-window plan consumed by temporal accumulation.
+///
+/// The plan is immutable after construction and has a bounded sample count so
+/// a malformed render request cannot allocate an unbounded number of scratch
+/// contexts.  Each context has a distinct sub-frame cache identity; the
+/// caller owns the actual cache/scratch resources and must keep them isolated
+/// for the duration of that context.
+struct TemporalSamplePlan {
+    static constexpr int kMaxSamples = 64;
+
+    std::vector<SampleContext> contexts;
+    int requested_samples{0};
+    bool rejected{false};
+    double exposure_normalized{0.0};
+    double window_start_normalized{0.0};
+
+    [[nodiscard]] bool valid() const noexcept {
+        if (rejected || requested_samples <= 0 ||
+            requested_samples > kMaxSamples ||
+            contexts.size() != static_cast<std::size_t>(requested_samples)) {
+            return false;
+        }
+        float weight_sum = 0.0f;
+        for (std::size_t i = 0; i < contexts.size(); ++i) {
+            const auto& context = contexts[i];
+            if (!std::isfinite(context.time.frame) ||
+                !std::isfinite(context.normalized_time) ||
+                context.normalized_time < 0.0 ||
+                context.normalized_time > 1.0 ||
+                !std::isfinite(context.weight) || context.weight <= 0.0f) {
+                return false;
+            }
+            for (std::size_t j = i + 1; j < contexts.size(); ++j) {
+                if (context.cache_key == contexts[j].cache_key ||
+                    context.time == contexts[j].time) {
+                    return false;
+                }
+            }
+            weight_sum += context.weight;
+        }
+        const bool normalized_weights =
+            std::abs(weight_sum - 1.0f) <= 1e-4f;
+        return std::isfinite(exposure_normalized) &&
+            std::isfinite(window_start_normalized) &&
+            normalized_weights;
+    }
+
+    [[nodiscard]] int num_samples() const noexcept {
+        return static_cast<int>(contexts.size());
+    }
+
+    [[nodiscard]] const SampleContext& operator[](std::size_t index) const {
+        return contexts.at(index);
+    }
+};
+
+/// Materialize one bounded, deterministic plan from the canonical sample set.
+/// `cache_version` lets a caller invalidate all sample identities when the
+/// authored content version changes without changing the shutter geometry.
+[[nodiscard]] TemporalSamplePlan make_temporal_sample_plan(
+    const TemporalSampleParams& params,
+    int num_samples,
+    Frame center_frame,
+    FrameRate frame_rate,
+    EvaluationVersion cache_version = 0);
 
 } // namespace chronon3d::temporal
