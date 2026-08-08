@@ -31,7 +31,6 @@ void refresh_multi_source_node(
     }
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-    const auto placement = evaluate_layer_placement(item, ctx);
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;

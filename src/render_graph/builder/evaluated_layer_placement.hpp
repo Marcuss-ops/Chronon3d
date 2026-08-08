@@ -146,6 +146,43 @@ struct EvaluatedLayerPlacement {
     return result;
 }
 
+/// Return the optional matrix override shared by fresh and refreshed root
+/// source nodes. Root shapes are authored in top-left canvas coordinates;
+/// modular line sources retain the historical canvas-center bake.
+[[nodiscard]] inline std::optional<Mat4> root_source_matrix_override(
+    const RenderNode& node,
+    const RenderGraphContext& ctx)
+{
+    if (ctx.policy.modular_coordinates && node.shape.type() == ShapeType::Line) {
+        return implicit_canvas_center_matrix(ctx);
+    }
+    return std::nullopt;
+}
+
+/// Evaluate a root source through the same source-payload resolver used by
+/// SourceNode::predicted_bbox(), execute(), builder and refresh. This keeps
+/// dirty/root-bbox analysis from rebuilding SSAA, camera and centering rules.
+[[nodiscard]] inline std::optional<EvaluatedLayerPlacement>
+ evaluate_root_source_placement(
+    const RenderNode& node,
+    const RenderGraphContext& ctx,
+    std::string_view node_name = {},
+    const char* stage = nullptr)
+{
+    const auto override_matrix = root_source_matrix_override(node, ctx);
+    const Mat4 source_matrix = override_matrix.value_or(
+        node.world_transform.to_mat4());
+    return evaluate_source_payload_placement(
+        source_matrix,
+        node.world_transform.opacity,
+        ctx,
+        true,
+        false,
+        false,
+        node_name,
+        stage);
+}
+
 /// Convert a local/node bbox through a canonical placement matrix into
 /// canvas pixels. This is kept beside the placement resolver so projected
 /// bbox math cannot drift between build, refresh, and dirty analysis.

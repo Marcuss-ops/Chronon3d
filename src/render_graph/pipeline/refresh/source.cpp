@@ -37,18 +37,9 @@ void refresh_source_node(
         if (ctx.frame_input.has_camera_2_5d) {
             cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
         }
-        // Keep the refresh path byte-equivalent to append_root_sources():
-        // modular_coordinates is a policy flag, not a transform.  Passing
-        // it as the optional Mat4 previously converted `true` into an
-        // identity override and shifted root shapes from their authored
-        // centered placement on cache refresh.
-        std::optional<Mat4> matrix_override;
-        if (ctx.policy.modular_coordinates && src_node.shape.type() == ShapeType::Line) {
-            matrix_override = glm::translate(Mat4(1.0f), Vec3(
-                ctx.frame_input.width * 0.5f,
-                ctx.frame_input.height * 0.5f,
-                0.0f));
-        }
+        // Keep refresh byte-equivalent to append_root_sources() through the
+        // canonical root-source placement helper.
+        const auto matrix_override = root_source_matrix_override(src_node, ctx);
         node.refresh(
             std::string(src_node.name),
             src_node,
@@ -82,12 +73,11 @@ void refresh_source_node(
 
     const auto& src_node = layer.nodes[0];
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-    const auto placement = evaluate_layer_placement(item, ctx);
+    const auto source_placement = evaluate_source_placement(item, src_node, ctx);
     const std::string layer_name_str(layer.name);
     const bool item_static = is_static_cache.count(layer_name_str)
         ? is_static_cache.at(layer_name_str) : layer.cache_static;
     const bool source_is_static = item_static;
-    const auto source_placement = evaluate_source_placement(item, src_node, ctx);
     const Mat4 render_matrix = finalize_source_placement_matrix(
         source_placement, item, src_node, ctx);
     const f32 render_opacity = source_placement.opacity;
@@ -115,7 +105,7 @@ void refresh_source_node(
         std::optional<Mat4>(render_matrix),
         std::optional<f32>(render_opacity),
         node.cache_policy(),
-        placement.defer_camera_projection,
+        source_placement.layer.defer_camera_projection,
         item.native_3d
     );
 }
