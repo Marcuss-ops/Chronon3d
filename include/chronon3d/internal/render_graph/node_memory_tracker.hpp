@@ -26,18 +26,19 @@ struct NodeMemoryPoolSnapshot {
 
 struct NodeMemorySampleSnapshot {
     TemporalSampleKey sample_key{};
-    std::uint64_t allocation_bytes{0};
+    /// Temporary bytes observed for this sample, including reused buffers.
+    std::uint64_t temporary_bytes_observed{0};
     std::uint64_t temporary_buffers{0};
-    std::uint64_t current_bytes{0};
-    std::uint64_t peak_bytes{0};
+    std::uint64_t live_bytes{0};
+    std::uint64_t peak_live_bytes{0};
 };
 
 struct NodeMemoryReport {
     std::vector<NodeStatsSnapshot> nodes;
     std::vector<NodeMemorySampleSnapshot> samples;
     NodeMemoryPoolSnapshot framebuffer_pool{};
-    std::uint64_t current_temporary_bytes{0};
-    std::uint64_t peak_temporary_bytes{0};
+    std::uint64_t current_live_bytes{0};
+    std::uint64_t peak_live_bytes{0};
     std::uint64_t peak_rss_bytes{0};
 };
 
@@ -62,17 +63,25 @@ public:
         std::uint64_t bytes)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_current_temporary_bytes += bytes;
-        m_peak_temporary_bytes = std::max(m_peak_temporary_bytes, m_current_temporary_bytes);
+        m_current_live_bytes += bytes;
+        m_peak_live_bytes = std::max(m_peak_live_bytes, m_current_live_bytes);
         auto& node = m_live_nodes[std::string(node_id)];
         node += bytes;
+        auto& node_peak = m_peak_live_nodes[std::string(node_id)];
+        node_peak = std::max(node_peak, node);
+
+        NodeMemoryMetrics metrics;
+        metrics.temporary_buffers.store(1, std::memory_order_relaxed);
+        m_reporter.observe_node(std::string(node_id), metrics);
+        m_reporter.observe_live_bytes(std::string(node_id), node, node_peak);
+
         if (sample_key) {
             auto& sample = m_samples[*sample_key];
             sample.sample_key = *sample_key;
-            sample.allocation_bytes += bytes;
+            sample.temporary_bytes_observed += bytes;
             sample.temporary_buffers += 1;
-            sample.current_bytes += bytes;
-            sample.peak_bytes = std::max(sample.peak_bytes, sample.current_bytes);
+            sample.live_bytes += bytes;
+            sample.peak_live_bytes = std::max(sample.peak_live_bytes, sample.live_bytes);
         }
     }
 
@@ -82,12 +91,16 @@ public:
         std::uint64_t bytes)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        subtract_saturating(m_current_temporary_bytes, bytes);
+        subtract_saturating(m_current_live_bytes, bytes);
         auto node = m_live_nodes.find(std::string(node_id));
-        if (node != m_live_nodes.end()) subtract_saturating(node->second, bytes);
+        if (node != m_live_nodes.end()) {
+            subtract_saturating(node->second, bytes);
+            const auto peak = m_peak_live_nodes[std::string(node_id)];
+            m_reporter.observe_live_bytes(std::string(node_id), node->second, peak);
+        }
         if (sample_key) {
             auto sample = m_samples.find(*sample_key);
-            if (sample != m_samples.end()) subtract_saturating(sample->second.current_bytes, bytes);
+            if (sample != m_samples.end()) subtract_saturating(sample->second.live_bytes, bytes);
         }
     }
 
@@ -95,7 +108,6 @@ public:
         NodeMemoryMetrics metrics;
         metrics.allocations.store(1, std::memory_order_relaxed);
         metrics.allocated_bytes.store(bytes, std::memory_order_relaxed);
-        metrics.temporary_buffers.store(1, std::memory_order_relaxed);
         observe_node(node_id, metrics);
     }
 
@@ -116,8 +128,8 @@ public:
         report.samples.reserve(m_samples.size());
         for (const auto& [key, sample] : m_samples) report.samples.push_back(sample);
         report.framebuffer_pool = m_pool;
-        report.current_temporary_bytes = m_current_temporary_bytes;
-        report.peak_temporary_bytes = m_peak_temporary_bytes;
+        report.current_live_bytes = m_current_live_bytes;
+        report.peak_live_bytes = m_peak_live_bytes;
         report.peak_rss_bytes = m_peak_rss_bytes;
         return report;
     }
@@ -127,9 +139,10 @@ public:
         m_reporter.reset();
         m_samples.clear();
         m_live_nodes.clear();
+        m_peak_live_nodes.clear();
         m_pool = {};
-        m_current_temporary_bytes = 0;
-        m_peak_temporary_bytes = 0;
+        m_current_live_bytes = 0;
+        m_peak_live_bytes = 0;
         m_peak_rss_bytes = 0;
     }
 
@@ -149,10 +162,11 @@ private:
     mutable std::mutex m_mutex;
     NodeStatsReporter m_reporter;
     std::map<std::string, std::uint64_t> m_live_nodes;
+    std::map<std::string, std::uint64_t> m_peak_live_nodes;
     std::map<TemporalSampleKey, NodeMemorySampleSnapshot, SampleKeyLess> m_samples;
     NodeMemoryPoolSnapshot m_pool{};
-    std::uint64_t m_current_temporary_bytes{0};
-    std::uint64_t m_peak_temporary_bytes{0};
+    std::uint64_t m_current_live_bytes{0};
+    std::uint64_t m_peak_live_bytes{0};
     std::uint64_t m_peak_rss_bytes{0};
 };
 
