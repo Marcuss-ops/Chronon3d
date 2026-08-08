@@ -4,6 +4,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include "temporal_render_bridge.hpp"
 #include <spdlog/spdlog.h>
 
 #include <optional>
@@ -110,10 +111,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
             const auto frame_t0 = profiling::now();
-            auto fb = graph::render_compiled_composition_frame(
+            auto fb = graph::render_compiled_composition_frame_temporal(
                 ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
                 ctx.video_decoder, ctx.compiled, current_frame,
-                ctx.sw_renderer);
+                ctx.sw_renderer, ctx.opts.cancellation_token);
             const auto frame_t1 = profiling::now();
             const double frame_ms =
                 profiling::duration_ms(frame_t0, frame_t1);
@@ -140,7 +141,12 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             if (!fb) {
                 ctx.triple_arena.release(current_arena);
-                mark_pipe_render_failed(status, current_frame);
+                if (ctx.opts.cancellation_token &&
+                    ctx.opts.cancellation_token->is_cancelled()) {
+                    mark_pipe_cancelled(status, current_frame);
+                } else {
+                    mark_pipe_render_failed(status, current_frame);
+                }
                 break;
             }
 

@@ -46,10 +46,11 @@
 
 #include <spdlog/spdlog.h>
 #include <cassert>
+#include "temporal_render_context.hpp"
 
 namespace chronon3d::graph {
 
-std::shared_ptr<Framebuffer> render_scene_via_graph(
+std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
     const Scene& scene,
@@ -63,28 +64,74 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     media::MediaFrameProvider* video_decoder,
     float fps,
     std::string_view diagnostic_label,
-    chronon3d::SoftwareRenderer* sw_sidecar
+    chronon3d::SoftwareRenderer* sw_sidecar,
+    const TemporalRenderContext* temporal_context
 ) {
     ZoneScoped;
     const auto t0 = profiling::now();
-    const auto hits_before = node_cache.stats().hits;
+    cache::NodeCache* active_node_cache = temporal_context && temporal_context->value_cache
+        ? temporal_context->value_cache
+        : &node_cache;
+    const bool isolated_temporal_sample = temporal_context != nullptr;
+    RenderSettings sample_settings;
+    if (isolated_temporal_sample) {
+        sample_settings = settings;
+        sample_settings.dirty.enabled = false;
+        sample_settings.dirty.use_bitmask = false;
+        sample_settings.dirty.use_tiles = false;
+        sample_settings.dirty.tile_size = 0;
+        sample_settings.diagnostics.enabled = false;
+        sample_settings.diagnostics.plan = false;
+        sample_settings.diagnostics.plan_output.clear();
+        sample_settings.text_layout_debug = false;
+        sample_settings.diagnostic_overlay_only = false;
+    }
+    const RenderSettings& effective_settings = isolated_temporal_sample
+        ? sample_settings : settings;
+    const auto hits_before = active_node_cache->stats().hits;
 
     // ── 0. Context setup ──
     auto ctx = make_graph_context(
-        backend, node_cache, camera, width, height, frame, frame_time,
-        settings, registry, video_decoder, fps);
-    profiling::ProfilingGuard profiling_guard(
-        ctx.node_exec.counters, ctx.services.framebuffer_pool.get());
+        backend, *active_node_cache, camera, width, height, frame, frame_time,
+        effective_settings, registry, video_decoder, fps,
+        temporal_context ? temporal_context->sample_key : TemporalSampleKey{});
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
+    if (isolated_temporal_sample) {
+        // Temporal samples get their own session/cache domains. The renderer
+        // sidecar is still borrowed for immutable runtime services (backend,
+        // catalogs, processor snapshot), but no sample state is published to
+        // the main session.
+        ctx.services.node_cache = active_node_cache;
+        ctx.services.compiled_graph_cache = temporal_context->topology_cache;
+        ctx.services.session = temporal_context->session;
+        ctx.services.sw_renderer_sidecar = nullptr;
+        ctx.frame_input.sample_time = temporal_context->sample_time;
+        ctx.frame_input.temporal_key = temporal_context->sample_key;
+        ctx.frame_input.time_seconds = static_cast<float>(
+            temporal_context->sample_time.seconds());
+        ctx.frame_input.fps = static_cast<float>(
+            temporal_context->sample_time.fps());
+        if (temporal_context->counters) {
+            ctx.node_exec.counters = temporal_context->counters;
+        } else {
+            ctx.node_exec.counters = nullptr;
+        }
+        if (temporal_context->framebuffer_pool) {
+            ctx.services.framebuffer_pool = temporal_context->framebuffer_pool;
+        }
+    }
+
+    profiling::ProfilingGuard profiling_guard(
+        ctx.node_exec.counters, ctx.services.framebuffer_pool.get());
 
     // The SDK contract is fail-closed for unresolved assets. Run the same
     // graph preflight against the owning runtime resolver before any backend
     // can substitute a diagnostic placeholder for a missing image.
-    if (settings.fail_on_missing_assets) {
+    if (effective_settings.fail_on_missing_assets) {
         auto report = debug_preflight_render_graph(
-            backend, node_cache, scene, camera, width, height,
-            frame, frame_time, settings, registry, video_decoder,
+            backend, *active_node_cache, scene, camera, width, height,
+            frame, frame_time, effective_settings, registry, video_decoder,
             static_cast<float>(fps),
             sw_renderer ? &sw_renderer->runtime().resolver() : nullptr);
         if (report.has_warning_containing("MISSING_ASSET") ||
@@ -96,11 +143,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     // ── 1-3. Resolved-scene reuse + Fingerprints + Static-scene fast-path ──
-    auto reuse_eval = detail::evaluate_early_reuse_phases(
-        ctx, scene, frame, static_cast<int>(width),
-        static_cast<int>(height), sw_renderer);
-    if (reuse_eval.fast_path_reuse_fb) {
-        return reuse_eval.fast_path_reuse_fb;
+    detail::ReuseEvaluation reuse_eval;
+    if (!isolated_temporal_sample) {
+        reuse_eval = detail::evaluate_early_reuse_phases(
+            ctx, scene, frame, static_cast<int>(width),
+            static_cast<int>(height), sw_renderer);
+        if (reuse_eval.fast_path_reuse_fb) {
+            return reuse_eval.fast_path_reuse_fb;
+        }
     }
 
     // ── 4. Graph-structure hint + diagnostics plan ──
@@ -115,7 +165,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         reuse_eval.frame_fp.active_at_fp ==
             (sw_renderer ? sw_renderer->frame_history().prev_active_at_fingerprint : 0);
 
-    if (ctx.policy.diagnostics_enabled) {
+    if (ctx.policy.diagnostics_enabled && !isolated_temporal_sample) {
         const auto& history = sw_renderer->frame_history();
         const char* decision = reuse_eval.fast_path_reuse_fb
             ? "early_reuse"
@@ -134,18 +184,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             history.prev_graph_structure_fingerprint, decision);
     }
 
-    if (settings.diagnostics.plan) {
+    if (effective_settings.diagnostics.plan) {
         profiling::ProfilingGuard diag_guard(nullptr, profiling::g_current_framebuffer_pool);
         auto report = debug_preflight_render_graph(
-            backend, node_cache, scene, camera, width, height,
-            frame, frame_time, settings, registry, video_decoder,
+            backend, *active_node_cache, scene, camera, width, height,
+            frame, frame_time, effective_settings, registry, video_decoder,
             static_cast<float>(fps),
             sw_renderer ? &sw_renderer->runtime().resolver() : nullptr);
         spdlog::info("[graph-preflight] label='{}' frame={} size={}x{}\n{}",
                      diagnostic_label, static_cast<int>(frame), width, height, report.to_text());
         if (!settings.diagnostics.plan_output.empty()) {
-            const auto report_path = format_plan_output_path(
-                settings.diagnostics.plan_output, frame);
+            const auto report_path =            format_plan_output_path(
+                effective_settings.diagnostics.plan_output, frame);
+
             if (write_plan_output_file(report_path, report.to_text())) {
                 spdlog::info("[graph-preflight] report written to {}", report_path);
             }
@@ -157,18 +208,28 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto resolved = detail::resolve_layers(scene, ctx);
     const auto t_resolve1 = profiling::now();
     const auto t_dirty0 = profiling::now();
-    auto dirty_out = detail::compute_dirty_rect(
-        ctx, resolved, scene, settings, sw_renderer, frame, width, height);
+    auto dirty_out = isolated_temporal_sample
+        ? detail::DirtyRectOutput{
+            .layer_bboxes = {},
+            .dirty_rect = raster::BBox{0, 0, width, height},
+            .use_dirty_rects = false,
+            .tile_grid = std::nullopt,
+            .dirty_tiles = std::nullopt,
+            .use_dirty_tiles = false}
+        : detail::compute_dirty_rect(
+            ctx, resolved, scene, settings, sw_renderer, frame, width, height);
     const auto t_dirty1 = profiling::now();
 
     // ── 6. Dirty metrics ──
     const double dirty_ratio = compute_and_apply_dirty_metrics(
-        dirty_out, width, height, ctx.node_exec.counters, sw_renderer);
-    log_dirty_debug(sw_renderer, ctx.policy.diagnostics_enabled, dirty_out, frame);
+        dirty_out, width, height, ctx.node_exec.counters,
+        isolated_temporal_sample ? nullptr : sw_renderer);
+    log_dirty_debug(isolated_temporal_sample ? nullptr : sw_renderer,
+                    ctx.policy.diagnostics_enabled, dirty_out, frame);
     ctx.node_exec.dirty_rect = dirty_out.dirty_rect;
     ctx.policy.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
 
-    if (settings.dirty.enabled && !settings.dirty.tiles_active()) {
+    if (effective_settings.dirty.enabled && !effective_settings.dirty.tiles_active()) {
         ctx.policy.reuse_prev_framebuffer = false;
         ctx.policy.dirty_rects_enabled = false;
         if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
@@ -181,7 +242,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     // ── 7. Empty dirty-rect reuse ──
-    {
+    if (!isolated_temporal_sample) {
         CHRONON_ZONE_C("dirty_fast_path_reuse", trace_category::kFrame);
         const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
         auto reuse = evaluate_empty_dirty_reuse(
@@ -200,11 +261,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── 8. Ping-pong framebuffers + scratch (must precede build for ALL paths) ──
     if (sw_renderer) {
-        if (sw_renderer->config().scheduler().pingpong_framebuffer()) {
+        if (!isolated_temporal_sample && sw_renderer->config().scheduler().pingpong_framebuffer()) {
             setup_pingpong_buffers(sw_renderer, width, height);
             ctx.node_exec.ping_write = sw_renderer->buffer_ring().write_slot_view();
         }
-        ctx.node_exec.transform_scratch = sw_renderer->scratch_buffer().slot_view(width, height);
+        ctx.node_exec.transform_scratch = isolated_temporal_sample
+            ? temporal_context->scratch->slot_view(width, height)
+            : sw_renderer->scratch_buffer().slot_view(width, height);
     }
 
     // ── 9. Build or reuse compiled graph ──
@@ -219,7 +282,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── 9a. Capture TextRunNode snapshots (chronon3d_cli inspect-text) ──
     // Snapshot while graph is fully built and frozen, before execution
     // mutates any state.  Real TextRunShape + world matrix + predicted bbox.
-    if (sw_renderer) {
+    if (sw_renderer && !isolated_temporal_sample) {
         sw_renderer->text_audit_snapshots().clear();
         const auto& graph = graph_result.compiled.graph;
         for (GraphNodeId i = 0; i < graph.size(); ++i) {
@@ -249,10 +312,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── 10. Pre-frame pool preallocation ──
     const auto t_prealloc0 = profiling::now();
-    if (sw_renderer && sw_renderer->framebuffer_pool()) {
+    if (ctx.services.framebuffer_pool) {
         const size_t prealloc_count = preallocate_for_frame(
-            *sw_renderer->framebuffer_pool(), graph_result.compiled,
-            width, height, ctx.node_exec.counters, ctx.policy.diagnostics_enabled);
+            *ctx.services.framebuffer_pool, graph_result.compiled,
+            width, height, ctx.node_exec.counters,
+            ctx.policy.diagnostics_enabled && !isolated_temporal_sample);
         (void)prealloc_count;
     }
     const auto t_prealloc1 = profiling::now();
@@ -263,29 +327,34 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // child scopes (tile / precomp) can walk the parent chain.  Arena
     // reset happens inside execute_tile_or_fallback at scope exit.
     RenderSession fallback_session;   // for !sw_renderer test paths
-    auto& session_ref = sw_renderer
-        ? static_cast<RenderSession&>(sw_renderer->session())
-        : fallback_session;
+    auto& session_ref = isolated_temporal_sample && temporal_context->session
+        ? static_cast<RenderSession&>(*temporal_context->session)
+        : (sw_renderer
+            ? static_cast<RenderSession&>(sw_renderer->session())
+            : fallback_session);
     ExecutionScope root_scope = ExecutionScope::make_root(
         session_ref, session_ref.arena(),
         graph_result.compiled.graph_instance_id);
     const auto t_exec0 = profiling::now();
     auto exec_result = execute_tile_or_fallback(
-        ctx, graph_result.compiled, resolved, settings, dirty_out,
-        dirty_ratio, sw_renderer, frame, width, height, root_scope);
+        ctx, graph_result.compiled,        resolved, effective_settings, dirty_out,
+
+        dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
+        frame, width, height, root_scope);
     const auto t_exec1 = profiling::now();
 
     // ── 12. Phase timing telemetry ──
     compute_and_record_timings(
         t_resolve0, t_resolve1, t_dirty0, t_dirty1,
         t_graph0, t_graph1, t_exec0, t_exec1,
-        ctx.node_exec.counters, ctx.policy.diagnostics_enabled,
+        ctx.node_exec.counters,        ctx.policy.diagnostics_enabled && !isolated_temporal_sample,
         frame, graph_result.graph_reused);
-    record_dirty_telemetry(sw_renderer, dirty_out,
+    record_dirty_telemetry(isolated_temporal_sample ? nullptr : sw_renderer, dirty_out,
+
         exec_result.use_tile_execution, graph_result.graph_reused);
 
     // ── 13. Save state for next frame ──
-    if (sw_renderer) {
+    if (sw_renderer && !isolated_temporal_sample) {
         commit_frame_state(
             sw_renderer, frame, ctx.frame_input.camera_2_5d,
             std::move(graph_result.compiled), exec_result.fb,
@@ -293,6 +362,28 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     return exec_result.fb;
+}
+
+std::shared_ptr<Framebuffer> render_scene_via_graph(
+    RenderBackend& backend,
+    cache::NodeCache& node_cache,
+    const Scene& scene,
+    const Camera& camera,
+    i32 width,
+    i32 height,
+    Frame frame,
+    f32 frame_time,
+    const RenderSettings& settings,
+    const CompositionRegistry* registry,
+    media::MediaFrameProvider* video_decoder,
+    float fps,
+    std::string_view diagnostic_label,
+    chronon3d::SoftwareRenderer* sw_sidecar)
+{
+    return render_scene_via_graph_temporal(
+        backend, node_cache, scene, camera, width, height, frame, frame_time,
+        settings, registry, video_decoder, fps, diagnostic_label, sw_sidecar,
+        nullptr);
 }
 
 } // namespace chronon3d::graph

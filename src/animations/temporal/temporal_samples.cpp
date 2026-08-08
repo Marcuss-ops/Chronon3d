@@ -161,4 +161,41 @@ TemporalSampleSet generate_temporal_samples(
     return out;
 }
 
+TemporalSamplePlan make_temporal_sample_plan(
+    const TemporalSampleParams& params,
+    int num_samples,
+    Frame center_frame,
+    FrameRate frame_rate,
+    EvaluationVersion cache_version)
+{
+    TemporalSamplePlan plan;
+    plan.requested_samples = num_samples;
+    if (num_samples <= 0 || num_samples > TemporalSamplePlan::kMaxSamples) {
+        plan.rejected = true;
+        return plan;
+    }
+    const auto samples = generate_temporal_samples(
+        params, num_samples, center_frame);
+    plan.exposure_normalized = samples.exposure_normalized;
+    plan.window_start_normalized = samples.window_start_normalized;
+    plan.contexts.reserve(samples.sample_times.size());
+
+    for (std::size_t i = 0; i < samples.sample_times.size(); ++i) {
+        const double offset_frames =
+            samples.window_start_normalized +
+            samples.sample_times[i] * samples.exposure_normalized;
+        const SampleTime time = SampleTime::from_frame(
+            static_cast<double>(center_frame) + offset_frames,
+            frame_rate);
+        plan.contexts.push_back(SampleContext{
+            .index = i,
+            .normalized_time = samples.sample_times[i],
+            .time = time,
+            .cache_key = make_temporal_key(time, cache_version),
+            .weight = samples.normalized_weights[i],
+        });
+    }
+    return plan;
+}
+
 } // namespace chronon3d::temporal

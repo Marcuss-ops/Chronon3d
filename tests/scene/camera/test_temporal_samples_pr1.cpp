@@ -24,6 +24,9 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/animation/temporal/temporal_samples.hpp>
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/backends/software/scratch_buffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <tests/helpers/test_math.hpp>
 
@@ -94,6 +97,64 @@ TEST_CASE("PR1: temporal::generate_temporal_samples — frame-keyed jitter diffe
     // give weighted-1/N bytes-equal, which is fine because Uniform+Box is the
     // identity jitter pattern.)
     CHECK(differs);  // Stratified guarantees frame-keyed variation.
+}
+
+TEST_CASE("TemporalSamplePlan: contexts carry distinct time and cache identity") {
+    chronon3d::temporal::TemporalSampleParams p;
+    p.pattern = TemporalSamplePattern::Uniform;
+    p.filter = TemporalFilter::Box;
+
+    const auto plan = chronon3d::temporal::make_temporal_sample_plan(
+        p, 8, Frame{12}, FrameRate{30, 1}, 7);
+
+    REQUIRE(plan.valid());
+    REQUIRE(plan.num_samples() == 8);
+    CHECK(plan[0].index == 0);
+    CHECK(plan[7].index == 7);
+    CHECK(plan[0].cache_key.version == 7);
+    const FrameRate expected_rate{30, 1};
+    CHECK(plan[0].time.frame_rate == expected_rate);
+    CHECK(plan[0].cache_key != plan[1].cache_key);
+    CHECK(plan[0].time != plan[1].time);
+
+    float weight_sum = 0.0f;
+    for (const auto& sample : plan.contexts) {
+        CHECK(sample.normalized_time >= 0.0);
+        CHECK(sample.normalized_time <= 1.0);
+        CHECK(sample.weight > 0.0f);
+        weight_sum += sample.weight;
+    }
+    CHECK(approx(weight_sum, 1.0, 1e-5));
+}
+
+TEST_CASE("TemporalSamplePlan: sample domains are independently owned") {
+    chronon3d::cache::NodeCache values_a;
+    chronon3d::cache::NodeCache values_b;
+    chronon3d::graph::CompiledGraphCache topology_a;
+    chronon3d::graph::CompiledGraphCache topology_b;
+    chronon3d::TransformScratchBuffer scratch_a;
+    chronon3d::TransformScratchBuffer scratch_b;
+
+    CHECK(&values_a != &values_b);
+    CHECK(&topology_a != &topology_b);
+    CHECK(&scratch_a != &scratch_b);
+    CHECK(scratch_a.ensure_size(32, 32) != scratch_b.ensure_size(32, 32));
+
+    const auto plan = chronon3d::temporal::make_temporal_sample_plan(
+        chronon3d::temporal::TemporalSampleParams{}, 2, Frame{4},
+        FrameRate{30, 1}, 11);
+    REQUIRE(plan.valid());
+    CHECK(plan[0].cache_key != plan[1].cache_key);
+}
+
+TEST_CASE("TemporalSamplePlan: sample count is bounded") {
+    chronon3d::temporal::TemporalSampleParams p;
+    const auto plan = chronon3d::temporal::make_temporal_sample_plan(
+        p, chronon3d::temporal::TemporalSamplePlan::kMaxSamples + 32,
+        Frame{0}, FrameRate{24, 1});
+
+    CHECK_FALSE(plan.valid());
+    CHECK(plan.num_samples() == 0);
 }
 
 TEST_CASE("PR1: temporal::generate_temporal_samples — Box+Uniform weights == 1/N") {
