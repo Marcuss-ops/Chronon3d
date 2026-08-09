@@ -131,8 +131,15 @@ void RenderRuntime::populate() {
             m_framebuffer_store->set_cache_dir(cache_dir);
         }
     }
+    // The per-job/CLI budget is the canonical retention limit when present.
+    // Previously it was stored in Config but this construction path only read
+    // the legacy max-bytes field, making --fb-pool-budget-mb ineffective.
+    auto pool_limit_bytes =
+        cache_cfg.fb_pool_budget_bytes() > 0
+            ? cache_cfg.fb_pool_budget_bytes()
+            : cache_cfg.fb_pool_max_bytes();
     m_owned_framebuffer_pool =
-        std::make_shared<cache::FramebufferPool>(cache_cfg.fb_pool_max_bytes());
+        std::make_shared<cache::FramebufferPool>(pool_limit_bytes);
     m_owned_executor    = std::make_unique<chronon3d::graph::GraphExecutor>();
     m_owned_graph_node_registry  = std::make_unique<chronon3d::graph::GraphNodeCatalog>();
     m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
@@ -178,7 +185,7 @@ void RenderRuntime::populate() {
                   " (WP-3 PR 3.1: scene_hasher + program_store are per-session owned,"
                   " NOT runtime-owned)",
                   cache_cfg.node_cache_max_bytes(),
-                  cache_cfg.fb_pool_max_bytes(),
+                  pool_limit_bytes,
                   static_cast<int>(sched_cfg.mode()));
 }
 
