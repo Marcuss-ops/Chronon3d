@@ -124,6 +124,14 @@ def resolve_artifact_path(raw_path: str) -> Path | None:
 
     return None
 
+
+def normalize_published_output_path(raw_path):
+    """Expose the atomically published name instead of the transient partial name."""
+    if not isinstance(raw_path, str) or '.partial.' not in raw_path:
+        return raw_path
+    candidate = raw_path.replace('.partial.', '.', 1)
+    return candidate if resolve_artifact_path(candidate) is not None else raw_path
+
 @app.route('/api/login', methods=['POST'])
 def login():
     supplied = (request.get_json(silent=True) or {}).get('password', '')
@@ -262,6 +270,8 @@ def get_runs():
         query = f"SELECT * FROM render_runs{where_clause} ORDER BY started_at_iso DESC LIMIT ? OFFSET ?"
         cursor.execute(query, params + [limit, offset])
         runs = [dict(row) for row in cursor.fetchall()]
+        for run in runs:
+            run['output_path'] = normalize_published_output_path(run.get('output_path'))
 
         response = jsonify(runs)
         response.headers['X-Total-Count'] = str(total_count)
@@ -288,6 +298,7 @@ def get_run_detail(run_id):
             return jsonify({"error": "Run not found"}), 404
 
         run_detail = dict(run_row)
+        run_detail['output_path'] = normalize_published_output_path(run_detail.get('output_path'))
         
         # Helper to get all data for a run
         def fetch_table(table, order_by=None):
