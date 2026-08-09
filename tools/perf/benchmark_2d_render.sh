@@ -50,7 +50,7 @@ for scene in "${SCENES[@]}"; do
     echo "[BENCH] $scene"
     hyperfine --shell=bash --runs "$RUNS" --warmup "$WARMUP" \
         --export-json "$json" --command-name "$scene" \
-        "\"$CLI_BIN\" render $scene --frame 0 --output \"$output\" --profile preview --log-level error >/dev/null"
+        "\"$CLI_BIN\" render $scene --frame 0 --output \"$output\" --profile preview --motion-blur-mode 0 --log-level error >/dev/null"
     [[ -s "$output" ]] || { echo "BENCHMARK_2D_FAIL: no output for $scene" >&2; exit 1; }
 done
 
