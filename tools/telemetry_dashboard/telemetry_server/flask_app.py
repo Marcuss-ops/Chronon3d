@@ -2,6 +2,8 @@ import os
 import json
 import sqlite3
 import time
+import hmac
+import secrets
 from functools import wraps
 from pathlib import Path
 from flask import Flask, jsonify, request, send_file, Response
@@ -14,11 +16,19 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# ── Auth: disabled (no-op) ───────────────────────────────────────────────────────────
+# ── Dashboard auth ───────────────────────────────────────────────────────────────────
+_dashboard_password = os.environ.get('CHRONON3D_DASHBOARD_PASSWORD', '')
+_dashboard_token = secrets.token_urlsafe(32)
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Auth bypass: dashboard is open
+        bearer = request.headers.get('Authorization', '')
+        token = request.cookies.get('chronon3d_dashboard_token')
+        if not token and bearer.startswith('Bearer '):
+            token = bearer[7:]
+        if not token or not hmac.compare_digest(token, _dashboard_token):
+            return jsonify({"error": "authentication required"}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -116,11 +126,21 @@ def resolve_artifact_path(raw_path: str) -> Path | None:
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    return jsonify({"token": "no-auth", "success": True})
+    supplied = (request.get_json(silent=True) or {}).get('password', '')
+    if not _dashboard_password or not hmac.compare_digest(str(supplied), _dashboard_password):
+        return jsonify({"error": "invalid password"}), 401
+    response = jsonify({"token": _dashboard_token, "success": True})
+    response.set_cookie(
+        'chronon3d_dashboard_token', _dashboard_token,
+        httponly=True, samesite='Lax', max_age=86400,
+    )
+    return response
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    return jsonify({"success": True})
+    response = jsonify({"success": True})
+    response.delete_cookie('chronon3d_dashboard_token')
+    return response
 
 
 @app.route('/api/refresh', methods=['GET', 'POST'])
@@ -324,6 +344,7 @@ def get_artifact():
 
 
 @app.route('/output')
+@require_auth
 def output_gallery():
     """Gallery page showing all rendered output PNGs."""
     if not OUTPUT_DIR.exists():
@@ -400,6 +421,7 @@ document.addEventListener('keydown', function(e) {{ if (e.key === 'Escape') clos
 
 
 @app.route('/videos')
+@require_auth
 def video_gallery():
     """Gallery page showing all rendered output MP4s."""
     if not OUTPUT_DIR.exists():
@@ -454,6 +476,7 @@ h1 {{ color:#58a6ff; margin-bottom:6px; }}
 
 
 @app.route('/output/<path:filename>')
+@require_auth
 def serve_output(filename):
     """Serve individual output file (PNG, MP4, etc.)."""
     filepath = OUTPUT_DIR / filename

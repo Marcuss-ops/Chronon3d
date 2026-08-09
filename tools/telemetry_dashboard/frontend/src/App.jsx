@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
+import { fetchRuns, fetchRunDetail, login } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 import { API_BASE } from './data/constants.js';
 import { copyTextToClipboard } from './utils/clipboard.js';
@@ -23,7 +23,7 @@ import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -528,6 +528,35 @@ function App() {
       setError('Unable to copy metrics report to clipboard');
     }
   };
+
+  const submitLogin = async (event) => {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+    try {
+      await login(password);
+      setIsAuthenticated(true);
+      setPassword('');
+    } catch (err) {
+      setLoginError(err.message);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#0d1117', color: '#c9d1d9' }}>
+        <form onSubmit={submitLogin} style={{ width: 340, padding: 28, border: '1px solid #30363d', borderRadius: 12, background: '#161b22' }}>
+          <h1 style={{ marginTop: 0 }}>Chronon3D Dashboard</h1>
+          <p>Inserisci la password per accedere ai render e alla telemetria.</p>
+          <input autoFocus type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: 10, margin: '12px 0', background: '#0d1117', color: 'white', border: '1px solid #484f58', borderRadius: 6 }} />
+          <button type="submit" disabled={isLoggingIn} style={{ width: '100%', padding: 10, cursor: 'pointer' }}>{isLoggingIn ? 'Accesso…' : 'Accedi'}</button>
+          {loginError && <p style={{ color: '#ff7b72' }}>{loginError}</p>}
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container">

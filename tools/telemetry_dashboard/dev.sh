@@ -75,7 +75,9 @@ FRONTEND_OK=""
 for i in $(seq 1 20); do
     BACKEND_OK=$(curl -s --max-time 2 -o /dev/null -w "%{http_code}" "http://localhost:${BACKEND_PORT}/api/runs" 2>/dev/null || true)
     FRONTEND_OK=$(curl -s --max-time 2 -o /dev/null -w "%{http_code}" "http://localhost:${FRONTEND_PORT}/" 2>/dev/null || true)
-    if [ "$BACKEND_OK" = "200" ] && [ "$FRONTEND_OK" = "200" ]; then
+    # A protected backend correctly answers 401 before login; that still means
+    # the service is listening and ready for the frontend.
+    if { [ "$BACKEND_OK" = "200" ] || [ "$BACKEND_OK" = "401" ]; } && [ "$FRONTEND_OK" = "200" ]; then
         break
     fi
     sleep 1
@@ -83,7 +85,7 @@ done
 
 # ── Status ─────────────────────────────────────────────────────────────────────
 echo ""
-if [ "$BACKEND_OK" = "200" ]; then
+if [ "$BACKEND_OK" = "200" ] || [ "$BACKEND_OK" = "401" ]; then
     echo "  Backend  [OK]  http://localhost:${BACKEND_PORT}"
 else
     echo "  Backend  [FAIL] see /tmp/chronon3d_flask.log"
