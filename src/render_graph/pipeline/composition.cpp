@@ -290,6 +290,11 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         sample_sessions.reserve(sample_plan.contexts.size());
         sample_scratches.reserve(sample_plan.contexts.size());
         sample_framebuffer_pools.reserve(sample_plan.contexts.size());
+        const auto sample_pool_limit = frame_runtime
+            ? (frame_runtime->config().cache().fb_pool_budget_bytes() > 0
+                ? frame_runtime->config().cache().fb_pool_budget_bytes()
+                : frame_runtime->config().cache().fb_pool_max_bytes())
+            : cache::FramebufferPool::kDefaultBudgetBytes;
         auto* owning_memory_tracker = sw_sidecar
             ? sw_sidecar->session().memory_tracker.get()
             : nullptr;
@@ -301,11 +306,17 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             }
         };
         for (std::size_t i = 0; i < sample_plan.contexts.size(); ++i) {
-            sample_value_caches.push_back(std::make_unique<cache::NodeCache>());
+            auto sample_cache = std::make_unique<cache::NodeCache>();
+            if (frame_runtime) {
+                sample_cache->set_capacity(
+                    frame_runtime->config().cache().node_cache_max_bytes());
+            }
+            sample_value_caches.push_back(std::move(sample_cache));
             sample_topology_caches.push_back(std::make_unique<CompiledGraphCache>());
             sample_sessions.push_back(std::make_unique<RenderSession>());
             sample_scratches.push_back(std::make_unique<TransformScratchBuffer>());
-            sample_framebuffer_pools.push_back(cache::FramebufferPool::create_shared());
+            sample_framebuffer_pools.push_back(
+                cache::FramebufferPool::create_shared(sample_pool_limit));
         }
 
         render_fb = sample_framebuffer_pools.front()->acquire(
