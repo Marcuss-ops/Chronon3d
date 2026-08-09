@@ -56,20 +56,17 @@ Tutti i punti seguenti devono essere veri:
 7. artifact Linux riproducibili;
 8. **P3-H — manifest-clean consumer (TICKET-011 + V0.1 SDK manifest).**
    Il progetto esterno `tests/install_consumer/`:
-     (a) `#include`s SOLO header elencati in `cmake/Chronon3DPublicHeaders.cmake`
-         (`chronon3d/chronon3d.hpp` + `chronon3d/sdk/*` +
-         `chronon3d/timeline/composition.hpp`);
+     (a) `#include`s SOLO header elencati in `cmake/Chronon3DPublicHeaders.cmake`;
      (b) chiama SOLO `RenderEngine::render(...)` + helper SDK di output
          (es. `chronon3d::save_png`) dalla stessa superficie del
          manifest;
      (c) NON raggiunge direttamente o indirettamente (via `try_compile`
          o altri probe) nessun header `advanced/` /
          `internal.hpp` / `runtime.hpp` / `test/*`;
-     (d) i `#include` *transitivi* dell'umbrella
-         `chronon3d/chronon3d.hpp` (math/*, animation/*, geometry/*,
-         timeline/composition.hpp, ...) fanno parte del manifest scope:
-         l'umbrella non può esporre il vocabolario pubblico senza di
-         essi. Non sono "creep", sono "manifest scope" documentato.
+     (d) gli header transitivi richiesti dalla compilazione fanno parte di
+         `CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS`; non sono API supportata
+         e il consumer non deve includerli direttamente. Il progetto non
+         espone un umbrella header `chronon3d/chronon3d.hpp`.
    Validazione end-to-end: `tools/install_consumer_test.sh`
    (`tests/install_consumer/` Phase 4 deve emettere `[BOUNDARY-OK]` e
    produrre un PNG non completamente nero). I run di Fase-2
