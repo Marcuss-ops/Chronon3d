@@ -36,6 +36,20 @@ chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_focus_tests)
 add_custom_target(chronon3d_tests_fast DEPENDS ${CHRONON3D_FAST_TEST_DEPS})
 
+# The daily developer runner consumes this label instead of maintaining a
+# second shell-side test list.  Preserve any labels assigned by the suite.
+foreach(_target IN LISTS CHRONON3D_FAST_TEST_DEPS)
+    if(TARGET ${_target})
+        get_test_property(${_target} LABELS _dev_fast_existing_labels)
+        if(_dev_fast_existing_labels)
+            set_tests_properties(${_target} PROPERTIES
+                LABELS "${_dev_fast_existing_labels};dev-fast")
+        else()
+            set_tests_properties(${_target} PROPERTIES LABELS "dev-fast")
+        endif()
+    endif()
+endforeach()
+
 set(CHRONON3D_RENDER_TEST_DEPS "")
 foreach(_target IN ITEMS
     chronon3d_renderer_tests

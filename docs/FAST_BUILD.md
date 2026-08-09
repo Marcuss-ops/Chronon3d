@@ -2,7 +2,7 @@
 
 > Goal: a typical **incremental rebuild** of `chronon3d_dev_fast` (CLI + fast
 > tests) lands **well under 30 s**, often around **13–17 s** on Linux with
-> ccache warmed up and a tmpfs build dir. Cold first‑build still takes
+> ccache warmed up and the incremental build directory already configured. Cold first‑build still takes
 > several minutes — that is normal and expected.
 
 This page covers the **operator workflow** that backs those numbers. The
@@ -10,10 +10,12 @@ implementation lives in two places:
 
 | Component | Where | What it does |
 |---|---|---|
-| Wrapper script | `./build-fast.sh` | resolves build dir (`/tmp` ↔ on‑disk), bootstraps ccache, invokes Ninja |
+| Wrapper script | `./build-fast.sh` | resolves the build dir, bootstraps ccache, invokes Ninja |
 | CMake presets | `CMakePresets.json::linux-fast-dev` | Debug + tests + unity‑build (`CMAKE_UNITY_BUILD_BATCH_SIZE=16`) + ccache auto‑wired by `CMakeLists.txt` |
+| Daily orchestrator | `./tools/build_dev.sh` | build + labelled fast tests + safe temporary-artifact cleanup |
 
-`./build-fast.sh` is the only entry point a day‑to‑day developer needs.
+`./tools/build_dev.sh` is the recommended day‑to‑day entry point. Use
+`./build-fast.sh` for focused targets and debugging.
 
 ---
 
@@ -25,8 +27,8 @@ implementation lives in two places:
 #     (warm vcpkg: 3–15 min; fresh vcpkg manifest install: up to 30–60 min)
 ./build-fast.sh
 
-# Day‑to‑day incremental rebuild (~13–17 s with warm ccache + tmpfs)
-./build-fast.sh
+# Day‑to‑day incremental rebuild and fast tests
+./tools/build_dev.sh
 
 # Or pick a concrete target (still under 30 s warm)
 ./build-fast.sh cli         # ~3 s (just relink)
@@ -47,9 +49,11 @@ the first invocation.
 Two pieces work together. Both are **transparent** (zero flags to remember),
 both are **idempotent on re-runs**.
 
-### 1. `ccache` — persistent, SSD‑backed, ~20 GiB
+### 1. `ccache` — persistent, project-local by default, ~20 GiB
 
-Auto‑bootstrapped to `~/.ccache/ccache.conf` on first run:
+Auto‑bootstrapped to `.ccache/ccache.conf` on first run. Set `CCACHE_DIR`
+explicitly to use an external or CI-owned cache; explicit caches are never
+modified by the wrapper:
 
 ```
 max_size = 20G
@@ -58,7 +62,7 @@ compression = true
 compression_level = 6
 hash_dir = false
 cache_dir_levels = 3
-temporary_dir = /tmp/ccache-tmp
+temporary_dir = ${CCACHE_DIR}/tmp
 ```
 
 | Sloppiness flag | Effect |
@@ -73,19 +77,21 @@ Trade‑off: a header whose **content** changes without its mtime updating
 may serve a stale object. Acceptable for dev; CI uses a fresh cache.
 
 `CMAKE_CXX_COMPILER_LAUNCHER=ccache` is automatically set by
-`CMakeLists.txt` when the binary is on PATH — no CMake‑side plumbing needed.### 2. Build dir on `tmpfs` (RAM disk)
+`CMakeLists.txt` when the binary is on PATH — no CMake‑side plumbing needed.
 
-`build-fast.sh` defaults the build directory to `/tmp/chronon-builds/linux-fast-dev`.
-Set `BUILD_DIR_OVERRIDE` to use an on-disk location instead.
-A symlink at `build/chronon/linux-fast-dev` keeps the CMake binaryDir stable
-so `cmake --build` resolves through it transparently.
+### 2. Build directory
+
+`build-fast.sh` defaults the build directory to
+`.tmp/chronon-builds/linux-fast-dev` on disk. Set `BUILD_DIR_OVERRIDE` to use
+another location. A symlink at `build/chronon/linux-fast-dev` keeps the CMake
+binaryDir stable so existing tools resolve it transparently.
 
 ### Measured timings on this host
 
 | Scenario | Wall‑clock | ccache hit | Notes |
 |---|---|---|---|
 | Cold full rebuild (`-z` reset, no unity reuse) | **5 m 27 s** | 0 % | one‑off per day; baseline 5–15 min on other host profiles (see "Cold build" below) |
-| No changes → `./build-fast.sh` | **~13 s** | n/a | ninja no‑work + dep scan |
+| No changes → `./tools/build_dev.sh` | **~13 s** | n/a | ninja no‑work + fast-test scan |
 | `touch 1 .cpp` → `./build-fast.sh` | **~17 s** | 100 % | sloppiness‑driven hit |
 | Touch hot header `src/scene/camera/camera_debug_overlay_panels.hpp` (7 dependents) | **~17 s** | 100 % | sloppiness covers mtime flicker |
 | `./build-fast.sh cli` (relink only) | ~3–5 s | n/a | single‑target |
@@ -103,11 +109,11 @@ the dependency manifest is not yet installed, sits *above* the table — vcpkg
 assembles the whole dependency chain from sources (spdlog, fmt, glm, tbb,
 blend2d, freetype+harfbuzz, openexr, …) on the first cmake configure:
 
-| Host profile (vcpkg cold + ccache cold + tmpfs) | Approx. wall‑clock (cold) |
+| Host profile (vcpkg cold + ccache cold) | Approx. wall‑clock (cold) |
 |---|---|
-| 4 cores, 8 GB RAM, no tmpfs | **30–60 min** |
-| 8 cores, 16+ GB RAM, tmpfs enabled | **15–25 min** |
-| 16+ cores, 32+ GB RAM, tmpfs enabled | **10–20 min** |
+| 4 cores, 8 GB RAM | **30–60 min** |
+| 8 cores, 16+ GB RAM | **15–25 min** |
+| 16+ cores, 32+ GB RAM | **10–20 min** |
 
 These bounds collapse to the table above once vcpkg has warmed up
 (`vcpkg_installed/` is populated), which is the state a contributor on
@@ -117,13 +123,13 @@ The numbers below are measured **after** vcpkg is already warm:
 
 | Host profile (`vcpkg_installed/` already warm, ccache cold, on this host) | Approx. wall‑clock (cold) |
 |---|---|
-| 4 cores, 8 GB RAM, SATA SSD, `/tmp` < 16 GiB free (no tmpfs path) | **10–15 min** |
-| 8 cores, 16+ GB RAM, `/tmp` with ≥ 16 GiB free (tmpfs builds apply) | **5–7 min** |
-| 16+ cores, 32+ GB RAM, tmpfs builds apply | **3–5 min** |
-| 8 cores, 16+ GB RAM, `/tmp` with ≥ 16 GiB free (tmpfs builds apply) | **5–7 min** |
-| 16+ cores, 32+ GB RAM, tmpfs builds apply | **3–5 min** |
+| 4 cores, 8 GB RAM, SATA SSD | **10–15 min** |
+| 8 cores, 16+ GB RAM, fast local disk | **5–7 min** |
+| 16+ cores, 32+ GB RAM, fast local disk | **3–5 min** |
+| 8 cores, 16+ GB RAM, fast local disk | **5–7 min** |
+| 16+ cores, 32+ GB RAM, fast local disk | **3–5 min** |
 
-Measured on this 8‑core / 22 GB host with tmpfs enabled: **5 m 27 s** from a
+Measured on this 8‑core / 22 GB host: **5 m 27 s** from a
 `ccache -C` reset.
 
 What dominates the cold build, in order of impact:
@@ -134,7 +140,7 @@ What dominates the cold build, in order of impact:
 2. **CMake configure** — fast (single‑digit seconds) once vcpkg is warm.
 3. **Ninja invocation** — single `cmake --build` against the `linux-fast-dev`
    preset (Debug, unity build with `CMAKE_UNITY_BUILD_BATCH_SIZE=16`).
-4. **Relink** of `chronon3d_cli` + tests (mold, fast on tmpfs).
+4. **Relink** of `chronon3d_cli` + tests (mold, fast on the local build disk).
 
 Useful flag during a cold run on slow disks:
 
@@ -154,8 +160,8 @@ All optional. Listed in `./build-fast.sh --help` as well.
 | Variable | Default | Purpose |
 |---|---|---|
 | `JOBS` | `nproc` | parallel ninja jobs (`JOBS=8 ./build-fast.sh`) |
-| `CCACHE_DIR` | `~/.ccache` | overridable for isolated CI caches (bootstrap is **skipped** when CCACHE_DIR is set to a non‑default value, to avoid clobbering a shared cache) |
-| `BUILD_DIR_OVERRIDE` | `/tmp/chronon-builds/linux-fast-dev` | override the default tmpfs build directory |
+| `CCACHE_DIR` | `<repo>/.ccache` | explicit values are never modified |
+| `BUILD_DIR_OVERRIDE` | `<repo>/.tmp/chronon-builds/linux-fast-dev` | override the default build directory |
 
 ---
 
@@ -188,16 +194,16 @@ Use:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| First build takes many minutes | cold ccache + cold tmpfs dir | expected; see "Cold build (zero hit)" above for the host‑profile range (3–60 min depending on vcpkg state). After the first warm‑vcpkg run, drops to 13–17 s |
+| First build takes many minutes | cold ccache + cold build dir | expected; see "Cold build (zero hit)" above for the host‑profile range (3–60 min depending on vcpkg state). After the first warm‑vcpkg run, drops to 13–17 s |
 | Cold run feels stuck on a slow disk | IO thrash from full parallelism | try `JOBS=$(($(nproc) / 2)) ./build-fast.sh` to halve parallelism |
-| `./build-fast.sh` says `/tmp` has too little free space | `/tmp` is too small for the build | use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
-| `ccache -s` shows MISS where you expected HIT | sloppiness not in effect | confirm `~/.ccache/ccache.conf` matches above; for shared CI caches the bootstrap is intentionally skipped |
+| `./build-fast.sh` says the build disk is full | selected build directory is too small | use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
+| `ccache -s` shows MISS where you expected HIT | sloppiness not in effect | confirm `<repo>/.ccache/ccache.conf` matches above; explicit caches are not modified |
 | `--report` runs ignore the build cache | expected — each run re‑renders | this is a render‑time concern, not a build‑time concern |
 
 ---
 
 ## When NOT to use this workflow
 
-- **Release builds.** Use `cmake --preset linux-release-validation` — those runs are slower on purpose (no sloppiness, no tmpfs) and produce deterministic binaries meant for shipping.
+- **Release builds.** Use `cmake --preset linux-release-validation` — those runs are slower on purpose (no development-cache sloppiness) and produce deterministic binaries meant for shipping.
 - **CI.** CI uses ephemeral, fresh ccache dirs and is intended to compile from scratch. The auto‑bootstrap detects a non‑default `CCACHE_DIR` and steps aside.
 - **`gcc`/`clang` ABI‑breaking header changes.** Touch the canonical headers (`feature_zone/*` or `core/*`) and the cache may serve a stale object — run `ccache -C` to invalidate, then rebuild.
