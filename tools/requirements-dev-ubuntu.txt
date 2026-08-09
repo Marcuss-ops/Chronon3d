@@ -1,0 +1,23 @@
+# Chronon3D development-machine packages (Ubuntu/Debian apt names).
+# Not runtime dependencies and not part of vcpkg.json.
+build-essential
+cmake
+ninja-build
+pkg-config
+git
+curl
+zip
+unzip
+tar
+ccache
+mold
+clangd
+clang-format
+clang-tidy
+cppcheck
+gdb
+hyperfine
+heaptrack
+btop
+ncdu
+gh
