@@ -8,6 +8,20 @@ async function handleApiResponse(res, defaultError) {
   throw new Error(data.error || defaultError);
 }
 
+const apiFetch = (url, options = {}) => fetch(url, {
+  ...options,
+  credentials: 'include',
+});
+
+export const login = async (password) => {
+  const res = await apiFetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  return await handleApiResponse(res, 'Login failed');
+};
+
 export const outputPathToArtifactUrl = (outputPath, version = '') => {
   if (!outputPath) return '';
   const base = API_BASE || window.location.origin;
@@ -41,7 +55,7 @@ function buildRunsQuery(params) {
 
 export const fetchRuns = async (params = {}) => {
   const query = buildRunsQuery(params);
-  const res = await fetch(`${API_BASE}/api/runs?${query.toString()}`);
+  const res = await apiFetch(`${API_BASE}/api/runs?${query.toString()}`);
   return await handleApiResponse(res, 'Failed to load runs');
 };
 
@@ -55,7 +69,7 @@ export const fetchRuns = async (params = {}) => {
  */
 export const fetchRunsPaged = async (params = {}) => {
   const query = buildRunsQuery(params);
-  const res = await fetch(`${API_BASE}/api/runs?${query.toString()}`);
+  const res = await apiFetch(`${API_BASE}/api/runs?${query.toString()}`);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Failed to load runs');
@@ -73,6 +87,6 @@ export const fetchRunsPaged = async (params = {}) => {
 
 export const fetchRunDetail = async (id) => {
   const query = new URLSearchParams({ _: String(Date.now()) });
-  const res = await fetch(`${API_BASE}/api/run/${id}?${query.toString()}`);
+  const res = await apiFetch(`${API_BASE}/api/run/${id}?${query.toString()}`);
   return await handleApiResponse(res, 'Failed to load run details');
 };
