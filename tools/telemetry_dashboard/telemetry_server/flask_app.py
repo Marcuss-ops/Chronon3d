@@ -18,11 +18,14 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ── Dashboard auth ───────────────────────────────────────────────────────────────────
 _dashboard_password = os.environ.get('CHRONON3D_DASHBOARD_PASSWORD', '')
+_dashboard_auth_enabled = bool(_dashboard_password)
 _dashboard_token = secrets.token_urlsafe(32)
 
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        if not _dashboard_auth_enabled:
+            return f(*args, **kwargs)
         bearer = request.headers.get('Authorization', '')
         token = request.cookies.get('chronon3d_dashboard_token')
         if not token and bearer.startswith('Bearer '):
@@ -134,6 +137,8 @@ def normalize_published_output_path(raw_path):
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    if not _dashboard_auth_enabled:
+        return jsonify({"token": "no-auth", "success": True})
     supplied = (request.get_json(silent=True) or {}).get('password', '')
     if not _dashboard_password or not hmac.compare_digest(str(supplied), _dashboard_password):
         return jsonify({"error": "invalid password"}), 401

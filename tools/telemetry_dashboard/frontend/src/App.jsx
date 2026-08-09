@@ -23,7 +23,7 @@ import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
