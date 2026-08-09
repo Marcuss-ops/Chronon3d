@@ -90,22 +90,20 @@ Composition build_anim_position_composition(
                 pos.set(Vec3{400.0f, 0.0f, 0.0f});
                 pos.add_keyframe(Frame{30}, Vec3{1520.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear});
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "MOVE"},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(canvas_w) * 0.5f, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 180.0f
-                        },
-                        .layout = {
-                            .box = {static_cast<float>(canvas_w) * 0.3f,
-                                    static_cast<float>(canvas_h) * 0.4f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                    .document = {.utf8 = "MOVE"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 180.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {static_cast<float>(canvas_w) * 0.3f,
+                                 static_cast<float>(canvas_h) * 0.4f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute,
+                            {static_cast<float>(canvas_w) * 0.5f, cy}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });

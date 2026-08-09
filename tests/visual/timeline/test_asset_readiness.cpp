@@ -105,8 +105,8 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
         SceneBuilder s(asset_ctx());
         s.layer("title", [](LayerBuilder& l) {
             PreparedText p;
-            p.text.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
-            p.text.content.value = "Hello";
+            p.style.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
+            p.document.utf8 = "Hello";
             (void)l.text_run("label", std::move(p));
         });
         Scene scene = s.build();
@@ -125,8 +125,8 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
         SceneBuilder s(asset_ctx());
         s.layer("my_title_layer", [](LayerBuilder& l) {
             PreparedText p;
-            p.text.font.font_path = "assets/fonts/Missing-Bold.ttf";
-            p.text.content.value = "Test";
+            p.style.font.font_path = "assets/fonts/Missing-Bold.ttf";
+            p.document.utf8 = "Test";
             (void)l.text_run("text_node", std::move(p));
         });
         Scene scene = s.build();
@@ -143,8 +143,8 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
         SceneBuilder s(asset_ctx());
         s.layer("title", [](LayerBuilder& l) {
             PreparedText p;
-            p.text.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
-            p.text.content.value = "Hello";
+            p.style.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
+            p.document.utf8 = "Hello";
             (void)l.text_run("label", std::move(p));
         });
         Scene scene = s.build();
@@ -228,8 +228,8 @@ TEST_CASE("Assets.MissingVideoFailsPreflight") {
         SceneBuilder s(asset_ctx());
         s.layer("text_layer", [](LayerBuilder& l) {
             PreparedText p;
-            p.text.font.font_path = "assets/fonts/Nope.ttf";
-            p.text.content.value = "X";
+            p.style.font.font_path = "assets/fonts/Nope.ttf";
+            p.document.utf8 = "X";
             (void)l.text_run("text", std::move(p));
         });
         s.layer("bg_layer", [](LayerBuilder& l) {
@@ -279,8 +279,8 @@ static Scene make_two_asset_scene(Frame build_frame) {
     s.layer("early", [](LayerBuilder& l) {
         l.from(Frame{0}).duration(Frame{30});
         PreparedText p;
-        p.text.font.font_path = "assets/fonts/Early.ttf";
-        p.text.content.value = "EARLY";
+        p.style.font.font_path = "assets/fonts/Early.ttf";
+        p.document.utf8 = "EARLY";
         (void)l.text_run("label", std::move(p));
     });
     // Late layer: active at frame 60-89, uses image

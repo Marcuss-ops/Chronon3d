@@ -121,6 +121,46 @@ public:
         m_peak_rss_bytes = std::max(m_peak_rss_bytes, rss_bytes);
     }
 
+    /// Merge a completed isolated sample report into the owning render
+    /// session. Temporal sample sessions are intentionally short-lived, so
+    /// their counters must be transferred before the sample domain is
+    /// destroyed; this does not merge any cache or framebuffer ownership.
+    void merge_report(const NodeMemoryReport& report) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        for (const auto& node : report.nodes) {
+            NodeMemoryMetrics metrics;
+            metrics.pixels_read.store(node.pixels_read, std::memory_order_relaxed);
+            metrics.pixels_written.store(node.pixels_written, std::memory_order_relaxed);
+            metrics.bytes_read.store(node.bytes_read, std::memory_order_relaxed);
+            metrics.bytes_written.store(node.bytes_written, std::memory_order_relaxed);
+            metrics.framebuffer_copies.store(node.framebuffer_copies, std::memory_order_relaxed);
+            metrics.framebuffer_clears.store(node.framebuffer_clears, std::memory_order_relaxed);
+            metrics.allocations.store(node.allocations, std::memory_order_relaxed);
+            metrics.allocated_bytes.store(node.allocated_bytes, std::memory_order_relaxed);
+            metrics.temporary_buffers.store(node.temporary_buffers, std::memory_order_relaxed);
+            m_reporter.observe_node(node.node_id, metrics);
+            m_reporter.observe_live_bytes(node.node_id, node.live_bytes, node.peak_live_bytes);
+        }
+        for (const auto& sample : report.samples) {
+            auto& dst = m_samples[sample.sample_key];
+            dst.sample_key = sample.sample_key;
+            dst.temporary_bytes_observed += sample.temporary_bytes_observed;
+            dst.temporary_buffers += sample.temporary_buffers;
+            dst.live_bytes = sample.live_bytes;
+            dst.peak_live_bytes = std::max(dst.peak_live_bytes, sample.peak_live_bytes);
+        }
+        m_pool.current_bytes = std::max(m_pool.current_bytes, report.framebuffer_pool.current_bytes);
+        m_pool.retained_bytes = std::max(m_pool.retained_bytes, report.framebuffer_pool.retained_bytes);
+        m_pool.peak_retained_bytes = std::max(m_pool.peak_retained_bytes, report.framebuffer_pool.peak_retained_bytes);
+        m_pool.total_allocations += report.framebuffer_pool.total_allocations;
+        m_pool.total_reuses += report.framebuffer_pool.total_reuses;
+        m_pool.total_returns += report.framebuffer_pool.total_returns;
+        m_pool.evicted_bytes += report.framebuffer_pool.evicted_bytes;
+        m_current_live_bytes = std::max(m_current_live_bytes, report.current_live_bytes);
+        m_peak_live_bytes = std::max(m_peak_live_bytes, report.peak_live_bytes);
+        m_peak_rss_bytes = std::max(m_peak_rss_bytes, report.peak_rss_bytes);
+    }
+
     [[nodiscard]] NodeMemoryReport snapshot() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         NodeMemoryReport report;

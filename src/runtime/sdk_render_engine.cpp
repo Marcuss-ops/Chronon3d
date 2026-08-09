@@ -42,6 +42,8 @@ chronon3d::RenderSettings convert_settings(const RenderSettings& sdk) {
     internal.dirty.enabled                 = sdk.dirty_rects;
     internal.force_scalar_normal_blend     = sdk.deterministic;
     internal.fail_on_missing_assets       = true;
+    // Render-plan jobs supply their canonical RenderBudget at the internal
+    // plan boundary; the stable SDK settings POD remains layout-compatible.
     return internal;
 }
 
@@ -242,6 +244,9 @@ chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render_compiled(
     const chronon3d::CompiledComposition& compiled, Frame frame) {
     return m_impl->render_frame(frame, [&] {
+        auto settings = convert_settings(m_impl->settings);
+        settings.render_budget = compiled.render_budget;
+        m_impl->engine.set_settings(settings);
         return m_impl->engine.render_compiled(
             compiled, chronon3d::Frame{frame.integral()});
     });
@@ -342,6 +347,9 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                                     "render cancelled by callback"});
         }
 
+        auto settings = convert_settings(m_impl->settings);
+        settings.render_budget = active_compiled->render_budget;
+        m_impl->engine.set_settings(settings);
         auto framebuffer = m_impl->engine.render_compiled(
             *active_compiled, chronon3d::Frame{frame});
         if (const auto error = m_impl->engine.last_render_error()) {

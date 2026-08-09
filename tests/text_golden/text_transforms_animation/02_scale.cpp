@@ -112,22 +112,19 @@ Composition build_scale_composition(
                     l.scale({scale_uniform, scale_uniform, 1.0f});
                 }
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "SCALED"},
+                    .document = {.utf8 = "SCALED"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 180.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {static_cast<float>(canvas_w) * 0.6f,
+                                 static_cast<float>(canvas_h) * 0.5f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 180.0f
-                        },
-                        .layout = {
-                            .box = {static_cast<float>(canvas_w) * 0.6f,
-                                    static_cast<float>(canvas_h) * 0.5f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });
