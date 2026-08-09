@@ -20,6 +20,8 @@
 #include <chronon3d/text/glyph_selector_spec.hpp>
 #include <chronon3d/text/text_placement.hpp>
 
+#include <utility>
+
 namespace chronon3d {
 
 enum class TextAnimMode {
@@ -76,13 +78,16 @@ public:
     void build(SceneBuilder& s, const std::string& layer_name) {
         s.layer(layer_name, [this](LayerBuilder& builder) {
             authoring::Layer layer(builder, CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-            auto& t = layer.text(text_)
-                           .font(font_path_, font_size_)
-                           .weight(font_weight_)
-                           .color(color_)
-                           .align(align_)
-                           .anchor_point(TextAnchor::Center)
-                           .vertical_align(VerticalAlign::Middle);
+            // Keep the move-only authoring handle alive. Binding a reference
+            // to the temporary returned by layer.text(...) leaves a dangling
+            // Text before the animator is attached.
+            auto t = std::move(layer.text(text_)
+                                  .font(font_path_, font_size_)
+                                  .weight(font_weight_)
+                                  .color(color_)
+                                  .align(align_)
+                                  .anchor_point(TextAnchor::Center)
+                                  .vertical_align(VerticalAlign::Middle));
 
             TextSelectorUnit unit = TextSelectorUnit::Character;
             if (config_.mode == TextAnimMode::ByWord) {
