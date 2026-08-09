@@ -210,6 +210,9 @@ std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
                 integrity.error().message);
         }
     }
+    auto settings = m_impl->m_renderer->render_settings();
+    settings.render_budget = compiled.render_budget;
+    m_impl->m_renderer->set_settings(settings);
     m_impl->m_renderer->session().clear_last_frame_error();
     return m_impl->m_pipeline->render_compiled_composition(compiled, frame);
 }

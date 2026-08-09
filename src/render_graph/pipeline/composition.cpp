@@ -19,6 +19,8 @@
 #include "helpers.hpp"
 #include <optional>
 #include <stdexcept>
+#include <limits>
+#include <cmath>
 #include <utility>
 #include <vector>
 #include <spdlog/spdlog.h>
@@ -118,11 +120,23 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     const chronon3d::runtime::RenderRuntime* frame_runtime =
         (sw_sidecar != nullptr) ? &sw_sidecar->runtime() : nullptr;
     const auto hits_before = node_cache.stats().hits;
+    if (!std::isfinite(settings.ssaa_factor)) {
+        throw std::invalid_argument("SSAA factor must be finite");
+    }
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
     const int w = spec.width;
     const int h = spec.height;
-    const int rw = static_cast<int>(w * ssaa);
-    const int rh = static_cast<int>(h * ssaa);
+    if (w <= 0 || h <= 0 || !std::isfinite(ssaa)) {
+        throw std::invalid_argument("render dimensions and SSAA must be finite and positive");
+    }
+    const double scaled_width = static_cast<double>(w) * static_cast<double>(ssaa);
+    const double scaled_height = static_cast<double>(h) * static_cast<double>(ssaa);
+    if (scaled_width > static_cast<double>(std::numeric_limits<int>::max()) ||
+        scaled_height > static_cast<double>(std::numeric_limits<int>::max())) {
+        throw std::invalid_argument("SSAA render dimensions exceed the integer framebuffer limit");
+    }
+    const int rw = static_cast<int>(scaled_width);
+    const int rh = static_cast<int>(scaled_height);
     // 06 R3b — `sw_sidecar` is the typed channel from the caller
     // (the SoftwareRenderer that owns this engine).  Replaces the
     // previously-rtti-based hack that violated boundary-gate I4.
@@ -241,13 +255,6 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         scene_ms = profiling::duration_ms(t_scene0, profiling::now());
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
-        constexpr std::size_t kMaxTemporalPixels = 128ULL * 1024ULL * 1024ULL;
-        const auto total_sample_pixels = static_cast<std::size_t>(N) *
-            static_cast<std::size_t>(rw) * static_cast<std::size_t>(rh);
-        if (total_sample_pixels > kMaxTemporalPixels) {
-            throw std::invalid_argument(
-                "motion-blur temporal sample budget exceeded");
-        }
 
         chronon3d::temporal::TemporalSampleParams mb_params;
         mb_params.shutter_angle_deg = settings.motion_blur.shutter_angle_deg;
@@ -258,7 +265,11 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
 
         const chronon3d::temporal::TemporalSamplePlan sample_plan =
             chronon3d::temporal::make_temporal_sample_plan(
-                mb_params, N, frame, spec.frame_rate);
+                mb_params, N, frame, spec.frame_rate,
+                static_cast<std::size_t>(rw), static_cast<std::size_t>(rh),
+                /*cache_version=*/0,
+                chronon3d::temporal::TemporalBudgetResolver{
+                    settings.render_budget.max_temporal_pixels});
         if (!sample_plan.valid()) {
             throw std::invalid_argument("motion-blur temporal sample plan is invalid");
         }
@@ -279,6 +290,16 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         sample_sessions.reserve(sample_plan.contexts.size());
         sample_scratches.reserve(sample_plan.contexts.size());
         sample_framebuffer_pools.reserve(sample_plan.contexts.size());
+        auto* owning_memory_tracker = sw_sidecar
+            ? sw_sidecar->session().memory_tracker.get()
+            : nullptr;
+        auto merge_sample_reports = [&](std::size_t completed_samples) {
+            if (!owning_memory_tracker) return;
+            for (std::size_t i = 0; i < completed_samples; ++i) {
+                owning_memory_tracker->merge_report(
+                    sample_sessions[i]->memory_tracker->snapshot());
+            }
+        };
         for (std::size_t i = 0; i < sample_plan.contexts.size(); ++i) {
             sample_value_caches.push_back(std::make_unique<cache::NodeCache>());
             sample_topology_caches.push_back(std::make_unique<CompiledGraphCache>());
@@ -297,6 +318,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
             for (int s = 0; s < sample_plan.num_samples(); ++s) {
                 if (cancellation && cancellation->is_cancelled()) {
+                    merge_sample_reports(static_cast<std::size_t>(s));
                     return nullptr;
                 }
                 const auto& sample = sample_plan[static_cast<std::size_t>(s)];
@@ -328,11 +350,13 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                 };
                 auto sample_fb = call_graph(sub, frame, t, &sample_context);
                 if (!sample_fb) {
+                    merge_sample_reports(static_cast<std::size_t>(s + 1));
                     return nullptr;
                 }
                 const Framebuffer& sub_fb = *sample_fb;
 
                 if (cancellation && cancellation->is_cancelled()) {
+                    merge_sample_reports(static_cast<std::size_t>(s + 1));
                     return nullptr;
                 }
                 tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
@@ -362,6 +386,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                 );
             }
         }
+        merge_sample_reports(sample_plan.contexts.size());
         motion_blur_ms = profiling::duration_ms(t_mb0, profiling::now());
 
         const float post_norm = (actual_weight_sum > 1e-6f)

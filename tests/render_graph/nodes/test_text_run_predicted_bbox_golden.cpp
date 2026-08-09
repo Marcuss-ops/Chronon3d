@@ -97,17 +97,17 @@ Composition build_b01_static_text_1080p_comp(SoftwareRenderer& renderer) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
                 l.text_run("b01_text", PreparedText{
-                    .text = TextDefaults{
-                        .content = {.value = kSampleText},
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                                 .font_family = "Inter",
-                                 .font_weight = 700,
-                                 .font_size = kFontSize},
-                        .layout = {.box = {static_cast<float>(kCanvasW),
-                                           static_cast<float>(kCanvasH)},
-                                   .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle}
-                    },
+                    .document = {.utf8 = kSampleText},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = kFontSize
+                    }},
+                    .frame = {.size = {static_cast<float>(kCanvasW),
+                                       static_cast<float>(kCanvasH)},
+                              .align = TextAlign::Center,
+                              .vertical_align = VerticalAlign::Middle}
                 });
             });
             return s.build();

@@ -53,6 +53,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_resolver.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_writer.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/render_settings.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_plan/render_budget.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/video/video_source.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/hash/hash_builder.hpp"

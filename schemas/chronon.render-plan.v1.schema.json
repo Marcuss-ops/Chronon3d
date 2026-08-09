@@ -85,6 +85,16 @@
         }
       }
     },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_temporal_pixels": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
     "output": {
       "type": "object",
       "additionalProperties": false,

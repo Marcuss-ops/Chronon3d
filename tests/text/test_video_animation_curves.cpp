@@ -83,21 +83,18 @@ TEST_CASE("VideoAnim.Opacity_Keyframes_0p40_0p85_0p50_1920x1080") {
                 l.opacity_anim().add_keyframe(Frame{15}, 0.85f, EasingCurve{Easing::Linear});
                 l.opacity_anim().add_keyframe(Frame{30}, 0.50f, EasingCurve{Easing::Linear});
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "KEYFRAMES"},
+                    .document = {.utf8 = "KEYFRAMES"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 200.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {960.0f, 540.0f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 200.0f
-                        },
-                        .layout = {
-                            .box = {960.0f, 540.0f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });
@@ -186,21 +183,18 @@ TEST_CASE("VideoAnim.Scale_Peak_at_f15_1920x1080") {
                 l.scale_anim().add_keyframe(Frame{15}, Vec3{1.5f, 1.5f, 1.5f}, EasingCurve{Easing::Linear});
                 l.scale_anim().add_keyframe(Frame{30}, Vec3{1.0f, 1.0f, 1.0f}, EasingCurve{Easing::Linear});
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "SCALE"},
+                    .document = {.utf8 = "SCALE"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 180.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {960.0f, 540.0f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 180.0f
-                        },
-                        .layout = {
-                            .box = {960.0f, 540.0f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });
@@ -265,21 +259,18 @@ TEST_CASE("VideoAnim.Position_Bounded_centroid_1920x1080") {
                 l.position_anim().add_keyframe(Frame{15}, Vec3{1520.0f, 540.0f, 0.0f}, EasingCurve{Easing::Linear});
                 l.position_anim().add_keyframe(Frame{30}, Vec3{400.0f, 540.0f, 0.0f}, EasingCurve{Easing::Linear});
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "PATH"},
+                    .document = {.utf8 = "PATH"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 160.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {960.0f, 540.0f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 160.0f
-                        },
-                        .layout = {
-                            .box = {960.0f, 540.0f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });

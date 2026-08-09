@@ -45,11 +45,11 @@ TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::
     t.style("hero.premium");
     CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Found);
 
-    const auto& spec = TextRunBuilderInspector::pending_of(t)->params.text;
-    CHECK(spec.font.font_path == "fonts/Inter-Bold.ttf");
-    CHECK(spec.font.font_weight == 800);
-    CHECK(spec.font.font_size == doctest::Approx(96.0f));
-    CHECK(spec.appearance.color == Color{1.0f, 0.86f, 0.2f, 1.0f});
+    const auto& style = TextRunBuilderInspector::pending_of(t)->params.style;
+    CHECK(style.font.font_path == "fonts/Inter-Bold.ttf");
+    CHECK(style.font.font_weight == 800);
+    CHECK(style.font.font_size == doctest::Approx(96.0f));
+    CHECK(style.color == Color{1.0f, 0.86f, 0.2f, 1.0f});
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder::extension_context") {
@@ -75,8 +75,8 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
     Text t = layer.text("MOTION");
     REQUIRE(t.ambient_motion_registry() == &motions);
     t.motion("text.reveal.soft");
-    REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animators.size() == 1);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.animators[0].id == "text.reveal.soft");
+    REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animation.animators.size() == 1);
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators[0].id == "text.reveal.soft");
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContext attached") {
@@ -92,8 +92,8 @@ TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContex
     CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::RegistryUnavailable);
     t.motion("ignored.motion");
     CHECK(t.last_motion_outcome() == chronon3d::authoring::ResolutionOutcome::RegistryUnavailable);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "X.ttf");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.animators.empty());
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_path == "X.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators.empty());
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.style_registry is null") {
@@ -115,10 +115,10 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
     REQUIRE(t.ambient_motion_registry() == &motions);
     t.style("anything");
     CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::RegistryUnavailable);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "Y.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_path == "Y.ttf");
     t.motion("unregistered.id");
     CHECK(t.last_motion_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.animators.empty());
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators.empty());
 }
 
 TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the same handle)") {
@@ -148,11 +148,11 @@ TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the 
     Text t = layer.text("DUAL");
     REQUIRE(t.ambient_style_registry() == &styles);
     t.style("ambient_call");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "ambient.ttf");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_size == doctest::Approx(48.0f));
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_path == "ambient.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_size == doctest::Approx(48.0f));
     t.style("override", explicit_registry);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "explicit.ttf");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_size == doctest::Approx(64.0f));
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_path == "explicit.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_size == doctest::Approx(64.0f));
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op") {
@@ -175,6 +175,6 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op") {
     t.motion("never.registered.either");
     CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
     CHECK(t.last_motion_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "K.ttf");
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.animators.empty());
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.style.font.font_path == "K.ttf");
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators.empty());
 }

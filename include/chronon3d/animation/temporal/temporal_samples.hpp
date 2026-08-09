@@ -31,9 +31,12 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/model/camera/camera_common_types.hpp>  // TemporalSamplePattern, TemporalFilter
 
+#include <algorithm>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 namespace chronon3d::temporal {
@@ -127,6 +130,37 @@ struct SampleContext {
 /// contexts.  Each context has a distinct sub-frame cache identity; the
 /// caller owns the actual cache/scratch resources and must keep them isolated
 /// for the duration of that context.
+struct TemporalBudgetResolver {
+    /// Hard ceiling in aggregate sample pixels (not bytes).
+    static constexpr std::uint64_t kHardSafetyCeiling = 128ULL * 1024ULL * 1024ULL;
+
+    /// Zero selects the canonical hard ceiling for legacy/internal callers;
+    /// non-zero values can only lower the hard safety ceiling.
+    std::uint64_t max_temporal_pixels{0};
+
+    [[nodiscard]] std::uint64_t effective_max_temporal_pixels() const noexcept {
+        return max_temporal_pixels == 0
+            ? kHardSafetyCeiling
+            : std::min(max_temporal_pixels, kHardSafetyCeiling);
+    }
+
+    [[nodiscard]] bool allows(
+        int samples,
+        std::size_t width,
+        std::size_t height) const noexcept {
+        if (samples <= 0 || width == 0 || height == 0) return false;
+        constexpr auto max_u64 = std::numeric_limits<std::uint64_t>::max();
+        if (static_cast<std::uint64_t>(width) > max_u64 /
+            static_cast<std::uint64_t>(height)) {
+            return false;
+        }
+        const auto pixels = static_cast<std::uint64_t>(width) *
+            static_cast<std::uint64_t>(height);
+        return pixels <= effective_max_temporal_pixels() /
+            static_cast<std::uint64_t>(samples);
+    }
+};
+
 struct TemporalSamplePlan {
     static constexpr int kMaxSamples = 64;
 
@@ -177,6 +211,7 @@ struct TemporalSamplePlan {
 };
 
 /// Materialize one bounded, deterministic plan from the canonical sample set.
+/// The resolver is the sole owner of the aggregate temporal-pixel policy;
 /// `cache_version` lets a caller invalidate all sample identities when the
 /// authored content version changes without changing the shutter geometry.
 [[nodiscard]] TemporalSamplePlan make_temporal_sample_plan(
@@ -184,6 +219,9 @@ struct TemporalSamplePlan {
     int num_samples,
     Frame center_frame,
     FrameRate frame_rate,
-    EvaluationVersion cache_version = 0);
+    std::size_t width,
+    std::size_t height,
+    EvaluationVersion cache_version = 0,
+    TemporalBudgetResolver budget = {});
 
 } // namespace chronon3d::temporal

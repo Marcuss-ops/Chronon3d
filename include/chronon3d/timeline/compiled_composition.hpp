@@ -7,59 +7,33 @@
 // handle for a ready-to-evaluate composition: the static recipe
 // (`CompositionDefinition`) PLUS its compiled `camera_v1::CameraProgram`,
 // keyed by a stable `fingerprint`.
-//
-// Why `shared_ptr<const ...>` for both members:
-//   1. The composition recipe + the compiled camera program are
-//      immutable once compiled; `const` enforces the "no-mutation-after-
-//      compilation" contract at the type level.
-//   2. `shared_ptr` lets a single CompiledComposition be retained by
-//      multiple per-thread `RenderJob` and per-worker `CameraSession`
-//      lifetimes without duplicating the heavy camera program state.
-//
-// The authored Composition remains a convenient scene-function input; this
-// value is the immutable compiled form used by explicit pipeline consumers.
 // ============================================================================
 
 #include <cstdint>
 #include <memory>
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
-#include <chronon3d/timeline/composition_definition.hpp>          // CompositionDefinition
-#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>   // camera_v1::CameraProgram
+#include <chronon3d/render_plan/render_budget.hpp>
+#include <chronon3d/timeline/composition_definition.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 
 namespace chronon3d {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// chronon3d::CompiledComposition
-//
-//   Immutable evaluate-ready handle:
-//
-//   * `definition`      \u2014 shared view of the static `CompositionDefinition`;
-//                          reference-counted so per-worker session caches
-//                          and per-frame job payloads share one canonical instance.
-//   * `camera_program`  \u2014 shared view of the compiled `camera_v1::CameraProgram`;
-//                          the hot path of camera evaluation at every frame.
-//                          Reference-counted for the same retention rationale.
-//   * `fingerprint`     \u2014 a stable 64-bit hash of the static input that
-//                          produced this compile-time snapshot
-//                          (CompositionSpec + scene identity + CameraDescriptor
-//                          shape + CameraProgram version).  Used as a
-//                          cache key in the V2 scene-cache + to detect
-//                          cross-version regressions in golden tests.
-//
-// All members default-construct to a "not yet compiled" state:
-//          `definition`/`camera_program` are nullptr; `fingerprint` is 0.
-// A "ready" CompiledComposition has all three populated.
-// ─────────────────────────────────────────────────────────────────────────────
+/// Immutable evaluate-ready handle shared by all render execution paths.
 struct CompiledComposition {
-    std::shared_ptr<const CompositionDefinition>  definition{};
+    std::shared_ptr<const CompositionDefinition> definition{};
     std::shared_ptr<const camera_v1::CameraProgram> camera_program{};
+
     // Optional immutable asset identity attached by PreparedRenderPlan.
     // Generic compile_composition() callers have no manifest and retain the
     // legacy resolver contract; prepared-plan consumers get render-boundary
     // integrity verification without a second compilation path.
     std::shared_ptr<const assets::PreparedAssetManifest> asset_manifest{};
-    std::uint64_t                                 fingerprint{0};
+
+    // The resource policy is part of the immutable execution value, so every
+    // consumer (SDK, C ABI, CLI, and file rendering) observes the same budget.
+    render_plan::RenderBudget render_budget{};
+    std::uint64_t fingerprint{0};
 };
 
 } // namespace chronon3d

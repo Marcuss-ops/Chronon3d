@@ -173,7 +173,7 @@ TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending params") {
     chronon3d::authoring::Layer layer(lb);
     chronon3d::authoring::Text text = layer.text("ŁATIN");
     text.script(0x4C61746Eu);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.script == 0x4C61746Eu);
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x4C61746Eu);
 }
 
 TEST_CASE("Authoring/Text: default script=0u is preserved") {
@@ -181,7 +181,7 @@ TEST_CASE("Authoring/Text: default script=0u is preserved") {
     lb.screen_dimensions(1920.0f, 1080.0f);
     chronon3d::authoring::Layer layer(lb);
     chronon3d::authoring::Text text = layer.text("AUTODETECT");
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.script == 0u);
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0u);
 }
 
 TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
@@ -200,9 +200,9 @@ TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
 
     chronon3d::authoring::Text text = layer.text("AR");
     text.style("arabic.hero", styles);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.script == 0x41726162u);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.direction == TextDirection::LTR);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.language == "en");
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x41726162u);
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.direction == TextDirection::LTR);
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.language == "en");
 }
 
 TEST_CASE("Authoring/Text: style(id) preserves existing script when style script is zero") {
@@ -218,9 +218,9 @@ TEST_CASE("Authoring/Text: style(id) preserves existing script when style script
 
     chronon3d::authoring::Text text = layer.text("DEFAULT");
     text.script(0x4C61746Eu);
-    REQUIRE(TextRunBuilderInspector::pending_of(text)->params.script == 0x4C61746Eu);
+    REQUIRE(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x4C61746Eu);
     text.style("default.no.script", styles);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.script == 0x4C61746Eu);
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x4C61746Eu);
 }
 
 TEST_CASE("Authoring/Text: script accepts high-bit pattern without sign extension") {
@@ -230,6 +230,6 @@ TEST_CASE("Authoring/Text: script accepts high-bit pattern without sign extensio
     chronon3d::authoring::Text text = layer.text("X");
     constexpr std::uint32_t kPattern = 0x80808080u;
     text.script(kPattern);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.script == kPattern);
-    CHECK((TextRunBuilderInspector::pending_of(text)->params.script & 0x80000000u) != 0u);
+    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == kPattern);
+    CHECK((TextRunBuilderInspector::pending_of(text)->params.shaping.script & 0x80000000u) != 0u);
 }

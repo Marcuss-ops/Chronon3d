@@ -35,6 +35,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <cstdint>
 
 namespace chronon3d {
 // Forward-declare the canonical `Composition` type
