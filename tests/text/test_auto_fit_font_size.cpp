@@ -63,20 +63,20 @@ struct LocalEngine {
     float max_font_size = 96.0f
 ) {
     PreparedText params;
-    params.text.content.value              = utf8;
+    params.document.utf8              = utf8;
     // Family-only resolution is intentionally not a process-wide service;
     // use the tracked fixture so this contract test is deterministic on a
     // clean machine as well as on a developer workstation.
-    params.text.font.font_path             = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
-    params.text.font.font_family           = "Inter";
-    params.text.font.font_size             = font_size;
-    params.text.font.font_weight           = 400;
-    params.text.layout.paragraph.auto_fit_font_size = auto_fit;
-    params.text.layout.paragraph.min_font_size      = min_font_size;
-    params.text.layout.paragraph.max_font_size      = max_font_size;
-    params.direction                       = TextDirection::LTR;
-    params.language                        = "en";
-    params.cache_layout                    = false;  // disable cache for determinism tests
+    params.style.font.font_path             = chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf");
+    params.style.font.font_family           = "Inter";
+    params.style.font.font_size             = font_size;
+    params.style.font.font_weight           = 400;
+    params.frame.auto_fit = auto_fit;
+    params.frame.min_font_size      = min_font_size;
+    params.frame.max_font_size      = max_font_size;
+    params.shaping.direction                       = TextDirection::LTR;
+    params.shaping.language                        = "en";
+    params.animation.cache_layout                    = false;  // disable cache for determinism tests
     return params;
 }
 
@@ -103,7 +103,7 @@ TEST_CASE("ADR-018: auto-fit shrinks font when text overflows box") {
         48.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/96.0f);
 
     // Set the box on the layout spec via params
-    params.text.layout.box = {200.0f, 600.0f};
+    params.frame.size = {200.0f, 600.0f};
 
     auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
@@ -131,7 +131,7 @@ TEST_CASE("ADR-018: auto-fit is no-op when text fits the box") {
     auto params = make_autofit_params(
         "Hi",
         24.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/96.0f);
-    params.text.layout.box = {1920.0f, 1080.0f};
+    params.frame.size = {1920.0f, 1080.0f};
 
     auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
@@ -157,7 +157,7 @@ TEST_CASE("ADR-018: auto-fit respects min_font_size clamp") {
     auto params = make_autofit_params(
         "ExtremelyLongWordThatWillNotFitInAnyReasonableBoxSizeAtAll",
         72.0f, /*auto_fit=*/true, /*min_fs=*/20.0f, /*max_fs=*/96.0f);
-    params.text.layout.box = {50.0f, 600.0f};
+    params.frame.size = {50.0f, 600.0f};
 
     auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
@@ -182,7 +182,7 @@ TEST_CASE("ADR-018: auto-fit is deterministic across 20 runs") {
     auto params = make_autofit_params(
         "Deterministic auto-fit test with moderate length text",
         36.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/96.0f);
-    params.text.layout.box = {300.0f, 400.0f};
+    params.frame.size = {300.0f, 400.0f};
 
     // Run 20 times and collect resolved font sizes + bounds.
     // 20 samples is sufficient — determinism is binary (all equal or not).
@@ -226,7 +226,7 @@ TEST_CASE("ADR-018: auto-fit clamps authored font to max_font_size when authored
     auto params = make_autofit_params(
         "Short",
         72.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/40.0f);
-    params.text.layout.box = {1920.0f, 1080.0f};
+    params.frame.size = {1920.0f, 1080.0f};
 
     auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
@@ -258,7 +258,7 @@ TEST_CASE("ADR-018: auto-fit terminates (fixed 12-iter bound, no infinite loop)"
     auto params = make_autofit_params(
         "The quick brown fox jumps over the lazy dog",
         72.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/96.0f);
-    params.text.layout.box = {1.0f, 1.0f};  // 1x1px box — degenerate but non-zero
+    params.frame.size = {1.0f, 1.0f};  // 1x1px box — degenerate but non-zero
 
     // Implied watchdog: if the loop were unbounded, this TEST_CASE
     // would hang and the test harness would time out (visible in the
@@ -296,7 +296,7 @@ TEST_CASE("ADR-018: auto-fit fits_inside gate under degenerate box") {
     auto params = make_autofit_params(
         "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",  // long no-space text
         60.0f, /*auto_fit=*/true, /*min_fs=*/16.0f, /*max_fs=*/40.0f);
-    params.text.layout.box = {1.0f, 1.0f};  // 1px box — degenerate
+    params.frame.size = {1.0f, 1.0f};  // 1px box — degenerate
 
     auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
 
@@ -327,7 +327,7 @@ TEST_CASE("ADR-018: auto-fit 100-run determinism certification") {
     auto params = make_autofit_params(
         "Determinism cert — moderate length text for shrink-to-fit",
         36.0f, /*auto_fit=*/true, /*min_fs=*/8.0f, /*max_fs=*/96.0f);
-    params.text.layout.box = {300.0f, 400.0f};
+    params.frame.size = {300.0f, 400.0f};
 
     // ADR-018 specifies 100 runs for the cert.  Collect all 100
     // resolved font sizes + bounds; assert all bit-identical.

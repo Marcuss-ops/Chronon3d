@@ -23,6 +23,8 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
         .add(plan.canvas.height)
         .add(plan.canvas.fps)
         .add(plan.canvas.duration)
+        // Temporal resource policy changes the effective render identity.
+        .add(plan.budget.max_temporal_pixels)
         .add(plan.layers.size());
 
     for (const auto& layer : plan.layers) {
@@ -362,6 +364,11 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.output.codec = video_codec(output.at("codec").get<std::string>());
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
+        if (root.contains("budget")) {
+            const auto& budget = root.at("budget");
+            plan.budget.max_temporal_pixels = budget.value(
+                "max_temporal_pixels", plan.budget.max_temporal_pixels);
+        }
         if (const auto budget_error = validate_render_budget(plan))
             return *budget_error;
         plan.content_fingerprint = compute_render_plan_content_fingerprint(plan);

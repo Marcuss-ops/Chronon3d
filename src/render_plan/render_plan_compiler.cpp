@@ -254,6 +254,7 @@ compile_render_plan(
         auto compiled_value = std::move(compiled).value();
         compiled_value.asset_manifest =
             std::make_shared<const chronon3d::assets::PreparedAssetManifest>(assets);
+        compiled_value.render_budget = plan.budget;
         auto compiled_view = std::make_shared<const CompiledComposition>(
             compiled_value);
         auto composition = std::make_shared<Composition>(
@@ -284,6 +285,7 @@ compile_render_plan(
         prepared.canvas = plan.canvas;
         prepared.output = plan.output;
         prepared.audio_tracks = plan.audio_tracks;
+        prepared.render_budget = plan.budget;
         return prepared;
     } catch (const std::exception& error) {
         return PlanDecodeError{"", error.what()};

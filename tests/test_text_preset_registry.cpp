@@ -101,7 +101,7 @@
 // Phase-3.3.D extracted that inspector into a friend-mediated value-
 // typed adapter under chronon3d::builders::testing::LayerBuilderInspector.
 // The API surface is now snapshot-based — `pre[i].name` and
-// `pre[i].animators` instead of `pre[i]->name` / `pre[i]->params.animators`.
+// `pre[i].animators` instead of `pre[i]->name` / `pre[i]->params.animation.animators`.
 #include "support/layer_builder_inspection.hpp"
 
 // TICKET-107 — per-category register helpers reachable from sibling TUs.
@@ -617,7 +617,7 @@ TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
 //          (c) PRE-build, the LayerBuilder's `pending_text_runs()` shows
 //              exactly one entry named "camera_text" with the wired
 //              TextAnimatorSpec entry `id = "ctc_rich_cinematic_text_camera"`
-//              on its `params.animators` vector — DETERMINISTIC, does NOT
+//              on its `params.animation.animators` vector — DETERMINISTIC, does NOT
 //              depend on font-engine materialisation succeeding.
 //
 // Probe (c) relies on the test-only `LayerBuilder::pending_text_runs()`
@@ -888,7 +888,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
                 // (preserving the single-path contract); its animators
                 // vector is empty so `materialize_prepared_text` produces
                 // a valid shape without per-frame driver work.
-                CHECK(canonical.animators.empty());
+                CHECK(canonical.animation.animators.empty());
                 continue;
             }
 
@@ -897,7 +897,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             // with the resolver's property-composed spec on animators[0]
             // (plain-spec path; rich-spec pushes the anchor ahead of the
             // canonical — Sub-case 29 already covers that).
-            const auto& animators = canonical.animators;
+            const auto& animators = canonical.animation.animators;
             CHECK(animators.size() >= 1);
             CHECK(animators[0].id == ("presetc_" + exp.preset_id));
             CHECK(animators[0].properties.size() >= exp.min_property_count);
@@ -972,28 +972,28 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
             // Test-text-survival contract: the spec travels through the
             // public function unchanged (moved into params.text).
-            CHECK(params.text.content.value == plain.content.value);
+            CHECK(params.document.utf8 == plain.content.value);
 
             if (id == "minimal_white") {
                 // No canonical motion → public function returns
                 // PreparedText with animators.empty() == true.  The
                 // caller routes via plain lb.text(...) which does not
                 // require an AnimatorResolver entry.
-                CHECK(params.animators.empty());
+                CHECK(params.animation.animators.empty());
                 continue;
             }
 
             // Stage 5 wiring: every other preset yields exactly one
             // composed TextAnimatorSpec pushed onto animators[0].
-            REQUIRE(params.animators.size() == 1);
-            CHECK(params.animators[0].id == ("presetc_" + id));
-            CHECK(params.animators[0].enabled);
+            REQUIRE(params.animation.animators.size() == 1);
+            CHECK(params.animation.animators[0].id == ("presetc_" + id));
+            CHECK(params.animation.animators[0].enabled);
 
             // First-property kind check (cross-preset).  Mirrors
             // Sub-case 30's per-branch assertions, but reached via the
             // public API rather than the LayerBuilder factory-body path.
-            REQUIRE_FALSE(params.animators[0].properties.empty());
-            const auto& first_prop = params.animators[0].properties[0];
+            REQUIRE_FALSE(params.animation.animators[0].properties.empty());
+            const auto& first_prop = params.animation.animators[0].properties[0];
             if (id == "animation_compositions"  || id == "slide_up"        ||
                 id == "slide_down"             || id == "masked_line_reveal" ||
                 id == "slide_left"             || id == "gradient_fill"     ||
@@ -1043,8 +1043,8 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         // authoring facade that misroutes a preset id.
         const auto unknown_params =
             wire_preset_text_run_params("phantom_preset_unknown", plain);
-        CHECK(unknown_params.text.content.value == plain.content.value);
-        CHECK(unknown_params.animators.empty());
+        CHECK(unknown_params.document.utf8 == plain.content.value);
+        CHECK(unknown_params.animation.animators.empty());
 
         // ── spec-move semantics (move-constructible input) ────────────────
         // Verify the public function accepts an rvalue spec (the
@@ -1057,8 +1057,8 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         const std::string original_value = movable.content.value;
         const auto moved_params =
             wire_preset_text_run_params("fade_in", std::move(movable));
-        CHECK(moved_params.text.content.value == original_value);
-        CHECK(moved_params.animators.size() == 1);
+        CHECK(moved_params.document.utf8 == original_value);
+        CHECK(moved_params.animation.animators.size() == 1);
     }
 }
 

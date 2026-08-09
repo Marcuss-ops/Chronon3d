@@ -114,24 +114,18 @@ Composition build_clip_composition(
                     l.effect(glow_params);
                 }
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "HAMBURGER"},
+                    .document = {.utf8 = "HAMBURGER"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 180.0f
+                    }, .color = Color::white(), .shadows = shadows},
+                    .frame = {
+                        .size = {1920.0f, 1080.0f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 180.0f
-                        },
-                        .layout = {
-                            .box = {1920.0f, 1080.0f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {
-                            .color = Color::white(),
-                            .shadows = shadows
-                        }
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });

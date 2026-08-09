@@ -98,21 +98,18 @@ Composition make_typewriter_class(SoftwareRenderer& r, FrameRate rate) {
                 opacity.add_keyframe(Frame{30}, 1.0f, EasingCurve{Easing::Linear});
                 opacity.add_keyframe(Frame{90}, 1.0f, EasingCurve{Easing::Linear});
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "FPS_TEST"},
+                    .document = {.utf8 = "FPS_TEST"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 200.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {960.0f, 540.0f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{cx, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 200.0f
-                        },
-                        .layout = {
-                            .box = {960.0f, 540.0f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });

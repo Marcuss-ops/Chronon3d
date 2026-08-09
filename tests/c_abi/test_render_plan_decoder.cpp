@@ -17,7 +17,8 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
                       {"text", "Hello"}, {"start_frame", 3}}}},
         {"audio_tracks", {{{"source", "music.wav"}, {"volume", 0.5}}}},
         {"output", {{"path", "out.mp4"}, {"format", "mp4"},
-                     {"codec", "h264"}}}};
+                     {"codec", "h264"}}},
+        {"budget", {{"max_temporal_pixels", 4096}}}};
 
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(decoded.has_value());
@@ -27,6 +28,7 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
     CHECK(decoded->layers[0].start_frame->integral() == 3);
     CHECK(decoded->audio_tracks[0].volume == doctest::Approx(0.5));
     CHECK(decoded->output.codec == chronon3d::render_plan::VideoCodec::H264);
+    CHECK(decoded->budget.max_temporal_pixels == 4096);
 }
 
 TEST_CASE("render plan decoder returns validation path on malformed plan") {
@@ -240,6 +242,13 @@ TEST_CASE("validate_render_budget rejects layer timing, output estimate, and non
     CHECK(error->path == "output.bitrate");
 }
 
+TEST_CASE("RenderBudget carries the canonical temporal pixel policy") {
+    chronon3d::render_plan::RenderBudget budget;
+    CHECK(budget.max_temporal_pixels == 128ULL * 1024ULL * 1024ULL);
+    budget.max_temporal_pixels = 4096;
+    CHECK(budget.max_temporal_pixels == 4096);
+}
+
 TEST_CASE("render plan decoder uses fail-loud budget phase") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
@@ -255,6 +264,11 @@ TEST_CASE("render plan decoder uses fail-loud budget phase") {
 
     const auto valid = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(valid);
+    auto budgeted = source;
+    budgeted["budget"]["max_temporal_pixels"] = 4096;
+    const auto decoded_budgeted = chronon3d::render_plan::decode_render_plan(budgeted);
+    REQUIRE(decoded_budgeted);
+    CHECK(decoded_budgeted->budget.max_temporal_pixels == 4096);
     chronon3d::render_plan::RenderBudget tight;
     tight.max_width = 100;
     CHECK(chronon3d::render_plan::validate_render_budget(valid.value(), tight));
@@ -292,4 +306,10 @@ TEST_CASE("render plan fingerprint includes decoded content and preserves order"
     const auto reordered_plan = chronon3d::render_plan::decode_render_plan(reordered);
     REQUIRE(reordered_plan.has_value());
     CHECK(original->content_fingerprint != reordered_plan->content_fingerprint);
+
+    auto changed_budget = source;
+    changed_budget["budget"]["max_temporal_pixels"] = 4096;
+    const auto budget_plan = chronon3d::render_plan::decode_render_plan(changed_budget);
+    REQUIRE(budget_plan.has_value());
+    CHECK(original->content_fingerprint != budget_plan->content_fingerprint);
 }

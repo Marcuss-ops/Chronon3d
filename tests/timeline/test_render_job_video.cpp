@@ -33,13 +33,8 @@ using namespace chronon3d;
 
 namespace {
 
-// Build a heap-allocated Composition on a shared_ptr so the test never
-// needs no-op-deleter tricks: the shared_ptr owns the Composition, and
-// the RenderJob keeps a const-reference-counted handle to it.  Uses
-// Composition's public constructor directly (composition.hpp:108) to
-// avoid an extra move through the `composition()` factory.  Scene{} is
-// sufficient — the test never invokes evaluate(), only inspects the
-// factory output.
+// Build the canonical immutable compiled handle used by RenderJob. The
+// factory contract no longer stores an authoring Composition directly.
 // ── render_mode_name() — human-readable name for the RenderMode enum ──
 // Used by `CAPTURE()` in `run_copy_semantics_test()` below so doctest
 // failure output names which of the 3 modes triggered the failure,
@@ -54,22 +49,25 @@ const char* render_mode_name(RenderMode m) noexcept {
     return "Unknown";
 }
 
-std::shared_ptr<const Composition> make_test_composition() {
+std::shared_ptr<const CompiledComposition> make_test_composition() {
     CompositionSpec spec;
     spec.name        = "test_comp";
     spec.width       = 1920;
     spec.height      = 1080;
     spec.frame_rate  = FrameRate{30, 1};
     spec.duration    = Frame{100};
-    return std::make_shared<Composition>(
-        std::move(spec),
-        [](const FrameContext&) { return Scene{}; });
+    auto definition = std::make_shared<CompositionDefinition>();
+    definition->composition = std::move(spec);
+    definition->scene = [](const FrameContext&) { return Scene{}; };
+    auto compiled = std::make_shared<CompiledComposition>();
+    compiled->definition = std::move(definition);
+    return compiled;
 }
 
 // ── run_copy_semantics_test() — parameterization helper ──────────────
 // Locks the RenderJob copy-construction + copy-assignment contract for
 // ANY factory branch (Still / Sequence / Video).  The factory lambda
-// takes a shared_ptr<const Composition> and returns a RenderJob — the
+// takes a shared_ptr<const CompiledComposition> and returns a RenderJob — the
 // helper then:
 //   1. Snapshots identity (comp_id, output) from the factory result.
 //   2. Mutates ALL 8 video_settings fields on the original (fps, crf,
@@ -131,7 +129,7 @@ void run_copy_semantics_test(
 
     // Identity + composition + output.
     CHECK(copy.comp_id == expected_comp_id);
-    CHECK(copy.comp    == comp);
+    CHECK(copy.compiled    == comp);
     CHECK(copy.output  == expected_output);
 
     // Mode + frame fields (mode-specific).
@@ -151,7 +149,7 @@ void run_copy_semantics_test(
     CHECK(copy.video_settings.chunks        == expected.chunks);
 
     // shared_ptr is shared (same underlying Composition).
-    CHECK(copy.comp == original.comp);
+    CHECK(copy.compiled == original.compiled);
 
     // Mutate ALL 8 video_settings on the copy; original is unaffected.
     copy.video_settings.fps           = 30;
@@ -178,7 +176,7 @@ void run_copy_semantics_test(
     assigned = original;
 
     CHECK(assigned.comp_id == expected_comp_id);
-    CHECK(assigned.comp    == comp);
+    CHECK(assigned.compiled    == comp);
     CHECK(assigned.output  == expected_output);
     CHECK(assigned.mode        == expected_mode);
     CHECK(assigned.still_frame == expected_still_frame);
@@ -193,7 +191,7 @@ void run_copy_semantics_test(
     CHECK(assigned.video_settings.keep_frames   == true);
     CHECK(assigned.video_settings.frames_dir    == "chronon_test");
     CHECK(assigned.video_settings.chunks        == 4);
-    CHECK(assigned.comp == original.comp);
+    CHECK(assigned.compiled == original.compiled);
 
     // Mutate ALL 8 video_settings on the assigned copy; original is
     // unaffected.
@@ -222,7 +220,7 @@ void run_copy_semantics_test(
 // ── run_move_semantics_test() — move-parameterization helper ────────────
 // Locks the RenderJob move-construction + move-assignment contract for
 // ANY factory branch (Still / Sequence / Video).  The factory lambda
-// takes a shared_ptr<const Composition> and returns a RenderJob — the
+// takes a shared_ptr<const CompiledComposition> and returns a RenderJob — the
 // helper then:
 //   1. Mutates ALL 8 video_settings fields on the original.
 //   2. Snapshots the mutated values into `expected` (same pattern as
@@ -278,7 +276,7 @@ void run_move_semantics_test(
         RenderJob moved = std::move(original);
 
         CHECK(moved.comp_id == expected_comp_id);
-        CHECK(moved.comp    == comp);
+        CHECK(moved.compiled    == comp);
         CHECK(moved.output  == expected_output);
         CHECK(moved.mode        == expected_mode);
         CHECK(moved.still_frame == expected_still_frame);
@@ -292,7 +290,7 @@ void run_move_semantics_test(
         CHECK(moved.video_settings.keep_frames   == expected.keep_frames);
         CHECK(moved.video_settings.frames_dir    == expected.frames_dir);
         CHECK(moved.video_settings.chunks        == expected.chunks);
-        CHECK(moved.comp == comp);  // shared_ptr shared (refcount unchanged)
+        CHECK(moved.compiled == comp);  // shared_ptr shared (refcount unchanged)
         // use_count == 2 proves the shared_ptr was moved (not copied):
         //   - one reference in `comp` (the original in test scope)
         //   - one reference in `moved.comp` (transferred from original)
@@ -300,7 +298,7 @@ void run_move_semantics_test(
         // This catches a future refactor that accidentally makes RenderJob
         // copy-only (e.g., by adding a user-defined dtor that suppresses
         // the implicit move ctor).
-        CHECK(moved.comp.use_count() == 2);
+        CHECK(moved.compiled.use_count() == 2);
     }
 
     // ── move assignment ────────────────────────────────────
@@ -326,7 +324,7 @@ void run_move_semantics_test(
         move_assigned = std::move(original);
 
         CHECK(move_assigned.comp_id == expected_comp_id);
-        CHECK(move_assigned.comp    == comp);
+        CHECK(move_assigned.compiled    == comp);
         CHECK(move_assigned.output  == expected_output);
         CHECK(move_assigned.mode        == expected_mode);
         CHECK(move_assigned.still_frame == expected_still_frame);
@@ -340,10 +338,10 @@ void run_move_semantics_test(
         CHECK(move_assigned.video_settings.keep_frames   == expected.keep_frames);
         CHECK(move_assigned.video_settings.frames_dir    == expected.frames_dir);
         CHECK(move_assigned.video_settings.chunks        == expected.chunks);
-        CHECK(move_assigned.comp == comp);
+        CHECK(move_assigned.compiled == comp);
         // use_count == 2 proves the shared_ptr was moved (not copied).
         // See the move-construction section above for the full rationale.
-        CHECK(move_assigned.comp.use_count() == 2);
+        CHECK(move_assigned.compiled.use_count() == 2);
     }
 
     // ── self-move ──────────────────────────────────────────────
@@ -370,7 +368,7 @@ void run_move_semantics_test(
         // should be preserved.  Before self-move: j.comp + comp = 2 refs.
         // After self-move: same, 2 refs.  Matches the move ctor/assign
         // sections and extends the move-vs-copy discriminator here too.
-        CHECK(j.comp.use_count() == 2);
+        CHECK(j.compiled.use_count() == 2);
     }
 }
 
@@ -383,7 +381,7 @@ TEST_CASE("RenderJob::video_job: factory sets identity, mode, frames, output") {
         "comp_alpha", comp, Frame{10}, Frame{50}, "out.mp4");
 
     CHECK(job.comp_id == "comp_alpha");
-    CHECK(job.comp == comp);
+    CHECK(job.compiled == comp);
     CHECK(job.mode == RenderMode::Video);
     CHECK(job.first_frame.integral() == 10);
     CHECK(job.last_frame.integral()  == 50);
@@ -509,7 +507,7 @@ TEST_CASE("RenderJob::operator bool: default-constructed job returns false") {
     // will use to reject unbound jobs.
     RenderJob job;
     CHECK_FALSE(static_cast<bool>(job));
-    CHECK(job.comp == nullptr);
+    CHECK(job.compiled == nullptr);
 }
 
 TEST_CASE("RenderJob::video_job: factory trusts caller for inverted range (no validation)") {
@@ -543,7 +541,7 @@ TEST_CASE("RenderJob::video_job: factory accepts empty comp_id and empty output"
 
     CHECK(job.comp_id == "");
     CHECK(job.output == "");
-    CHECK(job.comp == comp);          // comp is bound → operator bool() true
+    CHECK(job.compiled == comp);          // compiled is bound → operator bool() true
     CHECK(static_cast<bool>(job));
     CHECK(job.frame_count().integral() == 11);
 }
@@ -571,7 +569,7 @@ TEST_CASE("RenderJob::video_job: factory accepts empty comp_id and empty output"
 TEST_CASE("RenderJob: copy semantics (Still mode) — copy + assign preserve all fields") {
     // Still factory: mode=Still, still_frame=42, first/last=0 (unused).
     run_copy_semantics_test(
-        [](std::shared_ptr<const Composition> c) {
+        [](std::shared_ptr<const CompiledComposition> c) {
             return RenderJob::still("comp_still_a", c, Frame{42}, "still.png");
         },
         RenderMode::Still,
@@ -583,7 +581,7 @@ TEST_CASE("RenderJob: copy semantics (Still mode) — copy + assign preserve all
 TEST_CASE("RenderJob: copy semantics (Sequence mode) — copy + assign preserve all fields") {
     // Sequence factory: mode=Sequence, first=10, last=50, still=0 (unused).
     run_copy_semantics_test(
-        [](std::shared_ptr<const Composition> c) {
+        [](std::shared_ptr<const CompiledComposition> c) {
             return RenderJob::sequence(
                 "comp_seq_a", c, Frame{10}, Frame{50}, "seq_%04d.png");
         },
@@ -598,7 +596,7 @@ TEST_CASE("RenderJob: copy semantics (Video mode) — copy + assign preserve all
     // Same frame fields as Sequence, but the mode enum is Video — the
     // discriminator the future executor uses to pick the encode path.
     run_copy_semantics_test(
-        [](std::shared_ptr<const Composition> c) {
+        [](std::shared_ptr<const CompiledComposition> c) {
             return RenderJob::video_job(
                 "comp_vid_a", c, Frame{10}, Frame{50}, "out.mp4");
         },
@@ -632,7 +630,7 @@ TEST_CASE("RenderJob: copy semantics (Video mode) — copy + assign preserve all
 TEST_CASE("RenderJob: move semantics (Still mode) — move + assign preserve all fields") {
     // Still factory: mode=Still, still_frame=42, first/last=0 (unused).
     run_move_semantics_test(
-        [](std::shared_ptr<const Composition> c) {
+        [](std::shared_ptr<const CompiledComposition> c) {
             return RenderJob::still("comp_still_a", c, Frame{42}, "still.png");
         },
         RenderMode::Still,
@@ -644,7 +642,7 @@ TEST_CASE("RenderJob: move semantics (Still mode) — move + assign preserve all
 TEST_CASE("RenderJob: move semantics (Sequence mode) — move + assign preserve all fields") {
     // Sequence factory: mode=Sequence, first=10, last=50, still=0 (unused).
     run_move_semantics_test(
-        [](std::shared_ptr<const Composition> c) {
+        [](std::shared_ptr<const CompiledComposition> c) {
             return RenderJob::sequence(
                 "comp_seq_a", c, Frame{10}, Frame{50}, "seq_%04d.png");
         },
@@ -659,7 +657,7 @@ TEST_CASE("RenderJob: move semantics (Video mode) — move + assign preserve all
     // Same frame fields as Sequence, but the mode enum is Video — the
     // discriminator the future executor uses to pick the encode path.
     run_move_semantics_test(
-        [](std::shared_ptr<const Composition> c) {
+        [](std::shared_ptr<const CompiledComposition> c) {
             return RenderJob::video_job(
                 "comp_vid_a", c, Frame{10}, Frame{50}, "out.mp4");
         },
@@ -687,7 +685,7 @@ TEST_CASE("RenderJob::still: factory sets identity, mode, still_frame, output") 
 
     // Identity + mode + output.
     CHECK(job.comp_id == "comp_still");
-    CHECK(job.comp == comp);
+    CHECK(job.compiled == comp);
     CHECK(job.mode == RenderMode::Still);
     CHECK(job.output == "hero.png");
     CHECK(static_cast<bool>(job));
@@ -729,7 +727,7 @@ TEST_CASE("RenderJob::sequence: factory sets identity, mode, first/last_frame, o
 
     // Identity + mode + output.
     CHECK(job.comp_id == "comp_seq");
-    CHECK(job.comp == comp);
+    CHECK(job.compiled == comp);
     CHECK(job.mode == RenderMode::Sequence);
     CHECK(job.output == "frame_%04d.png");
     CHECK(static_cast<bool>(job));

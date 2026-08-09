@@ -113,25 +113,19 @@ Composition build_rotate_z_composition(
                 // clipping the visible ink at the canvas edges.
                 l.rotate(Vec3{0.0f, 0.0f, rotate_z_deg});
                 l.text_run("title", PreparedText{
-                    .text = {
-                        // TextDefaults field order: content, position, font,
-                        // layout, appearance (C++20 designated-init order
-                        // must match declaration order per spec).
-                        .content = {.value = "ROTATED TEXT"},
+                    .document = {.utf8 = "ROTATED TEXT"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 180.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {static_cast<float>(canvas_w) * 0.7f,
+                                 static_cast<float>(canvas_h) * 0.4f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 180.0f
-                        },
-                        .layout = {
-                            .box = {static_cast<float>(canvas_w) * 0.7f,
-                                    static_cast<float>(canvas_h) * 0.4f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });

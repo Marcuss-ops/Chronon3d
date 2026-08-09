@@ -1,9 +1,9 @@
 # Chronon3D — Current Status
 
-> Ultima revisione semantica: 2026-08-02.
+> Ultima revisione semantica: 2026-08-09.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@05730263` (checkpoint locale non pushato) — `linux-fast-dev` build PASS, core PASS (1423/1423, 0 skip con `--no-skip`), C ABI PASS (35/35), preflight PASS (3/3), Glow/effects PASS (208/208), camera visual focalizzata PASS (9/9), `chronon3d_camera_tests` PASS (64/64), `chronon3d_scene_tests` PASS (406/406), GraphCache PASS (4/4) e PR1-Torture PASS (5/5), AE parity visuale PASS (41/41 casi, 274/274 asserzioni), CLI introspection PASS (26/26) e packaging relocatability PASS (14/14). Sanitizer completo e baseline 11/11 restano BLOCKED.
+> Ultimo SHA osservato: `main@dc3fb34e` (worktree locale non pulito) — build `linux-fast-dev` PASS per memory/core/text, regex focalizzato CTest PASS (21/21), architecture PASS (26/26), test registration PASS (69 suite/0 raw), doc-sync PASS e sequential graph-cache diagnostics-OFF PASS (3/3 deterministic + 14/14 scene). Same-SHA certification completa: BLOCKED dopo il run developer temporaneo; CTest non ha prodotto il JUnit richiesto dal corpus visuale (`CERTIFICATION_BLOCKED`), quindi la baseline 11/11 non è promossa.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
@@ -38,7 +38,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 | Text Rendering Core V1 | PASS | FreeType + HarfBuzz + FriBidi + shaping + layout + glyph cache + animator + selector certified; vedi [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md). |
 | Text Production / CapCut-grade V1 | PARTIAL | Canonical TextDefinition path, catalogo 20 preset generali + 8 subtitle, subtitle matrix 192/192 non-empty, alignment e auto-fit focused tests PASS. CapCut parity is now a strict release-blocking gate, but the repository still has zero blessed PNG exports from CapCut. Vedi [TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md). |
 | Test hardening (false-green audit) | PASS | Auto-fit e alignment sono assertions bloccanti; il parity harness non accetta più reference mancanti o corpus vuoti. Vedi [TICKET-FALSE-GREEN-TEST-AUDIT](tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md). |
-| Text Health | PASS | `chronon3d_text_health_tests` PASS (1/1) on main. |
+| Text Health | PASS | `chronon3d_text_health_tests` PASS (1/1); regex text/authoring/asset/memory PASS (21/21) su `main@dc3fb34e` con worktree locale. |
 | Text API migration (Blocco 5.1/5.2) | PASS (focused) | `TextSpec`/`TextRunSpec`, reverse adapters, `animated_text()` e i 21 motion helper dedicati sono stati rimossi dal percorso produttivo; authoring, esempi e preset usano `TextDefinition`, `text_run()` e `LayerBuilder::motion()`. Resta tracciata soltanto l'eventuale riduzione futura dei transport interni `TextRunDefinition`/`PreparedText` in [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md). |
 | Animation / local-time / asset preparation | PASS (focused) | Un solo interpolate con `Extrapolate`, una `SpringConfig`, random deterministico per stagger, sequence su `FrameContext` locale e barriera `prepare_render()` verificati con test mirati; full baseline non ricalcolata su questo worktree. |
 | Prepared plan / asset identity | PASS (focused) | `PreparedRenderPlan` esegue il `CompiledComposition` canonico; manifest SHA-256, controllo size/mtime, verifica cambio bytes e propagazione `CHRONON_ERROR_ASSET_CHANGED` sono coperti da unit e C ABI test. |

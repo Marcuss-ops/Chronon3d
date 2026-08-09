@@ -1,9 +1,11 @@
 #pragma once
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/render_plan/render_budget.hpp>
 #include <string>
 #include <optional>
 #include <chronon3d/math/raster_utils.hpp>
+#include <cstdint>
 
 namespace chronon3d {
 
@@ -116,6 +118,11 @@ struct DiagnosticSettings {
 // related flags live next to each other.  In particular, all dirty-rect /
 // tile / bitmask knobs are under `dirty`; see DirtyRenderSettings.
 struct RenderSettings {
+    /// Canonical resource budget applied by the render-plan/runtime boundary.
+    /// Temporal accumulation consumes `render_budget.max_temporal_pixels`;
+    /// zero is not used here because the default RenderBudget is finite.
+    render_plan::RenderBudget render_budget{};
+
     /// Reject unresolved image assets before executing the graph.
     /// The public SDK enables this contract; internal authoring/debug paths
     /// keep the historical placeholder behavior unless they opt in.

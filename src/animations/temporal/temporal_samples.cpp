@@ -166,11 +166,15 @@ TemporalSamplePlan make_temporal_sample_plan(
     int num_samples,
     Frame center_frame,
     FrameRate frame_rate,
-    EvaluationVersion cache_version)
+    std::size_t width,
+    std::size_t height,
+    EvaluationVersion cache_version,
+    TemporalBudgetResolver budget)
 {
     TemporalSamplePlan plan;
     plan.requested_samples = num_samples;
-    if (num_samples <= 0 || num_samples > TemporalSamplePlan::kMaxSamples) {
+    if (num_samples <= 0 || num_samples > TemporalSamplePlan::kMaxSamples ||
+        !budget.allows(num_samples, width, height)) {
         plan.rejected = true;
         return plan;
     }

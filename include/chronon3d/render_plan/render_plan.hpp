@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
+#include <chronon3d/render_plan/render_budget.hpp>
 
 #include <array>
 #include <cstddef>
@@ -87,6 +88,9 @@ struct RenderPlan {
     std::vector<LayerPlan> layers;
     std::vector<AudioTrackPlan> audio_tracks;
     OutputSpec output;
+    /// Canonical job-level resource policy. Runtime renderers resolve the
+    /// temporal portion through TemporalBudgetResolver.
+    RenderBudget budget{};
 };
 
 struct PlanDecodeError {
@@ -94,26 +98,10 @@ struct PlanDecodeError {
     std::string message;
 };
 
-/// Resource limits applied before a RenderPlan can reach compilation.
-/// The defaults are deliberately finite so untrusted JSON cannot request
-/// unbounded framebuffer, frame, layer, or text allocations.
-struct RenderBudget {
-    std::uint32_t max_width{7680};
-    std::uint32_t max_height{4320};
-    std::uint64_t max_total_pixels{7680ULL * 4320ULL};
-    std::uint64_t max_frames{1'000'000};
-    double max_audio_duration_seconds{24.0 * 60.0 * 60.0};
-    std::uint32_t max_layers{1024};
-    std::uint32_t max_audio_tracks{128};
-    std::uint64_t max_text_bytes{4ULL * 1024ULL * 1024ULL};
-    std::uint64_t max_asset_reference_bytes{1ULL * 1024ULL * 1024ULL};
-    std::uint64_t max_estimated_output_bytes{4ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL};
-    std::uint64_t max_peak_memory_bytes{2ULL * 1024ULL * 1024ULL * 1024ULL};
-};
-
 /// Explicit fail-loud budget phase executed before render-plan compilation.
 /// It validates dimensions, frame/duration bounds, layer/audio counts and
-/// timing, text/reference bytes, memory, and estimated output size.
+/// timing, text/reference bytes, memory, and estimated output size. Temporal
+/// sample-pixel limits are resolved at runtime by TemporalBudgetResolver.
 [[nodiscard]] std::optional<PlanDecodeError> validate_render_budget(
     const RenderPlan& plan,
     const RenderBudget& budget = {});

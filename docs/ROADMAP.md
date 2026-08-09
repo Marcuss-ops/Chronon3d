@@ -5,7 +5,7 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
-> **Snapshot osservato (2026-08-02):** `main@4dabf6e3`. Il cleanup legacy
+> **Snapshot osservato (2026-08-09):** `main@dc3fb34e` (worktree locale non pulito). Il cleanup legacy
 > confermato è allineato al codice: registration descriptor-only, shaping
 > canonico, `Composition` descriptor-only per la camera, factory unica del
 > runtime, alias temporali/camera rimossi e ticket superati chiusi. Verifiche

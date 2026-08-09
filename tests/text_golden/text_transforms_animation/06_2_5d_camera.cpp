@@ -94,22 +94,19 @@ Composition build_2_5d_composition(
                 // Push the layer 50 units forward in Z (subtle depth).
                 l.depth_offset(50.0f);
                 l.text_run("title", PreparedText{
-                    .text = {
-                        .content = {.value = "2.5D"},
+                    .document = {.utf8 = "2.5D"},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 240.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {static_cast<float>(canvas_w) * 0.6f,
+                                 static_cast<float>(canvas_h) * 0.5f},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 240.0f
-                        },
-                        .layout = {
-                            .box = {static_cast<float>(canvas_w) * 0.6f,
-                                    static_cast<float>(canvas_h) * 0.5f},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
                 }).commit();
             });
