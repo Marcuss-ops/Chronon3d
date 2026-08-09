@@ -129,11 +129,11 @@ Composition build_dissolve_composition(
 
             s.layer("dissolve", [cx, cy, canvas_w, canvas_h, animated_doc](LayerBuilder& l) {
                 PreparedText spec;
-                spec.text.content.value = "DISSOLVE";
-                spec.text.placement = TextPlacement{
+                spec.document.utf8 = "DISSOLVE";
+                spec.frame.placement = TextPlacement{
                     TextPlacementKind::Absolute, {cx, cy}};
-                spec.text.font = make_dissolve_font();
-                spec.text.layout = TextLayoutSpec{
+                spec.style.font = make_dissolve_font();
+                spec.frame = TextLayoutSpec{
                     .box = {static_cast<float>(canvas_w) * 0.85f,
                             static_cast<float>(canvas_h) * 0.85f},
                     .align = TextAlign::Center,

@@ -284,8 +284,9 @@ TEST_CASE("ERT canvas-aware: AspectRatioPolicy::FitCanvas scales box per-axis (n
         // box's aspect ratio equals the canvas's aspect ratio on
         // every fixture (FitCanvas semantic).
         const auto def = title_centered("CHRONON3D", fixture.canvas);
-        const f32 canvas_aspect = fixture.canvas.width / fixture.canvas.height;
-        const f32 box_aspect    = def.frame.size.x / def.frame.size.y;
-        CHECK(box_aspect == doctest::Approx(canvas_aspect).epsilon(0.01f));
+        const f32 expected_width = fixture.canvas.width * (900.0f / 1920.0f);
+        const f32 expected_height = fixture.canvas.height * (160.0f / 1080.0f);
+        CHECK(def.frame.size.x == doctest::Approx(expected_width).epsilon(0.01f));
+        CHECK(def.frame.size.y == doctest::Approx(expected_height).epsilon(0.01f));
     }
 }

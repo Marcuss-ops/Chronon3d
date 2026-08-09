@@ -9,11 +9,11 @@
 |---|---:|---|---|
 | Test aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | Deprecated API cleanup (remaining symbols) | P1 | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
-| Test harness + certification | P1 | OPEN | Golden visuali focalizzati e camera visuale PASS su `main@4dabf6e3`; restano baseline globale, font e certificazione WBH: [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md), [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
+| Test harness + certification | P1 | OPEN | Regex focalizzato PASS 21/21 su `main@dc3fb34e`; same-SHA developer BLOCKED perché il corpus visuale non ha prodotto il JUnit richiesto. Restano baseline globale, font e certificazione WBH: [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md), [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Core systems / ADR gaps | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
 | Benchmark + CPU budget | P1 | OPEN | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md), [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
 | Cache key rot | P2 | OPEN | [NODE-CACHE-KEY-COLLAPSE-ROT](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
-| Sequential graph cache parity | P1 | DONE (verified path) | `CHRONON3D_BUILD_DIAGNOSTICS=OFF` + `settings.diagnostics.enabled=false`: verifier PASS su `main@377995d4` (3/3 deterministic + 14/14 scene, marker `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`); `CHRONON3D_ENABLE_DIAGNOSTICS=ON` resta fuori dalla conclusione: [SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md) |
+| Sequential graph cache parity | P1 | DONE (verified path) | `CHRONON3D_BUILD_DIAGNOSTICS=OFF` + `settings.diagnostics.enabled=false`: verifier PASS su `main@dc3fb34e` con worktree locale (3/3 deterministic + 14/14 scene, marker `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`); `CHRONON3D_ENABLE_DIAGNOSTICS=ON` resta fuori dalla conclusione: [SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md) |
 | Tools / lint debt | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md); [ANALYZE-FRAMES-ORPHAN](tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md) DONE; remaining watch-list open |
 | OpenType feature coverage | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
@@ -29,4 +29,4 @@
 - `ShapedGlyphLine` legacy constructor surface is absent; `TICKET-PUB-DEPRECATE-REMOVAL` and `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL` are DONE/ARCHIVED. Remaining deprecations are tracked only by `TICKET-DEPRECATED-API-REMOVAL`.
 - CompositionDescriptor registration is canonical: the legacy string/factory overload and duplicate factory map are absent; remaining deprecation work stays open under the narrowed API-cleanup tickets.
 - Markdown conflict-marker gate now scans all `docs/**/*.md` and closes `TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX` (`bf413d58`).
-- Sequential graph cache parity is DONE after diagnostics-OFF verification on `main@377995d4`; details in [TICKET-SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md).
+- Sequential graph cache parity is DONE after diagnostics-OFF verification on `main@dc3fb34e` with the local worktree (3/3 deterministic + 14/14 scene); details in [TICKET-SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md).

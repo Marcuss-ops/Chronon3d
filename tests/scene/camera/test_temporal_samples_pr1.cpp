@@ -105,7 +105,7 @@ TEST_CASE("TemporalSamplePlan: contexts carry distinct time and cache identity")
     p.filter = TemporalFilter::Box;
 
     const auto plan = chronon3d::temporal::make_temporal_sample_plan(
-        p, 8, Frame{12}, FrameRate{30, 1}, 7);
+        p, 8, Frame{12}, FrameRate{30, 1}, 320, 180, 7);
 
     REQUIRE(plan.valid());
     REQUIRE(plan.num_samples() == 8);
@@ -142,16 +142,42 @@ TEST_CASE("TemporalSamplePlan: sample domains are independently owned") {
 
     const auto plan = chronon3d::temporal::make_temporal_sample_plan(
         chronon3d::temporal::TemporalSampleParams{}, 2, Frame{4},
-        FrameRate{30, 1}, 11);
+        FrameRate{30, 1}, 320, 180, 11);
     REQUIRE(plan.valid());
     CHECK(plan[0].cache_key != plan[1].cache_key);
+}
+
+TEST_CASE("TemporalBudgetResolver: canonical limit and hard ceiling are enforced") {
+    using chronon3d::temporal::TemporalBudgetResolver;
+
+    const TemporalBudgetResolver bounded{.max_temporal_pixels = 1000};
+    CHECK(bounded.effective_max_temporal_pixels() == 1000);
+    CHECK(bounded.allows(2, 20, 20));
+    CHECK_FALSE(bounded.allows(3, 20, 20));
+
+    const TemporalBudgetResolver oversized{
+        .max_temporal_pixels = TemporalBudgetResolver::kHardSafetyCeiling * 2};
+    CHECK(oversized.effective_max_temporal_pixels() ==
+          TemporalBudgetResolver::kHardSafetyCeiling);
+    CHECK_FALSE(oversized.allows(64, 2048, 2048));
+}
+
+TEST_CASE("TemporalSamplePlan: canonical temporal pixel budget rejects before allocation") {
+    chronon3d::temporal::TemporalSampleParams p;
+    const auto plan = chronon3d::temporal::make_temporal_sample_plan(
+        p, 8, Frame{0}, FrameRate{30, 1}, 100, 100, 0,
+        chronon3d::temporal::TemporalBudgetResolver{.max_temporal_pixels = 79'999});
+
+    CHECK_FALSE(plan.valid());
+    CHECK(plan.rejected);
+    CHECK(plan.contexts.empty());
 }
 
 TEST_CASE("TemporalSamplePlan: sample count is bounded") {
     chronon3d::temporal::TemporalSampleParams p;
     const auto plan = chronon3d::temporal::make_temporal_sample_plan(
         p, chronon3d::temporal::TemporalSamplePlan::kMaxSamples + 32,
-        Frame{0}, FrameRate{24, 1});
+        Frame{0}, FrameRate{24, 1}, 320, 180);
 
     CHECK_FALSE(plan.valid());
     CHECK(plan.num_samples() == 0);

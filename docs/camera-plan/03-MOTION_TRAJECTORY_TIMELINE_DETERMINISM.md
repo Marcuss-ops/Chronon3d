@@ -343,9 +343,18 @@ Eliminare progressivamente `bool enabled` come selettore autorevole.
 Il compositor deve:
 
 1. generare sample temporali canonici;
-2. valutare programma camera e scena a ogni sub-frame;
-3. renderizzare framebuffer separati;
-4. accumulare con pesi normalizzati.
+2. risolvere la policy dei pixel temporali tramite `TemporalBudgetResolver`, alimentato dal `RenderBudget` del job;
+3. valutare programma camera e scena a ogni sub-frame;
+4. renderizzare framebuffer separati;
+5. accumulare con pesi normalizzati.
+
+`RenderBudget.max_temporal_pixels` è il limite configurabile per il totale
+`sample_count × render_width × render_height`. `TemporalSamplePlan` rifiuta il
+piano prima di allocare i domini dei sample quando il limite è superato. Il
+resolver applica inoltre soltanto un hard safety ceiling indipendente dalla
+policy del job, così la policy non può disabilitare il limite fisico massimo.
+Non devono esistere budget temporali locali in `composition.cpp` o in altri
+compositor path.
 
 ### VelocityApproximation
 

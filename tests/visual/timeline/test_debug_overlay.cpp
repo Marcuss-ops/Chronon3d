@@ -203,8 +203,8 @@ TEST_CASE("Debug.TimelineJSONOutput") {
     s.layer("title", [](LayerBuilder& l) {
         l.from(Frame{30}).duration(Frame{60});
         PreparedText p;
-        p.text.font.font_path = "assets/fonts/Poppins-Bold.ttf";
-        p.text.content.value = "HELLO";
+        p.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
+        p.document.utf8 = "HELLO";
         (void)l.text_run("label", std::move(p));
     });
     Scene scene = s.build();
@@ -324,8 +324,8 @@ TEST_CASE("Debug.MultipleAssetTypesInOutput") {
     s.layer("mixed", [](LayerBuilder& l) {
         l.from(Frame{0}).duration(Frame{60});
         PreparedText p;
-        p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
-        p.text.content.value = "Hello";
+        p.style.font.font_path = "assets/fonts/Inter-Bold.ttf";
+        p.document.utf8 = "Hello";
         (void)l.text_run("text", std::move(p));
         l.image("bg", {.path = "assets/bg.png", .size = {1920, 1080}});
     });

@@ -37,6 +37,15 @@ namespace chronon3d::text_internal {
     doc.defaults.layout.max_lines = out.frame.max_lines;
     doc.defaults.layout.ellipsis = out.frame.ellipsis;
     doc.defaults.layout.paragraph = out.frame.paragraph;
+    // PreparedText.shaping is the canonical transport for bidi/language
+    // options.  The resolver consumes those options through the paragraph
+    // style, so lower them into the rebuilt document before splitting it.
+    if (out.shaping.direction != TextDirection::Auto) {
+        doc.defaults.layout.paragraph.direction = out.shaping.direction;
+    }
+    if (!out.shaping.language.empty()) {
+        doc.defaults.layout.paragraph.language = out.shaping.language;
+    }
     doc.defaults.appearance.color = out.style.color;
     doc.defaults.appearance.paint = out.style.paint;
     doc.defaults.appearance.shadows = out.style.shadows;
@@ -49,7 +58,7 @@ namespace chronon3d::text_internal {
     }
 
     doc.paragraphs.clear();
-    doc.split_paragraphs(out.frame.paragraph);
+    doc.split_paragraphs(doc.defaults.layout.paragraph);
     return out;
 }
 

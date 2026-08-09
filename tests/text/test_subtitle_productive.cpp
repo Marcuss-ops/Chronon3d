@@ -609,7 +609,7 @@ TEST_CASE("Per-word selectors are wired into the preset animator (round-2 review
     spec.font.font_size = 48.0f;
 
     auto run_spec = chronon3d::registry::wire_preset_text_run_params("active_word_pop", spec);
-    REQUIRE(!run_spec.animators.empty());
+    REQUIRE(!run_spec.animation.animators.empty());
 
     const FrameRate fr{30, 1};
     const auto word_selectors =
@@ -617,7 +617,7 @@ TEST_CASE("Per-word selectors are wired into the preset animator (round-2 review
     const std::size_t expected_count = word_selectors.size();
     REQUIRE(expected_count == 3u);
 
-    auto& animator = run_spec.animators.front();
+    auto& animator = run_spec.animation.animators.front();
     const std::size_t base_count = animator.selectors.size();
     for (auto& sel : word_selectors) {
         animator.selectors.push_back(std::move(sel));
