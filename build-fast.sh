@@ -7,7 +7,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-fast-dev}"
 
 # ccache: persistent, project-local by default. 20 GiB cap and sloppiness
-# tuned for Clang/GCC PCH header drift.
+# tuned for Clang/GCC PCH header drift. Keep track of whether the caller chose
+# a cache explicitly so the project-local default can be bootstrapped safely.
+CCACHE_DIR_EXPLICIT="${CCACHE_DIR+x}"
 export CCACHE_DIR="${CCACHE_DIR:-${ROOT_DIR}/.ccache}"
 
 show_help() {
@@ -38,14 +40,14 @@ Commands:
 
 Environment:
   JOBS                       Parallel jobs (default: nproc)
-  CCACHE_DIR                 ccache store (default: \${HOME}/.ccache, max 20G)
+  CCACHE_DIR                 ccache store (default: \${ROOT_DIR}/.ccache, max 20G)
   BUILD_DIR_OVERRIDE         Override the resolved build dir (default: .tmp/chronon-builds/linux-fast-dev)
 
 Notes:
   - Build dir defaults to project-local .tmp/ on disk.
     Set BUILD_DIR_OVERRIDE for a custom build location.
-  - ccache config is auto-bootstrapped on first run (skipped when CCACHE_DIR
-    is explicitly set to a non-default path to avoid clobbering CI caches).
+  - ccache config is auto-bootstrapped on first run when using the project
+    default; an explicitly supplied CCACHE_DIR is never modified.
 
 Examples:
   ./build-fast.sh                          # single Ninja invocation for dev_fast
@@ -73,8 +75,8 @@ if [[ "$TARGET" == "--target" ]]; then
 fi
 
 bootstrap_ccache() {
-    # Never touch CCACHE_DIRs explicitly set by the user or CI.
-    if [[ "$CCACHE_DIR" != "${HOME}/.ccache" ]]; then
+    # Never touch a cache explicitly selected by the user or CI.
+    if [[ -n "$CCACHE_DIR_EXPLICIT" ]]; then
         [[ -d "$CCACHE_DIR" ]] || mkdir -p "$CCACHE_DIR"
         return 0
     fi
