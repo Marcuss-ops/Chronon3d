@@ -29,7 +29,7 @@ export default function RenderGraph({ compositionId, runDetail }) {
     const fetchGraph = async () => {
       setLoading(true);
       try {
-        const resp = await fetch(`${API_BASE}/api/graph/${compositionId}`);
+        const resp = await fetch(`${API_BASE}/api/graph/${compositionId}`, { credentials: 'include' });
         const data = await resp.json();
         
         if (data.error) {
