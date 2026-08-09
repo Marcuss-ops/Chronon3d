@@ -19,32 +19,8 @@ jobs:
         run: |
           bash -n tools/*.sh
 
-      - name: Check CMake syntax (cmake-format)
-        run: |
-          # Validate CMakeLists.txt syntax using cmake-format.
-          # This catches parse errors without requiring vcpkg.
-          pip install cmakelang 2>/dev/null || pip3 install cmakelang 2>/dev/null || true
-          if command -v cmake-format &> /dev/null; then
-            find . -name CMakeLists.txt -exec cmake-format --check {} + 2>&1 || {
-              echo "CMake syntax errors found — run 'cmake-format -i <file>' to fix";
-              exit 1;
-            }
-            echo "All CMakeLists.txt pass syntax check."
-          else
-            echo "cmake-format not available — install with 'pip install cmakelang'"
-            # Basic fallback: just check for obvious syntax issues
-            ERRORS=0
-            while IFS= read -r cmakefile; do
-              # Check balanced parentheses (quick heuristic)
-              opens=$(grep -c '(' "$cmakefile" 2>/dev/null || echo 0)
-              closes=$(grep -c ')' "$cmakefile" 2>/dev/null || echo 0)
-              if [ "$opens" -ne "$closes" ]; then
-                echo "WARNING: Possible unbalanced parens in $cmakefile"
-                ERRORS=$((ERRORS + 1))
-              fi
-            done < <(find . -name CMakeLists.txt)
-            [ "$ERRORS" -eq 0 ] && echo "Basic CMake check passed." || echo "Found $ERRORS potential issues"
-          fi
+      - name: Check changed CMake formatting
+        run: bash tools/check_cmake_format.sh
 
       - name: Detect stale docs paths
         run: |
