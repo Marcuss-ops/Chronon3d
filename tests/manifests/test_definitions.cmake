@@ -53,6 +53,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     media_tests.cmake
     sdk_tests.cmake
     simd/simd_parity_blend_tests.cmake
+    simd/cpu_isa_tests.cmake
     render_graph/compiler/fusion_pass_tests.cmake
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
     sabotage_tests.cmake

@@ -3,6 +3,7 @@
 # ==============================================================================
 
 target_sources(chronon3d_backend_software PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu_isa.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/highway_color_kernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/highway_blend_kernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/highway_separable_kernels.cpp

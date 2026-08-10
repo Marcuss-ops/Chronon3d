@@ -27,6 +27,15 @@ void register_list(CLI::App& app, CliContext& ctx) {
     });
 }
 
+void register_benchmark_machine(CLI::App& app, CliContext& ctx) {
+    auto* command = app.add_subcommand(
+        "benchmark-machine",
+        "Certify the host machine: CPU, logical cores, SIMD, NUMA, TBB budget");
+    command->callback([&ctx]() {
+        ctx.exit_code = command_benchmark_machine(ctx);
+    });
+}
+
 void register_info(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<InfoState>();
     auto* command = app.add_subcommand(
@@ -76,6 +85,7 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
 
 void register_commands(CLI::App& app, CliContext& ctx) {
     register_list(app, ctx);
+    register_benchmark_machine(app, ctx);
     register_info(app, ctx);
     register_doctor(app, ctx);
     register_verify(app, ctx);
