@@ -179,6 +179,124 @@ Composition dof_showcase() {
     });
 }
 
+// Temporary certification showcase for the user-facing 2.5D typography
+// surface.  It intentionally uses no image or mesh assets.
+Composition text_25d_tests(std::size_t first_section = 0,
+                           std::string composition_name = "Text25DTests") {
+    return composition({
+        .name = std::move(composition_name),
+        .width = kWidth,
+        .height = kHeight,
+        .duration = first_section == 0 ? 600 : 120
+    }, [first_section](const FrameContext& ctx) {
+        SceneBuilder scene(ctx);
+        const auto frame = ctx.frame().integral();
+        const auto section = first_section == 0 ? frame / 120 : first_section;
+        scene.camera().enable(true)
+            .position({0.0f, 0.0f, -1000.0f})
+            .zoom(1000.0f)
+            .look_at({0.0f, 0.0f, 0.0f});
+        scene.layer("background", [section](LayerBuilder& layer) {
+            const Color colors[] = {
+                {0.008f, 0.012f, 0.028f, 1.0f},
+                {0.025f, 0.012f, 0.045f, 1.0f},
+                {0.008f, 0.035f, 0.050f, 1.0f},
+                {0.035f, 0.020f, 0.008f, 1.0f},
+                {0.012f, 0.025f, 0.045f, 1.0f},
+            };
+            layer.rect("background", {
+                .size = {kWidth, kHeight},
+                .color = colors[std::min<std::size_t>(section, 4)],
+                .pos = {0.0f, 0.0f, 0.0f}
+            });
+        });
+
+        const auto add_text = [&](std::string id, std::string value,
+                                  Vec3 position, Vec3 rotation,
+                                  Vec3 scale = {1.0f, 1.0f, 1.0f},
+                                  f32 opacity = 1.0f) {
+            const auto animation_id = id;
+            scene.layer(std::move(id), [animation_id, value = std::move(value), position,
+                                        rotation, scale, opacity](LayerBuilder& layer) {
+                layer.enable_3d().position(position)
+                    .rotate(rotation)
+                    .scale(scale)
+                    .opacity(opacity);
+                layer.text("headline", TextDefinition{
+                    .content = {.value = value},
+                    .style = {.font = {
+                        .font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font_family = "Inter",
+                        .font_weight = 700,
+                        .font_size = 190.0f
+                    }, .color = Color::white()},
+                    .frame = {
+                        .size = {1700.0f, 420.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute,
+                                                    {960.0f, 540.0f}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
+                    }
+                });
+                if (animation_id == "t01") {
+                    layer.rotate_anim().key(Frame{0}, Vec3{0.0f, -75.0f, 0.0f})
+                        .key(Frame{119}, Vec3{0.0f, 0.0f, 0.0f});
+                } else if (animation_id == "t02") {
+                    layer.rotate_anim().key(Frame{0}, Vec3{75.0f, 0.0f, 0.0f})
+                        .key(Frame{119}, Vec3{0.0f, 0.0f, 0.0f});
+                } else if (animation_id == "t03") {
+                    // The TextRun surface is currently rasterized into the
+                    // full canvas. Keep the authored left pivot aligned with
+                    // that surface's centered origin until tight-surface
+                    // allocation lands in the shared text path.
+                    layer.position({-1280.0f, 0.0f, 0.0f});
+                    layer.anchor({-720.0f, 0.0f, 0.0f});
+                    layer.rotate_anim().key(Frame{0}, Vec3{0.0f, -90.0f, 0.0f})
+                        .key(Frame{119}, Vec3{0.0f, 0.0f, 0.0f});
+                } else if (animation_id == "hero") {
+                    layer.rotate_anim().key(Frame{0}, Vec3{15.0f, -25.0f, 0.0f})
+                        .key(Frame{119}, Vec3{0.0f, 0.0f, 0.0f});
+                }
+            });
+        };
+
+        if (section == 0) {
+            add_text("t01", "THE FUTURE", {0.0f, 0.0f, 0.0f},
+                     {0.0f, -75.0f, 0.0f});
+        } else if (section == 1) {
+            add_text("t02", "HISTORY", {0.0f, 0.0f, 0.0f},
+                     {75.0f, 0.0f, 0.0f});
+        } else if (section == 2) {
+            add_text("t03", "REVOLUTION", {0.0f, 0.0f, 0.0f},
+                     {0.0f, -90.0f, 0.0f});
+        } else if (section == 3) {
+            camera_v1::PoseTracksSource camera;
+            camera.position
+                .key(Frame{0}, Vec3{-260.0f, 0.0f, -1000.0f})
+                .key(Frame{119}, Vec3{260.0f, 0.0f, -1000.0f});
+            camera.zoom.set(1000.0f);
+            camera.target.set({0.0f, 0.0f, 0.0f});
+            camera.use_target = true;
+            scene.camera_pose(camera);
+            add_text("p_far", "THE", {0.0f, -250.0f, 220.0f},
+                     {0.0f, 0.0f, 0.0f}, {0.75f, 0.75f, 1.0f});
+            add_text("p_mid", "FUTURE", {0.0f, 0.0f, 0.0f},
+                     {0.0f, 0.0f, 0.0f});
+            add_text("p_near", "IS HERE", {0.0f, 250.0f, -220.0f},
+                     {0.0f, 0.0f, 0.0f}, {1.15f, 1.15f, 1.0f});
+        } else {
+            const f32 progress = ctx.progress();
+            scene.camera().enable(true)
+                .position({0.0f, 0.0f, -1250.0f + progress * 100.0f})
+                .zoom(1000.0f)
+                .look_at({0.0f, 0.0f, 0.0f});
+            add_text("hero", "THE UNTOLD STORY", {0.0f, 0.0f, 0.0f},
+                     {15.0f, -25.0f, 0.0f}, {0.62f, 0.62f, 1.0f});
+        }
+        return scene.build();
+    });
+}
+
 } // namespace
 
 void register_two_point_five_d_compositions(CompositionRegistry& registry) {
@@ -193,6 +311,24 @@ void register_two_point_five_d_compositions(CompositionRegistry& registry) {
     }));
     registry.add(make_composition_descriptor("DofShowcase", [](const CompositionProps&) {
         return dof_showcase();
+    }));
+    registry.add(make_composition_descriptor("Text25DTests", [](const CompositionProps&) {
+        return text_25d_tests();
+    }));
+    registry.add(make_composition_descriptor("Text25D-T01-YRotation", [](const CompositionProps&) {
+        return text_25d_tests(0, "Text25D-T01-YRotation");
+    }));
+    registry.add(make_composition_descriptor("Text25D-T02-XFlip", [](const CompositionProps&) {
+        return text_25d_tests(1, "Text25D-T02-XFlip");
+    }));
+    registry.add(make_composition_descriptor("Text25D-T03-Pivot", [](const CompositionProps&) {
+        return text_25d_tests(2, "Text25D-T03-Pivot");
+    }));
+    registry.add(make_composition_descriptor("Text25D-T04-Parallax", [](const CompositionProps&) {
+        return text_25d_tests(3, "Text25D-T04-Parallax");
+    }));
+    registry.add(make_composition_descriptor("Text25D-T05-DocumentaryHero", [](const CompositionProps&) {
+        return text_25d_tests(4, "Text25D-T05-DocumentaryHero");
     }));
 }
 

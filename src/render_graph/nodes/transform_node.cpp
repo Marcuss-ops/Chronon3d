@@ -8,11 +8,46 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <span>
+#include <array>
 
 // Internal helpers extracted into separate compilation units
 #include "transform_internal.hpp"
 
 namespace chronon3d::graph {
+
+namespace {
+
+struct HomogeneousQuad {
+    std::array<Vec4, 8> vertices{};
+    int count{0};
+};
+
+// Clip the source quad before perspective division.  A projected corner with
+// w≈0 is not a usable pixel coordinate; skipping that corner independently
+// leaves the remaining bbox open and produces the characteristic giant sliver
+// when a card crosses the near plane.
+HomogeneousQuad clip_quad_against_w(const std::array<Vec4, 4>& input) {
+    constexpr f32 kMinW = 1.0e-3f;
+    HomogeneousQuad out;
+    std::array<Vec4, 8> current{};
+    int current_count = 4;
+    for (int i = 0; i < current_count; ++i) current[i] = input[i];
+
+    for (int i = 0; i < current_count; ++i) {
+        const Vec4& a = current[i];
+        const Vec4& b = current[(i + 1) % current_count];
+        const bool a_inside = a.w >= kMinW;
+        const bool b_inside = b.w >= kMinW;
+        if (a_inside != b_inside) {
+            const f32 t = (kMinW - a.w) / (b.w - a.w);
+            out.vertices[out.count++] = a + t * (b - a);
+        }
+        if (b_inside) out.vertices[out.count++] = b;
+    }
+    return out;
+}
+
+} // namespace
 
 NodeExecResult TransformNode::execute(
     RenderGraphContext& ctx,
@@ -144,23 +179,28 @@ NodeExecResult TransformNode::execute(
     }
 
     // ── Projected quad → destination bounding box ───────────────────────
-    Vec4 corners[4] = {
+    const std::array<Vec4, 4> corners = {
         pixel_model * Vec4(x_min_src, y_min_src, 0, 1),
         pixel_model * Vec4(x_max_src, y_min_src, 0, 1),
         pixel_model * Vec4(x_max_src, y_max_src, 0, 1),
         pixel_model * Vec4(x_min_src, y_max_src, 0, 1)
     };
+    const auto clipped = clip_quad_against_w(corners);
 
     f32 min_x = 1e10f, max_x = -1e10f;
     f32 min_y = 1e10f, max_y = -1e10f;
-    for (auto& c : corners) {
-        if (std::abs(c.w) < 1e-6f) continue;
+    for (int i = 0; i < clipped.count; ++i) {
+        const auto& c = clipped.vertices[i];
         f32 px = c.x / c.w;
         f32 py = c.y / c.w;
         min_x = std::min(min_x, px);
         max_x = std::max(max_x, px);
         min_y = std::min(min_y, py);
         max_y = std::max(max_y, py);
+    }
+
+    if (clipped.count < 3) {
+        return NodeExecResult{std::move(result)};
     }
 
     i32 x0 = std::clamp(static_cast<i32>(std::floor(min_x)), result->origin_x(), result->origin_x() + result->width());
@@ -393,23 +433,28 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
-    Vec4 corners[4] = {
+    const std::array<Vec4, 4> corners = {
         pixel_model * Vec4(x_min_src, y_min_src, 0, 1),
         pixel_model * Vec4(x_max_src, y_min_src, 0, 1),
         pixel_model * Vec4(x_max_src, y_max_src, 0, 1),
         pixel_model * Vec4(x_min_src, y_max_src, 0, 1)
     };
+    const auto clipped = clip_quad_against_w(corners);
 
     f32 min_x = 1e10f, max_x = -1e10f;
     f32 min_y = 1e10f, max_y = -1e10f;
-    for (auto& c : corners) {
-        if (std::abs(c.w) < 1e-6f) continue;
+    for (int i = 0; i < clipped.count; ++i) {
+        const auto& c = clipped.vertices[i];
         f32 px = c.x / c.w;
         f32 py = c.y / c.w;
         min_x = std::min(min_x, px);
         max_x = std::max(max_x, px);
         min_y = std::min(min_y, py);
         max_y = std::max(max_y, py);
+    }
+
+    if (clipped.count < 3) {
+        return std::nullopt;
     }
 
     return raster::BBox{
