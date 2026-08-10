@@ -159,6 +159,34 @@ TEST_CASE("AssetManifest — text_run collects font asset") {
     CHECK(found);
 }
 
+TEST_CASE("AssetManifest — LayerBuilder::mesh creates an unloaded node and manifest dependency") {
+    LayerBuilder builder("hero", Frame{0}, FrameRate{30, 1});
+    builder.mesh("phone", assets::MeshRef{"models/phone.glb", "hero/phone"});
+
+    Layer layer = builder.build();
+    REQUIRE(layer.nodes.size() == 1);
+    CHECK(layer.nodes[0].name == "phone");
+    CHECK(layer.nodes[0].shape.type() == ShapeType::Mesh);
+    CHECK(layer.nodes[0].shape.mesh_shape().mesh == nullptr);
+
+    auto meshes = layer.asset_manifest.filter(assets::AssetKind::Mesh);
+    REQUIRE(meshes.size() == 1);
+    CHECK(meshes[0].path == "models/phone.glb");
+    CHECK(meshes[0].owner == "hero/phone");
+}
+
+TEST_CASE("AssetManifest — LayerBuilder::mesh preserves optionality and derives empty owner") {
+    LayerBuilder builder("hero", Frame{0}, FrameRate{30, 1});
+    builder.mesh("phone", assets::MeshRef{"models/phone.glb", "", false});
+
+    Layer layer = builder.build();
+    REQUIRE(layer.asset_manifest.size() == 1);
+    const auto& mesh = layer.asset_manifest.assets()[0];
+    CHECK(mesh.kind == assets::AssetKind::Mesh);
+    CHECK(mesh.owner == "hero/phone");
+    CHECK_FALSE(mesh.required);
+}
+
 TEST_CASE("AssetManifest — image collects image asset") {
     SceneBuilder s(manifest_ctx());
     s.layer("bg", [](LayerBuilder& l) {

@@ -194,6 +194,13 @@ public:
         return builder_->last_node_handle();
     }
 
+    /// Create an unloaded mesh node and register its logical dependency.
+    /// Mesh import and filesystem resolution remain runtime preparation work.
+    [[nodiscard]] NodeHandle mesh(assets::MeshRef ref) {
+        builder_->mesh("mesh_" + std::to_string(next_mesh_index_++), std::move(ref));
+        return builder_->last_node_handle();
+    }
+
     // Audit §10 — typed `assets::ImageRef` overload so that
     //   `layer.image("logo", authoring::asset("images/logo.png"))`
     // compiles.  Bridge: extract the canonical `asset_path` field on
@@ -255,6 +262,7 @@ private:
     LayerBuilder* builder_;
     CanvasInfo    canvas_;
     std::size_t   next_text_index_{0};
+    std::size_t   next_mesh_index_{0};
 };
 
 } // namespace chronon3d::authoring
