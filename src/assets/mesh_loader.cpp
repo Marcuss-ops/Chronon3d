@@ -1,0 +1,313 @@
+#include <chronon3d/assets/mesh_loader.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <cstring>
+#include <fstream>
+#include <limits>
+#include <sstream>
+#include <utility>
+
+namespace chronon3d::assets {
+namespace {
+
+using json = nlohmann::json;
+
+std::uint32_t read_u32(const std::vector<std::byte>& bytes, std::size_t offset) {
+    if (offset + 4 > bytes.size()) throw std::out_of_range("GLB u32 out of bounds");
+    return static_cast<std::uint32_t>(std::to_integer<unsigned char>(bytes[offset]))
+        | (static_cast<std::uint32_t>(std::to_integer<unsigned char>(bytes[offset + 1])) << 8U)
+        | (static_cast<std::uint32_t>(std::to_integer<unsigned char>(bytes[offset + 2])) << 16U)
+        | (static_cast<std::uint32_t>(std::to_integer<unsigned char>(bytes[offset + 3])) << 24U);
+}
+
+float read_f32(const std::vector<std::byte>& bytes, std::size_t offset) {
+    const auto raw = read_u32(bytes, offset);
+    float value{};
+    std::memcpy(&value, &raw, sizeof(value));
+    return value;
+}
+
+std::size_t component_size(int component_type) {
+    switch (component_type) {
+        case 5121: return 1;
+        case 5123: return 2;
+        case 5125: return 4;
+        case 5126: return 4;
+        default: throw std::runtime_error("unsupported GLB component type");
+    }
+}
+
+std::size_t checked_add(std::size_t lhs, std::size_t rhs, const char* message) {
+    if (rhs > std::numeric_limits<std::size_t>::max() - lhs) throw std::runtime_error(message);
+    return lhs + rhs;
+}
+
+std::size_t checked_mul(std::size_t lhs, std::size_t rhs, const char* message) {
+    if (lhs != 0 && rhs > std::numeric_limits<std::size_t>::max() / lhs)
+        throw std::runtime_error(message);
+    return lhs * rhs;
+}
+
+std::size_t component_count(const std::string& type) {
+    if (type == "SCALAR") return 1;
+    if (type == "VEC2") return 2;
+    if (type == "VEC3") return 3;
+    if (type == "VEC4") return 4;
+    throw std::runtime_error("unsupported GLB accessor type");
+}
+
+struct GlbData {
+    json document;
+    std::vector<std::byte> binary;
+};
+
+GlbData read_glb(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("could not open GLB");
+    const std::vector<char> raw{
+        std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    std::vector<std::byte> bytes(raw.size());
+    std::memcpy(bytes.data(), raw.data(), raw.size());
+    if (bytes.size() < 20 || read_u32(bytes, 0) != 0x46546C67U || read_u32(bytes, 4) != 2U) {
+        throw std::runtime_error("invalid GLB header");
+    }
+    const auto declared_length = read_u32(bytes, 8);
+    if (declared_length != bytes.size()) throw std::runtime_error("invalid GLB length");
+
+    std::size_t offset = 12;
+    std::string json_chunk;
+    std::vector<std::byte> binary;
+    while (offset + 8 <= bytes.size()) {
+        const auto length = read_u32(bytes, offset);
+        const auto type = read_u32(bytes, offset + 4);
+        offset += 8;
+        if (offset + length > bytes.size()) throw std::runtime_error("invalid GLB chunk");
+        if (type == 0x4E4F534AU) {
+            json_chunk.reserve(length);
+            for (std::size_t i = 0; i < length; ++i) {
+                json_chunk.push_back(static_cast<char>(bytes[offset + i]));
+            }
+        } else if (type == 0x004E4942U) {
+            binary.assign(bytes.begin() + static_cast<std::ptrdiff_t>(offset),
+                          bytes.begin() + static_cast<std::ptrdiff_t>(offset + length));
+        }
+        offset += length;
+    }
+    if (json_chunk.empty() || binary.empty()) throw std::runtime_error("GLB requires JSON and BIN chunks");
+    return {json::parse(json_chunk), std::move(binary)};
+}
+
+std::size_t accessor_offset(const json& document, const std::vector<std::byte>& binary,
+                            int accessor_index, std::size_t element, std::size_t component) {
+    if (accessor_index < 0 || !document.contains("accessors")
+        || static_cast<std::size_t>(accessor_index) >= document.at("accessors").size()) {
+        throw std::runtime_error("GLB accessor index is out of range");
+    }
+    const auto& accessor = document.at("accessors").at(accessor_index);
+    const auto view_index = accessor.at("bufferView").get<int>();
+    if (view_index < 0 || !document.contains("bufferViews")
+        || static_cast<std::size_t>(view_index) >= document.at("bufferViews").size()) {
+        throw std::runtime_error("GLB bufferView index is out of range");
+    }
+    const auto& view = document.at("bufferViews").at(view_index);
+    if (view.value("buffer", 0) != 0) throw std::runtime_error("GLB uses an unsupported buffer index");
+    const auto element_bytes = checked_mul(
+        component_size(accessor.at("componentType")),
+        component_count(accessor.at("type")), "GLB accessor element size overflow");
+    const auto stride = view.value("byteStride", element_bytes);
+    const auto count = accessor.at("count").get<std::size_t>();
+    if (component >= component_count(accessor.at("type")) || element >= count
+        || stride < element_bytes) throw std::runtime_error("GLB accessor shape is invalid");
+    const auto view_offset = view.value("byteOffset", 0U);
+    const auto view_length = view.at("byteLength").get<std::size_t>();
+    const auto accessor_offset_in_view = accessor.value("byteOffset", 0U);
+    if (view_offset > binary.size() || view_length > binary.size() - view_offset
+        || accessor_offset_in_view > view_length) {
+        throw std::runtime_error("GLB bufferView exceeds binary chunk");
+    }
+    const auto element_offset = checked_add(
+        checked_add(accessor_offset_in_view,
+                    checked_mul(element, stride, "GLB accessor offset overflow"),
+                    "GLB accessor offset overflow"),
+        checked_mul(component, component_size(accessor.at("componentType")),
+                    "GLB accessor component offset overflow"),
+        "GLB accessor offset overflow");
+    const auto component_bytes = component_size(accessor.at("componentType"));
+    if (element_offset > view_length || component_bytes > view_length - element_offset) {
+        throw std::runtime_error("GLB accessor exceeds bufferView");
+    }
+    const auto offset = checked_add(view_offset, element_offset, "GLB binary offset overflow");
+    if (offset > binary.size() || component_bytes > binary.size() - offset) {
+        throw std::runtime_error("GLB accessor exceeds binary chunk");
+    }
+    return offset;
+}
+
+float read_float_component(const json& document, const std::vector<std::byte>& binary,
+                           int accessor_index, std::size_t element, std::size_t component) {
+    const auto& accessor = document.at("accessors").at(accessor_index);
+    if (accessor.at("componentType") != 5126) throw std::runtime_error("mesh attributes must be float32");
+    return read_f32(binary, accessor_offset(document, binary, accessor_index, element, component));
+}
+
+std::uint32_t read_index(const json& document, const std::vector<std::byte>& binary,
+                         int accessor_index, std::size_t element) {
+    const auto& accessor = document.at("accessors").at(accessor_index);
+    const auto offset = accessor_offset(document, binary, accessor_index, element, 0);
+    switch (accessor.at("componentType").get<int>()) {
+        case 5121: return std::to_integer<unsigned char>(binary[offset]);
+        case 5123: return static_cast<std::uint32_t>(std::to_integer<unsigned char>(binary[offset]))
+            | (static_cast<std::uint32_t>(std::to_integer<unsigned char>(binary[offset + 1])) << 8U);
+        case 5125: return read_u32(binary, offset);
+        default: throw std::runtime_error("unsupported GLB index component type");
+    }
+}
+
+MeshIdentity identity_for(const std::filesystem::path& path) {
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(path, ec);
+    if (ec) throw std::runtime_error("could not stat GLB");
+    const auto timestamp = std::filesystem::last_write_time(path, ec);
+    if (ec) throw std::runtime_error("could not timestamp GLB");
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("could not read GLB for identity");
+    const std::string contents{
+        std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    if (contents.size() != size) throw std::runtime_error("GLB changed while reading identity");
+    return {
+        path.lexically_normal().string(), size,
+        static_cast<std::int64_t>(timestamp.time_since_epoch().count()),
+        sha256_string(contents)};
+}
+
+PreparedMeshSourceRef decode(const InternalAssetRef& ref, const std::filesystem::path& path,
+                             MeshIdentity identity) {
+    auto data = read_glb(path);
+    if (!data.document.contains("meshes")) throw std::runtime_error("GLB has no meshes");
+
+    if (!data.document.contains("buffers") || data.document.at("buffers").empty()
+        || data.document.at("buffers").at(0).value("byteLength", 0U) > data.binary.size()) {
+        throw std::runtime_error("GLB buffer byteLength is invalid");
+    }
+    auto prepared = std::make_shared<PreparedMeshSource>();
+    prepared->logical_path = ref.path;
+    prepared->resolved_path = path;
+    prepared->identity = identity;
+
+    const auto& meshes = data.document.at("meshes");
+    for (std::size_t mesh_index = 0; mesh_index < meshes.size(); ++mesh_index) {
+        const auto& mesh_json = meshes.at(mesh_index);
+        const auto& primitives = mesh_json.at("primitives");
+        for (std::size_t primitive_index = 0; primitive_index < primitives.size(); ++primitive_index) {
+            const auto& primitive = primitives.at(primitive_index);
+            if (primitive.value("mode", 4) != 4) throw std::runtime_error("only TRIANGLES GLB primitives are supported");
+            const auto& attributes = primitive.at("attributes");
+            if (!attributes.contains("POSITION")) throw std::runtime_error("GLB primitive has no POSITION");
+            const int position_accessor = attributes.at("POSITION");
+            const auto& position = data.document.at("accessors").at(position_accessor);
+            if (position.at("componentType") != 5126 || position.at("type") != "VEC3")
+                throw std::runtime_error("POSITION must be a float VEC3 accessor");
+            const auto vertex_count = position.at("count").get<std::size_t>();
+            auto geometry = std::make_shared<Mesh>(mesh_json.value("name", "mesh") + "/" + std::to_string(primitive_index));
+            const auto normal_accessor = attributes.value("NORMAL", -1);
+            const auto uv_accessor = attributes.value("TEXCOORD_0", -1);
+            if (normal_accessor >= 0) {
+                const auto& normal = data.document.at("accessors").at(normal_accessor);
+                if (normal.at("componentType") != 5126 || normal.at("type") != "VEC3"
+                    || normal.at("count") != vertex_count)
+                    throw std::runtime_error("NORMAL must match POSITION as float VEC3");
+            }
+            if (uv_accessor >= 0) {
+                const auto& uv = data.document.at("accessors").at(uv_accessor);
+                if (uv.at("componentType") != 5126 || uv.at("type") != "VEC2"
+                    || uv.at("count") != vertex_count)
+                    throw std::runtime_error("TEXCOORD_0 must match POSITION as float VEC2");
+            }
+            for (std::size_t vertex = 0; vertex < vertex_count; ++vertex) {
+                Vec3 position{
+                    read_float_component(data.document, data.binary, position_accessor, vertex, 0),
+                    read_float_component(data.document, data.binary, position_accessor, vertex, 1),
+                    read_float_component(data.document, data.binary, position_accessor, vertex, 2)};
+                Vec3 normal{};
+                if (normal_accessor >= 0) {
+                    normal = {
+                        read_float_component(data.document, data.binary, normal_accessor, vertex, 0),
+                        read_float_component(data.document, data.binary, normal_accessor, vertex, 1),
+                        read_float_component(data.document, data.binary, normal_accessor, vertex, 2)};
+                }
+                Vec2 uv{};
+                if (uv_accessor >= 0) {
+                    uv = {
+                        read_float_component(data.document, data.binary, uv_accessor, vertex, 0),
+                        read_float_component(data.document, data.binary, uv_accessor, vertex, 1)};
+                }
+                geometry->add_vertex(Vertex{position, normal, uv});
+            }
+            if (!primitive.contains("indices")) throw std::runtime_error("GLB primitive has no indices");
+            const int index_accessor = primitive.at("indices");
+            const auto& indices = data.document.at("accessors").at(index_accessor);
+            if (indices.at("type") != "SCALAR")
+                throw std::runtime_error("GLB indices must use a SCALAR accessor");
+            const auto index_count = indices.at("count").get<std::size_t>();
+            if (index_count == 0 || index_count % 3 != 0)
+                throw std::runtime_error("GLB triangle index count must be a non-zero multiple of three");
+            for (std::size_t index = 0; index < index_count; ++index) {
+                const auto vertex_index = read_index(data.document, data.binary, index_accessor, index);
+                if (vertex_index >= vertex_count)
+                    throw std::runtime_error("GLB index exceeds POSITION vertex count");
+                geometry->add_index(vertex_index);
+            }
+            prepared->parts.push_back(MeshPart{
+                .name = geometry->name(),
+                .geometry = std::move(geometry),
+                .material_index = primitive.value("material", 0U)});
+        }
+    }
+    if (prepared->parts.empty()) throw std::runtime_error("GLB has no mesh primitives");
+    return prepared;
+}
+
+} // namespace
+
+std::string MeshIdentity::cache_key() const {
+    return resolved_path + "\n" + std::to_string(byte_size) + "\n"
+        + std::to_string(write_time) + "\n" + content_digest.hex();
+}
+
+Result<PreparedMeshSourceRef, MeshLoadError> MeshLoader::load(
+    const InternalAssetRef& ref, const AssetResolver& resolver, MeshPreparationCache* cache) {
+    if (ref.path.empty()) return MeshLoadError{MeshLoadErrorCode::MissingAsset, ref.path, "empty mesh path"};
+    const auto resolved = resolver.resolve(ref.path);
+    if (!resolved.has_value()) {
+        return MeshLoadError{MeshLoadErrorCode::MissingAsset, ref.path, "mesh asset not found: " + ref.path};
+    }
+    if (resolved->extension() != ".glb" && resolved->extension() != ".GLB")
+        return MeshLoadError{MeshLoadErrorCode::UnsupportedGlb, ref.path, "only self-contained .glb meshes are supported"};
+    MeshIdentity identity;
+    try {
+        identity = identity_for(*resolved);
+        if (cache) {
+            if (const auto cached = cache->find(identity); cached.has_value()) return *cached;
+        }
+        auto loaded = decode(ref, *resolved, identity);
+        // The digest is the authoritative cache identity. If the source was
+        // replaced while decoding, reject the mixed snapshot rather than
+        // caching geometry under bytes that were not actually decoded.
+        if (!(identity == identity_for(*resolved))) {
+            return MeshLoadError{MeshLoadErrorCode::ReadFailed, ref.path,
+                                 "GLB changed while it was being prepared"};
+        }
+        if (cache) cache->store(identity, loaded);
+        return loaded;
+    } catch (const json::exception& e) {
+        return MeshLoadError{MeshLoadErrorCode::InvalidGlb, ref.path, std::string{"invalid GLB JSON: "} + e.what()};
+    } catch (const std::ios_base::failure& e) {
+        return MeshLoadError{MeshLoadErrorCode::ReadFailed, ref.path, e.what()};
+    } catch (const std::exception& e) {
+        return MeshLoadError{MeshLoadErrorCode::InvalidGeometry, ref.path, e.what()};
+    }
+}
+
+} // namespace chronon3d::assets

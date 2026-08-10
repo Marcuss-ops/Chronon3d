@@ -50,6 +50,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_manifest.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/prepared_asset_manifest.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_ref.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/mesh_loader.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_resolver.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_writer.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/render_settings.hpp"
