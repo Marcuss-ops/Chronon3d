@@ -1,4 +1,9 @@
 ## 2026-08-10
+### `feat(core): single global concurrency budget (oversubscription prevention)`
+
+`tbb::global_control(max_allowed_parallelism, render_threads)` set in `main.cpp` — unica autorità sul parallelismo condivisa da frames, tiles ed effetti. CpuBudget (render/decode/encode split) guida il budget; ExecutionScheduler::task_arena è limitata a render_threads slots. Nuovo test `chronon3d_core_tests` (3 test case: CpuBudget partition invariants, ExecutionScheduler arena concurrency match, Sequential mode arena(1)). Certificazione: N frame threads NON creano N*T worker TBB perché ogni frame usa la stessa arena TBB capped dal global_control.
+
+## 2026-08-10
 ### `feat(cli): add benchmark-machine host certification`
 
 ## 2026-08-10
