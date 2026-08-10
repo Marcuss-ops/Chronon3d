@@ -117,6 +117,41 @@ std::filesystem::path write_triangle_glb() {
     return path;
 }
 
+std::filesystem::path write_node_transform_glb() {
+    const std::string json = R"({"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"translation":[10.0,20.0,30.0],"children":[1]},{"scale":[-2.0,4.0,8.0],"mesh":0}],"buffers":[{"byteLength":80}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":6}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5123,"count":3,"type":"SCALAR"}],"meshes":[{"name":"hierarchy-triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":2}]}]})";
+    std::vector<std::byte> bin;
+    for (const auto& point : std::array<std::array<float, 3>, 3>{{{{1, 2, 3}}, {{2, 2, 3}}, {{1, 3, 3}}}})
+        for (float component : point) append_f32(bin, component);
+    for (int i = 0; i < 3; ++i)
+        for (float component : {1.0f, 1.0f, 1.0f}) append_f32(bin, component);
+    for (std::uint16_t index : {std::uint16_t{0}, std::uint16_t{1}, std::uint16_t{2}}) {
+        bin.push_back(static_cast<std::byte>(index & 0xffU));
+        bin.push_back(static_cast<std::byte>((index >> 8U) & 0xffU));
+    }
+    bin.resize(80, std::byte{0});
+
+    std::vector<std::byte> file;
+    append_u32(file, 0x46546C67U); append_u32(file, 2U);
+    const auto json_length = static_cast<std::uint32_t>((json.size() + 3U) & ~3U);
+    const auto total_length = 12U + 8U + json_length + 8U + static_cast<std::uint32_t>(bin.size());
+    append_u32(file, total_length);
+    append_u32(file, json_length); append_u32(file, 0x4E4F534AU);
+    file.insert(file.end(), reinterpret_cast<const std::byte*>(json.data()),
+                reinterpret_cast<const std::byte*>(json.data() + json.size()));
+    file.resize(file.size() + (json_length - json.size()), std::byte{' '});
+    append_u32(file, static_cast<std::uint32_t>(bin.size())); append_u32(file, 0x004E4942U);
+    file.insert(file.end(), bin.begin(), bin.end());
+
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto path = std::filesystem::temp_directory_path()
+        / ("chronon3d-preparation-node-transform-" + std::to_string(unique) + ".glb");
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output.good()) throw std::runtime_error("could not create node transform GLB fixture");
+    output.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+    if (!output.good()) throw std::runtime_error("could not write node transform GLB fixture");
+    return path;
+}
+
 } // namespace
 
 TEST_CASE("MeshLoader prepares a self-contained GLB and reuses identity cache") {
@@ -149,6 +184,37 @@ TEST_CASE("MeshLoader prepares a self-contained GLB and reuses identity cache") 
     const auto second = chronon3d::assets::MeshLoader::load(ref, resolver, &cache);
     REQUIRE(second.has_value());
     CHECK(second.value().get() == first.value().get());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+}
+
+TEST_CASE("MeshLoader bakes GLB node hierarchy, inverse-transpose normals, bounds, and winding") {
+    const auto path = write_node_transform_glb();
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(path.parent_path());
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, path.filename().string(), "mesh/node-transform", true};
+
+    const auto result = chronon3d::assets::MeshLoader::load(ref, resolver);
+    REQUIRE(result.has_value());
+    REQUIRE(result.value()->parts.size() == 1);
+    const auto& geometry = *result.value()->parts[0].geometry;
+    REQUIRE(geometry.vertices().size() == 3);
+    REQUIRE(geometry.indices().size() == 3);
+
+    CHECK(geometry.vertices()[0].position == (chronon3d::Vec3{8.0f, 28.0f, 54.0f}));
+    CHECK(geometry.vertices()[1].position == (chronon3d::Vec3{6.0f, 28.0f, 54.0f}));
+    CHECK(geometry.vertices()[2].position == (chronon3d::Vec3{8.0f, 32.0f, 54.0f}));
+    CHECK(geometry.bounds().min == (chronon3d::Vec3{6.0f, 28.0f, 54.0f}));
+    CHECK(geometry.bounds().max == (chronon3d::Vec3{8.0f, 32.0f, 54.0f}));
+    CHECK(geometry.indices()[0] == 0);
+    CHECK(geometry.indices()[1] == 2);
+    CHECK(geometry.indices()[2] == 1);
+
+    const auto normal_length = std::sqrt(0.5f * 0.5f + 0.25f * 0.25f + 0.125f * 0.125f);
+    CHECK(geometry.vertices()[0].normal.x == doctest::Approx(-0.5f / normal_length));
+    CHECK(geometry.vertices()[0].normal.y == doctest::Approx(0.25f / normal_length));
+    CHECK(geometry.vertices()[0].normal.z == doctest::Approx(0.125f / normal_length));
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
 }
