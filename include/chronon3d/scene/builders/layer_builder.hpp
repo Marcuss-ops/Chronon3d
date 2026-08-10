@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
@@ -172,6 +173,9 @@ public:
     LayerBuilder& timeline_bar(std::string name, TimelineBarParams params);
     LayerBuilder& image(std::string name, ImageParams params);
     LayerBuilder& tiled_image(std::string name, ImageParams params);
+    /// Add a logical mesh dependency and an unloaded Mesh render node.
+    /// No filesystem access, parsing, or runtime resolution occurs here.
+    LayerBuilder& mesh(std::string name, assets::MeshRef ref);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams params);
 
     // Canonical simple-text path.
