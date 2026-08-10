@@ -2,6 +2,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # bench/run_perf_bench.sh — F1.3 perf-bench runner for the 3 reference machines.
 #
+# See also: tools/bench_perf_stat.sh — standalone perf-stat wrapper for
+# single-composition hardware-event profiling (cycles/frame, IPC, cache
+# miss rate, etc.) against a specific composition + frames + repetitions.
+#
 # TICKET-BENCH-MACHINES-V1 — wraps the F1.1 12-scene corpus (`examples/bench_corpus/`)
 # in a controlled environment: cpupower performance governor + taskset affinity +
 # warm-up frames + `perf stat -d -r 7` measurement.
