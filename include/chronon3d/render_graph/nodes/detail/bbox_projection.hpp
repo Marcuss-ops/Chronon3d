@@ -55,6 +55,49 @@ template <size_t N>
     const Mat4& world_matrix,
     f32 spread = 0.0f
 ) {
+    // Native meshes always use the standard Camera path in the software
+    // processor. Keep bbox prediction on that same matrix even when a
+    // Camera2.5D scene is present: the 2.5D ProjectionContext is for the
+    // existing card/plane processors, not for Mesh rasterization.
+    if (node.shape.type() == ShapeType::Mesh) {
+        const Mat4 mvp =
+            ctx.frame_input.camera.projection_matrix(
+                static_cast<f32>(ctx.frame_input.width) /
+                static_cast<f32>(ctx.frame_input.height)) *
+            ctx.frame_input.camera.view_matrix() * world_matrix;
+        f32 min_x = std::numeric_limits<f32>::max();
+        f32 min_y = std::numeric_limits<f32>::max();
+        f32 max_x = std::numeric_limits<f32>::lowest();
+        f32 max_y = std::numeric_limits<f32>::lowest();
+        bool any_vertex = false;
+        for (const auto& part : node.shape.mesh_shape().prepared
+                ? node.shape.mesh_shape().prepared->parts
+                : std::vector<assets::MeshPart>{}) {
+            if (!part.geometry) continue;
+            for (const auto& vertex : part.geometry->vertices()) {
+                const Vec4 clip = mvp * Vec4(vertex.position, 1.0f);
+                if (clip.w <= 1e-6f) return std::nullopt;
+                const f32 x = (clip.x / clip.w + 1.0f) *
+                    0.5f * static_cast<f32>(ctx.frame_input.width);
+                const f32 y = (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) *
+                    static_cast<f32>(ctx.frame_input.height);
+                min_x = std::min(min_x, x);
+                min_y = std::min(min_y, y);
+                max_x = std::max(max_x, x);
+                max_y = std::max(max_y, y);
+                any_vertex = true;
+            }
+        }
+        if (!any_vertex) return std::nullopt;
+        raster::BBox bbox{
+            static_cast<i32>(std::floor(min_x - spread)),
+            static_cast<i32>(std::floor(min_y - spread)),
+            static_cast<i32>(std::ceil(max_x + spread)),
+            static_cast<i32>(std::ceil(max_y + spread))};
+        bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+        return bbox.is_empty() ? std::nullopt : std::optional<raster::BBox>{bbox};
+    }
+
     if (!ctx.frame_input.has_camera_2_5d || !ctx.frame_input.projection_ctx.ready) {
         return std::nullopt;
     }

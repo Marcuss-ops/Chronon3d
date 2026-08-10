@@ -313,6 +313,15 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.grid_background().major_thickness, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.grid_background().major_every, sizeof(i32)));
             return hash_combine(seed, hash_bytes(&s.grid_background().centered, sizeof(bool)));
+        case ShapeType::Mesh:
+            seed = hash_combine(seed, hash_string(s.mesh_shape().reference.path()));
+            seed = hash_combine(seed, hash_string(s.mesh_shape().reference.owner()));
+            seed = hash_combine(seed, hash_value(s.mesh_shape().reference.required()));
+            if (s.mesh_shape().prepared) {
+                seed = hash_combine(seed, hash_string(
+                    s.mesh_shape().prepared->identity.cache_key()));
+            }
+            return seed;
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(s.fake_box3d().world_pos));
             seed = hash_combine(seed, hash_vec2(s.fake_box3d().size));

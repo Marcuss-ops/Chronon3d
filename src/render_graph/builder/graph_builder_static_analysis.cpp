@@ -8,6 +8,10 @@
 
 namespace chronon3d::graph::detail {
 
+bool is_native_3d_layer(const Layer& layer) {
+    return layer.is_native_3d();
+}
+
 namespace {
 
 bool check_static_recursive_impl(
@@ -70,16 +74,6 @@ bool check_static_recursive_impl(
 }
 
 } // namespace
-
-bool is_native_3d_layer(const Layer& layer) {
-    for (const auto& node : layer.nodes) {
-        if (node.shape.type() == ShapeType::FakeBox3D ||
-            node.shape.type() == ShapeType::GridPlane) {
-            return true;
-        }
-    }
-    return false;
-}
 
 void compute_static_layers(
     const std::pmr::vector<ResolvedLayer>& layers,

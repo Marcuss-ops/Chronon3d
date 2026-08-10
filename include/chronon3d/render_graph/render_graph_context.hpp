@@ -120,7 +120,14 @@ namespace chronon3d::effects {
 // enclosing block — breaking every subsequent `chronon3d::X` lookup
 // (the 44-error `in namespace chronon3d::graph::chronon3d does not name a
 // type` cascade).
-namespace chronon3d::assets { class AssetResolver; }
+namespace chronon3d::assets {
+class AssetResolver;
+class MeshPreparationCache;
+}
+
+namespace chronon3d::runtime {
+struct PreparedAssets;
+}
 
 namespace chronon3d::renderer {
 class ShapeProcessor;
@@ -291,6 +298,14 @@ struct RenderServices {
     /// `#include <chronon3d/assets/asset_resolver.hpp>` themselves;
     /// the SDK header stays lightweight (forward decl only above).
     chronon3d::assets::AssetResolver* asset_resolver{nullptr};
+
+    /// Runtime-owned prepared mesh cache used by the graph build boundary.
+    /// The graph borrows this cache; it never creates a second cache.
+    chronon3d::assets::MeshPreparationCache* mesh_cache{nullptr};
+
+    /// Immutable resource-preparation snapshot for this render invocation.
+    /// Graph construction consumes it; it never performs asset I/O.
+    std::shared_ptr<const chronon3d::runtime::PreparedAssets> prepared_assets;
 };
 
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────

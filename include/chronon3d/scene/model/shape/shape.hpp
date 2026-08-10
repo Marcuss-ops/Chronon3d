@@ -49,6 +49,8 @@
 #include <vector>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/assets/asset_ref.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/backends/image/image_decode_options.hpp>
 #include <chronon3d/text/font_engine.hpp>  // TextDirection, TextShaping, TextWrap
 
@@ -319,9 +321,13 @@ struct TiledImageShape {
     ImageShape image;
 };
 
-/// Mesh payload — carries a shared_ptr<Mesh> so Mesh has its own variant
-/// index instead of aliasing std::monostate (index 0).
+/// Mesh payload — keeps the logical reference in the scene and receives
+/// prepared runtime data at the AssetResolver → RenderGraph boundary.
+/// The legacy `mesh` slot remains as a compatibility escape hatch for
+/// already-constructed in-memory meshes; authoring never loads into it.
 struct MeshShape {
+    assets::MeshRef reference{};
+    assets::PreparedMeshSourceRef prepared{};
     std::shared_ptr<Mesh> mesh;
 };
 

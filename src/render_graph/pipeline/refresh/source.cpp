@@ -5,6 +5,7 @@
 #include "../../builder/graph_builder_coordinates.hpp"
 #include "../../builder/evaluated_layer_placement.hpp"
 #include "../../builder/graph_builder_internal.hpp"
+#include "../../builder/passes/graph_builder_source_pass.hpp"
 
 namespace chronon3d::graph::detail {
 
@@ -21,7 +22,7 @@ void refresh_source_node(
     if (layer_id.empty()) {
         const auto it = root_nodes_by_name.find(std::string{node.name()});
         if (it == root_nodes_by_name.end()) return;
-        const RenderNode& src_node = *it->second;
+        const RenderNode src_node = materialize_mesh_node(*it->second, ctx);
         cache::NodeCacheKey key{
             .scope = "root.source:" + std::string(src_node.name),
             .frame = ctx.frame_input.frame,
@@ -71,7 +72,7 @@ void refresh_source_node(
         return;
     }
 
-    const auto& src_node = layer.nodes[0];
+    const auto src_node = materialize_mesh_node(layer.nodes[0], ctx);
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const auto source_placement = evaluate_source_placement(item, src_node, ctx);
     const std::string layer_name_str(layer.name);

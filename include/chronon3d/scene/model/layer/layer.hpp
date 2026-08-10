@@ -60,6 +60,12 @@ struct Layer {
     [[nodiscard]] constexpr bool is_text()   const noexcept { return kind == LayerKind::Text;   }
     [[nodiscard]] constexpr bool is_camera() const noexcept { return kind == LayerKind::Camera; }
     [[nodiscard]] constexpr bool is_audio()  const noexcept { return kind == LayerKind::Audio;  }
+
+    /// True when any node in this layer is rendered by the native 3D path.
+    /// This domain predicate is shared by layer resolution and graph build;
+    /// it intentionally does not inspect assets or perform preparation.
+    [[nodiscard]] bool is_native_3d() const noexcept;
+
     AnimatedTransform anim_transform{};
     Frame from{0};
     Frame duration{-1};

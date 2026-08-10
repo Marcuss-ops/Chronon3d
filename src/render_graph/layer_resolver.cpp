@@ -10,6 +10,7 @@
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <tbb/task_group.h>
+#include <algorithm>
 #include <unordered_map>
 
 namespace chronon3d::graph::detail {
@@ -57,8 +58,15 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
                     }
                 }
 
-                // If root ancestor is 2D and unpinned, shift this layer to screen space
+                // If root ancestor is 2D and unpinned, shift this layer to screen space.
+                // Native 3D content owns placement in camera/world space; applying
+                // the 2D canvas-center bake to the native layer would move meshes
+                // before the native Camera processor sees them. Evaluate the
+                // current layer rather than its root so a native mesh does not
+                // change the coordinate convention of a separate 2D child.
+                const bool layer_is_native_3d = rl.layer->is_native_3d();
                 if (root->layer && !root->layer->uses_2_5d_projection &&
+                    !layer_is_native_3d &&
                     (!root->layer->layout.enabled || !root->layer->layout.pin.has_value())) {
                     rl.world_transform.position.x += half_w;
                     rl.world_transform.position.y += half_h;

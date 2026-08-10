@@ -18,6 +18,17 @@ Layer::Layer(std::pmr::memory_resource* res)
 
 Layer::~Layer() = default;
 
+bool Layer::is_native_3d() const noexcept {
+    for (const auto& node : nodes) {
+        if (node.shape.type() == ShapeType::FakeBox3D ||
+            node.shape.type() == ShapeType::GridPlane ||
+            node.shape.type() == ShapeType::Mesh) {
+            return true;
+        }
+    }
+    return false;
+}
+
 Layer::Layer(const Layer& other)
     : name(other.name.get_allocator()),
       parent_name(other.parent_name.get_allocator()),
