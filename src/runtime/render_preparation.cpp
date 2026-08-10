@@ -71,6 +71,7 @@ RenderPreparationResult prepare_render_scene(
     }
 
     auto resource_options = options.resources;
+    resource_options.mesh_cache = &renderer->runtime().mesh_cache();
     // An injected MediaFrameProvider is the authoritative video source for
     // this render.  It may intentionally support synthetic/test media and
     // therefore cannot be probed through the optional native FFmpeg path.

@@ -15,8 +15,9 @@
 // The barrier:
 //   * is fail-loud by default (missing required asset → structured
 //     `PreparationError` returned BEFORE any encoder work);
-//   * aggregates 5 phases (font-load / image-decode / video-metadata /
-//     audio-index / layout-preparation) into a single snapshot;
+//   * aggregates the resource phases (font-load / image-decode /
+//     video-metadata / audio-index / mesh-preparation / layout-preparation)
+//     into a single snapshot;
 //   * produces an immutable `PreparedAssets` readiness snapshot; concrete
 //     runtime caches remain owned by RenderRuntime and are populated by the
 //     render-preparation orchestrator;
@@ -37,6 +38,7 @@
 
 #include <chronon3d/assets/asset_manifest.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
 
@@ -64,6 +66,10 @@ struct PreparationOptions {
     bool                           prepare_video_metadata{true};
     bool                           prepare_audio_index{true};
     bool                           prepare_layouts{true};
+    bool                           prepare_meshes{true};
+    /// Optional runtime-owned cache. Null keeps preparation functional but
+    /// disables cross-call mesh reuse (tests and one-shot callers).
+    assets::MeshPreparationCache*  mesh_cache{nullptr};
     std::chrono::milliseconds      phase_timeout{0};   // 0 = no timeout
 };
 
@@ -126,6 +132,12 @@ struct PreparedLayout {
     std::string          owner;
 };
 
+struct PreparedMesh {
+    std::string                         path;
+    std::string                         owner;
+    assets::PreparedMeshSourceRef       source;
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ResourceDiagnostics — observability surface emitted by prepare()
 // ═══════════════════════════════════════════════════════════════════════════
@@ -143,6 +155,7 @@ struct ResourceDiagnostics {
     std::size_t                         video_metadata_probed{0};
     std::size_t                         audio_indexes_built{0};
     std::size_t                         layouts_prepared{0};
+    std::size_t                         meshes_prepared{0};
     std::chrono::steady_clock::duration elapsed{};
 };
 
@@ -156,11 +169,12 @@ struct PreparedAssets {
     std::unordered_map<std::string, PreparedVideoMetadata>    video_metadata;
     std::unordered_map<std::string, PreparedAudioIndex>       audio_index;
     std::unordered_map<std::string, PreparedLayout>           layouts;
+    std::unordered_map<std::string, PreparedMesh>             meshes;
     ResourceDiagnostics                                       diagnostics;
 
     [[nodiscard]] bool empty() const noexcept {
         return fonts.empty() && images.empty() && video_metadata.empty()
-            && audio_index.empty() && layouts.empty();
+            && audio_index.empty() && layouts.empty() && meshes.empty();
     }
 };
 
@@ -215,6 +229,13 @@ public:
         const assets::InternalAssetRef& ref,
         const assets::AssetResolver&    resolver,
         chronon3d::Frame                frame
+    );
+
+    [[nodiscard]] static Result<PreparedMesh, PreparationError>
+    prepare_mesh(
+        const assets::InternalAssetRef& ref,
+        const assets::AssetResolver&    resolver,
+        assets::MeshPreparationCache*   cache = nullptr
     );
 };
 
