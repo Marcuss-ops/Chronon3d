@@ -31,11 +31,12 @@ struct MeshIdentity {
 };
 
 enum class MeshLoadErrorCode : std::uint8_t {
-    MissingAsset,
-    ReadFailed,
-    InvalidGlb,
-    UnsupportedGlb,
-    InvalidGeometry,
+    MissingAsset = 0,
+    ReadFailed = 1,
+    InvalidGlb = 2,
+    UnsupportedGlb = 3,
+    InvalidGeometry = 4,
+    InvalidReference = 5,
 };
 
 struct MeshLoadError {

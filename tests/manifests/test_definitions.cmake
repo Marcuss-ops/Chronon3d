@@ -1,5 +1,6 @@
 # Single ordered manifest of per-area test definition files.
 set(CHRONON3D_TEST_DEFINITIONS
+    mesh_disabled_gate.cmake
     backends_software_tests.cmake
     debug/CMakeLists.txt
     core_tests.cmake

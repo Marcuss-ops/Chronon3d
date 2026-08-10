@@ -16,6 +16,8 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <filesystem>
+#include <fstream>
 using namespace chronon3d;
 using chronon3d::assets::AssetManifest;
 
@@ -196,6 +198,53 @@ TEST_CASE("AssetPreflightResolver — mesh dependency: registered asset error") 
     CHECK(result.issues[0].type == PreflightAssetType::RegisteredAsset);
     CHECK(result.issues[0].path == "models/missing.glb");
     CHECK(result.issues[0].layer_id == "hero/mesh");
+}
+
+TEST_CASE("AssetPreflightResolver — mesh empty reference is explicit") {
+    AssetManifest manifest;
+    manifest.add_mesh("", "hero/mesh-empty");
+
+    auto resolver = make_empty_resolver();
+    const auto result = AssetPreflightResolver::check_manifest(manifest, resolver);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.size() == 1);
+    CHECK(result.issues[0].code == "INVALID_MESH_REFERENCE");
+    CHECK(result.issues[0].layer_id == "hero/mesh-empty");
+    CHECK(result.issues[0].message.find("empty") != std::string::npos);
+}
+
+TEST_CASE("AssetPreflightResolver — .gltf mesh is explicitly rejected by V1") {
+    AssetManifest manifest;
+    manifest.add_mesh("models/phone.gltf", "hero/mesh-gltf");
+
+    auto temp_root = std::filesystem::temp_directory_path() / "chronon3d-preflight-gltf";
+    std::error_code ignored;
+    std::filesystem::create_directories(temp_root / "models", ignored);
+    std::ofstream fixture(temp_root / "models" / "phone.gltf");
+    fixture << "{}";
+    fixture.close();
+    assets::AssetResolver resolver;
+    resolver.mount(temp_root);
+
+    const auto result = AssetPreflightResolver::check_manifest(manifest, resolver);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.size() == 1);
+    CHECK(result.issues[0].code == "UNSUPPORTED_MESH_FORMAT");
+    CHECK(result.issues[0].path == "models/phone.gltf");
+    CHECK(result.issues[0].message.find(".glb") != std::string::npos);
+    std::filesystem::remove_all(temp_root, ignored);
+}
+
+TEST_CASE("AssetPreflightResolver — missing GLB remains an explicit mesh diagnostic") {
+    AssetManifest manifest;
+    manifest.add_mesh("models/missing.glb", "hero/mesh-missing");
+
+    auto resolver = make_empty_resolver();
+    const auto result = AssetPreflightResolver::check_manifest(manifest, resolver);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.size() == 1);
+    CHECK(result.issues[0].code == "ASSET_NOT_FOUND");
+    CHECK(result.issues[0].type == PreflightAssetType::RegisteredAsset);
 }
 
 TEST_CASE("AssetPreflightResolver — check_manifest: empty manifest ok") {
