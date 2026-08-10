@@ -1,5 +1,6 @@
 #include <chronon3d/assets/mesh_loader.hpp>
 
+#ifdef CHRONON3D_ENABLE_MESH
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -452,21 +453,37 @@ PreparedMeshSourceRef decode(const InternalAssetRef& ref, const std::filesystem:
 }
 
 } // namespace
+#endif // CHRONON3D_ENABLE_MESH
+
+namespace chronon3d::assets {
 
 std::string MeshIdentity::cache_key() const {
     return resolved_path + "\n" + std::to_string(byte_size) + "\n"
         + std::to_string(write_time) + "\n" + content_digest.hex();
 }
 
+#ifdef CHRONON3D_ENABLE_MESH
 Result<PreparedMeshSourceRef, MeshLoadError> MeshLoader::load(
     const InternalAssetRef& ref, const AssetResolver& resolver, MeshPreparationCache* cache) {
-    if (ref.path.empty()) return MeshLoadError{MeshLoadErrorCode::MissingAsset, ref.path, "empty mesh path"};
+    if (ref.kind != AssetKind::Mesh) {
+        return MeshLoadError{MeshLoadErrorCode::InvalidReference, ref.path,
+                             "mesh preparation requires AssetKind::Mesh"};
+    }
+    if (ref.path.empty()) {
+        return MeshLoadError{MeshLoadErrorCode::InvalidReference, ref.path,
+                             "mesh reference path is empty"};
+    }
+    const auto extension = std::filesystem::path{ref.path}.extension().string();
+    if (extension != ".glb" && extension != ".GLB") {
+        return MeshLoadError{MeshLoadErrorCode::UnsupportedGlb, ref.path,
+                             "unsupported mesh format '" + extension
+                                 + "'; V1 accepts only self-contained .glb (not .gltf)"};
+    }
     const auto resolved = resolver.resolve(ref.path);
     if (!resolved.has_value()) {
-        return MeshLoadError{MeshLoadErrorCode::MissingAsset, ref.path, "mesh asset not found: " + ref.path};
+        return MeshLoadError{MeshLoadErrorCode::MissingAsset, ref.path,
+                             "mesh asset not found: " + ref.path};
     }
-    if (resolved->extension() != ".glb" && resolved->extension() != ".GLB")
-        return MeshLoadError{MeshLoadErrorCode::UnsupportedGlb, ref.path, "only self-contained .glb meshes are supported"};
     MeshIdentity identity;
     try {
         identity = identity_for(*resolved);
@@ -474,9 +491,6 @@ Result<PreparedMeshSourceRef, MeshLoadError> MeshLoader::load(
             if (const auto cached = cache->find(identity); cached.has_value()) return *cached;
         }
         auto loaded = decode(ref, *resolved, identity);
-        // The digest is the authoritative cache identity. If the source was
-        // replaced while decoding, reject the mixed snapshot rather than
-        // caching geometry under bytes that were not actually decoded.
         if (!(identity == identity_for(*resolved))) {
             return MeshLoadError{MeshLoadErrorCode::ReadFailed, ref.path,
                                  "GLB changed while it was being prepared"};
@@ -491,5 +505,14 @@ Result<PreparedMeshSourceRef, MeshLoadError> MeshLoader::load(
         return MeshLoadError{MeshLoadErrorCode::InvalidGeometry, ref.path, e.what()};
     }
 }
+#else
+Result<PreparedMeshSourceRef, MeshLoadError> MeshLoader::load(
+    const InternalAssetRef& ref, const AssetResolver&, MeshPreparationCache*) {
+    return MeshLoadError{
+        MeshLoadErrorCode::UnsupportedGlb,
+        ref.path,
+        "Mesh support is disabled (CHRONON3D_ENABLE_MESH=OFF)"};
+}
+#endif
 
 } // namespace chronon3d::assets

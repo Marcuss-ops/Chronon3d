@@ -240,6 +240,16 @@ _chronon3d_renderer_target_finalize(chronon3d_camera_tests)
 
 # ── Golden (5 sources) ───────────────────────────────────────────────
 # Golden snapshot suites — glow, stroked shapes, 2.5D roadmap.
+set(_CHRONON3D_MESH_GOLDEN_SOURCES)
+if(CHRONON3D_ENABLE_MESH)
+    list(APPEND _CHRONON3D_MESH_GOLDEN_SOURCES
+        render_graph/pipeline/test_mesh_render.cpp
+    )
+else()
+    # Keep the canonical source inventory visible to registration audits while
+    # excluding the Mesh-dependent translation unit from the OFF executable.
+    chronon3d_register_test_source(render_graph/pipeline/test_mesh_render.cpp)
+endif()
 chronon3d_add_test_suite(
     NAME   chronon3d_golden_tests
     TIER   INTEGRATION
@@ -251,7 +261,7 @@ chronon3d_add_test_suite(
         golden/stroked_shape_golden_tests.cpp
         golden/suite_chronon3d_tests.cpp
         golden/test_clip_transition_golden.cpp
-        render_graph/pipeline/test_mesh_render.cpp
+        ${_CHRONON3D_MESH_GOLDEN_SOURCES}
         visual/support/golden_test.cpp
         visual/support/image_diff.cpp
 )

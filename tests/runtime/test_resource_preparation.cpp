@@ -154,6 +154,7 @@ std::filesystem::path write_node_transform_glb() {
 
 } // namespace
 
+#ifdef CHRONON3D_ENABLE_MESH
 TEST_CASE("MeshLoader prepares a self-contained GLB and reuses identity cache") {
     const auto path = write_triangle_glb();
     chronon3d::assets::AssetResolver resolver;
@@ -274,6 +275,53 @@ TEST_CASE("ResourcePreparation::prepare loads GLB into PreparedAssets and reuses
     std::filesystem::remove(path, ignored);
 }
 
+TEST_CASE("ResourcePreparation::prepare_mesh — invalid MeshRef is explicit") {
+    chronon3d::assets::AssetResolver resolver;
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, "", "mesh/empty-reference", true};
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare_mesh(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::UnresolvableAssetPath);
+    CHECK(result.error().phase == "mesh");
+    CHECK(result.error().path.empty());
+    CHECK(result.error().owner == "mesh/empty-reference");
+    CHECK(result.error().message.find("empty") != std::string::npos);
+}
+
+TEST_CASE("ResourcePreparation::prepare_mesh — .gltf is explicitly unsupported") {
+    const auto temp_root = std::filesystem::temp_directory_path() / "chronon3d-preparation-gltf";
+    std::error_code ignored;
+    std::filesystem::create_directories(temp_root, ignored);
+    std::ofstream fixture(temp_root / "phone.gltf");
+    fixture << "{}";
+    fixture.close();
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(temp_root);
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, "phone.gltf", "mesh/gltf", true};
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare_mesh(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::PreflightFailed);
+    CHECK(result.error().phase == "mesh");
+    CHECK(result.error().cause_code == "UNSUPPORTED_GLB");
+    CHECK(result.error().message.find(".glb") != std::string::npos);
+    std::filesystem::remove_all(temp_root, ignored);
+}
+
+TEST_CASE("ResourcePreparation::prepare_mesh — missing GLB preserves MissingAsset") {
+    chronon3d::assets::AssetResolver resolver;
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, "missing/triangle.glb", "mesh/missing-direct", true};
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare_mesh(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::MissingAsset);
+    CHECK(result.error().phase == "mesh");
+    CHECK(result.error().message.find("not found") != std::string::npos);
+}
+
 TEST_CASE("ResourcePreparation::prepare — mesh missing GLB fails loud") {
     chronon3d::assets::AssetManifest manifest;
     manifest.add_mesh("missing/triangle.glb", "mesh/missing");
@@ -294,6 +342,32 @@ TEST_CASE("ResourcePreparation::prepare — mesh missing GLB fails loud") {
     CHECK(result.error().phase == "mesh");
     CHECK(result.error().owner == "mesh/missing");
 }
+#else
+TEST_CASE("MeshLoader reports the explicit disabled-feature diagnostic") {
+    chronon3d::assets::AssetResolver resolver;
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, "models/triangle.glb", "mesh/off", true};
+
+    const auto result = chronon3d::assets::MeshLoader::load(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::assets::MeshLoadErrorCode::UnsupportedGlb);
+    CHECK(result.error().message ==
+          "Mesh support is disabled (CHRONON3D_ENABLE_MESH=OFF)");
+}
+
+TEST_CASE("ResourcePreparation::prepare_mesh preserves the disabled-feature diagnostic") {
+    chronon3d::assets::AssetResolver resolver;
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, "models/triangle.glb", "mesh/off", true};
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare_mesh(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::PreflightFailed);
+    CHECK(result.error().phase == "mesh");
+    CHECK(result.error().cause_code == "UNSUPPORTED_GLB");
+    CHECK(result.error().message.find("disabled") != std::string::npos);
+}
+#endif
 
 TEST_CASE("ResourcePreparation::prepare — empty manifest → empty PreparedAssets (default policy)") {
     chronon3d::assets::AssetManifest manifest;

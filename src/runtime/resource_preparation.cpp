@@ -484,17 +484,40 @@ ResourcePreparation::prepare_mesh(
     const auto loaded = assets::MeshLoader::load(ref, resolver, cache);
     if (!loaded.has_value()) {
         PreparationError::Code code = PreparationError::Code::CorruptedAsset;
-        if (loaded.error().code == assets::MeshLoadErrorCode::MissingAsset) {
-            code = PreparationError::Code::MissingAsset;
+        switch (loaded.error().code) {
+            case assets::MeshLoadErrorCode::MissingAsset:
+                code = PreparationError::Code::MissingAsset;
+                break;
+            case assets::MeshLoadErrorCode::InvalidReference:
+                code = PreparationError::Code::UnresolvableAssetPath;
+                break;
+            case assets::MeshLoadErrorCode::UnsupportedGlb:
+                code = PreparationError::Code::PreflightFailed;
+                break;
+            case assets::MeshLoadErrorCode::ReadFailed:
+            case assets::MeshLoadErrorCode::InvalidGlb:
+            case assets::MeshLoadErrorCode::InvalidGeometry:
+                code = PreparationError::Code::CorruptedAsset;
+                break;
         }
-        return PreparationError{
+        const char* cause_code = "MESH_LOAD_ERROR";
+        switch (loaded.error().code) {
+            case assets::MeshLoadErrorCode::MissingAsset: cause_code = "MISSING_ASSET"; break;
+            case assets::MeshLoadErrorCode::ReadFailed: cause_code = "READ_FAILED"; break;
+            case assets::MeshLoadErrorCode::InvalidGlb: cause_code = "INVALID_GLB"; break;
+            case assets::MeshLoadErrorCode::UnsupportedGlb: cause_code = "UNSUPPORTED_GLB"; break;
+            case assets::MeshLoadErrorCode::InvalidGeometry: cause_code = "INVALID_GEOMETRY"; break;
+            case assets::MeshLoadErrorCode::InvalidReference: cause_code = "INVALID_REFERENCE"; break;
+        }
+        PreparationError error{
             .code = code,
-            .message = loaded.error().message,
-            .cause_code = std::to_string(static_cast<int>(loaded.error().code)),
+            .message = "mesh preparation failed: " + loaded.error().message,
+            .cause_code = cause_code,
             .path = ref.path,
             .owner = ref.owner,
             .phase = "mesh",
         };
+        return error;
     }
     return PreparedMesh{
         .path = ref.path,

@@ -32,6 +32,7 @@
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -122,7 +123,34 @@ private:
         AssetPreflightResult& result
     ) {
         for (const auto& ref : manifest.assets()) {
-            if (ref.path.empty()) continue;
+            if (ref.kind == assets::AssetKind::Mesh) {
+                if (ref.path.empty()) {
+                    result.issues.push_back(PreflightIssue{
+                        .severity = ref.required ? PreflightSeverity::Error : PreflightSeverity::Warning,
+                        .type = PreflightAssetType::RegisteredAsset,
+                        .code = "INVALID_MESH_REFERENCE",
+                        .message = "Mesh reference path is empty",
+                        .path = ref.path,
+                        .layer_id = ref.owner,
+                        .recommendation = "Provide a logical .glb path for the MeshRef."});
+                    continue;
+                }
+                const auto extension = std::filesystem::path{ref.path}.extension().string();
+                if (extension != ".glb" && extension != ".GLB") {
+                    result.issues.push_back(PreflightIssue{
+                        .severity = ref.required ? PreflightSeverity::Error : PreflightSeverity::Warning,
+                        .type = PreflightAssetType::RegisteredAsset,
+                        .code = "UNSUPPORTED_MESH_FORMAT",
+                        .message = "Unsupported mesh format '" + extension
+                            + "': V1 accepts only self-contained .glb (not .gltf)",
+                        .path = ref.path,
+                        .layer_id = ref.owner,
+                        .recommendation = "Convert the asset to a self-contained .glb file."});
+                    continue;
+                }
+            } else if (ref.path.empty()) {
+                continue;
+            }
 
             auto resolved = resolver.resolve(ref.path);
             if (!resolved.has_value()) {

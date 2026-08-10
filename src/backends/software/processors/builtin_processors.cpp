@@ -10,7 +10,9 @@ std::unique_ptr<ShapeProcessor> create_shape_processor();
 std::unique_ptr<ShapeProcessor> create_image_processor();
 std::unique_ptr<ShapeProcessor> create_tiled_image_processor();
 std::unique_ptr<ShapeProcessor> create_grid_background_processor();
+#ifdef CHRONON3D_ENABLE_MESH
 std::unique_ptr<ShapeProcessor> create_mesh_processor();
+#endif
 std::unique_ptr<ShapeProcessor> create_line_processor();
 #ifdef CHRONON3D_USE_BLEND2D
 std::unique_ptr<ShapeProcessor> create_path_processor();
@@ -66,6 +68,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::Image, create_image_processor());
     registry.register_shape(ShapeType::TiledImage, create_tiled_image_processor());
     registry.register_shape(ShapeType::GridBackground, create_grid_background_processor());
+#ifdef CHRONON3D_ENABLE_MESH
     // P1-7 Chore 1 (commit A) — M1.5#9 steps 3 + 4 BOTH done.
     //   • Step 3 (prior commit): the legacy text registration,
     //     create_text_processor())` removed.  No new registration line.
@@ -76,6 +79,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     //     text_effects.hpp, text_processor_helpers.hpp, CMakeLists.txt).
     // Net ABI impact: zero (factory was non-public; deletion is in-tree only).
     registry.register_shape(ShapeType::Mesh, create_mesh_processor());
+#endif
     registry.register_shape(ShapeType::FakeBox3D, create_fake_box3d_processor());
     registry.register_shape(ShapeType::GridPlane, create_grid_plane_processor());
 
