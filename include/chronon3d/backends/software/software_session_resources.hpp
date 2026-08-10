@@ -38,6 +38,7 @@
 
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
+#include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>  // M1.5#7 — complete-type visibility for std::unique_ptr<TextRenderResources> deleter
 #include <memory>  // std::unique_ptr (M1.5#7 RAII for text_resources)
 
@@ -74,6 +75,11 @@ struct SoftwareSessionResources {
     // symmetrically with the field.  The TYPE is `TransformScratchBuffer`
     // because of the design (architecture plan section 8.5).
     TransformScratchBuffer  scratch_buffer;
+
+    /// Reusable depth buffer for mesh rasterization.  Eliminates the
+    /// per-frame `std::vector<float>` allocation in mesh processor draw().
+    /// Reset via `reset_job()` → `reset_temporal_history()` path.
+    DepthBufferPool depth_buffer_pool;
 
     // M1.5#7 — TextRenderResources aggregated value member.  This is
     // the CANONICAL OWNER of all text-backend caches (font face +
@@ -119,6 +125,7 @@ struct SoftwareSessionResources {
     void reset_temporal_history() {
         buffer_ring.reset();
         scratch_buffer.reset();
+        depth_buffer_pool.reset();
     }
 
     /// Full job-level reset. Persistent caches (image cache, node cache,

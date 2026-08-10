@@ -2,6 +2,7 @@
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
 #include <chronon3d/scene/model/render/render_node_params.hpp>
+#include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -16,7 +17,8 @@ namespace renderer {
 static const rendering::LightContext k_box_light = rendering::LightContext::default_scene();
 
 void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-                     const FakeBox3DShape& s, const FakeBox3DRenderState& rt) {
+                     const FakeBox3DShape& s, const FakeBox3DRenderState& rt,
+                     DepthBufferPool* depth_pool) {
     if (!rt.projection.ready) return;
     const Projector2_5D& projector = rt.projection;
 
@@ -63,10 +65,16 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
     };
 
     // ── Depth buffer for 3D raster scanning ──────────────────────────────
-    // Create a per-framebuffer depth buffer initialized to 0 (uninitialized).
-    // Camera-space depth is always positive, so 0 means "no depth written yet".
-    std::vector<float> depth_buffer_vec(static_cast<size_t>(fb.width()) * fb.height(), 0.0f);
-    std::span<float> depth_buffer(depth_buffer_vec);
+    // Use the session pool when available (eliminates per-frame malloc).
+    // Fall back to a local vector for callers without a pool (e.g. legacy tests).
+    std::span<float> depth_buffer;
+    std::vector<float> fallback_vec;
+    if (depth_pool) {
+        depth_buffer = depth_pool->acquire(fb.width(), fb.height());
+    } else {
+        fallback_vec.resize(static_cast<size_t>(fb.width()) * fb.height(), 0.0f);
+        depth_buffer = fallback_vec;
+    }
 
     for (int fi = 0; fi < NFACES; ++fi) {
         // Transform face normal to world space for backface culling

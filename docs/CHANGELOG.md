@@ -1,4 +1,20 @@
 ## 2026-08-10
+### `perf(render): eliminate per-frame depth buffer allocations (DepthBufferPool)`
+
+Nuovo `DepthBufferPool` (session-scoped, bucket-rounded, sempre zeroizzato
+sulla porzione usata incluso il grow path) in
+`SoftwareSessionResources`. `SoftwareMeshProcessor::draw()` e
+`draw_fake_box3d()` ora riusano il buffer dal pool invece di allocare un
+`std::vector<float>(width*height)` a ogni frame — lo stesso pattern di
+`TransformScratchBuffer`/`dof_depth`. Audit frame loop: anche il clip
+path di `mesh_renderer.cpp` passa da `std::vector` a stack array
+bounded (`kMaxClipVerts=6`, Sutherland-Hodgman ≤ 5 vertici per 2 piani)
+con assert diagnostico, eliminando le allocazioni per-triangolo. Nuova
+suite `test_depth_buffer_pool` (7 test case: zeroing, reuse pointer,
+grow, bucket rounding, reset, move, stale-data guard sul grow path).
+Verificato: saturation report `Allocations/frame: 0`.
+
+## 2026-08-10
 ### `feat(core): single global concurrency budget (oversubscription prevention)`
 
 `tbb::global_control(max_allowed_parallelism, render_threads)` set in `main.cpp` — unica autorità sul parallelismo condivisa da frames, tiles ed effetti. CpuBudget (render/decode/encode split) guida il budget; ExecutionScheduler::task_arena è limitata a render_threads slots. Nuovo test `chronon3d_core_tests` (3 test case: CpuBudget partition invariants, ExecutionScheduler arena concurrency match, Sequential mode arena(1)). Certificazione: N frame threads NON creano N*T worker TBB perché ogni frame usa la stessa arena TBB capped dal global_control.
