@@ -1,3 +1,15 @@
+## 2026-08-10
+### `feat(cli): add benchmark-machine host certification`
+
+`chronon benchmark-machine` stampa il banner canonico "Chronon CPU":
+modello CPU, logical CPUs, NUMA nodes, SIMD supported/selected (verificato
+a runtime via cpuid/hwcap, non assunto dai flag di build) e budget worker
+TBB. Landed anche l'implementazione dell'API di detection SIMD
+(`detect_cpu_capabilities`, `cpu_isa_name`, `parse_cpu_isa`,
+`CpuCapabilities::supports`) che era dichiarata ma non implementata dallo
+scaffold ADR-025 (forward-point TICKET-SIMD-REGISTRY-CANONICAL), con nuova
+suite unit `chronon3d_cpu_isa_tests`.
+
 ## 2026-08-02
 ### `fix(gates): scan all markdown conflict markers` (`bf413d58`)
 
