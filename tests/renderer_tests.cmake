@@ -172,7 +172,6 @@ chronon3d_add_test_suite(
         render_graph/pipeline/test_render_backend.cpp
         render_graph/pipeline/test_clip_transition_scene_integration.cpp
         render_graph/pipeline/test_render_pipeline.cpp
-        render_graph/pipeline/test_mesh_render.cpp
         render_graph/pipeline/test_tile_grid.cpp
         render_graph/pipeline/test_tile_parallel.cpp
         render_graph/test_post_processing_system.cpp
@@ -252,6 +251,7 @@ chronon3d_add_test_suite(
         golden/stroked_shape_golden_tests.cpp
         golden/suite_chronon3d_tests.cpp
         golden/test_clip_transition_golden.cpp
+        render_graph/pipeline/test_mesh_render.cpp
         visual/support/golden_test.cpp
         visual/support/image_diff.cpp
 )

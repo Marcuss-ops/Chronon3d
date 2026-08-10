@@ -44,7 +44,7 @@ public:
                 }
                 chronon3d::renderer::render_mesh_filled(
                     fb, *part.geometry, state.matrix, view, projection, color,
-                    depth_buffer);
+                    depth_buffer, camera.near_plane, camera.far_plane);
             }
             return;
         }
@@ -52,7 +52,7 @@ public:
         // Compatibility for callers that provide an in-memory Mesh directly.
         chronon3d::renderer::render_mesh_filled(
             fb, *legacy_mesh, state.matrix, view, projection, node_color,
-            depth_buffer);
+            depth_buffer, camera.near_plane, camera.far_plane);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
