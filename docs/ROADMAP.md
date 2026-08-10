@@ -369,7 +369,7 @@ Sequenza canonica finale:
 - **Zero nuovi singleton / registry / resolver / cache / service-locator** (regola permanente AGENTS.md §Anti-duplication Rules).
 - I 4 nuovi simboli pubblici canonici per ticket:
   - Sequence: `TimeRange{Frame from, Frame duration}; SequenceNode{string name, TimeRange range, build_callback}; TimelineResolver::resolve(scene, frame, fps)->ResolvedScene; TimelineSampleContext{global_frame, local_frame, sequence_start, fps}`. Tutti in `include/chronon3d/timeline/`.
-  - Asset: `AssetKind enum{Font, Image, Video, Audio}; AssetRef{kind, path, owner, required}; AssetManifest::add(entry)/entry_for(owner)/all(); AssetPreflightResolver::preflight(manifest)->AssetPreflightResult{ok, missing[]}; AssetPreflightResult::missing -> {owner, path, kind}`. Tutti in `include/chronon3d/assets/`.
+  - Asset: `AssetKind enum{Font, Image, Video, Audio, Mesh}; AssetRef{kind, path, owner, required}; AssetManifest::add(entry)/entry_for(owner)/all(); AssetPreflightResolver::preflight(manifest)->AssetPreflightResult{ok, missing[]}; AssetPreflightResult::missing -> {owner, path, kind}`. Mesh è qui solo una dipendenza logica; import/preparation GLB resta una fase successiva. Tutti in `include/chronon3d/assets/`.
 - Nessun `#include <msdfgen>`, `<libtess2>`, `<unicode[/...]>` aggiunto (AGENTS.md Gate 5 deny-everywhere).
 - ABI pubblico invariato (canonical `composition({...}, [lambda])`, `RenderNodeFactory::text(name, TextSpec)`, `RenderNodeFactory::image(uri)` invariati; solo back-compat wrapper + adapters dietro le quinte fino a Step 4 elimination).
 
