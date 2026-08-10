@@ -7,7 +7,7 @@
 #   ./dev.sh --kill    # stop both services
 #
 # Configuration (env vars):
-#   CHRONON3D_DASHBOARD_PASSWORD   Optional password; empty disables dashboard auth
+#   CHRONON3D_DASHBOARD_PASSWORD   Ignored; local dashboard access is passwordless
 #   BACKEND_PORT                   Flask backend + Vite proxy port   (default: 8000)
 #   FRONTEND_PORT                  Vite frontend port                (default: 5173)
 
@@ -34,6 +34,8 @@ fi
 CHRONON3D_DASHBOARD_PASSWORD="${CHRONON3D_DASHBOARD_PASSWORD:-}"
 if [ -z "$CHRONON3D_DASHBOARD_PASSWORD" ]; then
     echo "  Dashboard auth: disabled"
+else
+    echo "  Dashboard auth: disabled (password setting ignored)"
 fi
 export CHRONON3D_DASHBOARD_PASSWORD
 
