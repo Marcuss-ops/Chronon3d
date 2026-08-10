@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/math/camera_projection_resolver.hpp>
 #include <cmath>
 using namespace chronon3d;
 
@@ -59,6 +60,46 @@ TEST_CASE("Camera2_5D projection: far layer appears smaller") {
     CHECK(out.perspective_scale == doctest::Approx(0.5f));
     CHECK(out.transform.scale.x == doctest::Approx(0.5f));
     CHECK(out.transform.scale.y == doctest::Approx(0.5f));
+}
+
+TEST_CASE("Camera2_5D projection: surface bounds are independent of TRS scale") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.zoom = 1000.0f;
+
+    Transform tr;
+    tr.scale = {1.0f, 1.0f, 1.0f};
+    CameraProjectionInput small;
+    small.world_transform = glm::translate(Mat4(1.0f), Vec3{0.0f, 0.0f, -1000.0f});
+    small.layer_size = {1.0f, 1.0f};
+    small.camera = cam;
+    small.viewport = {1280.0f, 720.0f};
+
+    auto large = small;
+    large.layer_size = {800.0f, 400.0f};
+    large.world_transform = glm::translate(Mat4(1.0f), Vec3{0.0f, 0.0f, -1000.0f})
+                          * glm::rotate(Mat4(1.0f), glm::radians(80.0f), Vec3{1.0f, 0.0f, 0.0f});
+    small.world_transform = glm::translate(Mat4(1.0f), Vec3{0.0f, 0.0f, -1000.0f})
+                          * glm::rotate(Mat4(1.0f), glm::radians(80.0f), Vec3{1.0f, 0.0f, 0.0f});
+
+    const auto small_projection = CameraProjectionResolver::project_layer(small);
+    const auto large_projection = CameraProjectionResolver::project_layer(large);
+    REQUIRE(small_projection.visible);
+    REQUIRE(large_projection.visible);
+    // The resolver must clip/project the declared surface, not infer its
+    // geometry from the TRS scale.  A large card rotated through the same
+    // near-edge pose therefore has a materially different projected height.
+    const auto projected_height = [](const ProjectedLayer& layer) {
+        f32 min_y = layer.corners[0].y;
+        f32 max_y = layer.corners[0].y;
+        for (int i = 1; i < layer.corner_count; ++i) {
+            min_y = std::min(min_y, layer.corners[i].y);
+            max_y = std::max(max_y, layer.corners[i].y);
+        }
+        return max_y - min_y;
+    };
+    CHECK(projected_height(large_projection) > projected_height(small_projection) * 10.0f);
 }
 
 TEST_CASE("Camera2_5D projection: layer behind camera is culled") {

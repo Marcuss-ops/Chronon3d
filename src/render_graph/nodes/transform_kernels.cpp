@@ -341,7 +341,7 @@ void execute_projective_rows(
             Color* dst_row = result->pixels_row(y - result->origin_y());
             Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
             for (i32 x = x0; x < x1; ++x) {
-                if (std::abs(h_row.z) > 1e-9f) {
+                if (h_row.z > 1e-9f) {
                     const f32 inv_z = 1.0f / h_row.z;
                     const f32 sx = h_row.x * inv_z;
                     const f32 sy = h_row.y * inv_z;
@@ -364,7 +364,7 @@ void execute_projective_rows(
             // Prefetch: the first h_row gives a hint for which source rows
             // will be sampled.  Prefetch two source rows around the
             // projected y coordinate.
-            if (std::abs(h_row.z) > 1e-9f) {
+            if (h_row.z > 1e-9f) {
                 const f32 proj_sy = h_row.y / h_row.z;
                 const f32 proj_sx = h_row.x / h_row.z;
                 const i32 src_y0 = static_cast<i32>(proj_sy);
@@ -381,7 +381,7 @@ void execute_projective_rows(
             }
 
             for (i32 x = x0; x < x1; ++x) {
-                if (std::abs(h_row.z) > 1e-9f) {
+                if (h_row.z > 1e-9f) {
                     const f32 inv_z = 1.0f / h_row.z;
                     const f32 sx = h_row.x * inv_z;
                     const f32 sy = h_row.y * inv_z;

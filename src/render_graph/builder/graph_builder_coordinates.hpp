@@ -351,6 +351,15 @@ inline TextRunPlacement resolve_text_run_placement(
     const bool use_local = ctx.policy.modular_coordinates
                         && needs_xform && !item.native_3d;
 
+    // Projected layers carry their complete camera-space homography in the
+    // downstream TransformNode.  TextRunNode must therefore remain a local
+    // raster source; applying the homography here would bypass the shared
+    // projected-surface path and apply a second, incompatible canvas basis.
+    if (item.projected && !item.native_3d) {
+        out_opacity = node.world_transform.opacity;
+        return TextRunPlacement{node.world_transform.to_mat4()};
+    }
+
 
     if (use_local) {
         // The downstream TransformNode handles the layer transform and layer
