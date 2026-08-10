@@ -104,6 +104,7 @@ TimelineDebugInfo analyze_scene(const Scene& scene, Frame frame) {
             case assets::AssetKind::Image: asset.kind = "Image"; break;
             case assets::AssetKind::Video: asset.kind = "Video"; break;
             case assets::AssetKind::Audio: asset.kind = "Audio"; break;
+            case assets::AssetKind::Mesh:  asset.kind = "Mesh"; break;
             default: asset.kind = "Unknown"; break;
         }
         asset.path = ref.path;

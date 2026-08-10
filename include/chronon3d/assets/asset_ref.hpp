@@ -3,7 +3,7 @@
 //
 // AssetRef<K> is a value type that:
 //
-//   1.  Carries a typed asset kind at compile time (K = AssetKind::Image, …)
+//   1.  Carries a typed asset kind at compile time (K = AssetKind::Image, Mesh, …)
 //   2.  Stores the raw path + owner + required flag (replacing scattered
 //       raw `std::string path` locals)
 //   3.  Resolves via AssetResolver (canonical engine-local path resolution)
@@ -31,7 +31,7 @@ namespace chronon3d::assets {
 
 /// Typed asset reference carrying compile-time AssetKind.
 ///
-/// K is one of the four `assets::AssetKind` values (Image / Font / Video / Audio).
+/// K is one of the five `assets::AssetKind` values (Image / Font / Video / Audio / Mesh).
 /// The template parameter enables:
 ///   - Type-safe factory functions (`AssetRef<Image>` is downstream-friendly)
 ///   - `if constexpr` dispatch in template code that consumes assets
@@ -100,5 +100,6 @@ using ImageRef = AssetRef<assets::AssetKind::Image>;
 using FontRef  = AssetRef<assets::AssetKind::Font>;
 using VideoRef = AssetRef<assets::AssetKind::Video>;
 using AudioRef = AssetRef<assets::AssetKind::Audio>;
+using MeshRef  = AssetRef<assets::AssetKind::Mesh>;
 
 } // namespace chronon3d::assets

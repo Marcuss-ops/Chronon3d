@@ -10,7 +10,7 @@ namespace chronon3d::assets {
 // ═══════════════════════════════════════════════════════════════════════════
 // `AssetKind` — discriminator for the type-erased `InternalAssetRef`.
 //
-// 4 valori, sizeof 1 byte. Distinto da `chronon3d::AssetType` (6 valori
+// 5 valori, sizeof 1 byte. Distinto da `chronon3d::AssetType` (6 valori
 // inclusi Mesh + Unknown, semantica metadata/registry; vive in
 // `asset_metadata.hpp`, usato da `AssetRegistry::import_*` e
 // `AssetMetadata::type`).
@@ -19,7 +19,8 @@ enum class AssetKind : unsigned char {
     Font  = 0,
     Image = 1,
     Video = 2,
-    Audio = 3
+    Audio = 3,
+    Mesh  = 4
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -27,11 +28,12 @@ enum class AssetKind : unsigned char {
 //
 // Type-erased POD storage slot.
 //
-//   * `kind`     : `AssetKind` (Font/Image/Video/Audio).
+//   * `kind`     : `AssetKind` (Font/Image/Video/Audio/Mesh).
 //   * `path`     : path raw (relativo a `assets_root` o assoluto).
 //   * `owner`    : identificatore logico del "proprietario" dell'asset
 //                  (es. "LightPulse/text/label", "TextDefinition/label",
-//                  "SceneBuilder::image(\"hero\")"). Discriminant per
+//                  "SceneBuilder::image(\"hero\")", "LayerBuilder::mesh(\"hero\")").
+//                  Discriminant per
 //                  `AssetManifest::entry_for(owner)`. Unico per scena.
 //   * `required` : se true, l'asset è HARD-REQUIRED (mancanza = FAIL
 //                  preflight con `ok=false` + `missing` non-empty);
@@ -88,6 +90,13 @@ public:
     /// Add an audio asset (owner-keyed; `AssetKind::Audio`).
     void add_audio(std::string path, std::string owner, bool required = true) {
         add({AssetKind::Audio, std::move(path), std::move(owner), required});
+    }
+
+    /// Add a mesh asset reference (owner-keyed; `AssetKind::Mesh`).
+    /// This records only the logical dependency; loading remains a runtime
+    /// preparation concern owned by the existing AssetResolver boundary.
+    void add_mesh(std::string path, std::string owner, bool required = true) {
+        add({AssetKind::Mesh, std::move(path), std::move(owner), required});
     }
 
     /// First-inserted-wins lookup by `owner`. Returns `std::nullopt` if

@@ -8,6 +8,7 @@
 //   - Missing asset produces PreflightIssue with Error severity
 //   - Empty manifest returns ok
 //   - Multiple asset types (font, image)
+//   - Mesh asset remains a logical dependency and reports as RegisteredAsset
 
 #include <doctest/doctest.h>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
@@ -182,6 +183,19 @@ TEST_CASE("AssetPreflightResolver — check_manifest: missing asset") {
     CHECK_FALSE(result.ok());
     CHECK(result.issues[0].type == PreflightAssetType::Font);
     CHECK(result.issues[0].path == "assets/fonts/Missing.ttf");
+}
+
+TEST_CASE("AssetPreflightResolver — mesh dependency: registered asset error") {
+    AssetManifest manifest;
+    manifest.add_mesh("models/missing.glb", "hero/mesh");
+
+    auto resolver = make_empty_resolver();
+    auto result = AssetPreflightResolver::check_manifest(manifest, resolver);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.size() == 1);
+    CHECK(result.issues[0].type == PreflightAssetType::RegisteredAsset);
+    CHECK(result.issues[0].path == "models/missing.glb");
+    CHECK(result.issues[0].layer_id == "hero/mesh");
 }
 
 TEST_CASE("AssetPreflightResolver — check_manifest: empty manifest ok") {
