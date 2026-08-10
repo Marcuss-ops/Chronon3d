@@ -60,6 +60,29 @@ TEST_CASE("audit-§10: explicit asset<K> remains concretely typed") {
     CHECK(mesh.path() == "models/phone.glb");
 }
 
+TEST_CASE("audit-§10: Layer::mesh delegates logical MeshRef without loading") {
+    chronon3d::LayerBuilder builder("hero", chronon3d::SampleTime{});
+    chronon3d::authoring::Layer layer(
+        builder, chronon3d::CanvasInfo::with_safe_area(
+            1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
+
+    auto handle = layer.mesh(MeshRef{"models/phone.glb", "hero/phone"});
+    handle.position({10.0f, 20.0f, 30.0f});
+    chronon3d::Layer built = builder.build();
+
+    REQUIRE(built.nodes.size() == 1);
+    CHECK(built.nodes[0].name == "mesh_0");
+    CHECK(built.nodes[0].shape.type() == chronon3d::ShapeType::Mesh);
+    CHECK(built.nodes[0].shape.mesh_shape().mesh == nullptr);
+    auto meshes = built.asset_manifest.filter(AssetKind::Mesh);
+    REQUIRE(meshes.size() == 1);
+    CHECK(meshes[0].path == "models/phone.glb");
+    CHECK(meshes[0].owner == "hero/phone");
+    CHECK(built.nodes[0].world_transform.position.x == doctest::Approx(10.0f));
+    CHECK(built.nodes[0].world_transform.position.y == doctest::Approx(20.0f));
+    CHECK(built.nodes[0].world_transform.position.z == doctest::Approx(30.0f));
+}
+
 TEST_CASE("audit-§10: Text::font keeps the typed FontRef bridge") {
     namespace authoring = chronon3d::authoring;
 
@@ -88,11 +111,18 @@ TEST_CASE("audit-§10: logical asset converts to the consumer-requested kind") {
     using LayerImageSignature = chronon3d::NodeHandle (authoring::Layer::*)(
         std::string, ImageRef);
     LayerImageSignature image_function = &authoring::Layer::image;
+    using LayerMeshSignature = chronon3d::NodeHandle (authoring::Layer::*)(MeshRef);
+    LayerMeshSignature mesh_function = &authoring::Layer::mesh;
     static_assert(std::is_invocable_r_v<
         chronon3d::NodeHandle,
         decltype(image_function),
         authoring::Layer&,
         std::string,
+        LogicalAsset>);
+    static_assert(std::is_invocable_r_v<
+        chronon3d::NodeHandle,
+        decltype(mesh_function),
+        authoring::Layer&,
         LogicalAsset>);
 
     using TextFontSignature = authoring::Text& (authoring::Text::*)(
