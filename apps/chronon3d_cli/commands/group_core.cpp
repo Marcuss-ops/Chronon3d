@@ -46,6 +46,27 @@ void register_info(CLI::App& app, CliContext& ctx) {
     });
 }
 
+void register_benchmark(CLI::App& app, CliContext& ctx) {
+    struct BenchmarkSatState {
+        std::shared_ptr<std::string> scene{std::make_shared<std::string>()};
+        std::shared_ptr<int> duration{std::make_shared<int>(300)};
+        std::shared_ptr<bool> saturation{std::make_shared<bool>(false)};
+    };
+    auto state = std::make_shared<BenchmarkSatState>();
+    auto* command = app.add_subcommand(
+        "benchmark",
+        "Benchmark a composition and produce the Saturation Report");
+    command->add_option("--scene", *state->scene, "Composition name")->required();
+    command->add_option("--duration", *state->duration, "Benchmark duration in seconds")
+        ->default_val(300);
+    command->add_flag("--saturation", *state->saturation,
+                      "Print the full CHRONON3D SATURATION REPORT");
+    command->callback([state, &ctx]() {
+        ctx.exit_code = command_benchmark_saturation(
+            ctx.registry, ctx, *state->scene, *state->duration);
+    });
+}
+
 void register_doctor(CLI::App& app, CliContext& ctx) {
     auto* command = app.add_subcommand(
         "doctor", "Check whether the local Chronon3d environment is ready");
@@ -86,6 +107,7 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
 void register_commands(CLI::App& app, CliContext& ctx) {
     register_list(app, ctx);
     register_benchmark_machine(app, ctx);
+    register_benchmark(app, ctx);
     register_info(app, ctx);
     register_doctor(app, ctx);
     register_verify(app, ctx);
