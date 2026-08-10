@@ -177,6 +177,29 @@ LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::TiledImage, std::move(name), std::move(p));
 }
 
+LayerBuilder& LayerBuilder::mesh(std::string name, assets::MeshRef ref) {
+    // Authoring stores only the logical dependency. Mesh loading and
+    // preparation belong to the runtime boundary, not this builder.
+    if (!ref.path().empty()) {
+        const std::string owner = ref.owner().empty()
+            ? std::string(m_layer.name) + "/" + name
+            : ref.owner();
+        m_layer.asset_manifest.add_mesh(ref.path(), owner, ref.required());
+    }
+
+    auto* res = m_layer.nodes.get_allocator().resource();
+    RenderNode node(res);
+    node.name = std::pmr::string{std::move(name), res};
+    node.shape.set_type(ShapeType::Mesh);
+    // MeshShape::mesh intentionally remains null until runtime preparation.
+    node.world_transform.position = {0.0f, 0.0f, 0.0f};
+    node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
+    node.surface_policy = SurfacePolicy::IntrinsicSize;
+    node.transform_policy = TransformPolicy::MatrixOnly;
+    m_layer.nodes.push_back(std::move(node));
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundParams p) {
     return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
 }
