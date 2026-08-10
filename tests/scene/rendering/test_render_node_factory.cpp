@@ -50,7 +50,7 @@ TEST_CASE("RenderNodeFactory creates grid background nodes") {
 TEST_CASE("RenderNodeFactory creates image nodes and maps advanced fields") {
     auto* res = std::pmr::get_default_resource();
     ImageParams p;
-    p.path         = "assets/images/camera_reference.jpg";
+    p.asset_path   = "assets/images/camera_reference.jpg";
     p.size         = {640.0f, 360.0f};
     p.pos          = {10.0f, 20.0f, 30.0f};
     p.fit          = FitMode::Cover;
@@ -79,7 +79,7 @@ TEST_CASE("RenderNodeFactory creates image nodes and maps advanced fields") {
 TEST_CASE("Missing image returns placeholder/fallback instead of crashing") {
     auto* res = std::pmr::get_default_resource();
     ImageParams p;
-    p.path = "assets/images/does_not_exist.jpg";
+    p.asset_path = "assets/images/does_not_exist.jpg";
     p.size = {300.0f, 200.0f};
     // Constructing must not crash
     CHECK_NOTHROW(RenderNodeFactory::image(res, "missing", p));

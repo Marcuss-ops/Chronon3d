@@ -39,11 +39,6 @@ struct AnimatedTransform {
         return t;
     }
 
-    /// Legacy integer-frame evaluation (backward compatible).
-    [[nodiscard]] Transform evaluate(Frame frame) const {
-        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}));
-    }
-
     /// Resolve rotation: prefer quaternion track if animated, otherwise fall back to Euler.
     [[nodiscard]] Quat resolve_rotation(SampleTime time) const {
         if (rotation_quat_track.is_animated()) {

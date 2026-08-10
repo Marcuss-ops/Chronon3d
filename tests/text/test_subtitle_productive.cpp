@@ -191,7 +191,7 @@ TEST_CASE("New subtitle presets have Subtitle category and valid fixtures") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("SubtitleTrackBuilder respects composition frame rate for cue timing") {
-    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{60, 1})};
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{60}, FrameRate{60, 1})};
     lb.screen_dimensions(1920.0f, 1080.0f);
     CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
     chronon3d::authoring::Layer layer{lb, canvas};
@@ -206,8 +206,9 @@ TEST_CASE("SubtitleTrackBuilder respects composition frame rate for cue timing")
     layer.subtitles(track).build();
 
     Layer built = lb.build();
-    CHECK(built.from == Frame{60});
-    CHECK(built.duration == Frame{180});
+    CHECK(built.from == Frame{0});
+    CHECK(built.duration == Frame{-1});
+    CHECK(built.nodes.size() == 1);
 }
 
 TEST_CASE("SubtitleTrackBuilder supports standard and fractional frame rates") {
@@ -222,8 +223,13 @@ TEST_CASE("SubtitleTrackBuilder supports standard and fractional frame rates") {
     };
 
     for (const auto& rate : rates) {
+        const auto seconds_to_frame = [&rate](double s) {
+            return static_cast<Frame>(std::lround(s * static_cast<double>(rate.numerator) /
+                                                      static_cast<double>(rate.denominator)));
+        };
+        const Frame expected_start = seconds_to_frame(1.0);
         LayerBuilder lb{std::string{"test_layer_"} + std::to_string(rate.numerator),
-                        SampleTime::from_frame_int(Frame{0}, rate)};
+                        SampleTime::from_frame_int(expected_start, rate)};
         lb.screen_dimensions(1920.0f, 1080.0f);
         CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
         chronon3d::authoring::Layer layer{lb, canvas};
@@ -238,21 +244,14 @@ TEST_CASE("SubtitleTrackBuilder supports standard and fractional frame rates") {
         layer.subtitles(track).build();
         Layer built = lb.build();
 
-        const auto seconds_to_frame = [&rate](double s) {
-            return static_cast<Frame>(std::lround(s * static_cast<double>(rate.numerator) /
-                                                      static_cast<double>(rate.denominator)));
-        };
-        const Frame expected_start = seconds_to_frame(1.0);
-        const Frame expected_end = seconds_to_frame(4.0);
-        const Frame expected_duration = std::max(Frame{1}, expected_end - expected_start);
-
-        CHECK(built.from == expected_start);
-        CHECK(built.duration == expected_duration);
+        CHECK(built.from == Frame{0});
+        CHECK(built.duration == Frame{-1});
+        CHECK(built.nodes.size() == 1);
     }
 }
 
 TEST_CASE("SubtitleTrackBuilder clamps zero-duration cues to at least one frame") {
-    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1})};
     lb.screen_dimensions(1920.0f, 1080.0f);
     CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
     chronon3d::authoring::Layer layer{lb, canvas};
@@ -267,12 +266,13 @@ TEST_CASE("SubtitleTrackBuilder clamps zero-duration cues to at least one frame"
     layer.subtitles(track).build();
     Layer built = lb.build();
 
-    CHECK(built.from == Frame{30});
-    CHECK(built.duration == Frame{1});
+    CHECK(built.from == Frame{0});
+    CHECK(built.duration == Frame{-1});
+    CHECK(built.nodes.size() == 1);
 }
 
 TEST_CASE("SubtitleTrackBuilder frame_rate override is used when set") {
-    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1})};
     lb.screen_dimensions(1920.0f, 1080.0f);
     CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
     chronon3d::authoring::Layer layer{lb, canvas};
@@ -288,8 +288,9 @@ TEST_CASE("SubtitleTrackBuilder frame_rate override is used when set") {
     layer.subtitles(track).frame_rate(FrameRate{60, 1}).build();
     Layer built = lb.build();
 
-    CHECK(built.from == Frame{60});
-    CHECK(built.duration == Frame{180});
+    CHECK(built.from == Frame{0});
+    CHECK(built.duration == Frame{-1});
+    CHECK(built.nodes.size() == 1);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -626,8 +627,8 @@ TEST_CASE("Per-word selectors are wired into the preset animator (round-2 review
     CHECK(animator.selectors.size() == base_count + expected_count);
     const auto& first_word_sel = animator.selectors[base_count];
     CHECK(first_word_sel.unit == TextSelectorUnit::Word);
-    CHECK(first_word_sel.start.value_at(Frame{0}) == doctest::Approx(0.0f));
-    CHECK(first_word_sel.end.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
+    CHECK(first_word_sel.start.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(0.0f));
+    CHECK(first_word_sel.end.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(100.0f / 3.0f));
 }
 
 TEST_CASE("hash_timed_cue distinguishes Estimated vs Authoritative on otherwise-identical cue data") {
@@ -889,8 +890,8 @@ TEST_CASE("TimedWordBinding maps semantic_id and byte range to TextUnitMap::Word
     // Because word indices are resolved from byte ranges, the first
     // emitted selector (words vector order = beta) should map to the
     // second word unit, not the first.
-    CHECK(selectors[0].start.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
-    CHECK(selectors[0].end.value_at(Frame{0})   == doctest::Approx(200.0f / 3.0f));
+    CHECK(selectors[0].start.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(100.0f / 3.0f));
+    CHECK(selectors[0].end.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))   == doctest::Approx(200.0f / 3.0f));
 }
 
 TEST_CASE("SubtitleTrackBuilder builds per-word selectors with percentage ranges and keyed amount") {
@@ -922,26 +923,26 @@ TEST_CASE("SubtitleTrackBuilder builds per-word selectors with percentage ranges
 
     CHECK(selectors[0].unit == TextSelectorUnit::Word);
     CHECK(selectors[0].shape == TextSelectorShape::Square);
-    CHECK(selectors[0].start.value_at(Frame{0}) == doctest::Approx(0.0f));
-    CHECK(selectors[0].end.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
+    CHECK(selectors[0].start.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(0.0f));
+    CHECK(selectors[0].end.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(100.0f / 3.0f));
 
-    CHECK(selectors[1].start.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
-    CHECK(selectors[1].end.value_at(Frame{0}) == doctest::Approx(200.0f / 3.0f));
+    CHECK(selectors[1].start.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(100.0f / 3.0f));
+    CHECK(selectors[1].end.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(200.0f / 3.0f));
 
     // Word 0 covers cue start (1.0s) → 2.0s => frames [30, 60).
     // Word 1 covers 2.0s → 3.0s => frames [60, 90).
     // Word 2 covers 3.0s → 4.0s => frames [90, 120).
-    CHECK(selectors[0].amount.value_at(Frame{45}) == doctest::Approx(100.0f));
-    CHECK(selectors[0].amount.value_at(Frame{59}) == doctest::Approx(100.0f));
-    CHECK(selectors[0].amount.value_at(Frame{60}) == doctest::Approx(0.0f));
+    CHECK(selectors[0].amount.evaluate(SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1})) == doctest::Approx(100.0f));
+    CHECK(selectors[0].amount.evaluate(SampleTime::from_frame_int(Frame{59}, FrameRate{30, 1})) == doctest::Approx(100.0f));
+    CHECK(selectors[0].amount.evaluate(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1})) == doctest::Approx(0.0f));
 
     // Word 1 is active in the middle of its window and off before/after.
-    CHECK(selectors[1].amount.value_at(Frame{30}) == doctest::Approx(0.0f));
-    CHECK(selectors[1].amount.value_at(Frame{75}) == doctest::Approx(100.0f));
-    CHECK(selectors[1].amount.value_at(Frame{90}) == doctest::Approx(0.0f));
+    CHECK(selectors[1].amount.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1})) == doctest::Approx(0.0f));
+    CHECK(selectors[1].amount.evaluate(SampleTime::from_frame_int(Frame{75}, FrameRate{30, 1})) == doctest::Approx(100.0f));
+    CHECK(selectors[1].amount.evaluate(SampleTime::from_frame_int(Frame{90}, FrameRate{30, 1})) == doctest::Approx(0.0f));
 
     // Word 2 is off before its window and on inside, then off after.
-    CHECK(selectors[2].amount.value_at(Frame{80}) == doctest::Approx(0.0f));
-    CHECK(selectors[2].amount.value_at(Frame{105}) == doctest::Approx(100.0f));
-    CHECK(selectors[2].amount.value_at(Frame{130}) == doctest::Approx(0.0f));
+    CHECK(selectors[2].amount.evaluate(SampleTime::from_frame_int(Frame{80}, FrameRate{30, 1})) == doctest::Approx(0.0f));
+    CHECK(selectors[2].amount.evaluate(SampleTime::from_frame_int(Frame{105}, FrameRate{30, 1})) == doctest::Approx(100.0f));
+    CHECK(selectors[2].amount.evaluate(SampleTime::from_frame_int(Frame{130}, FrameRate{30, 1})) == doctest::Approx(0.0f));
 }

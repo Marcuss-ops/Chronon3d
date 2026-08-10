@@ -3,9 +3,8 @@
 //
 // Wraps a `TextMaterial` value and exposes the most-commonly-tuned knobs
 // (gradient / bevel / inner-shadow / highlight / emissive)
-// as chainable setters.  Less-common fields are reachable via the
-// `configure_core(Fn)` escape hatch so the surface stays small while the
-// engine's full material model remains one template-mutation away.
+// as chainable setters. The public surface is typed; the underlying
+// `TextMaterial` remains an internal value object.
 //
 // Construction goes through the `material::*` factory functions:
 //
@@ -200,23 +199,6 @@ public:
     }
     Material&& emissive(f32 factor) && {
         value_.emissive = factor;
-        return std::move(*this);
-    }
-
-    // ── Level 3 escape hatch ─────────────────────────────────────────────
-    /// Pass a lambda that mutates the underlying `TextMaterial`.  Use for
-    /// fields the fluent surface doesn't expose yet (`bevel_highlight_color`,
-    /// `gradient_angle` non-default, etc). The lambda is inlined by the
-    /// compiler (no `std::function` overhead) so callers can capture
-    /// freely without heap allocation.
-    template <class Fn>
-    Material& configure_core(Fn&& mutator) & {
-        mutator(value_);
-        return *this;
-    }
-    template <class Fn>
-    Material&& configure_core(Fn&& mutator) && {
-        mutator(value_);
         return std::move(*this);
     }
 

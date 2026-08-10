@@ -20,7 +20,7 @@ CanvasInfo canvas(float width, float height) {
 TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated name") {
     LayerBuilder lb("test_layer", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
 
     Text t1 = layer.text("HELLO");
     Text t2 = layer.text("WORLD");
@@ -36,7 +36,7 @@ TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated n
 TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying spec") {
     LayerBuilder lb("id_content", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("initial");
     t.id("hero-title").content("UPDATED");
     CHECK(TextRunBuilderInspector::pending_of(t).name == "hero-title");
@@ -46,7 +46,7 @@ TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying sp
 TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_size() cover FontSpec") {
     LayerBuilder lb("font", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("x");
     t.font("assets/fonts/Inter-Bold.ttf", 96.0f)
      .font_family("Inter")
@@ -65,7 +65,7 @@ TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_s
 TEST_CASE("Authoring/Text: at(Vec2) and at(Vec3) store two-dimensional placement") {
     LayerBuilder lb("position", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
 
     Text t_v2 = layer.text("v2");
     t_v2.at(Vec2{100.0f, 200.0f});
@@ -96,10 +96,9 @@ TEST_CASE("Authoring/Text: center() uses explicit CanvasInfo") {
     CHECK(layout.vertical_align == VerticalAlign::Middle);
 }
 
-TEST_CASE("Authoring/Text: center() uses CanvasInfo derived by Layer ctor") {
+TEST_CASE("Authoring/Text: center() uses explicit CanvasInfo") {
     LayerBuilder lb("center_fb", SampleTime{});
-    lb.screen_dimensions(1280.0f, 720.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1280.0f, 720.0f));
     Text t = layer.text("x");
     t.place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center);
     CHECK(TextRunBuilderInspector::pending_of(t)->params.frame.placement.offset
@@ -109,7 +108,7 @@ TEST_CASE("Authoring/Text: center() uses CanvasInfo derived by Layer ctor") {
 TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
     LayerBuilder lb("layout_props", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("x");
     t.box({1500.0f, 220.0f})
      .anchor_point(TextAnchor::Center)
@@ -146,7 +145,7 @@ TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
 TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
     LayerBuilder lb("color", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("x");
     t.color(Color{0.9f, 0.1f, 0.2f, 1.0f});
     const auto& appearance = TextRunBuilderInspector::pending_of(t)->params.style;
@@ -160,7 +159,7 @@ TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
 TEST_CASE("Authoring/Text: material(Material) consumes Material into appearance.material") {
     LayerBuilder lb("material_consume", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("x");
     Material m = material::premium().bevel(2.0f);
     t.material(std::move(m));
@@ -172,7 +171,7 @@ TEST_CASE("Authoring/Text: material(Material) consumes Material into appearance.
 TEST_CASE("Authoring/Text: animate(Animator) consumes Animator into animators vector") {
     LayerBuilder lb("animate_consume", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("hero");
     Animator a = animator("reveal");
     Selector sel = selector(TextSelectorUnit::Grapheme);
@@ -193,7 +192,7 @@ TEST_CASE("Authoring/Text: animate(Animator) consumes Animator into animators ve
 TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
     LayerBuilder lb("multi_anim", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("x");
     t.animate(animator("in").opacity(0.0f));
     t.animate(animator("out").opacity(1.0f));
@@ -208,7 +207,7 @@ TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
 TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text") {
     LayerBuilder lb("style_map", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     StyleRegistry styles;
     TextStyle hero;
     hero.font_path = "assets/fonts/Inter-Bold.ttf";
@@ -246,7 +245,7 @@ TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text
 TEST_CASE("Authoring/Text: style() with unknown id is a no-op") {
     LayerBuilder lb("style_nomatch", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("FUTURI MILIONARI");
     t.font("Inter-Bold.ttf", 106.0f).color(Color::white());
     const StyleRegistry empty_registry;
@@ -261,7 +260,7 @@ TEST_CASE("Authoring/Text: style() with unknown id is a no-op") {
 TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
     LayerBuilder lb("motion_consume", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     MotionRegistry motions;
     TextAnimatorSpec preset;
     preset.id = "text.reveal.soft";
@@ -278,17 +277,15 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
     CHECK(TextRunBuilderInspector::pending_of(t)->params.animation.animators[0].properties.size() == 2);
 }
 
-TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw PreparedText") {
+TEST_CASE("Authoring/Text: typed shaping setters mutate PreparedText") {
     LayerBuilder lb("configure", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, canvas(1920.0f, 1080.0f));
     Text t = layer.text("Anti-Dup");
     t.font("Anton.ttf", 200.0f);
-    t.configure_core([](chronon3d::PreparedText& p) {
-        p.shaping.direction = TextDirection::RTL;
-        p.shaping.language = "ar";
-        p.animation.cache_layout = false;
-    });
+    t.direction(TextDirection::RTL)
+     .language("ar")
+     .cache_layout(false);
     const auto& params = TextRunBuilderInspector::pending_of(t)->params;
     CHECK(params.shaping.direction == TextDirection::RTL);
     CHECK(params.shaping.language == "ar");
@@ -327,11 +324,11 @@ TEST_CASE("Authoring/Layer: text() state survives returned handle destruction") 
     LayerBuilder lb("destroy", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     {
-        Layer layer(lb);
+        Layer layer(lb, canvas(1920.0f, 1080.0f));
         Text t = layer.text("ephemeral");
         t.font("X.ttf", 12.0f);
     }
-    Layer layer2(lb);
+        Layer layer2(lb, canvas(1920.0f, 1080.0f));
     Text probe = layer2.text("verify");
     CHECK(TextRunBuilderInspector::pending_of(probe).name == "text_0");
 }

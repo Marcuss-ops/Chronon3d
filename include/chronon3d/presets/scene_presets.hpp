@@ -21,7 +21,7 @@ namespace chronon3d::scene_presets {
 //
 // Usage:
 //   auto comp = scene_presets::saas_intro();
-//   Scene scene = comp.evaluate(Frame{45});
+//   Scene scene = comp.evaluate(FrameContext::at(Frame{45}, FrameRate{30, 1}));
 // ═══════════════════════════════════════════════════════════════════════════════
 
 constexpr f32 W  = 1920.0f;

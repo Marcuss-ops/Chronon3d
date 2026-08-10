@@ -9,11 +9,20 @@ namespace chronon3d {
 
 // ── LayerTimeResolver — single source of truth for layer-local time ─────────
 //
-// Centralises offset/freeze/animated-time-remap/reverse/speed logic that was
-// duplicated between Layer::local_frame() and Layer::local_time().
+// Centralises offset/freeze/animated-time-remap/reverse/speed logic for
+// Layer::local_time() and the layer activity boundary.
 // Every layer time-remap path in the engine should route through here.
 
 struct LayerTimeResolver {
+    [[nodiscard]] static bool active_at(
+        Frame frame,
+        Frame layer_start,
+        Frame layer_duration) noexcept {
+        if (frame < layer_start) return false;
+        if (layer_duration < Frame{0}) return true;
+        return frame < layer_start + layer_duration;
+    }
+
     [[nodiscard]] static SampleTime resolve(
         SampleTime global_time,
         Frame layer_start,

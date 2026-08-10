@@ -194,7 +194,7 @@ inline void seed_builtin_presets(MotionPresetCatalogBuilder& reg) {
             const EasingCurve easing = easing_or(params, EasingCurve{Easing::OutCubic});
             // Preserve the authored target position; the preset owns only
             // the entry offset and must not reset the layer to the origin.
-            const Vec3 target = lb.position_anim().evaluate(Frame{0});
+            const Vec3 target = lb.position_anim().evaluate(0.0);
             AnimationTrack<Vec3> pos_track;
             pos_track.from(Frame{0}, from, easing.preset).to(duration, target);
             lb.position_anim().apply_track(pos_track);

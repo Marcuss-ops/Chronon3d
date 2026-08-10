@@ -281,7 +281,7 @@ Composition make_checker_perspective_scene() {
         s.layer("card", [](LayerBuilder& l) {
             l.enable_3d().position({0.0f, 0.0f, 0.0f}).rotate({18.0f, 58.0f, 0.0f}).effect(GlowPresets::soft_cyan(36.0f));
             l.image("checker", {
-                .path = "assets/images/checker.png",
+                .asset_path = "assets/images/checker.png",
                 .size = {360.0f, 360.0f},
                 .pos = {-180.0f, -180.0f, 0.0f},
                 .fit = FitMode::Contain,

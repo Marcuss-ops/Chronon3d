@@ -67,7 +67,7 @@ Composition make_breathing_comp() {
                 l.motion("tracking_breathing", {.scale = 1.04f, .duration = Frame{120}});
                 add_image_border(l, IMAGE_SIZE);
                 l.image("img", {
-                    .path = IMAGE_PATH,
+                    .asset_path = IMAGE_PATH,
                     .size = IMAGE_SIZE,
                     .radius = 8.0f
                 });

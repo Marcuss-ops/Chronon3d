@@ -4,6 +4,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 #include <algorithm>
@@ -312,7 +313,7 @@ enum class AutoOrientMode {
 //   motion.auto_orient = AutoOrientMode::AlongPath;
 //   motion.easing = EasingCurve{Easing::InOutCubic};
 //
-//   Camera2_5D cam = motion.evaluate(Frame{45}, Frame{0}, Frame{90});
+//   Camera2_5D cam = motion.evaluate(sample_time, Frame{0}, Frame{90});
 
 struct CameraMotionPath {
     SpatialBezierPath path;
@@ -328,7 +329,7 @@ struct CameraMotionPath {
     bool use_arc_length{false};
 
     // Evaluate camera at a given frame within the motion range.
-    [[nodiscard]] Camera2_5D evaluate(Frame frame, Frame start, Frame end) const {
+    [[nodiscard]] Camera2_5D evaluate(SampleTime time, Frame start, Frame end) const {
         Camera2_5D cam;
         cam.enabled = true;
 
@@ -340,7 +341,8 @@ struct CameraMotionPath {
         }
 
         // Compute normalized t with easing
-        const f32 raw_t = static_cast<f32>(frame - start) / static_cast<f32>(end - start);
+        const f32 raw_t = static_cast<f32>(time.frame - static_cast<double>(start)) /
+                          static_cast<f32>(end - start);
         const f32 t = std::clamp(easing.apply(std::clamp(raw_t, 0.0f, 1.0f)), 0.0f, 1.0f);
 
         // Single synchronised query: position + tangent from same parameter

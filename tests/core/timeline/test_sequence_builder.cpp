@@ -7,7 +7,6 @@
 //   - Nested sequence: local_frame propagation
 //   - 3-level nesting: project → chapter → title
 //   - trim_before in nested context
-//   - Backward compatibility: SceneBuilder& lambda still works
 //   - SequenceBuilder context accessors (local_frame, progress, duration)
 //   - Overlapping sibling sequences in SequenceBuilder
 //   - Nested sequence with trim_before
@@ -38,7 +37,7 @@ TEST_CASE("SequenceBuilder — basic: layer inside sequence") {
 
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
         [](SequenceBuilder& seq) {
-            CHECK(seq.local_frame() == Frame{10});
+            CHECK(seq.local_time().integral_frame() == Frame{10});
             CHECK(seq.duration() == Frame{30});
             CHECK(seq.progress() == doctest::Approx(10.0f / 30.0f));
             seq.layer("bg", [](LayerBuilder& l) {
@@ -78,11 +77,11 @@ TEST_CASE("SequenceBuilder — nested: chapter contains title") {
 
     s.sequence("chapter", {.from = Frame{100}, .duration = Frame{200}},
         [](SequenceBuilder& chapter) {
-            CHECK(chapter.local_frame() == Frame{20});
+            CHECK(chapter.local_time().integral_frame() == Frame{20});
 
             chapter.sequence("title", {.from = Frame{0}, .duration = Frame{30}},
                 [](SequenceBuilder& title) {
-                    CHECK(title.local_frame() == Frame{20});
+                    CHECK(title.local_time().integral_frame() == Frame{20});
                     title.layer("title_layer", [](LayerBuilder& l) {
                         l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     });
@@ -103,12 +102,12 @@ TEST_CASE("SequenceBuilder — nested: inner sequence at local frame 0") {
 
     s.sequence("chapter", {.from = Frame{100}, .duration = Frame{200}},
         [](SequenceBuilder& chapter) {
-            CHECK(chapter.local_frame() == Frame{0});
+            CHECK(chapter.local_time().integral_frame() == Frame{0});
             CHECK(chapter.progress() == doctest::Approx(0.0f));
 
             chapter.sequence("title", {.from = Frame{0}, .duration = Frame{30}},
                 [](SequenceBuilder& title) {
-                    CHECK(title.local_frame() == Frame{0});
+                    CHECK(title.local_time().integral_frame() == Frame{0});
                     CHECK(title.progress() == doctest::Approx(0.0f));
                     title.layer("title_layer", [](LayerBuilder& l) {
                         l.rect("r", {.size = {100, 100}, .color = Color::white()});
@@ -128,7 +127,7 @@ TEST_CASE("SequenceBuilder — nested: inner sequence inactive") {
 
     s.sequence("chapter", {.from = Frame{100}, .duration = Frame{200}},
         [](SequenceBuilder& chapter) {
-            CHECK(chapter.local_frame() == Frame{30});
+            CHECK(chapter.local_time().integral_frame() == Frame{30});
 
             chapter.sequence("title", {.from = Frame{0}, .duration = Frame{30}},
                 [](SequenceBuilder& title) {
@@ -157,15 +156,15 @@ TEST_CASE("SequenceBuilder — 3-level nesting: project → chapter → title") 
 
     s.sequence("project", {.from = Frame{0}, .duration = Frame{300}},
         [](SequenceBuilder& project) {
-            CHECK(project.local_frame() == Frame{120});
+            CHECK(project.local_time().integral_frame() == Frame{120});
 
             project.sequence("chapter", {.from = Frame{100}, .duration = Frame{200}},
                 [](SequenceBuilder& chapter) {
-                    CHECK(chapter.local_frame() == Frame{20});
+                    CHECK(chapter.local_time().integral_frame() == Frame{20});
 
                     chapter.sequence("title", {.from = Frame{0}, .duration = Frame{30}},
                         [](SequenceBuilder& title) {
-                            CHECK(title.local_frame() == Frame{20});
+                            CHECK(title.local_time().integral_frame() == Frame{20});
                             title.layer("title_layer", [](LayerBuilder& l) {
                                 l.rect("r", {.size = {100, 100}, .color = Color::white()});
                             });
@@ -189,15 +188,15 @@ TEST_CASE("SequenceBuilder — 3-level nesting: inner at frame 0") {
 
     s.sequence("project", {.from = Frame{0}, .duration = Frame{300}},
         [](SequenceBuilder& project) {
-            CHECK(project.local_frame() == Frame{100});
+            CHECK(project.local_time().integral_frame() == Frame{100});
 
             project.sequence("chapter", {.from = Frame{100}, .duration = Frame{200}},
                 [](SequenceBuilder& chapter) {
-                    CHECK(chapter.local_frame() == Frame{0});
+                    CHECK(chapter.local_time().integral_frame() == Frame{0});
 
                     chapter.sequence("title", {.from = Frame{0}, .duration = Frame{30}},
                         [](SequenceBuilder& title) {
-                            CHECK(title.local_frame() == Frame{0});
+                            CHECK(title.local_time().integral_frame() == Frame{0});
                             title.layer("title_layer", [](LayerBuilder& l) {
                                 l.rect("r", {.size = {100, 100}, .color = Color::white()});
                             });
@@ -225,7 +224,7 @@ TEST_CASE("SequenceBuilder — nested with trim_before") {
         [](SequenceBuilder& chapter) {
             chapter.sequence("title", {.from = Frame{10}, .duration = Frame{30}, .trim_before = Frame{5}},
                 [](SequenceBuilder& title) {
-                    CHECK(title.local_frame() == Frame{15});
+                    CHECK(title.local_time().integral_frame() == Frame{15});
                     title.layer("title_layer", [](LayerBuilder& l) {
                         l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     });
@@ -251,14 +250,14 @@ TEST_CASE("SequenceBuilder — overlapping sibling sequences") {
         [](SequenceBuilder& parent) {
             parent.sequence("overlay_a", {.from = Frame{0}, .duration = Frame{60}},
                 [](SequenceBuilder& a) {
-                    CHECK(a.local_frame() == Frame{50});
+                    CHECK(a.local_time().integral_frame() == Frame{50});
                     a.layer("layer_a", [](LayerBuilder& l) {
                         l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     });
                 });
             parent.sequence("overlay_b", {.from = Frame{40}, .duration = Frame{60}},
                 [](SequenceBuilder& b) {
-                    CHECK(b.local_frame() == Frame{10});
+                    CHECK(b.local_time().integral_frame() == Frame{10});
                     b.layer("layer_b", [](LayerBuilder& l) {
                         l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     });
@@ -267,27 +266,6 @@ TEST_CASE("SequenceBuilder — overlapping sibling sequences") {
 
     Scene scene = s.build();
     CHECK(scene.layers().size() == 2);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Backward compatibility: SceneBuilder& lambda still works
-// ═══════════════════════════════════════════════════════════════════════════
-
-TEST_CASE("SequenceBuilder — backward compat: SceneBuilder& lambda") {
-    FrameContext ctx = make_seq_ctx(Frame{10});
-    SceneBuilder s(ctx);
-
-    // Old-style lambda taking SceneBuilder&
-    s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
-        [](SceneBuilder& s) {
-            s.layer("bg", [](LayerBuilder& l) {
-                l.rect("r", {.size = {100, 100}, .color = Color::white()});
-            });
-        });
-
-    Scene scene = s.build();
-    CHECK(scene.layers().size() == 1);
-    CHECK(std::string(scene.layers()[0].name.c_str()) == "bg");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -303,12 +281,8 @@ TEST_CASE("SequenceBuilder — context propagation") {
 
     s.sequence("test", {.from = Frame{0}, .duration = Frame{60}},
         [](SequenceBuilder& seq) {
-            const auto& c = seq.context();
-            CHECK(c.width == 1280);
-            CHECK(c.height == 720);
-            CHECK(c.frame_rate().numerator == 24);
-            CHECK(c.frame() == Frame{10});
-            CHECK(c.local_time().integral_frame() == Frame{10});
-            CHECK(c.duration() == Frame{60});
+            CHECK(seq.local_time().frame_rate.numerator == 24);
+            CHECK(seq.local_time().integral_frame() == Frame{10});
+            CHECK(seq.duration() == Frame{60});
         });
 }

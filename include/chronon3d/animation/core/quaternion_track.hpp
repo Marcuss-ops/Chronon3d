@@ -19,7 +19,7 @@
 //   rot.key(Frame{0},  glm::quat_identity<float, glm::defaultp>())
 //      .key(Frame{60}, glm::angleAxis(glm::radians(90.0f), Vec3{0, 1, 0}),
 //           EasingCurve{Easing::InOutCubic});
-//   Quat q = rot.evaluate(Frame{30});
+//   Quat q = rot.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}));
 //
 // Integration with AnimatedTransform:
 //   AnimatedTransform now stores `rotation` as AnimatedQuat instead of
@@ -139,11 +139,6 @@ public:
     /// Sub-frame evaluation (primary entry point).
     [[nodiscard]] Quat evaluate(SampleTime time) const {
         return evaluate_double(time.frame);
-    }
-
-    /// Integer-frame evaluation (backward compatible).
-    [[nodiscard]] Quat evaluate(Frame frame) const {
-        return evaluate_double(static_cast<double>(frame));
     }
 
     // ── Queries ──────────────────────────────────────────────────────────────

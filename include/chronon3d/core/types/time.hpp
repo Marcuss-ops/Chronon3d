@@ -14,16 +14,17 @@ enum class FrameRounding {
     Ceiling, ///< Round up to the next frame.
 };
 
+enum class MinimumFrameDuration {
+    AllowEmpty,
+    AtLeastOneFrame,
+};
+
 struct FrameRate {
     i32 numerator{30};
     i32 denominator{1};
 
     [[nodiscard]] constexpr TimeSeconds to_seconds(Frame frame) const {
         return static_cast<TimeSeconds>(frame) * denominator / numerator;
-    }
-
-    [[nodiscard]] constexpr Frame to_frame(TimeSeconds seconds) const {
-        return static_cast<Frame>(seconds * numerator / denominator);
     }
 
     [[nodiscard]] constexpr f64 fps() const {
@@ -81,5 +82,25 @@ struct TimeRange {
         return static_cast<f32>(frame - start) / static_cast<f32>(duration());
     }
 };
+
+/// Resolve a seconds interval into the canonical half-open frame interval.
+/// Endpoints use the same rounding policy so every timeline consumer shares
+/// one boundary contract. Reversed endpoints collapse to an empty range.
+[[nodiscard]] inline TimeRange resolve_frame_range(
+    TimeSeconds start_seconds,
+    TimeSeconds end_seconds,
+    FrameRate rate,
+    MinimumFrameDuration minimum = MinimumFrameDuration::AllowEmpty,
+    FrameRounding rounding = FrameRounding::Nearest) {
+    const Frame start = seconds_to_frame(start_seconds, rate, rounding);
+    Frame end = seconds_to_frame(end_seconds, rate, rounding);
+    if (end < start) {
+        end = start;
+    }
+    if (minimum == MinimumFrameDuration::AtLeastOneFrame && end <= start) {
+        end = start + Frame{1};
+    }
+    return TimeRange{.start = start, .end = end};
+}
 
 } // namespace chronon3d

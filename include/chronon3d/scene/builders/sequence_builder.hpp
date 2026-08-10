@@ -5,7 +5,7 @@
 // SequenceBuilder wraps a SceneBuilder and provides sequence-aware methods:
 //   - layer(), screen_layer(), etc. (delegate to SceneBuilder)
 //   - sequence() for nesting (creates nested SequenceBuilder)
-//   - local_frame(), progress(), duration() context accessors
+//   - local_time(), progress(), duration() context accessors
 //
 // Usage:
 //   s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
@@ -19,9 +19,8 @@
 //         });
 //     });
 //
-// The SequenceBuilder is created by SceneBuilder::sequence() when the lambda
-// takes SequenceBuilder& (detected via if constexpr / std::is_invocable_v).
-// Existing code using [](SceneBuilder& s) remains fully backward-compatible.
+// The SequenceBuilder is created by SceneBuilder::sequence() for the typed
+// sequence callback surface.
 
 #pragma once
 
@@ -37,9 +36,9 @@ namespace chronon3d {
 class SequenceBuilder {
 public:
     SequenceBuilder(SceneBuilder& builder, FrameContext ctx,
-                    Frame local_frame, Frame duration, f32 progress)
+                    Frame duration, f32 progress)
         : m_builder(builder), m_ctx(std::move(ctx)),
-          m_local_frame(local_frame), m_duration(duration), m_progress(progress) {}
+          m_duration(duration), m_progress(progress) {}
 
     // ── Layer methods (delegate to SceneBuilder) ─────────────────────
 
@@ -110,7 +109,7 @@ public:
     template <typename Fn>
     SequenceBuilder& sequence(const std::string& name,
                               SceneBuilder::SequenceSpec spec, Fn&& fn) {
-        m_builder.compile_sequence(m_local_frame, m_ctx, spec,
+        m_builder.compile_sequence(m_ctx.frame(), m_ctx, spec,
                                    std::forward<Fn>(fn),
                                    m_builder.scene_,
                                    m_builder.m_shape_registry);
@@ -128,25 +127,18 @@ public:
 
     // ── Context accessors ───────────────────────────────────────────
 
-    [[nodiscard]] Frame local_frame() const noexcept { return m_local_frame; }
+    [[nodiscard]] SampleTime local_time() const noexcept { return m_ctx.local_time(); }
     [[nodiscard]] Frame duration() const noexcept { return m_duration; }
     [[nodiscard]] f32 progress() const noexcept { return m_progress; }
-    [[nodiscard]] const FrameContext& context() const noexcept { return m_ctx; }
 
     /// Series authoring sugar: add sequential sequences with cumulative `from`.
     [[nodiscard]] SeriesBuilder series(const std::string& name = {}) {
         return m_builder.series(name);
     }
 
-    /// Escape hatch: access the underlying SceneBuilder for methods not
-    /// yet wrapped by SequenceBuilder.
-    [[nodiscard]] SceneBuilder& builder() noexcept { return m_builder; }
-    [[nodiscard]] const SceneBuilder& builder() const noexcept { return m_builder; }
-
 private:
     SceneBuilder& m_builder;
     FrameContext m_ctx{};
-    Frame m_local_frame{0};
     Frame m_duration{0};
     f32 m_progress{0.0f};
 };

@@ -31,14 +31,10 @@
 //   `std::is_invocable_v<Fn, Scene&, const FrameContext&>` guards the
 //   closure signature BEFORE the lambda capture happens.
 //
-// ── Lifetime model — SceneBuilder lives INSIDE the SceneFunction ────
+// ── Lifetime model — the internal builder is scoped to evaluation ───
 //
-//   Each `Composition::evaluate(FrameContext)` constructs a fresh
-//   SceneBuilder inside the render-fn closure via `m_render(ctx)`.
-//   PR 4's render-fn mirrors that — the owned-builder is a local
-//   variable inside the closure, NOT a member of CompositionBuilder.
-//   This avoids dangling-pointer pitfalls when a Composition is moved
-//   across CompositionBuilder boundaries.
+//   Each evaluation receives an explicit FrameContext and builds through the
+//   canonical typed authoring surface inside the render-fn closure.
 //
 // ── Output type ───────────────────────────────────────────────────────
 //
@@ -57,10 +53,7 @@
 //    //   Builder surface is intentionally narrow:
     //     • spec setters: name / width / height / duration / frame_rate
     //       (one per CompositionSpec field).
-    //     • .scene(fn) render-fn setter (one lambda per composition).
-//     • .custom_builder(fn) injection point for callers needing a
-//       non-default SceneBuilder ctor (custom pmr resource, custom
-//       shape_registry).
+//     • .scene(fn) render-fn setter (one lambda per composition).
 //     • .build() terminal — consumes the builder, returns Composition.
 //
 //   Everything beyond (e.g. register_with(CompositionRegistry&)) stays
@@ -146,28 +139,6 @@ public:
         return std::move(*this);
     }
 
-    /// Custom SceneBuilder factory — let users inject shape_registry,
-    /// pmr resource, or other customisations.  When unset, the render
-    /// closure falls back to the default `SceneBuilder(ctx)` ctor
-    /// (which constructs a default ShapeRegistry internally if none
-    /// was attached upstream).
-    template <class Fn>
-    CompositionBuilder& custom_builder(Fn&& factory) & {
-        custom_builder_fn_ = [factory = std::forward<Fn>(factory)]
-            (const chronon3d::FrameContext& ctx) -> SceneBuilder {
-            return factory(ctx);
-        };
-        return *this;
-    }
-    template <class Fn>
-    CompositionBuilder&& custom_builder(Fn&& factory) && {
-        custom_builder_fn_ = [factory = std::forward<Fn>(factory)]
-            (const chronon3d::FrameContext& ctx) -> SceneBuilder {
-            return factory(ctx);
-        };
-        return std::move(*this);
-    }
-
     // ── Render function setter ──────────────────────────────────────
     //
     // Closure receives authoring::Scene& + the engine FrameContext.
@@ -189,11 +160,9 @@ public:
         static_assert(std::is_invocable_v<Fn, Scene&, const chronon3d::FrameContext&>,
                       "CompositionBuilder::scene(fn): fn must be invocable as "
                       "fn(chronon3d::authoring::Scene&, const chronon3d::FrameContext&).");
-        auto custom_snapshot = custom_builder_fn_;
-        render_fn_ = [user_fn = std::forward<Fn>(fn),
-                      custom = std::move(custom_snapshot)]
+        render_fn_ = [user_fn = std::forward<Fn>(fn)]
             (const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
-            SceneBuilder builder = custom ? custom(ctx) : SceneBuilder(ctx);
+            SceneBuilder builder(ctx);
             Scene scene_handle(builder, ctx);
             user_fn(scene_handle, ctx);
             return builder.build();
@@ -205,11 +174,9 @@ public:
         static_assert(std::is_invocable_v<Fn, Scene&, const chronon3d::FrameContext&>,
                       "CompositionBuilder::scene(fn): fn must be invocable as "
                       "fn(chronon3d::authoring::Scene&, const chronon3d::FrameContext&).");
-        auto custom_snapshot = custom_builder_fn_;
-        render_fn_ = [user_fn = std::forward<Fn>(fn),
-                      custom = std::move(custom_snapshot)]
+        render_fn_ = [user_fn = std::forward<Fn>(fn)]
             (const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
-            SceneBuilder builder = custom ? custom(ctx) : SceneBuilder(ctx);
+            SceneBuilder builder(ctx);
             Scene scene_handle(builder, ctx);
             user_fn(scene_handle, ctx);
             return builder.build();
@@ -237,14 +204,8 @@ private:
     // CompositionSpec accumulates via chain setters; moves into chronon3d::Composition at build() time.
     chronon3d::CompositionSpec spec_{};
 
-    // Owned-by-value render function.  Captured std::function for
-    // generic-lambda + custom-builder-factory composition; the closure
-    // body is inlined by the compiler on most modern toolchains.
+    // Owned-by-value render function.
     std::function<chronon3d::Scene(const chronon3d::FrameContext&)> render_fn_{};
-
-    // Optional SceneBuilder factory — captured by scene() so the closure
-    // doesn't reach back into *this (avoids dangling-pointer risk).
-    std::function<SceneBuilder(const chronon3d::FrameContext&)> custom_builder_fn_{};
 };
 
 // ── Free factory — the canonical entry point ────────────────────────
