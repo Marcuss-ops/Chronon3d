@@ -2,11 +2,97 @@
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
 #include <chronon3d/geometry/mesh.hpp>
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <vector>
 #include <span>
 
 namespace chronon3d {
 namespace renderer {
+namespace {
+
+using ViewVertex = Vec4;
+
+// Clip a view-space polygon against one half-space. The signed distance
+// function must be non-negative for points inside the half-space.
+void clip_polygon(std::vector<ViewVertex>& polygon,
+                  const auto& signed_distance) {
+    if (polygon.empty()) return;
+
+    std::vector<ViewVertex> clipped;
+    clipped.reserve(polygon.size() + 1);
+    for (usize i = 0; i < polygon.size(); ++i) {
+        const ViewVertex& a = polygon[i];
+        const ViewVertex& b = polygon[(i + 1) % polygon.size()];
+        const float distance_a = signed_distance(a);
+        const float distance_b = signed_distance(b);
+        const bool inside_a = distance_a >= 0.0f;
+        const bool inside_b = distance_b >= 0.0f;
+
+        if (inside_a && inside_b) {
+            clipped.push_back(b);
+        } else if (inside_a != inside_b) {
+            const float denominator = distance_a - distance_b;
+            if (std::abs(denominator) > 1e-7f) {
+                const float t = distance_a / denominator;
+                clipped.push_back(a + t * (b - a));
+            }
+            if (inside_b) clipped.push_back(b);
+        }
+    }
+    polygon.swap(clipped);
+}
+
+void render_clipped_triangle(
+    Framebuffer& fb,
+    const std::array<Vec4, 3>& view_triangle,
+    const Mat4& projection,
+    const Color& color,
+    std::span<float> depth_buffer,
+    float near_plane,
+    float far_plane)
+{
+    std::vector<ViewVertex> polygon(view_triangle.begin(), view_triangle.end());
+
+    // GLM's perspective projection is right-handed: visible view-space Z is
+    // negative. Clip before the perspective divide so w never approaches
+    // zero and no behind-camera triangle can wrap around the framebuffer.
+    clip_polygon(polygon, [near_plane](const ViewVertex& v) {
+        return -near_plane - v.z; // v.z <= -near_plane
+    });
+    clip_polygon(polygon, [far_plane](const ViewVertex& v) {
+        return v.z + far_plane; // v.z >= -far_plane
+    });
+    if (polygon.size() < 3) return;
+
+    std::vector<Vec3> projected;
+    projected.reserve(polygon.size());
+    for (const ViewVertex& view_vertex : polygon) {
+        const float depth = -view_vertex.z;
+        if (!(depth > 0.0f) || !std::isfinite(depth)) return;
+
+        const Vec4 clip = projection * view_vertex;
+        if (!(clip.w > 1e-6f) || !std::isfinite(clip.w)) return;
+        const Vec2 ndc{clip.x / clip.w, clip.y / clip.w};
+        if (!std::isfinite(ndc.x) || !std::isfinite(ndc.y)) return;
+
+        projected.push_back({
+            (ndc.x + 1.0f) * 0.5f * static_cast<float>(fb.width()),
+            (1.0f - (ndc.y + 1.0f) * 0.5f) * static_cast<float>(fb.height()),
+            1.0f / depth,
+        });
+    }
+
+    // Sutherland-Hodgman can turn one triangle into a quad. Fan triangulation
+    // preserves the clipped polygon and keeps the rasterizer triangle-based.
+    for (usize i = 1; i + 1 < projected.size(); ++i) {
+        Vec3 triangle[3] = {projected[0], projected[i], projected[i + 1]};
+        fill_triangle_perspective(fb, triangle, color, depth_buffer);
+    }
+}
+
+} // namespace
 
 void render_mesh_wireframe(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
@@ -23,7 +109,7 @@ void render_mesh_wireframe(
         projected[i] = {(p.x + 1.0f) * 0.5f * fb.width(),
                         (1.0f - (p.y + 1.0f) * 0.5f) * fb.height(), 0.0f};
     }
-    for (usize i = 0; i < indices.size(); i += 3) {
+    for (usize i = 0; i + 2 < indices.size(); i += 3) {
         bline(fb, Vec2(projected[indices[i]]),   Vec2(projected[indices[i+1]]), color);
         bline(fb, Vec2(projected[indices[i+1]]), Vec2(projected[indices[i+2]]), color);
         bline(fb, Vec2(projected[indices[i+2]]), Vec2(projected[indices[i]]),   color);
@@ -33,53 +119,48 @@ void render_mesh_wireframe(
 void render_mesh_filled(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
     const Mat4& view, const Mat4& proj, const Color& color,
-    std::span<float> depth_buffer)
+    std::span<float> depth_buffer, f32 near_plane, f32 far_plane)
 {
-    const Mat4 mvp = proj * view * model;
     const auto& vertices = mesh.vertices();
     const auto& indices  = mesh.indices();
+    if (vertices.empty() || indices.size() < 3) return;
 
     // The caller owns the frame-local depth buffer so multiple mesh parts
-    // participate in one depth ordering. An invalid span preserves the
-    // historical no-depth behavior of the low-level helper.
+    // participate in one depth ordering. The depth buffer stores positive
+    // camera-space distance; the perspective rasterizer receives 1 / depth.
+    const Mat4 view_model = view * model;
+    // Clip against the same frustum planes used to build the projection
+    // matrix. The software processor passes these camera values explicitly;
+    // the low-level renderer remains independent of Camera.
+    near_plane = std::max(near_plane, 1e-5f);
+    far_plane = std::max(far_plane, near_plane + 1e-5f);
 
-    std::vector<Vec3> projected(vertices.size());
-    for (usize i = 0; i < vertices.size(); ++i) {
-        // Screen-space XY
-        Vec4 p = mvp * Vec4(vertices[i].position, 1.0f);
-        bool ok = (p.w != 0.0f);
-        if (ok) { p.x /= p.w; p.y /= p.w; }
-        const float sx = (p.x + 1.0f) * 0.5f * fb.width();
-        const float sy = (1.0f - (p.y + 1.0f) * 0.5f) * fb.height();
+    for (usize i = 0; i + 2 < indices.size(); i += 3) {
+        const u32 ia = indices[i];
+        const u32 ib = indices[i + 1];
+        const u32 ic = indices[i + 2];
+        if (ia >= vertices.size() || ib >= vertices.size() || ic >= vertices.size()) continue;
 
-        // Camera-space Z for depth testing: transform to view space
-        Vec4 view_p = view * model * Vec4(vertices[i].position, 1.0f);
-        // Camera::projection_matrix() uses GLM's right-handed perspective
-        // convention: visible points have negative view-space Z. Store a
-        // positive distance so the shared scanline depth test (smaller is
-        // nearer) remains backend-independent.
-        const float cam_z = -view_p.z;
-
-        projected[i] = {sx, sy, cam_z};
-    }
-
-    for (usize i = 0; i < indices.size(); i += 3) {
-        Vec3 tri[3] = {
-            projected[indices[i]],
-            projected[indices[i+1]],
-            projected[indices[i+2]],
+        const std::array<Vec4, 3> view_triangle = {
+            view_model * Vec4(vertices[ia].position, 1.0f),
+            view_model * Vec4(vertices[ib].position, 1.0f),
+            view_model * Vec4(vertices[ic].position, 1.0f),
         };
-        fill_triangle(fb, tri, color, depth_buffer);
+        render_clipped_triangle(
+            fb, view_triangle, proj, color, depth_buffer,
+            near_plane, far_plane);
     }
 }
 
 void render_mesh_filled(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
-    const Mat4& view, const Mat4& proj, const Color& color)
+    const Mat4& view, const Mat4& proj, const Color& color,
+    f32 near_plane, f32 far_plane)
 {
-    std::vector<float> depth_buffer_vec(
+    std::vector<float> depth_buffer(
         static_cast<size_t>(fb.width()) * static_cast<size_t>(fb.height()), 0.0f);
-    render_mesh_filled(fb, mesh, model, view, proj, color, depth_buffer_vec);
+    render_mesh_filled(fb, mesh, model, view, proj, color, depth_buffer,
+                       near_plane, far_plane);
 }
 
 } // namespace renderer
