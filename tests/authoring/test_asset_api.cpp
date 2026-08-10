@@ -17,6 +17,7 @@
 using chronon3d::assets::AssetKind;
 using chronon3d::assets::FontRef;
 using chronon3d::assets::ImageRef;
+using chronon3d::assets::MeshRef;
 using chronon3d::authoring::asset;
 
 namespace {
@@ -44,16 +45,19 @@ TEST_CASE("audit-§10: explicit asset<K> remains concretely typed") {
     auto font = asset<AssetKind::Font>("fonts/x.ttf");
     auto video = asset<AssetKind::Video>("videos/x.mp4");
     auto audio = asset<AssetKind::Audio>("audio/x.wav");
+    auto mesh = asset<AssetKind::Mesh>("models/phone.glb");
 
     static_assert(decltype(image)::kind == AssetKind::Image);
     static_assert(decltype(font)::kind == AssetKind::Font);
     static_assert(decltype(video)::kind == AssetKind::Video);
     static_assert(decltype(audio)::kind == AssetKind::Audio);
+    static_assert(decltype(mesh)::kind == AssetKind::Mesh);
 
     CHECK(image.path() == "images/x.png");
     CHECK(font.path() == "fonts/x.ttf");
     CHECK(video.path() == "videos/x.mp4");
     CHECK(audio.path() == "audio/x.wav");
+    CHECK(mesh.path() == "models/phone.glb");
 }
 
 TEST_CASE("audit-§10: Text::font keeps the typed FontRef bridge") {
@@ -79,6 +83,7 @@ TEST_CASE("audit-§10: logical asset converts to the consumer-requested kind") {
                   "logical asset paths must not pretend to have an intrinsic kind");
     static_assert(std::is_convertible_v<LogicalAsset, ImageRef>);
     static_assert(std::is_convertible_v<LogicalAsset, FontRef>);
+    static_assert(std::is_convertible_v<LogicalAsset, MeshRef>);
 
     using LayerImageSignature = chronon3d::NodeHandle (authoring::Layer::*)(
         std::string, ImageRef);
@@ -102,10 +107,13 @@ TEST_CASE("audit-§10: logical asset converts to the consumer-requested kind") {
 
     ImageRef image = asset("images/logo.png", "logo");
     FontRef font = asset("fonts/Inter.ttf", "headline");
+    MeshRef mesh = asset("models/phone.glb", "hero/mesh");
     CHECK(image.path() == "images/logo.png");
     CHECK(font.path() == "fonts/Inter.ttf");
     CHECK(image.owner() == "logo");
     CHECK(font.owner() == "headline");
+    CHECK(mesh.path() == "models/phone.glb");
+    CHECK(mesh.owner() == "hero/mesh");
 }
 
 TEST_CASE("audit-§10: logical image path reaches canonical ImageParams") {
