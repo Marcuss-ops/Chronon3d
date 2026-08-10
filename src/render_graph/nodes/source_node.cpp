@@ -119,10 +119,11 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
 
     // TICKET-122 FASE 3: GridPlane now goes through 2.5D projection above,
     // so it uses the standard compute_world_bbox path (not native 3D).
-    if (m_apply_camera_projection && ctx.frame_input.has_camera_2_5d &&
-        m_node.shape.type() == ShapeType::FakeBox3D) {
-        const Mat4 world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-        if (auto bbox = detail::projected_native_3d_bbox(ctx, m_node, world_matrix, spread)) {
+    if (m_node.shape.type() == ShapeType::Mesh ||
+        (m_apply_camera_projection && ctx.frame_input.has_camera_2_5d &&
+         m_node.shape.type() == ShapeType::FakeBox3D)) {
+        if (auto bbox = detail::projected_native_3d_bbox(
+                ctx, m_node, placement->render_matrix, spread)) {
             return bbox;
         }
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
@@ -172,12 +173,11 @@ std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
     }
 
     const f32 spread = 8.0f;
-    if (node.m_apply_camera_projection && ctx.frame_input.has_camera_2_5d &&
-        node.m_node.shape.type() == ShapeType::FakeBox3D) {
+    if (node.m_node.shape.type() == ShapeType::Mesh ||
+        (node.m_apply_camera_projection && ctx.frame_input.has_camera_2_5d &&
+         node.m_node.shape.type() == ShapeType::FakeBox3D)) {
         return detail::projected_native_3d_bbox(
-            ctx, node.m_node,
-            node.m_matrix_override.value_or(node.m_node.world_transform.to_mat4()),
-            spread);
+            ctx, node.m_node, placement->render_matrix, spread);
     }
     return renderer::compute_world_bbox(
         node.m_node.shape, placement->render_matrix, spread);
@@ -247,7 +247,7 @@ NodeExecResult SourceNode::execute(
             ctx,
             m_apply_camera_projection,
             m_defer_camera_projection,
-            false,
+            m_native_3d,
             m_name,
             "execute",
             static_cast<std::size_t>(-1),

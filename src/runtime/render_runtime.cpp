@@ -44,10 +44,61 @@
 #include <mutex>
 #include <stdexcept>
 #include <utility>
+#include <algorithm>
+#include <vector>
 
 #include <filesystem>
 
 namespace chronon3d::runtime {
+
+namespace {
+
+std::string mesh_manifest_key(const assets::AssetManifest& manifest) {
+    std::vector<std::string> entries;
+    for (const auto& ref : manifest.filter(assets::AssetKind::Mesh)) {
+        entries.push_back(ref.owner + "\n" + ref.path);
+    }
+    std::sort(entries.begin(), entries.end());
+    entries.erase(std::unique(entries.begin(), entries.end()), entries.end());
+    std::string key;
+    for (const auto& entry : entries) {
+        key += entry;
+        key.push_back('\n');
+    }
+    return key;
+}
+
+std::string prepared_mesh_key(const PreparedAssets& prepared) {
+    std::vector<std::string> entries;
+    entries.reserve(prepared.meshes.size());
+    for (const auto& [owner, mesh] : prepared.meshes) {
+        entries.push_back(owner + "\n" + mesh.path);
+    }
+    std::sort(entries.begin(), entries.end());
+    std::string key;
+    for (const auto& entry : entries) {
+        key += entry;
+        key.push_back('\n');
+    }
+    return key;
+}
+
+} // namespace
+
+void RenderRuntime::publish_prepared_assets(const PreparedAssets& prepared) {
+    std::lock_guard lock(m_prepared_assets_mutex);
+    m_prepared_assets = std::make_shared<const PreparedAssets>(prepared);
+    m_prepared_mesh_manifest_key = prepared_mesh_key(prepared);
+}
+
+std::shared_ptr<const PreparedAssets>
+RenderRuntime::prepared_assets_for(const assets::AssetManifest& manifest) const {
+    const auto requested_key = mesh_manifest_key(manifest);
+    if (requested_key.empty()) return {};
+    std::lock_guard lock(m_prepared_assets_mutex);
+    if (!m_prepared_assets || m_prepared_mesh_manifest_key != requested_key) return {};
+    return m_prepared_assets;
+}
 
 // Fase B2 (DONE) — process_wide_assets_root globals REMOVED.
 // The anonymous namespace that previously held the global string +

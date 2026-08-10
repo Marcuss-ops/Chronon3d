@@ -5,6 +5,7 @@
 #include "../../builder/graph_builder_coordinates.hpp"
 #include "../../builder/evaluated_layer_placement.hpp"
 #include "../../builder/graph_builder_internal.hpp"
+#include "../../builder/passes/graph_builder_source_pass.hpp"
 
 namespace chronon3d::graph::detail {
 
@@ -38,7 +39,12 @@ void refresh_multi_source_node(
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());
     u64 aggregated_params_hash = 0;
-    for (const auto& src_node : layer.nodes) {
+    std::vector<RenderNode> materialized_nodes;
+    materialized_nodes.reserve(layer.nodes.size());
+    for (const auto& authored_node : layer.nodes) {
+        materialized_nodes.push_back(materialize_mesh_node(authored_node, ctx));
+    }
+    for (const auto& src_node : materialized_nodes) {
         const auto source_placement = evaluate_source_placement(item, src_node, ctx);
         const Mat4 render_matrix = finalize_source_placement_matrix(
             source_placement, item, src_node, ctx);

@@ -97,6 +97,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         temporal_context ? temporal_context->sample_key : TemporalSampleKey{});
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
+
     if (isolated_temporal_sample) {
         // Temporal samples get their own session/cache domains. The renderer
         // sidecar is still borrowed for immutable runtime services (backend,

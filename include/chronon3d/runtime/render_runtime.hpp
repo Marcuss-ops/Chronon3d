@@ -3,6 +3,7 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
+#include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
@@ -81,6 +82,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <mutex>
 #include <string>
 
 namespace chronon3d {
@@ -214,6 +216,16 @@ public:
     [[nodiscard]] chronon3d::assets::MeshPreparationCache& mesh_cache() noexcept { return m_mesh_cache; }
     [[nodiscard]] const chronon3d::assets::MeshPreparationCache& mesh_cache() const noexcept { return m_mesh_cache; }
 
+    /// Publish the immutable resource snapshot produced by the preparation
+    /// barrier. RenderGraph borrows this snapshot and never performs asset I/O.
+    void publish_prepared_assets(const PreparedAssets& prepared);
+
+    /// Return the prepared snapshot only when it belongs to this manifest.
+    /// The returned shared pointer keeps the immutable data alive for the
+    /// complete graph-build/render invocation.
+    [[nodiscard]] std::shared_ptr<const PreparedAssets>
+    prepared_assets_for(const assets::AssetManifest& manifest) const;
+
     // ── WP-9 PR 9.0 / R1 — FontEngine slot ----------------------------
     /// RenderRuntime now OWNS the per-runtime FontEngine.  The accessor
     /// returns a reference because the engine is constructed during
@@ -300,6 +312,9 @@ private:
     /// member so lifetime is the runtime's, deterministic per engine.
     chronon3d::assets::AssetResolver                    m_resolver;
     chronon3d::assets::MeshPreparationCache              m_mesh_cache{};
+    mutable std::mutex                                  m_prepared_assets_mutex;
+    std::shared_ptr<const PreparedAssets>                m_prepared_assets{};
+    std::string                                         m_prepared_mesh_manifest_key;
 
     // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
     // at object-init time so even pre-populate() callers can use diagnostics() directly.

@@ -8,13 +8,52 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
+#include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
+#include <stdexcept>
 #include <memory>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::detail {
 
 using namespace chronon3d::graph;
+
+::chronon3d::RenderNode materialize_mesh_node(
+    const ::chronon3d::RenderNode& node,
+    const RenderGraphContext& ctx) {
+    if (node.shape.type() != ShapeType::Mesh) return node;
+
+    auto materialized = node;
+    auto& mesh_shape = materialized.shape.mesh_shape();
+    if (mesh_shape.prepared || mesh_shape.mesh) {
+        return materialized;
+    }
+    if (mesh_shape.reference.path().empty()) {
+        if (mesh_shape.reference.required()) {
+            throw std::runtime_error(
+                "Mesh source preparation failed: required mesh reference has an empty path");
+        }
+        return materialized;
+    }
+    if (!ctx.services.prepared_assets) {
+        throw std::runtime_error(
+            "Mesh source cannot be materialized: matching preparation snapshot is not wired");
+    }
+
+    // Graph construction consumes only the immutable source populated by the
+    // preparation barrier. It must never resolve paths or invoke MeshLoader.
+    const auto prepared = ctx.services.prepared_assets->meshes.find(
+        mesh_shape.reference.owner());
+    if (prepared == ctx.services.prepared_assets->meshes.end() ||
+        prepared->second.path != mesh_shape.reference.path() ||
+        !prepared->second.source) {
+        throw std::runtime_error(
+            "Mesh source was not prepared before RenderGraph build: "
+            + mesh_shape.reference.path());
+    }
+    mesh_shape.prepared = prepared->second.source;
+    return materialized;
+}
 
 GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                                const RenderGraphContext& ctx,
@@ -62,7 +101,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // camera ownership; local and canvas paths retain their existing
         // source matrices.
         if (layer.nodes.size() == 1) {
-            const auto& node = layer.nodes[0];
+            const auto& authored_node = layer.nodes[0];
+            const auto node = materialize_mesh_node(authored_node, ctx);
             const u64 content_hash = hash_render_node_content_only(node);
             const u64 placement_hash = hash_render_node_placement_only(node);
             GraphNodeId source;
@@ -181,7 +221,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         u64 aggregated_params_hash = 0;
         u64 aggregated_source_hash = hash_string(std::string(layer.name) + "_multisource");
         bool saw_orphan_text_run = false;
-        for (const auto& node : layer.nodes) {
+        for (const auto& authored_node : layer.nodes) {
+            const auto node = materialize_mesh_node(authored_node, ctx);
             if (node.shape.type() == ShapeType::TextRun
                 && !node.shape.text_run_shape_handle().value) {
                 saw_orphan_text_run = true;
@@ -213,8 +254,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
         }
 
+        std::vector<RenderNode> materialized_nodes;
+        materialized_nodes.reserve(layer.nodes.size());
+        for (const auto& authored_node : layer.nodes) {
+            materialized_nodes.push_back(materialize_mesh_node(authored_node, ctx));
+        }
         std::vector<MultiSourceItem> items;
-        items.reserve(layer.nodes.size());
+        items.reserve(materialized_nodes.size());
 
         // Items are pushed unconditionally — even TextRun-typed nodes —
         // because MultiSourceNode::execute() dispatches on
@@ -222,7 +268,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // layer.nodes vector order, so later items composite SRC_OVER
         // earlier ones on the shared framebuffer (matches pre-PR-6
         // behaviour for non-text items).
-        for (const auto& node : layer.nodes) {
+        for (const auto& node : materialized_nodes) {
             const auto source_placement = evaluate_source_placement(item, node, ctx);
             const Mat4 shape_matrix = finalize_source_placement_matrix(
                 source_placement, item, node, ctx);
