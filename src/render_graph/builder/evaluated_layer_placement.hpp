@@ -261,7 +261,13 @@ struct EvaluatedLayerPlacement {
     if (item.projected && !item.native_3d) {
         result.space = EvaluatedCoordinateSpace::CameraProjected;
         result.source_matrix = implicit_canvas_center_matrix(ctx);
-        result.render_matrix = result.projection_matrix;
+        // Camera space is Y-up while raster surfaces are stored top-down.
+        // Convert the local surface basis exactly once before the camera
+        // homography reaches TransformNode; otherwise every projected text
+        // surface is vertically mirrored at zero rotation.
+        const Mat4 surface_y_down = glm::scale(
+            Mat4(1.0f), Vec3(1.0f, -1.0f, 1.0f));
+        result.render_matrix = result.projection_matrix * surface_y_down;
         return result;
     }
 
@@ -431,7 +437,10 @@ struct EvaluatedSourcePlacement {
             ctx.frame_input.camera_2_5d,
             static_cast<f32>(ctx.frame_input.width),
             static_cast<f32>(ctx.frame_input.height),
-            ctx.policy.diagnostics_enabled);
+            ctx.policy.diagnostics_enabled,
+            {static_cast<f32>(ctx.frame_input.width),
+             static_cast<f32>(ctx.frame_input.height)},
+            BackfaceMode::Hidden);
         item.projected = true;
         item.visible = item.visible && projected.visible;
         if (!projected.visible) {

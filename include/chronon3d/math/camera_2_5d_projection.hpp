@@ -121,7 +121,9 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Camera2_5D& camera,
     f32 viewport_width,
     f32 viewport_height,
-    bool diagnostics_enabled = false
+    bool diagnostics_enabled = false,
+    Vec2 surface_size = {0.0f, 0.0f},
+    BackfaceMode backface_mode = BackfaceMode::DoubleSided
 ) {
     ProjectedLayer2_5D out;
     out.transform = layer_transform;
@@ -129,13 +131,16 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // ── Build input for CameraProjectionResolver ────────────────────────────
     CameraProjectionInput input;
     input.world_transform = layer_matrix;
-    input.layer_size = {
-        std::abs(layer_transform.scale.x),
-        std::abs(layer_transform.scale.y)
-    };
+    // `layer_size` describes the unscaled local surface, not the TRS scale.
+    // The downstream TransformNode samples the raster surface in its own
+    // pixel space; using the scale here (often 1x1) projects the wrong quad.
+    if (surface_size.x <= 0.0f || surface_size.y <= 0.0f) {
+        surface_size = {viewport_width, viewport_height};
+    }
+    input.layer_size = surface_size;
     input.camera = camera;
     input.viewport = {viewport_width, viewport_height};
-    input.backface_mode = BackfaceMode::DoubleSided;
+    input.backface_mode = backface_mode;
 
     // ── Project via the unified resolver ────────────────────────────────────
     auto proj = CameraProjectionResolver::project_layer(input);
@@ -173,8 +178,12 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // while still allowing sub-pixel sizes for far layers.
     const f32 bbox_w = std::max(1e-6f, max_pos.x - min_pos.x);
     const f32 bbox_h = std::max(1e-6f, max_pos.y - min_pos.y);
-    out.transform.scale.x = bbox_w;
-    out.transform.scale.y = bbox_h;
+    // Keep the historical TRS contract (perspective scale relative to the
+    // source surface) while the resolver itself works in real surface pixels.
+    // The projection matrix remains the authoritative homography for the
+    // downstream TransformNode.
+    out.transform.scale.x = bbox_w / surface_size.x;
+    out.transform.scale.y = bbox_h / surface_size.y;
     // Normalize residual TRS fields so callers using proj.transform.to_mat4()
     // get a clean screen-space TRS (X/Y from the projected bbox, Z = identity,
     // rotation = identity, anchor = origin). Without these writes,
@@ -213,7 +222,8 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 ) {
     return project_layer_2_5d(layer_transform, layer_transform.to_mat4(),
                               camera, viewport_width, viewport_height,
-                              diagnostics_enabled);
+                              diagnostics_enabled,
+                              {viewport_width, viewport_height});
 }
 
 inline constexpr f32 quad_signed_area(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3) {

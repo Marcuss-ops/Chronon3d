@@ -132,7 +132,10 @@ inline std::optional<Mat4> project_to_camera_space(
         ctx.frame_input.camera_2_5d,
         static_cast<f32>(ctx.frame_input.width),
         static_cast<f32>(ctx.frame_input.height),
-        false);
+        false,
+        {static_cast<f32>(ctx.frame_input.width),
+         static_cast<f32>(ctx.frame_input.height)},
+        chronon3d::BackfaceMode::Hidden);
     if (!proj.visible) {
         if (std::getenv("CHRONON3D_PROJ_DIAG")) {
             spdlog::warn(
