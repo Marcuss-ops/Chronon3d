@@ -208,7 +208,7 @@ compile_render_plan(
                                 break;
                             }
                             case LayerType::Video:
-                                builder.video(layer.source);
+                                builder.video(video::VideoSource{.path = layer.source});
                                 break;
                             case LayerType::Color: {
                                 RectParams params;

@@ -12,8 +12,8 @@
 //   pinned to BottomCenter with 80px margin.
 //   Text bbox must be within x:[80, 1840], y:[900, 1070].
 //
-// NOTE: uses make_renderer() + text_run().commit() pattern (same as
-// 01_text_basic_centered.cpp golden test).
+// Uses the canonical TextDefinition authoring path so placement is resolved
+// by the same code used by production compositions.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
@@ -53,8 +53,8 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title_text", PreparedText{
-                    .document = {.utf8 = "EPIC TITLE"},
+                l.text("title_text", TextDefinition{
+                    .content = {.value = "EPIC TITLE"},
                     .style = {.font = {
                         .font_path = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",
@@ -63,10 +63,14 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
                     }, .color = Color::white()},
                     .frame = {
                         .size = {1920.0f, 1080.0f},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 540.0f}},
+                        .anchor = TextAnchor::Center,
                         .align = TextAlign::Center,
-                        .vertical_align = VerticalAlign::Middle
+                        .vertical_align = VerticalAlign::Middle,
+                        .centering_mode = TextCenteringMode::PixelInk,
                     }
-                }).commit();
+                });
             });
             return s.build();
         });
@@ -86,8 +90,8 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             // (no background rect: bbox check measures text-only)
             s.layer("title_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title", PreparedText{
-                    .document = {.utf8 = "BREAKING NEWS"},
+                l.text("title", TextDefinition{
+                    .content = {.value = "BREAKING NEWS"},
                     .style = {.font = {
                         .font_path = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",
@@ -96,16 +100,20 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
                     }, .color = Color::white()},
                     .frame = {
                         .size = {1920.0f - kMargin * 2.0f, 60.0f},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 940.0f}},
+                        .anchor = TextAnchor::Center,
                         .align = TextAlign::Center,
-                        .vertical_align = VerticalAlign::Middle
+                        .vertical_align = VerticalAlign::Middle,
+                        .centering_mode = TextCenteringMode::PixelInk,
                     }
-                }).commit();
+                });
             });
             // Subtitle: below title
             s.layer("subtitle_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("subtitle", PreparedText{
-                    .document = {.utf8 = "Chronon3D Text Engine — Production Ready"},
+                l.text("subtitle", TextDefinition{
+                    .content = {.value = "Chronon3D Text Engine — Production Ready"},
                     .style = {.font = {
                         .font_path = "assets/fonts/Inter-Regular.ttf",
                         .font_family = "Inter",
@@ -114,10 +122,14 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
                     }, .color = Color{0.85f, 0.85f, 0.9f, 1.0f}},
                     .frame = {
                         .size = {1920.0f - kMargin * 2.0f, 40.0f},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 1000.0f}},
+                        .anchor = TextAnchor::Center,
                         .align = TextAlign::Center,
-                        .vertical_align = VerticalAlign::Middle
+                        .vertical_align = VerticalAlign::Middle,
+                        .centering_mode = TextCenteringMode::PixelInk,
                     }
-                }).commit();
+                });
             });
             return s.build();
         });

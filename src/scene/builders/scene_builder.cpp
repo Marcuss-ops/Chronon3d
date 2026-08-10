@@ -94,31 +94,6 @@ SceneBuilder& SceneBuilder::image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
 
-SceneBuilder& SceneBuilder::at(Vec3 pos) {
-    scene_.last_node().world_transform.position = pos;
-    return *this;
-}
-
-SceneBuilder& SceneBuilder::rotate(Vec3 euler_deg) {
-    scene_.last_node().world_transform.rotation = glm::quat(glm::radians(euler_deg));
-    return *this;
-}
-
-SceneBuilder& SceneBuilder::scale(Vec3 s) {
-    scene_.last_node().world_transform.scale = s;
-    return *this;
-}
-
-SceneBuilder& SceneBuilder::anchor(Vec3 a) {
-    scene_.last_node().world_transform.anchor = a;
-    return *this;
-}
-
-SceneBuilder& SceneBuilder::opacity(f32 a) {
-    scene_.last_node().world_transform.opacity = a;
-    return *this;
-}
-
 Scene SceneBuilder::build() {
     LayoutSolver().solve(scene_, m_width, m_height);
     scene_.resolve_hierarchy(current_integer_frame());

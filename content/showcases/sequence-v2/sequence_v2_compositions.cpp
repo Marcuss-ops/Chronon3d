@@ -386,7 +386,7 @@ Composition seq_v2_mixed_media() {
                         apply_fade_in(l, Frame{15});
                         apply_fade_out(l, Frame{45}, Frame{58});
                         l.image("hero", ImageParams{
-                            .path = kPlaceholderImage.path,
+                            .asset_path = kPlaceholderImage.path,
                             .size = {600.0f, 400.0f},
                         });
                     });

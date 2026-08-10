@@ -3,9 +3,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // authoring/subtitle_track_builder.hpp — Fluent subtitle track authoring
 //
-// Consumes the canonical SubtitleTrack (TimedTextDocument) and produces
-// one scheduled text-run per cue on the parent LayerBuilder.  Keeps
-// TimedTextDocument the single source of truth for timing and adapters.
+// Consumes the canonical SubtitleTrack (TimedTextDocument) and produces the
+// text-run active at the current frame on the parent LayerBuilder. Keeping a
+// single active run avoids abusing layer timing for per-cue timing and keeps
+// the render graph small and unambiguous.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/presets/text/subtitle.hpp>
@@ -129,7 +130,7 @@ public:
         return *this;
     }
 
-    /// Commit the track: create one text-run per cue with timing.
+    /// Commit the track: create the text-run active at the current frame.
     /// Cues are translated from seconds to frames using the parent
     /// LayerBuilder's frame rate, or the rate set via frame_rate().
     void build();
@@ -162,7 +163,6 @@ private:
     bool allow_estimated_{false};
 
     [[nodiscard]] FrameRate active_frame_rate() const noexcept;
-    [[nodiscard]] Frame seconds_to_frame(float seconds) const;
 
     friend class Layer;
 };

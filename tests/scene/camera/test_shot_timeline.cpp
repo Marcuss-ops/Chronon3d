@@ -74,7 +74,7 @@ TEST_CASE("empty timeline returns empty camera") {
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
 
     ShotTimelineSession tls;
-    auto r = resolver.evaluate(0, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}), tls, FrameRate{30, 1});
     // Phase 1.C (TICKET-120 Sub-commit E): empty timeline returns a
     // SUCCESSFUL Result with default EvaluatedCamera (all-default
     // Camera2_5D + empty diagnostics) so the call site can distinguish
@@ -247,7 +247,7 @@ TEST_CASE("overlap boundary surfaces structured CameraEvaluationError") {
 
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
-    auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{25}, FrameRate{30, 1}), tls, FrameRate{30, 1});
 
     // Post-Phase-1.C contract: the inner-program error (Uncompiled on
     // each shot's default-constructed program) is bubbled up through
@@ -346,7 +346,7 @@ TEST_CASE("one frame transition cuts to incoming shot") {
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
     // Frame 29 is the only overlap frame and must evaluate the incoming shot.
-    auto r = resolver.evaluate(29, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{29}, FrameRate{30, 1}), tls, FrameRate{30, 1});
     REQUIRE(r.has_value());
     CHECK(r.value().camera.enabled == true);  // compiled program → enabled
 }
@@ -369,7 +369,7 @@ TEST_CASE("true overlap evaluates both shots locally") {
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
     // Frame 25 is inside the overlap; it must not crash and must return a camera.
-    auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{25}, FrameRate{30, 1}), tls, FrameRate{30, 1});
     REQUIRE(r.has_value());
     CHECK(std::isfinite(r.value().camera.position.x));
 }
@@ -417,7 +417,7 @@ TEST_CASE("unregistered transition kind is handled fail-closed") {
     // the path still exercises catalog-only lookup (SmoothBlend is
     // missing, so the fail-closed Cut fallback is selected) and returns
     // a structured error instead of crashing.
-    auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{25}, FrameRate{30, 1}), tls, FrameRate{30, 1});
     REQUIRE_FALSE(r.has_value());
     CHECK(r.error().code == CameraErrorCode::TransitionEvaluationFailed);
 }

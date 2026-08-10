@@ -327,7 +327,7 @@ TEST_CASE("Debug.MultipleAssetTypesInOutput") {
         p.style.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.document.utf8 = "Hello";
         (void)l.text_run("text", std::move(p));
-        l.image("bg", {.path = "assets/bg.png", .size = {1920, 1080}});
+        l.image("bg", {.asset_path = "assets/bg.png", .size = {1920, 1080}});
     });
     Scene scene = s.build();
 

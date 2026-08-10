@@ -169,9 +169,9 @@ TEST_CASE("Authoring/MotionRegistry: register_motion resolves TextAnimatorSpec")
         std::visit([&](const auto& v) {
             using T = std::decay_t<decltype(v)>;
             if constexpr (std::is_same_v<T, chronon3d::OpacityProperty>) {
-                has_opacity = (v.value.evaluate(0) == doctest::Approx(0.0f));
+                has_opacity = (v.value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(0.0f));
             } else if constexpr (std::is_same_v<T, chronon3d::BlurProperty>) {
-                has_blur = (v.radius.evaluate(0) == doctest::Approx(12.0f));
+                has_blur = (v.radius.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(12.0f));
             }
         }, p);
     }

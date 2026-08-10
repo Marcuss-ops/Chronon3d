@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <chronon3d/core/types/sample_time.hpp>
 
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
@@ -32,16 +33,16 @@ using KFList = std::initializer_list<KF>;
 
 TEST_CASE("keyframes legacy: 2-arg form returns f32 with linear interpolation") {
     KFList kfs = { KF{0, 0.0f}, KF{60, 100.0f} };
-    CHECK(keyframes(30, kfs) == doctest::Approx(50.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}), kfs) == doctest::Approx(50.0f));
 }
 
 TEST_CASE("keyframes legacy: 2-arg form clamps before first and after last keyframe") {
     KFList kfs = { KF{0, 0.0f}, KF{60, 100.0f} };
-    CHECK(keyframes(-10, kfs) == doctest::Approx(0.0f));
-    CHECK(keyframes(  0, kfs) == doctest::Approx(0.0f));
-    CHECK(keyframes( 60, kfs) == doctest::Approx(100.0f));
-    CHECK(keyframes( 70, kfs) == doctest::Approx(100.0f));
-    CHECK(keyframes(120, kfs) == doctest::Approx(100.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{-10}, FrameRate{30, 1}), kfs) == doctest::Approx(0.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}), kfs) == doctest::Approx(0.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1}), kfs) == doctest::Approx(100.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{70}, FrameRate{30, 1}), kfs) == doctest::Approx(100.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{120}, FrameRate{30, 1}), kfs) == doctest::Approx(100.0f));
 }
 
 TEST_CASE("keyframes legacy: Hold easing steps at keyframe boundary") {
@@ -50,11 +51,11 @@ TEST_CASE("keyframes legacy: Hold easing steps at keyframe boundary") {
         KF{30, 20.0f, Easing::Hold},
         KF{60, 30.0f, Easing::Hold},
     };
-    CHECK(keyframes(0,  kfs) == doctest::Approx(10.0f));
-    CHECK(keyframes(15, kfs) == doctest::Approx(10.0f));
-    CHECK(keyframes(29, kfs) == doctest::Approx(10.0f));
-    CHECK(keyframes(30, kfs) == doctest::Approx(20.0f));
-    CHECK(keyframes(45, kfs) == doctest::Approx(20.0f));
-    CHECK(keyframes(59, kfs) == doctest::Approx(20.0f));
-    CHECK(keyframes(60, kfs) == doctest::Approx(30.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),  kfs) == doctest::Approx(10.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{15}, FrameRate{30, 1}), kfs) == doctest::Approx(10.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{29}, FrameRate{30, 1}), kfs) == doctest::Approx(10.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}), kfs) == doctest::Approx(20.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1}), kfs) == doctest::Approx(20.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{59}, FrameRate{30, 1}), kfs) == doctest::Approx(20.0f));
+    CHECK(keyframes(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1}), kfs) == doctest::Approx(30.0f));
 }

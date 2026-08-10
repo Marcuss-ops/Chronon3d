@@ -69,7 +69,7 @@ Composition cert_timeline_boundary() {
                         .stroke = {},
                     });
                     // Local frame indicator: text showing the local frame number
-                    int local_val = static_cast<int>(seq.local_frame().value);
+                    int local_val = static_cast<int>(seq.local_time().integral_frame().value);
                     seq.rect("indicator", RectParams{
                         .size = {200.0f, 60.0f},
                         .color = {
@@ -110,7 +110,7 @@ Composition cert_timeline_local_frame() {
             s.sequence("local_frame_seq",
                 {.from = Frame{30}, .duration = Frame{60}},
                 [](SequenceBuilder& seq) {
-                    float t = static_cast<float>(seq.local_frame().value) / 60.0f;
+                    float t = static_cast<float>(seq.local_time().integral_frame().value) / 60.0f;
                     float clamped = std::clamp(t, 0.0f, 1.0f);
                     seq.rect("enc", RectParams{
                         .size = {400.0f, 300.0f},
@@ -241,7 +241,7 @@ Composition cert_timeline_animation() {
             s.sequence("fade_seq",
                 {.from = Frame{40}, .duration = Frame{50}},
                 [](SequenceBuilder& seq) {
-                    float local = static_cast<float>(seq.local_frame().value);
+                    float local = static_cast<float>(seq.local_time().integral_frame().value);
                     float opacity = std::clamp(local / 25.0f, 0.0f, 1.0f);
                     seq.rect("fade", RectParams{
                         .size = {400.0f, 200.0f},

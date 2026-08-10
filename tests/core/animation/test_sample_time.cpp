@@ -269,8 +269,8 @@ TEST_CASE("AnimatedValue: Frame overload still works (backward compat)") {
     v.key(0, 0.0f).key(60, 120.0f);
 
     // Old-style Frame evaluation must still return correct values
-    CHECK(v.value_at(30) == doctest::Approx(60.0f));
-    CHECK(v.evaluate(30) == doctest::Approx(60.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1})) == doctest::Approx(60.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1})) == doctest::Approx(60.0f));
 }
 
 TEST_CASE("AnimatedValue: Frame and SampleTime agree at integer frames") {
@@ -280,7 +280,7 @@ TEST_CASE("AnimatedValue: Frame and SampleTime agree at integer frames") {
 
     const FrameRate rate{30, 1};
     for (int f = 0; f <= 60; f += 10) {
-        Vec3 frame_val = v.evaluate(Frame{f});
+        Vec3 frame_val = v.evaluate(SampleTime::from_frame_int(Frame{f}, FrameRate{30, 1}));
         Vec3 sample_val = v.evaluate(SampleTime::from_frame_int(f, rate));
         CHECK(glm::length(frame_val - sample_val) < 0.001f);
     }
@@ -307,10 +307,10 @@ TEST_CASE("LayerBuilder evaluates animated transform at sub-frame time") {
     // LayerBuilder with current_frame=0.5 via sample-time constructor
     // NOTE: LayerBuilder currently takes Frame, not SampleTime for the
     // current_frame. The sub-frame precision comes from SceneBuilder which
-    // calls local_frame() and passes to evaluate(SampleTime).
+    // reads the local SampleTime and passes it to evaluate(SampleTime).
     // This test validates the AnimatedTransform directly:
-    Transform t_at_0 = layer.anim_transform.evaluate(Frame{0});
-    Transform t_at_half = layer.anim_transform.evaluate(Frame{0});  // integer only from Frame
+    Transform t_at_0 = layer.anim_transform.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+    Transform t_at_half = layer.anim_transform.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));  // integer only from Frame
 
     // AnimatedTransform::evaluate(SampleTime) — the sub-frame API
     Transform t_sub = layer.anim_transform.evaluate(SampleTime::from_frame(0.5, FrameRate{30, 1}));

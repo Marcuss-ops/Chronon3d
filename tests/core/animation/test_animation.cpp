@@ -11,7 +11,7 @@ TEST_CASE("Time system") {
     SUBCASE("Conversion") {
         CHECK(fps.to_seconds(30) == doctest::Approx(1.0));
         CHECK(fps.to_seconds(60) == doctest::Approx(2.0));
-        CHECK(fps.to_frame(1.0) == 30);
+        CHECK(seconds_to_frame(1.0, fps) == 30);
     }
 
     SUBCASE("TimeRange") {
@@ -30,11 +30,11 @@ TEST_CASE("AnimatedValue") {
         val.add_keyframe(0, 0.0f);
         val.add_keyframe(100, 10.0f);
 
-        CHECK(val.evaluate(0) == 0.0f);
-        CHECK(val.evaluate(50) == 5.0f);
-        CHECK(val.evaluate(100) == 10.0f);
+        CHECK(val.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == 0.0f);
+        CHECK(val.evaluate(SampleTime::from_frame_int(Frame{50}, FrameRate{30, 1})) == 5.0f);
+        CHECK(val.evaluate(SampleTime::from_frame_int(Frame{100}, FrameRate{30, 1})) == 10.0f);
         CHECK(val.evaluate(-10) == 0.0f);
-        CHECK(val.evaluate(110) == 10.0f);
+        CHECK(val.evaluate(SampleTime::from_frame_int(Frame{110}, FrameRate{30, 1})) == 10.0f);
     }
 
     SUBCASE("Linear interpolation Vec3") {
@@ -42,7 +42,7 @@ TEST_CASE("AnimatedValue") {
         pos.add_keyframe(0, Vec3(0.0f, 0.0f, 0.0f));
         pos.add_keyframe(100, Vec3(10.0f, 0.0f, 0.0f));
 
-        Vec3 mid = pos.evaluate(50);
+        Vec3 mid = pos.evaluate(SampleTime::from_frame_int(Frame{50}, FrameRate{30, 1}));
         CHECK(mid.x == 5.0f);
         CHECK(mid.y == 0.0f);
         CHECK(mid.z == 0.0f);
@@ -54,7 +54,7 @@ TEST_CASE("AnimatedValue") {
         val.add_keyframe(100, 10.0f);
 
         f32 linear_mid = 5.0f;
-        f32 eased_mid = val.evaluate(50);
+        f32 eased_mid = val.evaluate(SampleTime::from_frame_int(Frame{50}, FrameRate{30, 1}));
         
         // EaseInQuad means it starts slower, so at 50% time it should be less than 50% value
         CHECK(eased_mid < linear_mid);

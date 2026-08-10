@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <tests/helpers/composition_helpers.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -69,8 +70,8 @@ TEST_CASE("Pure Frame Evaluation") {
         }
     };
 
-    Scene s1 = comp.evaluate(50);
-    Scene s2 = comp.evaluate(50);
+    Scene s1 = chronon3d::test_support::evaluate_frame(comp, Frame{50});
+    Scene s2 = chronon3d::test_support::evaluate_frame(comp, Frame{50});
 
     CHECK(s1.nodes().size() == 1);
     CHECK(s1.nodes()[0].world_transform.position.x == 50.0f);

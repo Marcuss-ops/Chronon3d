@@ -144,7 +144,7 @@ inline void dark_grid_background(SceneBuilder& s,
             p
         );
         l.image("grid_bg", {
-            .path = path.string(),
+            .asset_path = path.string(),
             .size = {W, H},
             .pos = {0.0f, 0.0f, 0.0f},
             .opacity = 1.0f,

@@ -17,6 +17,16 @@
 #include <cmath>
 using namespace chronon3d;
 
+static Scene evaluate_frame(const Composition& composition, Frame frame) {
+    const auto sample = SampleTime::from_frame_int(frame, composition.frame_rate());
+    return composition.evaluate(make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+    }));
+}
+
 
 // ── Helper: create a composition with a known linear camera path ─────────────
 // Camera moves from (0,0,-1000) to (300,0,-1000) over 90 frames
@@ -120,7 +130,7 @@ struct TestPathMetrics {
 static std::vector<TestPathSample> sample_comp(const Composition& comp, int start, int end, int step) {
     std::vector<TestPathSample> samples;
     for (int f = start; f <= end; f += step) {
-        Scene scene = comp.evaluate(Frame{f});
+        Scene scene = evaluate_frame(comp, Frame{f});
         const auto& cam = scene.camera_2_5d();
         TestPathSample s;
         s.frame = f;

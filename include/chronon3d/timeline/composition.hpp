@@ -92,19 +92,6 @@ public:
         return evaluate_scene_function(m_render, ctx);
     }
 
-    /// Evaluate one integral frame using the composition's immutable spec.
-    /// This is the supported convenience entry point; sub-frame evaluation
-    /// and service injection belong to an explicit FrameContext.
-    [[nodiscard]] Scene evaluate(Frame frame) const {
-        const auto sample = SampleTime::from_frame_int(frame, m_spec.frame_rate);
-        return evaluate(make_frame_context({
-            .global_time = sample,
-            .duration = m_spec.duration,
-            .width = m_spec.width,
-            .height = m_spec.height,
-        }));
-    }
-
     // ══════════════════════════════════════════════════════════════════════
     // P3-F — Default camera authoring surface (READ-ONLY after compile).
     //

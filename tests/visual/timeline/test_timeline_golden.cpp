@@ -129,7 +129,7 @@ Composition make_local_frame_mapping_comp() {
 
             s.sequence("title", {.from = Frame{30}, .duration = Frame{60}},
                 [](SequenceBuilder& seq) {
-                    Frame local = seq.local_frame();
+                    Frame local = seq.local_time().integral_frame();
                     float t = static_cast<float>(local.value) / 60.0f;
                     Color enc{t, 0.2f, 0.8f, 1.0f};
                     seq.rect("enc_bg",
@@ -153,7 +153,7 @@ Composition make_animation_local_frame_comp() {
             // The opacity is applied via the SequenceBuilder's context
             s.sequence("fade_title", {.from = Frame{60}, .duration = Frame{40}},
                 [](SequenceBuilder& seq) {
-                    Frame local = seq.local_frame();
+                    Frame local = seq.local_time().integral_frame();
                     float opacity = std::clamp(
                         static_cast<float>(local.value) / 20.0f, 0.0f, 1.0f);
                     // Use a color with the opacity baked into the alpha channel

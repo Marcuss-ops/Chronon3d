@@ -153,12 +153,10 @@ TEST_CASE("Authoring/Material: enable() / disable() are explicit") {
     CHECK(MaterialTestAccess::release(std::move(m2)).enabled == true);
 }
 
-TEST_CASE("Authoring/Material: configure_core lambda mutates unmodeled field") {
+TEST_CASE("Authoring/Material: typed setters mutate extended fields") {
     Material m = material::premium();
-    m.configure_core([](TextMaterial& tm) {
-        tm.bevel_highlight_color = Color{0.0f, 1.0f, 1.0f, 1.0f};
-        tm.gradient_angle = 60.0f;
-    });
+    m.bevel_highlight_color(Color{0.0f, 1.0f, 1.0f, 1.0f})
+     .gradient(Color::white(), Color::black(), 60.0f);
     auto built = MaterialTestAccess::release(std::move(m));
     CHECK(built.bevel_highlight_color == Color{0.0f, 1.0f, 1.0f, 1.0f});
     CHECK(built.gradient_angle == doctest::Approx(60.0f));

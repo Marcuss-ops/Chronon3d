@@ -150,7 +150,7 @@ ResolveSurfaceRow render_one(const std::shared_ptr<ShotTimeline>& timeline,
     ResolveSurfaceRow row;
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession  tls;
-    auto r = resolver.evaluate(frame, tls, kTestFps);
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{frame}, kTestFps), tls, kTestFps);
     if (!r.has_value()) return row;
     const auto& eval = r.value();
     if (eval.resolve_diagnostics.empty()) return row;
@@ -173,8 +173,8 @@ ResolveSurfaceRow render_range_then_one(
         int first, int last, int target_frame) {
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession  tls;
-    for (int f = first; f <= last; ++f) (void)resolver.evaluate(f, tls, kTestFps);
-    auto r = resolver.evaluate(target_frame, tls, kTestFps);
+    for (int f = first; f <= last; ++f) (void)resolver.evaluate(SampleTime::from_frame_int(Frame{f}, kTestFps), tls, kTestFps);
+    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{target_frame}, kTestFps), tls, kTestFps);
     ResolveSurfaceRow row;
     if (!r.has_value()) return row;
     const auto& eval = r.value();
@@ -370,7 +370,8 @@ TEST_CASE("random_access: diagnostics contract — 6-field ripple-through surfac
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession  tls;
 
-    auto r = resolver.evaluate(75, tls, kTestFps);
+    auto r = resolver.evaluate(
+        SampleTime::from_frame_int(Frame{75}, kTestFps), tls, kTestFps);
     REQUIRE(r.has_value());
     const auto& eval = r.value();
     REQUIRE(!eval.resolve_diagnostics.empty());
@@ -408,7 +409,7 @@ TEST_CASE("random_access: direct jump into overlap equals sequential render") {
     {
         ShotTimelineResolver resolver(timeline, *make_test_catalog());
         ShotTimelineSession tls;
-        auto r = resolver.evaluate(overlap_frame, tls, kTestFps);
+        auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{overlap_frame}, kTestFps), tls, kTestFps);
         REQUIRE(r.has_value());
         direct_cam = r.value().camera;
     }
@@ -420,7 +421,7 @@ TEST_CASE("random_access: direct jump into overlap equals sequential render") {
         ShotTimelineResolver resolver(timeline, *make_test_catalog());
         ShotTimelineSession tls;
         for (int f = 0; f <= overlap_frame; ++f) {
-            auto r = resolver.evaluate(f, tls, kTestFps);
+            auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{f}, kTestFps), tls, kTestFps);
             REQUIRE(r.has_value());
             if (f == overlap_frame) {
                 seq_cam = r.value().camera;

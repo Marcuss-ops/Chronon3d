@@ -67,7 +67,7 @@ Composition image_proofs() {
         s.layer("r0c0_lbl", [&](auto& l) { draw_cell_label(l, "COVER STANDARD", 0, 0); });
         s.layer("r0c0", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(0, 0));
-            l.image("img", { .path = img_path, .size = get_cell_box(0, 0), .fit = FitMode::Cover });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(0, 0), .fit = FitMode::Cover });
         });
 
         // 0,1: Contain Vertical Box (shows letterbox clearly)
@@ -76,7 +76,7 @@ Composition image_proofs() {
             Vec2 box = get_cell_box(1, 0);
             Vec2 vert_box = { box.x * 0.5f, box.y }; // vertical box aspect ratio
             l.pin_to(Anchor::Center).position(get_cell_pos(1, 0));
-            l.image("img", { .path = img_path, .size = vert_box, .fit = FitMode::Contain });
+            l.image("img", { .asset_path = img_path, .size = vert_box, .fit = FitMode::Contain });
         });
 
         // 0,2: Contain Horizontal Box (shows letterbox clearly)
@@ -85,7 +85,7 @@ Composition image_proofs() {
             Vec2 box = get_cell_box(2, 0);
             Vec2 horiz_box = { box.x, box.y * 0.5f }; // horizontal box aspect ratio
             l.pin_to(Anchor::Center).position(get_cell_pos(2, 0));
-            l.image("img", { .path = img_path, .size = horiz_box, .fit = FitMode::Contain });
+            l.image("img", { .asset_path = img_path, .size = horiz_box, .fit = FitMode::Contain });
         });
 
         // 0,3: Highly Distorted Stretch
@@ -94,7 +94,7 @@ Composition image_proofs() {
             Vec2 box = get_cell_box(3, 0);
             Vec2 distorted_box = { box.x * 0.4f, box.y * 1.2f }; // highly distorted vertical
             l.pin_to(Anchor::Center).position(get_cell_pos(3, 0));
-            l.image("img", { .path = img_path, .size = distorted_box, .fit = FitMode::Stretch });
+            l.image("img", { .asset_path = img_path, .size = distorted_box, .fit = FitMode::Stretch });
         });
 
         // ── ROW 1: Focal Points ──
@@ -102,28 +102,28 @@ Composition image_proofs() {
         s.layer("r1c0_lbl", [&](auto& l) { draw_cell_label(l, "FOCAL TOP (0.5, 0.0)", 0, 1); });
         s.layer("r1c0", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(0, 1));
-            l.image("img", { .path = img_path, .size = get_cell_box(0, 1), .fit = FitMode::Cover, .focal_point = {0.5f, 0.0f} });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(0, 1), .fit = FitMode::Cover, .focal_point = {0.5f, 0.0f} });
         });
 
         // 1,1: Focal Bottom
         s.layer("r1c1_lbl", [&](auto& l) { draw_cell_label(l, "FOCAL BOTTOM (0.5, 1.0)", 1, 1); });
         s.layer("r1c1", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(1, 1));
-            l.image("img", { .path = img_path, .size = get_cell_box(1, 1), .fit = FitMode::Cover, .focal_point = {0.5f, 1.0f} });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(1, 1), .fit = FitMode::Cover, .focal_point = {0.5f, 1.0f} });
         });
 
         // 1,2: Focal Left
         s.layer("r1c2_lbl", [&](auto& l) { draw_cell_label(l, "FOCAL LEFT (0.0, 0.5)", 2, 1); });
         s.layer("r1c2", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(2, 1));
-            l.image("img", { .path = img_path, .size = get_cell_box(2, 1), .fit = FitMode::Cover, .focal_point = {0.0f, 0.5f} });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(2, 1), .fit = FitMode::Cover, .focal_point = {0.0f, 0.5f} });
         });
 
         // 1,3: Focal Right
         s.layer("r1c3_lbl", [&](auto& l) { draw_cell_label(l, "FOCAL RIGHT (1.0, 0.5)", 3, 1); });
         s.layer("r1c3", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(3, 1));
-            l.image("img", { .path = img_path, .size = get_cell_box(3, 1), .fit = FitMode::Cover, .focal_point = {1.0f, 0.5f} });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(3, 1), .fit = FitMode::Cover, .focal_point = {1.0f, 0.5f} });
         });
 
         // ── ROW 2: Styles & Filters ──
@@ -131,7 +131,7 @@ Composition image_proofs() {
         s.layer("r2c0_lbl", [&](auto& l) { draw_cell_label(l, "OPACITY 50%", 0, 2); });
         s.layer("r2c0", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(0, 2));
-            l.image("img", { .path = img_path, .size = get_cell_box(0, 2), .fit = FitMode::Cover, .opacity = 0.5f });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(0, 2), .fit = FitMode::Cover, .opacity = 0.5f });
         });
 
         // 2,1: Color Tint Cyan
@@ -139,7 +139,7 @@ Composition image_proofs() {
         s.layer("r2c1", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(1, 2))
              .tint(Color{0.0f, 0.8f, 1.0f, 1.0f}, 0.6f);
-            l.image("img", { .path = img_path, .size = get_cell_box(1, 2), .fit = FitMode::Cover });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(1, 2), .fit = FitMode::Cover });
         });
 
         // 2,2: Image inside card with text
@@ -151,7 +151,7 @@ Composition image_proofs() {
             l.rounded_rect("card_bg", { .size = box, .radius = 16.0f, .color = {0.1f, 0.11f, 0.16f, 1.0f} });
             // Draw thumbnail image
             l.image("card_thumb", {
-                .path = img_path,
+                .asset_path = img_path,
                 .size = {box.x - 16.0f, box.y * 0.6f},
                 .pos = {0.0f, -box.y * 0.15f, 0.0f},
                 .fit = FitMode::Cover,
@@ -177,7 +177,7 @@ Composition image_proofs() {
         s.layer("r2c3", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(3, 2))
              .mask_rounded_rect({ .size = get_cell_box(3, 2), .radius = 24.0f });
-            l.image("img", { .path = img_path, .size = get_cell_box(3, 2), .fit = FitMode::Cover });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(3, 2), .fit = FitMode::Cover });
         });
 
         // ── ROW 3: Glow & Shadow ──
@@ -186,7 +186,7 @@ Composition image_proofs() {
         s.layer("r3c0", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(0, 3))
              .effect(GlowParams{.radius = 8.0f, .intensity = 0.6f, .color = Color{0.0f, 1.0f, 0.8f, 0.8f}});
-            l.image("img", { .path = img_path, .size = get_cell_box(0, 3), .fit = FitMode::Cover, .radius = 16.0f });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(0, 3), .fit = FitMode::Cover, .radius = 16.0f });
         });
 
         // 3,1: Strong Glow
@@ -194,7 +194,7 @@ Composition image_proofs() {
         s.layer("r3c1", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(1, 3))
              .effect(GlowParams{.radius = 24.0f, .intensity = 1.5f, .color = Color{0.0f, 1.0f, 0.8f, 0.8f}});
-            l.image("img", { .path = img_path, .size = get_cell_box(1, 3), .fit = FitMode::Cover, .radius = 16.0f });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(1, 3), .fit = FitMode::Cover, .radius = 16.0f });
         });
 
         // 3,2: Shadow Card
@@ -202,7 +202,7 @@ Composition image_proofs() {
         s.layer("r3c2", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(2, 3))
              .drop_shadow({6.0f, 6.0f}, {0.0f, 0.0f, 0.0f, 0.6f}, 12.0f);
-            l.image("img", { .path = img_path, .size = get_cell_box(2, 3), .fit = FitMode::Cover, .radius = 16.0f });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(2, 3), .fit = FitMode::Cover, .radius = 16.0f });
         });
 
         // 3,3: Blurred Background
@@ -211,11 +211,11 @@ Composition image_proofs() {
             l.pin_to(Anchor::Center).position(get_cell_pos(3, 3) + Vec3{0.0f, 0.0f, -10.0f})
              .opacity(0.4f)
              .blur(16.0f);
-            l.image("img_bg", { .path = img_path, .size = get_cell_box(3, 3), .fit = FitMode::Cover });
+            l.image("img_bg", { .asset_path = img_path, .size = get_cell_box(3, 3), .fit = FitMode::Cover });
         });
         s.layer("r3c3_fg", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(3, 3));
-            l.image("img_fg", { .path = img_path, .size = get_cell_box(3, 3) * 0.7f, .fit = FitMode::Contain });
+            l.image("img_fg", { .asset_path = img_path, .size = get_cell_box(3, 3) * 0.7f, .fit = FitMode::Contain });
         });
 
         // ── ROW 4: Masks & Explicit Error Visualization ──
@@ -224,7 +224,7 @@ Composition image_proofs() {
         s.layer("r4c0", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(0, 4))
              .mask_circle({ .radius = 30.0f });
-            l.image("img", { .path = img_path, .size = get_cell_box(0, 4), .fit = FitMode::Cover });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(0, 4), .fit = FitMode::Cover });
         });
 
         // 4,1: Circle Mask Large (Avatar Mask)
@@ -232,7 +232,7 @@ Composition image_proofs() {
         s.layer("r4c1", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(1, 4))
              .mask_circle({ .radius = 70.0f });
-            l.image("img", { .path = img_path, .size = get_cell_box(1, 4), .fit = FitMode::Cover });
+            l.image("img", { .asset_path = img_path, .size = get_cell_box(1, 4), .fit = FitMode::Cover });
         });
 
         // 4,2: Explicit placeholder for the missing-asset case.  The
@@ -255,7 +255,7 @@ Composition image_proofs() {
         s.layer("r4c3_lbl", [&](auto& l) { draw_cell_label(l, "TRANSPARENT PNG", 3, 4); });
         s.layer("r4c3", [&](auto& l) {
             l.pin_to(Anchor::Center).position(get_cell_pos(3, 4));
-            l.image("img", { .path = png_path, .size = get_cell_box(3, 4), .fit = FitMode::Contain });
+            l.image("img", { .asset_path = png_path, .size = get_cell_box(3, 4), .fit = FitMode::Contain });
         });
 
         return s.build();
