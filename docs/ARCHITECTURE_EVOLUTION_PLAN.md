@@ -102,6 +102,59 @@ in V3, V4 o backend aggiuntivi: qualunque nuova pipeline deve
 riusare `FocalPx` / `ViewportRect` / `focal_xy_from_camera` /
 `LensModel::effective_viewport`.
 
+## Mesh V1 — Fase 6
+
+**Stato: design pianificato, non ancora implementato.** Il codice contiene già parzialmente `ShapeType::Mesh`, `MeshShape` e il processor software; `AssetKind::Mesh`, `MeshRef`, `MeshLoader` e `Prepared MeshSource` restano da introdurre.
+
+Mesh V1 tratta la mesh come contenuto di un `Layer`, non come una seconda architettura di scena. Il perimetro V1 è **solo `.glb` self-contained**: `.gltf` e dipendenze esterne (`.bin`, immagini esterne, ecc.) sono fuori scope e potranno essere valutati in V1.1.
+
+### Confine authoring/runtime
+
+`LayerBuilder::mesh()` è deliberatamente stupido: conserva soltanto un `MeshRef`/logical asset reference nel `Layer` e dichiara la dipendenza nell’`AssetManifest`. Non deve accedere al filesystem, montare o interrogare `AssetResolver`, parsare GLB, allocare una cache o caricare geometria. Il builder lavora esclusivamente con path logici, come gli altri asset authoring.
+
+Il percorso canonico è:
+
+```text
+layer.mesh(asset("models/phone.glb"))  # notazione concettuale
+        ↓
+     MeshRef  # planned V1 logical reference
+        ↓
+Layer / Composition definition
+        ↓
+  AssetManifest
+        ↓
+  prepare_render()
+        ↓
+  AssetResolver
+        ↓
+    MeshLoader
+        ↓
+ Prepared MeshSource
+        ↓
+   RenderGraph
+        ↓
+  ShapeType::Mesh
+        ↓
+ RenderBackend
+```
+
+La risoluzione del filesystem appartiene esclusivamente all’`AssetResolver` posseduto da `RenderRuntime`. Il caricamento e l’import GLB avvengono una volta alla preparation/compile boundary; il frame loop riceve soltanto geometria preparata. Non introdurre un nuovo `Model`, `Entity`, ECS, `Transform3D`, `MeshAnimation`, `MeshCamera`, runtime scene graph, `ModelManager`, resolver o registry parallelo.
+
+### Contratti V1 pianificati
+
+- **Asset surface (planned):** introdurre `AssetKind::Mesh` e `MeshRef`, riusando `AssetManifest`/`AssetResolver` canonici.
+- **Authoring (planned):** `LayerBuilder::mesh(MeshRef)` conserva il riferimento logico e la dependency; nessun I/O o parsing nel builder.
+- **Preparation (planned):** `AssetResolver → MeshLoader → Prepared MeshSource`. La preparation boundary deve eseguire il caricamento/import una sola volta prima del frame loop e riusare, quando disponibile, una cache canonica per asset identity; una nuova cache dedicata richiede prima la decisione architetturale prevista dalle regole del repository.
+- **Import (planned):** il loader confina i tipi glTF al proprio modulo; POSITION, NORMAL, UV, indici e materiale base diventano tipi Chronon preparati. Le immagini embedded del GLB restano subresource preparate, non path logici inventati.
+- **Transform (planned):** il bake delle node transform avviene all’import; vertici, normali, bounds, winding/orientamento e conversione glTF→Chronon devono essere coerenti. Transform e animazione del `Layer` restano fuori da `MeshSource` e riusano le API esistenti (`position`, `scale`, `rotate`, `rotate_anim`, camera 2.5D).
+- **Render (planned):** usare `ShapeType::Mesh`, `MeshShape`, il `RenderGraph` e lo snapshot dei processor esistenti; non creare un graph node o una pipeline di dispatch separata.
+- **Backend (acceptance criterion):** il gate principale è un cubo ruotato con perspective e depth corretti, includendo front/side/top visibili. La rasterizzazione filled/depth deve essere certificata, non assunta dalla presenza del renderer wireframe.
+- **Failure/build (acceptance criteria):** asset mancante o GLB non valido deve fallire loud alla preparation; `CHRONON3D_ENABLE_MESH=OFF` deve compilare senza richiedere la superficie Mesh o il relativo import support. Questi comportamenti non sono ancora certificati dall’implementazione corrente.
+
+### Definition of Done Fase 6
+
+Triangolo GLB visibile, cubo GLB texturizzato, coordinate XYZ, perspective, depth ordering, trasformazione/animazione già esistente del `Layer`, preflight dell’asset mancante, determinismo random-access e build `CHRONON3D_ENABLE_MESH=OFF`. Nessun caricamento per-frame e nessuna dipendenza `.gltf` esterna in V1.
+
 ## V3 tile-first
 
 V3 è futuro lavoro di sostituzione. P1–P10 restano pianificati. Ogni componente deve dichiarare il percorso V2 sostituito, test di equivalenza, criterio di rimozione e milestone di eliminazione.
