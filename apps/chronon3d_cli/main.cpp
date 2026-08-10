@@ -15,6 +15,23 @@
 #include "commands/cli_groups.hpp"
 
 int main(int argc, char** argv) {
+    // ── Single concurrency budget ───────────────────────────────────────
+    //
+    // Architecture (certified by tests/core/test_concurrency_budget.cpp):
+    //
+    //   CpuBudget (render/decode/encode split)  ← single authority
+    //       ↓
+    //   tbb::global_control(max_allowed_parallelism, render_threads)  ← global cap
+    //       ↓
+    //   ExecutionScheduler::task_arena(slots = render_threads)  ← single arena
+    //       ↓
+    //   All tbb::parallel_for / for_each_tile calls go through the arena
+    //
+    // No oversubscription: frames are rendered sequentially (one frame
+    // thread).  All internal parallelism (tiles, effects, composite,
+    // blur, transform) uses the SAME capped TBB arena — no "N frame
+    // threads × T TBB workers = N*T explosion" possible.
+    //
     // Unified CPU budget: render/decode/encode thread counts are derived
     // from the hardware and the CHRONON3D_CPU_* environment variables.
     // TBB is capped to the render pool so that decode/encode threads do
