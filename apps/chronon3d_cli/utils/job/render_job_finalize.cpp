@@ -148,7 +148,7 @@ bool finalize_render_job(
     run.render_ms = total_render_ms;
     run.encode_ms = total_encode_ms;
     run.effective_fps = wall_time_ms > 0.0
-        ? (run.frames_total * 1000.0 / wall_time_ms)
+        ? (static_cast<double>(run.frames_written) * 1000.0 / wall_time_ms)
         : 0.0;
     run.started_at_iso = setup.job_started_iso;
     run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
@@ -161,6 +161,8 @@ bool finalize_render_job(
         setup.renderer->software_framebuffer_pool().current_bytes();
     const auto pool_available_count =
         setup.renderer->software_framebuffer_pool().available_count();
+    const auto pool_stats =
+        setup.renderer->software_framebuffer_pool().stats();
 
     std::vector<chronon3d::telemetry::CounterTelemetryRecord> counters_list;
     if (counters) {
@@ -168,6 +170,19 @@ bool finalize_render_job(
     }
     counters_list.push_back({"pool_current_bytes", pool_current_bytes});
     counters_list.push_back({"pool_available_count", pool_available_count});
+    // Export the stats from the renderer-owned pool.  The generic profiling
+    // counter can refer to a transient/global pool during video export and
+    // must not override the pool that actually served this render.
+    const auto configured_pool_budget =
+        setup.renderer->runtime().config().cache().fb_pool_budget_bytes();
+    counters_list.push_back({
+        "framebuffer_pool_budget_bytes",
+        configured_pool_budget > 0 ? configured_pool_budget : pool_stats.budget_bytes});
+    counters_list.push_back({"framebuffer_pool_retained_bytes", pool_stats.retained_bytes});
+    counters_list.push_back({"framebuffer_pool_evicted_count", pool_stats.evicted_count});
+    counters_list.push_back({"framebuffer_pool_evicted_bytes", pool_stats.evicted_bytes});
+    counters_list.push_back({"framebuffer_pool_pressure_count", pool_stats.pressure_count});
+    counters_list.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
 
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {
         {"setup_renderer", profiling::duration_ms(setup.setup_t0, setup.setup_t1)}

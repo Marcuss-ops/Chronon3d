@@ -11,7 +11,11 @@ inline void framebuffer_increment_allocations(size_t bytes) {
     uint64_t current = profiling::g_live_framebuffer_bytes.fetch_add(bytes, std::memory_order_relaxed) + bytes;
     uint64_t peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
     while (current > peak && !profiling::g_peak_live_framebuffer_bytes.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {}
-    if (profiling::g_current_counters) profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
+        profiling::g_current_counters->framebuffer_bytes_allocated.fetch_add(
+            bytes, std::memory_order_relaxed);
+    }
 }
 
 inline void framebuffer_decrement_allocations(size_t bytes) {
