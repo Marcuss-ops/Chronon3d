@@ -21,6 +21,7 @@ add_library(chronon3d_backend_software OBJECT
     runtime_adapter.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
+    depth_buffer_pool.cpp
 )
 set_target_properties(chronon3d_backend_software PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_software

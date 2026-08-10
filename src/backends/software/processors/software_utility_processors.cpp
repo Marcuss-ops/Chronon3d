@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/scene/model/render/render_node_params.hpp>
@@ -24,7 +25,8 @@ public:
             prepare_projection_context(s, camera, width, height);
         }
         s.world_matrix = state.world_matrix;
-        chronon3d::renderer::draw_fake_box3d(fb, node, state, node.shape.fake_box3d(), s);
+        chronon3d::renderer::draw_fake_box3d(
+            fb, node, state, node.shape.fake_box3d(), s, rctx.depth_buffer_pool);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {

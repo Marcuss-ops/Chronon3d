@@ -1,6 +1,7 @@
 # General sources for chronon3d_core_tests.
 set(CORE_TEST_SOURCES
     core/test_concurrency_budget.cpp
+    core/test_depth_buffer_pool.cpp
     core/test_frame_context.cpp
     core/memory/test_huge_page_allocator.cpp
     core/math/test_math.cpp
