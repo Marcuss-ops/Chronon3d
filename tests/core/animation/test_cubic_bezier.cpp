@@ -46,18 +46,18 @@ TEST_CASE("AnimatedValue custom easing interpolation") {
         x.key(0, 0.0f, ease)
          .key(60, 100.0f);
 
-        REQUIRE(x.evaluate(0) == 0.0f);
-        REQUIRE(x.evaluate(60) == 100.0f);
+        REQUIRE(x.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == 0.0f);
+        REQUIRE(x.evaluate(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1})) == 100.0f);
         
         // Midpoint should be between 0 and 100, and follow the cubic Bezier curve
-        f32 mid = x.evaluate(30);
+        f32 mid = x.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}));
         REQUIRE(mid > 0.0f);
         REQUIRE(mid < 100.0f);
         
         // Verify monotonicity
         f32 prev = 0.0f;
         for (Frame f = 0; f <= 60; f += 5) {
-            f32 val = x.evaluate(f);
+            f32 val = x.evaluate(SampleTime::from_frame_int(f, FrameRate{30, 1}));
             REQUIRE(val >= prev);
             REQUIRE(val <= 100.0f);
             prev = val;

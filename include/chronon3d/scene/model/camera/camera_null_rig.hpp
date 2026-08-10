@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <string>
@@ -33,8 +34,8 @@ struct CameraNullNode {
     CameraNullNode(std::string name_)
         : name(std::move(name_)) {}
 
-    // Evaluate the node at a given frame and return a Transform3D
-    [[nodiscard]] Transform3D evaluate(Frame frame) const;
+    // Evaluate the node at a continuous sample time and return a Transform3D.
+    [[nodiscard]] Transform3D evaluate(SampleTime time) const;
 };
 
 // ---------------------------------------------------------------------------
@@ -103,12 +104,12 @@ struct CameraNullRig {
     // Number of nulls in the chain.
     [[nodiscard]] size_t node_count() const { return nodes.size(); }
 
-    // Evaluate the entire rig at a given frame, returning the final
+    // Evaluate the entire rig at a continuous sample time, returning the final
     // Camera2_5D with all null transforms accumulated.
-    [[nodiscard]] Camera2_5D evaluate(Frame frame) const;
+    [[nodiscard]] Camera2_5D evaluate(SampleTime time) const;
 
     // Build all null layers and camera setup in the scene using SceneBuilder.
-    void build(SceneBuilder& scene, Frame frame) const;
+    void build(SceneBuilder& scene, SampleTime time) const;
 };
 
 } // namespace chronon3d

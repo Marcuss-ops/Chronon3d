@@ -433,7 +433,7 @@ Composition make_video_images_rtl_composition(bool with_video, int w, int h) {
             s.layer("image_main", [w, h](LayerBuilder& l) {
                 l.position({0.0f, 0.0f, 0.0f});
                 l.image("checker", ImageParams{
-                    .path   = kImgChecker,
+                    .asset_path = kImgChecker,
                     .size   = {static_cast<f32>(w) * 0.92f, static_cast<f32>(h) * 0.55f},
                     .pos    = {0.0f, 40.0f, 0.0f},
                     .fit    = FitMode::Cover,
@@ -448,7 +448,7 @@ Composition make_video_images_rtl_composition(bool with_video, int w, int h) {
                 s.layer("image_video_proxy", [w](LayerBuilder& l) {
                     l.position({0.0f, 0.0f, 0.0f});
                     l.image("tile", ImageParams{
-                        .path   = kImgGridTile,
+                        .asset_path = kImgGridTile,
                         .size   = {120.0f, 120.0f},
                         .pos    = {static_cast<f32>(w) * -0.32f,
                                    static_cast<f32>(w) * 0.18f, 5.0f},
@@ -465,7 +465,8 @@ Composition make_video_images_rtl_composition(bool with_video, int w, int h) {
                             "test_video.mp4) — slot is structurally wired;"
                             " image proxy provides the visible media card.");
                 }
-                s.video_layer("video_slot", "tests/golden/pr3/test_video.mp4",
+                s.video_layer("video_slot",
+                              video::VideoSource{.path = "tests/golden/pr3/test_video.mp4"},
                               [](LayerBuilder& l) {
                                   l.opacity(0.0f);   // never visible — see comment
                               });

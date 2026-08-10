@@ -66,7 +66,7 @@ Composition camera_spline_comparison() {
         motion.zoom = 800.0f;
         motion.fov_deg = 60.0f;
 
-        Camera2_5D cam = motion.evaluate(ctx.frame(), Frame{0}, Frame{119});
+        Camera2_5D cam = motion.evaluate(ctx.local_time(), Frame{0}, Frame{119});
         s.camera().set(cam);
 
         s.layer("hud", [ctx](LayerBuilder& l) {

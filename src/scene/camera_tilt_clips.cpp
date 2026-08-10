@@ -30,7 +30,7 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
     s.layer("reference-image", [reference_image, image_size, image_pos](LayerBuilder& l) {
         l.enable_3d()
          .image("grid_reference", {
-             .path = reference_image,
+             .asset_path = reference_image,
              .size = image_size,
              .pos = image_pos,
              .opacity = 1.0f,

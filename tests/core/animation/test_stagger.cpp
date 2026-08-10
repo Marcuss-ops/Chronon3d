@@ -66,12 +66,12 @@ TEST_CASE("stagger_layers LeftToRight ordering") {
     stagger_layers(layers, config, StaggerOrder::LeftToRight);
 
     // left layer should have rank 0 → no delay
-    CHECK(layers[0].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
+    CHECK(layers[0].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // center layer should have rank 1 → delay 8
-    CHECK(layers[1].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
-    CHECK(layers[1].anim_transform.position.evaluate(Frame{8}).x == doctest::Approx(0.0f));
+    CHECK(layers[1].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
+    CHECK(layers[1].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{8}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // right layer should have rank 2 → delay 16
-    CHECK(layers[2].anim_transform.position.evaluate(Frame{16}).x == doctest::Approx(0.0f));
+    CHECK(layers[2].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{16}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
 }
 
 TEST_CASE("stagger_layers RightToLeft ordering") {
@@ -94,9 +94,9 @@ TEST_CASE("stagger_layers RightToLeft ordering") {
     stagger_layers(layers, config, StaggerOrder::RightToLeft);
 
     // Right layer (index 1) should be rank 0 → no shift
-    CHECK(layers[1].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
+    CHECK(layers[1].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // Left layer (index 0) should be rank 1 → delay 10
-    CHECK(layers[0].anim_transform.position.evaluate(Frame{10}).x == doctest::Approx(0.0f));
+    CHECK(layers[0].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{10}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
 }
 
 TEST_CASE("stagger_layers DepthNearToFar ordering") {
@@ -119,9 +119,9 @@ TEST_CASE("stagger_layers DepthNearToFar ordering") {
     stagger_layers(layers, config, StaggerOrder::DepthNearToFar);
 
     // Near layer (index 0) should be rank 0 → no shift
-    CHECK(layers[0].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
+    CHECK(layers[0].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // Far layer (index 1) should be rank 1 → delay 6
-    CHECK(layers[1].anim_transform.position.evaluate(Frame{6}).x == doctest::Approx(0.0f));
+    CHECK(layers[1].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{6}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
 }
 
 TEST_CASE("stagger_named_layers filters by name") {
@@ -150,11 +150,11 @@ TEST_CASE("stagger_named_layers filters by name") {
     stagger_named_layers(layers, {"a", "c"}, config, StaggerOrder::LeftToRight);
 
     // a should be rank 0 → no shift
-    CHECK(layers[0].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
+    CHECK(layers[0].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // b was not selected → no shift
-    CHECK(layers[1].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
+    CHECK(layers[1].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // c should be rank 1 → delay 5
-    CHECK(layers[2].anim_transform.position.evaluate(Frame{5}).x == doctest::Approx(0.0f));
+    CHECK(layers[2].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
 }
 
 TEST_CASE("AnimatedTransform::shift offsets keyframes") {
@@ -166,10 +166,10 @@ TEST_CASE("AnimatedTransform::shift offsets keyframes") {
 
     anim.shift(Frame{10});
 
-    CHECK(anim.position.evaluate(Frame{10}).x == doctest::Approx(0.0f));
-    CHECK(anim.position.evaluate(Frame{40}).x == doctest::Approx(100.0f));
-    CHECK(anim.opacity.evaluate(Frame{10}) == doctest::Approx(0.0f));
-    CHECK(anim.opacity.evaluate(Frame{40}) == doctest::Approx(1.0f));
+    CHECK(anim.position.evaluate(SampleTime::from_frame_int(Frame{10}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
+    CHECK(anim.position.evaluate(SampleTime::from_frame_int(Frame{40}, FrameRate{30, 1})).x == doctest::Approx(100.0f));
+    CHECK(anim.opacity.evaluate(SampleTime::from_frame_int(Frame{10}, FrameRate{30, 1})) == doctest::Approx(0.0f));
+    CHECK(anim.opacity.evaluate(SampleTime::from_frame_int(Frame{40}, FrameRate{30, 1})) == doctest::Approx(1.0f));
 }
 
 TEST_CASE("MotionObject::shift offsets animations and time window") {
@@ -222,23 +222,23 @@ TEST_CASE("stagger_layers CenterOut ordering") {
     stagger_layers(layers, config, StaggerOrder::CenterOut);
 
     // Center layer (index 1) should be rank 0 → no delay
-    CHECK(layers[1].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f));
+    CHECK(layers[1].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
     // left (index 0) and right (index 2) are at same distance from center → order between them is unspecified
     // but both must have greater delay than center
-    Frame d_left = layers[0].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f) ? Frame{0} : Frame{4};
-    Frame d_right = layers[2].anim_transform.position.evaluate(Frame{0}).x == doctest::Approx(0.0f) ? Frame{0} : Frame{4};
+    Frame d_left = layers[0].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f) ? Frame{0} : Frame{4};
+    Frame d_right = layers[2].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.0f) ? Frame{0} : Frame{4};
     CHECK(d_left >= Frame{0});
     CHECK(d_right >= Frame{0});
     // far_left (index 3) should be rank 3 → delay 12
-    CHECK(layers[3].anim_transform.position.evaluate(Frame{12}).x == doctest::Approx(0.0f));
+    CHECK(layers[3].anim_transform.position.evaluate(SampleTime::from_frame_int(Frame{12}, FrameRate{30, 1})).x == doctest::Approx(0.0f));
 }
 
 TEST_CASE("stagger_layers Random ordering with fixed seed") {
     // Each layer starts with a non-zero default position value, and has two keyframes:
     //   Frame{0}:  {start_x, 0, 0}   (same as default — no shift visible here)
     //   Frame{30}: {start_x + 100, 0, 0}  (the actual animation target)
-    // After stagger, the first keyframe shifts to Frame{delay}, so evaluate(Frame{0})
-    // returns the default value, and evaluate(Frame{delay}) returns the first keyframe value.
+    // After stagger, the first keyframe shifts to Frame{delay}, so evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))
+    // returns the default value, and evaluate(SampleTime::from_frame_int(Frame{delay}, FrameRate{30, 1})) returns the first keyframe value.
     // We detect the shift by finding the first frame where evaluate != default.
 
     std::pmr::vector<Layer> layers;
@@ -261,7 +261,8 @@ TEST_CASE("stagger_layers Random ordering with fixed seed") {
     // (meaning we're at or past the shifted first keyframe)
     auto find_first_non_default = [](const AnimatedValue<Vec3>& anim, f32 default_x) -> Frame {
         for (Frame f{0}; f <= Frame{60}; ++f) {
-            if (anim.evaluate(f).x != doctest::Approx(default_x)) return f;
+            if (anim.evaluate(SampleTime::from_frame_int(f, FrameRate{30, 1})).x !=
+                doctest::Approx(default_x)) return f;
         }
         return Frame{-1};
     };

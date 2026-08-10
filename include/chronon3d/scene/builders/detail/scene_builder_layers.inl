@@ -95,14 +95,6 @@ namespace chronon3d {
         return *this;
     }
 
-    // ── Video Layer (path overload) ──────────────────────────────────────────
-    template <typename Fn>
-    SceneBuilder &SceneBuilder::video_layer(std::string name, std::string path, Fn &&fn) {
-        video::VideoSource source;
-        source.path = std::move(path);
-        return video_layer(std::move(name), std::move(source), std::forward<Fn>(fn));
-    }
-
     // ── Null Layer ──────────────────────────────────────────────────────────
     template <typename Fn>
     SceneBuilder &SceneBuilder::null_layer(std::string name, Fn &&fn) {

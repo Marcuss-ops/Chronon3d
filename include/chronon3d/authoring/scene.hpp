@@ -10,15 +10,8 @@
 //   • Single `&` ref-qualifier per setter, identical user-facing syntax
 //     to Layer / Text / Animator / Material / Selector.
 //
-// ── Closure signature dispatch (SFINAE) ───────────────────────────────
-//
-// `Scene::layer("name", fn)` accepts a closure with EITHER signature:
-//   (a) `fn(LayerBuilder&) -> void`  — engine / raw API style, passthrough
-//   (b) `fn(Layer&) -> void`        — PR 3 authoring facade (recommended)
-//
-// The dispatch is `if constexpr` — the compiler instantiates only the
-// matching branch.  No `std::function` overhead; the wrapper lambda
-// captures the user fn by move.
+// Public callbacks use the typed authoring handles. Builder objects remain
+// implementation details of the facade.
 //
 // ── Canonical context plumbing ────────────────────────────────────────
 //
@@ -38,10 +31,9 @@
 //   * `.precomp(name, comp, ...)`  — B2.3
 //   * `.image(name, p)`            — B2.3
 // Everything else (stagger / apply_lighting_rig / shape primitives /
-// edit_camera) is reachable via `.configure_core([&](SceneBuilder&
-// core){ ... })` — the Level-3 escape hatch consistent with PR 3
-// Layer.  Future PRs may expose more verbs once a clear demand pattern
-// emerges; the surface ships narrow on purpose.
+// edit_camera) remains on the internal SceneBuilder surface until it gets
+// an explicit, typed authoring facade.  The public facade has no raw-builder
+// escape hatch.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -78,63 +70,40 @@ public:
     Scene(Scene&&)                 = default;
     Scene& operator=(Scene&&)      = default;
 
-    // ── Layer dispatch (SFINAE dual-surface) ────────────────────────────
-    //
-    // Branch (a) — closure takes authoring::Layer& (PR 3 surface).  We
-    // wrap the SceneBuilder-spawned LayerBuilder as Layer so the user
-    // can chain PR 3 surface methods (l.text(...), l.configure_core(...)).
-    // Branch (b) — closure takes raw LayerBuilder&; passthrough.
+    // ── Typed layer surface ────────────────────────────────────────────
     template <class Fn>
     Scene& layer(std::string name, Fn&& fn) & {
         using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
-        if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
-            builder_->layer(std::move(name), [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
-                Layer layer_handle(lb, canvas_);
-                fn(layer_handle);
-            });
-        } else {
-            // Passthrough — user wants raw LayerBuilder (engine surface).
-            builder_->layer(std::move(name), std::forward<Fn>(fn));
-        }
+        static_assert(std::is_invocable_v<NakedFn, Layer&>,
+                      "Scene::layer(): closure must take authoring::Layer&");
+        builder_->layer(std::move(name), [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
+            Layer layer_handle(lb, canvas_);
+            fn(layer_handle);
+        });
         return *this;
     }
 
-    /// B2.2 — `Sequence` forwarder.  Mirrors `SceneBuilder::sequence`'s
-    /// dual-surface contract: the closure may take either
-    /// `SequenceBuilder&` (PR 4 authoring facade, recommended — gives
-    /// the lambda access to `local_frame()` / `duration()` / `progress()`
-    /// context accessors + a sequenced layer API) or `SceneBuilder&`
-    /// (engine surface, passthrough, equivalent to the pre-PR-4 path).
-    ///
-    /// Internal dispatch (the `if constexpr` inside `compile_sequence()`
-    /// at `detail/scene_builder_sequences.inl`) auto-detects the closure
-    /// surface and constructs the appropriate builder; this wrapper
-    /// simply forwards the call unchanged and lets the compile-sequence
-    /// plumbing own the routing.
+    /// B2.2 — `Sequence` forwarder. The callback receives the canonical
+    /// `SequenceBuilder` context with local-time accessors and sequenced
+    /// layer creation.
     ///
     /// Example (forward-point audit):
     /// ```cpp
     /// scene.sequence("intro",
     ///                { .from = Frame{0}, .duration = Frame{60} },
     ///                [](SequenceBuilder& seq) {
-    ///                    seq.layer("title", [](LayerBuilder& l) { /* ... */ });
+    ///                    seq.layer("title", [](Layer& l) { /* ... */ });
     ///                });
     /// ```
     ///
-    /// Scope: B2.2 — Refactor-block-2 thin forwarder.  No new timeline
-    /// compiler, no override of `compile_sequence()`.  Delegates verbatim
-    /// to `SceneBuilder::sequence(name, spec, fn)` which — per the canonical
-    /// SSoT recorded in `tools/check_single_source_of_truth.sh` Concept 8
-    /// — ultimately invokes the single canonical `compile_sequence()`.
+    /// Scope: B2.2 — thin forwarder to the canonical sequence compiler.
     template <class Fn>
     Scene& sequence(std::string name,
                     SceneBuilder::SequenceSpec spec,
                     Fn&& fn) & {
         using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
-        static_assert(
-            std::is_invocable_v<NakedFn, SequenceBuilder&>
-         || std::is_invocable_v<NakedFn, SceneBuilder&>,
-            "Scene::sequence(): closure must take SequenceBuilder& or SceneBuilder&");
+        static_assert(std::is_invocable_v<NakedFn, SequenceBuilder&>,
+                      "Scene::sequence(): closure must take SequenceBuilder&");
         builder_->sequence(std::move(name),
                            std::move(spec),
                            std::forward<Fn>(fn));
@@ -188,72 +157,35 @@ public:
         return *this;
     }
 
-    /// B2.3 — `screen_layer` forwarder with dual-surface SFINAE
-    /// dispatch (mirrors `Scene::layer` Surface-A / Surface-B
-    /// contract):
-    ///   (a) `fn(Layer&)`         — PR 3 authoring facade (recommended)
-    ///   (b) `fn(LayerBuilder&)`  — engine passthrough
-    /// No new timeline / no override of any underlying engine method.
-    /// The dispatch is `if constexpr` — the compiler instantiates only
-    /// the matching branch.
+    /// B2.3 — typed `screen_layer` forwarder.
     template <class Fn>
     Scene& screen_layer(std::string name, Fn&& fn) & {
         using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
-        if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
-            builder_->screen_layer(std::move(name),
-                [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
-                    Layer layer_handle(lb, canvas_);
-                    fn(layer_handle);
-                });
-        } else {
-            builder_->screen_layer(std::move(name), std::forward<Fn>(fn));
-        }
+        static_assert(std::is_invocable_v<NakedFn, Layer&>,
+                      "Scene::screen_layer(): closure must take authoring::Layer&");
+        builder_->screen_layer(std::move(name),
+            [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
+                Layer layer_handle(lb, canvas_);
+                fn(layer_handle);
+            });
         return *this;
     }
 
-    /// B2.3 — `precomp_layer` forwarder with dual-surface SFINAE
-    /// dispatch (mirrors `Scene::layer` Surface-A / Surface-B
-    /// contract).  The underlying `SceneBuilder::precomp_layer(name,
-    /// comp_name, fn)` references a named precomp composition; this
-    /// wrapper preserves that exact arity.
+    /// B2.3 — typed `precomp_layer` forwarder.
     template <class Fn>
     Scene& precomp(std::string name, std::string comp_name, Fn&& fn) & {
         using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
-        if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
-            builder_->precomp_layer(std::move(name), std::move(comp_name),
-                [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
-                    Layer layer_handle(lb, canvas_);
-                    fn(layer_handle);
-                });
-        } else {
-            builder_->precomp_layer(std::move(name), std::move(comp_name),
-                                    std::forward<Fn>(fn));
-        }
+        static_assert(std::is_invocable_v<NakedFn, Layer&>,
+                      "Scene::precomp(): closure must take authoring::Layer&");
+        builder_->precomp_layer(std::move(name), std::move(comp_name),
+            [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
+                Layer layer_handle(lb, canvas_);
+                fn(layer_handle);
+            });
         return *this;
     }
 
-    // ── Escape hatch ────────────────────────────────────────────────────
-    /// Pass a lambda that mutates the underlying SceneBuilder.  Use for
-    /// fields the fluent surface doesn't expose yet (camera wiring,
-    /// lighting rig, stagger, sequence, etc.).  Inlined by the compiler,
-    /// no `std::function` overhead.
-    ///
-    /// Single `&` ref-qualifier matches the convention used by Layer /
-    /// Text / Animator / Material / Selector — the codebase deliberately
-    /// does NOT duplicate `&` / `&&` overload pairs.
-    template <class Fn>
-    Scene& configure_core(Fn&& mutator) & {
-        mutator(*builder_);
-        return *this;
-    }
-
-    // ── Read-only accessors (for tests and tooling) ──────────────────────
-    [[nodiscard]] SceneBuilder&       mutable_builder()       noexcept { return *builder_; }
-    [[nodiscard]] const SceneBuilder& builder()         const noexcept { return *builder_; }
     [[nodiscard]] const CanvasInfo&   canvas()          const noexcept { return canvas_; }
-
-    [[deprecated("Use canvas()")]]
-    [[nodiscard]] const CanvasInfo& context() const noexcept { return canvas_; }
 
 private:
     SceneBuilder* builder_;

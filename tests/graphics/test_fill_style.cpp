@@ -593,10 +593,10 @@ TEST_CASE("KeyframeTrack<FillStyle> — accessor methods") {
     CHECK(mid.solid_color.r == doctest::Approx(0.75f));
 
     // evaluate(Frame) variant
-    const auto at5  = track.evaluate(Frame{5});
+    const auto at5  = track.evaluate(SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1}));
     CHECK(at5.solid_color.r == doctest::Approx(1.0f));  // before first → first
 
-    const auto at25 = track.evaluate(Frame{25});
+    const auto at25 = track.evaluate(SampleTime::from_frame_int(Frame{25}, FrameRate{30, 1}));
     CHECK(at25.solid_color.r == doctest::Approx(0.5f));  // after last → last
 }
 

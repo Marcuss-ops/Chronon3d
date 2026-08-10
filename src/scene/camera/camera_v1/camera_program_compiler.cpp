@@ -163,7 +163,7 @@ compile_camera(const CameraDescriptor& descriptor,
         // corruption vs. configuration error.
         auto check_fov = [](const AnimatedValue<float>& av) -> std::optional<CameraCompileError> {
             if (av.keyframes().empty()) {
-                float v = av.evaluate(Frame{0});
+                float v = av.evaluate(0.0);
                 if (!std::isfinite(v)) {
                     return CameraCompileError{
                         CameraCompileErrorCode::NonFiniteValue,
@@ -201,7 +201,7 @@ compile_camera(const CameraDescriptor& descriptor,
         };
         auto check_zoom = [](const AnimatedValue<float>& av) -> std::optional<CameraCompileError> {
             if (av.keyframes().empty()) {
-                float v = av.evaluate(Frame{0});
+                float v = av.evaluate(0.0);
                 if (!std::isfinite(v)) {
                     return CameraCompileError{
                         CameraCompileErrorCode::NonFiniteValue,

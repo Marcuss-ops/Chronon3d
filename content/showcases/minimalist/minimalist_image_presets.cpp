@@ -14,7 +14,7 @@ Composition minimalist_image_fade_in() {
             l.pin_to(Anchor::Center);
             l.motion("fade_in", {.duration = Frame{45}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -37,7 +37,7 @@ Composition minimalist_image_focus_in() {
             sc.key(Frame{0}, Vec3{1.04f, 1.04f, 1.0f}, EasingCurve{Easing::OutCubic});
             sc.key(Frame{45}, Vec3{1.0f, 1.0f, 1.0f});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -52,7 +52,7 @@ Composition minimalist_image_scale_drop() {
             l.pin_to(Anchor::Center);
             l.motion("scale_drop", {.scale = 1.08f, .duration = Frame{45}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -67,7 +67,7 @@ Composition minimalist_image_fade_shift_vertical() {
             l.pin_to(Anchor::Center);
             l.motion("fade_shift_vertical", {.vector = Vec3{0.0f, 40.0f, 0.0f}, .duration = Frame{45}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -82,7 +82,7 @@ Composition minimalist_image_center_split() {
             l.pin_to(Anchor::Center);
             l.motion("center_split", {.duration = Frame{45}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -97,7 +97,7 @@ Composition minimalist_image_reveal_from_bottom() {
             l.pin_to(Anchor::Center);
             l.motion("reveal_from_bottom", {.amount = 60.0f, .duration = Frame{45}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -112,7 +112,7 @@ Composition minimalist_image_framing_bracket() {
             l.pin_to(Anchor::Center);
             l.motion("framing_bracket", {.duration = Frame{45}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -127,7 +127,7 @@ Composition minimalist_image_tracking_breathing() {
             l.pin_to(Anchor::Center);
             l.motion("tracking_breathing", {.scale = 1.04f, .duration = Frame{120}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -160,7 +160,7 @@ Composition minimalist_image_elegant_exit() {
             op.key(Frame{150}, 0.0f);
             
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });
@@ -175,7 +175,7 @@ Composition minimalist_image_elastic_slide() {
             l.pin_to(Anchor::Center);
             l.motion("fade_shift_horizontal", {.vector = Vec3{-120.0f, 0.0f, 0.0f}, .duration = Frame{60}, .easing = EasingCurve{Easing::OutBack}});
             add_image_border(l);
-            l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
+            l.image("img", {.asset_path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
         return s.build();
     });

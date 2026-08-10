@@ -11,11 +11,11 @@ namespace chronon3d {
 // ===========================================================================
 // CameraNullNode::evaluate
 // ===========================================================================
-Transform3D CameraNullNode::evaluate(Frame frame) const {
+Transform3D CameraNullNode::evaluate(SampleTime time) const {
     Transform3D result;
-    result.position     = position.evaluate(frame);
-    result.rotation     = rotation.evaluate(frame);
-    result.scale        = scale.evaluate(frame);
+    result.position     = position.evaluate(time);
+    result.rotation     = rotation.evaluate(time);
+    result.scale        = scale.evaluate(time);
     result.inherits_position = inherits_position;
     result.inherits_rotation = inherits_rotation;
     result.inherits_scale    = inherits_scale;
@@ -30,10 +30,10 @@ Transform3D CameraNullNode::evaluate(Frame frame) const {
 // producing a final world-space transform. The camera offset is then
 // applied on top of the accumulated null transform.
 // ===========================================================================
-Camera2_5D CameraNullRig::evaluate(Frame frame) const {
+Camera2_5D CameraNullRig::evaluate(SampleTime time) const {
     Camera2_5D cam;
-    cam.zoom            = zoom.evaluate(frame);
-    cam.fov_deg         = fov_deg.evaluate(frame);
+    cam.zoom            = zoom.evaluate(time);
+    cam.fov_deg         = fov_deg.evaluate(time);
 
     // --- Step 1: Accumulate null chain transforms ---
     // Start with identity. For each null, compose its local transform
@@ -41,7 +41,7 @@ Camera2_5D CameraNullRig::evaluate(Frame frame) const {
     Mat4 accumulated = Mat4{1.0f};
 
     for (const auto& node : nodes) {
-        Transform3D local_xform = node.evaluate(frame);
+        Transform3D local_xform = node.evaluate(time);
         const Mat4 local_mat = local_xform.to_mat4();
         accumulated = accumulated * local_mat;
     }
@@ -55,8 +55,8 @@ Camera2_5D CameraNullRig::evaluate(Frame frame) const {
                    cam.position, skew_ignore, perspective_ignore);
 
     // --- Step 3: Apply camera offset (position + rotation) ---
-    const Vec3 cam_pos_offset   = camera_position_offset.evaluate(frame);
-    const Vec3 cam_rot_offset   = camera_rotation_offset.evaluate(frame);
+    const Vec3 cam_pos_offset   = camera_position_offset.evaluate(time);
+    const Vec3 cam_rot_offset   = camera_rotation_offset.evaluate(time);
 
     // Combine: the camera's world position = accumulated null position +
     // the camera offset rotated by the accumulated rotation.
@@ -78,16 +78,16 @@ Camera2_5D CameraNullRig::evaluate(Frame frame) const {
 
     // --- Step 4: Point of Interest (Two-Node mode) ---
     if (point_of_interest_enabled) {
-        cam.point_of_interest = point_of_interest.evaluate(frame);
+        cam.point_of_interest = point_of_interest.evaluate(time);
         cam.point_of_interest_enabled = true;
     }
 
     // --- Step 5: Depth of Field ---
-    if (dof_enabled.evaluate(frame)) {
+    if (dof_enabled.evaluate(time)) {
         cam.dof.enabled  = true;
-        cam.dof.focus_z  = focus_z.evaluate(frame);
-        cam.dof.aperture = aperture.evaluate(frame);
-        cam.dof.max_blur = max_blur.evaluate(frame);
+        cam.dof.focus_z  = focus_z.evaluate(time);
+        cam.dof.aperture = aperture.evaluate(time);
+        cam.dof.max_blur = max_blur.evaluate(time);
     }
 
     return cam;
@@ -99,10 +99,10 @@ Camera2_5D CameraNullRig::evaluate(Frame frame) const {
 // Creates all the null layers in the scene builder with proper parenting
 // chain, and sets up the camera at the end.
 // ===========================================================================
-void CameraNullRig::build(SceneBuilder& scene, Frame frame) const {
+void CameraNullRig::build(SceneBuilder& scene, SampleTime time) const {
     if (nodes.empty()) {
         // No nulls — just apply camera directly.
-        const Camera2_5D cam = evaluate(frame);
+        const Camera2_5D cam = evaluate(time);
         scene.camera()
             .set(cam)
             .enable(true);
@@ -113,7 +113,7 @@ void CameraNullRig::build(SceneBuilder& scene, Frame frame) const {
     // The first null optionally parents to root_parent_name.
     for (size_t i = 0; i < nodes.size(); ++i) {
         const auto& node = nodes[i];
-        Transform3D xform = node.evaluate(frame);
+        Transform3D xform = node.evaluate(time);
 
         // If this is the first null and root_parent_name is set, wire parent
         if (i == 0 && !root_parent_name.empty()) {
@@ -136,7 +136,7 @@ void CameraNullRig::build(SceneBuilder& scene, Frame frame) const {
     }
 
     // Set up camera at the end of the chain.
-    const Camera2_5D cam = evaluate(frame);
+    const Camera2_5D cam = evaluate(time);
     scene.camera()
         .set(cam)
         .enable(true);
@@ -154,14 +154,14 @@ void CameraNullRig::build(SceneBuilder& scene, Frame frame) const {
 
         // We re-compute: the last null's world transform, then the camera
         // offset from evaluate() is the relative position.
-        const Vec3 cam_offset = camera_position_offset.evaluate(frame);
-        const Vec3 cam_rot_off = camera_rotation_offset.evaluate(frame);
+        const Vec3 cam_offset = camera_position_offset.evaluate(time);
+        const Vec3 cam_rot_off = camera_rotation_offset.evaluate(time);
 
         scene.camera()
             .position(cam_offset)
             .rotation(cam_rot_off)
-            .zoom(zoom.evaluate(frame))
-            .fov(fov_deg.evaluate(frame));
+            .zoom(zoom.evaluate(time))
+            .fov(fov_deg.evaluate(time));
     }
 }
 

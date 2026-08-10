@@ -1,5 +1,6 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <doctest/doctest.h>
+#include <tests/helpers/composition_helpers.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -17,7 +18,7 @@ TEST_CASE("Shape model and SceneBuilder") {
             s.rect("test-rect", {.size={20, 20}, .color=Color::white(), .pos={0, 0, 0}});
             return s.build();
         });
-        auto scene = comp.evaluate(0);
+        auto scene = chronon3d::test_support::evaluate_frame(comp, Frame{0});
         const auto& nodes = scene.nodes();
         REQUIRE(nodes.size() == 1);
         CHECK(nodes[0].shape.type() == ShapeType::Rect);
@@ -31,7 +32,7 @@ TEST_CASE("Shape model and SceneBuilder") {
             s.circle("test-circle", {.radius=15.0f, .color=Color::white(), .pos={0, 0, 0}});
             return s.build();
         });
-        auto scene = comp.evaluate(0);
+        auto scene = chronon3d::test_support::evaluate_frame(comp, Frame{0});
         const auto& nodes = scene.nodes();
         REQUIRE(nodes.size() == 1);
         CHECK(nodes[0].shape.type() == ShapeType::Circle);
@@ -44,7 +45,7 @@ TEST_CASE("Shape model and SceneBuilder") {
             s.line("test-line", {.from={0, 0, 0}, .to={10, 10, 0}, .color=Color::white()});
             return s.build();
         });
-        auto scene = comp.evaluate(0);
+        auto scene = chronon3d::test_support::evaluate_frame(comp, Frame{0});
         const auto& nodes = scene.nodes();
         REQUIRE(nodes.size() == 1);
         CHECK(nodes[0].shape.type() == ShapeType::Line);
@@ -85,7 +86,7 @@ TEST_CASE("Shape model and SceneBuilder") {
             });
             return s.build();
         });
-        auto scene = comp.evaluate(0);
+        auto scene = chronon3d::test_support::evaluate_frame(comp, Frame{0});
         const auto& layers = scene.layers();
         REQUIRE(layers.size() == 1);
         const auto& nodes = layers[0].nodes;

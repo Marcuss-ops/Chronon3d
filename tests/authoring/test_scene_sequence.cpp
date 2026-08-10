@@ -50,7 +50,7 @@ TEST_CASE("Authoring / Scene::sequence / SequenceBuilder receives correct local_
         {.from = chronon3d::Frame{0}, .duration = chronon3d::Frame{60}},
         [&](chronon3d::SequenceBuilder& sequence) {
             invoked = true;
-            captured_local = sequence.local_frame();
+            captured_local = sequence.local_time().integral_frame();
             sequence.layer("title", [&](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {
                     .size = {100.0f, 100.0f},
@@ -97,12 +97,12 @@ TEST_CASE("Authoring / Scene::sequence / nested local frame derives from parent"
         "outer",
         {.from = chronon3d::Frame{100}, .duration = chronon3d::Frame{60}},
         [&](chronon3d::SequenceBuilder& outer) {
-            captured_outer = outer.local_frame();
+            captured_outer = outer.local_time().integral_frame();
             outer.sequence(
                 "inner",
                 {.from = chronon3d::Frame{10}, .duration = chronon3d::Frame{40}},
                 [&](chronon3d::SequenceBuilder& inner) {
-                    captured_inner = inner.local_frame();
+                    captured_inner = inner.local_time().integral_frame();
                     inner.layer("inner_layer", [](chronon3d::LayerBuilder& layer) {
                         layer.rect("r", {
                             .size = {20.0f, 20.0f},
@@ -268,7 +268,7 @@ TEST_CASE("Authoring / Scene::sequence / loop_duration repeats content") {
          .duration = chronon3d::Frame{60},
          .loop_duration = chronon3d::Frame{30}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+            captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});
@@ -290,7 +290,7 @@ TEST_CASE("Authoring / Scene::sequence / freeze_at locks local frame") {
          .duration = chronon3d::Frame{60},
          .freeze_at = chronon3d::Frame{7}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+            captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});
@@ -333,7 +333,7 @@ TEST_CASE("Authoring / Scene::sequence / freeze_at wins over loop_duration") {
          .freeze_at = chronon3d::Frame{7},
          .loop_duration = chronon3d::Frame{30}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+            captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});
@@ -381,7 +381,7 @@ TEST_CASE("Authoring / Scene::sequence / premount and trim_after extend active r
             "extended",
             make_extended_spec(),
             [&](chronon3d::SequenceBuilder& seq) {
-                captured_locals.push_back(seq.local_frame());
+                captured_locals.push_back(seq.local_time().integral_frame());
                 seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                     layer.rect("r", {.size = {10.0f, 10.0f},
                                      .color = chronon3d::Color::white()});
@@ -402,7 +402,7 @@ TEST_CASE("Authoring / Scene::sequence / premount and trim_after extend active r
             "extended",
             make_extended_spec(),
             [&](chronon3d::SequenceBuilder& seq) {
-                captured_locals.push_back(seq.local_frame());
+                captured_locals.push_back(seq.local_time().integral_frame());
                 seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                     layer.rect("r", {.size = {10.0f, 10.0f},
                                      .color = chronon3d::Color::white()});
@@ -427,7 +427,7 @@ TEST_CASE("Authoring / Scene::sequence / loop_duration applied after trim_before
          .trim_before = chronon3d::Frame{5},
          .loop_duration = chronon3d::Frame{30}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+                captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});
@@ -451,7 +451,7 @@ TEST_CASE("Authoring / Scene::sequence / freeze_at combined with trim_before") {
          .trim_before = chronon3d::Frame{3},
          .freeze_at = chronon3d::Frame{7}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+                captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});
@@ -474,7 +474,7 @@ TEST_CASE("Authoring / Scene::sequence / freeze_at applies during premount") {
          .freeze_at = chronon3d::Frame{3},
          .premount = chronon3d::Frame{5}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+                captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});
@@ -498,7 +498,7 @@ TEST_CASE("Authoring / Scene::sequence / loop_duration applies after postmount c
          .loop_duration = chronon3d::Frame{15},
          .postmount = chronon3d::Frame{10}},
         [&](chronon3d::SequenceBuilder& seq) {
-            captured_locals.push_back(seq.local_frame());
+                captured_locals.push_back(seq.local_time().integral_frame());
             seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
                 layer.rect("r", {.size = {10.0f, 10.0f},
                                  .color = chronon3d::Color::white()});

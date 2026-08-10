@@ -136,7 +136,7 @@ TEST_CASE("SceneBuilder line primitive") {
 
 TEST_CASE("SceneBuilder image primitive") {
     auto scene = SceneBuilder{}
-        .image("img", {.path = "photo.png"})
+        .image("img", {.asset_path = "photo.png"})
         .build();
 
     REQUIRE(scene.nodes().size() == 1);
@@ -193,7 +193,8 @@ TEST_CASE("SceneBuilder layer precomp mapping") {
 
 TEST_CASE("SceneBuilder layer video mapping") {
     auto scene = SceneBuilder{}
-        .video_layer("video", "movie.mp4", [](LayerBuilder& l) {})
+        .video_layer("video", video::VideoSource{.path = "movie.mp4"},
+                     [](LayerBuilder& l) {})
         .build();
 
     REQUIRE(scene.layers().size() == 1);

@@ -392,18 +392,25 @@ inline void enrich_resolve_diagnostics(EvaluatedCamera& eval,
 } // anonymous namespace
 
 chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
-ShotTimelineResolver::evaluate(int frame,
+ShotTimelineResolver::evaluate(SampleTime time,
                                 ShotTimelineSession& timeline_session,
                                 FrameRate             fps) const {
+    const Frame frame = time.integral_frame();
+    const auto local_context = [fps](double local_frame) {
+        auto context = CameraEvalContext::at(
+            Frame{static_cast<i64>(std::floor(local_frame))}, fps);
+        context.sample_time = SampleTime::from_frame(local_frame, fps);
+        return context;
+    };
     if (!timeline_ || timeline_->empty())
         return EvaluatedCamera{Camera2_5D{}, {}, {}};
 
-    auto pair = timeline_->find_pair(frame);
+    auto pair = timeline_->find_pair(static_cast<int>(frame));
     if (!pair.current)
         return EvaluatedCamera{Camera2_5D{}, {}, {}};
 
     const CameraShot& shot = *pair.current;
-    int local_frame = frame - shot.start_frame;  // local time
+    const double local_frame = time.frame - static_cast<double>(shot.start_frame);
 
     // Check if we're in a transition overlap with the next shot.
     int overlap_start = shot.end_frame - shot.transition_frames;
@@ -417,7 +424,7 @@ ShotTimelineResolver::evaluate(int frame,
     // allowing timeline-level tests to observe the 6-field ripple-through
     // surface.
     if (!shot.program.is_compiled() && !in_overlap) {
-        auto ctx = CameraEvalContext::at(local_frame, fps);
+        auto ctx = local_context(local_frame);
         EvaluatedCamera result;
         result.camera = Camera2_5D{};
         result.diagnostics.push_back({
@@ -440,14 +447,16 @@ ShotTimelineResolver::evaluate(int frame,
         // local time during the overlap window. The successor shot starts
         // at shot.end_frame, so its local time is frame - next.start_frame
         // (clamped at 0 because it has not officially started yet).
-        auto maybe_t = calculate_transition_t(frame, shot.transition_frames, overlap_start);
+        auto maybe_t = calculate_transition_t(
+            static_cast<int>(frame), shot.transition_frames, overlap_start);
         if (!maybe_t.has_value()) {
             // 0 frames: fall through to single-shot evaluation.
         } else if (*maybe_t >= 1.0f) {
             // 1 frame: instant cut to the incoming shot.
-            CameraEvalContext ctx = CameraEvalContext::at(0, fps);
+            CameraEvalContext ctx = local_context(0.0);
             auto lease = cache.acquire(pair.next->program, pair.idx + 1,
-                                        pair.next->start_frame, frame, fps);
+                                        pair.next->start_frame,
+                                        static_cast<int>(frame), fps);
             auto eval_result = pair.next->program.evaluate(ctx, lease.session());
             if (!eval_result) {
                 return CameraEvaluationError{
@@ -470,14 +479,16 @@ ShotTimelineResolver::evaluate(int frame,
             // base state from the descriptor (CameraBaseSpec) directly.
             // CAM-05 / TICKET-A3-CTX-FRAMERATE: FrameRate is forwarded bit-exact
             // from the resolver caller (no 30 fps fixture inside the resolver).
-            auto ctx_from = CameraEvalContext::at(local_frame, fps);
+            auto ctx_from = local_context(local_frame);
 
-            int next_local = frame - pair.next->start_frame;
-            auto ctx_to = CameraEvalContext::at(std::max(0, next_local), fps);
+            const double next_local = time.frame -
+                                      static_cast<double>(pair.next->start_frame);
+            auto ctx_to = local_context(std::max(0.0, next_local));
 
             // P3-H + sub-ticket C — random-access parity for transition overlap.
             auto lease_from = cache.acquire(shot.program, pair.idx,
-                                            shot.start_frame, frame, fps);
+                                            shot.start_frame,
+                                            static_cast<int>(frame), fps);
             auto  eval_from = shot.program.evaluate(ctx_from, lease_from.session());
             if (!eval_from) {
                 return CameraEvaluationError{
@@ -489,7 +500,8 @@ ShotTimelineResolver::evaluate(int frame,
             lease_from.commit(eval_from.value().camera);
 
             auto lease_to = cache.acquire(pair.next->program, pair.idx + 1,
-                                            pair.next->start_frame, frame, fps);
+                                            pair.next->start_frame,
+                                            static_cast<int>(frame), fps);
             auto  eval_to = pair.next->program.evaluate(ctx_to, lease_to.session());
             if (!eval_to) {
                 return CameraEvaluationError{
@@ -529,7 +541,7 @@ ShotTimelineResolver::evaluate(int frame,
     // descriptor's CameraBaseSpec directly for base state.
     // CAM-05 / TICKET-A3-CTX-FRAMERATE: FrameRate is forwarded bit-exact
     // from the resolver caller (no 30 fps fixture inside the resolver).
-    auto ctx = CameraEvalContext::at(local_frame, fps);
+    auto ctx = local_context(local_frame);
 
     // P3-H + sub-ticket C — observe Cut transitions the first time the
     // resolver enters frame shot.end_frame for a shot whose exit is Cut.
@@ -547,7 +559,7 @@ ShotTimelineResolver::evaluate(int frame,
     // fingerprint invalidation + Cut-reset so direct-frame-100 produces
     // bit-exact state with sequential-0..100.
     auto lease = cache.acquire(shot.program, pair.idx,
-                                 shot.start_frame, frame, fps);
+                                 shot.start_frame, static_cast<int>(frame), fps);
     auto eval_result = shot.program.evaluate(ctx, lease.session());
     if (!eval_result) {
         return CameraEvaluationError{

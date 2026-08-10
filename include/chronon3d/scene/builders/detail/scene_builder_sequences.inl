@@ -22,12 +22,12 @@ namespace chronon3d {
     // ═════════════════════════════════════════════════════════════════════
     //
     // Parameters:
-    //   cf           Current frame (source depends on caller).
+    //   cf           Current integer frame (source depends on caller).
     //                SceneBuilder passes current_integer_frame();
-    //                SequenceBuilder passes m_local_frame.
+    //                SequenceBuilder passes its local context frame.
     //   parent_ctx   Parent FrameContext (m_ctx).
     //   spec         Sequence spec (from, duration, trim_before).
-    //   fn           Lambda — either (SceneBuilder&) or (SequenceBuilder&).
+    //   fn           Lambda taking the typed SequenceBuilder facade.
     //   target_scene Where to merge the manifest and active layers/nodes.
     //   shape_reg    ShapeRegistry pointer (may be nullptr).
     //
@@ -90,12 +90,10 @@ namespace chronon3d {
         // must happen regardless of active status.
         SceneBuilder sub_builder(local_ctx, shape_reg);
 
-        if constexpr (std::is_invocable_v<Fn, SequenceBuilder&>) {
-            SequenceBuilder seq(sub_builder, local_ctx, local, spec.duration, progress);
-            std::forward<Fn>(fn)(seq);
-        } else {
-            std::forward<Fn>(fn)(sub_builder);
-        }
+        static_assert(std::is_invocable_v<Fn, SequenceBuilder&>,
+                      "SceneBuilder::sequence(): callback must take SequenceBuilder&");
+        SequenceBuilder seq(sub_builder, local_ctx, spec.duration, progress);
+        std::forward<Fn>(fn)(seq);
 
         Scene sub_scene = sub_builder.build();
 

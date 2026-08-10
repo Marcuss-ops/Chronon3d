@@ -5,6 +5,7 @@
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <chronon3d/registry/text_preset_resolver.hpp>
 #include <chronon3d/text/glyph_selector_spec.hpp>
+#include "subtitle_render_plan.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -72,10 +73,9 @@ struct SemanticWordEntry {
             .word_index = word_index_for_byte_start(
                 cue.text, word.byte_start, fallback_index),
             .kind = parsed.kind,
-            .start_frame = chronon3d::seconds_to_frame(
-                static_cast<double>(word.start_s),
-                frame_rate,
-                FrameRounding::Nearest),
+            .start_frame = resolve_frame_range(
+                word.start_s, word.end_s, frame_rate,
+                MinimumFrameDuration::AtLeastOneFrame).start,
         });
     }
 
@@ -154,13 +154,6 @@ FrameRate SubtitleTrackBuilder::active_frame_rate() const noexcept {
     return builder_->frame_rate();
 }
 
-Frame SubtitleTrackBuilder::seconds_to_frame(float seconds) const {
-    return chronon3d::seconds_to_frame(
-        static_cast<double>(seconds),
-        active_frame_rate(),
-        FrameRounding::Nearest);
-}
-
 std::vector<TimedWordBinding>
 SubtitleTrackBuilder::build_word_bindings(const TimedCue& cue) {
     std::vector<TimedWordBinding> bindings;
@@ -206,17 +199,11 @@ SubtitleTrackBuilder::build_word_selectors(
         const f32 end_pct =
             static_cast<f32>(word_index + 1) * 100.0f / word_count_f;
 
-        Frame word_start_frame = chronon3d::seconds_to_frame(
-            static_cast<double>(word.start_s),
-            frame_rate,
-            FrameRounding::Nearest);
-        Frame word_end_frame = chronon3d::seconds_to_frame(
-            static_cast<double>(word.end_s),
-            frame_rate,
-            FrameRounding::Nearest);
-        if (word_end_frame <= word_start_frame) {
-            word_end_frame = word_start_frame + Frame{1};
-        }
+        const TimeRange word_range = resolve_frame_range(
+            word.start_s, word.end_s, frame_rate,
+            MinimumFrameDuration::AtLeastOneFrame);
+        const Frame word_start_frame = word_range.start;
+        const Frame word_end_frame = word_range.end;
 
         GlyphSelectorSpec word_selector;
         word_selector.unit = TextSelectorUnit::Word;
@@ -283,36 +270,52 @@ void SubtitleTrackBuilder::build() {
             continue;
         }
 
+        const TimeRange cue_range = resolve_frame_range(
+            cue.start_s, cue.end_s, active_frame_rate(),
+            MinimumFrameDuration::AtLeastOneFrame);
+        const Frame current_frame = builder_->current_frame_for_authoring();
+        if (!cue_range.contains(current_frame)) {
+            continue;
+        }
+
+        SubtitleRenderPlan plan;
+        plan.cue_index = i;
+        plan.timing.range = cue_range;
+        plan.layout = SubtitleLayoutSpec{
+            .box_size = box_size_,
+            .align = align_,
+            .vertical_align = vertical_align_,
+            .anchor = vertical_align_ == VerticalAlign::Bottom
+                ? TextAnchor::BottomCenter
+                : (vertical_align_ == VerticalAlign::Top
+                    ? TextAnchor::TopCenter
+                    : TextAnchor::Center),
+            .placement = placement_,
+            .font_size = font_size_,
+        };
+        plan.words.bindings = build_word_bindings(cue);
+
         TextDefaults spec;
         spec.content.value = cue.text;
         spec.font.font_path = font_path_;
-        spec.font.font_size = font_size_;
+        spec.font.font_size = plan.layout.font_size;
         spec.appearance.color = color_;
-        spec.layout.box = box_size_;
-        spec.layout.align = align_;
-        spec.layout.vertical_align = vertical_align_;
-        spec.layout.anchor = vertical_align_ == VerticalAlign::Bottom
-            ? TextAnchor::BottomCenter
-            : (vertical_align_ == VerticalAlign::Top
-                ? TextAnchor::TopCenter
-                : TextAnchor::Center);
-        spec.placement = placement_;
+        spec.layout.box = plan.layout.box_size;
+        spec.layout.align = plan.layout.align;
+        spec.layout.vertical_align = plan.layout.vertical_align;
+        spec.layout.anchor = plan.layout.anchor;
+        spec.placement = plan.layout.placement;
 
-        const Frame start_frame = seconds_to_frame(cue.start_s);
-        const Frame end_frame = seconds_to_frame(cue.end_s);
-        const Frame duration_frames =
-            std::max(Frame{1}, end_frame - start_frame);
-
-        PreparedText run_spec =
+        plan.text =
             registry::wire_preset_text_run_params(preset_id_, spec);
 
         // Existing timed-word selectors drive preset-specific active-word
         // effects such as karaoke fill and active-word pop.
-        std::vector<GlyphSelectorSpec> word_selectors =
-            build_word_selectors(cue, active_frame_rate(), start_frame, i);
-        if (!run_spec.animation.animators.empty()) {
-            auto& preset_animator = run_spec.animation.animators.front();
-            for (auto& word_selector : word_selectors) {
+        plan.words.selectors =
+            build_word_selectors(cue, active_frame_rate(), cue_range.start, i);
+        if (!plan.text.animation.animators.empty()) {
+            auto& preset_animator = plan.text.animation.animators.front();
+            for (auto& word_selector : plan.words.selectors) {
                 preset_animator.selectors.push_back(
                     std::move(word_selector));
             }
@@ -324,13 +327,13 @@ void SubtitleTrackBuilder::build() {
         auto semantic_animators = build_semantic_emphasis_animators(
             cue, active_frame_rate(), i);
         for (auto& animator : semantic_animators) {
-            run_spec.animation.animators.push_back(std::move(animator));
+            plan.text.animation.animators.push_back(std::move(animator));
         }
 
         builder_->text_run(
-                "subtitle_cue_" + std::to_string(i), run_spec)
-            .commit()                .from(start_frame)
-                .duration(duration_frames);
+            "subtitle_cue_" + std::to_string(plan.cue_index),
+            std::move(plan.text)).commit();
+        break;
     }
 }
 

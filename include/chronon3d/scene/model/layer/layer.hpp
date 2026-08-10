@@ -114,10 +114,7 @@ struct Layer {
     Layer& operator=(Layer&& other) noexcept;
 
     [[nodiscard]] bool active_at(Frame frame) const {
-        if (!visible) return false;
-        if (frame < from) return false;
-        if (duration < 0) return true;
-        return frame < from + duration;
+        return visible && LayerTimeResolver::active_at(frame, from, duration);
     }
 
     /// Canonical sub-frame aware local time.
@@ -125,17 +122,6 @@ struct Layer {
         return LayerTimeResolver::resolve(global_time, from, time_offset, duration, time_remap);
     }
 
-    /// Legacy integer-frame local time (backward-compatible adapter).
-    /// The frame-rate defaults to 30 fps only to preserve existing callers;
-    /// new code should use local_time(SampleTime) with an explicit FrameRate.
-    [[deprecated("Use local_time(SampleTime)")]]
-    [[nodiscard]] Frame local_frame(
-        Frame global_frame,
-        FrameRate rate = FrameRate{30, 1}) const
-    {
-        return local_time(SampleTime::from_frame_int(global_frame, rate))
-            .integral_frame();
-    }
 };
 
 } // namespace chronon3d

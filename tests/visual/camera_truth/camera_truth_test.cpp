@@ -119,16 +119,17 @@ Composition make_camera_truth_test() {
             // screen_x = vp_w/2 + (card_x - cam_x) * perspective_scale
             // screen_y = vp_h/2 - (card_y - cam_y) * perspective_scale
 
+            const auto sample = SampleTime::from_frame_int(f, FrameRate{30, 1});
             spdlog::info("[CameraTruth] frame={} cam_pos=({:.0f},{:.0f},{:.0f})",
                          static_cast<int>(f),
-                         cam.position.evaluate(f).x,
-                         cam.position.evaluate(f).y,
-                         cam.position.evaluate(f).z);
+                         cam.position.evaluate(sample).x,
+                         cam.position.evaluate(sample).y,
+                         cam.position.evaluate(sample).z);
 
-            auto log_card = [f, &cam](const char* name, Vec3 world_pos) {
-                Vec3 campos = cam.position.evaluate(f);
+            auto log_card = [f, sample, &cam](const char* name, Vec3 world_pos) {
+                Vec3 campos = cam.position.evaluate(sample);
                 float depth = world_pos.z - campos.z;  // world_z - camera_z (camera at -1000, card at 0 => depth=1000)
-                float zoom = cam.zoom.evaluate(f);
+                float zoom = cam.zoom.evaluate(sample);
                 float scale = (depth != 0.0f) ? zoom / depth : 0.0f;
                 float screen_x = 480.0f + (world_pos.x - campos.x) * scale;
                 float screen_y = 270.0f - (world_pos.y - campos.y) * scale;

@@ -171,13 +171,8 @@ AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transfor
 // defined in src/scene/builders/commands/motion_preset_methods.cpp.
 // This reduces layer_builder.cpp from 815 → ~515 lines.
 
-// NOTE — `screen_dimensions(w, h)` body intentionally defined in
-// the header (in-class) so the PR 4 flag-flip
-// (`m_screen_dimensions_explicit = true`) lives next to the readback
-// accessors it gates. A non-inline out-of-class definition here
-// causes a redefinition error (since the in-class body is implicitly
-// inline) and silently drops the flag, breaking the
-// `Layer(LayerBuilder&)` 'was-set' detection.
+// NOTE — `screen_dimensions(w, h)` body intentionally remains inline in the
+// header because it is a small builder property setter.
 
 LayerBuilder& LayerBuilder::font_engine(FontEngine* engine) {
     m_font_engine = engine;

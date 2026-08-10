@@ -286,7 +286,7 @@ TEST_CASE("prepare_render promotes preflight failures to structured errors") {
             chronon3d::SceneBuilder scene(ctx);
             scene.layer("missing-image", [](chronon3d::LayerBuilder& layer) {
                 layer.image("image", {
-                    .path = "assets/missing.png",
+                    .asset_path = "assets/missing.png",
                     .size = {64.0f, 64.0f},
                 });
             });
@@ -327,7 +327,7 @@ TEST_CASE("prepare_render recovers after a preflight failure") {
             chronon3d::SceneBuilder scene(ctx);
             scene.layer("missing-image", [](chronon3d::LayerBuilder& layer) {
                 layer.image("image", {
-                    .path = "assets/missing.png",
+                    .asset_path = "assets/missing.png",
                     .size = {64.0f, 64.0f},
                 });
             });

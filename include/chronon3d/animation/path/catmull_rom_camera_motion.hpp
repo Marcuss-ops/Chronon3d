@@ -9,6 +9,7 @@
 
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 namespace chronon3d {
@@ -24,7 +25,7 @@ struct CatmullRomCameraMotion {
     f32              roll_deg{0.0f};
     bool             use_arc_length{false};
 
-    [[nodiscard]] Camera2_5D evaluate(Frame frame, Frame start, Frame end) const {
+    [[nodiscard]] Camera2_5D evaluate(SampleTime time, Frame start, Frame end) const {
         Camera2_5D cam;
         cam.enabled = true;
 
@@ -35,7 +36,8 @@ struct CatmullRomCameraMotion {
             return cam;
         }
 
-        const f32 raw_t = static_cast<f32>(frame - start) / static_cast<f32>(end - start);
+        const f32 raw_t = static_cast<f32>(time.frame - static_cast<double>(start)) /
+                          static_cast<f32>(end - start);
         const f32 t = std::clamp(easing.apply(std::clamp(raw_t, 0.0f, 1.0f)), 0.0f, 1.0f);
 
         const PathSample sample = path.sample_at(t, use_arc_length);

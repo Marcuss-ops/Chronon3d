@@ -15,8 +15,7 @@
 //  Forwarding priority (canonical, locked at forward-point 0e):
 //    - `p.asset_path` non-empty → return asset_path (manifest-clean
 //      field, preferred by the STEP 3 impedance closure).
-//    - Else → return `p.path` (legacy deprecated field, preserved
-//      for backward-compat with the ~70 pre-0e call sites).
+//    - Else → return `asset_path` (manifest-oriented compatibility field).
 //    - Both empty → return empty string (caller-visible: each dispatch
 //      site does its own `if (!effective_path.empty())` guard).
 //
@@ -58,28 +57,6 @@
 
 using namespace chronon3d;
 
-// ─── Forward-declared preprocessor shim for `[[deprecated]]` suppression
-//  ────────────────────────────────────────────────────────────────────
-// The `path` field on `ImageParams` is `[[deprecated]]` as of forward-point
-// 0e — accessing it emits a compiler warning.  Test scenarios #3 + #4
-// MUST read/write this field to lock the backward-compat branch of the
-// canonical forwarding priority.  Per project conventions, the warning
-// is suppressed LOCALLY inside the test via portable diagnostic pragmas
-// (GCC/Clang use `-Wdeprecated-declarations`, MSVC uses C4996).  The
-// pragmas are wrapped in helper macros for readability + future-proofing.
-#if defined(__GNUC__) || defined(__clang__)
-#define CHRONON3D_DEPR_PUSH _Pragma("GCC diagnostic push") \
-                            _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
-#define CHRONON3D_DEPR_POP  _Pragma("GCC diagnostic pop")
-#elif defined(_MSC_VER)
-#define CHRONON3D_DEPR_PUSH __pragma(warning(push)) \
-                            __pragma(warning(disable: 4996))
-#define CHRONON3D_DEPR_POP  __pragma(warning(pop))
-#else
-#define CHRONON3D_DEPR_PUSH ((void)0)
-#define CHRONON3D_DEPR_POP  ((void)0)
-#endif
-
 TEST_CASE("detail::image_params_resolve_path: empty-empty returns empty") {
     // Both fields default-constructed empty.  Expect: helper returns
     // an empty std::string (forwarding priority: empty asset_path →
@@ -104,43 +81,24 @@ TEST_CASE("detail::image_params_resolve_path: asset-only returns asset_path") {
     CHECK(resolved.size() == 8u);
 }
 
-TEST_CASE("detail::image_params_resolve_path: path-only returns legacy path") {
-    // `asset_path` left default-empty, `path` populated.  This is the
-    // backward-compat branch — must still resolve to the legacy `path`
-    // field.  The `[[deprecated]]` warning is suppressed locally so
-    // this test compiles clean on the OPP's default warning level.
-    CHRONON3D_DEPR_PUSH;
+TEST_CASE("detail::image_params_resolve_path: source-only returns typed source") {
     ImageParams p;
-    p.path = "legacy.png";
+    p.source = assets::ImageRef{"typed.png"};
     const std::string resolved =
         detail::image_params_resolve_path(p);
-    CHRONON3D_DEPR_POP;
 
-    CHECK(resolved == "legacy.png");
-    CHECK(resolved.size() == 10u);
+    CHECK(resolved == "typed.png");
+    CHECK(resolved.size() == 9u);
 }
 
-TEST_CASE("detail::image_params_resolve_path: both-set returns asset_path (priority)") {
-    // Both fields populated.  This is the canonical forward-point 0e
-    // invariant: asset_path wins over path.  Must NOT be order-
-    // dependent (the helper uses `!p.asset_path.empty()` BEFORE
-    // touching `p.path`); only the `path` access needs the
-    // [[deprecated]] suppression (the `path` field is read by the
-    // helper body in the L falsy-branch, suppressed here for clarity
-    // even when the asset_path branch is taken at runtime).
-    CHRONON3D_DEPR_PUSH;
+TEST_CASE("detail::image_params_resolve_path: typed source wins over asset_path") {
     ImageParams p;
+    p.source = assets::ImageRef{"typed.png"};
     p.asset_path = "asset.png";
-    p.path = "legacy.png";
     const std::string resolved =
         detail::image_params_resolve_path(p);
-    CHRONON3D_DEPR_POP;
 
-    // Forward-point 0e canonical invariant: `asset_path` wins over
-    // `path` when both are populated.  `path` is still readable (the
-    // [[deprecated]] pragma only suppresses warnings, not storage).
-    CHECK(resolved == "asset.png");
-    CHECK(p.path == "legacy.png");
+    CHECK(resolved == "typed.png");
 }
 
 TEST_CASE("detail::image_params_resolve_path: large-path still resolves") {

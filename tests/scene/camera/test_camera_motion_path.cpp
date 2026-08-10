@@ -28,9 +28,12 @@ TEST_CASE("CameraMotionPath: evaluate with frame range") {
     motion.path.add_waypoint({0.0f, 0.0f, -1200.0f})
                .add_waypoint({200.0f, 0.0f, -800.0f});
 
-    Camera2_5D cam_start = motion.evaluate(Frame{0}, Frame{0}, Frame{90});
-    Camera2_5D cam_end = motion.evaluate(Frame{90}, Frame{0}, Frame{90});
-    Camera2_5D cam_mid = motion.evaluate(Frame{45}, Frame{0}, Frame{90});
+    const auto t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    const auto t45 = SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1});
+    const auto t90 = SampleTime::from_frame_int(Frame{90}, FrameRate{30, 1});
+    Camera2_5D cam_start = motion.evaluate(t0, Frame{0}, Frame{90});
+    Camera2_5D cam_end = motion.evaluate(t90, Frame{0}, Frame{90});
+    Camera2_5D cam_mid = motion.evaluate(t45, Frame{0}, Frame{90});
 
     CHECK(cam_start.position.x == doctest::Approx(0.0f));
     CHECK(cam_end.position.x == doctest::Approx(200.0f));
@@ -43,7 +46,9 @@ TEST_CASE("CameraMotionPath: easing affects position") {
                .add_waypoint({100.0f, 0.0f, -1000.0f});
     motion.easing = EasingCurve{Easing::OutCubic};
 
-    Camera2_5D cam = motion.evaluate(Frame{45}, Frame{0}, Frame{90});
+    Camera2_5D cam = motion.evaluate(
+        SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1}),
+        Frame{0}, Frame{90});
     CHECK(cam.position.x > 50.0f);
 }
 
