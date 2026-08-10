@@ -203,11 +203,18 @@ inline void record_output_run(const std::string& composition_id,
     run.output_path = output_path;
     run.success = success;
     run.frames_total = frames_total;
-    run.frames_written = frames_written;
+    // A successfully validated video has encoded every requested frame.  A
+    // few encoder paths do not expose their final counter, so use the
+    // validated total instead of publishing a misleading zero.
+    run.frames_written = (success && frames_written == 0 && frames_total > 0)
+        ? frames_total
+        : frames_written;
     run.wall_time_ms = wall_time_ms;
     run.render_ms = render_ms;
     run.encode_ms = encode_ms;
-    run.effective_fps = wall_time_ms > 0.0 ? (frames_written * 1000.0 / wall_time_ms) : 0.0;
+    run.effective_fps = wall_time_ms > 0.0
+        ? (static_cast<double>(run.frames_written) * 1000.0 / wall_time_ms)
+        : 0.0;
     run.bytes_allocated_peak = chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
     run.started_at_iso = started_at_iso;
     run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
@@ -243,6 +250,24 @@ inline void record_output_run(const std::string& composition_id,
     const auto resolved_counters = counters.empty() && counters_src
         ? capture_counters(*counters_src)
         : counters;
+
+    // Pool configuration is supplied as a resolved counter by the video
+    // exporter.  Mirror it onto the run row so the summary does not report a
+    // zero budget when the pool was explicitly bounded.
+    for (const auto& counter : resolved_counters) {
+        if (counter.counter_name == "framebuffer_pool_budget_bytes")
+            run.framebuffer_pool_budget_bytes = counter.counter_value;
+        else if (counter.counter_name == "framebuffer_pool_retained_bytes")
+            run.framebuffer_pool_retained_bytes = counter.counter_value;
+        else if (counter.counter_name == "framebuffer_pool_evicted_count")
+            run.framebuffer_pool_evicted_count = counter.counter_value;
+        else if (counter.counter_name == "framebuffer_pool_evicted_bytes")
+            run.framebuffer_pool_evicted_bytes = counter.counter_value;
+        else if (counter.counter_name == "framebuffer_pool_pressure_count")
+            run.framebuffer_pool_pressure_count = counter.counter_value;
+        else if (counter.counter_name == "framebuffer_pool_size_class_count")
+            run.framebuffer_pool_size_class_count = counter.counter_value;
+    }
 
     chronon3d::telemetry::TelemetryManager::instance().record_run(
         run, frames, phases, resolved_counters, node_events,
