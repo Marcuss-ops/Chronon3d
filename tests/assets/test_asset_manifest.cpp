@@ -6,6 +6,7 @@
 //   - AssetManifest: add, filter, merge, empty, size
 //   - AssetRef: fields, typed convenience methods
 //   - Manifest collection: text_run → font, image → image, video → video
+//   - Mesh surface: add_mesh → AssetKind::Mesh, logical dependency only
 //   - Propagation: Layer manifest → Scene manifest
 //   - Multiple layers: manifests aggregate correctly
 
@@ -61,12 +62,23 @@ TEST_CASE("AssetManifest — add_audio") {
     CHECK(m.assets()[0].kind == assets::AssetKind::Audio);
 }
 
+TEST_CASE("AssetManifest — add_mesh records a logical dependency") {
+    AssetManifest m;
+    m.add_mesh("models/phone.glb", "hero/mesh");
+    REQUIRE(m.size() == 1);
+    CHECK(m.assets()[0].kind == assets::AssetKind::Mesh);
+    CHECK(m.assets()[0].path == "models/phone.glb");
+    CHECK(m.assets()[0].owner == "hero/mesh");
+    CHECK(m.assets()[0].required);
+}
+
 TEST_CASE("AssetManifest — filter by type") {
     AssetManifest m;
     m.add_font("a.ttf", "x");
     m.add_image("b.png", "y");
     m.add_font("c.ttf", "z");
     m.add_video("d.mp4", "w");
+    m.add_mesh("e.glb", "mesh");
 
     auto fonts = m.filter(assets::AssetKind::Font);
     CHECK(fonts.size() == 2);
@@ -81,6 +93,10 @@ TEST_CASE("AssetManifest — filter by type") {
 
     auto audio = m.filter(assets::AssetKind::Audio);
     CHECK(audio.empty());
+
+    auto meshes = m.filter(assets::AssetKind::Mesh);
+    REQUIRE(meshes.size() == 1);
+    CHECK(meshes[0].path == "e.glb");
 }
 
 TEST_CASE("AssetManifest — merge") {
