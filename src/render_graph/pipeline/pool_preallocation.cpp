@@ -44,7 +44,11 @@ std::vector<cache::FramebufferPoolPreallocOptions> predict_pool_requirements(
         }
     }
 
-    constexpr size_t kMaxPreallocPerBucket = 5;
+    // Keep the warm set small.  The pool budget only limits retained/free
+    // buffers; buffers held by in-flight frames are live outside that budget.
+    // Over-preallocating every bucket therefore multiplies RSS for video
+    // exports with several frames queued concurrently.
+    constexpr size_t kMaxPreallocPerBucket = 2;
     std::vector<cache::FramebufferPoolPreallocOptions> predictions;
     predictions.reserve(peak_counts.size() + 1);
 
@@ -53,7 +57,7 @@ std::vector<cache::FramebufferPoolPreallocOptions> predict_pool_requirements(
         predictions.push_back(cache::FramebufferPoolPreallocOptions{
             .width  = bw,
             .height = bh,
-            .count  = 4,
+            .count  = 2,
             .clear  = true,
             .touch_memory = false,
         });

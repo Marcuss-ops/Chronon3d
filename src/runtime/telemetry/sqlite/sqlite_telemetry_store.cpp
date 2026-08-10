@@ -162,12 +162,12 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_pool_best_fit_reuse,
         run.framebuffer_pool_exact_hit,
         run.framebuffer_buffer_returned_to_pool_count,
-        uint64_t{0},  // framebuffer_pool_budget_bytes — set via render_counters table
-        uint64_t{0},  // framebuffer_pool_retained_bytes
-        uint64_t{0},  // framebuffer_pool_evicted_count
-        uint64_t{0},  // framebuffer_pool_evicted_bytes
-        uint64_t{0},  // framebuffer_pool_pressure_count
-        uint64_t{0},  // framebuffer_pool_size_class_count
+        run.framebuffer_pool_budget_bytes,
+        run.framebuffer_pool_retained_bytes,
+        run.framebuffer_pool_evicted_count,
+        run.framebuffer_pool_evicted_bytes,
+        run.framebuffer_pool_pressure_count,
+        run.framebuffer_pool_size_class_count,
         run.unaligned_memory_copies,
         run.frame_conversion_copy_ms,
         run.video_graph_eval_ms,
