@@ -183,9 +183,9 @@ LayerBuilder& LayerBuilder::mesh(std::string name, assets::MeshRef ref) {
     const std::string owner = ref.owner().empty()
         ? std::string(m_layer.name) + "/" + name
         : ref.owner();
-    if (!ref.path().empty()) {
-        m_layer.asset_manifest.add_mesh(ref.path(), owner, ref.required());
-    }
+    // Keep invalid references visible to the canonical preflight boundary;
+    // an empty path is diagnosed there rather than silently discarded.
+    m_layer.asset_manifest.add_mesh(ref.path(), owner, ref.required());
 
     auto* res = m_layer.nodes.get_allocator().resource();
     RenderNode node(res);
