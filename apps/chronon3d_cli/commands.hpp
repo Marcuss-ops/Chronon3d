@@ -13,6 +13,9 @@
 namespace chronon3d {
 namespace cli {
 
+// Forward declaration — full definition lives in `cli_context.hpp`.
+struct CliContext;
+
 struct RenderQualityArgs {
     // PR1 — motion blur is now a tri-state (Off | TemporalAccumulation |
     // VelocityApproximation). The `motion_blur` boolean is the convenient CLI
@@ -215,6 +218,7 @@ struct ResolveArgs {
 };
 
 int command_list(const CompositionRegistry& registry);
+int command_benchmark_machine(const CliContext& ctx);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
                    const std::string& build_command = "");
