@@ -1,15 +1,21 @@
 #include <doctest/doctest.h>
 
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/visual/support/golden_test.hpp>
 
+#include <array>
 #include <cmath>
 #include <memory>
+#include <optional>
+#include <vector>
 
 namespace {
 
@@ -132,6 +138,86 @@ chronon3d::Scene make_rotated_cube_scene() {
     return scene;
 }
 
+std::shared_ptr<const chronon3d::assets::PreparedMeshSource> make_animated_mesh_source() {
+    auto prepared = std::make_shared<chronon3d::assets::PreparedMeshSource>();
+    prepared->materials.push_back({
+        .name = "animated-red",
+        .base_color_factor = chronon3d::Color{0.92f, 0.12f, 0.08f, 1.0f},
+    });
+
+    auto mesh = std::make_shared<chronon3d::Mesh>("animated-mesh-quad");
+    constexpr float h = 70.0f;
+    mesh->add_vertex({{-h, -h, 0.0f}});
+    mesh->add_vertex({{ h, -h, 0.0f}});
+    mesh->add_vertex({{ h,  h, 0.0f}});
+    mesh->add_vertex({{-h,  h, 0.0f}});
+    mesh->add_index(0);
+    mesh->add_index(1);
+    mesh->add_index(2);
+    mesh->add_index(0);
+    mesh->add_index(2);
+    mesh->add_index(3);
+    prepared->parts.push_back({
+        .name = "animated-red",
+        .geometry = std::move(mesh),
+        .material_index = 0,
+    });
+    return prepared;
+}
+
+chronon3d::Composition make_animated_mesh_composition(
+    std::shared_ptr<const chronon3d::assets::PreparedMeshSource> prepared) {
+    return chronon3d::composition(
+        {
+            .name = "MeshLayerRotateAnimation",
+            .width = 256,
+            .height = 256,
+            .frame_rate = chronon3d::FrameRate{30, 1},
+            .duration = chronon3d::Frame{60},
+        },
+        [prepared](const chronon3d::FrameContext& ctx) {
+            chronon3d::SceneBuilder builder(ctx);
+            builder.layer("animated-mesh-layer", [](chronon3d::LayerBuilder& layer) {
+                layer.position({0.0f, 0.0f, -1500.0f});
+                layer.mesh(
+                    "animated-mesh",
+                    chronon3d::assets::MeshRef{"prepared/animated-mesh.glb", "animated-mesh-layer/animated-mesh", false});
+                layer.rotate_anim()
+                    .key(0, chronon3d::Vec3{0.0f, 0.0f, 0.0f})
+                    .key(60, chronon3d::Vec3{0.0f, 90.0f, 0.0f});
+            });
+            auto scene = builder.build();
+            if (!scene.layers().empty() && !scene.layers()[0].nodes.empty()) {
+                scene.layers()[0].nodes[0].shape.mesh_shape().prepared = prepared;
+            }
+            return scene;
+        });
+}
+
+std::vector<chronon3d::u64> render_mesh_frame_order(
+    const chronon3d::Composition& composition,
+    const std::vector<int>& frame_order) {
+    auto renderer = chronon3d::test::make_renderer_shared();
+    std::vector<chronon3d::u64> hashes;
+    hashes.reserve(frame_order.size());
+    for (const int frame : frame_order) {
+        auto framebuffer = renderer->render(composition, chronon3d::Frame{frame});
+        REQUIRE(framebuffer != nullptr);
+        hashes.push_back(chronon3d::test::framebuffer_hash(*framebuffer));
+    }
+    return hashes;
+}
+
+std::optional<chronon3d::u64> hash_at_frame(
+    const std::vector<int>& frame_order,
+    const std::vector<chronon3d::u64>& hashes,
+    int frame) {
+    for (std::size_t i = 0; i < frame_order.size(); ++i) {
+        if (frame_order[i] == frame) return hashes[i];
+    }
+    return std::nullopt;
+}
+
 chronon3d::test::GoldenTestConfig mesh_golden_config() {
     chronon3d::test::GoldenTestConfig cfg;
     cfg.golden_directory = "test_renders/golden/mesh";
@@ -180,6 +266,49 @@ TEST_CASE("RenderGraph Mesh: prepared parts use base color and shared camera dep
     CHECK(center.b > 0.5f);
     CHECK(center.r < 0.1f);
     CHECK(center.a > 0.5f);
+}
+
+TEST_CASE("RenderGraph Mesh: Layer rotate_anim is sequential/random-access deterministic") {
+    const auto composition = make_animated_mesh_composition(make_animated_mesh_source());
+
+    const auto scene_at_start = composition.evaluate(chronon3d::test::make_ctx(
+        chronon3d::Frame{0}, 256, 256));
+    const auto scene_at_end = composition.evaluate(chronon3d::test::make_ctx(
+        chronon3d::Frame{60}, 256, 256));
+    REQUIRE(scene_at_start.layers().size() == 1);
+    REQUIRE(scene_at_end.layers().size() == 1);
+    REQUIRE(scene_at_start.layers()[0].nodes.size() == 1);
+    REQUIRE(scene_at_end.layers()[0].nodes.size() == 1);
+
+    // This locks the authoring contract itself: rotate_anim() is evaluated on
+    // the Layer, while the prepared MeshSource remains the same static data.
+    CHECK(scene_at_start.layers()[0].transform.rotation
+          != scene_at_end.layers()[0].transform.rotation);
+    CHECK(scene_at_start.layers()[0].nodes[0].shape.mesh_shape().prepared.get()
+          == scene_at_end.layers()[0].nodes[0].shape.mesh_shape().prepared.get());
+
+    const std::vector<int> sequential{0, 15, 30, 45, 60};
+    const std::vector<int> random_access{45, 0, 60, 15, 30};
+    const auto sequential_hashes = render_mesh_frame_order(composition, sequential);
+    const auto random_hashes = render_mesh_frame_order(composition, random_access);
+
+    // Each frame must render identically regardless of whether preceding
+    // frames were evaluated, or the renderer jumps directly to that frame.
+    for (const int frame : sequential) {
+        const auto sequential_hash = hash_at_frame(sequential, sequential_hashes, frame);
+        const auto random_hash = hash_at_frame(random_access, random_hashes, frame);
+        REQUIRE(sequential_hash.has_value());
+        REQUIRE(random_hash.has_value());
+        CHECK(*sequential_hash == *random_hash);
+    }
+    const auto hash_0 = hash_at_frame(sequential, sequential_hashes, 0);
+    const auto hash_30 = hash_at_frame(sequential, sequential_hashes, 30);
+    const auto hash_60 = hash_at_frame(sequential, sequential_hashes, 60);
+    REQUIRE(hash_0.has_value());
+    REQUIRE(hash_30.has_value());
+    REQUIRE(hash_60.has_value());
+    CHECK(*hash_0 != *hash_30);
+    CHECK(*hash_30 != *hash_60);
 }
 
 TEST_CASE("RenderGraph Mesh: rotated cube perspective depth golden") {
