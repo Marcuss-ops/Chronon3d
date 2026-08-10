@@ -113,7 +113,7 @@ TEST_CASE("Unified transform path: Rect and Image share the same base layer matr
                     });
                 } else if (type == "image") {
                     l.image("img", {
-                        .path = white_image,
+                        .asset_path = white_image,
                         .size = {160.0f, 90.0f},
                         .pos = {0.0f, 0.0f, 0.0f},
                         .opacity = 1.0f
@@ -163,7 +163,7 @@ TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected laye
             l.enable_3d();
             l.rotate({30.0f, 0.0f, 0.0f});
             l.image("img", {
-                .path = white_image,
+                .asset_path = white_image,
                 .size = {160.0f, 90.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
                 .opacity = 1.0f

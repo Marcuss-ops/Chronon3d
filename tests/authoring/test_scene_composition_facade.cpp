@@ -8,6 +8,18 @@ chronon3d::CanvasInfo explicit_canvas(float width, float height) {
     return chronon3d::CanvasInfo::with_safe_area(
         width, height, chronon3d::SafeAreaPreset{});
 }
+
+chronon3d::Scene evaluate_frame(const chronon3d::Composition& composition,
+                                chronon3d::Frame frame) {
+    const auto sample = chronon3d::SampleTime::from_frame_int(
+        frame, composition.frame_rate());
+    return composition.evaluate(chronon3d::make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+    }));
+}
 } // namespace
 
 // ============================================================================
@@ -36,7 +48,7 @@ TEST_CASE("Authoring/CompositionBuilder: empty composition (no .scene()) renders
     CompositionBuilder cb;
     cb.name("empty").width(640).height(480);
     chronon3d::Composition comp = std::move(cb).build();
-    chronon3d::Scene scene = comp.evaluate(Frame{0});
+    chronon3d::Scene scene = evaluate_frame(comp, Frame{0});
     CHECK(scene.layers().empty());
     CHECK(scene.nodes().empty());
 }
@@ -56,33 +68,28 @@ TEST_CASE("Authoring/Scene + Layer: SFINAE wrap branch populates authored text i
         })
         .build();
 
-    chronon3d::Scene evaluated = comp.evaluate(Frame{0});
+    chronon3d::Scene evaluated = evaluate_frame(comp, Frame{0});
     REQUIRE(evaluated.layers().size() == 1);
     CHECK(evaluated.layers()[0].name == "title");
     REQUIRE(evaluated.layers()[0].nodes.size() == 1);
 }
 
-TEST_CASE("Authoring/Scene: SFINAE passthrough branch (LayerBuilder& closure) is honored") {
+TEST_CASE("Authoring/Scene: typed layer facade receives canvas dimensions") {
     using chronon3d::authoring::composition;
     int draw_count = 0;
     chronon3d::Composition comp = composition()
         .name("passthrough")
         .width(800).height(600)
         .scene([&draw_count](chronon3d::authoring::Scene& scene,
-                             const chronon3d::FrameContext& ctx) {
-            scene.layer("raw", [&ctx, &draw_count](LayerBuilder& layer) {
-                layer.screen_dimensions(
-                    static_cast<float>(ctx.width), static_cast<float>(ctx.height));
-                layer.rect("bg", {
-                    .size = {static_cast<float>(ctx.width), static_cast<float>(ctx.height)},
-                    .color = Color::white()
-                });
+                             const chronon3d::FrameContext&) {
+            scene.layer("raw", [&draw_count](chronon3d::authoring::Layer& layer) {
+                layer.fullscreen_rect("bg", Color::white());
                 ++draw_count;
             });
         })
         .build();
 
-    (void)comp.evaluate(Frame{0});
+    (void)evaluate_frame(comp, Frame{0});
     CHECK(draw_count == 1);
 }
 
@@ -97,36 +104,15 @@ TEST_CASE("Authoring/CompositionBuilder: canonical FrameContext flows into Scene
                                         const chronon3d::FrameContext& ctx) {
             ctx_width = ctx.width;
             ctx_height = ctx.height;
-            scene.layer("bg", [](LayerBuilder& layer) {
-                layer.screen_dimensions(1280.0f, 720.0f);
+            scene.layer("bg", [](chronon3d::authoring::Layer& layer) {
                 layer.fullscreen_rect("fs", Color::white());
             });
         })
         .build();
 
-    (void)comp.evaluate(Frame{0});
+    (void)evaluate_frame(comp, Frame{0});
     CHECK(ctx_width == 1280);
     CHECK(ctx_height == 720);
-}
-
-TEST_CASE("Authoring/CompositionBuilder: custom_builder(factory) is invoked per evaluate()") {
-    using chronon3d::authoring::composition;
-    int factory_call_count = 0;
-    chronon3d::Composition comp = composition()
-        .name("custom")
-        .width(100).height(100)
-        .custom_builder([&factory_call_count](const chronon3d::FrameContext& ctx) {
-            ++factory_call_count;
-            return SceneBuilder(ctx);
-        })
-        .scene([](chronon3d::authoring::Scene& scene,
-                  const chronon3d::FrameContext&) {
-            scene.layer("bg", [](chronon3d::authoring::Layer&) {});
-        })
-        .build();
-
-    (void)comp.evaluate(Frame{0});
-    CHECK(factory_call_count == 1);
 }
 
 TEST_CASE("Authoring/CompositionBuilder: build() consumes builder by rvalue") {
@@ -135,30 +121,6 @@ TEST_CASE("Authoring/CompositionBuilder: build() consumes builder by rvalue") {
     CHECK(!std::is_copy_assignable_v<CompositionBuilder>);
     CHECK(std::is_move_constructible_v<CompositionBuilder>);
     CHECK(std::is_move_assignable_v<CompositionBuilder>);
-}
-
-TEST_CASE("Authoring/Layer: explicit ctor throws when parent builder has no screen_dimensions") {
-    LayerBuilder lb("no_dims", SampleTime{});
-    bool caught = false;
-    std::string what_msg;
-    try {
-        chronon3d::authoring::Layer layer(lb);
-        FAIL("expected std::runtime_error");
-    } catch (const std::runtime_error& error) {
-        caught = true;
-        what_msg = error.what();
-    } catch (...) {
-        FAIL("expected std::runtime_error specifically");
-    }
-    REQUIRE(caught);
-    CHECK(what_msg.find("no_dims") != std::string::npos);
-    CHECK(what_msg.find("screen_dimensions") != std::string::npos);
-}
-
-TEST_CASE("Authoring/Layer: explicit ctor succeeds when parent builder has screen_dimensions set") {
-    LayerBuilder lb("with_dims", SampleTime{});
-    lb.screen_dimensions(1920.0f, 1080.0f);
-    REQUIRE_NOTHROW(chronon3d::authoring::Layer{lb});
 }
 
 TEST_CASE("Authoring/Layer: explicit CanvasInfo ctor works without screen_dimensions") {
@@ -170,7 +132,7 @@ TEST_CASE("Authoring/Layer: explicit CanvasInfo ctor works without screen_dimens
 TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending params") {
     LayerBuilder lb("script_round_trip", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb);
+    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
     chronon3d::authoring::Text text = layer.text("ŁATIN");
     text.script(0x4C61746Eu);
     CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x4C61746Eu);
@@ -179,7 +141,7 @@ TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending params") {
 TEST_CASE("Authoring/Text: default script=0u is preserved") {
     LayerBuilder lb("script_default", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb);
+    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
     chronon3d::authoring::Text text = layer.text("AUTODETECT");
     CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0u);
 }
@@ -187,7 +149,7 @@ TEST_CASE("Authoring/Text: default script=0u is preserved") {
 TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
     LayerBuilder lb("script_propagate", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb);
+    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
 
     StyleRegistry styles;
     chronon3d::TextStyle hero;
@@ -208,7 +170,7 @@ TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
 TEST_CASE("Authoring/Text: style(id) preserves existing script when style script is zero") {
     LayerBuilder lb("script_zero", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb);
+    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
 
     StyleRegistry styles;
     chronon3d::TextStyle default_style;
@@ -226,7 +188,7 @@ TEST_CASE("Authoring/Text: style(id) preserves existing script when style script
 TEST_CASE("Authoring/Text: script accepts high-bit pattern without sign extension") {
     LayerBuilder lb("script_highbit", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb);
+    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
     chronon3d::authoring::Text text = layer.text("X");
     constexpr std::uint32_t kPattern = 0x80808080u;
     text.script(kPattern);

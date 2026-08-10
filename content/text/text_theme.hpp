@@ -85,7 +85,7 @@ inline void add_image_card(LayerBuilder& l, const char* path, Vec2 size, f32 rad
         .color  = IMAGE_BORDER_COLOR,
     });
     l.image("img", {
-        .path   = path,
+        .asset_path = path,
         .size   = size,
         .radius = radius,
     });

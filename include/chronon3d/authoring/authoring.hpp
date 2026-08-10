@@ -27,8 +27,7 @@
 //   - `Text`   (thin handle over `PendingTextRun`; mutates `spec.text`
 //               directly; consumes `Material` / `Animator` builders via
 //               their `release()` friends, and `StyleRegistry` / `MotionRegistry`
-//               via `resolve()` lookups; offers `configure_core(Fn)` as a
-//               Level-3 escape hatch).
+//               via `resolve()` lookups).
 //
 // PR 3.5 ships (ambient-resolution round, after PR 3 review feedback):
 //   - `chronon3d::ExtensionContext` extended with optional `StyleRegistry*`
@@ -43,17 +42,12 @@
 //     `.style(id, registry)` and `.motion(id, registry)` unchanged.
 //
 // PR 4 ships (top-of-tree composition factory):
-//   - `chronon3d::authoring::Scene`  (thin handle over `SceneBuilder`;
-//     SFINAE-dispatched `.layer(name, fn)` accepts EITHER a closure
-//     taking `Layer&` (PR 3 surface — wraps the SceneBuilder-spawned
-//     LayerBuilder) OR a closure taking `LayerBuilder&` (engine raw
-//     surface — passthrough); other verbs (camera, stagger, sequence,
-//     apply_lighting_rig, shape primitives) reachable via
-//     `.configure_core(Fn)`).
+//   - `chronon3d::authoring::Scene` (typed facade over `SceneBuilder`;
+//     layer/screen-layer/precomp callbacks take `Layer&`, while sequence
+//     callbacks take `SequenceBuilder&`; raw builders stay internal).
 //   - `chronon3d::authoring::CompositionBuilder`  (fluent spec-builder
 //     with `.name/.width/.height/.duration/.frame_rate` setters +
-//     `.scene(fn)` render-fn setter + `.custom_builder(fn)`
-//     injection point for callers needing non-default SceneBuilder +
+//     `.scene(fn)` render-fn setter
 //     `.build()` terminal that returns the engine
 //     `chronon3d::Composition` directly so the registry is unchanged).
 //   - Free `composition()` factory returns an empty CompositionBuilder

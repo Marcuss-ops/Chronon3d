@@ -7,7 +7,7 @@
 //   - Opacity animation starts from local frame 0 (not global)
 //   - Position animation uses local frame
 //   - Nested sequence animation uses innermost local frame
-//   - Backward compatibility: animations outside sequences use global frame
+//   - animations outside sequences use global frame
 //
 // Key mechanism: SceneBuilder::sequence() sets local_ctx.frame = local,
 // so LayerBuilder::build() evaluates anim_transform at the local frame.
@@ -42,7 +42,7 @@ TEST_CASE("Sequence anim — opacity starts from local frame 0") {
     auto build_at = [](Frame f) -> Scene {
         SceneBuilder s(anim_ctx(f));
         s.sequence("test", {.from = Frame{100}, .duration = Frame{60}},
-            [](SceneBuilder& s) {
+            [](SequenceBuilder& s) {
                 s.layer("animated", [](LayerBuilder& l) {
                     l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     l.opacity_anim()
@@ -91,7 +91,7 @@ TEST_CASE("Sequence anim — position uses local frame") {
     auto build_at = [](Frame f) -> Scene {
         SceneBuilder s(anim_ctx(f));
         s.sequence("move", {.from = Frame{50}, .duration = Frame{40}},
-            [](SceneBuilder& s) {
+            [](SequenceBuilder& s) {
                 s.layer("box", [](LayerBuilder& l) {
                     l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     l.position_anim()
@@ -216,7 +216,7 @@ TEST_CASE("Sequence anim — scale uses local frame") {
     auto build_at = [](Frame f) -> Scene {
         SceneBuilder s(anim_ctx(f));
         s.sequence("zoom", {.from = Frame{200}, .duration = Frame{60}},
-            [](SceneBuilder& s) {
+            [](SequenceBuilder& s) {
                 s.layer("box", [](LayerBuilder& l) {
                     l.rect("r", {.size = {100, 100}, .color = Color::white()});
                     l.scale_anim()

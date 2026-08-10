@@ -22,10 +22,11 @@ namespace {
 
 constexpr int kWarmupFirstFrame = 0;
 constexpr int kWarmupLastFrame = 29;
-constexpr int kObservedFirstFrame = 20;
-constexpr int kObservedLastFrame = 36;
-constexpr std::size_t kObservedFrameCount =
-    static_cast<std::size_t>(kObservedLastFrame - kObservedFirstFrame + 1);
+// Sparse checkpoints cover the warmup boundary and the end of the
+// transition while keeping this regression test bounded in memory: a fresh
+// renderer is intentionally created for each independent checkpoint.
+constexpr std::array<int, 3> kObservedFrames{20, 29, 36};
+constexpr std::size_t kObservedFrameCount = kObservedFrames.size();
 
 using FrameHashes = std::array<u64, kObservedFrameCount>;
 
@@ -33,21 +34,24 @@ std::shared_ptr<SoftwareRenderer> make_reproduction_renderer() {
     auto renderer = test::make_renderer_shared();
     RenderSettings settings = renderer->render_settings();
     settings.motion_blur.mode = MotionBlurMode::Off;
-    settings.diagnostics.enabled = true;
+    // The regression assertion compares framebuffer hashes; verbose graph
+    // diagnostics add substantial allocation/log pressure while providing no
+    // extra signal for this test.
+    settings.diagnostics.enabled = false;
     renderer->set_settings(settings);
     return renderer;
 }
 
 FrameHashes render_independent_frames(const Composition& composition) {
     FrameHashes hashes{};
-    for (int frame = kObservedFirstFrame; frame <= kObservedLastFrame; ++frame) {
+    for (std::size_t index = 0; index < kObservedFrames.size(); ++index) {
+        const int frame = kObservedFrames[index];
         auto renderer = make_reproduction_renderer();
         auto framebuffer = renderer->render(composition, Frame{frame});
         REQUIRE_MESSAGE(framebuffer != nullptr,
                         "independent render returned no framebuffer at frame " << frame);
-        hashes[static_cast<std::size_t>(frame - kObservedFirstFrame)] =
-            test::framebuffer_hash(*framebuffer);
-        REQUIRE_MESSAGE(hashes[static_cast<std::size_t>(frame - kObservedFirstFrame)] != 0,
+        hashes[index] = test::framebuffer_hash(*framebuffer);
+        REQUIRE_MESSAGE(hashes[index] != 0,
                         "independent render produced an empty hash at frame " << frame);
     }
     return hashes;
@@ -65,13 +69,13 @@ FrameHashes render_sequential_frames(const Composition& composition) {
                         "sequential warmup returned no framebuffer at frame " << frame);
     }
 
-    for (int frame = kObservedFirstFrame; frame <= kObservedLastFrame; ++frame) {
+    for (std::size_t index = 0; index < kObservedFrames.size(); ++index) {
+        const int frame = kObservedFrames[index];
         auto framebuffer = renderer->render(composition, Frame{frame});
         REQUIRE_MESSAGE(framebuffer != nullptr,
                         "sequential render returned no framebuffer at frame " << frame);
-        hashes[static_cast<std::size_t>(frame - kObservedFirstFrame)] =
-            test::framebuffer_hash(*framebuffer);
-        REQUIRE_MESSAGE(hashes[static_cast<std::size_t>(frame - kObservedFirstFrame)] != 0,
+        hashes[index] = test::framebuffer_hash(*framebuffer);
+        REQUIRE_MESSAGE(hashes[index] != 0,
                         "sequential render produced an empty hash at frame " << frame);
     }
     return hashes;
@@ -87,8 +91,8 @@ TEST_CASE("LightTransition cache reproduction: independent and sequential frames
     const auto sequential = render_sequential_frames(composition);
 
     int first_divergent_frame = -1;
-    for (int frame = kObservedFirstFrame; frame <= kObservedLastFrame; ++frame) {
-        const auto index = static_cast<std::size_t>(frame - kObservedFirstFrame);
+    for (std::size_t index = 0; index < kObservedFrames.size(); ++index) {
+        const int frame = kObservedFrames[index];
         const bool matches = independent[index] == sequential[index];
         if (!matches && first_divergent_frame < 0) {
             first_divergent_frame = frame;

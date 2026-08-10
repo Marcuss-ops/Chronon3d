@@ -75,7 +75,7 @@ TEST_CASE("AssetPreflightResolver — missing font: error") {
 TEST_CASE("AssetPreflightResolver — missing image: error") {
     SceneBuilder s(preflight_ctx(Frame{0}));
     s.layer("bg", [](LayerBuilder& l) {
-        l.image("photo", {.path = "assets/missing.png", .size = {100, 100}});
+        l.image("photo", {.asset_path = "assets/missing.png", .size = {100, 100}});
     });
     Scene scene = s.build();
 
@@ -95,7 +95,7 @@ TEST_CASE("AssetPreflightResolver — multiple missing assets") {
         (void)l.text_run("label", std::move(p));
     });
     s.layer("bg", [](LayerBuilder& l) {
-        l.image("photo", {.path = "assets/nope.png", .size = {100, 100}});
+        l.image("photo", {.asset_path = "assets/nope.png", .size = {100, 100}});
     });
     Scene scene = s.build();
 

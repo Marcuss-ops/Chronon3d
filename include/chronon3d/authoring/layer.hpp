@@ -51,7 +51,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -63,15 +62,6 @@ public:
     /// `CanvasInfo`. Custom safe-area margins remain intact through Text.
     Layer(LayerBuilder& builder, CanvasInfo canvas) noexcept
         : builder_(&builder), canvas_(std::move(canvas)) {}
-
-    /// Façade-only constructor with canvas auto-detection.
-    ///
-    /// Requires the parent `LayerBuilder` to have called
-    /// `screen_dimensions(w, h)` at least once. The dimensions are converted
-    /// through `CanvasInfo::with_safe_area(...)`; no fallback viewport exists.
-    explicit Layer(LayerBuilder& builder) noexcept(false)
-        : builder_(&builder),
-          canvas_(resolve_canvas_or_throw_(builder)) {}
 
     Layer(const Layer&)            = delete;
     Layer& operator=(const Layer&) = delete;
@@ -117,20 +107,6 @@ public:
         const MotionRegistry* mr = (ext && ext->motion_registry != nullptr) ? ext->motion_registry : nullptr;
 
         return Text{pending, &canvas_, sr, mr};
-    }
-
-    /// Escape hatch: pass a lambda that mutates the underlying LayerBuilder.
-    /// Use this for fields the fluent surface doesn't expose yet.
-    ///
-    /// B1 — [[deprecated]]: the canonical authoring surface now covers
-    /// transforms, timing, effects, masks, blend modes, shapes, and 3D.
-    /// Prefer the named methods on this class directly.
-    /// Inlined by the compiler, no `std::function` overhead.
-    template <class Fn>
-    [[deprecated("Use the named methods on authoring::Layer instead of configure_core()")]]
-    Layer& configure_core(Fn&& mutator) & {
-        mutator(*builder_);
-        return *this;
     }
 
     // ── B1 — Layer-level transforms (delegate to LayerBuilder) ─────────
@@ -239,6 +215,16 @@ public:
         return builder_->last_node_handle();
     }
 
+    Layer& fill(Color color) {
+        builder_->fill(color);
+        return *this;
+    }
+
+    Layer& fullscreen_rect(std::string name, Color color) {
+        builder_->fullscreen_rect(std::move(name), color);
+        return *this;
+    }
+
     // ── WP-8 PR 8.2 — per-layer FontEngine default ────────────────────
     // Forwards to `LayerBuilder::font_engine(FontEngine*)`, mirroring the
     // authoring `Text::font_engine(*)` per-spec override (defined upstream
@@ -263,35 +249,9 @@ public:
         return SubtitleTrackBuilder{*builder_, canvas_, track};
     }
 
-    /// Read-only accessors — used by tests and tooling.
-    [[nodiscard]] LayerBuilder&       mutable_builder()       noexcept { return *builder_; }
-    [[nodiscard]] const LayerBuilder& builder()         const noexcept { return *builder_; }
     [[nodiscard]] const CanvasInfo&   canvas()          const noexcept { return canvas_; }
 
-    [[deprecated("Use canvas()")]]
-    [[nodiscard]] const CanvasInfo& context() const noexcept { return canvas_; }
-
 private:
-    /// Fail-fast canvas resolver for the one-arg `Layer(LayerBuilder&)`
-    /// overload. It converts the explicitly configured screen dimensions
-    /// through the canonical safe-area factory.
-    static CanvasInfo resolve_canvas_or_throw_(LayerBuilder& builder) {
-        if (!builder.screen_dimensions_were_set()) {
-            const std::string layer_name{builder.name()};
-            const std::string msg =
-                "chronon3d::authoring::Layer(LayerBuilder&): parent LayerBuilder '" +
-                layer_name + "' was constructed without an explicit "
-                "screen_dimensions(...) call. Use one of:\n"
-                "  1. Call `builder.screen_dimensions(w, h)` before constructing the Layer.\n"
-                "  2. Use the explicit `Layer(LayerBuilder&, CanvasInfo)` ctor.\n"
-                "No fallback viewport is available.";
-            throw std::runtime_error(msg);
-        }
-        const Vec2 dims = builder.screen_dimensions();
-        return CanvasInfo::with_safe_area(
-            dims.x, dims.y, SafeAreaPreset{});
-    }
-
     LayerBuilder* builder_;
     CanvasInfo    canvas_;
     std::size_t   next_text_index_{0};

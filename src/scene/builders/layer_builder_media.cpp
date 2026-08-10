@@ -20,12 +20,6 @@ LayerBuilder& LayerBuilder::video(video::VideoSource source) {
     return *this;
 }
 
-LayerBuilder& LayerBuilder::video(std::string path) {
-    video::VideoSource source;
-    source.path = std::move(path);
-    return video(std::move(source));
-}
-
 LayerBuilder& LayerBuilder::video_size(Vec2 size) {
     if (m_layer.video_source) {
         m_layer.video_source->size = size;

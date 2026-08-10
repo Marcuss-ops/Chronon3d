@@ -7,7 +7,7 @@
 //  bit-identical: pure-black pitch background + luminous halo
 //  behind the title + bloom-settle AURORA title (custom TextGlow
 //  preset + scale overshoot) + 8-waypoint closed Catmull-Rom
-//  orbit evaluated with `motion.evaluate(ctx.frame(), 0, 239)` +
+//  orbit evaluated with `motion.evaluate(ctx.local_time(), 0, 239)` +
 //  wiggle3D shake overlay (seed=42, low-frequency "operator
 //  breathing").
 //
@@ -152,7 +152,7 @@ Composition orbit_handheld_glow() {
             /*seed=*/42
         );
 
-        Camera2_5D cam = motion.evaluate(ctx.frame(), Frame{0}, Frame{239});
+        Camera2_5D cam = motion.evaluate(ctx.local_time(), Frame{0}, Frame{239});
         cam.position += shake_offset;
         s.camera().set(cam);
 

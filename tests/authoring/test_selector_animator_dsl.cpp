@@ -35,9 +35,9 @@ TEST_CASE("Authoring/Selector: multiple .start() calls accumulate keyframes") {
      .start(Frame{60}, 100.0f, Easing::OutCubic);
 
     auto built = AnimatorTestAccess::release(std::move(s));
-    CHECK(built.start.evaluate(0)  == doctest::Approx(0.0f));
-    CHECK(built.start.evaluate(24) == doctest::Approx(50.0f));
-    CHECK(built.start.evaluate(60) == doctest::Approx(100.0f));
+    CHECK(built.start.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))  == doctest::Approx(0.0f));
+    CHECK(built.start.evaluate(SampleTime::from_frame_int(Frame{24}, FrameRate{30, 1})) == doctest::Approx(50.0f));
+    CHECK(built.start.evaluate(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1})) == doctest::Approx(100.0f));
 }
 
 TEST_CASE("Authoring/Selector: end / offset / amount setters apply") {
@@ -105,29 +105,29 @@ TEST_CASE("Authoring/Animator: fluent hero-reveal pattern") {
     REQUIRE(built.properties.size() == 5);
     CHECK(find_property(built, typeid(chronon3d::PositionProperty),
         [](const void* p) {
-            return static_cast<const chronon3d::PositionProperty*>(p)->value.evaluate(0)
+            return static_cast<const chronon3d::PositionProperty*>(p)->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))
                 == Vec3{0.0f, 46.0f, 0.0f};
         }));
     CHECK(find_property(built, typeid(chronon3d::ScaleProperty),
         [](const void* p) {
             auto* sp = static_cast<const chronon3d::ScaleProperty*>(p);
-            return sp->value.evaluate(0).x == doctest::Approx(0.94f)
-                && sp->value.evaluate(0).y == doctest::Approx(0.94f)
-                && sp->value.evaluate(0).z == doctest::Approx(1.0f);
+            return sp->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).x == doctest::Approx(0.94f)
+                && sp->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).y == doctest::Approx(0.94f)
+                && sp->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})).z == doctest::Approx(1.0f);
         }));
     CHECK(find_property(built, typeid(chronon3d::OpacityProperty),
         [](const void* p) {
-            return static_cast<const chronon3d::OpacityProperty*>(p)->value.evaluate(0)
+            return static_cast<const chronon3d::OpacityProperty*>(p)->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))
                 == doctest::Approx(0.0f);
         }));
     CHECK(find_property(built, typeid(chronon3d::BlurProperty),
         [](const void* p) {
-            return static_cast<const chronon3d::BlurProperty*>(p)->radius.evaluate(0)
+            return static_cast<const chronon3d::BlurProperty*>(p)->radius.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))
                 == doctest::Approx(12.0f);
         }));
     CHECK(find_property(built, typeid(chronon3d::TrackingProperty),
         [](const void* p) {
-            return static_cast<const chronon3d::TrackingProperty*>(p)->pixels.evaluate(0)
+            return static_cast<const chronon3d::TrackingProperty*>(p)->pixels.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))
                 == doctest::Approx(10.0f);
         }));
 }
@@ -151,7 +151,7 @@ TEST_CASE("Authoring/Animator: Scale overload picks Vec3 vs uniform") {
     REQUIRE(u_built.properties.size() == 1);
     auto* sp = std::get_if<chronon3d::ScaleProperty>(&u_built.properties[0]);
     REQUIRE(sp != nullptr);
-    CHECK(sp->value.evaluate(0) == doctest::Approx3D(Vec3{0.5f, 0.5f, 1.0f}));
+    CHECK(sp->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx3D(Vec3{0.5f, 0.5f, 1.0f}));
 
     Animator v = animator("vec3");
     v.scale(Vec3{0.5f, 0.25f, 2.0f});
@@ -159,7 +159,7 @@ TEST_CASE("Authoring/Animator: Scale overload picks Vec3 vs uniform") {
     REQUIRE(v_built.properties.size() == 1);
     auto* sp2 = std::get_if<chronon3d::ScaleProperty>(&v_built.properties[0]);
     REQUIRE(sp2 != nullptr);
-    CHECK(sp2->value.evaluate(0) == doctest::Approx3D(Vec3{0.5f, 0.25f, 2.0f}));
+    CHECK(sp2->value.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx3D(Vec3{0.5f, 0.25f, 2.0f}));
 }
 
 TEST_CASE("Authoring/Animator: rotation / anchor / colours apply") {

@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <tests/helpers/composition_helpers.hpp>
 #include <chronon3d/presets/scene_presets.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -8,7 +9,7 @@ using namespace chronon3d;
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 static Scene evaluate_preset(const Composition& comp, Frame frame) {
-    return comp.evaluate(frame);
+    return chronon3d::test_support::evaluate_frame(comp, frame);
 }
 
 // ── SaaSIntro ─────────────────────────────────────────────────────────────────

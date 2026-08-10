@@ -20,6 +20,16 @@ static Scene make_simple_scene(const FrameContext& ctx) {
     return s.build();
 }
 
+static Scene evaluate_frame(const Composition& composition, Frame frame) {
+    const auto sample = SampleTime::from_frame_int(frame, composition.frame_rate());
+    return composition.evaluate(make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+    }));
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────
 
 TEST_CASE("Project: default metadata") {
@@ -117,7 +127,7 @@ TEST_CASE("Project: composition evaluates at frame 0") {
     project.composition("Eval", {.duration = Frame{60}}, make_simple_scene);
 
     auto comp = project.create("Eval");
-    auto scene = comp.evaluate(Frame{0});
+    auto scene = evaluate_frame(comp, Frame{0});
     CHECK(scene.layers().size() >= 1);
 }
 

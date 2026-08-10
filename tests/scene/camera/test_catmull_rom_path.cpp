@@ -40,7 +40,9 @@ TEST_CASE("CatmullRomCameraMotion: evaluates by frame range with easing") {
               .add_waypoint({100.0f, 0.0f, -1000.0f});
     motion.easing = EasingCurve{Easing::OutCubic};
 
-    Camera2_5D cam_mid = motion.evaluate(Frame{45}, Frame{0}, Frame{90});
+    Camera2_5D cam_mid = motion.evaluate(
+        SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1}),
+        Frame{0}, Frame{90});
     // OutCubic moves faster at start → midpoint should be > 50
     CHECK(cam_mid.position.x > 50.0f);
 }

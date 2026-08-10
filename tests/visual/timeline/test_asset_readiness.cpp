@@ -167,7 +167,7 @@ TEST_CASE("Assets.MissingImageFailsPreflight") {
     SUBCASE("single missing image") {
         SceneBuilder s(asset_ctx());
         s.layer("bg", [](LayerBuilder& l) {
-            l.image("photo", {.path = "assets/images/missing_bg.png",
+        l.image("photo", {.asset_path = "assets/images/missing_bg.png",
                               .size = {1920, 1080}});
         });
         Scene scene = s.build();
@@ -184,7 +184,7 @@ TEST_CASE("Assets.MissingImageFailsPreflight") {
     SUBCASE("image issue contains path and owner") {
         SceneBuilder s(asset_ctx());
         s.layer("background_layer", [](LayerBuilder& l) {
-            l.image("bg_image", {.path = "assets/images/nonexistent.png",
+        l.image("bg_image", {.asset_path = "assets/images/nonexistent.png",
                                  .size = {100, 100}});
         });
         Scene scene = s.build();
@@ -201,10 +201,10 @@ TEST_CASE("Assets.MissingImageFailsPreflight") {
     SUBCASE("multiple missing images all reported") {
         SceneBuilder s(asset_ctx());
         s.layer("layer1", [](LayerBuilder& l) {
-            l.image("img1", {.path = "missing1.png", .size = {100, 100}});
+        l.image("img1", {.asset_path = "missing1.png", .size = {100, 100}});
         });
         s.layer("layer2", [](LayerBuilder& l) {
-            l.image("img2", {.path = "missing2.png", .size = {100, 100}});
+        l.image("img2", {.asset_path = "missing2.png", .size = {100, 100}});
         });
         Scene scene = s.build();
 
@@ -233,7 +233,7 @@ TEST_CASE("Assets.MissingVideoFailsPreflight") {
             (void)l.text_run("text", std::move(p));
         });
         s.layer("bg_layer", [](LayerBuilder& l) {
-            l.image("bg", {.path = "assets/images/nope.png", .size = {100, 100}});
+        l.image("bg", {.asset_path = "assets/images/nope.png", .size = {100, 100}});
         });
         Scene scene = s.build();
 
@@ -286,7 +286,7 @@ static Scene make_two_asset_scene(Frame build_frame) {
     // Late layer: active at frame 60-89, uses image
     s.layer("late", [](LayerBuilder& l) {
         l.from(Frame{60}).duration(Frame{30});
-        l.image("bg", {.path = "assets/images/Late.png", .size = {1920, 1080}});
+        l.image("bg", {.asset_path = "assets/images/Late.png", .size = {1920, 1080}});
     });
     return s.build();
 }

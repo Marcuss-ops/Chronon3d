@@ -98,7 +98,7 @@ TEST_CASE("LayerTimeResolver: random access") {
     CHECK(layer.local_time(SampleTime::from_frame(87.5, rate)).frame == doctest::Approx(87.5));
 }
 
-TEST_CASE("LayerTimeResolver: local_time agrees with deprecated local_frame") {
+TEST_CASE("LayerTimeResolver: local_time preserves frame-rate-aware evaluation") {
     const FrameRate rate{30, 1};
 
     auto run_equivalence = [&](f32 speed, Frame offset) {
@@ -109,11 +109,10 @@ TEST_CASE("LayerTimeResolver: local_time agrees with deprecated local_frame") {
         for (Frame f = -10; f <= 40; f += 5) {
             auto st = SampleTime::from_frame_int(f, rate);
             auto via_local_time = layer.local_time(st).integral_frame();
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-            auto via_local_frame = layer.local_frame(f, rate);
-#pragma GCC diagnostic pop
-            CHECK(via_local_time == via_local_frame);
+            const auto via_resolver = LayerTimeResolver::resolve(
+                st, layer.from, layer.time_offset, layer.duration,
+                layer.time_remap).integral_frame();
+            CHECK(via_local_time == via_resolver);
         }
     };
 

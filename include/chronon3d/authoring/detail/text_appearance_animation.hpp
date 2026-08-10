@@ -30,6 +30,11 @@ Text& language(std::string bcp47) {
     return *this;
 }
 
+Text& cache_layout(bool value) {
+    pending_->params.animation.cache_layout = value;
+    return *this;
+}
+
 Text& script(std::uint32_t value) & {
     pending_->params.shaping.script = value;
     return *this;

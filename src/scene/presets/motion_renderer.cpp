@@ -146,7 +146,7 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
     }
     case MotionObjectType::Image:
         l.image(layer_name + "_image", {
-            .path = obj.image_path_value,
+            .asset_path = obj.image_path_value,
             .size = obj.size_value,
             .pos = {0.0f, 0.0f, 0.0f},
             .opacity = 1.0f,

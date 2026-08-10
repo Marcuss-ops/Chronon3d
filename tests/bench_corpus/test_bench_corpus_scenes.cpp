@@ -24,6 +24,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
+#include <tests/helpers/composition_helpers.hpp>
 
 // Direct include of the bench corpus public-factories header.
 // Path resolves from `tests/bench_corpus/test_bench_corpus_scenes.cpp`
@@ -42,7 +43,7 @@ using namespace chronon3d::bench_corpus;
 // resource. Mirrors the canonical `evaluate(...)` pattern used by
 // `tests/scene_presets/test_scene_presets.cpp`.
 static inline Scene eval_at(const Composition& comp, Frame frame) {
-    return comp.evaluate(frame);
+    return chronon3d::test_support::evaluate_frame(comp, frame);
 }
 
 // Common dimension/duration + 3-frame shape-count assertion suite.

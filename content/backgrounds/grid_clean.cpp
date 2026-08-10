@@ -32,7 +32,7 @@ void register_grid_clean_background(CompositionRegistry& registry) {
                          .grid_color = {0.25f, 0.52f, 1.0f, 0.05f},
                          .spacing = 140.0f, .extent = 4000.0f, .centered = true});
                     s.screen_layer("grid_clean", [path, w = ctx.width, h = ctx.height](auto& l) {
-                        l.cache_static().image("img", {.path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
+                        l.cache_static().image("img", {.asset_path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
                     });
                     return s.build();
                 });

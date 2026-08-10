@@ -49,13 +49,13 @@ TEST_CASE("Sequence integration — mixed active/inactive: only active layers re
     auto build_at = [](Frame f) -> Scene {
         SceneBuilder s(seq_ctx(f));
         s.sequence("early", {.from = Frame{0}, .duration = Frame{30}},
-            [](SceneBuilder& s) {
+            [](SequenceBuilder& s) {
                 s.layer("a", [](LayerBuilder& l) {
                     l.rect("r", {.size = {100, 100}, .color = Color::white()});
                 });
             });
         s.sequence("late", {.from = Frame{60}, .duration = Frame{30}},
-            [](SceneBuilder& s) {
+            [](SequenceBuilder& s) {
                 s.layer("b", [](LayerBuilder& l) {
                     l.rect("r", {.size = {100, 100}, .color = Color::white()});
                 });
@@ -102,16 +102,16 @@ TEST_CASE("Sequence integration — manifest aggregates across sequence boundari
     SceneBuilder s(seq_ctx(Frame{0}));
 
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
-        [](SceneBuilder& s) {
+        [](SequenceBuilder& s) {
             s.layer("title", [](LayerBuilder& l) {
-                l.image("photo", {.path = "assets/images/intro.png", .size = {100, 100}});
+                l.image("photo", {.asset_path = "assets/images/intro.png", .size = {100, 100}});
             });
         });
 
     s.sequence("body", {.from = Frame{30}, .duration = Frame{60}},
-        [](SceneBuilder& s) {
+        [](SequenceBuilder& s) {
             s.layer("content", [](LayerBuilder& l) {
-                l.image("photo", {.path = "assets/images/body.png", .size = {100, 100}});
+                l.image("photo", {.asset_path = "assets/images/body.png", .size = {100, 100}});
             });
         });
 
@@ -149,7 +149,7 @@ TEST_CASE("Sequence integration — preflight FrameOnly with nested sequences") 
                 outer.sequence("inner", {.from = Frame{100}, .duration = Frame{100}},
                     [](SequenceBuilder& inner) {
                         inner.layer("title", [](LayerBuilder& l) {
-                            l.image("photo", {.path = "assets/images/nested.png", .size = {100, 100}});
+                            l.image("photo", {.asset_path = "assets/images/nested.png", .size = {100, 100}});
                         });
                     });
             });

@@ -8,6 +8,7 @@
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
@@ -27,6 +28,7 @@
 
 using chronon3d::Color;
 using chronon3d::Frame;
+using chronon3d::SampleTime;
 using chronon3d::Vec2;
 using chronon3d::Vec3;
 using chronon3d::Easing;

@@ -146,7 +146,7 @@ TEST_CASE("AssetManifest — text_run collects font asset") {
 TEST_CASE("AssetManifest — image collects image asset") {
     SceneBuilder s(manifest_ctx());
     s.layer("bg", [](LayerBuilder& l) {
-        l.image("photo", {.path = "assets/bg.png", .size = {100, 100}});
+        l.image("photo", {.asset_path = "assets/bg.png", .size = {100, 100}});
     });
 
     Scene scene = s.build();
@@ -166,7 +166,7 @@ TEST_CASE("AssetManifest — image collects image asset") {
 TEST_CASE("AssetManifest — empty path not collected") {
     SceneBuilder s(manifest_ctx());
     s.layer("bg", [](LayerBuilder& l) {
-        l.image("photo", {.path = "", .size = {100, 100}});
+        l.image("photo", {.asset_path = "", .size = {100, 100}});
     });
 
     Scene scene = s.build();
@@ -183,7 +183,7 @@ TEST_CASE("AssetManifest — multiple layers aggregate") {
         (void)l.text_run("label", std::move(p));
     });
     s.layer("bg", [](LayerBuilder& l) {
-        l.image("photo", {.path = "assets/bg.png", .size = {100, 100}});
+        l.image("photo", {.asset_path = "assets/bg.png", .size = {100, 100}});
     });
 
     Scene scene = s.build();
@@ -196,7 +196,7 @@ TEST_CASE("AssetManifest — sequence layers propagate to scene") {
     FrameContext ctx = manifest_ctx();
     SceneBuilder s(ctx);
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
-        [](SceneBuilder& s) {
+        [](SequenceBuilder& s) {
             s.layer("title", [](LayerBuilder& l) {
                 PreparedText p;
                 p.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";

@@ -16,5 +16,6 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_pipeline
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_subtitle_productive.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/text/test_subtitle_determinism.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/text/test_subtitle_sparse_srt.cpp
     LABELS text ungated
 )

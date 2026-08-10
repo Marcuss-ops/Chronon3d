@@ -26,19 +26,12 @@
 // The 3 composition registration layers (see register_compositions.hpp).
 #include "register_compositions.hpp"
 
-// StyleRegistry + MotionRegistry authoring helpers — content-module ambient
-// authoring accessors.  NOT composition registrations; kept here for the
-// legacy inline `cli_style_registry()` / `cli_motion_registry()` accessors
-// consumed by register_content_compositions (when CHRONON3D_BUILD_CONTENT).
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
-#include <chronon3d/authoring/detail/basic_registry.hpp>            // PR 3.5
-#include <chronon3d/authoring/style_registry.hpp>                    // PR 3.5
-#include <chronon3d/authoring/motion_registry.hpp>                    // PR 3.5
 #endif
 
 namespace chronon3d::cli {
@@ -48,28 +41,6 @@ namespace chronon3d::cli {
 // AssetRegistry is now created in main() and threaded through CliContext.
 // Per-renderer asset root mounting happens in create_renderer() via
 // renderer->runtime().resolver().mount(cwd).
-
-/// PR 3.5 — returns the CLI-wide static StyleRegistry + MotionRegistry.
-/// Created once, shared between authoring-time text builders. Host code
-/// populates these via dedicated API when ready; the default factories
-/// register nothing so unintended wildcards never resolve.
-///
-/// Conditionally compiled: the inline definitions reference
-/// `authoring::StyleRegistry` / `authoring::MotionRegistry`, which are
-/// only forward-visible when `CHRONON3D_BUILD_CONTENT` or
-/// `CHRONON3D_BUILD_DIAGNOSTICS` is defined.  Without the macros the type
-/// names are unknown and the pre-existing inline bodies fail to compile,
-/// so the definitions are guarded by the same #if.
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
-inline authoring::StyleRegistry&  cli_style_registry() {
-    static authoring::StyleRegistry  reg;
-    return reg;
-}
-inline authoring::MotionRegistry& cli_motion_registry() {
-    static authoring::MotionRegistry reg;
-    return reg;
-}
-#endif
 
 /// Register all compositions into the given registry.
 /// Per TICKET-CLI-ISOLATE-RUNTIME-DEV: 3-layer split

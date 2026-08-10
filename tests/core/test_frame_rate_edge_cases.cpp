@@ -7,7 +7,7 @@
 // Tests:
 //   Section A: FrameRate construction for all standard broadcast rates
 //   Section B: fps() precision for rational (non-integer) rates
-//   Section C: to_seconds() / to_frame() round-trip for each rate
+//   Section C: seconds_to_frame() / to_seconds() round-trip for each rate
 //   Section D: SampleTime sub-frame evaluation (0.0, 0.25, 0.5, 0.999)
 //   Section E: Freeze frame — repeated SampleTime produces identical output
 //   Section F: Reverse playback — decreasing frame numbers evaluate correctly
@@ -125,42 +125,42 @@ TEST_CASE("FrameRate: num()/den() accessors match numerator/denominator") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-//  Section C: to_seconds() / to_frame() round-trip for each rate
+//  Section C: seconds_to_frame() / to_seconds() round-trip for each rate
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("FrameRate: to_seconds(to_frame(t)) ≈ t for 23.976 fps") {
+TEST_CASE("FrameRate: to_seconds(seconds_to_frame(t)) ≈ t for 23.976 fps") {
     FrameRate r{24000, 1001};
     double secs = 1.0;
-    Frame f = r.to_frame(secs);
+    Frame f = seconds_to_frame(secs, r);
     double roundtrip = r.to_seconds(f);
     double max_error = 1.0 / r.fps();
     CHECK(std::abs(roundtrip - secs) < max_error + kSecondsEps);
 }
 
-TEST_CASE("FrameRate: to_seconds(to_frame(t)) ≈ t for 29.97 fps") {
+TEST_CASE("FrameRate: to_seconds(seconds_to_frame(t)) ≈ t for 29.97 fps") {
     FrameRate r{30000, 1001};
     double secs = 2.5;
-    Frame f = r.to_frame(secs);
+    Frame f = seconds_to_frame(secs, r);
     double roundtrip = r.to_seconds(f);
     double max_error = 1.0 / r.fps();
     CHECK(std::abs(roundtrip - secs) < max_error + kSecondsEps);
 }
 
-TEST_CASE("FrameRate: to_seconds(to_frame(t)) ≈ t for 60 fps") {
+TEST_CASE("FrameRate: to_seconds(seconds_to_frame(t)) ≈ t for 60 fps") {
     FrameRate r{60, 1};
     double secs = 1.0;
-    Frame f = r.to_frame(secs);
+    Frame f = seconds_to_frame(secs, r);
     double roundtrip = r.to_seconds(f);
     CHECK(approx(roundtrip, secs, kSecondsEps));
 }
 
-TEST_CASE("FrameRate: to_frame(0) == 0 for all rates") {
+TEST_CASE("FrameRate: seconds_to_frame(0) == 0 for all rates") {
     FrameRate rates[] = {
         {24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {30, 1},
         {60000, 1001}, {60, 1}, {120, 1}, {1, 1}
     };
     for (auto r : rates) {
-        CHECK(r.to_frame(0.0) == 0);
+        CHECK(seconds_to_frame(0.0, r) == 0);
     }
 }
 
@@ -315,19 +315,19 @@ TEST_CASE("Reverse: frame 0 is the boundary — seconds == 0") {
 //  Section H: Edge cases — extreme rates
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("FrameRate: 120 fps — to_seconds/to_frame round-trip") {
+TEST_CASE("FrameRate: 120 fps — seconds_to_frame/to_seconds round-trip") {
     FrameRate r{120, 1};
     double secs = 0.5;
-    Frame f = r.to_frame(secs);
+    Frame f = seconds_to_frame(secs, r);
     CHECK(f == 60);
     double roundtrip = r.to_seconds(f);
     CHECK(approx(roundtrip, 0.5, kSecondsEps));
 }
 
-TEST_CASE("FrameRate: 1 fps — to_seconds/to_frame round-trip") {
+TEST_CASE("FrameRate: 1 fps — seconds_to_frame/to_seconds round-trip") {
     FrameRate r{1, 1};
     double secs = 5.0;
-    Frame f = r.to_frame(secs);
+    Frame f = seconds_to_frame(secs, r);
     CHECK(f == 5);
     double roundtrip = r.to_seconds(f);
     CHECK(approx(roundtrip, 5.0, kSecondsEps));

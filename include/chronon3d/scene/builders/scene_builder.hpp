@@ -133,8 +133,6 @@ class SceneBuilder {
 
     template <typename Fn>
     SceneBuilder& video_layer(std::string name, video::VideoSource source, Fn&& fn);
-    template <typename Fn>
-    SceneBuilder& video_layer(std::string name, std::string path, Fn&& fn);
 
     template <typename Fn>
     SceneBuilder& null_layer(std::string name, Fn&& fn);
@@ -147,18 +145,7 @@ class SceneBuilder {
                                   const ClipTransitionSpec& spec,
                                   Frame from, Frame duration);
 
-    // ── A4: [[deprecated]] — use last_node_handle() for explicit node access ──
-    [[deprecated("Use last_node_handle().position(pos) for explicit node access")]]
-    SceneBuilder& at(Vec3 pos);
-    [[deprecated("Use last_node_handle().rotate(euler_deg) for explicit node access")]]
-    SceneBuilder& rotate(Vec3 euler_deg);
-    [[deprecated("Use last_node_handle().scale(s) for explicit node access")]]
-    SceneBuilder& scale(Vec3 s);
-    [[deprecated("Use last_node_handle().anchor(a) for explicit node access")]]
-    SceneBuilder& anchor(Vec3 a);
-    [[deprecated("Use last_node_handle().opacity(v) for explicit node access")]]
-    SceneBuilder& opacity(f32 a);
-    // ── A4 — Explicit node handle for the last pushed node ────────────
+    // Explicit node handle for the last pushed node.
     [[nodiscard]] NodeHandle last_node_handle();
 
     [[nodiscard]] Scene build();

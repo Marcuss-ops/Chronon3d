@@ -14,15 +14,8 @@ struct ImageParams {
     /// Canonical asset identity used by new authoring code.
     assets::ImageRef source{};
 
-    // Compatibility spellings retained until downstream initializers migrate.
+    // Compatibility spelling retained for existing manifest-oriented callers.
     std::string asset_path{};
-
-    // Legacy compatibility field. New code must write asset_path. The field
-    // cannot carry [[deprecated]] while the canonical fallback helper still
-    // reads it under targets that enforce -Werror=deprecated-declarations.
-    // Remove both this field and the fallback branch in one caller-migration
-    // commit once all pre-asset_path initializers have moved.
-    std::string path{};
 
     Vec2 size{100.0f, 100.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
@@ -39,7 +32,7 @@ namespace detail {
 [[nodiscard]] inline std::string
 image_params_resolve_path(const ImageParams& params) {
     if (!params.source.path().empty()) return params.source.path();
-    return !params.asset_path.empty() ? params.asset_path : params.path;
+    return params.asset_path;
 }
 
 } // namespace detail

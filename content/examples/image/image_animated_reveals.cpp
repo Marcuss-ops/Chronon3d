@@ -40,7 +40,7 @@ Composition img_shake_zoom() {
             l.position({shake_x, shake_y, 0});
             l.scale({scale, scale, 1.0f});
             l.image("hero", {
-                .path = "tools/telemetry_dashboard/frontend/src/assets/hero.png",
+                .asset_path = "tools/telemetry_dashboard/frontend/src/assets/hero.png",
                 .size = {800, 480},
                 .radius = 24.0f
             });
@@ -77,7 +77,7 @@ Composition img_reference_shake_reveal() {
              .position({shake_x, shake_y, 0.0f})
              .scale({zoom, zoom, 1.0f})
              .image("camera_reference", {
-                 .path = "assets/images/camera_reference.jpg",
+                 .asset_path = "assets/images/camera_reference.jpg",
                  .size = image_size,
                  .radius = 0.0f
              });
@@ -113,7 +113,7 @@ Composition img_corner_smoothing() {
         s.layer("image_layer", [radius](auto& l) {
             l.position({0, 0, 0});
             l.image("img1", {
-                .path = "tools/telemetry_dashboard/frontend/src/assets/hero.png",
+                .asset_path = "tools/telemetry_dashboard/frontend/src/assets/hero.png",
                 .size = {320, 320},
                 .radius = radius
             });

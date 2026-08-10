@@ -82,7 +82,7 @@ Composition make_video_card_comp(
             l.enable_3d()
              .position({0, 0, 0})
              .rotate({0, rotate_y, 0})
-             .video(video_path)
+             .video(chronon3d::video::VideoSource{.path = video_path})
              .video_size(card_size);
         });
 

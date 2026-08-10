@@ -66,18 +66,28 @@ const MotionPresetDescriptor& MotionPresetCatalog::get(MotionPreset preset) cons
     return kMissingMotionPresetDescriptor;
 }
 
-const MotionPresetCatalog kBuiltinMotionPresetCatalog = [] {
-    detail::MotionPresetCatalogBuilder builder;
-    register_reveal_presets(builder);
-    register_3d_presets(builder);
-    register_glow_presets(builder);
-    register_idle_presets(builder);
-    register_impact_presets(builder);
-    return std::move(builder).build();
-}();
-
 const MotionPresetCatalog& motion_preset_catalog() {
-    return kBuiltinMotionPresetCatalog;
+    // Function-local initialization is required because MotionObject::preset()
+    // may be called while another translation unit initializes static content.
+    // It makes descriptor binding independent of TU initialization order.
+    static const MotionPresetCatalog catalog = [] {
+        detail::MotionPresetCatalogBuilder builder;
+        register_reveal_presets(builder);
+        register_3d_presets(builder);
+        register_glow_presets(builder);
+        register_idle_presets(builder);
+        register_impact_presets(builder);
+        return std::move(builder).build();
+    }();
+    return catalog;
+}
+
+const MotionPresetDescriptor* detail::find_motion_preset_descriptor(MotionPreset preset) {
+    const auto& catalog = motion_preset_catalog();
+    if (!catalog.contains(preset)) {
+        return nullptr;
+    }
+    return &catalog.get(preset);
 }
 
 } // namespace chronon3d::presets::motion

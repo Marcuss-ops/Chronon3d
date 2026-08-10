@@ -3,6 +3,16 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 using namespace chronon3d;
 
+static Scene evaluate_frame(const Composition& composition, Frame frame) {
+    const auto sample = SampleTime::from_frame_int(frame, composition.frame_rate());
+    return composition.evaluate(make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+    }));
+}
+
 
 TEST_CASE("Composition foundation") {
     CompositionSpec spec{
@@ -31,7 +41,7 @@ TEST_CASE("Composition foundation") {
             return Scene{};
         });
 
-        auto scene = comp.evaluate(Frame{150});
+        auto scene = evaluate_frame(comp, Frame{150});
         CHECK(called);
     }
 }

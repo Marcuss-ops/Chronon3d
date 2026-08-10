@@ -30,6 +30,8 @@
 
 namespace chronon3d {
 
+namespace authoring { class SubtitleTrackBuilder; }
+
 class FontEngine;
 struct ExtensionContext;
 struct TextDefinition;
@@ -116,8 +118,6 @@ public:
     LayerBuilder& screen_dimensions(f32 width, f32 height);
     LayerBuilder& fullscreen_rect(std::string name, Color color);
     LayerBuilder& fill(Color color);
-    [[nodiscard]] bool screen_dimensions_were_set() const noexcept;
-    [[nodiscard]] Vec2 screen_dimensions() const noexcept;
     [[nodiscard]] std::string_view name() const noexcept;
 
     LayerBuilder& font_engine(FontEngine* engine);
@@ -191,7 +191,6 @@ public:
         const presets::MotionParameters& params = {});
 
     LayerBuilder& video(video::VideoSource source);
-    LayerBuilder& video(std::string path);
     LayerBuilder& video_size(Vec2 size);
     LayerBuilder& precomp(std::string composition_name);
 
@@ -200,6 +199,11 @@ public:
 
 private:
     friend class builders::testing::LayerBuilderInspector;
+    friend class authoring::SubtitleTrackBuilder;
+
+    [[nodiscard]] Frame current_frame_for_authoring() const noexcept {
+        return m_current_time.integral_frame();
+    }
 
     Layer m_layer;
     SampleTime m_current_time{SampleTime::from_frame_int(0, FrameRate{30, 1})};
@@ -207,7 +211,6 @@ private:
     bool m_duration_explicit{false};
     f32 m_screen_width{1920.0f};
     f32 m_screen_height{1080.0f};
-    bool m_screen_dimensions_explicit{false};
     FontEngine* m_font_engine{nullptr};
     registry::ShapeRegistry* m_shape_registry{nullptr};
     std::optional<registry::ShapeRegistry> m_own_shape_registry;

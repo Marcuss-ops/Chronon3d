@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <tests/helpers/composition_helpers.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -23,19 +24,19 @@ TEST_CASE("Code-first Composition") {
     };
 
     SUBCASE("Evaluation at frame 0") {
-        Scene s = comp.evaluate(0);
+        Scene s = chronon3d::test_support::evaluate_frame(comp, Frame{0});
         CHECK(s.nodes().size() == 1);
         CHECK(s.nodes()[0].world_transform.position.x == 0.0f);
     }
 
     SUBCASE("Evaluation at frame 50") {
-        Scene s = comp.evaluate(50);
+        Scene s = chronon3d::test_support::evaluate_frame(comp, Frame{50});
         CHECK(s.nodes().size() == 1);
         CHECK(s.nodes()[0].world_transform.position.x == 50.0f);
     }
 
     SUBCASE("Evaluation at frame 100") {
-        Scene s = comp.evaluate(100);
+        Scene s = chronon3d::test_support::evaluate_frame(comp, Frame{100});
         CHECK(s.nodes().size() == 1);
         CHECK(s.nodes()[0].world_transform.position.x == 100.0f);
     }

@@ -83,7 +83,7 @@ Composition catmull_rom_showcase() {
         motion.fov_deg = 50.0f;
 
         // Evaluate the camera at the current frame and apply.
-        Camera2_5D cam = motion.evaluate(ctx.frame(), Frame{0}, Frame{89});
+        Camera2_5D cam = motion.evaluate(ctx.local_time(), Frame{0}, Frame{89});
         s.camera().set(cam);
 
         // A center subject so we can see the camera moving around it.

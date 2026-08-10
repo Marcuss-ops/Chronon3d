@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/memory_utils.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
@@ -121,7 +122,7 @@ namespace chronon3d::graph {
     const FrameRate frm = FrameRate{static_cast<i32>(fps * 1000.0f + 0.5f), 1000};
     const SampleTime st = SampleTime::from_frame(
         static_cast<double>(frame) + static_cast<double>(frame_time), frm);
-    return RenderGraphContext{
+    auto ctx = RenderGraphContext{
         .frame_input = FrameInput{
             .frame        = frame,
             .sample_time  = st,
@@ -166,6 +167,13 @@ namespace chronon3d::graph {
             .counters = backend.counters(),
         },
     };
+    // Graph-only/debug callers do not pass through scene_context_setup().
+    // Seed the context with the backend's immutable processor generation so
+    // the compiler cannot compare a valid snapshot against the zero default.
+    if (const auto snapshot = backend.processor_snapshot()) {
+        ctx.services.registry_generation = snapshot->generation();
+    }
+    return ctx;
 }
 
 [[nodiscard]] inline ResolvedCamera resolve_scene_camera(const Scene& scene) {

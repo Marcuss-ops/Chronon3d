@@ -230,7 +230,7 @@ Composition make_image_glow_scene() {
             l.position({0.0f, 0.0f, 0.0f})
              .effect(GlowPresets::soft_cyan(36.0f));
             l.image("checker", {
-                .path = "assets/images/checker.png",
+                .asset_path = "assets/images/checker.png",
                 .size = {280.0f, 280.0f},
                 .pos = {-140.0f, -140.0f, 0.0f},
                 .fit = FitMode::Contain,

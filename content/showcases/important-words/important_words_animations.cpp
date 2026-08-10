@@ -51,13 +51,14 @@ static void build_important_word(SceneBuilder& s,
             .key(Frame{fade_in},     1.0f,  EasingCurve{Easing::OutCubic})
             .key(Frame{hold_until},  1.0f,  EasingCurve{Easing::Linear})
             .key(Frame{fade_out},    0.0f,  EasingCurve{Easing::InCubic});
-        const f32 x_in = motion == WordMotion::SlideLeft ? -120.0f
-                         : motion == WordMotion::SlideRight ? 120.0f : 0.0f;
+        const f32 centered_x = -word.rect_outer_size.x * 0.5f;
+        const f32 x_in = centered_x + (motion == WordMotion::SlideLeft ? -120.0f
+                         : motion == WordMotion::SlideRight ? 120.0f : 0.0f);
         l.position_anim()
             .key(Frame{0},           Vec3{x_in, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
             .key(kPreFade,           Vec3{x_in, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
-            .key(Frame{fade_in},     Vec3{0.0f, WORD_LOWER_Y,        0.0f}, EasingCurve{Easing::OutCubic})
-            .key(Frame{fade_out},    Vec3{0.0f, WORD_LOWER_Y + 12.0f, 0.0f}, EasingCurve{Easing::InCubic});
+            .key(Frame{fade_in},     Vec3{centered_x, WORD_LOWER_Y,        0.0f}, EasingCurve{Easing::OutCubic})
+            .key(Frame{fade_out},    Vec3{centered_x, WORD_LOWER_Y + 12.0f, 0.0f}, EasingCurve{Easing::InCubic});
         if (motion == WordMotion::ScalePop) {
             l.scale_anim()
                 .key(Frame{0}, Vec3{0.82f, 0.82f, 1.0f}, EasingCurve{Easing::OutBack})
@@ -92,6 +93,10 @@ static void build_important_word(SceneBuilder& s,
         .color = palette.text
     },
     .frame = {
+        .size = word.rect_outer_size,
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
         .tracking = word.tracking
     }
 };
@@ -155,9 +160,7 @@ static void build_important_phrase(SequenceBuilder& sequence,
         l.opacity_anim()
             .key(Frame{0}, 0.0f, EasingCurve{Easing::Linear})
             .key(Frame{8}, 1.0f, EasingCurve{Easing::OutCubic});
-        // The sequence owns the global start frame; this builder only uses
-        // local time, so random-access rendering is equivalent to playback.
-        l.position(Vec3{0.0f, phrase.y_offset, 0.0f});
+        l.position(Vec3{-960.0f, phrase.y_offset - 400.0f, 0.0f});
 
         l.text(node_name, TextDefinition{
             .content = {.value = std::string(phrase.text)},
@@ -172,6 +175,7 @@ static void build_important_phrase(SequenceBuilder& sequence,
             },
             .frame = {
                 .size = {1600.0f, 100.0f},
+                .anchor = TextAnchor::Center,
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 3.0f,
@@ -371,7 +375,7 @@ Composition important_story_image() {
                 .key(Frame{150}, 0.0f, EasingCurve{Easing::InCubic});
             chronon3d::content::minimalist::add_image_border(l);
             l.image("landscape", {
-                .path = chronon3d::content::minimalist::IMAGE_PATH,
+                .asset_path = chronon3d::content::minimalist::IMAGE_PATH,
                 .size = chronon3d::content::minimalist::IMAGE_SIZE,
                 .radius = chronon3d::content::minimalist::IMAGE_RADIUS
             });
@@ -390,7 +394,7 @@ Composition important_story_image() {
             const f32 y = -190.0f + static_cast<f32>(i) * 82.0f;
             s.layer("story_phrase_" + std::to_string(i), [text, color, start, y](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
-                l.position(Vec3{440.0f, y, 0.0f});
+                l.position(Vec3{100.0f, -y, 0.0f});
                 l.opacity_anim()
                     .key(Frame{0}, 0.0f, EasingCurve{Easing::Hold})
                     .key(start, 0.0f, EasingCurve{Easing::Hold})
@@ -410,7 +414,7 @@ Composition important_story_image() {
         }
 
         s.layer("story_heading", [](LayerBuilder& l) {
-            l.pin_to(Anchor::Center).position({440.0f, -310.0f, 0.0f});
+            l.pin_to(Anchor::Center).position({100.0f, 310.0f, 0.0f});
             l.opacity_anim().key(Frame{0}, 0.0f).key(Frame{45}, 1.0f, EasingCurve{Easing::OutCubic});
             l.text("heading", TextDefinition{
                 .content = {.value = "MAKE IT MATTER"},
@@ -423,7 +427,7 @@ Composition important_story_image() {
         });
 
         s.layer("story_subtitle", [](LayerBuilder& l) {
-            l.pin_to(Anchor::Center).position({440.0f, 300.0f, 0.0f});
+            l.pin_to(Anchor::Center).position({100.0f, -300.0f, 0.0f});
             l.opacity_anim().key(Frame{45}, 0.0f).key(Frame{65}, 1.0f, EasingCurve{Easing::OutCubic});
             l.text("subtitle", TextDefinition{
                 .content = {.value = "DIRECTOR  ·  ACTOR  ·  WRITER"},

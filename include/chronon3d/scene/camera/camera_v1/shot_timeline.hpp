@@ -175,8 +175,9 @@ public:
     explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
                                    const CameraTransitionCatalog& catalog);
 
-    /// Evaluate the camera at `frame` using the timeline + transitions.
-    /// Uses local frame time (frame - shot.start_frame) for each shot's program.
+    /// Evaluate the camera at a continuous sample time using the timeline + transitions.
+    /// Shot selection remains integral-frame based, while each program receives
+    /// the local sub-frame sample.
     /// CAM-05 / TICKET-A3-CTX-FRAMERATE: `fps` is REQUIRED (no default
     /// fallback to 30 fps).  The CameraEvalContext::at() factory contract
     /// propagates the caller-supplied FrameRate bit-exactly into
@@ -194,7 +195,7 @@ public:
     /// (a valid success with all-default values) so the call site can
     /// distinguish "no shot here" from "shot evaluation failed".
     chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
-    evaluate(int frame,
+    evaluate(SampleTime time,
              ShotTimelineSession& timeline_session,
              FrameRate             fps) const;
 

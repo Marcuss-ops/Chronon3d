@@ -42,6 +42,7 @@ set(CORE_TEST_SOURCES
     core/animation/test_wiggle.cpp
     core/animation/test_sample_time.cpp
     core/test_frame_rate_edge_cases.cpp
+    core/test_temporal_contract.cpp
     core/animation/test_temporal_spatial_curve.cpp
     core/animation/path/test_catmull_rom_path.cpp
     core/animation/path/test_spatial_bezier_path.cpp

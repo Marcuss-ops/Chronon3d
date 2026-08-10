@@ -160,6 +160,7 @@ void add_text_stack(SceneBuilder& s, const FrameContext& ctx) {
     // the camera — past the near plane — to expose clipping or
     // perspective-divide artefacts.
     const Frame f = ctx.frame();
+    const auto sample = ctx.local_time();
 
     auto near_z = AnimatedValue<float>{-500.0f};
     near_z.key(Frame{300}, -500.0f)
@@ -172,7 +173,7 @@ void add_text_stack(SceneBuilder& s, const FrameContext& ctx) {
     // is small (far) without having to correlate against metadata.
     s.layer("text_near", [&](LayerBuilder& l) {
         l.enable_3d();
-        l.position({0.0f, -30.0f, near_z.evaluate(f)});
+        l.position({0.0f, -30.0f, near_z.evaluate(sample)});
         l.text("lbl_near", text_label("NEAR", 140.0f));
     });
     s.layer("text_front", [&](LayerBuilder& l) {
@@ -219,6 +220,7 @@ void add_targets(SceneBuilder& s) {
 // Build a `Camera2_5D` for the current frame based on the segment table.
 Camera2_5D evaluate_segment_camera(const FrameContext& ctx) {
     const Frame f = ctx.frame();
+    const auto sample = ctx.local_time();
 
     // Segment-local animated values.  Keys are placed at the segment
     // boundaries only, so each AnimatedValue is constant within a segment
@@ -306,8 +308,8 @@ Camera2_5D evaluate_segment_camera(const FrameContext& ctx) {
     cam.optics_mode = CameraOpticsMode::PhysicalLens;
     cam.lens.sensor_width  = 36.0f;
     cam.lens.sensor_height = 24.0f;
-    cam.lens.focal_length  = focal_len_mm.evaluate(f);
-    cam.lens.f_stop        = f_stop.evaluate(f);
+    cam.lens.focal_length  = focal_len_mm.evaluate(sample);
+    cam.lens.f_stop        = f_stop.evaluate(sample);
     cam.lens.gate_fit      = GateFit::Fill;
 
     // Vertical FOV stable at 50° for the dolly/orbit baseline.  Stress
@@ -320,21 +322,21 @@ Camera2_5D evaluate_segment_camera(const FrameContext& ctx) {
     // segments 0–3 and crosses vertically only for the stress segment
     // (300+).  For TwoNode mode we set the rig's look-at target.
     cam.point_of_interest_enabled = true;
-    cam.point_of_interest = Vec3{0.0f, target_y.evaluate(f), 0.0f};
+    cam.point_of_interest = Vec3{0.0f, target_y.evaluate(sample), 0.0f};
 
     // Roll — fed straight into the rotation vector's Z channel.
     cam.rotation = Vec3{
-        pitch.evaluate(f),   // tilt (X)
-        yaw.evaluate(f),     // pan  (Y)
-        roll_deg.evaluate(f) // roll (Z)
+        pitch.evaluate(sample),   // tilt (X)
+        yaw.evaluate(sample),     // pan  (Y)
+        roll_deg.evaluate(sample) // roll (Z)
     };
 
     // Position — composed from orbit radius around the target plus the
     // whip-pan X offset (segment 4) and the per-segment radius overrides.
-    const float r             = dolly_radius.evaluate(f);
-    const float orbit_r       = orbit_radius.evaluate(f);
-    const float yaw_rad       = glm::radians(yaw.evaluate(f));
-    const float pitch_rad     = glm::radians(pitch.evaluate(f));
+    const float r             = dolly_radius.evaluate(sample);
+    const float orbit_r       = orbit_radius.evaluate(sample);
+    const float yaw_rad       = glm::radians(yaw.evaluate(sample));
+    const float pitch_rad     = glm::radians(pitch.evaluate(sample));
     const float effective_r   = (f >= 60 && f < 120) ? r : orbit_r;
 
     // Orbit position around the target.  During all segments yaw/pitch
@@ -348,19 +350,19 @@ Camera2_5D evaluate_segment_camera(const FrameContext& ctx) {
         -effective_r * std::cos(yaw_rad) * std::cos(pitch_rad),
     };
     cam.position = Vec3{
-        orbit_pos.x + cam_x.evaluate(f),                // whip-pan X offset
+        orbit_pos.x + cam_x.evaluate(sample),                // whip-pan X offset
         orbit_pos.y + cam.point_of_interest.y,           // orbit around movable target Y
         orbit_pos.z,                                     // Z untouched
     };
 
     // Zoom (AnimatableValue used by the projection pipeline).
-    cam.zoom = dolly_zoom.evaluate(f);
+    cam.zoom = dolly_zoom.evaluate(sample);
 
     // ── Segment-specific overlay state ─────────────────────────────────
     // DOF — only active in segment 3 (180–239).
     cam.dof.enabled          = (f >= 180 && f < 240);
     cam.dof.use_physical_model = (f >= 180 && f < 240);
-    cam.dof.focus_distance   = focus_distance.evaluate(f);
+    cam.dof.focus_distance   = focus_distance.evaluate(sample);
     cam.dof.aperture         = 0.015f;   // base value; PhysicalModel re-derives
     cam.dof.max_blur         = (f >= 180 && f < 240) ? 30.0f : 24.0f;
 

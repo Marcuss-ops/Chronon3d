@@ -1,5 +1,6 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <doctest/doctest.h>
+#include <tests/helpers/composition_helpers.hpp>
 
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
@@ -45,8 +46,8 @@ void render_motion_clip(MotionAxis axis, const char* name, const char* filename)
     params.axis = axis;
     auto comp = chronon3d::presets::camera_motion_clip(name, params, add_motion_content);
 
-    auto scene_start = comp.evaluate(0);
-    auto scene_mid = comp.evaluate(30);
+    auto scene_start = chronon3d::test_support::evaluate_frame(comp, Frame{0});
+    auto scene_mid = chronon3d::test_support::evaluate_frame(comp, Frame{30});
 
     auto fb_start = renderer.render(comp, 0);
     auto fb_mid = renderer.render(comp, 30);

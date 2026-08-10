@@ -10,11 +10,8 @@
 // etc.).  See content/register_content_modules.cpp for the per-domain
 // registration table.
 //
-// Uses a stub ExtensionContext: the per-domain register functions only
-// consume ctx.compositions, not ctx.assets.  StyleRegistry + MotionRegistry
-// are populated via the cli_style_registry() / cli_motion_registry() handles
-// (defined in cli_init.hpp) so the ambient authoring façades can resolve
-// `.style(id)` / `.motion(id)` lookups.
+// Uses a local ExtensionContext: registration owns the catalogs and
+// authoring registries for this composition-registration pass.
 //
 // AE_CAM_* are no longer registered here — they are DEV-only per the
 // user-spec verbatim §3 (isola runtime/dev) and are registered in

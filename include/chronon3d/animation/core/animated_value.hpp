@@ -248,28 +248,14 @@ public:
     [[nodiscard]] const std::string& expression() const { return m_expression; }
     [[nodiscard]] bool has_expression() const { return !m_expression.empty(); }
 
-    // ── Backward-compatible methods (KeyframeTrack API surface) ─────────────
     [[nodiscard]] T sample_at(f32 current) const {
         return evaluate_base_double(static_cast<double>(current));
     }
-    [[nodiscard]] T sample(Frame current) const { return evaluate(current); }
-    [[nodiscard]] T value(Frame current) const { return evaluate(current); }
     [[nodiscard]] T value_at_time(f32 current) const {
         return evaluate_base_double(static_cast<double>(current));
     }
-    [[nodiscard]] T operator()(Frame current) const { return evaluate(current); }
     [[nodiscard]] bool empty() const { return m_keyframes.empty(); }
     [[nodiscard]] std::size_t size() const { return m_keyframes.size(); }
-
-    // ── Frame evaluation (backward compatible + forward) ────────────────────
-    [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
-
-    /// Integer-literal disambiguation: delegates to evaluate(Frame).
-    /// Resolves ambiguity between evaluate(double) and evaluate(Frame)
-    /// when passing integer literals (e.g. evaluate(30)).
-    [[nodiscard]] T evaluate(int frame) const {
-        return evaluate(Frame{frame});
-    }
 
     /// Double-precision evaluation (for TemporalCurve1D compatibility).
     [[nodiscard]] T evaluate(double frame) const {
@@ -333,17 +319,6 @@ public:
                 static_cast<f32>(fps), t, frame);
         }
         return base;
-    }
-
-    // Frame evaluation (backward compatible)
-    [[nodiscard]] T evaluate(Frame frame) const {
-        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}));
-    }
-
-    [[nodiscard]] T evaluate(Frame frame, const AnimationEvalContext& ctx) const {
-        const f32 fps_val = (ctx.fps > 0.0f) ? ctx.fps : 30.0f;
-        const auto fps_ms = static_cast<i32>(std::llround(static_cast<double>(fps_val) * 1000.0));
-        return evaluate(SampleTime::from_frame_int(frame, FrameRate{fps_ms, 1000}), ctx);
     }
 
     [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
@@ -517,7 +492,8 @@ template<typename T> using KeyframeTrack = AnimatedValue<T>;
 
 // keyframes<T>() — factory for creating AnimatedValue<T> from a keyframe list.
 // Usage:
-//   auto x = keyframes<f32>({ {0, 0.0f}, {60, 100.0f, Easing::OutCubic} }).sample(frame);
+//   auto x = keyframes<f32>({ {0, 0.0f}, {60, 100.0f, Easing::OutCubic} })
+//                .evaluate(sample_time);
 //   auto x = keyframes<f32>({}).key(0, -300.0f, Easing::OutCubic).key(40, 0.0f);
 //
 template <typename T>
@@ -525,9 +501,8 @@ inline AnimatedValue<T> keyframes(std::initializer_list<Keyframe<T>> kfs) {
     return AnimatedValue<T>(kfs);
 }
 
-// Legacy support: keyframes(frame, {KF, KF, ...})
-inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
-    return keyframes<f32>(kfs).sample(current);
+inline f32 keyframes(SampleTime current, std::initializer_list<KF> kfs) {
+    return keyframes<f32>(kfs).evaluate(current);
 }
 
 // ==============================================================================

@@ -64,6 +64,18 @@ enum class MotionPreset {
     Settle,
 };
 
+struct MotionPresetDescriptor;
+
+namespace detail {
+
+// Resolves the immutable built-in descriptor at authoring/compile time.
+// The runtime evaluator consumes the stored pointer directly and does not
+// perform a catalog lookup for every frame.
+[[nodiscard]] const MotionPresetDescriptor*
+find_motion_preset_descriptor(MotionPreset preset);
+
+} // namespace detail
+
 struct MotionTime {
     Frame start{0};
     Frame end{60};
@@ -140,6 +152,7 @@ struct MotionObject {
     std::string id;
     MotionObjectType type{MotionObjectType::Rect};
     MotionPreset preset_value{MotionPreset::None};
+    const MotionPresetDescriptor* preset_descriptor{nullptr};
 
     MotionTime time_value{};
     Motion3D motion3d{};
@@ -198,14 +211,6 @@ struct MotionObject {
         o.type = MotionObjectType::Video;
         o.video_source_value = std::move(source);
         o.size_value = o.video_source_value.size;
-        return o;
-    }
-
-    static MotionObject video(std::string id, std::string path) {
-        MotionObject o;
-        o.id = std::move(id);
-        o.type = MotionObjectType::Video;
-        o.video_source_value.path = std::move(path);
         return o;
     }
 
@@ -290,6 +295,7 @@ struct MotionObject {
 
     MotionObject& preset(MotionPreset value) {
         preset_value = value;
+        preset_descriptor = detail::find_motion_preset_descriptor(value);
         return *this;
     }
 

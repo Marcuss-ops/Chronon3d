@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/model/core/clip_transition.hpp>
 
@@ -7,8 +9,30 @@
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <optional>
 
 using namespace chronon3d;
+
+static Scene evaluate_frame(const Composition& composition, Frame frame,
+                            bool with_runtime = false) {
+    const runtime::RenderRuntime* render_runtime = nullptr;
+    FontEngine* font_engine = nullptr;
+    if (with_runtime) {
+        static auto runtime = runtime::RenderRuntime::create(
+            runtime::RuntimeConfig{Config{}, std::nullopt}).value();
+        render_runtime = runtime.get();
+        font_engine = &runtime->font_engine();
+    }
+    const auto sample = SampleTime::from_frame_int(frame, composition.frame_rate());
+    return composition.evaluate(make_frame_context({
+        .global_time = sample,
+        .duration = composition.duration(),
+        .width = composition.width(),
+        .height = composition.height(),
+        .font_engine = font_engine,
+        .runtime = render_runtime,
+    }));
+}
 
 #include <filesystem>
 
@@ -57,7 +81,7 @@ TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
     for (const auto& name : names) {
         auto comp = registry.create(name);
         CHECK(comp.name() == name);
-        auto scene = comp.evaluate(Frame{0});
+        auto scene = evaluate_frame(comp, Frame{0}, true);
         CHECK(scene.layers().size() >= 1);
     }
 }
@@ -75,7 +99,7 @@ TEST_CASE("2D5: camera test compositions evaluate frame 0") {
     for (const auto& name : names) {
         auto comp = registry.create(name);
         CHECK(comp.name() == name);
-        auto scene = comp.evaluate(Frame{0});
+        auto scene = evaluate_frame(comp, Frame{0}, true);
         CHECK(scene.layers().size() >= 1);
     }
 }
@@ -97,7 +121,7 @@ TEST_CASE("All registered compositions: every available composition evaluates fr
         CHECK(comp.name() == name);
         CHECK(comp.width() > 0);
         CHECK(comp.height() > 0);
-        auto scene = comp.evaluate(Frame{0});
+        auto scene = evaluate_frame(comp, Frame{0}, true);
         CHECK(scene.layers().size() >= 0);
     }
 }
@@ -115,7 +139,7 @@ TEST_CASE("LightTransitionSoundSmoke: registers 60-frame LightLeak composition")
     CHECK(comp.frame_rate().denominator == 1);
     CHECK(comp.duration() == Frame{60});
 
-    const auto scene = comp.evaluate(Frame{20});
+    const auto scene = evaluate_frame(comp, Frame{20});
     REQUIRE(scene.clip_transitions().size() == 1);
     const auto& transition = scene.clip_transitions().front();
     CHECK(transition.layer_a == "scene_a");
@@ -134,7 +158,7 @@ TEST_CASE("LightTransition orange variants: register distinct LightLeak colors")
                              "LightTransitionCopperFlash"}) {
         REQUIRE(registry.contains(name));
         const auto comp = registry.create(name);
-        const auto scene = comp.evaluate(Frame{26});
+        const auto scene = evaluate_frame(comp, Frame{26});
         REQUIRE(scene.clip_transitions().size() == 1);
         const auto& transition = scene.clip_transitions().front();
         CHECK(transition.spec.kind == ClipTransitionKind::LightLeak);
@@ -163,7 +187,7 @@ TEST_CASE("LightTransition: authored layer topology is stable across timeline bo
     // Evaluate without a runtime font engine so this contract isolates the
     // authored layer/node topology. The runtime-dependent text additions are
     // not frame-dependent and are covered by the composition render tests.
-    const auto baseline = comp.evaluate(boundary_frames.front());
+    const auto baseline = evaluate_frame(comp, boundary_frames.front());
     REQUIRE(baseline.clip_transitions().size() == 1);
     const auto& baseline_layers = baseline.layers();
     REQUIRE(baseline_layers.size() == 6);
@@ -176,7 +200,7 @@ TEST_CASE("LightTransition: authored layer topology is stable across timeline bo
     };
 
     for (const auto frame : boundary_frames) {
-        const auto scene = comp.evaluate(frame);
+        const auto scene = evaluate_frame(comp, frame);
         REQUIRE(scene.clip_transitions().size() == baseline.clip_transitions().size());
         REQUIRE(scene.layers().size() == baseline_layers.size());
 
@@ -206,10 +230,10 @@ TEST_CASE("LightTransition: opacity zero preserves authored node identity and sh
         "light_leak_band_0", "light_leak_band_1", "light_leak_band_2",
         "light_leak_flare"
     };
-    const auto baseline = comp.evaluate(zero_opacity_frames.front());
+    const auto baseline = evaluate_frame(comp, zero_opacity_frames.front());
 
     for (const auto frame : zero_opacity_frames) {
-        const auto scene = comp.evaluate(frame);
+        const auto scene = evaluate_frame(comp, frame);
         REQUIRE(scene.layers().size() == 6);
 
         for (const auto* expected_name : expected_zero_opacity_layers) {
@@ -249,7 +273,7 @@ TEST_CASE("All registered compositions: evaluate at mid-duration frame") {
     for (const auto& name : ids) {
         auto comp = registry.create(name);
         Frame mid = comp.duration() / 2;
-        auto scene = comp.evaluate(mid);
+        auto scene = evaluate_frame(comp, mid, true);
         CHECK(scene.layers().size() >= 0);
     }
 }

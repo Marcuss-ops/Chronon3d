@@ -78,11 +78,11 @@ TEST_CASE("AnimatedValue::apply_track bakes track into value") {
     v.apply_track(track);
 
     CHECK(v.is_animated());
-    CHECK(v.evaluate(Frame{0})   == doctest::Approx(0.0f));
-    CHECK(v.evaluate(Frame{30})  == doctest::Approx(30.0f));
-    CHECK(v.evaluate(Frame{60})  == doctest::Approx(60.0f));
-    CHECK(v.evaluate(Frame{90})  == doctest::Approx(90.0f));
-    CHECK(v.evaluate(Frame{120}) == doctest::Approx(120.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))   == doctest::Approx(0.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}))  == doctest::Approx(30.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1}))  == doctest::Approx(60.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{90}, FrameRate{30, 1}))  == doctest::Approx(90.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{120}, FrameRate{30, 1})) == doctest::Approx(120.0f));
 }
 
 TEST_CASE("AnimatedValue::apply_track clears previous keyframes") {
@@ -96,8 +96,8 @@ TEST_CASE("AnimatedValue::apply_track clears previous keyframes") {
     v.apply_track(track);
 
     // Old keyframes gone; only track keyframes remain
-    CHECK(v.evaluate(Frame{0})  == doctest::Approx(100.0f));
-    CHECK(v.evaluate(Frame{10}) == doctest::Approx(200.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}))  == doctest::Approx(100.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{10}, FrameRate{30, 1})) == doctest::Approx(200.0f));
 }
 
 TEST_CASE("AnimatedValue::apply_track with easing") {
@@ -109,7 +109,7 @@ TEST_CASE("AnimatedValue::apply_track with easing") {
     v.apply_track(track);
 
     // OutQuad at t=0.5: t*(2-t) = 0.75 → 45
-    CHECK(v.evaluate(Frame{30}) == doctest::Approx(45.0f).epsilon(0.01f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1})) == doctest::Approx(45.0f).epsilon(0.01f));
 }
 
 TEST_CASE("AnimatedValue::apply_track works with Vec3") {
@@ -120,7 +120,7 @@ TEST_CASE("AnimatedValue::apply_track works with Vec3") {
     AnimatedValue<Vec3> v(Vec3{0.0f});
     v.apply_track(track);
 
-    Vec3 mid = v.evaluate(Frame{30});
+    Vec3 mid = v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}));
     CHECK(mid.x == doctest::Approx(30.0f));
     CHECK(mid.y == doctest::Approx(30.0f));
     CHECK(mid.z == doctest::Approx(30.0f));
@@ -136,7 +136,7 @@ TEST_CASE("AnimatedValue::animate_x drives X from scalar track") {
     v.animate_x(track);
 
     // Y and Z default to 1.0
-    Vec3 r = v.evaluate(Frame{30});
+    Vec3 r = v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}));
     CHECK(r.x == doctest::Approx(30.0f));
     CHECK(r.y == doctest::Approx(1.0f));
     CHECK(r.z == doctest::Approx(1.0f));
@@ -150,7 +150,7 @@ TEST_CASE("AnimatedValue::animate_x with custom defaults") {
     AnimatedValue<Vec3> v(Vec3{0.0f});
     v.animate_x(track, /*y_default=*/2.0f, /*z_default=*/3.0f);
 
-    Vec3 r = v.evaluate(Frame{50});
+    Vec3 r = v.evaluate(SampleTime::from_frame_int(Frame{50}, FrameRate{30, 1}));
     CHECK(r.x == doctest::Approx(50.0f));
     CHECK(r.y == doctest::Approx(2.0f));
     CHECK(r.z == doctest::Approx(3.0f));
@@ -166,7 +166,7 @@ TEST_CASE("AnimatedValue::animate_x clears previous keyframes") {
 
     v.animate_x(track);
 
-    Vec3 r = v.evaluate(Frame{0});
+    Vec3 r = v.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
     CHECK(r.x == doctest::Approx(10.0f));
     CHECK(r.y == doctest::Approx(1.0f));  // default
     CHECK(r.z == doctest::Approx(1.0f));  // default
@@ -181,7 +181,7 @@ TEST_CASE("AnimatedValue::animate_y drives Y from scalar track") {
     AnimatedValue<Vec3> v(Vec3{0.0f});
     v.animate_y(track);
 
-    Vec3 r = v.evaluate(Frame{30});
+    Vec3 r = v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}));
     CHECK(r.x == doctest::Approx(1.0f));  // default
     CHECK(r.y == doctest::Approx(45.0f).epsilon(0.01f));
     CHECK(r.z == doctest::Approx(1.0f));  // default
@@ -195,7 +195,7 @@ TEST_CASE("AnimatedValue::animate_y with custom defaults") {
     AnimatedValue<Vec3> v(Vec3{0.0f});
     v.animate_y(track, /*x_default=*/5.0f, /*z_default=*/7.0f);
 
-    Vec3 r = v.evaluate(Frame{50});
+    Vec3 r = v.evaluate(SampleTime::from_frame_int(Frame{50}, FrameRate{30, 1}));
     CHECK(r.x == doctest::Approx(5.0f));
     CHECK(r.y == doctest::Approx(50.0f));
     CHECK(r.z == doctest::Approx(7.0f));
@@ -210,7 +210,7 @@ TEST_CASE("AnimatedValue::animate_z drives Z from scalar track") {
     AnimatedValue<Vec3> v(Vec3{0.0f});
     v.animate_z(track);
 
-    Vec3 r = v.evaluate(Frame{50});
+    Vec3 r = v.evaluate(SampleTime::from_frame_int(Frame{50}, FrameRate{30, 1}));
     CHECK(r.x == doctest::Approx(1.0f));  // default
     CHECK(r.y == doctest::Approx(1.0f));  // default
     CHECK(r.z == doctest::Approx(0.0f));  // midpoint of -100→100
@@ -228,11 +228,11 @@ TEST_CASE("AnimatedValue::animate_z works in real-world depth scenario") {
     pos.animate_z(depth_track, /*x_default=*/0.0f, /*y_default=*/0.0f);
 
     // At frame 60 (halfway), InQuad…OutCubic gives a value in the middle.
-    Vec3 r = pos.evaluate(Frame{60});
+    Vec3 r = pos.evaluate(SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1}));
     CHECK(r.z < doctest::Approx(0.0f));    // still negative
     CHECK(r.z > doctest::Approx(-800.0f)); // but not at start
 
-    Vec3 end = pos.evaluate(Frame{120});
+    Vec3 end = pos.evaluate(SampleTime::from_frame_int(Frame{120}, FrameRate{30, 1}));
     CHECK(end.z == doctest::Approx(0.0f));
     CHECK(end.x == doctest::Approx(0.0f));
     CHECK(end.y == doctest::Approx(0.0f));
@@ -250,10 +250,10 @@ TEST_CASE("AnimatedValue: apply_track then re-apply with different track") {
 
     AnimatedValue<float> v(0.0f);
     v.apply_track(trackA);
-    CHECK(v.evaluate(Frame{5}) == doctest::Approx(5.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1})) == doctest::Approx(5.0f));
 
     v.apply_track(trackB);  // clears and replaces
-    CHECK(v.evaluate(Frame{5}) == doctest::Approx(150.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1})) == doctest::Approx(150.0f));
 }
 
 TEST_CASE("AnimationTrack does not own evaluation — AnimatedValue does") {
@@ -268,6 +268,6 @@ TEST_CASE("AnimationTrack does not own evaluation — AnimatedValue does") {
 
     // Modifying the track after baking does not affect the value.
     track.clear();
-    CHECK(v.evaluate(Frame{0}) == doctest::Approx(42.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(42.0f));
     CHECK(v.is_animated());
 }

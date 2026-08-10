@@ -38,7 +38,7 @@ TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::
     lb.extension_context(ctx);
     lb.screen_dimensions(1920.0f, 1080.0f);
 
-    Layer layer(lb);
+    Layer layer(lb, chronon3d::CanvasInfo::with_safe_area(1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
     Text t = layer.text("AMBIENT");
     REQUIRE(t.ambient_style_registry() == &styles);
     REQUIRE(t.ambient_motion_registry() == &motions);
@@ -71,7 +71,7 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
     lb.extension_context(ctx);
     lb.screen_dimensions(1920.0f, 1080.0f);
 
-    Layer layer(lb);
+    Layer layer(lb, chronon3d::CanvasInfo::with_safe_area(1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
     Text t = layer.text("MOTION");
     REQUIRE(t.ambient_motion_registry() == &motions);
     t.motion("text.reveal.soft");
@@ -82,7 +82,7 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
 TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContext attached") {
     LayerBuilder lb("no_ambient", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);
+    Layer layer(lb, chronon3d::CanvasInfo::with_safe_area(1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
     Text t = layer.text("PLAIN");
     t.font("X.ttf", 32.0f);
     REQUIRE(t.ambient_style_registry() == nullptr);
@@ -108,7 +108,7 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
     lb.extension_context(ctx);
     lb.screen_dimensions(1920.0f, 1080.0f);
 
-    Layer layer(lb);
+    Layer layer(lb, chronon3d::CanvasInfo::with_safe_area(1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
     Text t = layer.text("X");
     t.font("Y.ttf", 24.0f);
     REQUIRE(t.ambient_style_registry() == nullptr);
@@ -144,7 +144,7 @@ TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the 
     lb.extension_context(ctx);
     lb.screen_dimensions(1920.0f, 1080.0f);
 
-    Layer layer(lb);
+    Layer layer(lb, chronon3d::CanvasInfo::with_safe_area(1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
     Text t = layer.text("DUAL");
     REQUIRE(t.ambient_style_registry() == &styles);
     t.style("ambient_call");
@@ -168,7 +168,7 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op") {
     lb.extension_context(ctx);
     lb.screen_dimensions(1920.0f, 1080.0f);
 
-    Layer layer(lb);
+    Layer layer(lb, chronon3d::CanvasInfo::with_safe_area(1920.0f, 1080.0f, chronon3d::SafeAreaPreset{}));
     Text t = layer.text("UNCHANGED");
     t.font("K.ttf", 24.0f);
     t.style("never.registered");

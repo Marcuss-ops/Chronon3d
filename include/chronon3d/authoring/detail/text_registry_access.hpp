@@ -52,12 +52,6 @@ Text& motion(std::string_view id) {
     return *this;
 }
 
-template <class Fn>
-Text& configure_core(Fn&& mutator) {
-    mutator(pending_->params);
-    return *this;
-}
-
 [[nodiscard]] ResolutionOutcome last_style_outcome() const noexcept {
     return last_style_outcome_;
 }
