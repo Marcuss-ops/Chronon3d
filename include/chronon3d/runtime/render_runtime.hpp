@@ -2,6 +2,7 @@
 
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
@@ -210,6 +211,8 @@ public:
     // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
     [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
     [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
+    [[nodiscard]] chronon3d::assets::MeshPreparationCache& mesh_cache() noexcept { return m_mesh_cache; }
+    [[nodiscard]] const chronon3d::assets::MeshPreparationCache& mesh_cache() const noexcept { return m_mesh_cache; }
 
     // ── WP-9 PR 9.0 / R1 — FontEngine slot ----------------------------
     /// RenderRuntime now OWNS the per-runtime FontEngine.  The accessor
@@ -296,6 +299,7 @@ private:
     /// WP-8 PR 8.0 — typed asset resolver, sibling of m_assets; value
     /// member so lifetime is the runtime's, deterministic per engine.
     chronon3d::assets::AssetResolver                    m_resolver;
+    chronon3d::assets::MeshPreparationCache              m_mesh_cache{};
 
     // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
     // at object-init time so even pre-populate() callers can use diagnostics() directly.

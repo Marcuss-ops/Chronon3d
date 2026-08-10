@@ -4,6 +4,7 @@
 
 add_library(chronon3d_assets OBJECT
     asset_resolver.cpp
+    mesh_loader.cpp
     prepared_asset_manifest.cpp
     render_preflight_req.cpp
     render_preflight_validate.cpp
@@ -20,4 +21,9 @@ add_library(chronon3d_assets OBJECT
 # std::filesystem::__cxx11::path const&) const'`.  PUBLIC so the
 # transitive link closure reaches apps/chronon3d_cli/chronon3d_cli via
 # chronon3d_assets → chronon3d_core → chronon3d_pipeline → chronon3d_sdk.
-target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry chronon3d_path_cache)
+target_link_libraries(chronon3d_assets PUBLIC
+    chronon3d
+    chronon3d_registry
+    chronon3d_path_cache
+    nlohmann_json::nlohmann_json
+)

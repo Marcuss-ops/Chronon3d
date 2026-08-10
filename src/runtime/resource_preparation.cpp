@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // src/runtime/resource_preparation.cpp — TICKET-ASSET-PREP-BARRIER
 //
-// 5-phase resource preparation barrier:
+// Resource preparation barrier:
 //   1. font-load              (resolve and validate path)
 //   2. image-decode           (resolve and validate path; runtime cache is
 //                              populated by render_preparation)
@@ -231,6 +231,26 @@ ResourcePreparation::prepare(
             }
         }
 
+        // Mesh preparation — GLB import is the explicit runtime boundary.
+        if (options.prepare_meshes) {
+            for (const auto& ref : manifest.filter(assets::AssetKind::Mesh)) {
+                auto mesh = prepare_mesh(ref, resolver, options.mesh_cache);
+                if (!mesh.has_value()) {
+                    const bool optional_missing =
+                        !ref.required && mesh.error().code == PreparationError::Code::MissingAsset;
+                    if (!optional_missing &&
+                        options.failure_mode == PreparationOptions::FailureMode::FailLoud) {
+                        throw mesh.error();
+                    }
+                    prepared.diagnostics.warnings.push_back({
+                        mesh.error().code, mesh.error().message, "mesh"});
+                    continue;
+                }
+                const auto [it, inserted] = prepared.meshes.emplace(ref.owner, std::move(mesh.value()));
+                if (inserted) ++prepared.diagnostics.meshes_prepared;
+            }
+        }
+
         // Phase 5 — layout-preparation (per-frame; pre-compile fingerprint)
         if (options.prepare_layouts) {
             // Layout prep is keyed by image-kind assets for now; the actual
@@ -454,6 +474,34 @@ ResourcePreparation::build_audio_index(
 // ═══════════════════════════════════════════════════════════════════════════
 // Phase 5 — layout-preparation (per-frame fingerprint)
 // ═══════════════════════════════════════════════════════════════════════════
+
+Result<PreparedMesh, PreparationError>
+ResourcePreparation::prepare_mesh(
+    const assets::InternalAssetRef& ref,
+    const assets::AssetResolver& resolver,
+    assets::MeshPreparationCache* cache
+) {
+    const auto loaded = assets::MeshLoader::load(ref, resolver, cache);
+    if (!loaded.has_value()) {
+        PreparationError::Code code = PreparationError::Code::CorruptedAsset;
+        if (loaded.error().code == assets::MeshLoadErrorCode::MissingAsset) {
+            code = PreparationError::Code::MissingAsset;
+        }
+        return PreparationError{
+            .code = code,
+            .message = loaded.error().message,
+            .cause_code = std::to_string(static_cast<int>(loaded.error().code)),
+            .path = ref.path,
+            .owner = ref.owner,
+            .phase = "mesh",
+        };
+    }
+    return PreparedMesh{
+        .path = ref.path,
+        .owner = ref.owner,
+        .source = loaded.value(),
+    };
+}
 
 Result<PreparedLayout, PreparationError>
 ResourcePreparation::prepare_layout(

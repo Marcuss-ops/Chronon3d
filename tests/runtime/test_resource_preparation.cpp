@@ -18,15 +18,25 @@
 #include <doctest/doctest.h>
 #include <chronon3d/assets/asset_manifest.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <tests/helpers/test_utils.hpp>
 
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <vector>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -54,7 +64,131 @@ private:
     std::unordered_set<std::string> m_present;
 };
 
+void append_u32(std::vector<std::byte>& bytes, std::uint32_t value) {
+    bytes.push_back(static_cast<std::byte>(value & 0xffU));
+    bytes.push_back(static_cast<std::byte>((value >> 8U) & 0xffU));
+    bytes.push_back(static_cast<std::byte>((value >> 16U) & 0xffU));
+    bytes.push_back(static_cast<std::byte>((value >> 24U) & 0xffU));
+}
+
+void append_f32(std::vector<std::byte>& bytes, float value) {
+    std::uint32_t raw{};
+    std::memcpy(&raw, &value, sizeof(raw));
+    append_u32(bytes, raw);
+}
+
+std::filesystem::path write_triangle_glb() {
+    const std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":104}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3}]}]})";
+    std::vector<std::byte> bin;
+    for (const auto& point : std::array<std::array<float, 3>, 3>{{{{0, 0, 0}}, {{1, 0, 0}}, {{0, 1, 0}}}})
+        for (float component : point) append_f32(bin, component);
+    for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) append_f32(bin, j == 2 ? 1.0f : 0.0f);
+    for (const auto& uv : std::array<std::array<float, 2>, 3>{{{{0, 0}}, {{1, 0}}, {{0, 1}}}})
+        for (float component : uv) append_f32(bin, component);
+    append_u32(bin, 0); // overwritten below with compact u16 indices
+    bin.resize(96);
+    for (std::uint16_t index : {std::uint16_t{0}, std::uint16_t{1}, std::uint16_t{2}}) {
+        bin.push_back(static_cast<std::byte>(index & 0xffU));
+        bin.push_back(static_cast<std::byte>((index >> 8U) & 0xffU));
+    }
+    bin.resize(104, std::byte{0});
+
+    std::vector<std::byte> file;
+    append_u32(file, 0x46546C67U); append_u32(file, 2U);
+    const auto json_length = static_cast<std::uint32_t>((json.size() + 3U) & ~3U);
+    const auto total_length = 12U + 8U + json_length + 8U + static_cast<std::uint32_t>(bin.size());
+    append_u32(file, total_length);
+    append_u32(file, json_length); append_u32(file, 0x4E4F534AU);
+    file.insert(file.end(), reinterpret_cast<const std::byte*>(json.data()),
+                reinterpret_cast<const std::byte*>(json.data() + json.size()));
+    file.resize(file.size() + (json_length - json.size()), std::byte{' '});
+    append_u32(file, static_cast<std::uint32_t>(bin.size())); append_u32(file, 0x004E4942U);
+    file.insert(file.end(), bin.begin(), bin.end());
+
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto path = std::filesystem::temp_directory_path()
+        / ("chronon3d-preparation-triangle-" + std::to_string(unique) + ".glb");
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output.good()) throw std::runtime_error("could not create GLB fixture");
+    output.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+    if (!output.good()) throw std::runtime_error("could not write GLB fixture");
+    return path;
+}
+
 } // namespace
+
+TEST_CASE("MeshLoader prepares a self-contained GLB and reuses identity cache") {
+    const auto path = write_triangle_glb();
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(path.parent_path());
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, path.filename().string(), "mesh/triangle", true};
+    chronon3d::assets::MeshPreparationCache cache;
+
+    const auto first = chronon3d::assets::MeshLoader::load(ref, resolver, &cache);
+    REQUIRE(first.has_value());
+    REQUIRE(first.value()->parts.size() == 1);
+    CHECK(first.value()->parts[0].geometry->vertices().size() == 3);
+    CHECK(first.value()->parts[0].geometry->indices().size() == 3);
+    CHECK(cache.size() == 1);
+
+    const auto second = chronon3d::assets::MeshLoader::load(ref, resolver, &cache);
+    REQUIRE(second.has_value());
+    CHECK(second.value().get() == first.value().get());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+}
+
+TEST_CASE("ResourcePreparation::prepare loads GLB into PreparedAssets and reuses cache") {
+    const auto path = write_triangle_glb();
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_mesh(path.filename().string(), "mesh/prepared");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(path.parent_path());
+    chronon3d::assets::MeshPreparationCache cache;
+    chronon3d::runtime::PreparationOptions options;
+    options.prepare_fonts = false;
+    options.prepare_images = false;
+    options.prepare_video_metadata = false;
+    options.prepare_audio_index = false;
+    options.prepare_layouts = false;
+    options.mesh_cache = &cache;
+
+    const auto first = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+    REQUIRE(first.has_value());
+    REQUIRE(first.value().meshes.count("mesh/prepared") == 1);
+    REQUIRE(first.value().meshes.at("mesh/prepared").source != nullptr);
+    CHECK(first.value().diagnostics.meshes_prepared == 1);
+
+    const auto second = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+    REQUIRE(second.has_value());
+    CHECK(second.value().meshes.at("mesh/prepared").source.get()
+          == first.value().meshes.at("mesh/prepared").source.get());
+    CHECK(cache.size() == 1);
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+}
+
+TEST_CASE("ResourcePreparation::prepare — mesh missing GLB fails loud") {
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_mesh("missing/triangle.glb", "mesh/missing");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::temp_directory_path());
+
+    chronon3d::runtime::PreparationOptions options;
+    options.prepare_fonts = false;
+    options.prepare_images = false;
+    options.prepare_video_metadata = false;
+    options.prepare_audio_index = false;
+    options.prepare_layouts = false;
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare(
+        manifest, resolver, options);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::MissingAsset);
+    CHECK(result.error().phase == "mesh");
+    CHECK(result.error().owner == "mesh/missing");
+}
 
 TEST_CASE("ResourcePreparation::prepare — empty manifest → empty PreparedAssets (default policy)") {
     chronon3d::assets::AssetManifest manifest;
