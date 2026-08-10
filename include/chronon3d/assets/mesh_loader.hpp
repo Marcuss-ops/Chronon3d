@@ -6,6 +6,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/geometry/mesh.hpp>
+#include <chronon3d/math/color.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -47,7 +48,24 @@ struct MeshLoadError {
 struct MeshPart {
     std::string name;
     std::shared_ptr<const Mesh> geometry;
-    std::uint32_t material_index{0};
+    /// Null when the primitive has no material; avoids implying material 0.
+    std::optional<std::uint32_t> material_index;
+};
+
+/// Prepared embedded image bytes. The loader owns the bytes and exposes no
+/// glTF image/view types; downstream preparation can decode this payload using
+/// the canonical Chronon image services.
+struct MeshImage {
+    std::string mime_type;
+    std::vector<std::byte> payload;
+};
+
+/// V1 base material converted from glTF PBR data into Chronon-native types.
+/// `base_color_texture_index`, when present, indexes PreparedMeshSource::images.
+struct MeshMaterial {
+    std::string name;
+    Color base_color_factor{1.0f, 1.0f, 1.0f, 1.0f};
+    std::optional<std::uint32_t> base_color_texture_index;
 };
 
 /// Immutable geometry produced at the AssetResolver → MeshLoader boundary.
@@ -57,6 +75,8 @@ struct PreparedMeshSource {
     std::filesystem::path resolved_path;
     MeshIdentity identity;
     std::vector<MeshPart> parts;
+    std::vector<MeshMaterial> materials;
+    std::vector<MeshImage> images;
 };
 
 using PreparedMeshSourceRef = std::shared_ptr<const PreparedMeshSource>;

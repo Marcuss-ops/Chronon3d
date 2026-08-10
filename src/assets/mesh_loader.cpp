@@ -182,6 +182,68 @@ MeshIdentity identity_for(const std::filesystem::path& path) {
         sha256_string(contents)};
 }
 
+std::vector<std::byte> embedded_bytes(const json& document,
+                                      const std::vector<std::byte>& binary,
+                                      int view_index) {
+    if (view_index < 0 || !document.contains("bufferViews")
+        || static_cast<std::size_t>(view_index) >= document.at("bufferViews").size()) {
+        throw std::runtime_error("GLB image bufferView index is out of range");
+    }
+    const auto& view = document.at("bufferViews").at(view_index);
+    if (view.value("buffer", 0) != 0) throw std::runtime_error("GLB image uses an unsupported buffer index");
+    const auto offset = view.value("byteOffset", 0U);
+    const auto length = view.at("byteLength").get<std::size_t>();
+    if (offset > binary.size() || length > binary.size() - offset)
+        throw std::runtime_error("GLB image bufferView exceeds binary chunk");
+    return {binary.begin() + static_cast<std::ptrdiff_t>(offset),
+            binary.begin() + static_cast<std::ptrdiff_t>(offset + length)};
+}
+
+void decode_materials_and_images(const json& document,
+                                 const std::vector<std::byte>& binary,
+                                 PreparedMeshSource& prepared) {
+    if (document.contains("images")) {
+        const auto& images = document.at("images");
+        prepared.images.reserve(images.size());
+        for (const auto& image : images) {
+            if (!image.contains("bufferView"))
+                throw std::runtime_error("V1 embedded GLB image requires bufferView");
+            prepared.images.push_back(MeshImage{
+                .mime_type = image.value("mimeType", "application/octet-stream"),
+                .payload = embedded_bytes(document, binary, image.at("bufferView").get<int>()),
+            });
+        }
+    }
+    if (document.contains("materials")) {
+        const auto& materials = document.at("materials");
+        prepared.materials.reserve(materials.size());
+        for (const auto& material : materials) {
+            MeshMaterial converted;
+            converted.name = material.value("name", "");
+            const auto& pbr = material.value("pbrMetallicRoughness", json::object());
+            if (pbr.contains("baseColorFactor")) {
+                const auto& factor = pbr.at("baseColorFactor");
+                if (!factor.is_array() || factor.size() != 4)
+                    throw std::runtime_error("GLB baseColorFactor must contain four values");
+                converted.base_color_factor = Color{
+                    factor.at(0).get<f32>(), factor.at(1).get<f32>(),
+                    factor.at(2).get<f32>(), factor.at(3).get<f32>()};
+            }
+            if (pbr.contains("baseColorTexture")) {
+                const auto texture_index = pbr.at("baseColorTexture").at("index").get<int>();
+                if (texture_index < 0 || !document.contains("textures")
+                    || static_cast<std::size_t>(texture_index) >= document.at("textures").size())
+                    throw std::runtime_error("GLB baseColorTexture index is out of range");
+                const auto image_index = document.at("textures").at(texture_index).at("source").get<int>();
+                if (image_index < 0 || static_cast<std::size_t>(image_index) >= prepared.images.size())
+                    throw std::runtime_error("GLB baseColorTexture source is out of range");
+                converted.base_color_texture_index = static_cast<std::uint32_t>(image_index);
+            }
+            prepared.materials.push_back(std::move(converted));
+        }
+    }
+}
+
 PreparedMeshSourceRef decode(const InternalAssetRef& ref, const std::filesystem::path& path,
                              MeshIdentity identity) {
     auto data = read_glb(path);
@@ -195,6 +257,7 @@ PreparedMeshSourceRef decode(const InternalAssetRef& ref, const std::filesystem:
     prepared->logical_path = ref.path;
     prepared->resolved_path = path;
     prepared->identity = identity;
+    decode_materials_and_images(data.document, data.binary, *prepared);
 
     const auto& meshes = data.document.at("meshes");
     for (std::size_t mesh_index = 0; mesh_index < meshes.size(); ++mesh_index) {
@@ -259,10 +322,17 @@ PreparedMeshSourceRef decode(const InternalAssetRef& ref, const std::filesystem:
                     throw std::runtime_error("GLB index exceeds POSITION vertex count");
                 geometry->add_index(vertex_index);
             }
+            std::optional<std::uint32_t> material_index;
+            if (primitive.contains("material")) {
+                const auto index = primitive.at("material").get<int>();
+                if (index < 0 || static_cast<std::size_t>(index) >= prepared->materials.size())
+                    throw std::runtime_error("GLB primitive material index is out of range");
+                material_index = static_cast<std::uint32_t>(index);
+            }
             prepared->parts.push_back(MeshPart{
                 .name = geometry->name(),
                 .geometry = std::move(geometry),
-                .material_index = primitive.value("material", 0U)});
+                .material_index = material_index});
         }
     }
     if (prepared->parts.empty()) throw std::runtime_error("GLB has no mesh primitives");

@@ -32,6 +32,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -78,7 +79,7 @@ void append_f32(std::vector<std::byte>& bytes, float value) {
 }
 
 std::filesystem::path write_triangle_glb() {
-    const std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":104}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3}]}]})";
+    const std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":108}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6},{"buffer":0,"byteOffset":104,"byteLength":4}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"images":[{"bufferView":4,"mimeType":"image/png"}],"textures":[{"source":0}],"materials":[{"name":"red","pbrMetallicRoughness":{"baseColorFactor":[1.0,0.25,0.5,0.75],"baseColorTexture":{"index":0}}}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}]})";
     std::vector<std::byte> bin;
     for (const auto& point : std::array<std::array<float, 3>, 3>{{{{0, 0, 0}}, {{1, 0, 0}}, {{0, 1, 0}}}})
         for (float component : point) append_f32(bin, component);
@@ -92,6 +93,7 @@ std::filesystem::path write_triangle_glb() {
         bin.push_back(static_cast<std::byte>((index >> 8U) & 0xffU));
     }
     bin.resize(104, std::byte{0});
+    bin.insert(bin.end(), {std::byte{0x89}, std::byte{'P'}, std::byte{'N'}, std::byte{'G'}});
 
     std::vector<std::byte> file;
     append_u32(file, 0x46546C67U); append_u32(file, 2U);
@@ -128,13 +130,50 @@ TEST_CASE("MeshLoader prepares a self-contained GLB and reuses identity cache") 
     const auto first = chronon3d::assets::MeshLoader::load(ref, resolver, &cache);
     REQUIRE(first.has_value());
     REQUIRE(first.value()->parts.size() == 1);
-    CHECK(first.value()->parts[0].geometry->vertices().size() == 3);
-    CHECK(first.value()->parts[0].geometry->indices().size() == 3);
+    REQUIRE(first.value()->parts[0].geometry->vertices().size() == 3);
+    REQUIRE(first.value()->parts[0].geometry->indices().size() == 3);
+    CHECK(first.value()->parts[0].geometry->vertices()[1].normal == (chronon3d::Vec3{0.0f, 0.0f, 1.0f}));
+    CHECK(first.value()->parts[0].geometry->vertices()[2].uv == (chronon3d::Vec2{0.0f, 1.0f}));
+    REQUIRE(first.value()->materials.size() == 1);
+    CHECK(first.value()->materials[0].name == "red");
+    CHECK(first.value()->materials[0].base_color_factor == (chronon3d::Color{1.0f, 0.25f, 0.5f, 0.75f}));
+    REQUIRE(first.value()->materials[0].base_color_texture_index.has_value());
+    CHECK(*first.value()->materials[0].base_color_texture_index == 0);
+    REQUIRE(first.value()->parts[0].material_index.has_value());
+    CHECK(*first.value()->parts[0].material_index == 0);
+    REQUIRE(first.value()->images.size() == 1);
+    CHECK(first.value()->images[0].mime_type == "image/png");
+    CHECK(first.value()->images[0].payload.size() == 4);
     CHECK(cache.size() == 1);
 
     const auto second = chronon3d::assets::MeshLoader::load(ref, resolver, &cache);
     REQUIRE(second.has_value());
     CHECK(second.value().get() == first.value().get());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+}
+
+TEST_CASE("MeshLoader rejects a primitive material index outside the prepared materials") {
+    const auto path = write_triangle_glb();
+    std::ifstream input(path, std::ios::binary);
+    std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    const std::string needle = R"("material":0)";
+    const auto position = bytes.find(needle);
+    REQUIRE(position != std::string::npos);
+    bytes.replace(position, needle.size(), R"("material":3)");
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(output.good());
+    output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    REQUIRE(output.good());
+    output.close();
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(path.parent_path());
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, path.filename().string(), "mesh/invalid-material", true};
+    const auto result = chronon3d::assets::MeshLoader::load(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::assets::MeshLoadErrorCode::InvalidGeometry);
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
 }
