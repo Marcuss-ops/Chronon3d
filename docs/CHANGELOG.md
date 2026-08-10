@@ -1,6 +1,19 @@
 ## 2026-08-10
 ### `feat(cli): add benchmark-machine host certification`
 
+## 2026-08-10
+### `feat(cli): add saturation report command`
+
+`chronon benchmark --scene <id> --duration <sec> --saturation` produce il
+CHRONON3D SATURATION REPORT completo: CPU (modello, logical CPUs, NUMA,
+context switches), THROUGHPUT (FPS, P50/P95/P99 frame times), HARDWARE
+(cycles/frame, IPC, branch miss, LLC miss via perf stat, N/A senza perf),
+MEMORY (allocations, framebuffer copies, full-frame passes, peak RSS),
+PARALLELISM (workers, tile size, SIMD) e EFFICIENCY (PASS/FAIL per area).
+
+## 2026-08-10
+### `feat(cli): add benchmark-machine host certification`
+
 `chronon benchmark-machine` stampa il banner canonico "Chronon CPU":
 modello CPU, logical CPUs, NUMA nodes, SIMD supported/selected (verificato
 a runtime via cpuid/hwcap, non assunto dai flag di build) e budget worker

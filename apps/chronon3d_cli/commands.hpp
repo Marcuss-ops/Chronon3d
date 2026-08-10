@@ -219,6 +219,8 @@ struct ResolveArgs {
 
 int command_list(const CompositionRegistry& registry);
 int command_benchmark_machine(const CliContext& ctx);
+int command_benchmark_saturation(const CompositionRegistry& registry, const CliContext& ctx,
+                                  const std::string& scene, int duration_sec);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
                    const std::string& build_command = "");
