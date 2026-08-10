@@ -70,9 +70,11 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
 #endif
         // TICKET-122 FASE 3: GridPlane now uses 2.5D projection,
         // standard compute_world_bbox path (not native 3D).
-        if (ctx.frame_input.has_camera_2_5d &&
-            item.node->shape.type() == ShapeType::FakeBox3D) {
-            if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
+        if (item.node->shape.type() == ShapeType::Mesh ||
+            (ctx.frame_input.has_camera_2_5d &&
+             item.node->shape.type() == ShapeType::FakeBox3D)) {
+            if (auto proj_bbox = detail::projected_native_3d_bbox(
+                    ctx, *item.node, matrix, spread)) {
                 bbox = *proj_bbox;
             } else {
                 bbox = raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
@@ -146,10 +148,11 @@ std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
                 placement->render_matrix, 8.0f);
         } else
 #endif
-        if (ctx.frame_input.has_camera_2_5d &&
-            item.node->shape.type() == ShapeType::FakeBox3D) {
+        if (item.node->shape.type() == ShapeType::Mesh ||
+            (ctx.frame_input.has_camera_2_5d &&
+             item.node->shape.type() == ShapeType::FakeBox3D)) {
             const auto projected = detail::projected_native_3d_bbox(
-                ctx, *item.node, item.matrix, 8.0f);
+                ctx, *item.node, placement->render_matrix, 8.0f);
             if (!projected) continue;
             bbox = *projected;
         } else {
@@ -340,11 +343,11 @@ NodeExecResult MultiSourceNode::execute(
                 item.matrix,
                 item.opacity,
                 ctx,
-                true,
-                item.defer_camera_projection,
-                false,
-                m_name,
-                "regular_execute",
+                true,                    item.defer_camera_projection,
+                    item.native_3d,
+                    m_name,
+                    "regular_execute",
+
                 i);
             if (!placement) {
                 continue;

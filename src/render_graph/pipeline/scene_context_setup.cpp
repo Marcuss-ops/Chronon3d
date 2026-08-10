@@ -106,6 +106,10 @@ SoftwareRenderer* setup_render_graph_context(
         // PR-9 — populate software sidecar so nodes can reach
         // cpu-specific resources (buffer_ring) via static_cast.
         ctx.services.sw_renderer_sidecar = sw_renderer;
+        ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
+        ctx.services.mesh_cache = &sw_renderer->runtime().mesh_cache();
+        ctx.services.prepared_assets =
+            sw_renderer->runtime().prepared_assets_for(scene.asset_manifest());
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create
         // a local Sequential(1) scheduler.

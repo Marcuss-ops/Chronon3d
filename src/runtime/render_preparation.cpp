@@ -1,4 +1,5 @@
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
@@ -127,6 +128,9 @@ RenderPreparationResult prepare_render_scene(
         }
     }
 
+    // Publish only after every requested preparation phase succeeds. The
+    // render graph borrows this runtime-owned snapshot; it never loads assets.
+    renderer->runtime().publish_prepared_assets(*result.prepared_assets);
     return result;
 }
 

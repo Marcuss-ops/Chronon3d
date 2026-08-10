@@ -3,6 +3,7 @@
 #include "../rasterizers/scanline_rasterizer.hpp"
 #include <chronon3d/geometry/mesh.hpp>
 #include <vector>
+#include <span>
 
 namespace chronon3d {
 namespace renderer {
@@ -31,15 +32,16 @@ void render_mesh_wireframe(
 
 void render_mesh_filled(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
-    const Mat4& view, const Mat4& proj, const Color& color)
+    const Mat4& view, const Mat4& proj, const Color& color,
+    std::span<float> depth_buffer)
 {
     const Mat4 mvp = proj * view * model;
     const auto& vertices = mesh.vertices();
     const auto& indices  = mesh.indices();
 
-    // ── Depth buffer for 3D raster scanning ──────────────────────────────
-    std::vector<float> depth_buffer_vec(static_cast<size_t>(fb.width()) * fb.height(), 0.0f);
-    std::span<float> depth_buffer(depth_buffer_vec);
+    // The caller owns the frame-local depth buffer so multiple mesh parts
+    // participate in one depth ordering. An invalid span preserves the
+    // historical no-depth behavior of the low-level helper.
 
     std::vector<Vec3> projected(vertices.size());
     for (usize i = 0; i < vertices.size(); ++i) {
@@ -52,7 +54,11 @@ void render_mesh_filled(
 
         // Camera-space Z for depth testing: transform to view space
         Vec4 view_p = view * model * Vec4(vertices[i].position, 1.0f);
-        const float cam_z = view_p.z;  // positive Z forward in LH
+        // Camera::projection_matrix() uses GLM's right-handed perspective
+        // convention: visible points have negative view-space Z. Store a
+        // positive distance so the shared scanline depth test (smaller is
+        // nearer) remains backend-independent.
+        const float cam_z = -view_p.z;
 
         projected[i] = {sx, sy, cam_z};
     }
@@ -65,6 +71,15 @@ void render_mesh_filled(
         };
         fill_triangle(fb, tri, color, depth_buffer);
     }
+}
+
+void render_mesh_filled(
+    Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+    const Mat4& view, const Mat4& proj, const Color& color)
+{
+    std::vector<float> depth_buffer_vec(
+        static_cast<size_t>(fb.width()) * static_cast<size_t>(fb.height()), 0.0f);
+    render_mesh_filled(fb, mesh, model, view, proj, color, depth_buffer_vec);
 }
 
 } // namespace renderer

@@ -180,10 +180,10 @@ LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
 LayerBuilder& LayerBuilder::mesh(std::string name, assets::MeshRef ref) {
     // Authoring stores only the logical dependency. Mesh loading and
     // preparation belong to the runtime boundary, not this builder.
+    const std::string owner = ref.owner().empty()
+        ? std::string(m_layer.name) + "/" + name
+        : ref.owner();
     if (!ref.path().empty()) {
-        const std::string owner = ref.owner().empty()
-            ? std::string(m_layer.name) + "/" + name
-            : ref.owner();
         m_layer.asset_manifest.add_mesh(ref.path(), owner, ref.required());
     }
 
@@ -191,7 +191,10 @@ LayerBuilder& LayerBuilder::mesh(std::string name, assets::MeshRef ref) {
     RenderNode node(res);
     node.name = std::pmr::string{std::move(name), res};
     node.shape.set_type(ShapeType::Mesh);
-    // MeshShape::mesh intentionally remains null until runtime preparation.
+    // Preserve the logical reference in the authoring payload. Preparation
+    // attaches the immutable source later; this builder never resolves or
+    // loads the filesystem asset.
+    node.shape.mesh_shape().reference = assets::MeshRef{ref.path(), owner, ref.required()};
     node.world_transform.position = {0.0f, 0.0f, 0.0f};
     node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
     node.surface_policy = SurfacePolicy::IntrinsicSize;

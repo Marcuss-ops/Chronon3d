@@ -2,6 +2,7 @@
 
 #include "graph_builder_coordinates.hpp"
 #include "evaluated_layer_placement.hpp"
+#include "passes/graph_builder_source_pass.hpp"
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
@@ -93,8 +94,9 @@ raster::BBox compute_layer_bbox(
             return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
         }
 
+        const RenderNode materialized_node = detail::materialize_mesh_node(node, ctx);
         const raster::BBox node_bbox =
-            processor->compute_world_bbox(node.shape, matrix, 0.0f);
+            processor->compute_world_bbox(materialized_node.shape, matrix, 0.0f);
         if (!node_bbox.is_empty()) {
             layer_bbox.x0 = std::min(layer_bbox.x0, node_bbox.x0);
             layer_bbox.y0 = std::min(layer_bbox.y0, node_bbox.y0);
