@@ -28,7 +28,8 @@ bool is_video_output(const std::string& output) {
 
 void fill_execution_options(RenderExecutionOptions& execution,
                             const RenderPipelineArgs& pipeline,
-                            const CpuBudget& cpu_budget) {
+                            const CpuBudget& cpu_budget,
+                            bool video_output) {
     execution.warmup_renderer =
         pipeline.warmup_renderer || execution.warmup_renderer;
     execution.warmup_framebuffers = pipeline.warmup_framebuffers;
@@ -38,9 +39,16 @@ void fill_execution_options(RenderExecutionOptions& execution,
 
     Config cfg;
     cfg.set_cpu_budget(cpu_budget);
-    if (pipeline.fb_pool_budget_mb > 0) {
+    // Video exports keep several frames in flight.  A large retained pool
+    // multiplies live framebuffer memory without improving this workload;
+    // keep the video default bounded while preserving the existing still/
+    // sequence default and the explicit CLI override.
+    const size_t fb_pool_budget_mb = pipeline.fb_pool_budget_mb > 0
+        ? pipeline.fb_pool_budget_mb
+        : (video_output ? 64U : 0U);
+    if (fb_pool_budget_mb > 0) {
         cfg.set_fb_pool_budget(
-            pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
+            fb_pool_budget_mb * 1024ULL * 1024ULL);
     }
     if (!pipeline.fb_pool_clear_policy.empty()) {
         const auto& policy_str = pipeline.fb_pool_clear_policy;
@@ -140,7 +148,8 @@ std::optional<RenderRequest> make_render_request(
     request.execution.command_line = args.command_line;
     request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
     fill_execution_options(
-        request.execution, args.pipeline, args.cpu_budget);
+        request.execution, args.pipeline, args.cpu_budget,
+        request.mode == RenderMode::Video);
 
     return request;
 }
