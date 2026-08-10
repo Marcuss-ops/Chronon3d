@@ -36,6 +36,7 @@ class SoftwareRegistry;
 
 class ImageRenderer;
 class CurveCache;
+class DepthBufferPool;   // reusable depth buffer for mesh rasterization (session-scoped)
 namespace image {
 class ImageBackend;
 } // namespace image
@@ -53,6 +54,7 @@ struct SoftwareProcessorContext {
     RenderCounters*                                  counters{nullptr};        // REQUIRED
     const RenderSettings*                            settings{nullptr};        // REQUIRED
     renderer::SoftwareRegistry*                      registry{nullptr};        // REQUIRED
+    DepthBufferPool*                                 depth_buffer_pool{nullptr}; // mesh/fake-box depth buffer reuse
     image::ImageBackend*                             image_backend{nullptr};
     ImageRenderer*                                   image_renderer{nullptr};
     CurveCache*                                      curve_cache{nullptr};

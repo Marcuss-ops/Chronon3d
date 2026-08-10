@@ -14,34 +14,54 @@ namespace {
 
 using ViewVertex = Vec4;
 
+// A triangle clipped against 2 planes yields at most 3 + 2 = 5 vertices
+// (each Sutherland-Hodgman pass can add at most one vertex per edge
+// crossing; a triangle has 3 edges, and we run 2 passes).  Fixed-size
+// stack arrays avoid the per-triangle heap allocations that would
+// otherwise dominate allocation churn for large meshes in the frame loop.
+// Keep kMaxClipVerts ≥ 6 + (number of future clip passes) if more planes
+// are ever added — the clip loops ASSERT the bound below.
+constexpr usize kMaxClipVerts = 6;
+
+struct StackPolygon {
+    std::array<ViewVertex, kMaxClipVerts> verts;
+    usize size{0};
+};
+
 // Clip a view-space polygon against one half-space. The signed distance
 // function must be non-negative for points inside the half-space.
-void clip_polygon(std::vector<ViewVertex>& polygon,
-                  const auto& signed_distance) {
-    if (polygon.empty()) return;
+bool clip_polygon(StackPolygon& polygon, const auto& signed_distance) {
+    if (polygon.size == 0) return true;
 
-    std::vector<ViewVertex> clipped;
-    clipped.reserve(polygon.size() + 1);
-    for (usize i = 0; i < polygon.size(); ++i) {
-        const ViewVertex& a = polygon[i];
-        const ViewVertex& b = polygon[(i + 1) % polygon.size()];
+    std::array<ViewVertex, kMaxClipVerts> clipped;
+    usize clipped_size = 0;
+    for (usize i = 0; i < polygon.size; ++i) {
+        const ViewVertex& a = polygon.verts[i];
+        const ViewVertex& b = polygon.verts[(i + 1) % polygon.size];
         const float distance_a = signed_distance(a);
         const float distance_b = signed_distance(b);
         const bool inside_a = distance_a >= 0.0f;
         const bool inside_b = distance_b >= 0.0f;
 
         if (inside_a && inside_b) {
-            clipped.push_back(b);
+            if (clipped_size >= kMaxClipVerts) return false;
+            clipped[clipped_size++] = b;
         } else if (inside_a != inside_b) {
             const float denominator = distance_a - distance_b;
             if (std::abs(denominator) > 1e-7f) {
+                if (clipped_size >= kMaxClipVerts) return false;
                 const float t = distance_a / denominator;
-                clipped.push_back(a + t * (b - a));
+                clipped[clipped_size++] = a + t * (b - a);
             }
-            if (inside_b) clipped.push_back(b);
+            if (inside_b) {
+                if (clipped_size >= kMaxClipVerts) return false;
+                clipped[clipped_size++] = b;
+            }
         }
     }
-    polygon.swap(clipped);
+    polygon.verts = clipped;
+    polygon.size = clipped_size;
+    return true;
 }
 
 void render_clipped_triangle(
@@ -53,22 +73,25 @@ void render_clipped_triangle(
     float near_plane,
     float far_plane)
 {
-    std::vector<ViewVertex> polygon(view_triangle.begin(), view_triangle.end());
+    StackPolygon polygon;
+    for (usize i = 0; i < 3; ++i) polygon.verts[i] = view_triangle[i];
+    polygon.size = 3;
 
     // GLM's perspective projection is right-handed: visible view-space Z is
     // negative. Clip before the perspective divide so w never approaches
     // zero and no behind-camera triangle can wrap around the framebuffer.
-    clip_polygon(polygon, [near_plane](const ViewVertex& v) {
+    if (!clip_polygon(polygon, [near_plane](const ViewVertex& v) {
         return -near_plane - v.z; // v.z <= -near_plane
-    });
-    clip_polygon(polygon, [far_plane](const ViewVertex& v) {
+    })) return;
+    if (!clip_polygon(polygon, [far_plane](const ViewVertex& v) {
         return v.z + far_plane; // v.z >= -far_plane
-    });
-    if (polygon.size() < 3) return;
+    })) return;
+    if (polygon.size < 3) return;
 
-    std::vector<Vec3> projected;
-    projected.reserve(polygon.size());
-    for (const ViewVertex& view_vertex : polygon) {
+    std::array<Vec3, kMaxClipVerts> projected;
+    usize projected_size = 0;
+    for (usize i = 0; i < polygon.size; ++i) {
+        const ViewVertex& view_vertex = polygon.verts[i];
         const float depth = -view_vertex.z;
         if (!(depth > 0.0f) || !std::isfinite(depth)) return;
 
@@ -77,16 +100,16 @@ void render_clipped_triangle(
         const Vec2 ndc{clip.x / clip.w, clip.y / clip.w};
         if (!std::isfinite(ndc.x) || !std::isfinite(ndc.y)) return;
 
-        projected.push_back({
+        projected[projected_size++] = {
             (ndc.x + 1.0f) * 0.5f * static_cast<float>(fb.width()),
             (1.0f - (ndc.y + 1.0f) * 0.5f) * static_cast<float>(fb.height()),
             1.0f / depth,
-        });
+        };
     }
 
     // Sutherland-Hodgman can turn one triangle into a quad. Fan triangulation
     // preserves the clipped polygon and keeps the rasterizer triangle-based.
-    for (usize i = 1; i + 1 < projected.size(); ++i) {
+    for (usize i = 1; i + 1 < projected_size; ++i) {
         Vec3 triangle[3] = {projected[0], projected[i], projected[i + 1]};
         fill_triangle_perspective(fb, triangle, color, depth_buffer);
     }

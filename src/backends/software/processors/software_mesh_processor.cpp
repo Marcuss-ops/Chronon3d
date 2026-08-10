@@ -1,5 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include "../primitive_renderer.hpp"
 #include "../specialized/mesh_renderer.hpp"
 // R2: draw() now consumes the slim processor context POD.
@@ -25,8 +26,19 @@ public:
         const f32 aspect = static_cast<f32>(width) / static_cast<f32>(height);
         const Mat4 view = camera.view_matrix();
         const Mat4 projection = camera.projection_matrix(aspect);
-        std::vector<float> depth_buffer(
-            static_cast<size_t>(fb.width()) * static_cast<size_t>(fb.height()), 0.0f);
+        // Reusable depth buffer from the session pool — no per-frame malloc.
+        // Fall back to a local vector for callers without a pool (e.g.
+        // legacy tests) so depth testing is never silently disabled.
+        std::span<float> depth_buffer;
+        std::vector<float> fallback_vec;
+        if (rctx.depth_buffer_pool) {
+            depth_buffer = rctx.depth_buffer_pool->acquire(
+                fb.width(), fb.height());
+        } else {
+            fallback_vec.resize(
+                static_cast<size_t>(fb.width()) * static_cast<size_t>(fb.height()), 0.0f);
+            depth_buffer = fallback_vec;
+        }
 
         if (source) {
             for (const auto& part : source->parts) {
