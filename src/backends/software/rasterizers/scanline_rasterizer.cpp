@@ -187,6 +187,65 @@ void fill_gradient_triangle(Framebuffer& fb, std::span<const Vec2, 3> v, std::sp
 // 3D scanline rasterizers — with per-pixel depth test
 // ─────────────────────────────────────────────────────────────────────────────
 
+void fill_triangle_perspective(Framebuffer& fb, std::span<const Vec3, 3> v,
+                               const Color& color, std::span<float> depth_buffer) {
+    if (color.a <= 0.0f || !is_clean_color(color)) return;
+
+    const float min_x_f = std::min({v[0].x, v[1].x, v[2].x});
+    const float max_x_f = std::max({v[0].x, v[1].x, v[2].x});
+    const float min_y_f = std::min({v[0].y, v[1].y, v[2].y});
+    const float max_y_f = std::max({v[0].y, v[1].y, v[2].y});
+    const int x0 = std::max(0, static_cast<int>(std::ceil(min_x_f)));
+    const int x1 = std::min(fb.width() - 1, static_cast<int>(std::floor(max_x_f)));
+    const int y0 = std::max(0, static_cast<int>(std::ceil(min_y_f)));
+    const int y1 = std::min(fb.height() - 1, static_cast<int>(std::floor(max_y_f)));
+    if (x0 > x1 || y0 > y1) return;
+
+    const auto edge = [](const Vec2& a, const Vec2& b, const Vec2& p) {
+        return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+    };
+    const Vec2 a{v[0].x, v[0].y};
+    const Vec2 b{v[1].x, v[1].y};
+    const Vec2 c{v[2].x, v[2].y};
+    const float area = edge(a, b, c);
+    if (std::abs(area) < 1e-6f) return;
+
+    const bool use_depth = depth_buffer.size() ==
+        static_cast<usize>(fb.width()) * fb.height();
+    for (int y = y0; y <= y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        float* depth_row = use_depth
+            ? depth_buffer.data() + static_cast<size_t>(y) * fb.width()
+            : nullptr;
+        for (int x = x0; x <= x1; ++x) {
+            const Vec2 p{static_cast<float>(x) + 0.5f,
+                         static_cast<float>(y) + 0.5f};
+            const float wa = edge(b, c, p) / area;
+            const float wb = edge(c, a, p) / area;
+            const float wc = edge(a, b, p) / area;
+            constexpr float kEpsilon = -1e-5f;
+            if (wa < kEpsilon || wb < kEpsilon || wc < kEpsilon) continue;
+
+            const float inv_depth = wa * v[0].z + wb * v[1].z + wc * v[2].z;
+            if (!(inv_depth > 0.0f) || !std::isfinite(inv_depth)) continue;
+            const float depth = 1.0f / inv_depth;
+            if (!std::isfinite(depth) || depth <= 0.0f) continue;
+            if (depth_row) {
+                const float existing = depth_row[x];
+                if (existing > 0.0f && depth >= existing) continue;
+                depth_row[x] = depth;
+            }
+
+            Color& dst = row[x];
+            const float inv_a = 1.0f - color.a;
+            dst.r = color.r + dst.r * inv_a;
+            dst.g = color.g + dst.g * inv_a;
+            dst.b = color.b + dst.b * inv_a;
+            dst.a = color.a + dst.a * inv_a;
+        }
+    }
+}
+
 void fill_triangle(Framebuffer& fb, std::span<const Vec3, 3> v, const Color& color,
                     std::span<float> depth_buffer) {
     if (color.a <= 0.0f) return;
