@@ -285,6 +285,60 @@ FusionStats fuse_color_opacity_blend(
     return stats;
 }
 
+bool FusedPixelProgram::execute(
+    float* dst_rgba,
+    const float* src_rgba,
+    std::size_t pixels) const
+{
+    if (!dst_rgba || !src_rgba || pixels == 0 || !guards.all_pass() ||
+        !resolved_kernel || operations.size() != 3) {
+        return false;
+    }
+
+    const PixelOperation* color_matrix = nullptr;
+    const PixelOperation* opacity = nullptr;
+    const PixelOperation* blend = nullptr;
+    for (const auto& operation : operations) {
+        switch (operation.kind) {
+        case PixelOperation::Kind::ColorMatrix:
+            if (color_matrix) return false;
+            color_matrix = &operation;
+            break;
+        case PixelOperation::Kind::Opacity:
+            if (opacity) return false;
+            opacity = &operation;
+            break;
+        case PixelOperation::Kind::Blend:
+            if (blend) return false;
+            blend = &operation;
+            break;
+        }
+    }
+
+    // The current resolved kernel implements premultiplied Normal/SRC_OVER.
+    // Do not claim support for a different mode until a matching kernel is
+    // resolved by the canonical SIMD registry.
+    if (!color_matrix || !opacity || !blend || blend->blend_mode != 0) {
+        return false;
+    }
+
+    const std::size_t scalar_count = pixels * 4;
+    std::vector<float> transformed(scalar_count);
+    const auto& kernels = simd::resolve_pixel_kernels(simd::detect_cpu_capabilities());
+    if (!kernels.color_matrix.apply) return false;
+    kernels.color_matrix.apply(
+        transformed.data(), src_rgba, pixels, color_matrix->params.data());
+
+    const float alpha = opacity->params[0];
+    if (!(alpha >= 0.0f && alpha <= 1.0f)) return false;
+    for (float& channel : transformed) {
+        channel *= alpha;
+    }
+
+    resolved_kernel(dst_rgba, transformed.data(), pixels);
+    return true;
+}
+
 // ── F3.1 atomic-counter bridge (--stats-json wiring) ─────────────────────
 //
 // Per F3.1 user-spec verbatim "Aggiungi counter passes_before_fusion,
