@@ -85,7 +85,9 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
             const float font_size = shape.layout ? shape.layout->font_size : 16.0f;
             const float ascent  = std::max({0.0f, placed.ascent, font_size * 0.8f});
             const float descent = std::max({0.0f, placed.descent, font_size * 0.2f});
-            for (std::size_t i = 0; i < glyphs.size(); ++i) {
+            const std::size_t glyph_count = std::min(
+                glyphs.size(), placed.glyphs.size());
+            for (std::size_t i = 0; i < glyph_count; ++i) {
                 const auto& g = glyphs[i];
                 const auto& pg = placed.glyphs[i];
                 const float gx = g.layout_position.x + g.position.x;

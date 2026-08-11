@@ -20,6 +20,7 @@
 
 #include "graph_builder_coordinates.hpp"
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
+#include "../nodes/detail/raster_surface.hpp"
 
 #include <optional>
 #include <string>
@@ -78,6 +79,8 @@ struct EvaluatedLayerPlacement {
     bool defer_camera_projection{false};
 
     std::optional<raster::BBox> projected_bbox;
+    Vec2 surface_size{0.0f, 0.0f};
+    Vec2 surface_origin{0.0f, 0.0f};
 };
 
 /// Resolve the render-stage placement for a source payload that has already
@@ -238,6 +241,8 @@ struct EvaluatedLayerPlacement {
     EvaluatedLayerPlacement result;
     result.world_matrix = item.world_matrix;
     result.projection_matrix = item.projection_matrix;
+    result.surface_size = item.projected_surface_size;
+    result.surface_origin = item.projected_surface_origin;
     result.opacity = item.transform.opacity;
     result.visible = item.visible && item.layer && item.layer->visible;
     result.requires_transform_node = layer_needs_render_transform(item, ctx);
@@ -267,7 +272,20 @@ struct EvaluatedLayerPlacement {
         // surface is vertically mirrored at zero rotation.
         const Mat4 surface_y_down = glm::scale(
             Mat4(1.0f), Vec3(1.0f, -1.0f, 1.0f));
-        result.render_matrix = result.projection_matrix * surface_y_down;
+        // TransformNode consumes pixels in [0, surface_size). Reattach the
+        // producer's local origin in the same raster coordinate convention;
+        // Y is negated because the camera contract is Y-up while the raster
+        // surface is stored top-down. This is the only consumer-side origin
+        // application; the producer remains origin-(0,0).
+        const Mat4 surface_origin = glm::translate(
+            Mat4(1.0f),
+            Vec3(item.projected_surface_origin.x,
+                 -item.projected_surface_origin.y,
+                 0.0f));
+        result.render_matrix =
+            result.projection_matrix * surface_origin * surface_y_down;
+        result.surface_size = item.projected_surface_size;
+        result.surface_origin = item.projected_surface_origin;
         return result;
     }
 
@@ -335,7 +353,7 @@ struct EvaluatedLayerPlacement {
 {
     auto result = evaluate_layer_placement(item, ctx);
     if (diagnostic_bbox) {
-        result.projected_bbox = resolve_execution_bbox(
+            result.projected_bbox = resolve_execution_bbox(
             result, *diagnostic_bbox, ctx);
     }
     return result;
@@ -416,6 +434,38 @@ struct EvaluatedSourcePlacement {
     const Layer& layer = *resolved_layer.layer;
     const bool native_3d = is_native_3d_layer(layer);
 
+    Vec2 projected_surface_size{0.0f, 0.0f};
+    Vec2 projected_surface_origin{0.0f, 0.0f};
+    bool has_projected_surface = false;
+    for (const auto& node : layer.nodes) {
+        if (node.shape.type() != ShapeType::TextRun) continue;
+        const auto shape = node.shape.text_run_shape_handle().value;
+        if (!shape) continue;
+        const auto geometry = compute_tight_text_surface_geometry(*shape);
+        if (!geometry) continue;
+
+        // A projected layer may contain more than one text producer. Union
+        // their local surface rectangles instead of letting the first node
+        // define the projection for every sibling. This keeps the contract
+        // reusable for future image/SVG producers that contribute bounds to
+        // the same projected surface.
+        const Vec2 geometry_max = geometry->origin + geometry->content_size;
+        if (!has_projected_surface) {
+            projected_surface_origin = geometry->origin;
+            projected_surface_size = geometry->content_size;
+            has_projected_surface = true;
+            continue;
+        }
+        const Vec2 union_min{
+            std::min(projected_surface_origin.x, geometry->origin.x),
+            std::min(projected_surface_origin.y, geometry->origin.y)};
+        const Vec2 union_max{
+            std::max(projected_surface_origin.x + projected_surface_size.x, geometry_max.x),
+            std::max(projected_surface_origin.y + projected_surface_size.y, geometry_max.y)};
+        projected_surface_origin = union_min;
+        projected_surface_size = union_max - union_min;
+    }
+
     LayerGraphItem item{
         .layer = resolved_layer.layer,
         .transform = resolved_layer.world_transform,
@@ -425,6 +475,8 @@ struct EvaluatedSourcePlacement {
         .projected = false,
         .native_3d = native_3d,
         .visible = layer.visible,
+        .projected_surface_size = projected_surface_size,
+        .projected_surface_origin = projected_surface_origin,
         .insertion_index = resolved_layer.insertion_index,
         .matte_node = k_invalid_node,
         .is_static = is_static,
@@ -438,8 +490,10 @@ struct EvaluatedSourcePlacement {
             static_cast<f32>(ctx.frame_input.width),
             static_cast<f32>(ctx.frame_input.height),
             ctx.policy.diagnostics_enabled,
-            {static_cast<f32>(ctx.frame_input.width),
-             static_cast<f32>(ctx.frame_input.height)},
+            (projected_surface_size.x > 0.0f && projected_surface_size.y > 0.0f)
+                ? projected_surface_size
+                : Vec2{static_cast<f32>(ctx.frame_input.width),
+                       static_cast<f32>(ctx.frame_input.height)},
             BackfaceMode::Hidden);
         item.projected = true;
         item.visible = item.visible && projected.visible;

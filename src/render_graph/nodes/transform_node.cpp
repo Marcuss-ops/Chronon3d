@@ -417,10 +417,15 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
 
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
+    const Vec2 source_size =
+        (m_source_surface_size.x > 0.0f && m_source_surface_size.y > 0.0f)
+            ? m_source_surface_size
+            : Vec2{static_cast<f32>(ctx.frame_input.width),
+                   static_cast<f32>(ctx.frame_input.height)};
     f32 x_min_src = 0.0f;
     f32 y_min_src = 0.0f;
-    f32 x_max_src = static_cast<f32>(ctx.frame_input.width);
-    f32 y_max_src = static_cast<f32>(ctx.frame_input.height);
+    f32 x_max_src = source_size.x;
+    f32 y_max_src = source_size.y;
 
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
@@ -430,7 +435,9 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         y_max_src = static_cast<f32>(in_box.y1);
     }
 
-    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+    const Mat4 src_canvas_offset = glm::translate(
+        Mat4(1.0f),
+        Vec3(source_size.x * 0.5f, source_size.y * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     const std::array<Vec4, 4> corners = {

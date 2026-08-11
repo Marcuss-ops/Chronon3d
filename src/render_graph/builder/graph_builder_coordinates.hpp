@@ -357,7 +357,12 @@ inline TextRunPlacement resolve_text_run_placement(
     // projected-surface path and apply a second, incompatible canvas basis.
     if (item.projected && !item.native_3d) {
         out_opacity = node.world_transform.opacity;
-        return TextRunPlacement{node.world_transform.to_mat4()};
+        return TextRunPlacement{
+            node.world_transform.to_mat4(),
+            item.projected_surface_origin,
+            item.projected_surface_size,
+            item.projected_surface_size.x > 0.0f &&
+                item.projected_surface_size.y > 0.0f};
     }
 
 

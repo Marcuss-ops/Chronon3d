@@ -142,7 +142,8 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                                      placement.opacity,
                                                      cache_frame,
                                                      SamplingMode::Bilinear,
-                                                     is_static ? static_memory_cache("transform") : frame_variant_cache("transform"));
+                                                     is_static ? static_memory_cache("transform") : frame_variant_cache("transform"),
+                                                     placement.surface_size);
 
     // PR2-cleanup: TransformNode carries its policy in `m_cache_policy` (ctor-time).
     {
