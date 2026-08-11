@@ -83,12 +83,12 @@ graph::RenderOpResult render_text_run_item(
 
     glm::mat4 world_matrix = build_world_matrix(ctx, placement);
     if (placement.tight_surface) {
-        // The rasterizer's image already contains pixels in the tight
-        // surface's [0,size) coordinate system. Its composite stage adds
-        // the canonical local origin; cancel that translation here so the
-        // producer framebuffer receives the image at (0,0), while the
-        // authored matrix remains the transform consumed by projection.
-        world_matrix = world_matrix * glm::translate(
+        // The producer framebuffer is a local [0,size) raster surface. Its
+        // rasterizer already applies the run-local offset while composing the
+        // glyph image, so the producer must only translate the authored local
+        // origin into that surface. Applying node.world_transform here would
+        // transform the text once in the producer and again in TransformNode.
+        world_matrix = glm::translate(
             glm::mat4(1.0f),
             glm::vec3(-placement.surface_origin.x,
                       -placement.surface_origin.y,
