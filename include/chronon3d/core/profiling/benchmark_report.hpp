@@ -51,6 +51,14 @@ struct BenchmarkCountersSnapshot {
     // The *per_frame rates are derived at snapshot time as
     // `value / graph_executed_frames` (matching the graph_total_ms precedent).
     uint64_t full_frame_copies{};
+    // Common performance-gate counters. These are populated by the benchmark
+    // producer from the canonical render counters; zero is a valid measured
+    // value, while the gate requires the fields to be present in JSON.
+    uint64_t bytes_touched{};
+    double conversion_ms{};
+    uint64_t encoder_copy_bytes{};
+    uint64_t nodes_skipped{};
+    uint64_t fused_passes{};
     double full_frame_passes_per_frame{};
     double full_frame_copies_per_frame{};
 };
@@ -69,6 +77,7 @@ struct BenchmarkReport {
     int height{};
     int frames{};
     int warmup{};
+    bool modular_graph{true};
     BenchmarkMetrics metrics{};
     BenchmarkMemoryMetrics memory{};
     BenchmarkQualityMetrics quality{};
