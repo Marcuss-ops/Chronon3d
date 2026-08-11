@@ -25,18 +25,15 @@
   gap: 16px;
 }
 
+.profile-grid-card {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
 .profile-grid-card::-webkit-scrollbar {
-  width: 6px;
-}
-
-.profile-grid-card::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-}
-
-.profile-grid-card::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .profile-bottom-panel {
