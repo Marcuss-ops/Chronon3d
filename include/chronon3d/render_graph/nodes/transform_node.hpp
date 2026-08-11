@@ -51,6 +51,7 @@ public:
 
         if (m_use_matrix) {
             params_hash = hash_combine(params_hash, hash_bytes(&m_matrix, sizeof(m_matrix)));
+            params_hash = hash_combine(params_hash, hash_bytes(&m_opacity, sizeof(m_opacity)));
         }
         params_hash = hash_combine(
             params_hash, hash_bytes(&m_source_surface_size, sizeof(m_source_surface_size)));
