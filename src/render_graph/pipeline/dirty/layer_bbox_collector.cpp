@@ -50,7 +50,14 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                 if (rl.layer && rl.layer->active_at(frame)) {
                     raster::BBox bbox = compute_bbox_for_resolved(rl);
 
-                    if (!is_safe_for_dirty_rects(*rl.layer,
+                    // A projected 2.5D layer can change its raster footprint
+                    // without changing the source/layout bbox.  A partial
+                    // dirty restore can therefore leave the projected card
+                    // outside the redraw region and produce a blank frame.
+                    // Keep the optimization for ordinary 2D layers, but use
+                    // the conservative full-frame fallback for 2.5D.
+                    if (rl.layer->uses_2_5d_projection ||
+                        !is_safe_for_dirty_rects(*rl.layer,
                                                    chronon3d::is_motion_blur_active(settings.motion_blur),
                                                    ctx.services.effect_catalog)) {
                         bbox = raster::BBox{0, 0, width, height};
