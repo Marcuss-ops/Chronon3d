@@ -370,13 +370,21 @@ void execute_projective_rows(
                 const i32 src_y0 = static_cast<i32>(proj_sy);
                 const i32 src_y1 = src_y0 + 1;
                 const i32 sx_idx = static_cast<i32>(proj_sx);
-                if (src_y0 >= 0 && src_y0 < src_h) {
-                    chronon3d::prefetch(
-                        &src_data[static_cast<size_t>(src_y0) * stride + static_cast<size_t>(sx_idx)], false, 1);
-                }
-                if (src_y1 >= 0 && src_y1 < src_h) {
-                    chronon3d::prefetch(
-                        &src_data[static_cast<size_t>(src_y1) * stride + static_cast<size_t>(sx_idx)], false, 1);
+                // The sampler below rejects out-of-range X/Y coordinates;
+                // the prefetch must obey the same contract. Converting a
+                // negative sx_idx to size_t forms an invalid pointer even
+                // though the value is only used as a hint.
+                if (sx_idx >= 0 && sx_idx < src_w) {
+                    if (src_y0 >= 0 && src_y0 < src_h) {
+                        chronon3d::prefetch(
+                            &src_data[static_cast<size_t>(src_y0) * stride +
+                                      static_cast<size_t>(sx_idx)], false, 1);
+                    }
+                    if (src_y1 >= 0 && src_y1 < src_h) {
+                        chronon3d::prefetch(
+                            &src_data[static_cast<size_t>(src_y1) * stride +
+                                      static_cast<size_t>(sx_idx)], false, 1);
+                    }
                 }
             }
 

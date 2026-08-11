@@ -57,6 +57,7 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     // Keep the optimization for ordinary 2D layers, but use
                     // the conservative full-frame fallback for 2.5D.
                     if (rl.layer->uses_2_5d_projection ||
+                        rl.layer->is_native_3d() ||
                         !is_safe_for_dirty_rects(*rl.layer,
                                                    chronon3d::is_motion_blur_active(settings.motion_blur),
                                                    ctx.services.effect_catalog)) {
@@ -81,7 +82,8 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     state.opacity = rl.world_transform.opacity;
                     state.visible = rl.layer->visible;
                     state.cache_static = rl.layer->cache_static;
-                    state.uses_2_5d_projection = rl.layer->uses_2_5d_projection;
+                    state.uses_2_5d_projection =
+                        rl.layer->uses_2_5d_projection || rl.layer->is_native_3d();
                     uint64_t content_h = rl.layer->get_static_hash();
                     if (rl.layer->anim_transform.blur.is_time_dependent()) {
                         const SampleTime blur_time =
