@@ -1,4 +1,3 @@
-import React from 'react';
 import { getAggregatedLayers } from '../utils/aggregate.js';
 
 export default function LayersTable({ runDetail, selectedFrame, onResetFrame }) {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { formatBytes, getFpsColor, getCacheHitColor } from '../utils/format.jsx';
 
 export default function ComparisonMetrics({ baseRun, compRun }) {
