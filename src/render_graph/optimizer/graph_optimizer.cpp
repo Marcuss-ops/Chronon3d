@@ -372,8 +372,11 @@ OptimizationResult optimize_graph(
     // TICKET-FUSION-PASS-RUNTIME-EXEC).
     if (config.enable_pixel_fusion) {
         std::vector<fusion::FusedPixelProgram> out_programs;
-        const auto& kernels = simd::resolve_pixel_kernels(
-            simd::CpuCapabilities{});  // default CpuCapabilities (scalar route)
+        // Resolve the same immutable host capability snapshot used by the
+        // canonical SIMD registry.  A value-initialized CpuCapabilities
+        // leaves the fusion pass on the scalar table even on AVX2 hosts.
+        const auto capabilities = simd::detect_cpu_capabilities();
+        const auto& kernels = simd::resolve_pixel_kernels(capabilities);
         const auto fusion_stats = fusion::fuse_color_opacity_blend(
             graph, ctx, kernels, out_programs);
         result.pixel_fusions = fusion_stats.passes_before_fusion / 3;
