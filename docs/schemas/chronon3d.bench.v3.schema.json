@@ -135,7 +135,13 @@
         "text_glyphs_rasterized": { "type": "integer", "minimum": 0, "description": "Glyphs rasterized during text rendering." },
         "framebuffer_copies": { "type": "integer", "minimum": 0, "description": "Full or partial framebuffer copies." },
         "framebuffer_clears": { "type": "integer", "minimum": 0, "description": "Framebuffer clear operations." },
-        "full_frame_passes": { "type": "integer", "minimum": 0, "description": "Number of full-frame passes executed." }
+        "full_frame_passes": { "type": "integer", "minimum": 0, "description": "Number of full-frame passes executed." },
+        "full_frame_copies": { "type": "integer", "minimum": 0, "description": "Number of full-frame copy operations executed." },
+        "bytes_touched": { "type": "integer", "minimum": 0, "description": "Total bytes read or written by measured render work." },
+        "conversion_ms": { "type": "number", "minimum": 0, "description": "Measured frame conversion time in milliseconds." },
+        "encoder_copy_bytes": { "type": "integer", "minimum": 0, "description": "Bytes copied into encoder staging during the measured run." },
+        "nodes_skipped": { "type": "integer", "minimum": 0, "description": "Render nodes skipped by semantic invalidation or cache reuse." },
+        "fused_passes": { "type": "integer", "minimum": 0, "description": "Pixel passes executed through the fused program." }
       },
       "additionalProperties": false
     },

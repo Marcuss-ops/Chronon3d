@@ -43,6 +43,11 @@ DEVELOPER_GATES=(
     check_architecture_boundaries.sh
 )
 
+# The common performance contract is report-driven and opt-in: it is not
+# included in push-time developer gates because those gates intentionally do
+# not require benchmark artifacts. Invoke run_common_performance_gate.sh with
+# --report from CI/WBH benchmark jobs.
+
 # CI-only phases (not executable gate scripts; handled by the CI driver).
 CI_PHASES=(
     build_fast

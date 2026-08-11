@@ -32,6 +32,7 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     render["height"] = report.height;
     render["frames"] = report.frames;
     render["warmup"] = report.warmup;
+    render["modular_graph"] = report.modular_graph;
     js["render"] = render;
 
     nlohmann::json metrics;
@@ -75,6 +76,11 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
         // precedent established for graph_total_ms / graph_executed_frames).
         counters["full_frame_passes"] = report.counters.full_frame_passes;
         counters["full_frame_copies"] = report.counters.full_frame_copies;
+        counters["bytes_touched"] = report.counters.bytes_touched;
+        counters["conversion_ms"] = report.counters.conversion_ms;
+        counters["encoder_copy_bytes"] = report.counters.encoder_copy_bytes;
+        counters["nodes_skipped"] = report.counters.nodes_skipped;
+        counters["fused_passes"] = report.counters.fused_passes;
         counters["full_frame_passes_per_frame"] = report.counters.full_frame_passes_per_frame;
         counters["full_frame_copies_per_frame"] = report.counters.full_frame_copies_per_frame;
     js["counters"] = counters;
@@ -115,6 +121,7 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.height = render.value("height", 0);
         report.frames = render.value("frames", 0);
         report.warmup = render.value("warmup", 0);
+        report.modular_graph = render.value("modular_graph", true);
     }
 
     if (js.contains("metrics") && js["metrics"].is_object()) {
@@ -162,6 +169,11 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         // continue to deserialize cleanly.
         report.counters.full_frame_passes = counters.value("full_frame_passes", uint64_t{0});
         report.counters.full_frame_copies = counters.value("full_frame_copies", uint64_t{0});
+        report.counters.bytes_touched = counters.value("bytes_touched", uint64_t{0});
+        report.counters.conversion_ms = counters.value("conversion_ms", 0.0);
+        report.counters.encoder_copy_bytes = counters.value("encoder_copy_bytes", uint64_t{0});
+        report.counters.nodes_skipped = counters.value("nodes_skipped", uint64_t{0});
+        report.counters.fused_passes = counters.value("fused_passes", uint64_t{0});
         report.counters.full_frame_passes_per_frame = counters.value("full_frame_passes_per_frame", 0.0);
         report.counters.full_frame_copies_per_frame = counters.value("full_frame_copies_per_frame", 0.0);
     }
