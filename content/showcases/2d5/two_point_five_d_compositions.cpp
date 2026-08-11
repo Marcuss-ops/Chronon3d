@@ -245,12 +245,9 @@ Composition text_25d_tests(std::size_t first_section = 0,
                     layer.rotate_anim().key(Frame{0}, Vec3{75.0f, 0.0f, 0.0f})
                         .key(Frame{119}, Vec3{0.0f, 0.0f, 0.0f});
                 } else if (animation_id == "t03") {
-                    // The TextRun surface is currently rasterized into the
-                    // full canvas. Keep the authored left pivot aligned with
-                    // that surface's centered origin until tight-surface
-                    // allocation lands in the shared text path.
-                    layer.position({-1280.0f, 0.0f, 0.0f});
-                    layer.anchor({-720.0f, 0.0f, 0.0f});
+                    // Tight Raster Surface owns the local origin. The authored
+                    // layer therefore keeps its semantic pivot at the canvas
+                    // origin instead of compensating for a full-canvas raster.
                     layer.rotate_anim().key(Frame{0}, Vec3{0.0f, -90.0f, 0.0f})
                         .key(Frame{119}, Vec3{0.0f, 0.0f, 0.0f});
                 } else if (animation_id == "hero") {
