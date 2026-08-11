@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -39,7 +39,7 @@ export default function RenderGraph({ compositionId, runDetail }) {
 
         setGraphData(data);
         setError('');
-      } catch (err) {
+      } catch {
         setError('Failed to fetch graph data');
       } finally {
         setLoading(false);
@@ -123,8 +123,8 @@ export default function RenderGraph({ compositionId, runDetail }) {
         const isMatch = searchQuery && n.label.toLowerCase().includes(searchQuery.toLowerCase());
         const isSelected = selectedNodeId === n.id;
         
-        let x = 0;
-        let y = 0;
+        let x;
+        let y;
 
         if (layoutDir === 'TB') {
           const hGap = 260;

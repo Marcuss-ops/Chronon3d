@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { renderInfoIcon, formatCounterValue } from '../utils/format.jsx';
 import { copyTextToClipboard } from '../utils/clipboard.js';
 import { getAggregatedNodes } from '../utils/aggregate.js';

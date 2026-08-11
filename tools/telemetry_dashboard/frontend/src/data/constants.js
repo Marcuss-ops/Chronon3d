@@ -1,6 +1,3 @@
-const dashboardHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-const backendPort = import.meta.env.VITE_BACKEND_PORT || '8000';
-
 export const API_BASE = '';
 export const WS_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 

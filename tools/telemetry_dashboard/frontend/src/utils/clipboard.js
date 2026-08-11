@@ -8,7 +8,7 @@ export async function copyTextToClipboard(text) {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (err) {
+  } catch {
     // Fall through to the legacy fallback below.
   }
 
@@ -26,7 +26,7 @@ export async function copyTextToClipboard(text) {
     const copied = document.execCommand('copy');
     document.body.removeChild(textarea);
     return copied;
-  } catch (err) {
+  } catch {
     return false;
   }
 }

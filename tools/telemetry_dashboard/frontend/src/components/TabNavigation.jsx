@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function TabNavigation({ activeTab, onTabChange, layerCount, nodeCount, hasComparison }) {
   return (

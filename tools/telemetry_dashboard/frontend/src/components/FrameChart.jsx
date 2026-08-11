@@ -1,4 +1,3 @@
-import React from 'react';
 
 const chartHeight = 220;
 const chartWidth = 800;
