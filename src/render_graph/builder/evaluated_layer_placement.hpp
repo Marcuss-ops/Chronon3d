@@ -272,18 +272,14 @@ struct EvaluatedLayerPlacement {
         // surface is vertically mirrored at zero rotation.
         const Mat4 surface_y_down = glm::scale(
             Mat4(1.0f), Vec3(1.0f, -1.0f, 1.0f));
-        // TransformNode consumes pixels in [0, surface_size). Reattach the
-        // producer's local origin in the same raster coordinate convention;
-        // Y is negated because the camera contract is Y-up while the raster
-        // surface is stored top-down. This is the only consumer-side origin
-        // application; the producer remains origin-(0,0).
-        const Mat4 surface_origin = glm::translate(
-            Mat4(1.0f),
-            Vec3(item.projected_surface_origin.x,
-                 -item.projected_surface_origin.y,
-                 0.0f));
+        // TextRunNode + composite_text_run already translate the glyph paint
+        // by `-surface_origin` and then add the same raster offset, leaving
+        // the producer framebuffer in local [0,size) coordinates. Reapplying
+        // the origin here would shift the projected surface twice (the T03
+        // pivot drift was approximately the tight-surface origin). The
+        // consumer therefore owns only the basis conversion and projection.
         result.render_matrix =
-            result.projection_matrix * surface_origin * surface_y_down;
+            result.projection_matrix * surface_y_down;
         result.surface_size = item.projected_surface_size;
         result.surface_origin = item.projected_surface_origin;
         return result;
