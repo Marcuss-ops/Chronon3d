@@ -24,6 +24,7 @@
 #include "camera_change_policy.hpp"  // chronon3d::graph::detail::camera_changed
 
 #include <chronon3d/core/profiling/trace_categories.hpp>
+#include <algorithm>
 
 namespace chronon3d::graph::detail {
 
@@ -44,6 +45,18 @@ ReuseEvaluation evaluate_early_reuse_phases(
 
     const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
 
+    // Projected surfaces are frame-dependent even when the scene-level
+    // fingerprints happen to match.  Their raster footprint and sampling
+    // depend on the resolved camera/layer placement, so returning the
+    // previous composite before dirty tracking can leave individual text
+    // cards stale (intermittent missing-word glitches).
+    const bool has_projected_surface = std::any_of(
+        scene.layers().begin(), scene.layers().end(),
+        [frame](const Layer& layer) {
+            return layer.active_at(frame) &&
+                   (layer.uses_2_5d_projection || layer.is_native_3d());
+        });
+
     // ── Phase 1: Resolved-scene reuse ─────────────────────────────────
     // Must come BEFORE resolve_layers() and compute_dirty_rect() so that
     // identical consecutive frames avoid even entering the dirty system.
@@ -52,7 +65,7 @@ ReuseEvaluation evaluate_early_reuse_phases(
     // static_fp would incorrectly reuse frame 0's output for
     // DarkGridBackground frame 1 (active_at changes true→false but
     // static_fp matches).
-    {
+    if (!has_projected_surface) {
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
 
         FrameFingerprints reuse_fps = compute_frame_fingerprints(
@@ -94,7 +107,7 @@ ReuseEvaluation evaluate_early_reuse_phases(
     }
 
     // ── Phase 3: Static-scene fast-path ───────────────────────────────
-    if (!ev.fast_path_reuse_fb) {
+    if (!has_projected_surface && !ev.fast_path_reuse_fb) {
         CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
 
         auto reuse = evaluate_static_scene_fastpath(

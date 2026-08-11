@@ -92,6 +92,12 @@ void Framebuffer::blit(const Framebuffer& src, i32 dst_x, i32 dst_y) {
 
 void Framebuffer::resize_logical(i32 width, i32 height) {
     if (width <= 0 || height <= 0) throw std::invalid_argument("Resize dimensions must be positive");
+
+    // Resizing starts a new logical view. Pooled and physically aliased
+    // framebuffers may carry a cropped origin from their previous consumer;
+    // retaining it would corrupt source-space sampling for the next node.
+    set_origin(0, 0);
+
     if (!m_owns_pixels) {
         if (width > m_allocated_width || height > m_allocated_height) {
             throw std::runtime_error("Cannot resize external Framebuffer beyond its allocated size");

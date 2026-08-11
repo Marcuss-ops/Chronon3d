@@ -230,6 +230,23 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     ctx.node_exec.dirty_rect = dirty_out.dirty_rect;
     ctx.policy.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
 
+    // A projected surface must be rendered with the complete source-space
+    // clip contract. Dirty/tile clipping can truncate a moving text card even
+    // when the framebuffer itself is fully redrawn, producing intermittent
+    // partial words. Keep 2.5D/native-3D scenes on the full-frame path until
+    // projected polygon clipping is available end-to-end.
+    const bool has_projected_surface = std::any_of(
+        resolved.layers.begin(), resolved.layers.end(),
+        [frame](const ResolvedLayer& layer) {
+            return layer.layer && layer.layer->active_at(frame) &&
+                   (layer.layer->uses_2_5d_projection || layer.layer->is_native_3d());
+        });
+    if (has_projected_surface) {
+        ctx.policy.reuse_prev_framebuffer = false;
+        ctx.policy.dirty_rects_enabled = false;
+        ctx.policy.tile_execution_enabled = false;
+    }
+
     if (effective_settings.dirty.enabled && !effective_settings.dirty.tiles_active()) {
         ctx.policy.reuse_prev_framebuffer = false;
         ctx.policy.dirty_rects_enabled = false;
