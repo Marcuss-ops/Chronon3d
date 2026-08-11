@@ -1,4 +1,3 @@
-import React from 'react';
 import { formatBytes, getFpsColor, getCacheHitColor, renderInfoIcon } from '../utils/format.jsx';
 
 export default function MetricsGrid({ runDetail }) {
@@ -77,7 +76,6 @@ export default function MetricsGrid({ runDetail }) {
   const setupAssetIoLoadMs = getCounter('setup_asset_io_load_ms');
   const setupPoolPreallocMs = getCounter('setup_pool_preallocation_ms');
   const imageDecodeMs = getCounter('image_decode_ms');
-  const ioQueuePeakBytes = getCounter('io_queue_peak_bytes');
 
   // Nuove metriche benchmark separation
   const chrononRenderOnlyMs = Number(r.chronon_render_only_ms || 0);

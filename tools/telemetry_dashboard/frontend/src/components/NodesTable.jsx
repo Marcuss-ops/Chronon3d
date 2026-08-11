@@ -1,4 +1,3 @@
-import React from 'react';
 import { getAggregatedNodes } from '../utils/aggregate.js';
 import { formatBytes } from '../utils/format.jsx';
 

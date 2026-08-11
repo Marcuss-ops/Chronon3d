@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
 import { fetchRuns, fetchRunDetail, login } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
-import { API_BASE } from './data/constants.js';
 import { copyTextToClipboard } from './utils/clipboard.js';
 
 import { io } from 'socket.io-client';
@@ -57,8 +56,6 @@ function App() {
   const [hoveredFrame, setHoveredFrame] = useState(null);
 
   const [copiedMetrics, setCopiedMetrics] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
   useEffect(() => {
     setSelectedFrame(null);
   }, [selectedRunId, comparisonRunId]);

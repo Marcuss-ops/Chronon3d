@@ -1,4 +1,3 @@
-import React from 'react';
 import { renderInfoIcon } from '../utils/format.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from '../utils/aggregate.js';
 

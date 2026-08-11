@@ -1,17 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { outputPathToArtifactUrl } from '../api/telemetryApi.js';
 
 export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
-  if (!run) return null;
-
-  const outputPath = run.output_path || '';
+  const outputPath = run?.output_path || '';
 
   // Helper to check if a path has a video extension
   const isVideoExt = (p) => p.endsWith('.mp4') || p.endsWith('.webm') || p.endsWith('.mov');
   // Only treat as video if the actual output path is a video
-  const isVideoRun = isVideoExt(outputPath);
+  const isVideoRun = Boolean(run) && isVideoExt(outputPath);
   // Resolve video path only when it is actually a video
-  const resolvedVideoPath = isVideoRun ? outputPath : `output/${run.composition_id}.mp4`;
+  const resolvedVideoPath = isVideoRun ? outputPath : `output/${run?.composition_id || ''}.mp4`;
 
   const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
   const [mediaError, setMediaError] = useState('');
@@ -29,16 +27,16 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
   }, [mode]);
 
   useEffect(() => {
-    if (run.run_id) {
+    if (run?.run_id) {
       userModeOverrideRef.current = false;
     }
-  }, [run.run_id]);
+  }, [run?.run_id]);
 
   useEffect(() => {
     if (!userModeOverrideRef.current) {
       setMode(isVideoRun ? 'video' : 'frame');
     }
-  }, [run.run_id, isVideoRun, selectedFrame]);
+  }, [run?.run_id, isVideoRun, selectedFrame]);
 
   useEffect(() => {
     if (mode === 'video') {
@@ -58,13 +56,13 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
 
     // If frame path is empty, also fall back to the composition frame PNG
     if (!path) {
-      path = `output/${run.composition_id}_frame.png`;
+      path = `output/${run?.composition_id || ''}_frame.png`;
     }
 
     return path;
   })();
 
-  const previewVersion = `${run.run_id}:${selectedFrame?.frame_number ?? 'base'}:${run.finished_at_iso || ''}`;
+  const previewVersion = `${run?.run_id || 'none'}:${selectedFrame?.frame_number ?? 'base'}:${run?.finished_at_iso || ''}`;
   const frameUrl = outputPathToArtifactUrl(resolvedFramePath, previewVersion);
   const videoUrl = outputPathToArtifactUrl(resolvedVideoPath, previewVersion);
   const downloadName = `render_${(selectedFrame?.frame_number || 0).toString().padStart(4, '0')}.png`;
@@ -96,6 +94,8 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
   const currentFrameNodes = selectedFrame && nodeEvents
     ? nodeEvents.filter(n => n.frame_number === selectedFrame.frame_number && n.cache_status !== 'hit' && n.bbox_w > 0)
     : [];
+
+  if (!run) return null;
 
   return (
     <section className="glass-panel preview-panel">
