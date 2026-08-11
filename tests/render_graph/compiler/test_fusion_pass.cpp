@@ -189,3 +189,43 @@ TEST_CASE("FusedPixelProgram: all_pass() requires all 4 guards") {
     g.precision_certified = true;
     CHECK(g.all_pass());
 }
+
+TEST_CASE("FusedPixelProgram: runtime execution matches color opacity blend order") {
+    cg::FusedPixelProgram program;
+    program.operations = {
+        cg::PixelOperation::color_matrix({
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+        }),
+        cg::PixelOperation::opacity(0.5f),
+        cg::PixelOperation::blend(0),
+    };
+    program.resolved_kernel = &cs::detail::scalar_blend;
+    program.guards = {true, true, true, true};
+
+    float dst[] = {0.1f, 0.2f, 0.3f, 0.4f};
+    const float src[] = {0.8f, 0.6f, 0.4f, 0.5f};
+    CHECK(program.execute(dst, src, 1));
+
+    // The source is first premultiplied by the fused opacity, then composited
+    // with the canonical scalar Normal/SRC_OVER kernel.
+    CHECK(dst[0] == doctest::Approx(0.4f + 0.1f * 0.75f));
+    CHECK(dst[1] == doctest::Approx(0.3f + 0.2f * 0.75f));
+    CHECK(dst[2] == doctest::Approx(0.2f + 0.3f * 0.75f));
+    CHECK(dst[3] == doctest::Approx(0.25f + 0.4f * 0.75f));
+}
+
+TEST_CASE("FusedPixelProgram: runtime rejects invalid programs") {
+    cg::FusedPixelProgram program;
+    program.operations = {
+        cg::PixelOperation::color_matrix({1,0,0,0, 0,1,0,0, 0,0,1,0}),
+        cg::PixelOperation::opacity(1.0f),
+        cg::PixelOperation::blend(1),
+    };
+    program.resolved_kernel = &cs::detail::scalar_blend;
+    program.guards = {true, true, true, true};
+    float dst[4]{};
+    const float src[4]{};
+    CHECK_FALSE(program.execute(dst, src, 1));
+}
