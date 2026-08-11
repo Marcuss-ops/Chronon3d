@@ -31,6 +31,12 @@ namespace chronon3d::graph {
 /// applies SSAA scaling during rasterization.
 struct TextRunPlacement {
     Mat4 matrix;
+    // Tight projected surfaces keep their raster geometry separate from the
+    // authored node matrix. Defaults preserve all existing aggregate call
+    // sites and non-projected TextRun behavior.
+    Vec2 surface_origin{0.0f, 0.0f};
+    Vec2 surface_size{0.0f, 0.0f};
+    bool tight_surface{false};
 };
 
 class TextRunNode final : public RenderGraphNode {
@@ -92,8 +98,8 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
     /// Render path:
-    ///   1. Acquire a full-canvas framebuffer (no clear skip — text glyphs
-    ///      can't seed a full frame).
+    ///   1. Acquire either the canonical tight surface or a full-canvas
+    ///      framebuffer (text glyphs can't seed a full frame).
     ///   2. Resolve the SoftwareRenderer via dynamic_cast on the RenderBackend
     ///      (matches the pattern used by graph_builder_layer_pipeline_pass.cpp
     ///      for the matte sub-pipeline).

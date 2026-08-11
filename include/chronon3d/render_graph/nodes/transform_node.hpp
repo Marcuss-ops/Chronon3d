@@ -29,8 +29,11 @@ public:
 
     explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame,
                           SamplingMode mode = SamplingMode::Bilinear,
-                          RenderNodeCachePolicy policy = static_memory_cache("transform"))
-        : RenderGraphNode(policy), m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
+                          RenderNodeCachePolicy policy = static_memory_cache("transform"),
+                          Vec2 source_surface_size = {0.0f, 0.0f})
+        : RenderGraphNode(policy), m_matrix(matrix), m_opacity(opacity), m_mode(mode),
+          m_use_matrix(true), m_cache_frame(cache_frame),
+          m_source_surface_size(source_surface_size) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }
@@ -49,6 +52,8 @@ public:
         if (m_use_matrix) {
             params_hash = hash_combine(params_hash, hash_bytes(&m_matrix, sizeof(m_matrix)));
         }
+        params_hash = hash_combine(
+            params_hash, hash_bytes(&m_source_surface_size, sizeof(m_source_surface_size)));
 
         return cache::NodeCacheKey{
             .scope = "transform",
@@ -149,6 +154,7 @@ private:
     SamplingMode m_mode{SamplingMode::Bilinear};
     bool      m_use_matrix{false};
     Frame     m_cache_frame{-1};
+    Vec2      m_source_surface_size{0.0f, 0.0f};
 };
 
 } // namespace chronon3d::graph

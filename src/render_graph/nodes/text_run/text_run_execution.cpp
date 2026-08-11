@@ -7,6 +7,7 @@
 #include "text_run_transform.hpp"
 
 #include <chronon3d/text/text_run_driver.hpp>   // update_text_run_shape_per_frame
+#include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::text_run {
@@ -80,7 +81,19 @@ graph::RenderOpResult render_text_run_item(
     TextRunShape local_shape = source_shape;
     chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
 
-    const glm::mat4 world_matrix = build_world_matrix(ctx, placement);
+    glm::mat4 world_matrix = build_world_matrix(ctx, placement);
+    if (placement.tight_surface) {
+        // The rasterizer's image already contains pixels in the tight
+        // surface's [0,size) coordinate system. Its composite stage adds
+        // the canonical local origin; cancel that translation here so the
+        // producer framebuffer receives the image at (0,0), while the
+        // authored matrix remains the transform consumed by projection.
+        world_matrix = world_matrix * glm::translate(
+            glm::mat4(1.0f),
+            glm::vec3(-placement.surface_origin.x,
+                      -placement.surface_origin.y,
+                      0.0f));
+    }
     return backend.draw_text_run(fb, local_shape, world_matrix, opacity);
 }
 

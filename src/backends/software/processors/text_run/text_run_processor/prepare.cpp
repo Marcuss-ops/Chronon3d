@@ -273,7 +273,9 @@ namespace chronon3d::renderer::text_run_stages {
     const float shadow_descent = std::max({
         0.0f, shape.layout->placed.descent, shadow_font_size * 0.2f});
     const auto& shadow_placed  = shape.layout->placed;
-    for (std::size_t gi = 0; gi < shape.glyphs.size(); ++gi) {
+    const std::size_t shadow_glyph_count = std::min(
+        shape.glyphs.size(), shadow_placed.glyphs.size());
+    for (std::size_t gi = 0; gi < shadow_glyph_count; ++gi) {
         const auto& g = shape.glyphs[gi];
         const float gx = g.layout_position.x + g.position.x;
         const float gy = g.layout_position.y + g.position.y;

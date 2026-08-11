@@ -164,6 +164,19 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         return std::nullopt;
     }
 
+    // A tight producer surface is itself the source-space contract consumed
+    // by TransformNode. Returning the canvas-space ink bbox here would make
+    // the transform interpret canvas coordinates as source pixels and would
+    // reintroduce a full-frame/empty-input mismatch.
+    if (m_placement.tight_surface &&
+        m_placement.surface_size.x > 0.0f &&
+        m_placement.surface_size.y > 0.0f) {
+        return raster::BBox{
+            0, 0,
+            std::max(1, static_cast<i32>(std::ceil(m_placement.surface_size.x))),
+            std::max(1, static_cast<i32>(std::ceil(m_placement.surface_size.y)))};
+    }
+
     const Mat4 matrix = text_run::build_world_matrix(ctx, m_placement);
 
     f32 spread = 0.0f;
@@ -411,6 +424,15 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     key.params_hash = hash_combine(
         key.params_hash,
         hash_bytes(&m_placement.matrix[0][0], sizeof(Mat4)));
+    key.params_hash = hash_combine(
+        key.params_hash,
+        hash_bytes(&m_placement.surface_origin[0], sizeof(Vec2)));
+    key.params_hash = hash_combine(
+        key.params_hash,
+        hash_bytes(&m_placement.surface_size[0], sizeof(Vec2)));
+    key.params_hash = hash_combine(
+        key.params_hash,
+        static_cast<u64>(m_placement.tight_surface));
     if (m_opacity_override) {
         key.params_hash = hash_combine(
             key.params_hash,
@@ -454,8 +476,21 @@ NodeExecResult TextRunNode::execute(
             ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
     }
 
-    // ── 1. Acquire canvas framebuffer (no clear-skip — text can't fill a frame). ──
-    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+    // ── 1. Acquire the producer surface. Projected TextRuns render into
+    // their tight local surface; the following TransformNode owns camera
+    // projection and expands it into the canvas. Non-projected text keeps
+    // the historical full-canvas source contract.
+    const bool tight_surface =
+        m_placement.tight_surface &&
+        m_placement.surface_size.x > 0.0f &&
+        m_placement.surface_size.y > 0.0f;
+    const int surface_width = tight_surface
+        ? std::max(1, static_cast<int>(std::ceil(m_placement.surface_size.x)))
+        : ctx.frame_input.width;
+    const int surface_height = tight_surface
+        ? std::max(1, static_cast<int>(std::ceil(m_placement.surface_size.y)))
+        : ctx.frame_input.height;
+    auto fb = ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
 
     // ── 2. Validate pre-dispatch invariants. ──
     auto* backend = ctx.services.backend;
