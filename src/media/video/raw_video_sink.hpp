@@ -61,7 +61,8 @@ private:
     /// Current lifecycle state.
     VideoSinkState state_{VideoSinkState::Created};
 
-    /// Staging buffer used for planar/biplanar → interleaved conversion.
+    /// Staging buffer used for planar/biplanar packing. Its bytes are
+    /// reported in VideoSink::Stats::encoder_staging_copy_bytes.
     std::vector<uint8_t> staging_;
 
     /// Stride in bytes per row (computed from config during open()).
