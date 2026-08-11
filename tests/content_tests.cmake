@@ -18,6 +18,7 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline chronon3d_scene chronon3d_backend_software
     SOURCES content/test_content_module_contract.cpp
             content/test_content_composition_smoke.cpp
+            content/test_2d5_projected_certification.cpp
             content/test_shaped_glyph_line.cpp
             content/test_shaped_glyph_line_cluster_golden.cpp
             content/test_shaped_glyph_line_cluster_benchmark.cpp
