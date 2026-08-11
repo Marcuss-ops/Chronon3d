@@ -185,6 +185,18 @@ struct FusedPixelProgram {
     std::size_t bytes_per_pixel{16};  // RGBA float32 (4 channels × 4 bytes = 16 bytes/pixel)
     std::size_t pixel_count{0};
 
+    /// Execute the compiled ColorMatrix → Opacity → Blend program over a
+    /// packed premultiplied RGBA buffer.  The destination is updated in
+    /// place; the source remains untouched.  This is the runtime contract
+    /// used by a future graph node and is intentionally strict: a program
+    /// with failed guards, a missing kernel, an unsupported blend mode, or
+    /// an incomplete operation list is rejected instead of silently applying
+    /// placeholder parameters.
+    [[nodiscard]] bool execute(
+        float* dst_rgba,
+        const float* src_rgba,
+        std::size_t pixels) const;
+
     /// Convenience: total bytes that WOULD have been written by the
     /// 3 unfused passes (for `bytes_saved_by_fusion` accounting).
     /// Per-pass model: 1 read + 1 write of full RGBA = 2 ×
