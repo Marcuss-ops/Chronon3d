@@ -108,6 +108,23 @@ TEST_CASE("CameraFingerprint: digest changes when cam.position.z changes") {
     CHECK_NE(near, far);
 }
 
+TEST_CASE("CameraFingerprint: digest changes for every pose axis") {
+    Camera2_5D base = make_cam_z(kAeCam04ZMid);
+    const u64 base_digest = camera_fingerprint_digest(base);
+
+    auto translated_x = base;
+    translated_x.position.x = 120.0f;
+    CHECK_NE(base_digest, camera_fingerprint_digest(translated_x));
+
+    auto translated_y = base;
+    translated_y.position.y = -80.0f;
+    CHECK_NE(base_digest, camera_fingerprint_digest(translated_y));
+
+    auto rotated = base;
+    rotated.rotation.y = 12.0f;
+    CHECK_NE(base_digest, camera_fingerprint_digest(rotated));
+}
+
 // 3. Camera fingerprint digest - distinguishes by parent_name
 TEST_CASE("CameraFingerprint: digest changes when parent_name changes") {
     const u64 no_parent = camera_fingerprint_digest(make_cam_parent({}));
