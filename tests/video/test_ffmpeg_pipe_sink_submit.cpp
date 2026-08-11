@@ -343,6 +343,7 @@ TEST_CASE("FfmpegPipeSink: planar YUV420P frames work correctly") {
     CHECK(sink.submit_planar(pfv));
     CHECK(sink.frames_submitted() == 1);
     CHECK(sink.stats().bytes_written == total);
+    CHECK(sink.stats().encoder_staging_copy_bytes == 0);
     CHECK(sink.close());
     CHECK(file_nonempty(path));
 }
@@ -378,6 +379,7 @@ TEST_CASE("FfmpegPipeSink: biplanar NV12 frames work correctly") {
     CHECK(sink.submit_biplanar(bfv));
     CHECK(sink.frames_submitted() == 1);
     CHECK(sink.stats().bytes_written == total);
+    CHECK(sink.stats().encoder_staging_copy_bytes == 0);
     CHECK(sink.close());
     CHECK(file_nonempty(path));
 }

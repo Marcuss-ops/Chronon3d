@@ -7,6 +7,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/color/output_transform.hpp>
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -21,6 +22,11 @@ struct EncoderFrameTelemetry {
     double native_send_ms{0.0};
     double native_receive_ms{0.0};
     double native_mux_ms{0.0};
+    uint64_t conversion_bytes_written{0};
+    uint64_t encoder_staging_copy_bytes{0};
+    uint64_t encoder_slots_allocated{0};
+    uint64_t encoder_slot_reuses{0};
+    double frame_submit_ms{0.0};
 };
 
 // ── Abstract video encoder interface ────────────────────────────────────────

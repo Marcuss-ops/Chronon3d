@@ -214,7 +214,13 @@ namespace chronon3d {
     X(video_frames_dropped) \
     X(video_convert_only_ms) \
     X(video_pipe_write_only_ms) \
-    X(video_writer_wait_ms)
+    X(video_writer_wait_ms) \
+    X(conversion_bytes_written) \
+    X(encoder_staging_copy_bytes) \
+    X(encoder_slots_allocated) /* gauge: current pool capacity */ \
+    X(encoder_slot_reuses) /* gauge: cumulative pool reuse events */ \
+    X(frame_conversion_ms) \
+    X(frame_submit_ms)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 
