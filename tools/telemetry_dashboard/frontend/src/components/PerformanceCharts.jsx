@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from 'react';
 import Chart from 'react-apexcharts';
 
 export default function PerformanceCharts({ frames, phases, counters }) {
@@ -8,14 +7,7 @@ export default function PerformanceCharts({ frames, phases, counters }) {
   const pcTotal = pcHits + pcMisses;
   const pcHitRate = pcTotal > 0 ? (pcHits / pcTotal * 100) : 0;
   const pcEvictions = Number((counters || []).find(c => c.counter_name === 'program_cache_evictions')?.counter_value || 0);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   if (!frames || frames.length === 0) return null;
-  if (!mounted) return null;
 
   const frameData = frames.map(f => Number(f.duration_ms || 0));
   const dirtyData = frames.map(f => Number(f.dirty_area_ratio || 0) * 100);
@@ -215,7 +207,7 @@ export default function PerformanceCharts({ frames, phases, counters }) {
             fontWeight: 700,
             color: pcHitRateColor,
             offsetY: 4,
-            formatter: (val) => `${val.toFixed(1)}%`
+          formatter: (value) => `${value.toFixed(1)}%`
           }
         }
       }
@@ -230,7 +222,7 @@ export default function PerformanceCharts({ frames, phases, counters }) {
     tooltip: {
       theme: 'dark',
       y: {
-        formatter: (val) => `${pcHits} hits / ${pcTotal} total`
+        formatter: () => `${pcHits} hits / ${pcTotal} total`
       }
     }
   };
