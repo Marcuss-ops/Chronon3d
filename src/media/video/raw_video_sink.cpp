@@ -283,6 +283,7 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
     stats_.submit_count++;
     stats_.frames_submitted++;
     stats_.bytes_written += total;
+    stats_.encoder_staging_copy_bytes += total;
     return true;
 }
 
@@ -367,6 +368,7 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
     stats_.submit_count++;
     stats_.frames_submitted++;
     stats_.bytes_written += total;
+    stats_.encoder_staging_copy_bytes += total;
     return true;
 }
 

@@ -8,7 +8,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 namespace chronon3d::media::video {
 
@@ -90,7 +89,7 @@ bool FfmpegPipeSink::submit(const VideoFrameView& frame) {
 }
 
 // ============================================================================
-//  submit_planar() — YUV420P (pack into interleaved, write)
+//  submit_planar() — YUV420P (stream planes directly)
 // ============================================================================
 
 bool FfmpegPipeSink::submit_planar(const PlanarVideoFrameView& frame) {
@@ -118,64 +117,32 @@ bool FfmpegPipeSink::submit_planar(const PlanarVideoFrameView& frame) {
         return false;
     }
 
-    const size_t y_size  = static_cast<size_t>(frame.width) * static_cast<size_t>(frame.height);
-    const size_t uv_size = y_size / 4;
-    const size_t total   = y_size + uv_size * 2;
-
-    if (staging_.size() < total) {
-        staging_.resize(total);
-    }
-
-    const size_t y_row  = static_cast<size_t>(frame.width);
+    const size_t y_row = static_cast<size_t>(frame.width);
     const size_t uv_row = static_cast<size_t>(frame.width / 2);
-    const size_t y_stride  = (frame.y_stride > 0) ? frame.y_stride : y_row;
-    const size_t u_stride  = (frame.u_stride > 0) ? frame.u_stride : uv_row;
-    const size_t v_stride  = (frame.v_stride > 0) ? frame.v_stride : uv_row;
-
-    // Copy Y.
-    if (y_stride == y_row) {
-        std::memcpy(staging_.data(), frame.y_data, y_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.y_data);
-        auto* dst = staging_.data();
-        for (int y = 0; y < frame.height; ++y) {
-            std::memcpy(dst, src, y_row);
-            src += y_stride;
-            dst += y_row;
-        }
-    }
-
-    // Copy U.
-    auto* u_dst = staging_.data() + y_size;
-    if (u_stride == uv_row) {
-        std::memcpy(u_dst, frame.u_data, uv_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.u_data);
-        auto* dst = u_dst;
-        for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, uv_row);
-            src += u_stride;
-            dst += uv_row;
-        }
-    }
-
-    // Copy V.
-    auto* v_dst = staging_.data() + y_size + uv_size;
-    if (v_stride == uv_row) {
-        std::memcpy(v_dst, frame.v_data, uv_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.v_data);
-        auto* dst = v_dst;
-        for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, uv_row);
-            src += v_stride;
-            dst += uv_row;
-        }
-    }
-
+    const size_t y_stride = (frame.y_stride > 0) ? frame.y_stride : y_row;
+    const size_t u_stride = (frame.u_stride > 0) ? frame.u_stride : uv_row;
+    const size_t v_stride = (frame.v_stride > 0) ? frame.v_stride : uv_row;
+    // FFmpeg rawvideo consumes Y, then U, then V. Write each source plane
+    // directly; no Chronon-owned interleaving/staging buffer is needed.
     const auto t0 = std::chrono::steady_clock::now();
-    const bool ok = FfmpegPipeSinkInternal::write_to_pipe(*this, staging_.data(), total);
-    if (!ok) {
+    const auto write_plane = [this](const void* data, size_t row_bytes,
+                                    size_t stride, int rows) {
+        const auto* bytes = static_cast<const uint8_t*>(data);
+        if (stride == row_bytes) {
+            return FfmpegPipeSinkInternal::write_to_pipe(
+                *this, bytes, row_bytes * static_cast<size_t>(rows));
+        }
+        for (int y = 0; y < rows; ++y) {
+            if (!FfmpegPipeSinkInternal::write_to_pipe(*this, bytes, row_bytes)) {
+                return false;
+            }
+            bytes += stride;
+        }
+        return true;
+    };
+    if (!write_plane(frame.y_data, y_row, y_stride, frame.height)
+        || !write_plane(frame.u_data, uv_row, u_stride, frame.height / 2)
+        || !write_plane(frame.v_data, uv_row, v_stride, frame.height / 2)) {
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -188,7 +155,7 @@ bool FfmpegPipeSink::submit_planar(const PlanarVideoFrameView& frame) {
 }
 
 // ============================================================================
-//  submit_biplanar() — NV12 (pack into interleaved, write)
+//  submit_biplanar() — NV12 (stream planes directly)
 // ============================================================================
 
 bool FfmpegPipeSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
@@ -216,49 +183,30 @@ bool FfmpegPipeSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
         return false;
     }
 
-    const size_t y_size  = static_cast<size_t>(frame.width) * static_cast<size_t>(frame.height);
-    const size_t uv_size = y_size / 2;
-    const size_t total   = y_size + uv_size;
-
-    if (staging_.size() < total) {
-        staging_.resize(total);
-    }
-
-    const size_t y_row  = static_cast<size_t>(frame.width);
+    const size_t y_row = static_cast<size_t>(frame.width);
     const size_t uv_row = static_cast<size_t>(frame.width);
-    const size_t y_stride  = (frame.y_stride > 0) ? frame.y_stride : y_row;
+    const size_t y_stride = (frame.y_stride > 0) ? frame.y_stride : y_row;
     const size_t uv_stride = (frame.uv_stride > 0) ? frame.uv_stride : uv_row;
-
-    // Copy Y.
-    if (y_stride == y_row) {
-        std::memcpy(staging_.data(), frame.y_data, y_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.y_data);
-        auto* dst = staging_.data();
-        for (int y = 0; y < frame.height; ++y) {
-            std::memcpy(dst, src, y_row);
-            src += y_stride;
-            dst += y_row;
-        }
-    }
-
-    // Copy UV.
-    auto* uv_dst = staging_.data() + y_size;
-    if (uv_stride == uv_row) {
-        std::memcpy(uv_dst, frame.uv_data, uv_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.uv_data);
-        auto* dst = uv_dst;
-        for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, uv_row);
-            src += uv_stride;
-            dst += uv_row;
-        }
-    }
-
+    // FFmpeg rawvideo consumes Y followed by interleaved UV. Stream both
+    // source planes directly and keep the process-boundary copy explicit.
     const auto t0 = std::chrono::steady_clock::now();
-    const bool ok = FfmpegPipeSinkInternal::write_to_pipe(*this, staging_.data(), total);
-    if (!ok) {
+    const auto write_plane = [this](const void* data, size_t row_bytes,
+                                    size_t stride, int rows) {
+        const auto* bytes = static_cast<const uint8_t*>(data);
+        if (stride == row_bytes) {
+            return FfmpegPipeSinkInternal::write_to_pipe(
+                *this, bytes, row_bytes * static_cast<size_t>(rows));
+        }
+        for (int y = 0; y < rows; ++y) {
+            if (!FfmpegPipeSinkInternal::write_to_pipe(*this, bytes, row_bytes)) {
+                return false;
+            }
+            bytes += stride;
+        }
+        return true;
+    };
+    if (!write_plane(frame.y_data, y_row, y_stride, frame.height)
+        || !write_plane(frame.uv_data, uv_row, uv_stride, frame.height / 2)) {
         state_ = VideoSinkState::Failed;
         return false;
     }

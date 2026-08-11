@@ -19,6 +19,7 @@ chronon3d_add_test_suite(
     TIER INTEGRATION
     LINK_TARGETS chronon3d_pipeline chronon3d_backend_video chronon3d_backend_software chronon3d_media_video chronon3d_scene
     SOURCES video/test_frame_converter.cpp
+            video/test_encoder_frame_pool.cpp
             video/test_converted_frame_cache.cpp
             video/test_video_diff.cpp
             video/test_long_export.cpp
