@@ -28,6 +28,7 @@
 #include <chronon3d/media/video/video_config.hpp>
 #include <chronon3d/media/video/video_frame.hpp>
 #include <chronon3d/media/frame_conversion/frame_conversion_service.hpp>
+#include <chronon3d/media/frame_conversion/encoder_frame_pool.hpp>
 
 #include <memory>
 #include <string>
@@ -115,7 +116,7 @@ private:
 
     VideoSinkType sink_type_{VideoSinkType::Ffmpeg};
     std::unique_ptr<chronon3d::media::video::VideoSink> sink_;
-    std::vector<uint8_t> staging_buffer_;
+    std::unique_ptr<chronon3d::video::EncoderFramePool> encoder_pool_;
     chronon3d::video::FrameConversionService conv_svc_{0};  // 0 → policy default (128 MiB)
 
     uint64_t frames_written_{0};

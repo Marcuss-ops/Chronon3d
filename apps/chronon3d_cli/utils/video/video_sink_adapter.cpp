@@ -199,15 +199,26 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
-    // ── Pre-allocate staging buffer ────────────────────────────────────
-    const size_t bytes_per_frame = static_cast<size_t>(
-        chronon3d::media::video::frame_buffer_size(
-            config.stream.submitted_format,
-            config.stream.width,
-            config.stream.height));
-    if (bytes_per_frame > 0) {
-        staging_buffer_.reserve(bytes_per_frame + 256);
-        staging_buffer_.resize(bytes_per_frame);
+    // ── Allocate reusable encoder destination slots ────────────────────
+    // Conversion writes directly into one checked-out slot. The pool removes
+    // the former Chronon-local conversion → staging-buffer copy; the raw
+    // bytes still cross the process boundary through FFmpeg's stdin pipe.
+    video::EncoderPixelFormat pool_format;
+    switch (options.input_format) {
+        case PipePixelFormat::YUV420P: pool_format = video::EncoderPixelFormat::YUV420P; break;
+        case PipePixelFormat::NV12:    pool_format = video::EncoderPixelFormat::NV12; break;
+        case PipePixelFormat::RGBA:
+        default:                      pool_format = video::EncoderPixelFormat::RGBA8; break;
+    }
+    encoder_pool_ = std::make_unique<video::EncoderFramePool>(
+        video::EncoderFramePool::Config{
+            .width = width_, .height = height_, .format = pool_format, .slot_count = 4});
+    if (encoder_pool_->frame_bytes() == 0) {
+        spdlog::error("[video_adapter] invalid encoder frame pool configuration");
+        sink_->close();
+        sink_.reset();
+        encoder_pool_.reset();
+        return false;
     }
 
     // ── Reset state ────────────────────────────────────────────────────
@@ -256,13 +267,16 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         default:                      enc_fmt = video::EncoderPixelFormat::RGBA8; break;
     }
 
-    const size_t expected_size = static_cast<size_t>(
-        chronon3d::media::video::frame_buffer_size(fmt, width_, height_));
-
-    // Ensure staging buffer is large enough.
-    if (staging_buffer_.size() < expected_size) {
-        staging_buffer_.resize(expected_size);
+    if (!encoder_pool_) {
+        spdlog::error("[video_adapter] encoder frame pool is not initialized");
+        return false;
     }
+    auto encoder_frame = encoder_pool_->acquire();
+    if (!encoder_frame) {
+        spdlog::error("[video_adapter] encoder frame pool is exhausted");
+        return false;
+    }
+    const size_t expected_size = encoder_frame.storage.size();
 
     const auto conv_t0 = profiling::now();
 
@@ -278,7 +292,7 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     };
 
     auto converted = conv_svc_.convert_into(
-        fb, copts, staging_buffer_.data(), expected_size);
+        fb, copts, encoder_frame.storage.data(), expected_size);
 
     const auto conv_t1 = profiling::now();
     const double conv_ms = profiling::duration_ms(conv_t0, conv_t1);
@@ -288,13 +302,33 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         return false;
     }
 
-    // Track conversion telemetry.
+    // Track conversion telemetry. `conversion_bytes_written` is the direct
+    // conversion result; `encoder_staging_copy_bytes` remains zero because
+    // no Chronon-owned staging copy exists in this path.
     last_telemetry_.conversion_copy_ms = conv_ms;
+    last_telemetry_.conversion_bytes_written = converted.data.size();
+    last_telemetry_.encoder_staging_copy_bytes = 0;
+    if (encoder_pool_) {
+        const auto pool_stats = encoder_pool_->stats();
+        last_telemetry_.encoder_slots_allocated = pool_stats.slots_allocated;
+        last_telemetry_.encoder_slot_reuses = pool_stats.slot_reuses;
+    }
 
     if (counters_) {
         counters_->video_conversion_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         counters_->frame_conversion_copy_ms.fetch_add(
+            static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
+        counters_->conversion_bytes_written.fetch_add(
+            converted.data.size(), std::memory_order_relaxed);
+        // These two counters are gauges (current pool configuration/state),
+        // unlike the cumulative byte/time counters above.
+        const auto pool_stats = encoder_pool_->stats();
+        counters_->encoder_slots_allocated.store(
+            pool_stats.slots_allocated, std::memory_order_relaxed);
+        counters_->encoder_slot_reuses.store(
+            pool_stats.slot_reuses, std::memory_order_relaxed);
+        counters_->frame_conversion_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         counters_->video_frames_converted.fetch_add(1, std::memory_order_relaxed);
     }
@@ -306,7 +340,7 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     //   RGBA8:   RGBA(w×h×4) — contiguous
     // For the new sink, packed formats use submit(VideoFrameView) directly.
     chronon3d::media::video::VideoFrameView view;
-    view.data          = converted.data.data();
+    view.data          = encoder_frame.storage.data();
     view.stride_bytes  = 0;  // tight packing
     view.width         = width_;
     view.height        = height_;
@@ -333,6 +367,7 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     const double submit_ms = std::chrono::duration<double, std::milli>(
         submit_t1 - submit_t0).count();
     last_telemetry_.encoder_ms = submit_ms;
+    last_telemetry_.frame_submit_ms = submit_ms;
     write_blocked_ms_ += submit_ms;
 
     if (counters_) {
@@ -341,6 +376,8 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
             static_cast<uint64_t>(submit_ms), std::memory_order_relaxed);
         counters_->video_frames_written_counter.fetch_add(
             1, std::memory_order_relaxed);
+        counters_->frame_submit_ms.fetch_add(
+            static_cast<uint64_t>(submit_ms), std::memory_order_relaxed);
     }
 
     ++frames_written_;

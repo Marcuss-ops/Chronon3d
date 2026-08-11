@@ -5,7 +5,9 @@
 //
 // Launches ffmpeg as a child process connected via a pipe.  Raw pixel data
 // is written to the pipe in the submitted format; ffmpeg handles encoding
-// and muxing to the configured output pixel format.
+// and muxing to the configured output pixel format. Chronon does not copy
+// planar data into an intermediate staging buffer; the unavoidable
+// process-boundary pipe copy is outside this metric.
 //
 // Does NOT depend on CLI-level render loops or exporter orchestration.
 // Uses posix_spawnp (Linux/macOS) / CreateProcessW (Windows) for shell-free
@@ -48,8 +50,8 @@ struct FfmpegPipeSinkInternal;
 /// Lifecycle:  Created → open() → submit()×N → flush() → close() → Closed
 ///
 /// Format: frames are submitted in the stream's submitted_format (set during
-/// open()).  Planar/biplanar frames are tight-packed into interleaved
-/// layout before writing to the pipe.  Format conversion (Framebuffer →
+/// open()). Planar/biplanar frames are streamed in FFmpeg's native plane order
+/// without an intermediate Chronon buffer. Format conversion (Framebuffer →
 /// VideoFrameView) happens upstream, outside this sink.
 class FfmpegPipeSink final : public VideoSink {
 public:
@@ -122,9 +124,6 @@ private:
     int                       height_{0};
     PixelFormat               session_format_{PixelFormat::RGBA8};
     size_t                    tight_frame_size_{0};
-
-    /// Staging buffer for interleaved/packed frames (reused across calls).
-    std::vector<uint8_t>      staging_;
 
     bool                      pipe_failed_{false};
     double                    total_write_blocked_ms_{0.0};

@@ -22,6 +22,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         frame_conversion/backends/swscale_backend.cpp
         frame_conversion/converted_frame_cache.cpp
         frame_conversion/frame_conversion_service.cpp
+        frame_conversion/encoder_frame_pool.cpp
     )
     set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)
     target_link_libraries(chronon3d_backend_video PUBLIC

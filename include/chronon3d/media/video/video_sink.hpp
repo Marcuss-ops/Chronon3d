@@ -172,6 +172,10 @@ public:
     struct Stats {
         uint64_t frames_submitted{0};
         uint64_t bytes_written{0};
+        /// Bytes copied into an encoder-side staging buffer.  A direct
+        /// FFmpeg pipe path keeps this at zero; the process boundary still
+        /// copies bytes into the child pipe and is intentionally not counted.
+        uint64_t encoder_staging_copy_bytes{0};
         double   total_submit_ms{0.0};  // cumulative wall time in submit()
         double   total_flush_ms{0.0};   // cumulative wall time in flush()
         uint64_t submit_count{0};       // number of submit() calls
