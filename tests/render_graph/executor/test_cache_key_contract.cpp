@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <unordered_set>
 using namespace chronon3d;
 
@@ -91,4 +93,13 @@ TEST_CASE("CacheKeyContract: NodeCacheKeyHash works in unordered_set") {
     // Inserting the same key again should not increase size
     set.insert({.scope = "a", .frame = 0, .width = 100, .height = 100});
     CHECK(set.size() == 3);
+}
+
+TEST_CASE("CacheKeyContract: TransformNode differentiates opacity") {
+    chronon3d::graph::RenderGraphContext ctx;
+    const chronon3d::Mat4 identity{1.0f};
+    const chronon3d::graph::TransformNode opaque(identity, 1.0f);
+    const chronon3d::graph::TransformNode translucent(identity, 0.5f);
+
+    CHECK_NE(opaque.cache_key(ctx).digest(), translucent.cache_key(ctx).digest());
 }
