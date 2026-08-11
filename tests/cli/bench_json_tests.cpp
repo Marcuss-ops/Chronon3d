@@ -11,6 +11,7 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     report.height = 1080;
     report.frames = 120;
     report.warmup = 10;
+    report.modular_graph = true;
     report.metrics.time_to_first_frame_ms = 120.0;
     report.metrics.avg_frame_ms = 14.5;
     report.metrics.median_frame_ms = 13.8;
@@ -40,6 +41,11 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — extend with the 4 new fields.
     report.counters.full_frame_passes = 3;
     report.counters.full_frame_copies = 5;
+    report.counters.bytes_touched = 4000000;
+    report.counters.conversion_ms = 1.25;
+    report.counters.encoder_copy_bytes = 0;
+    report.counters.nodes_skipped = 12;
+    report.counters.fused_passes = 4;
     // Per-frame rates derived as `value / frames` (matches graph_total_ms
     // precedent; bench report is the canonical snapshot location).
     report.counters.full_frame_passes_per_frame = 3.0 / 120.0;
@@ -55,6 +61,7 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     CHECK(js["render"]["height"] == 1080);
     CHECK(js["render"]["frames"] == 120);
     CHECK(js["render"]["warmup"] == 10);
+    CHECK(js["render"]["modular_graph"] == true);
 
     CHECK(js["metrics"]["time_to_first_frame_ms"] == doctest::Approx(120.0));
     CHECK(js["metrics"]["avg_frame_ms"] == doctest::Approx(14.5));
@@ -77,6 +84,11 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     // F3.2 — verify the 4 JSON fields round-trip cleanly.
     CHECK(js["counters"]["full_frame_passes"] == 3);
     CHECK(js["counters"]["full_frame_copies"] == 5);
+    CHECK(js["counters"]["bytes_touched"] == 4000000);
+    CHECK(js["counters"]["conversion_ms"] == doctest::Approx(1.25));
+    CHECK(js["counters"]["encoder_copy_bytes"] == 0);
+    CHECK(js["counters"]["nodes_skipped"] == 12);
+    CHECK(js["counters"]["fused_passes"] == 4);
     CHECK(js["counters"]["full_frame_passes_per_frame"] == doctest::Approx(3.0 / 120.0));
     CHECK(js["counters"]["full_frame_copies_per_frame"] == doctest::Approx(5.0 / 120.0));
 
@@ -129,6 +141,11 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     // F3.2 — extend roundtrip test with the 4 new fields.
     original.counters.full_frame_passes = 1;
     original.counters.full_frame_copies = 4;
+    original.counters.bytes_touched = 1234;
+    original.counters.conversion_ms = 2.5;
+    original.counters.encoder_copy_bytes = 99;
+    original.counters.nodes_skipped = 8;
+    original.counters.fused_passes = 2;
     original.counters.full_frame_passes_per_frame = 1.0 / 60.0;
     original.counters.full_frame_copies_per_frame = 4.0 / 60.0;
     original.categories_ms["composite"] = 300.0;
@@ -143,6 +160,7 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     CHECK(loaded.height == 720);
     CHECK(loaded.frames == 60);
     CHECK(loaded.warmup == 5);
+    CHECK(loaded.modular_graph == true);
     CHECK(loaded.metrics.time_to_first_frame_ms == doctest::Approx(100.0));
     CHECK(loaded.metrics.avg_frame_ms == doctest::Approx(20.0));
     CHECK(loaded.metrics.p50_frame_ms == doctest::Approx(19.0));
@@ -160,6 +178,11 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     // F3.2 — verify the 4 new fields round-trip cleanly.
     CHECK(loaded.counters.full_frame_passes == 1);
     CHECK(loaded.counters.full_frame_copies == 4);
+    CHECK(loaded.counters.bytes_touched == 1234);
+    CHECK(loaded.counters.conversion_ms == doctest::Approx(2.5));
+    CHECK(loaded.counters.encoder_copy_bytes == 99);
+    CHECK(loaded.counters.nodes_skipped == 8);
+    CHECK(loaded.counters.fused_passes == 2);
     CHECK(loaded.counters.full_frame_passes_per_frame == doctest::Approx(1.0 / 60.0));
     CHECK(loaded.counters.full_frame_copies_per_frame == doctest::Approx(4.0 / 60.0));
     CHECK(loaded.categories_ms["composite"] == doctest::Approx(300.0));

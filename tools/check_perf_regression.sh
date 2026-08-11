@@ -158,6 +158,23 @@ if [[ ! -s "$CURRENT_PATH" ]]; then
     _err "  hint: run `chronon3d_cli bench <scene> --json-file <path>` first"
     exit 2
 fi
+
+# Every perf-regression comparison consumes the same complete metric contract.
+# This runs before baseline comparison so missing observability is BLOCKED,
+# never silently treated as a zero or as a passing regression result.
+COMMON_GATE="${SCRIPT_DIR}/check_common_performance_gate.py"
+if [[ ! -r "$COMMON_GATE" ]]; then
+    _err "missing common performance gate: $COMMON_GATE"
+    exit 2
+fi
+if python3 "$COMMON_GATE" --report "$CURRENT_PATH"; then
+    :
+else
+    rc=$?
+    _err "common performance contract did not pass for current report"
+    exit "$rc"
+fi
+
 if [[ ! -s "$BASELINE_PATH" ]]; then
     _err "baseline bench.v3 file missing or empty: $BASELINE_PATH"
     _err "  macchina-verifica DEFERRED-WBH per AGENTS.md §honest-limitation"
