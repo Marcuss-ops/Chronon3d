@@ -455,7 +455,9 @@ PreparedMeshSourceRef decode(const InternalAssetRef& ref, const std::filesystem:
 } // namespace
 #endif // CHRONON3D_ENABLE_MESH
 
+#ifndef CHRONON3D_ENABLE_MESH
 namespace chronon3d::assets {
+#endif
 
 std::string MeshIdentity::cache_key() const {
     return resolved_path + "\n" + std::to_string(byte_size) + "\n"
