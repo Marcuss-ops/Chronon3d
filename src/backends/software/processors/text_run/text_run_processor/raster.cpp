@@ -156,7 +156,20 @@ struct SingleGlyphRun {
         ctx.setCompOp(BL_COMP_OP_SRC_OVER);
 
         for (std::uint32_t gi : tier_glyphs) {
+            // Animated glyph state and immutable placed layout can briefly
+            // differ while a text run is refreshed. Skip the orphan state
+            // instead of indexing the shorter layout (or span map).
+            if (gi >= source_glyphs.size() ||
+                gi >= source_placed.glyphs.size() ||
+                gi >= glyph_span_indices.size()) {
+                continue;
+            }
             const auto& g = source_glyphs[gi];
+            const std::size_t span_idx = glyph_span_indices[gi];
+            if (span_idx >= s.span_fonts.size() ||
+                span_idx >= s.span_handles.size()) {
+                continue;
+            }
 
             Color eff_stroke = g.stroke;
             f32    eff_stroke_w = g.stroke_width;
@@ -193,7 +206,6 @@ struct SingleGlyphRun {
                 ctx.setGlobalAlpha(1.0);
             }
 
-            const std::size_t span_idx = glyph_span_indices[gi];
             const FontFaceHandle& span_handle = s.span_handles[span_idx];
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f
                 && span_handle.ft_face != nullptr

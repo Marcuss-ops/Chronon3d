@@ -334,6 +334,9 @@ endforeach()
 # `src/render_graph/nodes` subtree minimizes accidental coupling while
 # keeping the same internal-header access pattern.
 target_include_directories(chronon3d_graph_nodes PRIVATE ${CMAKE_SOURCE_DIR}/src/render_graph/nodes)
+# Tight projected-surface geometry is an internal render-graph contract.
+# Builder and node TUs include it through the same src-only boundary.
+target_include_directories(chronon3d_graph_builder PRIVATE ${CMAKE_SOURCE_DIR}/src/render_graph/nodes)
 # Backward direction — runtime headers (Commit #3) are FULL-included by
 # `software_renderer.hpp` (Compile-time dependency).  chronon3d_backend_software
 # PUBLIC-links `chronon3d_runtime` (Commit #3 pre-emptive edit) so

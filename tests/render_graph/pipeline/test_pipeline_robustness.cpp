@@ -1385,7 +1385,10 @@ TEST_CASE("EvaluatedLayerPlacement resolves projected and native 3D ownership") 
     CHECK(projected.defer_camera_projection);
     CHECK(chronon3d::graph::detail::matrix_near(projected.source_matrix,
         chronon3d::graph::detail::implicit_canvas_center_matrix(projected_ctx)));
-    CHECK(chronon3d::graph::detail::matrix_near(projected.render_matrix, projection));
+    const Mat4 expected_projected_matrix = projection * glm::scale(
+        Mat4(1.0f), Vec3(1.0f, -1.0f, 1.0f));
+    CHECK(chronon3d::graph::detail::matrix_near(
+        projected.render_matrix, expected_projected_matrix));
 
     LayerGraphItem native_item{
         .layer = layer.layer,
