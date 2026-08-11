@@ -16,9 +16,16 @@ struct LayerGraphItem {
     Mat4         projection_matrix{1.0f};
     f32          depth{0.0f};      // world depth (layer.z - camera.z); 0 for 2D layers
     f32          world_z{0.0f};    // world-space Z before camera-relative projection
-    bool          projected{false}; // true if transform was computed by project_layer_2_5d
-    bool          native_3d{false}; // true if layer contains native 3D shapes
-    bool          visible{true};    // canonical placement/projection visibility
+    bool         projected{false}; // true if transform was computed by project_layer_2_5d
+    bool         native_3d{false}; // true if layer contains native 3D shapes
+
+    bool         visible{true};    // canonical placement/projection visibility
+    // Tight projected surfaces carry their local raster dimensions through
+    // graph construction so the camera projects the actual surface rather
+    // than a viewport-sized transparent canvas.
+    Vec2         projected_surface_size{0.0f, 0.0f};
+    Vec2         projected_surface_origin{0.0f, 0.0f};
+
     usize        insertion_index{0};
     GraphNodeId  matte_node{k_invalid_node}; // pre-built matte source node, if any
     bool         is_static{false};
