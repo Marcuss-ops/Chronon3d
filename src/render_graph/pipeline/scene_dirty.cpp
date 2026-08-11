@@ -66,6 +66,21 @@ DirtyRectOutput compute_dirty_rect(
     }
 
     // ── Tile-based dirty tracking setup ─────────────────────────────────
+    const bool has_projected_25d_layer = std::any_of(
+        resolved.layers.begin(), resolved.layers.end(),
+        [frame](const ResolvedLayer& layer) {
+            return layer.layer && layer.layer->active_at(frame) &&
+                   layer.layer->uses_2_5d_projection;
+        });
+    const bool cam_changed = camera_changed(
+        cam25d, &sw_renderer->frame_history().prev_camera,
+        sw_renderer->frame_history().prev_camera_valid);
+    if (has_projected_25d_layer) {
+        out.dirty_rect = raster::BBox{0, 0, width, height};
+        out.use_dirty_rects = false;
+        return out;
+    }
+
     const int effective_tile_size = settings.dirty.tile_size > 0 ? settings.dirty.tile_size : 256;
     const bool tiles_enabled = settings.dirty.tiles_active();
     raster::TileGrid tile_grid;
@@ -78,8 +93,6 @@ DirtyRectOutput compute_dirty_rect(
     // ── Diff current vs. previous layer bboxes ──────────────────────────
     {
         CHRONON_ZONE_C("dirty_rect_compute", trace_category::kFrame);
-
-        const bool cam_changed = camera_changed(cam25d, &sw_renderer->frame_history().prev_camera, sw_renderer->frame_history().prev_camera_valid);
 
         raster::BBox union_dirty{0, 0, 0, 0};
         bool has_dirty = false;
@@ -169,7 +182,22 @@ DirtyRectOutput compute_dirty_rect(
         }
 
         // ── Try scroll optimisation ─────────────────────────────────────
-        auto scroll_rect = try_scroll_optimization(sw_renderer, cam25d, width, height);
+        // A framebuffer shift is only valid when every moving layer shares
+        // the same screen-space translation.  Projected 2.5D layers do not:
+        // camera X/Y motion produces a different parallax displacement at
+        // each depth.  Shifting the previous composite in that case leaves
+        // some TextRun surfaces stale until the next full redraw, which
+        // presents as intermittent missing/glitched words.
+        const bool has_projected_25d_layer = std::any_of(
+            resolved.layers.begin(), resolved.layers.end(),
+            [frame](const ResolvedLayer& layer) {
+                return layer.layer && layer.layer->active_at(frame) &&
+                       (layer.layer->uses_2_5d_projection ||
+                        layer.layer->is_native_3d());
+            });
+        auto scroll_rect = has_projected_25d_layer
+            ? std::optional<raster::BBox>{}
+            : try_scroll_optimization(sw_renderer, cam25d, width, height);
         if (scroll_rect.has_value()) {
             out.dirty_rect = *scroll_rect;
             if (tiles_enabled) {
