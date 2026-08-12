@@ -20,6 +20,7 @@
 // ============================================================================
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <tbb/parallel_for.h>
@@ -59,6 +60,13 @@ inline void apply_per_pixel_dof(
 {
     if (!dof.enabled) return;
 
+    const auto add_us = [](std::atomic<uint64_t>& counter,
+                           chronon3d::profiling::Clock::time_point start) {
+        counter.fetch_add(static_cast<uint64_t>(
+                              std::max(0.0, chronon3d::profiling::elapsed_us(start))),
+                          std::memory_order_relaxed);
+    };
+
     constexpr float kUnsetDepth = 1e18f;
 
     const i32 w = fb.width();
@@ -75,6 +83,8 @@ inline void apply_per_pixel_dof(
         y1 = std::clamp(clip->y1, 0, h);
     }
     if (x0 >= x1 || y0 >= y1) return;
+
+    const auto radius_start = chronon3d::profiling::now();
 
     // Pre-compute per-pixel blur radii from the depth buffer.
     // Negative radius is a separate "no depth" sentinel. A zero radius is
@@ -93,6 +103,16 @@ inline void apply_per_pixel_dof(
             max_r = std::max(max_r, blur_radii[idx]);
         }
     }
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_blur_radius_generation_us,
+               radius_start);
+        chronon3d::profiling::g_current_counters->dof_roi_pixels.fetch_add(
+            static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0),
+            std::memory_order_relaxed);
+        chronon3d::profiling::g_current_counters->dof_max_radius_milli.fetch_add(
+            static_cast<uint64_t>(std::lround(std::max(0.0f, max_r) * 1000.0f)),
+            std::memory_order_relaxed);
+    }
     if (max_r < 0.5f) return; // No visible blur
 
     // The blur is source-driven: a defocused source pixel contributes to
@@ -103,18 +123,39 @@ inline void apply_per_pixel_dof(
     // `hpass` stores the horizontally-blurred result; `output` stores the final.
     // Both are allocated at full framebuffer size (including non-clipped regions
     // which are copied unchanged from the source).
+    const auto scratch_start = chronon3d::profiling::now();
     std::vector<Color> hpass(static_cast<size_t>(w) * h);
     std::vector<Color> output(static_cast<size_t>(w) * h);
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_scratch_allocation_us,
+               scratch_start);
+        const uint64_t scratch_bytes =
+            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color) * 2;
+        chronon3d::profiling::g_current_counters->dof_scratch_bytes.fetch_add(
+            scratch_bytes, std::memory_order_relaxed);
+    }
 
     // Copy source into hpass as the starting point (non-clipped rows stay unchanged)
+    const auto copy_start = chronon3d::profiling::now();
     for (i32 y = 0; y < h; ++y) {
         const Color* src_row = fb.pixels_row(y);
         std::copy_n(src_row, w, &hpass[static_cast<size_t>(y) * w]);
+    }
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_copy_to_hpass_us,
+               copy_start);
+        chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
+            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            std::memory_order_relaxed);
+        chronon3d::profiling::g_current_counters->dof_estimated_bytes_written.fetch_add(
+            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            std::memory_order_relaxed);
     }
 
     // ── Pass 1: Horizontal blur (TBB parallel over rows) ───────────────
     // SIMD-accelerated: inner gather loop processes multiple neighbors at
     // once using Highway SIMD vectors (see dof_simd.hpp / dof_h_gather_simd).
+    const auto horizontal_start = chronon3d::profiling::now();
     tbb::parallel_for(tbb::blocked_range<i32>(y0, y1),
         [&](const tbb::blocked_range<i32>& range) {
             for (i32 y = range.begin(); y < range.end(); ++y) {
@@ -127,10 +168,25 @@ inline void apply_per_pixel_dof(
             }
         }
     );
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_horizontal_pass_us,
+               horizontal_start);
+    }
 
     // Copy hpass into output as the starting point for vertical pass
     // (non-clipped rows stay as horizontally-blurred result)
+    const auto hpass_copy_start = chronon3d::profiling::now();
     std::copy(hpass.begin(), hpass.end(), output.begin());
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_hpass_to_output_us,
+               hpass_copy_start);
+        chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
+            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            std::memory_order_relaxed);
+        chronon3d::profiling::g_current_counters->dof_estimated_bytes_written.fetch_add(
+            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            std::memory_order_relaxed);
+    }
 
     // ── Pass 2: Vertical blur (2D tiled for cache locality) ─────────────
     // The vertical pass gathers from strided rows (column access).  Adjacent
@@ -163,6 +219,7 @@ inline void apply_per_pixel_dof(
 
     const i32 num_tiles = nct * nrt;
 
+    const auto vertical_start = chronon3d::profiling::now();
     tbb::parallel_for(tbb::blocked_range<i32>(0, num_tiles),
         [&](const tbb::blocked_range<i32>& range) {
             for (i32 ti = range.begin(); ti < range.end(); ++ti) {
@@ -182,8 +239,13 @@ inline void apply_per_pixel_dof(
             }
         }
     );
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_vertical_pass_us,
+               vertical_start);
+    }
 
     // ── Write result back to framebuffer (parallel + SIMD) ─────────────
+    const auto writeback_start = chronon3d::profiling::now();
     tbb::parallel_for(tbb::blocked_range<i32>(y0, y1),
         [&](const tbb::blocked_range<i32>& range) {
             using namespace hwy::HWY_NAMESPACE;
@@ -206,6 +268,16 @@ inline void apply_per_pixel_dof(
             }
         }
     );
+    if (chronon3d::profiling::g_current_counters) {
+        add_us(chronon3d::profiling::g_current_counters->dof_writeback_us,
+               writeback_start);
+        chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
+            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            std::memory_order_relaxed);
+        chronon3d::profiling::g_current_counters->dof_estimated_bytes_written.fetch_add(
+            static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0) * sizeof(Color),
+            std::memory_order_relaxed);
+    }
 }
 
 } // namespace chronon3d::renderer

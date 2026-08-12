@@ -236,12 +236,21 @@ NodeExecResult PerPixelDofNode::execute(
     // valid depth as the ROI would therefore collapse back to full-frame work.
     // The O(width*height) scan is intentionally cheap compared with the
     // O(width*height*radius) gather blur it removes.
+    const auto roi_analysis_start = profiling::now();
     const auto active_region = analyze_dof_active_region(
         std::span<const float>{dof_depth},
         ctx.frame_input.width,
         ctx.frame_input.height,
         camera.dof,
         camera.lens);
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->dof_blur_source_pixels.fetch_add(
+            active_region.blur_source_pixels, std::memory_order_relaxed);
+        profiling::g_current_counters->dof_roi_analysis_us.fetch_add(
+            static_cast<uint64_t>(profiling::elapsed_us(roi_analysis_start)),
+            std::memory_order_relaxed);
+    }
 
     if (ctx.policy.diagnostics_enabled) {
         if (active_region.depth_size_valid) {
