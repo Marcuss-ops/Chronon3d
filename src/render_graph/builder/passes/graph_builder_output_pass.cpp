@@ -8,6 +8,7 @@
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
 #include <queue>
 #include <unordered_set>
@@ -92,7 +93,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
         rctx.policy.track_dof_depth = true;
         rctx.node_exec.dof_depth.assign(
             static_cast<size_t>(rctx.frame_input.width) * rctx.frame_input.height,
-            0.0f  // neutral screen/background plane; layers overwrite their pixels
+            kUnsetDofDepth  // no surface; CompositeNode writes world_z only where top alpha contributes
         );
         // The node keeps this value as an isolated-test fallback, but reads
         // the evaluated camera from the frame context during execution so
