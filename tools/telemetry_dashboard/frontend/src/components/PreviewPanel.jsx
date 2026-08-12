@@ -8,8 +8,10 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
   const isVideoExt = (p) => p.endsWith('.mp4') || p.endsWith('.webm') || p.endsWith('.mov');
   // Only treat as video if the actual output path is a video
   const isVideoRun = Boolean(run) && isVideoExt(outputPath);
-  // Resolve video path only when it is actually a video
-  const resolvedVideoPath = isVideoRun ? outputPath : `output/${run?.composition_id || ''}.mp4`;
+  // Image-sequence runs do not have an implicit MP4 companion.  Keeping this
+  // empty for non-video output prevents the preview from fabricating a legacy
+  // output/<composition>.mp4 URL and receiving a misleading 404.
+  const resolvedVideoPath = isVideoRun ? outputPath : '';
 
   const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
   const [mediaError, setMediaError] = useState('');
@@ -108,10 +110,13 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
             <div className="preview-toggle-group">
               <button 
                 className={`preview-toggle-item ${mode === 'video' ? 'active' : ''}`}
+                disabled={!isVideoRun}
                 onClick={() => {
+                  if (!isVideoRun) return;
                   userModeOverrideRef.current = true;
                   setMode('video');
                 }}
+                title={isVideoRun ? 'Riproduci il video esportato' : 'Questo run contiene una sequenza PNG, non un video'}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <polygon points="5 3 19 12 5 21 5 3"></polygon>
