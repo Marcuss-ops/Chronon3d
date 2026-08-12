@@ -32,6 +32,24 @@ TEST_CASE("NodeCache: explicit capacity is respected") {
     CHECK(stats.current_weight == 0);
 }
 
+TEST_CASE("NodeCache: top entries report physical backing weight") {
+    NodeCache cache(64 * 1024 * 1024);
+    cache.store(make_node_cache_key(1, 32, 16),
+                std::make_shared<chronon3d::Framebuffer>(32, 16));
+    cache.store(make_node_cache_key(2, 256, 64),
+                std::make_shared<chronon3d::Framebuffer>(256, 64));
+    cache.store(make_node_cache_key(3, 64, 32),
+                std::make_shared<chronon3d::Framebuffer>(64, 32));
+
+    const auto top = cache.top_entries_by_weight(2);
+    REQUIRE(top.size() == 2);
+    CHECK(top[0].bytes >= top[1].bytes);
+    CHECK(top[0].logical_width == 256);
+    CHECK(top[0].logical_height == 64);
+    CHECK(top[0].allocated_width >= top[0].logical_width);
+    CHECK(top[0].allocated_height == top[0].logical_height);
+}
+
 TEST_CASE("NodeCache: set_capacity reduces capacity and evicts surplus") {
     NodeCache cache(64 * 1024 * 1024); // 64 MB
     auto key = make_node_cache_key();

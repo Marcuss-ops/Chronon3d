@@ -581,7 +581,7 @@ void FrameGraphCompiler::build_physical_framebuffer_allocation_plan(
         ++plan.logical_resource_count;
         allocation.producer = id;
         allocation.persistent =
-            compiled.nodes[id].cache_policy.enabled() ||
+            compiled.nodes[id].cache_policy.reusable_across_frames() ||
             id == compiled.output;
         allocation.async_use = !lifetime.can_release_after_last_consumer;
 

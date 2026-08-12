@@ -285,12 +285,7 @@ OwnedFB FramebufferPool::adopt_owned(std::shared_ptr<Framebuffer>&& src) {
 }
 
 CachedFB FramebufferPool::cache_adopt(OwnedFB owned) {
-    if (!owned) return CachedFB{};
-    auto weak_pool = weak_from_this();
-    return CachedFB(owned.release(), [weak_pool](Framebuffer* fp) {
-        if (auto p = weak_pool.lock()) p->release(fp);
-        else delete fp;
-    });
+    return promote_to_cached(std::move(owned));
 }
 
 std::shared_ptr<Framebuffer> FramebufferPool::acquire_shared(int width, int height, bool clear) {

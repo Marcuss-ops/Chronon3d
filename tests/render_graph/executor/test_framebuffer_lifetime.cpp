@@ -58,6 +58,26 @@ TEST_CASE("FramebufferLifetime: acquire_owned returns valid framebuffer") {
     CHECK(fb->height() == 480);
 }
 
+TEST_CASE("FramebufferLifetime: exact ownership keeps delete policy through cache adoption") {
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
+    const auto before = pool->stats();
+
+    auto owned = pool->acquire_owned_exact(640, 128, true);
+    REQUIRE(owned != nullptr);
+    CHECK(owned->width() == 640);
+    CHECK(owned->height() == 128);
+
+    auto cached = pool->cache_adopt(std::move(owned));
+    REQUIRE(cached != nullptr);
+    CHECK(cached->width() == 640);
+    CHECK(cached->height() == 128);
+
+    cached.reset();
+    const auto after = pool->stats();
+    CHECK(after.retained_bytes == before.retained_bytes);
+    CHECK(after.size_class_count == before.size_class_count);
+}
+
 TEST_CASE("FramebufferLifetime: acquire_owned clears framebuffer when requested") {
     FramebufferPool pool(256 * 1024 * 1024);
     auto fb = pool.acquire_owned(100, 100, true);
