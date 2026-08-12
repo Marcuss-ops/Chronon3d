@@ -46,12 +46,12 @@ TEST_CASE("resolve_render_request resolves composition and metadata") {
 
     auto result = resolve_render_request(registry, std::move(request));
     REQUIRE(result.has_value());
-    CHECK(result->comp != nullptr);
+    CHECK(result->compiled != nullptr);
     CHECK(result->metadata.width == 1920);
     CHECK(result->metadata.height == 1080);
     CHECK(result->metadata.fps == FrameRate{30, 1});
     CHECK(result->metadata.duration == Frame{300});
-    CHECK(result->request.comp_id == "test-comp");
+    CHECK(result->comp_id == "test-comp");
 }
 
 TEST_CASE("resolve_render_request returns error for unknown composition") {
@@ -65,7 +65,7 @@ TEST_CASE("resolve_render_request returns error for unknown composition") {
     CHECK(result.error().code == RenderJobErrorCode::ValidationFailed);
 }
 
-TEST_CASE("ResolvedRenderJob::to_legacy_job produces valid RenderJob") {
+TEST_CASE("resolve_render_request produces a valid canonical RenderJob") {
     auto registry = make_test_registry();
 
     RenderRequest request;
@@ -77,8 +77,8 @@ TEST_CASE("ResolvedRenderJob::to_legacy_job produces valid RenderJob") {
     auto resolved = resolve_render_request(registry, std::move(request));
     REQUIRE(resolved.has_value());
 
-    RenderJob job = resolved->to_legacy_job();
-    CHECK(job.comp != nullptr);
+    const RenderJob& job = *resolved;
+    CHECK(job.compiled != nullptr);
     CHECK(job.comp_id == "test-comp");
     CHECK(job.mode == RenderMode::Still);
     CHECK(job.still_frame == Frame{10});
