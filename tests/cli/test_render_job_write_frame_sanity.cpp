@@ -137,13 +137,8 @@ TEST_CASE("render_job_write_frame::sanity: thresholds are correct (regression lo
     CHECK(kSanityScanStride        == 4);
 }
 
-TEST_CASE("render_job_write_frame::sanity: empty framebuffer (0x0) returns ok=true (no scan performed)") {
-    // Defensive: the upstream null-check path is the single source of
-    // truth for "no framebuffer at all".  An empty framebuffer (0x0)
-    // should pass the sanity scan trivially so callers that pre-allocate
-    // but don't yet have geometry don't trip the guard.
-    Framebuffer fb(0, 0);
-    const auto r = scan_framebuffer_sanity(fb);
-    CHECK(r.ok);
-    CHECK(r.sampled_pixels == 0);
+TEST_CASE("render_job_write_frame::sanity: framebuffer dimensions must be positive") {
+    // Framebuffer is a strict runtime resource: an empty 0x0 allocation is
+    // rejected before the sanity scanner can be invoked.
+    CHECK_THROWS_AS(Framebuffer(0, 0), std::invalid_argument);
 }
