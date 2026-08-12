@@ -21,6 +21,6 @@ target_link_libraries(chronon3d_cli_telemetry PRIVATE
     fmt::fmt
     unofficial::sqlite3::sqlite3
 )
-target_compile_definitions(chronon3d_cli_telemetry PUBLIC
+target_compile_definitions(chronon3d_cli_telemetry PRIVATE
     CHRONON3D_ENABLE_SQLITE_TELEMETRY
 )

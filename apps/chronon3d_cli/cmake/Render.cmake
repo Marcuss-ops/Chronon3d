@@ -43,3 +43,9 @@ endif()
 target_compile_definitions(chronon3d_cli_core PRIVATE
     CHRONON3D_HAS_CLI_RENDER
 )
+
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_compile_definitions(chronon3d_cli_render PRIVATE
+        CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    )
+endif()
