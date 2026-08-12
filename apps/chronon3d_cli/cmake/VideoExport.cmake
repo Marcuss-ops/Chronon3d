@@ -27,6 +27,12 @@ target_link_libraries(chronon3d_cli_video_export PRIVATE
     fmt::fmt
 )
 
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_compile_definitions(chronon3d_cli_video_export PRIVATE
+        CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    )
+endif()
+
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE
         utils/video/native_av_encoder.cpp
