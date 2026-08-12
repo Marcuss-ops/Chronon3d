@@ -17,6 +17,7 @@ namespace chronon3d {
 class DebugConfig;
 class CurveCache;
 struct RenderCounters;
+struct EffectScratchResources;
 }   // TICKET-007: per-instance debug gating
 
 namespace chronon3d::effects {
@@ -48,6 +49,7 @@ struct EffectExecutionContext {
     // retain an invalid handle), so execution never consults the mutable
     // registry. The owning snapshot is retained by the node-local context.
     std::span<const chronon3d::renderer::EffectProcessorHandle> effect_processors{};
+    chronon3d::EffectScratchResources* effect_scratch{nullptr};
     std::shared_ptr<const chronon3d::renderer::ProcessorRegistrySnapshot>
         processor_snapshot;
     bool processors_resolved{false};

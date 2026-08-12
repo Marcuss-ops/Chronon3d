@@ -10,6 +10,7 @@
 namespace chronon3d {
 
 namespace runtime { class RenderRuntime; }
+namespace registry { class ShapeRegistry; }
 class AssetRegistry;  // forward declaration for migration path
 class FontEngine;     // TICKET-A4 follow-up — codex/agent2-font-bind-fixes:
                       // WP-8 PR 8.0 strict binding means composition
@@ -30,6 +31,7 @@ struct FrameContextParams {
     std::string assets_root{};
     AssetRegistry* assets{nullptr};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
+    registry::ShapeRegistry* shape_registry{nullptr};
     FontEngine* font_engine{nullptr};
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 };
@@ -48,6 +50,7 @@ public:
     std::string assets_root{};
     AssetRegistry* assets{nullptr};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
+    registry::ShapeRegistry* shape_registry{nullptr};
     // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
     // The runtime is the canonical owner of shared render services. The
     // direct pointer remains available for isolated contexts that do not
@@ -134,6 +137,7 @@ private:
     ctx.assets_root = p.assets_root;
     ctx.assets = p.assets;
     ctx.resource = p.resource;
+    ctx.shape_registry = p.shape_registry;
     ctx.font_engine = p.font_engine;
     ctx.runtime = p.runtime;
 

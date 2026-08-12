@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory_resource>
 #include <vector>
 
 // Forward declaration — the canonical full definition lives at
@@ -35,10 +36,10 @@ namespace chronon3d::graph {
 // a single `roll_up()` invocation at the bottom of `execute_levels()`.
 //
 // Public surface (Cat-3 minimal):
-//   - field accessors (the 7 std::vector<double> members — used by
+//   - field accessors (the 7 pmr::vector<double> members — used by
 //     `execute_single_node()` to accumulate ms timings)
 //   - `resize(n)` — per-level zero-init matching the original
-//     `std::vector<double>(level.size(), 0.0)` allocation pattern.
+//     `assign(level.size(), 0.0)` allocation pattern on the frame resource.
 //   - `roll_up(counters, dispatch_ms, input_ms, schedule_ms,
 //     framebuffer_ms)` — folds per-node accumulators + 4 whole-level
 //     duration deltas + derived overhead_ms into `RenderCounters`
@@ -53,13 +54,18 @@ struct LevelTimings {
     // Per-node accumulators (millisecond doubles, one entry per node in
     // the level).  Indices match the level_index passed to
     // execute_single_node() inside the parallel/sequential branch.
-    std::vector<double> cache;
-    std::vector<double> dirty;
-    std::vector<double> telemetry;
-    std::vector<double> execute;
-    std::vector<double> predicted_bbox;
-    std::vector<double> clone_context;
-    std::vector<double> state;
+    std::pmr::vector<double> cache;
+    std::pmr::vector<double> dirty;
+    std::pmr::vector<double> telemetry;
+    std::pmr::vector<double> execute;
+    std::pmr::vector<double> predicted_bbox;
+    std::pmr::vector<double> clone_context;
+    std::pmr::vector<double> state;
+
+    explicit LevelTimings(
+        std::pmr::memory_resource* resource = std::pmr::get_default_resource())
+        : cache(resource), dirty(resource), telemetry(resource), execute(resource),
+          predicted_bbox(resource), clone_context(resource), state(resource) {}
 
     // Resize all 7 vectors to `n` and zero-initialise.  Implemented
     // via `assign(n, 0.0)` (not `resize(n)`) so the zero-init is

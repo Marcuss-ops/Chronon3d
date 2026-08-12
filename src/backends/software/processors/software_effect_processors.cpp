@@ -237,9 +237,10 @@ public:
 class SoftwareStrokeEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<StrokeParams>(&params)) {
-            apply_stroke(fb, p->color, p->width, p->softness, p->mode);
+            apply_stroke(fb, p->color, p->width, p->softness, p->mode,
+                         std::nullopt, context.effect_scratch);
         }
     }
 };
@@ -262,9 +263,10 @@ public:
 class SoftwareDirectionalBlurEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<DirectionalBlurParams>(&params)) {
-            apply_directional_blur(fb, p->angle, p->length, p->samples);
+            apply_directional_blur(fb, p->angle, p->length, p->samples,
+                                   std::nullopt, context.effect_scratch);
         }
     }
 };

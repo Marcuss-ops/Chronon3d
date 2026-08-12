@@ -3,6 +3,11 @@ set(CORE_TEST_SOURCES
     core/test_concurrency_budget.cpp
     core/test_depth_buffer_pool.cpp
     core/test_frame_context.cpp
+    core/test_frame_arena.cpp
+    core/test_cache_policy_frame_key.cpp
+    core/test_resource_plan.cpp
+    core/test_bounded_spsc_ring.cpp
+    core/test_frame_slot_pipeline.cpp
     core/memory/test_huge_page_allocator.cpp
     core/math/test_math.cpp
     core/math/test_output_transform.cpp
@@ -91,6 +96,8 @@ set(CORE_TEST_SOURCES
     runtime/test_camera_session_cache_failed_no_commit.cpp
     runtime/test_render_runtime_isolation.cpp
     runtime/test_resource_preparation.cpp
+    runtime/test_prepared_render_job.cpp
+    runtime/test_prepared_render_job_allocations.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/test_software_renderer_boundary_consistency.cpp
 )

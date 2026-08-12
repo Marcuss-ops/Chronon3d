@@ -15,6 +15,7 @@
 //         ceil(|sin(angle)| * length / 2) + 1 vertically.
 
 #include "directional_blur.hpp"
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
 #include <algorithm>
@@ -30,20 +31,16 @@ namespace chronon3d::renderer {
 // Tap generation
 // =============================================================================
 
-struct Tap {
-    float dx;          // signed offset in X (pixels)
-    float dy;          // signed offset in Y (pixels)
-    float weight;      // sample weight (sum = 1.0)
-};
-
 /// Generate a set of symmetric taps for a directional blur.
 /// Returns N taps spanning [-length/2, +length/2] along the given angle.
-[[nodiscard]] static std::vector<Tap> generate_taps(
-    float angle_degrees, float length, int samples)
+static void generate_taps(float angle_degrees, float length, int samples,
+                          std::vector<float>& taps)
 {
+    taps.clear();
     if (length <= 0.0f || samples <= 1) {
         // Identity: single tap at origin with weight 1.0
-        return {{0.0f, 0.0f, 1.0f}};
+        taps = {0.0f, 0.0f, 1.0f};
+        return;
     }
 
     const float angle_rad = angle_degrees * (std::numbers::pi_v<float> / 180.0f);
@@ -53,8 +50,7 @@ struct Tap {
     // Use samples if provided (> 1), else auto-derive from length.
     const int n = (samples > 1) ? samples : std::max(2, static_cast<int>(std::ceil(length / 2.0f)));
 
-    std::vector<Tap> taps;
-    taps.reserve(n);
+    taps.reserve(static_cast<std::size_t>(n) * 3u);
 
     const float half_len = length * 0.5f;
     const float inv_n = 1.0f / static_cast<float>(n);
@@ -64,14 +60,11 @@ struct Tap {
         const float u = (static_cast<float>(i) + 0.5f) * inv_n;  // centre of tap
         const float dist = -half_len + u * length;               // signed distance
 
-        Tap tap;
-        tap.dx = dist * cos_a;
-        tap.dy = dist * sin_a;
-        tap.weight = inv_n;  // uniform weighting
-        taps.push_back(tap);
+        taps.push_back(dist * cos_a);
+        taps.push_back(dist * sin_a);
+        taps.push_back(inv_n);  // uniform weighting
     }
 
-    return taps;
 }
 
 // =============================================================================
@@ -97,7 +90,8 @@ std::pair<int, int> directional_blur_margins(float angle_degrees, float length)
 
 static void apply_directional_blur_horizontal(
     Framebuffer& fb, float length, int samples,
-    const std::optional<raster::BBox>& clip)
+    const std::optional<raster::BBox>& clip,
+    ::chronon3d::EffectScratchResources* scratch)
 {
     const int w = fb.width(), h = fb.height();
     int x0 = 0, x1 = w, y0 = 0, y1 = h;
@@ -112,7 +106,15 @@ static void apply_directional_blur_horizontal(
     const float half_len = length * 0.5f;
     const float inv_n = 1.0f / static_cast<float>(n);
 
-    auto temp = std::make_unique<Framebuffer>(w, h);
+    std::unique_ptr<Framebuffer> owned_temp;
+    Framebuffer* temp = nullptr;
+    if (scratch) {
+        scratch->ensure_size(w, h);
+        temp = scratch->framebuffer.get();
+    } else {
+        owned_temp = std::make_unique<Framebuffer>(w, h);
+        temp = owned_temp.get();
+    }
     temp->blit(fb, 0, 0);
 
     for (int y = y0; y < y1; ++y) {
@@ -140,7 +142,8 @@ static void apply_directional_blur_horizontal(
 
 static void apply_directional_blur_vertical(
     Framebuffer& fb, float length, int samples,
-    const std::optional<raster::BBox>& clip)
+    const std::optional<raster::BBox>& clip,
+    ::chronon3d::EffectScratchResources* scratch)
 {
     const int w = fb.width(), h = fb.height();
     int x0 = 0, x1 = w, y0 = 0, y1 = h;
@@ -155,7 +158,15 @@ static void apply_directional_blur_vertical(
     const float half_len = length * 0.5f;
     const float inv_n = 1.0f / static_cast<float>(n);
 
-    auto temp = std::make_unique<Framebuffer>(w, h);
+    std::unique_ptr<Framebuffer> owned_temp;
+    Framebuffer* temp = nullptr;
+    if (scratch) {
+        scratch->ensure_size(w, h);
+        temp = scratch->framebuffer.get();
+    } else {
+        owned_temp = std::make_unique<Framebuffer>(w, h);
+        temp = owned_temp.get();
+    }
     temp->blit(fb, 0, 0);
 
     for (int y = y0; y < y1; ++y) {
@@ -186,7 +197,8 @@ void apply_directional_blur(
     float angle_degrees,
     float length,
     int samples,
-    const std::optional<raster::BBox>& clip)
+    const std::optional<raster::BBox>& clip,
+    ::chronon3d::EffectScratchResources* scratch)
 {
     if (length <= 0.0f) return;
 
@@ -203,7 +215,7 @@ void apply_directional_blur(
     if (std::abs(angle_degrees) < 0.001f ||
         std::abs(angle_degrees - 180.0f) < 0.001f ||
         std::abs(angle_degrees - 360.0f) < 0.001f) {
-        apply_directional_blur_horizontal(fb, length, samples, clip);
+        apply_directional_blur_horizontal(fb, length, samples, clip, scratch);
         return;
     }
 
@@ -211,29 +223,39 @@ void apply_directional_blur(
     constexpr float eps = 0.001f;
     if (std::abs(angle_degrees - 90.0f) < eps ||
         std::abs(angle_degrees - 270.0f) < eps) {
-        apply_directional_blur_vertical(fb, length, samples, clip);
+        apply_directional_blur_vertical(fb, length, samples, clip, scratch);
         return;
     }
 
     // ── Generic angle path ──
-    auto taps = generate_taps(angle_degrees, length, samples);
-    if (taps.size() <= 1) return;  // identity
+    std::vector<float> local_taps;
+    auto& taps = scratch ? scratch->directional_taps : local_taps;
+    generate_taps(angle_degrees, length, samples, taps);
+    if (taps.size() <= 3) return;  // identity (one dx/dy/weight triple)
 
-    auto temp = std::make_unique<Framebuffer>(w, h);
+    std::unique_ptr<Framebuffer> owned_temp;
+    Framebuffer* temp = nullptr;
+    if (scratch) {
+        scratch->ensure_size(w, h);
+        temp = scratch->framebuffer.get();
+    } else {
+        owned_temp = std::make_unique<Framebuffer>(w, h);
+        temp = owned_temp.get();
+    }
     temp->blit(fb, 0, 0);
 
     for (int y = y0; y < y1; ++y) {
         Color* dst_row = fb.pixels_row(y);
         for (int x = x0; x < x1; ++x) {
             float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
-            for (const auto& tap : taps) {
-                const float sx = static_cast<float>(x) + tap.dx;
-                const float sy = static_cast<float>(y) + tap.dy;
+            for (std::size_t tap = 0; tap + 2 < taps.size(); tap += 3) {
+                const float sx = static_cast<float>(x) + taps[tap];
+                const float sy = static_cast<float>(y) + taps[tap + 1];
                 const Color c = temp->sample_bilinear(sx, sy);
-                r += c.r * tap.weight;
-                g += c.g * tap.weight;
-                b += c.b * tap.weight;
-                a += c.a * tap.weight;
+                r += c.r * taps[tap + 2];
+                g += c.g * taps[tap + 2];
+                b += c.b * taps[tap + 2];
+                a += c.a * taps[tap + 2];
             }
             dst_row[x] = Color{r, g, b, a};
         }

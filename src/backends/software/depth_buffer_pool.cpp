@@ -63,12 +63,16 @@ DepthBufferPool::DepthBufferPool(DepthBufferPool&& other) noexcept
     : m_state(std::move(other.m_state))
 {
     if (!m_state) m_state = std::make_shared<State>();
+    // Keep the moved-from pool valid: callers may reuse a session-owned pool
+    // after a container move, and acquire() is specified to remain usable.
+    other.m_state = std::make_shared<State>();
 }
 
 DepthBufferPool& DepthBufferPool::operator=(DepthBufferPool&& other) noexcept {
     if (this != &other) {
         m_state = std::move(other.m_state);
         if (!m_state) m_state = std::make_shared<State>();
+        other.m_state = std::make_shared<State>();
     }
     return *this;
 }

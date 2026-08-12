@@ -37,6 +37,8 @@ class SoftwareRegistry;
 class ImageRenderer;
 class CurveCache;
 class DepthBufferPool;   // reusable depth buffer for mesh rasterization (session-scoped)
+namespace renderer { struct DofScratchBuffers; }
+struct EffectScratchResources;
 namespace image {
 class ImageBackend;
 } // namespace image
@@ -55,6 +57,8 @@ struct SoftwareProcessorContext {
     const RenderSettings*                            settings{nullptr};        // REQUIRED
     renderer::SoftwareRegistry*                      registry{nullptr};        // REQUIRED
     DepthBufferPool*                                 depth_buffer_pool{nullptr}; // mesh/fake-box depth buffer reuse
+    renderer::DofScratchBuffers*                     dof_scratch{nullptr};       // persistent DOF intermediates
+    EffectScratchResources*                          effect_scratch{nullptr};    // persistent scalar effect workspace
     image::ImageBackend*                             image_backend{nullptr};
     ImageRenderer*                                   image_renderer{nullptr};
     CurveCache*                                      curve_cache{nullptr};

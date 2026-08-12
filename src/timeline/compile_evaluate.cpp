@@ -255,7 +255,11 @@ evaluate(const CompiledComposition& compiled,
     FrameContext fc = context.frame_context.with_local_time(
         sample_time, context.frame_context.duration());
 
-    EvaluatedCompositionFrame result;
+    // Keep the evaluated scene in the slot-local resource.  Default
+    // constructing here would make the subsequent Scene move-assignment
+    // allocate from the process heap whenever the authored scene uses the
+    // frame arena.
+    EvaluatedCompositionFrame result(context.frame_context.resource);
     try {
         result.scene = def.scene(fc);
     } catch (const std::exception& e) {

@@ -40,7 +40,7 @@ struct ExecutionState {
     // One owner per compiler-assigned physical slot. Node results borrow
     // these objects with a RendererOwned deleter; the slot owners remain
     // alive until the frame ends, so aliasing cannot invalidate a result.
-    std::vector<OwnedFB> physical_slots;
+    std::pmr::vector<OwnedFB> physical_slots;
 
     CachedFB shared_transparent;
 
@@ -51,7 +51,8 @@ struct ExecutionState {
 
     explicit ExecutionState(std::pmr::memory_resource* res, NodeMemoryTracker* tracker = nullptr)
         : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),
-          resolved_cache_hit(res), resolved_bboxes(res), node_memory_tracker(tracker) {}
+          resolved_cache_hit(res), resolved_bboxes(res), physical_slots(res),
+          node_memory_tracker(tracker) {}
 };
 
 struct PreResolvedNode {

@@ -264,9 +264,13 @@ TEST_CASE("Camera near clipping: layer rotated 45 degrees crossing near plane") 
 
     auto projected = project_layer_2_5d(t, cam, 1920, 1080);
 
+    // The compound rotation also intersects the near plane.  As in the
+    // preceding case, clipped vertices are projected at kNearClipZ, so the
+    // finite bound is approximately focal_y / kNearClipZ (about 1e6 here),
+    // not the ordinary-depth bound used by non-clipped layers.
     CHECK(projected.visible);
     CHECK(std::isfinite(projected.perspective_scale));
-    CHECK(projected.perspective_scale < 10000.0f);
+    CHECK(projected.perspective_scale < 2'000'000.0f);
     CHECK(std::isfinite(projected.depth));
 }
 

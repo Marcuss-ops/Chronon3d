@@ -26,7 +26,8 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "mask",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame_input.frame,
+            .frame = cache_frame_for_policy(
+                cache_policy(), ctx.frame_input.frame, m_cache_frame),
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
             .params_hash = hash_combine(

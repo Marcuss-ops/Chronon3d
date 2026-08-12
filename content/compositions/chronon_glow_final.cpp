@@ -208,7 +208,9 @@ void build_chronon_glow_scene(
         }
 
         // Phase 2 cinematic glow (optional, gated by props.glow_enabled).
-        if (props.glow_enabled) {
+        // A zero-strength enabled glow is the authoring equivalent of the
+        // disabled path: do not enqueue zero-opacity glow/shadow passes.
+        if (props.glow_enabled && props.glow_strength > 0.0f) {
             chronon3d::content::text_reveal::apply_cinematic_glow(
                 l, default_cinematic_preset(props.glow_strength));
         }

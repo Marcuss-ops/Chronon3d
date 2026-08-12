@@ -16,6 +16,7 @@
 // The result is intentionally a value object so callers do not need a
 // second composition-evaluation helper with a parallel return shape.
 #include <optional>
+#include <memory_resource>
 
 #include <chronon3d/scene/model/core/scene.hpp>                  // Scene (canonical)
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>          // Camera2_5D
@@ -38,6 +39,10 @@ namespace chronon3d {
 //     brings in GLM math templates.  Acceptable for the V0.2 stage-in.
 // ─────────────────────────────────────────────────────────────────────────────
 struct EvaluatedCompositionFrame {
+    explicit EvaluatedCompositionFrame(
+        std::pmr::memory_resource* resource = std::pmr::get_default_resource())
+        : scene(resource) {}
+
     Scene                          scene{};
     std::optional<Camera2_5D>      camera{};
 };
