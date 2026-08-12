@@ -1,16 +1,11 @@
 // ==============================================================================
 // tests/render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
 //
-// PR2 — PerPixelDofNode render-graph integration tests (3 tests).
+// PR2 — PerPixelDofNode render-graph integration tests.
 //
-// Drives the full SoftwareRenderer pipeline and verifies pixel-level
-// outcomes.  RenderSettings does NOT expose a `dof` field; DoF state
-// lives on the Camera2_5DRuntime supplied to PerPixelDofNode.  These
-// tests cover:
-//   1. Smoke test: render composition → no crash, expected size.
-//   2. Determinism: two consecutive renders with same params = byte equal.
-//   3. Camera DoF variation: two scenes with different focus_z render
-//      differently (hash differs).
+// Drives the full SoftwareRenderer pipeline and verifies pixel-level and
+// depth-provenance outcomes. RenderSettings does NOT expose a `dof` field;
+// DoF state lives on the Camera2_5DRuntime supplied to PerPixelDofNode.
 // ==============================================================================
 
 #include <doctest/doctest.h>
@@ -24,6 +19,7 @@
 #include <chronon3d/scene/model/camera/camera_common_types.hpp>
 #include <tests/helpers/test_utils.hpp>
 
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -57,6 +53,28 @@ Composition make_dof_scene(bool far_bar) {
         });
 }
 
+Composition make_sparse_dof_scene() {
+    return composition({.width = 128, .height = 128, .duration = 1},
+        [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.camera().enable(true).dof(DepthOfFieldSettings{
+                .enabled = true,
+                .focus_z = 0.0f,
+                .aperture = 0.05f,
+                .max_blur = 24.0f
+            });
+            s.layer("sparse", [](LayerBuilder& l) {
+                l.position({0.0f, 0.0f, -800.0f});
+                l.rect("box", {
+                    .size = {24.0f, 24.0f},
+                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f}
+                });
+            });
+            return s.build();
+        });
+}
+
 TEST_CASE("PR2-RG-DoF: smoke render produces expected dimensions") {
     auto r = ctt::make_renderer();
     auto fb = r.render(make_dof_scene(false), 0);
@@ -81,4 +99,23 @@ TEST_CASE("PR2-RG-DoF: per-element z-range variation produces differing hashes")
     REQUIRE(fb_near != nullptr);
     REQUIRE(fb_far  != nullptr);
     CHECK(ctt::framebuffer_hash(*fb_near) != ctt::framebuffer_hash(*fb_far));
+}
+
+TEST_CASE("PR2-RG-DoF: untouched pixels are not classified as blur sources") {
+    constexpr uint64_t kPixels = 128ULL * 128ULL;
+
+    auto r = ctt::make_renderer();
+    r.reset_counters();
+    auto fb = r.render(make_sparse_dof_scene(), 0);
+    REQUIRE(fb != nullptr);
+
+    const uint64_t blur_sources = r.counters()->dof_blur_source_pixels.load(
+        std::memory_order_relaxed);
+
+    // Regression for the depth-provenance bug where OutputPass initialized
+    // every untouched pixel to z=0.  Zero is a valid world depth, so the DOF
+    // analyzer classified essentially the complete canvas as defocused.  A
+    // sparse scene must leave the vast majority of the depth plane unset.
+    CHECK(blur_sources > 0);
+    CHECK(blur_sources < kPixels / 4);
 }
