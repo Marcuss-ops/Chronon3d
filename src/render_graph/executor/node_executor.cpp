@@ -29,6 +29,7 @@ double run_node(
     const RenderGraphContext& ctx,
     FramebufferPool* parent_pool
 ) {
+    (void)parent_pool; // reclaim policy is carried by OwnedFB's deleter
     if (result) {
         return 0.001;
     }
@@ -65,30 +66,7 @@ double run_node(
         //    released to the pool.  Also skip caching — caching the scratch
         //    would allow stale content to survive past the frame boundary.
         const bool is_scratch = std::holds_alternative<ReturnToScratch>(owned.get_deleter().policy);
-
-        if (is_scratch) {
-            // Preserve the scratch deleter with its scratch_slot pointer.
-            // This ensures the buffer is cleared and returned to the slot
-            // when the last shared_ptr reference is dropped (arena cleanup).
-            PoolFbDeleter scratch_deleter = std::move(owned.get_deleter());
-            Framebuffer* raw = owned.release();
-            result = CachedFB(raw, std::move(scratch_deleter));
-        } else if (std::holds_alternative<RendererOwned>(owned.get_deleter().policy)) {
-            // Renderer-owned FB (e.g., ping-pong buffer): preserve the no-op
-            // deleter so the buffer is neither deleted nor returned to the pool.
-            // The renderer manages lifetime explicitly via RendererBufferRing.
-            PoolFbDeleter noop;
-            noop.policy = RendererOwned{};
-            Framebuffer* raw = owned.release();
-            result = CachedFB(raw, std::move(noop));
-        } else {
-            Framebuffer* raw = owned.release();
-            PoolFbDeleter deleter;
-            if (parent_pool) {
-                deleter = PoolFbDeleter{parent_pool->shared_from_this()};
-            }
-            result = CachedFB(raw, std::move(deleter));
-        }
+        result = promote_to_cached(std::move(owned));
 
         if (use_cache && ctx.services.node_cache && !is_scratch) {
             ctx.services.node_cache->store(key, result);

@@ -100,6 +100,17 @@ using OwnedFB = std::unique_ptr<Framebuffer, PoolFbDeleter>;
 // ---------------------------------------------------------------------------
 using CachedFB = std::shared_ptr<Framebuffer>;
 
+// Promote an OwnedFB to cache storage without changing its reclaim policy.
+// Ownership-wrapper changes must not turn an exact/deleter-owned framebuffer
+// into a general-pool resource (or otherwise reinterpret scratch/renderer
+// ownership). The PoolFbDeleter is the single source of truth for reclamation.
+inline CachedFB promote_to_cached(OwnedFB owned) {
+    if (!owned) return CachedFB{};
+    PoolFbDeleter deleter = std::move(owned.get_deleter());
+    Framebuffer* raw = owned.release();
+    return CachedFB(raw, std::move(deleter));
+}
+
 // ── TICKET-011-final ──────────────────────────────────────────────────────────
 // make_owned_fb_from_shared — free helper replacing the missing
 // `OwnedFB::from_shared_no_pool` static factory.  OwnedFB is a
