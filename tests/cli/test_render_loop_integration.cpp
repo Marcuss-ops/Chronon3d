@@ -49,6 +49,12 @@ static Composition make_integration_comp(int width, int height, int duration) {
     });
 }
 
+static CompiledComposition compile_integration_comp(const Composition& comp) {
+    auto result = compile_composition(comp, {});
+    REQUIRE(result.has_value());
+    return std::move(result).value();
+}
+
 /// Set up a renderer suitable for render loop integration tests.
 /// Uses the canonical create_renderer() factory instead of the
 /// deprecated SoftwareRenderer(Config{}) path.
@@ -86,7 +92,7 @@ static RenderLoopContext make_loop_context(
     SoftwareRenderer& renderer,
     cache::NodeCache& node_cache,
     const CompositionRegistry& registry,
-    const Composition& comp,
+    const CompiledComposition& compiled,
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
@@ -101,11 +107,11 @@ static RenderLoopContext make_loop_context(
         .settings = renderer.render_settings(),
         .registry = registry,
         .video_decoder = nullptr,
-        .comp = comp,
+        .compiled = compiled,
         .start = start,
         .end = end,
         .opts = opts,
-        .sw_renderer = renderer,  // P1-20 — bind reference (renderer is SoftwareRenderer&).
+        .sw_renderer = &renderer,
         .queue = queue,
         .writer_failed = writer_failed,
         .triple_arena = triple_arena,
@@ -124,6 +130,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, FRAMES);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -137,7 +144,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -167,6 +174,7 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, 1);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -176,7 +184,7 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         0, 1, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -210,6 +218,7 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, FRAMES);
+    auto compiled = compile_integration_comp(comp);
 
     CancellationToken token;
     FfmpegExportOptions opts;
@@ -223,7 +232,7 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -251,6 +260,7 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, FRAMES);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -259,7 +269,7 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -282,6 +292,7 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, FRAMES);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -295,7 +306,7 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -324,6 +335,7 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, 10);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -337,7 +349,7 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         START, END, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -366,6 +378,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, FRAMES);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -399,7 +412,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
@@ -423,6 +436,7 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
     cache::NodeCache node_cache;
     CompositionRegistry registry;
     Composition comp = make_integration_comp(W, H, 5);
+    auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
@@ -431,7 +445,7 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
-        *renderer, node_cache, registry, comp,
+        *renderer, node_cache, registry, compiled,
         5, 5, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
