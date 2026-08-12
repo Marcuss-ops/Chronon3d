@@ -7,6 +7,11 @@
 
 namespace chronon3d {
 
+/// Sentinel stored in the per-pixel DOF depth plane when no visible surface
+/// contributed to a pixel.  Zero is a valid world-space depth (and can be the
+/// focus plane), so it must never be used to mean "unset".
+inline constexpr float kUnsetDofDepth = 1e18f;
+
 /// Compute the physical Circle of Confusion radius in scene units (mm)
 /// for a point at `layer_world_z` given the lens and camera parameters.
 ///
