@@ -9,9 +9,11 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <atomic>
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace chronon3d::cache {
 
@@ -152,6 +154,18 @@ struct NodeCacheKeyHash {
     }
 };
 
+/// Diagnostics-only description of one resident node-cache entry.
+/// `bytes` is the physical framebuffer backing size; the logical dimensions
+/// come from the cache key and the allocated dimensions from the framebuffer.
+struct NodeCacheEntrySnapshot {
+    NodeCacheKey key{};
+    std::size_t logical_width{0};
+    std::size_t logical_height{0};
+    std::size_t allocated_width{0};
+    std::size_t allocated_height{0};
+    std::size_t bytes{0};
+};
+
 using FramebufferCache = LruCache<NodeCacheKey, std::shared_ptr<Framebuffer>, NodeCacheKeyHash>;
 
 class NodeCache {
@@ -185,6 +199,33 @@ public:
     
     [[nodiscard]] LruCache<NodeCacheKey, Value, NodeCacheKeyHash>::Stats stats() const { return m_cache.stats(); }
     [[nodiscard]] size_t size() const { return m_cache.stats().current_size; }
+
+    /// Return the largest resident entries by physical framebuffer weight.
+    /// Intended for benchmark/diagnostic reports; resident-entry hit counts
+    /// are intentionally not synthesized because LruCache tracks hits only
+    /// at aggregate level.
+    [[nodiscard]] std::vector<NodeCacheEntrySnapshot>
+    top_entries_by_weight(std::size_t limit = 10) const {
+        std::vector<NodeCacheEntrySnapshot> entries;
+        if (limit == 0) return entries;
+        m_cache.for_each([&entries](const NodeCacheKey& key, const Value& value, std::size_t) {
+            if (!value) return;
+            entries.push_back(NodeCacheEntrySnapshot{
+                .key = key,
+                .logical_width = key.width > 0 ? static_cast<std::size_t>(key.width) : 0,
+                .logical_height = key.height > 0 ? static_cast<std::size_t>(key.height) : 0,
+                .allocated_width = static_cast<std::size_t>(value->allocated_width()),
+                .allocated_height = static_cast<std::size_t>(value->allocated_height()),
+                .bytes = value->size_bytes(),
+            });
+        });
+        std::sort(entries.begin(), entries.end(), [](const auto& lhs, const auto& rhs) {
+            if (lhs.bytes != rhs.bytes) return lhs.bytes > rhs.bytes;
+            return lhs.key.digest() < rhs.key.digest();
+        });
+        if (entries.size() > limit) entries.resize(limit);
+        return entries;
+    }
     
     void set_capacity(size_t capacity_bytes);
 

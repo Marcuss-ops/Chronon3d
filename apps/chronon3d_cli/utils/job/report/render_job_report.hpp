@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/cache/node_cache.hpp>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@ struct RenderReportContext {
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> frames;
     uint64_t pool_current_bytes{0};
     uint64_t pool_available_count{0};
+    std::vector<chronon3d::cache::NodeCacheEntrySnapshot> node_cache_top_entries;
     std::string command_line;
 };
 

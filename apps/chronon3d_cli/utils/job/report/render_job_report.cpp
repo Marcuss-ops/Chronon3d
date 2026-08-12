@@ -347,6 +347,25 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
             << ": " << c.counter_value << "\n";
     }
 
+    // ── NodeCache physical-weight diagnostics ───────────────────────────
+    out << "\n--- NODE CACHE TOP ENTRIES BY PHYSICAL WEIGHT ---\n";
+    if (ctx.node_cache_top_entries.empty()) {
+        out << "entries: 0\n";
+    } else {
+        out << std::left << std::setw(18) << "Digest"
+            << std::setw(14) << "Scope"
+            << std::setw(16) << "Logical"
+            << std::setw(16) << "Allocated"
+            << "Bytes\n";
+        for (const auto& entry : ctx.node_cache_top_entries) {
+            out << std::left << std::setw(18) << entry.key.digest()
+                << std::setw(14) << entry.key.scope.substr(0, 13)
+                << std::setw(16) << fmt::format("{}x{}", entry.logical_width, entry.logical_height)
+                << std::setw(16) << fmt::format("{}x{}", entry.allocated_width, entry.allocated_height)
+                << entry.bytes << "\n";
+        }
+    }
+
     // ── Phase Durations ───────────────────────────────────────────────────
     out << "\n--- PHASE DURATIONS ---\n";
     for (const auto& p : phases) {

@@ -35,6 +35,7 @@ void commit_transparent_skip(
     std::string_view node_name,
     std::optional<raster::BBox> bbox_override)
 {
+    (void)parent_pool; // reclaim policy is carried by OwnedFB's deleter
     // ── Temp slot acquisition ───────────────────────────────────────────
     // TilePruned: riusa `state.shared_transparent` (no fresh 64×64 alloc,
     // preserva Cat-3 single SSoT + riduce allocazioni). EarlyExit:
@@ -50,12 +51,7 @@ void commit_transparent_skip(
         // (OwnershipManaged=false), ownership transferred al PoolFbDeleter.
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
-        Framebuffer* raw = owned_fb.release();
-        PoolFbDeleter deleter;
-        if (parent_pool) {
-            deleter = PoolFbDeleter{parent_pool->shared_from_this()};
-        }
-        state.temp[id] = CachedFB(raw, std::move(deleter));
+        state.temp[id] = promote_to_cached(std::move(owned_fb));
     }
 
     // ── Reset 4 slot resolved_* per il nodo skipped ─────────────────────

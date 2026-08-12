@@ -218,6 +218,7 @@ bool finalize_render_job(
         ctx.frames = telemetry_frames;
         ctx.pool_current_bytes = pool_current_bytes;
         ctx.pool_available_count = pool_available_count;
+        ctx.node_cache_top_entries = setup.renderer->node_cache().top_entries_by_weight(10);
         ctx.command_line = job.execution.command_line;
         generate_execution_report(ctx);
     }
