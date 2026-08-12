@@ -66,11 +66,125 @@
 
 namespace chronon3d::graph {
 
+namespace {
+
+constexpr float kUnsetDepth = 1e18f;
+constexpr float kVisibleBlurThreshold = 0.5f;
+
+struct DofActiveRegion {
+    bool depth_size_valid = false;
+    std::size_t blur_source_pixels = 0;
+    float max_radius = 0.0f;
+    std::optional<raster::BBox> clip;
+
+    // Preserve the existing diagnostics signal used by telemetry/debugging.
+    std::size_t non_neutral_depth = 0;
+    i32 depth_x0 = 0;
+    i32 depth_y0 = 0;
+    i32 depth_x1 = 0;
+    i32 depth_y1 = 0;
+};
+
+DofActiveRegion analyze_dof_active_region(
+    std::span<const float> depth,
+    i32 width,
+    i32 height,
+    const DepthOfFieldSettings& dof,
+    const LensModel& lens)
+{
+    DofActiveRegion region;
+    region.depth_x0 = width;
+    region.depth_y0 = height;
+
+    if (width <= 0 || height <= 0) {
+        return region;
+    }
+
+    const auto expected_size = static_cast<std::size_t>(width) *
+                               static_cast<std::size_t>(height);
+    if (depth.size() != expected_size) {
+        return region;
+    }
+    region.depth_size_valid = true;
+
+    i32 active_x0 = width;
+    i32 active_y0 = height;
+    i32 active_x1 = 0;
+    i32 active_y1 = 0;
+
+    for (i32 y = 0; y < height; ++y) {
+        for (i32 x = 0; x < width; ++x) {
+            const float z = depth[static_cast<std::size_t>(y) * width + x];
+
+            // Keep the historical diagnostic definition intact.  In
+            // particular, z == 0 (the common focus/background value) is not
+            // counted as non-neutral even though it is a valid depth sample.
+            if (std::abs(z) > 1e-4f && z < 1e17f) {
+                ++region.non_neutral_depth;
+                region.depth_x0 = std::min(region.depth_x0, x);
+                region.depth_y0 = std::min(region.depth_y0, y);
+                region.depth_x1 = std::max(region.depth_x1, x + 1);
+                region.depth_y1 = std::max(region.depth_y1, y + 1);
+            }
+
+            // kUnsetDepth means the compositor did not write a surface here.
+            // NaN/Inf are also rejected defensively: they are not meaningful
+            // scene depths and must never grow the processing region.
+            if (!std::isfinite(z) || z >= kUnsetDepth * 0.5f) {
+                continue;
+            }
+
+            const float radius = compute_dof_blur_radius(dof, lens, z);
+            if (!std::isfinite(radius) || radius < kVisibleBlurThreshold) {
+                continue;
+            }
+
+            ++region.blur_source_pixels;
+            region.max_radius = std::max(region.max_radius, radius);
+            active_x0 = std::min(active_x0, x);
+            active_y0 = std::min(active_y0, y);
+            active_x1 = std::max(active_x1, x + 1);
+            active_y1 = std::max(active_y1, y + 1);
+        }
+    }
+
+    if (region.blur_source_pixels == 0) {
+        return region;
+    }
+
+    // The kernel is source-driven: a defocused source can influence a
+    // destination at most max_radius pixels away in each separable pass.
+    // Expanding the tight source bbox by that radius therefore contains the
+    // complete horizontal + vertical blur halo while excluding unrelated
+    // full-frame background.  Cap the integer margin at the largest canvas
+    // dimension; anything larger already expands to the whole framebuffer.
+    const float capped_radius = std::min(
+        region.max_radius,
+        static_cast<float>(std::max(width, height)));
+    const i32 margin = std::max(
+        1, static_cast<i32>(std::ceil(capped_radius)));
+
+    raster::BBox clip{
+        std::max(0, active_x0 - margin),
+        std::max(0, active_y0 - margin),
+        std::min(width, active_x1 + margin),
+        std::min(height, active_y1 + margin)
+    };
+    if (!clip.is_empty()) {
+        region.clip = clip;
+    }
+    return region;
+}
+
+} // namespace
+
 NodeExecResult PerPixelDofNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes)
 {
+    (void)input_bboxes;
+
     // DOF mutates its destination in place.  Unlike a composite, it must
     // never take ownership of (and blur) its input: the input may still be
     // referenced by the graph cache or by the frame-lifetime state.  Disable
@@ -92,29 +206,11 @@ NodeExecResult PerPixelDofNode::execute(
 
     const auto& camera = camera_for(ctx);
     const auto& dof_depth = ctx.node_exec.dof_depth_buffer();
+
     if (ctx.policy.diagnostics_enabled) {
-        std::size_t non_neutral_depth = 0;
-        i32 depth_x0 = ctx.frame_input.width;
-        i32 depth_y0 = ctx.frame_input.height;
-        i32 depth_x1 = 0;
-        i32 depth_y1 = 0;
-        for (i32 y = 0; y < ctx.frame_input.height; ++y) {
-            for (i32 x = 0; x < ctx.frame_input.width; ++x) {
-                const float z = dof_depth[static_cast<size_t>(y) * ctx.frame_input.width + x];
-                if (std::abs(z) > 1e-4f && z < 1e17f) {
-                    ++non_neutral_depth;
-                    depth_x0 = std::min(depth_x0, x);
-                    depth_y0 = std::min(depth_y0, y);
-                    depth_x1 = std::max(depth_x1, x + 1);
-                    depth_y1 = std::max(depth_y1, y + 1);
-                }
-            }
-        }
         spdlog::info("[PerPixelDofNode] focus_z={:.1f} enabled={} dof_depth_size={} inputs_count={}",
             camera.dof.focus_z, camera.dof.enabled,
             dof_depth.size(), inputs.size());
-        spdlog::info("[PerPixelDofNode] non_neutral_depth={} bbox=[{}:{} -> {}:{}]",
-            non_neutral_depth, depth_x0, depth_y0, depth_x1, depth_y1);
     }
 
     if (inputs.empty() || !inputs[0]) {
@@ -127,22 +223,57 @@ NodeExecResult PerPixelDofNode::execute(
         return NodeExecResult{clone_input(*inputs[0])};
     }
 
-    // Check that the depth buffer was populated during compositing
+    // Check that the depth buffer was populated during compositing.
     if (dof_depth.empty()) {
-        // No depth data — fall through without blur
+        // No depth data — fall through without blur.
         return NodeExecResult{clone_input(*inputs[0])};
     }
 
     auto result = clone_input(*inputs[0]);
 
-    // DOF is a screen-space post-process over the complete composite. The
-    // source-driven kernel treats in-focus background pixels as point samples,
-    // while defocused text pixels spread according to their own depth. This
-    // avoids both layer-local double blur and sharp+blurred duplicate text.
-    const std::optional<raster::BBox> clip = std::nullopt;
+    // Find only sources that can produce a visible blur.  A focused background
+    // may legitimately have valid depth over the entire canvas; using all
+    // valid depth as the ROI would therefore collapse back to full-frame work.
+    // The O(width*height) scan is intentionally cheap compared with the
+    // O(width*height*radius) gather blur it removes.
+    const auto active_region = analyze_dof_active_region(
+        std::span<const float>{dof_depth},
+        ctx.frame_input.width,
+        ctx.frame_input.height,
+        camera.dof,
+        camera.lens);
 
-    // Apply per-pixel DOF blur via the render backend.
-    if (ctx.services.backend) {
+    if (ctx.policy.diagnostics_enabled) {
+        if (active_region.depth_size_valid) {
+            spdlog::info("[PerPixelDofNode] non_neutral_depth={} bbox=[{}:{} -> {}:{}]",
+                active_region.non_neutral_depth,
+                active_region.depth_x0, active_region.depth_y0,
+                active_region.depth_x1, active_region.depth_y1);
+            if (active_region.clip) {
+                spdlog::info(
+                    "[PerPixelDofNode] blur_source_pixels={} max_radius={:.2f} processing_bbox=[{}:{} -> {}:{}]",
+                    active_region.blur_source_pixels, active_region.max_radius,
+                    active_region.clip->x0, active_region.clip->y0,
+                    active_region.clip->x1, active_region.clip->y1);
+            } else {
+                spdlog::info(
+                    "[PerPixelDofNode] blur_source_pixels=0 max_radius=0.00 processing_bbox=empty");
+            }
+        } else {
+            spdlog::warn(
+                "[PerPixelDofNode] depth buffer size mismatch: got={} expected={}",
+                dof_depth.size(),
+                static_cast<std::size_t>(ctx.frame_input.width) *
+                    static_cast<std::size_t>(ctx.frame_input.height));
+        }
+    }
+
+    // A mismatched depth buffer is a no-op (same kernel contract as before).
+    // Likewise, if every valid source is in focus, there is no visible blur
+    // and we can skip the backend entirely instead of allocating its scratch
+    // buffers just to discover max_r < 0.5f again.
+    const std::optional<raster::BBox> clip = active_region.clip;
+    if (active_region.depth_size_valid && clip && ctx.services.backend) {
         // Explicit span-wrap: `ctx.node_exec.dof_depth` is `std::vector<float>`
         // (the executor owns the depth buffer for node lifetimes).  The kernel
         // signature took `std::vector<float>` historically; that forced
@@ -158,12 +289,13 @@ NodeExecResult PerPixelDofNode::execute(
 
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-        uint64_t area = static_cast<uint64_t>(ctx.frame_input.width) * ctx.frame_input.height;
+        uint64_t area = 0;
         if (clip) {
             raster::BBox clipped = *clip;
             clipped.clip_to(ctx.frame_input.width, ctx.frame_input.height);
             area = clipped.is_empty() ? 0
-                : static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
+                : static_cast<uint64_t>(clipped.x1 - clipped.x0) *
+                  static_cast<uint64_t>(clipped.y1 - clipped.y0);
         }
         ctx.node_exec.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
     }
