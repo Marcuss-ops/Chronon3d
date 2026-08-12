@@ -83,7 +83,7 @@ void finalize_video_settings(RenderJob& job) {
     }
 
 #if defined(__linux__)
-    if (job.video_settings.pipe_pixfmt == "rgba" &&
+    if (job.video_settings.pipe_pixfmt.empty() &&
         job.metadata.width % 2 == 0 && job.metadata.height % 2 == 0 &&
         job.video_settings.codec != "libx264rgb") {
         job.video_settings.pipe_pixfmt = "yuv420p";
@@ -123,6 +123,9 @@ std::optional<RenderRequest> make_render_request(
     request.settings.diagnostics.plan_output =
         args.pipeline.diagnostic_plan_output;
     request.video_settings = args.video_settings;
+    if (!args.pipe_pixfmt_explicit) {
+        request.video_settings.pipe_pixfmt.clear();
+    }
 
     const auto range = parse_frames(args.frames);
     request.frame_step = Frame{range.step};

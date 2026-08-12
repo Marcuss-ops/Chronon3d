@@ -54,8 +54,9 @@ void refresh_multi_source_node(
             .node = &src_node,
             .matrix = render_matrix,
             .opacity = render_opacity,
-            .defer_camera_projection = item.projected && !item.native_3d,
-            .apply_camera_projection = true,
+            .defer_camera_projection = item.projected && !item.native_3d &&
+                !item.layer->screen_space,
+            .apply_camera_projection = !item.layer->screen_space,
             .native_3d = item.native_3d,
         });
         aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));

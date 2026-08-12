@@ -210,6 +210,43 @@ TEST_CASE(
     CHECK_FALSE(result.error().message.empty());
 }
 
+TEST_CASE(
+    "TextRunNode static cache key is frame-invariant"
+) {
+    auto node = make_node("static_cache_key");
+    RenderGraphContext ctx = make_test_ctx(64, 64, nullptr);
+
+    ctx.frame_input.frame = Frame{3};
+    const auto first = node.cache_key(ctx);
+    ctx.frame_input.frame = Frame{97};
+    const auto second = node.cache_key(ctx);
+
+    CHECK(first.frame == Frame{0});
+    CHECK(second.frame == Frame{0});
+    CHECK(first.digest() == second.digest());
+}
+
+TEST_CASE(
+    "TextRunNode tight projected raster key ignores camera pose"
+) {
+    auto node = make_node("tight_projected_cache_key");
+    RenderGraphContext ctx = make_test_ctx(1920, 1080, nullptr);
+    TextRunPlacement placement;
+    placement.tight_surface = true;
+    placement.surface_origin = {12.0f, 18.0f};
+    placement.surface_size = {240.0f, 64.0f};
+    node.refresh_placement(node.render_node(), placement, cache::NodeCacheKey{}, std::nullopt);
+
+    ctx.frame_input.has_camera_2_5d = true;
+    ctx.frame_input.camera_2_5d.position = {0.0f, 0.0f, -1000.0f};
+    const auto first = node.cache_key(ctx);
+    ctx.frame_input.camera_2_5d.position = {0.0f, 0.0f, -120.0f};
+    ctx.frame_input.camera_2_5d.zoom = 1600.0f;
+    const auto second = node.cache_key(ctx);
+
+    CHECK(first.digest() == second.digest());
+}
+
 // =====================================================================
 // §2 — CapabilitiesOff surfaces NodeExecutionError on RETURN channel
 //      (capability gate short-circuits before draw_text_run)

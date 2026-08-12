@@ -723,6 +723,90 @@ TEST_CASE("FrameGraphCompiler - lifetimes computation") {
     CHECK(compiled.lifetimes[b].last_level > compiled.lifetimes[b].first_level);
 }
 
+TEST_CASE("FrameGraphCompiler - physical allocation plan colors transient intervals") {
+    RenderGraph graph;
+    const auto a = graph.add_node(std::make_unique<CompilerTestNode>(
+        "A", no_cache("transient-a")));
+    const auto b = graph.add_node(std::make_unique<CompilerTestNode>(
+        "B", no_cache("transient-b")));
+    const auto c = graph.add_node(std::make_unique<CompilerTestNode>(
+        "C", no_cache("transient-c")));
+    const auto d = graph.add_node(std::make_unique<CompilerTestNode>(
+        "D", no_cache("transient-d")));
+    const auto e = graph.add_node(std::make_unique<CompilerTestNode>(
+        "E", no_cache("transient-e")));
+    const auto output = graph.add_node(std::make_unique<CompilerTestNode>(
+        "Output", no_cache("output")));
+    graph.connect(a, b);
+    graph.connect(b, output);
+    graph.connect(c, d);
+    graph.connect(d, e);
+    graph.connect(e, output);
+    graph.set_output(output);
+
+    RenderGraphContext ctx;
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+    options.compute_lifetimes = true;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx, options);
+    REQUIRE(compiled.valid);
+    const auto& plan = compiled.physical_framebuffer_plan;
+
+    CHECK(plan.logical_resource_count == 6);
+    CHECK(plan.aliasable_resource_count == 5);
+    CHECK(plan.excluded_persistent_count == 1);
+    CHECK(plan.excluded_async_count == 0);
+    CHECK(plan.physical_slot_count < plan.aliasable_resource_count);
+    CHECK(plan.peak_live_resource_count == plan.physical_slot_count);
+    REQUIRE(plan.allocation_for(a) != nullptr);
+    REQUIRE(plan.allocation_for(b) != nullptr);
+    REQUIRE(plan.allocation_for(c) != nullptr);
+    REQUIRE(plan.allocation_for(d) != nullptr);
+    REQUIRE(plan.allocation_for(e) != nullptr);
+    REQUIRE(plan.allocation_for(output) != nullptr);
+    CHECK(plan.allocation_for(a)->aliasable);
+    CHECK(plan.allocation_for(b)->aliasable);
+    CHECK(plan.allocation_for(c)->aliasable);
+    CHECK(plan.allocation_for(d)->aliasable);
+    CHECK(plan.allocation_for(e)->aliasable);
+    CHECK_FALSE(plan.allocation_for(output)->aliasable);
+    CHECK(plan.allocation_for(a)->physical_slot ==
+          plan.allocation_for(e)->physical_slot);
+}
+
+TEST_CASE("FrameGraphCompiler - persistent and non-releasable resources are excluded") {
+    RenderGraph graph;
+    const auto persistent = graph.add_node(std::make_unique<CompilerTestNode>(
+        "persistent", static_memory_cache("persistent")));
+    const auto transient = graph.add_node(std::make_unique<CompilerTestNode>(
+        "transient", no_cache("transient")));
+    const auto output = graph.add_node(std::make_unique<CompilerTestNode>(
+        "output", no_cache("output")));
+    graph.connect(persistent, transient);
+    graph.connect(transient, output);
+    graph.set_output(output);
+
+    RenderGraphContext ctx;
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+    options.compute_lifetimes = true;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx, options);
+    REQUIRE(compiled.valid);
+    const auto& plan = compiled.physical_framebuffer_plan;
+    REQUIRE(plan.allocation_for(persistent) != nullptr);
+    REQUIRE(plan.allocation_for(transient) != nullptr);
+    CHECK(plan.allocation_for(persistent)->persistent);
+    CHECK_FALSE(plan.allocation_for(persistent)->aliasable);
+    CHECK_FALSE(plan.allocation_for(transient)->persistent);
+    CHECK(plan.allocation_for(transient)->aliasable);
+    CHECK(plan.excluded_persistent_count == 2);
+    CHECK(plan.excluded_async_count == 0);
+}
+
 TEST_CASE("FrameGraphCompiler - structure hash includes edges and output") {
     FrameGraphCompiler compiler;
     RenderGraphContext ctx;

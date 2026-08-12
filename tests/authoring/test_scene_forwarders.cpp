@@ -121,6 +121,8 @@ TEST_CASE("Authoring / Scene::screen_layer wraps the canonical Layer facade") {
     CHECK(invoked);
     chronon3d::Scene evaluated = builder.build();
     CHECK(scene_has_layer(evaluated, "overlay"));
+    REQUIRE(evaluated.layers().size() == 1);
+    CHECK(evaluated.layers().front().screen_space);
 }
 
 TEST_CASE("Authoring / Scene::precomp wraps the canonical Layer facade") {

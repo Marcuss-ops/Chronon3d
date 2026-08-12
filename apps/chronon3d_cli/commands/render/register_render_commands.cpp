@@ -140,7 +140,7 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
                     "Show FFmpeg logs");
     video->add_option("--pipe-pixfmt", args.video_settings.pipe_pixfmt,
                       "Pipe pixel format")
-        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12", "yuv444p"}));
+        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12"}));
     video->add_option("--color-output", args.video_settings.color_output,
                       "Output color space")
         ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
@@ -275,11 +275,14 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
 
     cmd->allow_windows_style_options();
     cmd->callback([
-        state, &ctx, tile_size, no_dirty_rects, motion_blur,
+        cmd, state, &ctx, tile_size, no_dirty_rects, motion_blur,
         motion_blur_mode, motion_blur_samples, warmup_framebuffers,
         diagnostic, program_cache_tune
     ]() {
         auto& render_args = *state->args;
+        if (auto* pipe_pixfmt = cmd->get_option("--pipe-pixfmt")) {
+            render_args.pipe_pixfmt_explicit = pipe_pixfmt->count() > 0;
+        }
         if (!state->plan_file.empty()) {
             ctx.exit_code = run_render_plan_file(
                 ctx, state->plan_file, render_args.output, render_args.assets_root);
