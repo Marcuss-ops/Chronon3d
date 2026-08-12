@@ -6,7 +6,7 @@
 // Created 2026-07-12 (commit 4c3687b5) — Test 17.a/17.b/17.c with frame-15-only hash.
 // Extended 2026-07-12 (this atomic chore commit `test(determinism): §16
 // repeatability + full-frame matrix`) for:
-//   - §16 REPEATABILITY (Test 17.d) — 3 consecutive `chronon3d_cli video` exports
+//   - §16 REPEATABILITY (Test 17.d) — 3 consecutive `chronon3d_cli render` video exports
 //     + `sha256sum` of all 60 raw PNG per run + `cmp repeat_1.hashes repeat_2.hashes`
 //     AND `cmp repeat_1.hashes repeat_3.hashes` MUST PASS (NO MISMATCH).
 //   - §17 SERIAL×PARALLEL EXTENSION (Test 17.e) — matrix CHRONON3D_THREADS
@@ -404,8 +404,9 @@ TEST_CASE("BruteDeterm-17.c: this binary is " BRUTE_TEST_BUILD_CONFIG " — runs
 }
 
 // ── Test 17.d — §16 REPEATABILITY (NEW this chore commit) ──────────────
-// 3 consecutive `chronon3d_cli video` exports of ChrononGlowFinalAE
-// --start 0 --end 60 --keep-frames --frames-dir output/repeat_<i> for i=1,2,3.
+// 3 consecutive `chronon3d_cli render` video exports of ChrononGlowFinalAE
+// --frames 0-60 -o output/repeat_<i>.mp4 --keep-frames
+// --frames-dir output/repeat_<i> for i=1,2,3.
 // Emit `sha256sum` over all 60 raw PNG per run. Pair-wise `cmp` must PASS.
 
 TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pair)") {
@@ -421,13 +422,15 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
     std::error_code ec;
     std::filesystem::remove_all(output_root, ec);
 
-    // Run 3 consecutive cli video exports.
+    // Run 3 consecutive canonical render video exports.
     for (int run = 1; run <= kCliExportCount; ++run) {
         const auto frames_dir = output_root / ("repeat_" + std::to_string(run));
+        const auto output = output_root / ("repeat_" + std::to_string(run) + ".mp4");
         std::ostringstream cmd;
         cmd << cli.value().string()
-            << " video ChrononGlowFinalAE"
-            << " --start 0 --end 60"
+            << " render ChrononGlowFinalAE"
+            << " --frames 0-60 -o " << output.string()
+            << " --ffmpeg-mode png"
             << " --keep-frames --frames-dir " << frames_dir.string();
         const int rc = std::system(cmd.str().c_str());
         INFO("run=" << run << " cmd=" << cmd.str() << " rc=" << rc);

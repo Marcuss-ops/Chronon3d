@@ -176,7 +176,10 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  i32 height) {
     CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
     m_counters.pixels_touched.fetch_add(clipped_area(width, height, to_local_clip(fb, state.clip_rect)), std::memory_order_relaxed);
-    const auto snapshot = software_registry().snapshot();
+    // The backend owns the immutable processor snapshot and refreshes it only
+    // when the registry generation changes. Creating a registry snapshot per
+    // shape dispatch allocates vectors/shared ownership in the render hot path.
+    const auto snapshot = m_runtime->backend().processor_snapshot();
     const auto processor = snapshot->shape_shared(snapshot->shape_handle(node.shape.type()));
     if (!processor) {
         spdlog::error("No processor registered for shape type");

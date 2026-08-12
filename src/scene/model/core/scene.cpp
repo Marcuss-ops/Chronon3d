@@ -19,8 +19,7 @@ namespace chronon3d {
 // ── Constructor / Destructor ────────────────────────────────────────────────
 
 Scene::Scene(std::pmr::memory_resource* res)
-    : m_nodes(res), m_layers(res), m_lights(rendering::LightContext::default_scene()),
-      m_camera_2_5d(std::make_unique<Camera2_5DRuntime>()) {}
+    : m_nodes(res), m_layers(res), m_lights(rendering::LightContext::default_scene()) {}
 
 Scene::~Scene() = default;
 
@@ -38,30 +37,49 @@ Scene Scene::clone() const {
     s.m_camera_descriptor = m_camera_descriptor;
     s.m_camera_program = m_camera_program;
     s.m_camera_timeline = m_camera_timeline;
-    if (m_camera_2_5d) {
-        s.m_camera_2_5d = std::make_unique<Camera2_5DRuntime>(*m_camera_2_5d);
-    }
+    s.m_camera_2_5d = m_camera_2_5d;
     return s;
 }
 
 // ── Camera accessors ────────────────────────────────────────────────────────
 
 void Scene::set_camera_2_5d(Camera2_5DRuntime camera) {
-    *m_camera_2_5d = std::move(camera);
+    m_camera_2_5d = std::move(camera);
 }
 
 const Camera2_5DRuntime& Scene::camera_2_5d() const {
-    return *m_camera_2_5d;
+    return m_camera_2_5d;
 }
 
 CameraProjectionSource Scene::camera_projection_source() const {
-    return CameraProjectionSource(*m_camera_2_5d);
+    return CameraProjectionSource(m_camera_2_5d);
 }
 
 // ── Hierarchy resolution (uses unified HierarchyResolver) ───────────────────
 
 void Scene::resolve_hierarchy(Frame frame) {
     if (m_hierarchy_baked) return;
+
+    // Most scenes do not contain a layer or camera hierarchy.  Keep this
+    // common path allocation-free: constructing the general resolver for an
+    // empty relation would otherwise allocate several temporary containers
+    // once per evaluated frame.
+    bool has_layer_hierarchy = false;
+    for (const auto& layer : m_layers) {
+        if (!layer.parent_name.empty()) {
+            has_layer_hierarchy = true;
+            break;
+        }
+    }
+    const bool has_camera_hierarchy =
+        m_camera_2_5d.enabled &&
+        (!m_camera_2_5d.parent_name.empty() ||
+         !m_camera_2_5d.target_name.empty());
+    if (!has_layer_hierarchy && !has_camera_hierarchy) {
+        for (auto& layer : m_layers) layer.hierarchy_resolved = true;
+        m_hierarchy_baked = true;
+        return;
+    }
 
     // 1. Build name→index map
     auto name_to_index = build_name_index(m_layers);
@@ -106,24 +124,24 @@ void Scene::resolve_hierarchy(Frame frame) {
     }
 
     // 5. Resolve camera hierarchy
-    if (m_camera_2_5d->enabled) {
-        if (!m_camera_2_5d->parent_name.empty()) {
-            auto it = name_to_index.find(std::string_view(m_camera_2_5d->parent_name));
+    if (m_camera_2_5d.enabled) {
+        if (!m_camera_2_5d.parent_name.empty()) {
+            auto it = name_to_index.find(std::string_view(m_camera_2_5d.parent_name));
             if (it != name_to_index.end()) {
                 std::size_t parent_idx = it->second;
                 const Mat4& parent_world = results.at(parent_idx).world_matrix;
 
-                Mat4 local_cam_mat = glm::translate(Mat4(1.0f), m_camera_2_5d->position) *
-                                     glm::toMat4(math::camera_rotation_quat(m_camera_2_5d->rotation));
+                Mat4 local_cam_mat = glm::translate(Mat4(1.0f), m_camera_2_5d.position) *
+                                     glm::toMat4(math::camera_rotation_quat(m_camera_2_5d.rotation));
                 Mat4 world_cam_mat = parent_world * local_cam_mat;
                 Transform world_cam_trans = from_mat4(world_cam_mat);
-                m_camera_2_5d->position = world_cam_trans.position;
-                m_camera_2_5d->rotation = math::camera_rotation_euler(world_cam_trans.rotation);
+                m_camera_2_5d.position = world_cam_trans.position;
+                m_camera_2_5d.rotation = math::camera_rotation_euler(world_cam_trans.rotation);
             }
         }
 
-        if (!m_camera_2_5d->target_name.empty()) {
-            auto it = name_to_index.find(std::string_view(m_camera_2_5d->target_name));
+        if (!m_camera_2_5d.target_name.empty()) {
+            auto it = name_to_index.find(std::string_view(m_camera_2_5d.target_name));
             if (it != name_to_index.end()) {
                 std::size_t target_idx = it->second;
                 // The layer transform has already been decomposed into
@@ -134,12 +152,12 @@ void Scene::resolve_hierarchy(Frame frame) {
                 const Mat4 linear = glm::toMat4(baked_target.rotation) *
                     glm::scale(Mat4(1.0f), baked_target.scale);
                 const Vec4 offset = linear * Vec4(baked_target.anchor, 0.0f);
-                m_camera_2_5d->point_of_interest = baked_target.position +
+                m_camera_2_5d.point_of_interest = baked_target.position +
                     Vec3{2.0f * offset.x, 2.0f * offset.y, 2.0f * offset.z};
-                m_camera_2_5d->point_of_interest_enabled = true;
+                m_camera_2_5d.point_of_interest_enabled = true;
             }
         }
-        m_camera_2_5d->hierarchy_baked = true;
+        m_camera_2_5d.hierarchy_baked = true;
     }
 
     m_hierarchy_baked = true;

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <chronon3d/core/types/frame.hpp>
 
 namespace chronon3d::graph {
 
@@ -58,6 +59,15 @@ struct RenderNodeCachePolicy {
         return mode == CacheMode::FrameInvariantMemory;
     }
 };
+
+/// Canonical frame component for a node cache key.
+[[nodiscard]] constexpr Frame cache_frame_for_policy(
+    const RenderNodeCachePolicy& policy,
+    Frame evaluated_frame,
+    Frame explicit_frame = Frame{-1}) noexcept {
+    if (!policy.frame_dependent()) return Frame{0};
+    return explicit_frame.integral() >= 0 ? explicit_frame : evaluated_frame;
+}
 
 // ---------------------------------------------------------------------------
 // Canonical factory helpers (constexpr noexcept, string_view reason)

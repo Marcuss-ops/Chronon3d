@@ -9,6 +9,8 @@
 #include <chronon3d/math/color.hpp>
 #include <optional>
 
+namespace chronon3d { struct EffectScratchResources; }
+
 namespace chronon3d::renderer {
 
 /// Compute the bounding-box expansion needed for a directional blur.
@@ -25,6 +27,7 @@ void apply_directional_blur(
     float angle_degrees,
     float length,
     int samples = 0,
-    const std::optional<raster::BBox>& clip = std::nullopt);
+    const std::optional<raster::BBox>& clip = std::nullopt,
+    ::chronon3d::EffectScratchResources* scratch = nullptr);
 
 } // namespace chronon3d::renderer

@@ -67,6 +67,8 @@ inline SceneBuilder::SceneBuilder(const FrameContext& ctx,
       m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {
     if (shape_registry) {
         m_shape_registry = shape_registry;
+    } else if (ctx.shape_registry) {
+        m_shape_registry = ctx.shape_registry;
     } else {
         m_own_shape_registry.emplace(registry::make_default_shape_registry());
         m_shape_registry = &*m_own_shape_registry;

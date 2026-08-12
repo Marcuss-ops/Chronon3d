@@ -115,6 +115,14 @@ void FrameGraphCompiler::build_node_metadata(
     compiled.processor_snapshot = ctx.services.backend
         ? ctx.services.backend->processor_snapshot()
         : nullptr;
+    // Standalone graph callers may provide a backend without going through
+    // scene_context_setup(), leaving the optional context generation at its
+    // zero sentinel. In that case the owning backend snapshot is the
+    // canonical registry generation; use it rather than rejecting a valid
+    // graph at the compiler boundary.
+    if (ctx.services.registry_generation == 0 && compiled.processor_snapshot) {
+        ctx.services.registry_generation = compiled.processor_snapshot->generation();
+    }
     compiled.registry_generation = ctx.services.registry_generation;
     compiled.processor_snapshot_identity = compiled.processor_snapshot
         ? compiled.processor_snapshot->identity()

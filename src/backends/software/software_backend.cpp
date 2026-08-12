@@ -101,6 +101,9 @@ void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx
     m_processor_snapshot = m_proc_ctx.registry
         ? m_proc_ctx.registry->snapshot()
         : nullptr;
+    m_processor_snapshot_generation = m_processor_snapshot
+        ? m_processor_snapshot->generation()
+        : 0;
     m_registry_lifetime = m_proc_ctx.registry
         ? m_proc_ctx.registry->lifetime_token()
         : std::weak_ptr<const void>{};
@@ -153,9 +156,13 @@ SoftwareBackend::processor_snapshot() const noexcept {
     if (m_proc_ctx.registry && !m_registry_lifetime.expired()) {
         // Refresh only while the mutable registry is alive. The owning
         // snapshot remains available if the engine is already shutting down.
-        const auto current = m_proc_ctx.registry->snapshot();
-        if (current) {
-            m_processor_snapshot = current;
+        if (!m_processor_snapshot ||
+            m_processor_snapshot_generation != m_proc_ctx.registry->generation()) {
+            const auto current = m_proc_ctx.registry->snapshot();
+            if (current) {
+                m_processor_snapshot = current;
+                m_processor_snapshot_generation = current->generation();
+            }
         }
     }
     return m_processor_snapshot;
@@ -272,6 +279,7 @@ void SoftwareBackend::apply_effect_stack(
     local_context.clip = local_clip;
     local_context.curve_cache = m_proc_ctx.curve_cache;
     local_context.counters = m_counters;
+    local_context.effect_scratch = m_proc_ctx.effect_scratch;
 
     if (context.processors_resolved) {
         // Compiled graph path: processor identities were resolved once by the
@@ -324,7 +332,8 @@ void SoftwareBackend::apply_per_pixel_dof(
     const std::optional<raster::BBox>& clip) {
     // Forward the incoming (non-owning) span directly to the kernel.
     // No copy: 2,073,600 floats × 4 B = 8 MiB saved per dispatch at 1920×1080.
-    renderer::apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
+    renderer::apply_per_pixel_dof(
+        framebuffer, depth, dof, lens, clip, m_proc_ctx.dof_scratch);
 }
 
 // ── draw_text_run (06 R3b wire-through — routes to renderer::draw_text_run) ─
