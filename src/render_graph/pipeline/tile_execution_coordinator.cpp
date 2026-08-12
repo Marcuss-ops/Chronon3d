@@ -24,6 +24,7 @@
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <spdlog/spdlog.h>
+#include <cmath>
 #include <stdexcept>
 #include <vector>
 
@@ -80,29 +81,25 @@ TileExecutionResult execute_tile_or_fallback(
         }
 
         // ── Tile execution ──────────────────────────────────────────────
+        // The tile path must execute only the coalesced dirty regions.  A
+        // previous implementation selected this branch but ran the complete
+        // graph with an unclipped context, making the tile counters merely an
+        // estimate and paying full-frame work while reporting pixels skipped.
         {
             CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
+            const auto tile_start = profiling::now();
             const int total_tiles = dirty_out.tile_grid
                 ? dirty_out.tile_grid->tile_count() : 0;
-            RenderGraphContext full_ctx = ctx;
-            full_ctx.node_exec.clip_rect.reset();
-            full_ctx.node_exec.active_tile_clip.reset();
-            full_ctx.policy.reuse_prev_framebuffer = false;
-            full_ctx.policy.dirty_rects_enabled = false;
-            if (!sw_renderer || !sw_renderer->has_runtime()) {
-                throw std::logic_error(
-                    "tile execution requires the RenderRuntime-owned GraphExecutor");
-            }
-            result.fb = sw_renderer->runtime().executor().execute_with_scope(
-                compiled, full_ctx, root_scope, sw_renderer->scheduler());
-            const int dirty_count = dirty_out.dirty_tiles
-                ? dirty_out.dirty_tiles->dirty_count() : 0;
+            const auto tile_result = detail::execute_dirty_tiles(
+                compiled, ctx, sw_renderer, dirty_out, *result.fb,
+                width, height, settings.dirty.parallel_tiles, root_scope);
+            const int dirty_count = tile_result.dirty_count;
             const int clean_count = std::max(0, total_tiles - dirty_count);
             const uint64_t total_pixels = static_cast<uint64_t>(width) * height;
-            const uint64_t tile_area = static_cast<uint64_t>(std::max(1, settings.dirty.tile_size)) *
-                static_cast<uint64_t>(std::max(1, settings.dirty.tile_size));
             const uint64_t pixels_rendered = std::min(
-                total_pixels, static_cast<uint64_t>(dirty_count) * tile_area);
+                total_pixels, tile_result.pixels_rendered);
+            const auto tile_elapsed_ms = static_cast<uint64_t>(std::llround(
+                std::max(0.0, profiling::duration_ms(tile_start, profiling::now()))));
 
             if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
                 const auto& dirty = *dirty_out.dirty_rect;
@@ -124,14 +121,35 @@ TileExecutionResult execute_tile_or_fallback(
                     ? total_pixels - pixels_rendered : 0;
                 ctx.node_exec.counters->tile_pixels_skipped.fetch_add(
                     pixels_skipped, std::memory_order_relaxed);
+                ctx.node_exec.counters->tile_regions_executed.fetch_add(
+                    tile_result.regions_executed, std::memory_order_relaxed);
+                ctx.node_exec.counters->tile_region_pixels.fetch_add(
+                    pixels_rendered, std::memory_order_relaxed);
+                ctx.node_exec.counters->tile_execution_ms.fetch_add(
+                    tile_elapsed_ms, std::memory_order_relaxed);
             }
 
             if (ctx.policy.diagnostics_enabled) {
-                spdlog::info("[tile-debug] frame={} tile_total={} tile_dirty={}",
-                    static_cast<int>(frame), total_tiles, dirty_count);
+                spdlog::info("[tile-debug] frame={} tile_total={} tile_dirty={} regions={} pixels_rendered={} elapsed_ms={}",
+                    static_cast<int>(frame), total_tiles, dirty_count,
+                    tile_result.regions_executed, pixels_rendered, tile_elapsed_ms);
             }
         }
     } else {
+        // A cost-model rejection is a real execution-mode switch, not a
+        // dirty-region fallback.  Keeping dirty clipping enabled here would
+        // make a non-tiled execution render only the changed regions into a
+        // fresh framebuffer (especially when ping-pong is unavailable),
+        // leaving the untouched canvas transparent.  A rejected tile plan
+        // therefore has to use the ordinary full-frame contract.
+        if (tile_decision.reason_if_disabled == "cost_model_tile_slower") {
+            ctx.policy.dirty_rects_enabled = false;
+            ctx.policy.reuse_prev_framebuffer = false;
+            ctx.policy.skip_initial_clear = false;
+            ctx.node_exec.clip_rect.reset();
+            ctx.node_exec.dirty_rect.reset();
+        }
+
         // ── Traditional single-pass execution ───────────────────────────
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);

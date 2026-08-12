@@ -36,6 +36,12 @@ struct ExecutionState {
     std::pmr::vector<char> resolved_frame_dependent;
     std::pmr::vector<char> resolved_cache_hit;
     std::pmr::vector<std::optional<raster::BBox>> resolved_bboxes;
+
+    // One owner per compiler-assigned physical slot. Node results borrow
+    // these objects with a RendererOwned deleter; the slot owners remain
+    // alive until the frame ends, so aliasing cannot invalidate a result.
+    std::vector<OwnedFB> physical_slots;
+
     CachedFB shared_transparent;
 
     // Per-session reporter for text-bbox expansion warnings.  Lives for the

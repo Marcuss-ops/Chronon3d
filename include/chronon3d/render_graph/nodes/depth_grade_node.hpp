@@ -43,7 +43,11 @@ public:
         h = hash_combine(h, hash_value(m_layer_world_z));
         return cache::NodeCacheKey{
             .scope = "depth_grade",
-            .frame = ctx.frame_input.frame,
+            // Depth grade parameters and layer depth are immutable for this
+            // node.  Its static cache policy must therefore use one stable
+            // frame key; otherwise every rendered frame retains a duplicate
+            // full-surface entry and defeats semantic cache reuse.
+            .frame = Frame{0},
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
             .params_hash = h

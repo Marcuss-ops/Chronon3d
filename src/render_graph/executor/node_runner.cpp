@@ -211,6 +211,16 @@ void execute_single_node(
     // would both break DOF correctness and recreate the old allocation cost.
     const auto t_clone0 = profiling::now();
     auto node_ctx = ctx.clone_for_node_execution();
+    node_ctx.node_exec.planned_physical_slot = nullptr;
+    if (id < compiled.physical_framebuffer_plan.resources.size()) {
+        const auto& allocation = compiled.physical_framebuffer_plan.resources[id];
+        if (allocation.aliasable &&
+            allocation.physical_slot != kInvalidPhysicalFramebufferSlot &&
+            allocation.physical_slot < state.physical_slots.size()) {
+            node_ctx.node_exec.planned_physical_slot =
+                &state.physical_slots[allocation.physical_slot];
+        }
+    }
     // Bind processor metadata on the node-local clone, not on the shared
     // frame context. Nodes in the same execution level may run concurrently;
     // writing the shared span before cloning allowed one node to overwrite

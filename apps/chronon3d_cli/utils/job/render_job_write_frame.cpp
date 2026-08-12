@@ -7,9 +7,11 @@
 #include "../common/render_error_formatter.hpp"
 
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
 
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <system_error>
 
 // TICKET-RENDER-PIPELINE-INTEGRITY: pre-write framebuffer sanity scan shared
@@ -17,6 +19,88 @@
 #include "render_job_write_frame_sanity.hpp"
 
 namespace chronon3d::cli {
+
+namespace {
+
+std::string text_layout_json_path(const std::string& pattern, Frame frame) {
+    const std::string suffix = std::to_string(frame.integral());
+    std::string path = pattern;
+    const auto marker = path.find("####");
+    if (marker != std::string::npos) {
+        path.replace(marker, 4, suffix);
+        return path;
+    }
+    const std::filesystem::path input(path);
+    const auto stem = input.stem().string();
+    const auto ext = input.extension().string();
+    const auto parent = input.parent_path();
+    const auto filename = stem + "_" + suffix + ext;
+    return (parent / filename).string();
+}
+
+bool write_text_layout_json(SoftwareRenderer& renderer,
+                            const Framebuffer& framebuffer,
+                            Frame frame) {
+    const auto& settings = renderer.render_settings();
+    if (settings.text_layout_debug_json_path.empty()) return true;
+
+    nlohmann::json root{
+        {"schema_version", 1},
+        {"frame", frame.integral()},
+        {"width", framebuffer.width()},
+        {"height", framebuffer.height()},
+        {"text_runs", nlohmann::json::array()}
+    };
+    auto& runs = root["text_runs"];
+    for (const auto& snapshot : renderer.text_audit_snapshots()) {
+        const auto& b = snapshot.predicted_bbox;
+        const auto& c = snapshot.clip_rect;
+        nlohmann::json matrix = nlohmann::json::array();
+        for (int col = 0; col < 4; ++col) {
+            nlohmann::json row = nlohmann::json::array();
+            for (int row_index = 0; row_index < 4; ++row_index) {
+                row.push_back(snapshot.world_matrix[col][row_index]);
+            }
+            matrix.push_back(std::move(row));
+        }
+        nlohmann::json run = nlohmann::json::object();
+        run["name"] = snapshot.name;
+        run["predicted_bbox"] = {
+            {"x0", b.origin.x}, {"y0", b.origin.y},
+            {"width", b.size.x}, {"height", b.size.y}
+        };
+        run["clip_rect"] = {
+            {"x0", c.origin.x}, {"y0", c.origin.y},
+            {"width", c.size.x}, {"height", c.size.y}
+        };
+        run["world_matrix"] = std::move(matrix);
+        runs.push_back(std::move(run));
+    }
+
+    const std::string path = text_layout_json_path(
+        settings.text_layout_debug_json_path, frame);
+    const std::filesystem::path output(path);
+    if (output.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(output.parent_path(), ec);
+        if (ec) {
+            spdlog::error("Cannot create text layout JSON directory '{}': {}",
+                          output.parent_path().string(), ec.message());
+            return false;
+        }
+    }
+    std::ofstream file(path);
+    if (!file) {
+        spdlog::error("Cannot write text layout JSON: {}", path);
+        return false;
+    }
+    file << root.dump(2) << '\n';
+    spdlog::info("Text layout JSON written to {} ({} TextRun snapshots)",
+                 path, runs.size());
+    return true;
+}
+
+} // namespace
 
 bool write_render_frame(const CompiledComposition& compiled,
                         SoftwareRenderer& renderer,
@@ -57,6 +141,11 @@ bool write_render_frame(const CompiledComposition& compiled,
     const bool cache_hit = (hits_after > hits_before);
     const double render_ms = profiling::duration_ms(t0, t1);
     total_render_ms += render_ms;
+
+    if (!write_text_layout_json(renderer, *fb, frame)) {
+        ok = false;
+        return false;
+    }
 
     const int prog_cache_cap = static_cast<int>(
         renderer.counters()

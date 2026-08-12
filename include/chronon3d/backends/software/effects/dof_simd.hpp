@@ -17,6 +17,8 @@ namespace chronon3d::renderer {
 void dof_h_gather_simd(const Color* __restrict src_row,
                        Color* __restrict dst_row,
                        const float* __restrict blur_radii_row,
+                       float max_radius,
+                       bool normalize_opaque,
                        int x0, int x1, int w, int y, int fb_w);
 
 /// SIMD vertical gather: for a row of pixels, gather from columns within
@@ -26,6 +28,8 @@ void dof_h_gather_simd(const Color* __restrict src_row,
 void dof_v_gather_simd(const Color* __restrict hpass,
                        Color* __restrict output,
                        const float* __restrict blur_radii,
+                       float max_radius,
+                       bool normalize_opaque,
                        int x0, int x1, int y, int h, int fb_w);
 
 }  // namespace chronon3d::renderer

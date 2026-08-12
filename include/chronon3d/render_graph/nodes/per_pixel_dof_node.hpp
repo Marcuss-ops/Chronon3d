@@ -64,7 +64,16 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override {
         const auto& camera = camera_for(ctx);
-        // DOF blur expands the bounding box by max_blur pixels.
+        // DOF is a scene-level post-process. It reads the already composited
+        // framebuffer and depth field, so its output is not bounded by the
+        // text/layer bbox: the background can participate in the blur too.
+        // Advertising the full canvas also prevents the executor from
+        // discarding the full-frame result after execute().
+        if (camera.dof.enabled) {
+            return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+        }
+
+        // Disabled DOF remains a pass-through and may retain the input bbox.
         if (input_bboxes.empty() || !input_bboxes[0]) {
             return std::nullopt;
         }

@@ -21,6 +21,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/model/camera/camera_common_types.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
@@ -33,6 +34,12 @@ Composition make_dof_scene(bool far_bar) {
     return composition({.width = 256, .height = 256, .duration = 1},
         [far_bar](const FrameContext& ctx) {
             SceneBuilder s(ctx);
+            s.camera().enable(true).dof(DepthOfFieldSettings{
+                .enabled = true,
+                .focus_z = 0.0f,
+                .aperture = 0.05f,
+                .max_blur = 24.0f
+            });
             s.layer("bg", [](LayerBuilder& l) {
                 l.fill(Color{0.05f, 0.07f, 0.10f, 1.0f});
             });

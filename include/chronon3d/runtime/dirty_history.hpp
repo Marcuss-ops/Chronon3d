@@ -31,6 +31,8 @@
 // ---------------------------------------------------------------------------
 
 #include <cstdint>
+#include <cmath>
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -82,6 +84,30 @@ struct DirtyHistory {
     bool last_tile_execution_used{false};
     bool last_fast_path_reused{false};
     bool last_graph_reused{false};
+
+    // Empirical execution-cost model.  The first samples are deliberately
+    // observational: the policy needs at least two samples for each path
+    // before it is allowed to reject tiled execution.  This avoids replacing
+    // a measured decision with a resolution- or scene-specific magic number.
+    double full_frame_exec_ms_ewma{0.0};
+    double tile_exec_ms_ewma{0.0};
+    std::uint32_t full_frame_cost_samples{0};
+    std::uint32_t tile_cost_samples{0};
+
+    void record_execution_cost(bool tile_path, double elapsed_ms) noexcept {
+        if (!std::isfinite(elapsed_ms) || elapsed_ms < 0.0) return;
+        constexpr double kAlpha = 0.25;
+        double& ewma = tile_path ? tile_exec_ms_ewma : full_frame_exec_ms_ewma;
+        auto& samples = tile_path ? tile_cost_samples : full_frame_cost_samples;
+        ewma = samples == 0 ? elapsed_ms : (kAlpha * elapsed_ms + (1.0 - kAlpha) * ewma);
+        ++samples;
+    }
+
+    [[nodiscard]] bool tile_cost_model_ready() const noexcept {
+        return full_frame_cost_samples >= 2 && tile_cost_samples >= 2 &&
+               std::isfinite(full_frame_exec_ms_ewma) &&
+               std::isfinite(tile_exec_ms_ewma);
+    }
 
     // ── Per-layer bbox history (WP-3 PR 3.2 — folded from RendererLayerHistory) ──
     //

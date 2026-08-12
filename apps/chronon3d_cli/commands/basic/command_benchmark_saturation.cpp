@@ -23,6 +23,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/simd/cpu_isa.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -224,7 +225,10 @@ double percentile(const std::vector<double>& sorted, double pct) {
 } // namespace
 
 int command_benchmark_saturation(const CompositionRegistry& registry, const CliContext& ctx,
-                                  const std::string& scene, int duration_sec) {
+                                  const std::string& scene, int duration_sec,
+                                  const std::string& report_json,
+                                  int motion_blur_mode,
+                                  int motion_blur_samples) {
     // ── Resolve and compile the composition ────────────────────────────
     if (!registry.contains(scene)) {
         spdlog::error("Unknown composition: {}", scene);
@@ -245,6 +249,10 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     RenderSettings settings;
     // Enable dirty rects for better performance.
     settings.dirty.enabled = true;
+    settings.motion_blur.mode = static_cast<MotionBlurMode>(motion_blur_mode);
+    settings.motion_blur.samples = motion_blur_samples;
+    settings.motion_blur.shutter_angle_deg = 180.0f;
+    settings.motion_blur.shutter_phase_deg = -90.0f;
     auto renderer = create_renderer(registry, settings);
 
     // ── Warm-up ─────────────────────────────────────────────────────────
@@ -301,6 +309,10 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     const uint64_t total_ctx_sw = (proc_end.voluntary_cs + proc_end.involuntary_cs)
                                    - (proc_start.voluntary_cs + proc_start.involuntary_cs);
     const uint64_t peak_rss_kb = proc_end.peak_rss_kb;
+    const auto pool_stats = renderer->framebuffer_pool()
+        ? renderer->framebuffer_pool()->stats()
+        : cache::FramebufferPoolStats{};
+    const auto node_cache_stats = renderer->node_cache().stats();
 
     // ── Compute derived metrics ─────────────────────────────────────────
     // Sort frame times for percentiles.
@@ -342,6 +354,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     out << "Composition................. " << scene << "\n";
     out << "Duration.................... " << duration_sec << " s\n";
     out << "Rendered frames............. " << total_frames << "\n";
+    out << "Motion blur................. mode=" << motion_blur_mode
+        << " samples=" << motion_blur_samples << "\n";
     out << "\n";
 
     out << "CPU\n";
@@ -381,7 +395,187 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     out << "Framebuffer copies/frame.... " << copies_per_frame << "\n";
     out << "Full-frame passes........... " << passes_per_frame << "\n";
     out << "Peak RSS.................... " << peak_rss_mb << " MB\n";
+    out << "FB pool current............. " << pool_stats.current_bytes / (1024 * 1024) << " MB\n";
+    out << "FB pool retained............ " << pool_stats.retained_bytes / (1024 * 1024) << " MB\n";
+    out << "FB pool available........... " << pool_stats.available_count << "\n";
+    out << "FB pool allocations......... " << pool_stats.total_allocations << "\n";
+    out << "FB pool reuses.............. " << pool_stats.total_reuses << "\n";
+    out << "FB pool clears.............. " << pool_stats.total_clears << "\n";
+    out << "FB pool evictions........... " << pool_stats.evicted_count << "\n";
+    out << "FB pool size classes........ " << pool_stats.size_class_count << "\n";
+    out << "Node cache entries.......... " << node_cache_stats.current_size << "\n";
+    out << "Node cache weight........... " << node_cache_stats.current_weight / (1024 * 1024) << " MB\n";
+    out << "Node cache hits............. " << node_cache_stats.hits << "\n";
+    out << "Node cache misses........... " << node_cache_stats.misses << "\n";
+    out << "Node cache evictions........ " << node_cache_stats.evictions << "\n";
     out << "\n";
+
+    const auto* render_counters = renderer->counters();
+
+    out << "INVALIDATION / COST\n";
+    out << "Dirty union pixels.......... "
+        << (render_counters ? render_counters->dirty_union_area_pixels.load() : 0)
+        << "\n";
+    out << "Dirty pixels................ "
+        << (render_counters ? render_counters->dirty_pixels.load() : 0)
+        << "\n";
+    out << "Dirty rect full fallbacks... "
+        << (render_counters ? render_counters->dirty_full_fallbacks.load() : 0)
+        << "\n";
+    out << "Tile dirty count............. "
+        << (render_counters ? render_counters->tile_dirty_count.load() : 0)
+        << "\n";
+    out << "Tile clean count............. "
+        << (render_counters ? render_counters->tile_clean_count.load() : 0)
+        << "\n";
+    out << "Tile pixels rendered......... "
+        << (render_counters ? render_counters->tile_pixels_rendered.load() : 0)
+        << "\n";
+    out << "Tile pixels skipped.......... "
+        << (render_counters ? render_counters->tile_pixels_skipped.load() : 0)
+        << "\n";
+    out << "Tile full fallbacks.......... "
+        << (render_counters ? render_counters->tile_full_fallbacks.load() : 0)
+        << "\n";
+    out << "Tile regions executed........ "
+        << (render_counters ? render_counters->tile_regions_executed.load() : 0)
+        << "\n";
+    out << "Tile region pixels........... "
+        << (render_counters ? render_counters->tile_region_pixels.load() : 0)
+        << "\n";
+    out << "Tile execution time.......... "
+        << (render_counters ? render_counters->tile_execution_ms.load() : 0)
+        << " ms\n";
+    out << "Nodes skipped................ "
+        << (render_counters ? render_counters->nodes_skipped.load() : 0)
+        << "\n";
+    out << "Graph skipped frames......... "
+        << (render_counters ? render_counters->graph_skipped_frames.load() : 0)
+        << "\n";
+    out << "Dirty evaluation............ "
+        << (render_counters ? render_counters->dirty_eval_ms.load() : 0)
+        << " ms\n";
+    out << "Graph dirty-rect time........ "
+        << (render_counters ? render_counters->graph_dirty_rect_ms.load() : 0)
+        << " ms\n";
+    out << "Full exec EWMA............... "
+        << fmt::format("{:.3f}", renderer->dirty_telemetry().full_frame_exec_ms_ewma)
+        << " ms (" << renderer->dirty_telemetry().full_frame_cost_samples << " samples)\n";
+    out << "Tile exec EWMA............... "
+        << fmt::format("{:.3f}", renderer->dirty_telemetry().tile_exec_ms_ewma)
+        << " ms (" << renderer->dirty_telemetry().tile_cost_samples << " samples)\n";
+    out << "Tile cost model.............. "
+        << (renderer->dirty_telemetry().tile_cost_model_ready() ? "READY" : "WARMING")
+        << "\n";
+    out << "\n";
+
+    // Pixel-fusion counters are emitted by the compiler pass itself.  Keep
+    // them in the saturation report so a benchmark cannot claim fusion from
+    // compile-time descriptors that were never observed by the runtime.
+    out << "FUSED PIXEL PROGRAM\n";
+    out << "Passes before fusion........ "
+        << (render_counters ? render_counters->pixel_fusion_passes_before.load() : 0)
+        << "\n";
+    out << "Passes after fusion......... "
+        << (render_counters ? render_counters->pixel_fusion_passes_after.load() : 0)
+        << "\n";
+    out << "Bytes saved by fusion....... "
+        << (render_counters ? render_counters->pixel_fusion_bytes_saved.load() : 0)
+        << "\n\n";
+    out << "COLOR PIPELINE RUNTIME\n";
+    out << "Fused color batches.......... "
+        << (render_counters ? render_counters->color_pipeline_batches.load() : 0)
+        << "\n";
+    out << "Fused color effects.......... "
+        << (render_counters ? render_counters->color_pipeline_effects.load() : 0)
+        << "\n\n";
+
+    // Keep the JSON artifact aligned with the evidence printed above.  A
+    // missing determinism run is represented explicitly instead of being
+    // inferred from a single sequential benchmark.
+    if (!report_json.empty()) {
+        const auto counter = [render_counters](auto member) -> std::uint64_t {
+            return render_counters ? (render_counters->*member).load(std::memory_order_relaxed) : 0;
+        };
+        nlohmann::json report{
+            {"schema_version", 1},
+            {"scene", scene},
+            {"duration_sec", duration_sec},
+            {"frames", total_frames},
+            {"motion_blur", {
+                {"mode", motion_blur_mode},
+                {"samples", motion_blur_samples},
+                {"shutter_angle_deg", 180.0},
+                {"shutter_phase_deg", -90.0}
+            }},
+            {"fps", fps},
+            {"p50_ms", p50},
+            {"p95_ms", p95},
+            {"p99_ms", p99},
+            {"total_elapsed_sec", total_elapsed_sec},
+            {"memory", {
+                {"peak_rss_mb", peak_rss_mb},
+                {"framebuffer_allocations_per_frame", alloc_per_frame},
+                {"framebuffer_copies_per_frame", copies_per_frame},
+                {"full_frame_passes_per_frame", passes_per_frame},
+                {"pool_current_mb", pool_stats.current_bytes / (1024 * 1024)},
+                {"pool_retained_mb", pool_stats.retained_bytes / (1024 * 1024)},
+                {"pool_allocations", pool_stats.total_allocations},
+                {"pool_reuses", pool_stats.total_reuses},
+                {"pool_clears", pool_stats.total_clears},
+                {"pool_evictions", pool_stats.evicted_count}
+            }},
+            {"cache", {
+                {"entries", node_cache_stats.current_size},
+                {"weight_bytes", node_cache_stats.current_weight},
+                {"hits", node_cache_stats.hits},
+                {"misses", node_cache_stats.misses},
+                {"evictions", node_cache_stats.evictions}
+            }},
+            {"invalidation", {
+                {"dirty_union_pixels", counter(&RenderCounters::dirty_union_area_pixels)},
+                {"dirty_pixels", counter(&RenderCounters::dirty_pixels)},
+                {"dirty_full_fallbacks", counter(&RenderCounters::dirty_full_fallbacks)},
+                {"tile_dirty_count", counter(&RenderCounters::tile_dirty_count)},
+                {"tile_clean_count", counter(&RenderCounters::tile_clean_count)},
+                {"tile_pixels_rendered", counter(&RenderCounters::tile_pixels_rendered)},
+                {"tile_pixels_skipped", counter(&RenderCounters::tile_pixels_skipped)},
+                {"tile_full_fallbacks", counter(&RenderCounters::tile_full_fallbacks)},
+                {"tile_regions_executed", counter(&RenderCounters::tile_regions_executed)},
+                {"tile_region_pixels", counter(&RenderCounters::tile_region_pixels)},
+                {"tile_execution_ms", counter(&RenderCounters::tile_execution_ms)},
+                {"nodes_skipped", counter(&RenderCounters::nodes_skipped)},
+                {"dirty_eval_ms", counter(&RenderCounters::dirty_eval_ms)},
+                {"graph_dirty_rect_ms", counter(&RenderCounters::graph_dirty_rect_ms)}
+            }},
+            {"cost_model", {
+                {"full_frame_exec_ms_ewma", renderer->dirty_telemetry().full_frame_exec_ms_ewma},
+                {"tile_exec_ms_ewma", renderer->dirty_telemetry().tile_exec_ms_ewma},
+                {"full_frame_samples", renderer->dirty_telemetry().full_frame_cost_samples},
+                {"tile_samples", renderer->dirty_telemetry().tile_cost_samples},
+                {"state", renderer->dirty_telemetry().tile_cost_model_ready() ? "READY" : "WARMING"}
+            }},
+            {"fusion", {
+                {"passes_before", counter(&RenderCounters::pixel_fusion_passes_before)},
+                {"passes_after", counter(&RenderCounters::pixel_fusion_passes_after)},
+                {"bytes_saved", counter(&RenderCounters::pixel_fusion_bytes_saved)},
+                {"color_pipeline_batches", counter(&RenderCounters::color_pipeline_batches)},
+                {"color_pipeline_effects", counter(&RenderCounters::color_pipeline_effects)}
+            }},
+            {"determinism", {
+                {"status", "NOT_RUN"},
+                {"sequential_hash", nullptr},
+                {"random_access_hash", nullptr}
+            }}
+        };
+        std::ofstream json_out(report_json);
+        if (!json_out) {
+            spdlog::error("Cannot write benchmark JSON report: {}", report_json);
+            return 1;
+        }
+        json_out << report.dump(2) << '\n';
+        spdlog::info("Benchmark JSON report written to {}", report_json);
+    }
 
     out << "PARALLELISM\n";
     out << "Workers (TBB arena)......... " << ctx.cpu_budget.render_threads << "\n";

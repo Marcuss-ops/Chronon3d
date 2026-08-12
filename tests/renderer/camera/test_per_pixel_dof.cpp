@@ -178,16 +178,16 @@ TEST_CASE("PerPixelDOF: unset depth pixels are left unblurred") {
 // ============================================================================
 
 TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
-    const i32 w = 80, h = 80;
+    const i32 w = 160, h = 80;
     Framebuffer fb(w, h);
     fb.clear(Color::transparent());
 
     // Draw two identical sharp white squares: left (near), right (far)
     for (i32 y = 30; y < 50; ++y) {
-        for (i32 x = 5; x < 25; ++x) {
+        for (i32 x = 10; x < 30; ++x) {
             fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, 1.0f});
         }
-        for (i32 x = 50; x < 70; ++x) {
+        for (i32 x = 110; x < 130; ++x) {
             fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, 1.0f});
         }
     }
@@ -202,12 +202,12 @@ TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
     // Near square right edge at x=25, far square right edge at x=70.
     // A larger blur radius spills more colour (and alpha) into the transparent
     // region outside the square.
-    auto measure_avg_alpha = [&](i32 sx0, i32 sy0, i32 sx1, i32 sy1) -> float {
+    auto measure_avg_luminance = [&](i32 sx0, i32 sy0, i32 sx1, i32 sy1) -> float {
         float sum = 0.0f;
         int count = 0;
         for (i32 y = sy0; y < sy1; ++y) {
             for (i32 x = sx0; x < sx1; ++x) {
-                sum += fb.get_pixel(x, y).a;
+                sum += fb.get_pixel(x, y).r;
                 ++count;
             }
         }
@@ -215,8 +215,8 @@ TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
     };
 
     // Strip just outside right edge of each square (was transparent before blur)
-    float near_spill = measure_avg_alpha(26, 34, 32, 46); // 1-7px outside near square
-    float far_spill  = measure_avg_alpha(71, 34, 77, 46); // 1-7px outside far square
+    float near_spill = measure_avg_luminance(38, 34, 43, 46); // 9-13px outside near square
+    float far_spill  = measure_avg_luminance(138, 34, 143, 46); // 9-13px outside far square
 
     // Far blur (24px radius) spills more alpha into neighboring transparent
     // region than near blur (6px radius).
@@ -265,6 +265,35 @@ TEST_CASE("PerPixelDOF: large blur spreads color beyond original bounds") {
     CHECK(neighbor.a > 0.0f);
 }
 
+TEST_CASE("PerPixelDOF: defocused foreground spills into focused background") {
+    const i32 w = 48, h = 32;
+    Framebuffer fb(w, h);
+    fb.clear(Color{0.0f, 0.0f, 0.0f, 1.0f});
+
+    for (i32 y = 12; y < 20; ++y) {
+        for (i32 x = 20; x < 28; ++x) {
+            fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+    }
+
+    // The opaque background is in focus; only the small foreground object is
+    // defocused. A gather-only implementation leaves the outside pixels
+    // unchanged, producing a bbox-shaped edge rather than optical spill.
+    auto depth = make_depth_buffer(w, h, 0.0f);
+    for (i32 y = 12; y < 20; ++y) {
+        for (i32 x = 20; x < 28; ++x) {
+            depth[static_cast<size_t>(y) * w + x] = -1000.0f;
+        }
+    }
+    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f,
+                             .aperture = 0.02f, .max_blur = 8.0f};
+
+    renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
+
+    CHECK(fb.get_pixel(18, 16).r > 0.0f);
+    CHECK(fb.get_pixel(29, 16).r > 0.0f);
+}
+
 TEST_CASE("PerPixelDOF: focus plane pixels remain sharp while defocused blur") {
     const i32 w = 64, h = 32;
     Framebuffer fb(w, h);
@@ -292,8 +321,11 @@ TEST_CASE("PerPixelDOF: focus plane pixels remain sharp while defocused blur") {
     CHECK(focus_c.a == doctest::Approx(1.0f));
 
     // Defocused region: should be blurred (lower variance)
-    float focus_var = region_variance(fb, 10, 10, 22, 22);
-    float defocus_var = region_variance(fb, 42, 10, 54, 22);
+    // Include the object edges in both windows. Measuring only the uniform
+    // interior makes a correctly sharp square report zero variance and
+    // reverses the intended sharp-vs-blurred comparison.
+    float focus_var = region_variance(fb, 4, 4, 28, 28);
+    float defocus_var = region_variance(fb, 36, 4, 60, 28);
     CHECK(focus_var >= defocus_var);
 }
 

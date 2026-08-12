@@ -60,6 +60,7 @@ CompiledFrameGraph FrameGraphCompiler::compile(
 
     if (options.compute_lifetimes) {
         compute_resource_lifetimes(compiled);
+        build_physical_framebuffer_allocation_plan(compiled);
     }
 
     compiled.structure_hash = compute_structure_hash(
@@ -254,6 +255,7 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
 
     if (options.compute_lifetimes) {
         compute_resource_lifetimes(compiled);
+        build_physical_framebuffer_allocation_plan(compiled);
     }
 
     compiled.structure_hash = compute_structure_hash(

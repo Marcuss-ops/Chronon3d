@@ -355,10 +355,19 @@ struct NodeExecutionContext {
     mutable FramebufferSlotView ping_write;
     mutable std::vector<Framebuffer*> reusable_inputs;
 
+    // Set by the executor for a compiler-assigned transient output. The
+    // pointed-to OwnedFB remains owned by ExecutionState; node acquire calls
+    // return a non-owning RendererOwned view so the slot survives node-state
+    // commits and can be reused only after its compiled interval ends.
+    mutable OwnedFB* planned_physical_slot{nullptr};
+
     // ── Zero-copy bottom-input ownership transfer (composite hot-path) ──
     // Populated by `execute_single_node` for the FIRST input (j==0,
     // i.e. the "bottom" in CompositeNode terminology) when reusable
     // conditions are met: `consumer_remaining == 1 && state.temp[input_id].use_count() == 1`.
+    // The execution-local CachedFB copy adds the second reference consumed by
+    // acquire_owned_fb(), which accepts one or two references at the transfer
+    // point (the one-reference form is used by direct unit-test callers).
     //
     // Consumed by `acquire_owned_fb(const Framebuffer&)` to perform a
     // 1×1-placeholder pixel swap with the ORIGINAL PoolFbDeleter from

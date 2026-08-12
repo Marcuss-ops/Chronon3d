@@ -41,6 +41,7 @@ Layer::Layer(const Layer& other)
       time_remap(other.time_remap),
       visible(other.visible),
       uses_2_5d_projection(other.uses_2_5d_projection),
+      screen_space(other.screen_space),
       hierarchy_resolved(other.hierarchy_resolved),
       cache_static(other.cache_static),
       mask(other.mask),
@@ -81,6 +82,7 @@ Layer& Layer::operator=(const Layer& other) {
     time_remap = other.time_remap;
     visible = other.visible;
     uses_2_5d_projection = other.uses_2_5d_projection;
+    screen_space = other.screen_space;
     hierarchy_resolved = other.hierarchy_resolved;
     cache_static = other.cache_static;
     mask = other.mask;
@@ -125,6 +127,7 @@ uint64_t Layer::get_static_hash() const {
     h = hash_combine(h, static_cast<u64>(kind));
     h = hash_combine(h, visible ? 1 : 0);
     h = hash_combine(h, uses_2_5d_projection ? 1 : 0);
+    h = hash_combine(h, screen_space ? 1 : 0);
     h = hash_combine(h, cache_static ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(blend_mode));
     h = hash_combine(h, hash_mask(mask));

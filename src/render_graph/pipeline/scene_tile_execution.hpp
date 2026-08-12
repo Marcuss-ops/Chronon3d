@@ -18,6 +18,7 @@ namespace chronon3d::graph::detail {
 
 struct TileExecutionResult {
     int dirty_count{0};
+    int regions_executed{0};
     uint64_t pixels_rendered{0};
 };
 

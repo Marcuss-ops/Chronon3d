@@ -29,6 +29,47 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     std::optional<raster::BBox> bounds,
     std::atomic<uint64_t>* specific_clear_ms
 ) const {
+    // A compiler-assigned transient slot is the sole owner of this
+    // framebuffer. Returning a RendererOwned view lets the node publish a
+    // CachedFB without transferring or duplicating ownership; the slot is
+    // reclaimed only when ExecutionState is destroyed. Interval coloring
+    // guarantees that this pointer is not shared by overlapping resources.
+    if (node_exec.planned_physical_slot) {
+        OwnedFB& slot = *node_exec.planned_physical_slot;
+        if (!slot) {
+            auto* pool = services.framebuffer_pool.get();
+            if (pool) {
+                slot = pool->acquire_owned(w, h, clear);
+            } else {
+                slot = OwnedFB(new Framebuffer(w, h, clear), PoolFbDeleter(DeleteFramebuffer{}));
+            }
+        } else {
+            slot->resize_logical(w, h);
+        }
+        // A physical slot starts a fresh logical resource here. Reset every
+        // metadata field that can describe the previous occupant before the
+        // new producer publishes its result. `resize_logical()` only resets
+        // the origin; leaving these fields intact makes aliasing appear as a
+        // stale opaque/cleared/cache-key result several nodes later.
+        slot->set_origin(0, 0);
+        slot->set_opaque(false);
+        slot->set_content_cleared(false);
+        slot->set_key_digest(0);
+        if (clear) {
+            slot->clear(Color::transparent());
+        }
+        if (bounds) {
+            slot->set_origin(bounds->x0, bounds->y0);
+        }
+        PoolFbDeleter renderer_owned;
+        renderer_owned.policy = RendererOwned{};
+        // A node may create temporary helper framebuffers after its primary
+        // output. Consume the plan hint exactly once so those helpers retain
+        // their existing pool-backed allocation path.
+        node_exec.planned_physical_slot = nullptr;
+        return OwnedFB(slot.get(), std::move(renderer_owned));
+    }
+
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
     // TICKET-012 follow-up: re-introduce a 5-arg overload of
@@ -57,10 +98,50 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
+    // A uniquely-owned bottom input is already a valid output storage for
+    // compositing.  Prefer the ownership transfer before consulting the
+    // compiler's physical output slot: binding that slot first would force a
+    // full-frame copy and make the zero-copy path below unreachable.
+    // The physical slot remains a valid spare transient allocation; the
+    // published CachedFB owns the transferred pixel storage for this node.
+    if (node_exec.reusable_bottom.get() == &other &&
+        node_exec.reusable_bottom.use_count() <= 2)
+    {
+        auto* placeholder = new Framebuffer(1, 1, false);
+        placeholder->swap_contents(const_cast<Framebuffer&>(other));
+
+        PoolFbDeleter placeholder_deleter;
+        if (services.framebuffer_pool) {
+            placeholder_deleter = PoolFbDeleter{services.framebuffer_pool};
+        }
+        return OwnedFB(placeholder, std::move(placeholder_deleter));
+    }
+
+    // A planned output still needs the source pixels when this node is a
+    // copy/clone operation (Composite, TrackMatte, or fallback paths). Use
+    // the assigned slot as the destination, but preserve the logical
+    // framebuffer contract instead of transferring the source ownership.
+    if (node_exec.planned_physical_slot) {
+        auto out = acquire_owned_fb(other.width(), other.height(), false);
+        if (out && out->data() != other.data()) {
+            const i32 copy_width = std::min(other.width(), out->width());
+            const i32 copy_height = std::min(other.height(), out->height());
+            const usize row_bytes = static_cast<usize>(copy_width) * sizeof(Color);
+            for (i32 y = 0; y < copy_height; ++y) {
+                std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
+            }
+            out->set_origin(other.origin_x(), other.origin_y());
+            out->set_opaque(other.is_opaque());
+            out->set_content_cleared(other.is_content_cleared());
+        }
+        return out;
+    }
+
     // ── Zero-copy ownership transfer (composite hot-path) ─────────────
     // When `other` is the uniquely-owned CachedFB at
-    // `node_exec.reusable_bottom` (use_count == 1, populated by
-    // execute_single_node for the bottom input), transfer ownership via
+    // `node_exec.reusable_bottom` (the state slot plus this execution
+    // context hold two references, populated by execute_single_node for the
+    // bottom input), transfer ownership via
     // a tiny 1×1 placeholder pixel swap:
     //   - placeholder (1×1) gets BIG pixel data from `other`
     //   - `other` gets TINY pixel data from placeholder
@@ -73,36 +154,6 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     // to the pool instead of an 8 MB alloc.  Replaces the ~8 MB
     // `pool->acquire_from(other) → memcpy` that previously dominated
     // `compositenode_acquire_ms` in chained composite layouts.
-    if (node_exec.reusable_bottom.get() == &other &&
-        node_exec.reusable_bottom.use_count() == 1)
-    {
-        // Allocate a tiny 1×1 placeholder on the heap, then swap contents
-        // with `other`:
-        //   - placeholder ↔ other: placeholder gets BIG pixel data,
-        //     `other` gets the 1×1 placeholder buffer.
-        //
-        // const_cast is required because swap_contents takes a non-const
-        // Framebuffer& (it swaps m_allocated_width/m_pixels/etc.).  We
-        // own the underlying FB lifetime via the CachedFB (not via
-        // `other`'s const-ref param), so dropping the const is safe.
-        auto* placeholder = new Framebuffer(1, 1, false);
-        placeholder->swap_contents(const_cast<Framebuffer&>(other));
-
-        // Wire the placeholder to the current pool so it can be returned
-        // to the pool on destruction.  run_node will additionally swap
-        // this for parent_pool's shared_from_this() when it constructs
-        // the result CachedFB, so this deleter is really just defensive
-        // for the unusual case where the OwnedFB destructs without prior
-        // release().  The outer-if guard `if (!fb) return` ensures
-        // PoolFbDeleter::operator()(nullptr) is safe regardless of
-        // policy variant.
-        PoolFbDeleter placeholder_deleter;
-        if (services.framebuffer_pool) {
-            placeholder_deleter = PoolFbDeleter{services.framebuffer_pool};
-        }
-        return OwnedFB(placeholder, std::move(placeholder_deleter));
-    }
-
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {
@@ -207,7 +258,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
     // the source; the placeholder is returned as a shared_ptr and will be
     // released back to the pool on destruction.
     if (node_exec.reusable_bottom.get() == &other &&
-        node_exec.reusable_bottom.use_count() == 1)
+        node_exec.reusable_bottom.use_count() <= 2)
     {
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(const_cast<Framebuffer&>(other));
@@ -284,6 +335,7 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
         ? node_exec.shared_dof_depth
         : const_cast<std::vector<float>*>(&node_exec.dof_depth);
     copy.node_exec.current_identity = node_exec.current_identity;
+    copy.node_exec.planned_physical_slot = node_exec.planned_physical_slot;
     copy.node_exec.current_shape_processor = node_exec.current_shape_processor;
     copy.node_exec.current_shape_processors = node_exec.current_shape_processors;
     copy.node_exec.current_effect_processors = node_exec.current_effect_processors;

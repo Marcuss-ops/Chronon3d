@@ -379,6 +379,11 @@ OptimizationResult optimize_graph(
         const auto& kernels = simd::resolve_pixel_kernels(capabilities);
         const auto fusion_stats = fusion::fuse_color_opacity_blend(
             graph, ctx, kernels, out_programs);
+        fusion::emit_fusion_counters(
+            ctx.node_exec.counters,
+            fusion_stats.passes_before_fusion,
+            fusion_stats.passes_after_fusion,
+            fusion_stats.bytes_saved_by_fusion);
         result.pixel_fusions = fusion_stats.passes_before_fusion / 3;
         result.pixel_fusion_bytes_saved = fusion_stats.bytes_saved_by_fusion;
         // The descriptors are emitted but not consumed in the F3.1

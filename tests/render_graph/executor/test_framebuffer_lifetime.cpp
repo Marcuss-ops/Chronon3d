@@ -495,6 +495,31 @@ TEST_CASE("RenderGraphContext::acquire_owned_fb(const Framebuffer&) reuses reusa
     CHECK(pool->stats().total_allocations == allocs_before);
 }
 
+TEST_CASE("RenderGraphContext::acquire_owned_fb resets aliased slot metadata") {
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
+
+    RenderGraphContext ctx;
+    ctx.services.framebuffer_pool = pool;
+
+    OwnedFB slot = pool->acquire_owned(64, 64, true);
+    slot->set_origin(123, 456);
+    slot->set_opaque(true);
+    slot->set_content_cleared(true);
+    slot->set_key_digest(0xdeadbeefU);
+    ctx.node_exec.planned_physical_slot = &slot;
+
+    auto view = ctx.acquire_owned_fb(32, 24, false, raster::BBox{7, 9, 39, 33});
+    REQUIRE(view != nullptr);
+    CHECK(view->width() == 32);
+    CHECK(view->height() == 24);
+    CHECK(view->origin_x() == 7);
+    CHECK(view->origin_y() == 9);
+    CHECK_FALSE(view->is_opaque());
+    CHECK_FALSE(view->is_content_cleared());
+    CHECK(view->key_digest() == 0);
+    CHECK(ctx.node_exec.planned_physical_slot == nullptr);
+}
+
 TEST_CASE("RenderGraphContext::acquire_framebuffer(const Framebuffer&) reuses reusable_bottom without copy") {
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 
@@ -564,4 +589,3 @@ TEST_CASE("InputLifetime: state metadata is reset on release") {
     CHECK(state.resolved_cache_hit[0] == 0);
     CHECK_FALSE(state.resolved_bboxes[0].has_value());
 }
-

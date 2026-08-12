@@ -46,6 +46,15 @@ TileDecision TileExecutionPolicy::decide(
         return {false, "no_dirty_tiles"};
     }
 
+    // Use measured execution cost once both paths have enough samples.  The
+    // safety margin prevents oscillation around equal timings; before the
+    // model is ready, the existing correctness gates remain authoritative.
+    const auto& cost = sw_renderer->dirty_telemetry();
+    if (cost.tile_cost_model_ready() &&
+        cost.tile_exec_ms_ewma > cost.full_frame_exec_ms_ewma * 1.10) {
+        return {false, "cost_model_tile_slower"};
+    }
+
     return {true, ""};
 }
 

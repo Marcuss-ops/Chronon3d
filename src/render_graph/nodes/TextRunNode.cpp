@@ -21,6 +21,7 @@
 
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
 // Private definition needed by the per-session warn-once helper below.
 #include "../executor/text_bbox_reporter.hpp"
@@ -394,8 +395,14 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 
 cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
-    // TICKET-122: use current evaluation frame for cache isolation.
-    key.frame = ctx.frame_input.frame;
+    // Static text is reusable across frames; animated text is not.  The
+    // cache policy is the semantic boundary, so do not bake the current
+    // frame into a static TextRun key (that would create one full surface
+    // entry per frame and defeat raster-cache reuse).  Frame-dependent
+    // inputs such as an evaluated 2.5D camera are folded below separately.
+    key.frame = cache_policy().frame_dependent()
+        ? ctx.frame_input.frame
+        : Frame{0};
 
 #ifdef CHRONON3D_ENABLE_TEXT
     if (m_shape) {
@@ -421,9 +428,16 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     key.params_hash = hash_combine(
         key.params_hash,
         static_cast<u64>(ctx.policy.modular_coordinates));
-    key.params_hash = hash_combine(
-        key.params_hash,
-        hash_bytes(&m_placement.matrix[0][0], sizeof(Mat4)));
+    // Tight projected text is rasterized in a local surface. The producer
+    // intentionally discards the projected matrix and lets TransformNode
+    // own camera projection, so matrix/camera state must not fragment the
+    // semantic text-raster cache. Non-tight text still rasterizes in canvas
+    // space and therefore retains the matrix in its key.
+    if (!m_placement.tight_surface) {
+        key.params_hash = hash_combine(
+            key.params_hash,
+            hash_bytes(&m_placement.matrix[0][0], sizeof(Mat4)));
+    }
     key.params_hash = hash_combine(
         key.params_hash,
         hash_bytes(&m_placement.surface_origin[0], sizeof(Vec2)));
@@ -443,7 +457,7 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     // Conditional on `has_camera_2_5d` globally.  Fold zoom + position.z +
     // parent + DOF into `params_hash` so zoom-animated frames produce
     // distinct per-frame keys.
-    if (ctx.frame_input.has_camera_2_5d) {
+    if (ctx.frame_input.has_camera_2_5d && !m_placement.tight_surface) {
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
 
@@ -490,7 +504,14 @@ NodeExecResult TextRunNode::execute(
     const int surface_height = tight_surface
         ? std::max(1, static_cast<int>(std::ceil(m_placement.surface_size.y)))
         : ctx.frame_input.height;
-    auto fb = ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
+    // A projected TextRun is cached as a tight local raster. The general
+    // pool's best-fit reuse can hand it a full-frame physical allocation and
+    // resize only the logical view, making cache weight and RSS lie about
+    // the actual tight surface. Keep this allocation exact and disposable.
+    auto fb = tight_surface && ctx.services.framebuffer_pool
+        ? ctx.services.framebuffer_pool->acquire_owned_exact(
+              surface_width, surface_height, /*clear=*/true)
+        : ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
 
     // ── 2. Validate pre-dispatch invariants. ──
     auto* backend = ctx.services.backend;

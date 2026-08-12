@@ -92,9 +92,9 @@ public:
     ///   - skeleton key (from source pass: scope, frame, size)
     ///   - `hash_text_run_shape(*m_shape)` (layout + per-glyph state + material)
     ///   - placement hash (node name + position)
-    ///   - placement.matrix hash
+    ///   - placement.matrix hash for non-tight canvas raster
     ///   - opacity_override bytes (when present)
-    ///   - 2.5D camera position/rotation/zoom/fov (when projected)
+    ///   - 2.5D camera position/rotation/zoom/fov for non-tight raster
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
     /// Render path:

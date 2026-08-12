@@ -51,6 +51,9 @@ void register_benchmark(CLI::App& app, CliContext& ctx) {
         std::shared_ptr<std::string> scene{std::make_shared<std::string>()};
         std::shared_ptr<int> duration{std::make_shared<int>(300)};
         std::shared_ptr<bool> saturation{std::make_shared<bool>(false)};
+        std::shared_ptr<std::string> report_json{std::make_shared<std::string>()};
+        std::shared_ptr<int> motion_blur_mode{std::make_shared<int>(0)};
+        std::shared_ptr<int> motion_blur_samples{std::make_shared<int>(8)};
     };
     auto state = std::make_shared<BenchmarkSatState>();
     auto* command = app.add_subcommand(
@@ -61,9 +64,18 @@ void register_benchmark(CLI::App& app, CliContext& ctx) {
         ->default_val(300);
     command->add_flag("--saturation", *state->saturation,
                       "Print the full CHRONON3D SATURATION REPORT");
+    command->add_option("--report-json", *state->report_json,
+                        "Write the machine-readable benchmark report to this JSON path");
+    command->add_option("--motion-blur-mode", *state->motion_blur_mode,
+                        "Motion blur mode: 0=off, 1=temporal, 2=velocity")
+        ->check(CLI::Range(0, 2));
+    command->add_option("--motion-blur-samples", *state->motion_blur_samples,
+                        "Motion blur subframe samples")
+        ->check(CLI::Range(1, 64));
     command->callback([state, &ctx]() {
         ctx.exit_code = command_benchmark_saturation(
-            ctx.registry, ctx, *state->scene, *state->duration);
+            ctx.registry, ctx, *state->scene, *state->duration, *state->report_json,
+            *state->motion_blur_mode, *state->motion_blur_samples);
     });
 }
 

@@ -44,9 +44,9 @@ Composition make_transition_comp(
             l.transition_in(trans_in);
             l.transition_out(trans_out);
             l.rect("red_rect", {
-                .size = {80, 80},
+                .size = {100, 100},
                 .color = Color::red(),
-                .pos = {40, 40, 0}
+                .pos = {0, 0, 0}
             });
         });
 
@@ -355,4 +355,3 @@ TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
         CHECK(framebuffer_hash(*fb15) != framebuffer_hash(*fb30));
     }
 }
-

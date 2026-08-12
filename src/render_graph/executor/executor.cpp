@@ -88,6 +88,14 @@ namespace chronon3d::graph {
     state.resolved_frame_dependent.assign(node_count, 0);
     state.resolved_cache_hit.assign(node_count, 0);
     state.resolved_bboxes.resize(node_count);
+    state.physical_slots.resize(compiled.physical_framebuffer_plan.physical_slot_count);
+    for (const auto& slot : compiled.physical_framebuffer_plan.slots) {
+        if (slot.id < state.physical_slots.size()) {
+            // Slots are lazily sized by the first node assigned to them.
+            // Keep the vector ownership stable for node-local non-owning views.
+            state.physical_slots[slot.id].reset();
+        }
+    }
 
     const auto t_fb0 = profiling::now();
     init_shared_transparent_fb(state, ctx, res);
