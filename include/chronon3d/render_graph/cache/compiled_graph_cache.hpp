@@ -26,6 +26,11 @@ public:
     /// On success, the internal cache is cleared (single-use).
     [[nodiscard]] std::optional<CompiledFrameGraph> try_take(int width, int height);
 
+    /// Borrow the prepared graph without consuming it. This is a read-only
+    /// inspection path for preparation/telemetry; render execution continues
+    /// to use try_take()/store() for ownership transfer.
+    [[nodiscard]] const CompiledFrameGraph* peek(int width, int height) const noexcept;
+
     /// Store a new compiled graph for next-frame reuse.
     void store(CompiledFrameGraph&& compiled, int width, int height);
 

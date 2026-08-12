@@ -23,6 +23,8 @@ SoftwareProcessorContext make_processor_context(SoftwareRenderer* renderer) {
     ctx.settings        = &renderer->render_settings();
     ctx.registry        = &renderer->software_registry();
     ctx.depth_buffer_pool = &renderer->software_session().software.depth_buffer_pool;
+    ctx.dof_scratch = &renderer->software_session().software.dof_scratch;
+    ctx.effect_scratch = &renderer->software_session().software.effect_scratch;
     ctx.image_backend   = renderer->image_backend();
     ctx.image_renderer  = &renderer->image_renderer();
     ctx.curve_cache     = &renderer->runtime().curve_cache();

@@ -126,6 +126,11 @@ ResolvedCamera resolve_camera_hierarchy(
     out.world_matrix = out.world_transform.to_mat4();
 
     if (input_camera.hierarchy_baked) return out;
+    // No hierarchy work is possible for a layer-less scene. In particular,
+    // avoid constructing the temporary name index in the prepared-frame hot
+    // path; an empty unordered_map still performs a bucket allocation on
+    // some standard-library implementations.
+    if (layers.empty()) return out;
 
     // Build name→index
     auto name_to_index = build_name_index(layers);

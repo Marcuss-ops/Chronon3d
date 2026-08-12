@@ -5,6 +5,7 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/scene/model/core/clip_transition.hpp>
 #include <chronon3d/scene/model/camera/camera_projection_source.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
@@ -18,11 +19,6 @@
 #include <optional>
 
 namespace chronon3d {
-
-// Forward declaration — full type in <chronon3d/scene/model/camera/camera_2_5d.hpp>.
-// scene.cpp defines all methods that access Camera2_5DRuntime fields.
-struct Camera2_5D;
-using Camera2_5DRuntime = Camera2_5D;
 
 // Forward declarations for the camera facade / shot timeline opaque types
 // (defined in their own public headers).  Forward-declaring here keeps the
@@ -149,7 +145,8 @@ private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
     std::pmr::vector<SceneClipTransition> m_clip_transitions;
-    std::unique_ptr<Camera2_5DRuntime> m_camera_2_5d;
+    // Inline camera state avoids a heap allocation for every evaluated Scene.
+    Camera2_5DRuntime m_camera_2_5d{};
     rendering::LightContext m_lights{};
     rendering::RimLight m_rim{};
     rendering::DepthGrade m_depth_grade{};

@@ -11,6 +11,13 @@ std::optional<CompiledFrameGraph> CompiledGraphCache::try_take(int width, int he
     return result;
 }
 
+const CompiledFrameGraph* CompiledGraphCache::peek(int width, int height) const noexcept {
+    if (!m_cached || m_cached_width != width || m_cached_height != height) {
+        return nullptr;
+    }
+    return m_cached.get();
+}
+
 void CompiledGraphCache::store(CompiledFrameGraph&& compiled, int width, int height) {
     m_cached = std::make_unique<CompiledFrameGraph>(std::move(compiled));
     m_cached_width = width;

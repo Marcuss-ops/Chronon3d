@@ -163,6 +163,7 @@ private:
     // the backend's processor lifetime explicit.
     mutable std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
                                                     m_processor_snapshot;
+    mutable std::uint64_t                         m_processor_snapshot_generation{0};
     std::weak_ptr<const void>                       m_registry_lifetime;
     ImageRenderer*                                  m_image_renderer{nullptr};
 };

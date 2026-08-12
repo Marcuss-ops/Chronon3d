@@ -54,7 +54,7 @@ void execute_levels(
         // zero-inits all 7 internal vectors; execute_single_node() writes
         // per-node ms values through `&timings.<field>[level_index]` exactly
         // as it did through `&level_*_ms[level_index]`.
-        LevelTimings timings;
+        LevelTimings timings(res);
         timings.resize(level.size());
 
         // ── PR-B: thread-pool authority === scheduler ────────────────────

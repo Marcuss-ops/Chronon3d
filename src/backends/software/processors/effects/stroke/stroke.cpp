@@ -21,6 +21,7 @@
 //   with a linear ramp over `softness` pixels.
 
 #include "stroke.hpp"
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <algorithm>
 #include <cmath>
@@ -65,47 +66,61 @@ static void erode_row_horizontal(const float* src, float* dst, int w, int radius
 }
 
 /// 2D separable dilate: horizontal then vertical pass.
-static void dilate_alpha(Framebuffer& fb, int radius) {
+static void dilate_alpha(Framebuffer& fb, int radius,
+                         ::chronon3d::EffectScratchResources* scratch) {
     if (radius <= 0) return;
     const int w = fb.width(), h = fb.height();
 
     // Horizontal pass
-    auto row_src = std::make_unique<float[]>(static_cast<std::size_t>(w));
-    auto row_dst = std::make_unique<float[]>(static_cast<std::size_t>(w));
+    std::vector<float> local_row_src, local_row_dst, local_col_src, local_col_dst;
+    if (scratch) scratch->ensure_size(w, h);
+    auto& row_src = scratch ? scratch->row_src : local_row_src;
+    auto& row_dst = scratch ? scratch->row_dst : local_row_dst;
+    auto& col_src = scratch ? scratch->col_src : local_col_src;
+    auto& col_dst = scratch ? scratch->col_dst : local_col_dst;
+    row_src.resize(static_cast<std::size_t>(w));
+    row_dst.resize(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) row_src[x] = fb.pixels_row(y)[x].a;
-        dilate_row_horizontal(row_src.get(), row_dst.get(), w, radius);
+        dilate_row_horizontal(row_src.data(), row_dst.data(), w, radius);
         for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_dst[x];
     }
 
     // Vertical pass
-    auto col_src = std::make_unique<float[]>(static_cast<std::size_t>(h));
-    auto col_dst = std::make_unique<float[]>(static_cast<std::size_t>(h));
+    col_src.resize(static_cast<std::size_t>(h));
+    col_dst.resize(static_cast<std::size_t>(h));
     for (int x = 0; x < w; ++x) {
         for (int y = 0; y < h; ++y) col_src[y] = fb.pixels_row(y)[x].a;
-        dilate_row_horizontal(col_src.get(), col_dst.get(), h, radius);
+        dilate_row_horizontal(col_src.data(), col_dst.data(), h, radius);
         for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_dst[y];
     }
 }
 
 /// 2D separable erode: horizontal then vertical pass.
-static void erode_alpha(Framebuffer& fb, int radius) {
+static void erode_alpha(Framebuffer& fb, int radius,
+                        ::chronon3d::EffectScratchResources* scratch) {
     if (radius <= 0) return;
     const int w = fb.width(), h = fb.height();
 
-    auto row_src = std::make_unique<float[]>(static_cast<std::size_t>(w));
-    auto row_dst = std::make_unique<float[]>(static_cast<std::size_t>(w));
+    std::vector<float> local_row_src, local_row_dst, local_col_src, local_col_dst;
+    if (scratch) scratch->ensure_size(w, h);
+    auto& row_src = scratch ? scratch->row_src : local_row_src;
+    auto& row_dst = scratch ? scratch->row_dst : local_row_dst;
+    auto& col_src = scratch ? scratch->col_src : local_col_src;
+    auto& col_dst = scratch ? scratch->col_dst : local_col_dst;
+    row_src.resize(static_cast<std::size_t>(w));
+    row_dst.resize(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) row_src[x] = fb.pixels_row(y)[x].a;
-        erode_row_horizontal(row_src.get(), row_dst.get(), w, radius);
+        erode_row_horizontal(row_src.data(), row_dst.data(), w, radius);
         for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_dst[x];
     }
 
-    auto col_src = std::make_unique<float[]>(static_cast<std::size_t>(h));
-    auto col_dst = std::make_unique<float[]>(static_cast<std::size_t>(h));
+    col_src.resize(static_cast<std::size_t>(h));
+    col_dst.resize(static_cast<std::size_t>(h));
     for (int x = 0; x < w; ++x) {
         for (int y = 0; y < h; ++y) col_src[y] = fb.pixels_row(y)[x].a;
-        erode_row_horizontal(col_src.get(), col_dst.get(), h, radius);
+        erode_row_horizontal(col_src.data(), col_dst.data(), h, radius);
         for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_dst[y];
     }
 }
@@ -141,7 +156,8 @@ void apply_stroke(
     float width,
     float softness,
     StrokeMode mode,
-    const std::optional<raster::BBox>& clip)
+    const std::optional<raster::BBox>& clip,
+    ::chronon3d::EffectScratchResources* scratch)
 {
     if (width <= 0.0f) return;
 
@@ -154,7 +170,10 @@ void apply_stroke(
     if (y0 >= y1 || x0 >= x1) return;
 
     // Save original alpha channel
-    auto orig_alpha = std::make_unique<float[]>(static_cast<std::size_t>(w * h));
+    std::vector<float> local_orig_alpha;
+    if (scratch) scratch->ensure_size(w, h);
+    auto& orig_alpha = scratch ? scratch->original_alpha : local_orig_alpha;
+    orig_alpha.resize(static_cast<std::size_t>(w * h));
     for (int y = 0; y < h; ++y) {
         const Color* row = fb.pixels_row(y);
         for (int x = 0; x < w; ++x) {
@@ -182,14 +201,25 @@ void apply_stroke(
     }
 
     // ── Dilate alpha ──
-    Framebuffer dilated(w, h);
-    dilated.blit(fb, 0, 0);
-    dilate_alpha(dilated, outer_radius);
+    std::unique_ptr<Framebuffer> local_dilated;
+    std::unique_ptr<Framebuffer> local_eroded;
+    Framebuffer* dilated = nullptr;
+    Framebuffer* eroded = nullptr;
+    if (scratch) {
+        dilated = scratch->framebuffer.get();
+        eroded = scratch->framebuffer_b.get();
+    } else {
+        local_dilated = std::make_unique<Framebuffer>(w, h);
+        local_eroded = std::make_unique<Framebuffer>(w, h);
+        dilated = local_dilated.get();
+        eroded = local_eroded.get();
+    }
+    dilated->blit(fb, 0, 0);
+    dilate_alpha(*dilated, outer_radius, scratch);
 
     // ── Erode alpha ──
-    Framebuffer eroded(w, h);
-    eroded.blit(fb, 0, 0);
-    erode_alpha(eroded, inner_radius);
+    eroded->blit(fb, 0, 0);
+    erode_alpha(*eroded, inner_radius, scratch);
 
     // ── Compose stroke ──
     // Softness is handled naturally by the morphological radius:
@@ -202,8 +232,8 @@ void apply_stroke(
         Color* row = fb.pixels_row(y);
         for (int x = x0; x < x1; ++x) {
             const float src_a = orig_alpha[y * w + x];
-            const float dil_a = dilated.get_pixel(x, y).a;
-            const float ero_a = eroded.get_pixel(x, y).a;
+            const float dil_a = dilated->get_pixel(x, y).a;
+            const float ero_a = eroded->get_pixel(x, y).a;
 
             // Stroke mask: pixels that are in the dilated region but not
             // in the eroded region (i.e. the boundary band)
