@@ -280,7 +280,9 @@ struct FontFaceHandle {
     FT_Face                  ft_face{nullptr};
 #endif
 
+#ifdef CHRONON3D_ENABLE_TEXT
     GlyphOutlineBuilder* outlines{nullptr};   // for stroke path building
+#endif
 
     /// True if the BLFontFace is valid (the minimum requirement for fill).
     /// Stroke uses the FT path separately; callers that need stroke check

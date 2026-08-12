@@ -34,7 +34,7 @@ c3d::Composition make_fixture_composition() {
 
 c3d::CompositionRegistry make_registry() {
     c3d::CompositionRegistry registry;
-    registry.add(c3d::make_composition_descriptor(CompositionDescriptor{
+    registry.add(c3d::make_composition_descriptor(c3d::CompositionDescriptor{
         .id = kCompositionId,
         .width = 320,
         .height = 180,
@@ -77,7 +77,7 @@ TEST_CASE("RenderRequest resolves directly into the canonical RenderJob") {
     CHECK(resolved->still_frame == c3d::Frame{60});
     CHECK(resolved->output == "hero.png");
     CHECK(resolved->registry == &registry);
-    REQUIRE(resolved->comp != nullptr);
+    REQUIRE(resolved->compiled != nullptr);
     CHECK(resolved->metadata.width == 320);
     CHECK(resolved->metadata.height == 180);
     CHECK(resolved->metadata.duration == c3d::Frame{kDuration});
@@ -172,6 +172,7 @@ TEST_CASE("RenderJob planner preserves canonical video settings") {
     args.video_settings.ffmpeg_mode = "png";
     args.video_settings.ffmpeg_verbose = true;
     args.video_settings.pipe_pixfmt = "nv12";
+    args.pipe_pixfmt_explicit = true;
     args.video_settings.color_output = "rec709";
     args.video_settings.pipe_writer = "classic";
     args.video_settings.encoder_backend = "pipe";

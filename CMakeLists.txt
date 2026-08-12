@@ -204,6 +204,13 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
 
+# Build CLI command-group libraries before the test definitions are loaded.
+# Some focused SDK tests (notably render_job_contract_tests) intentionally link
+# against chronon3d_cli_render and must see that target during configuration.
+if(CHRONON3D_BUILD_CLI)
+    add_subdirectory(apps/chronon3d_cli)
+endif()
+
 # ── Test orchestration ───────────────────────────────────────────────────
 # enable_testing() is invoked BEFORE the BUILD_TESTS gate so the
 # standalone install-boundary test (add_test() registered further down)
@@ -248,10 +255,6 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         LABELS "boundary;ci"
         ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH};SDK_BUILD=${CMAKE_BINARY_DIR};SDK_PREFIX=${CMAKE_BINARY_DIR}/install-consumer-prefix;CHRONON3D_INSTALL_TEST_PRESET=linux-ci-full-validation;CHRONON3D_INSTALL_TEST_FAST=1"
     )
-endif()
-
-if(CHRONON3D_BUILD_CLI)
-    add_subdirectory(apps/chronon3d_cli)
 endif()
 
 # ── Experimental subsystems gate ─────────────────────────────────────────────
