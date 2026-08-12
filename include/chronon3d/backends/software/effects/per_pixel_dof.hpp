@@ -50,7 +50,7 @@ namespace chronon3d::renderer {
 /// @param clip      Optional clip rectangle; only pixels inside are blurred.
 ///
 /// The depth buffer must be the same size as the framebuffer (width × height).
-/// Pixels with depth == kUnsetDepth are treated as "no data" and left unblurred.
+/// Pixels with depth == kUnsetDofDepth are treated as "no data" and left unblurred.
 inline void apply_per_pixel_dof(
     Framebuffer& fb,
     std::span<const float> depth,
@@ -66,8 +66,6 @@ inline void apply_per_pixel_dof(
                               std::max(0.0, chronon3d::profiling::elapsed_us(start))),
                           std::memory_order_relaxed);
     };
-
-    constexpr float kUnsetDepth = 1e18f;
 
     const i32 w = fb.width();
     const i32 h = fb.height();
@@ -97,7 +95,7 @@ inline void apply_per_pixel_dof(
         for (i32 x = x0; x < x1; ++x) {
             const size_t idx = static_cast<size_t>(y) * w + x;
             const float z = depth[idx];
-            if (z < kUnsetDepth * 0.5f) {
+            if (z < kUnsetDofDepth * 0.5f) {
                 blur_radii[idx] = compute_dof_blur_radius(dof, lens, z);
             }
             max_r = std::max(max_r, blur_radii[idx]);

@@ -59,6 +59,7 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
@@ -68,7 +69,6 @@ namespace chronon3d::graph {
 
 namespace {
 
-constexpr float kUnsetDepth = 1e18f;
 constexpr float kVisibleBlurThreshold = 0.5f;
 
 struct DofActiveRegion {
@@ -127,10 +127,10 @@ DofActiveRegion analyze_dof_active_region(
                 region.depth_y1 = std::max(region.depth_y1, y + 1);
             }
 
-            // kUnsetDepth means the compositor did not write a surface here.
+            // kUnsetDofDepth means the compositor did not write a surface here.
             // NaN/Inf are also rejected defensively: they are not meaningful
             // scene depths and must never grow the processing region.
-            if (!std::isfinite(z) || z >= kUnsetDepth * 0.5f) {
+            if (!std::isfinite(z) || z >= kUnsetDofDepth * 0.5f) {
                 continue;
             }
 
