@@ -81,5 +81,5 @@ if(CHRONON3D_ENABLE_TELEMETRY)
     target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
     target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
-    target_compile_definitions(chronon3d_runtime PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 endif()

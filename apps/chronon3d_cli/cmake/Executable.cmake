@@ -17,6 +17,12 @@ target_link_libraries(chronon3d_cli PRIVATE
     spdlog::spdlog_header_only
     fmt::fmt
 )
+
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_compile_definitions(chronon3d_cli_core PRIVATE
+        CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    )
+endif()
 if(TARGET chronon3d_c)
     target_link_libraries(chronon3d_cli PRIVATE chronon3d_c)
 endif()
