@@ -67,6 +67,20 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"effect_stack_calls", counters.effect_stack_calls.load(std::memory_order_relaxed)},
         {"effect_pixels", counters.effect_pixels.load(std::memory_order_relaxed)},
         {"effect_stack_total_ms", counters.effect_stack_total_ms.load(std::memory_order_relaxed)},
+        {"dof_roi_analysis_us", counters.dof_roi_analysis_us.load(std::memory_order_relaxed)},
+        {"dof_blur_radius_generation_us", counters.dof_blur_radius_generation_us.load(std::memory_order_relaxed)},
+        {"dof_scratch_allocation_us", counters.dof_scratch_allocation_us.load(std::memory_order_relaxed)},
+        {"dof_copy_to_hpass_us", counters.dof_copy_to_hpass_us.load(std::memory_order_relaxed)},
+        {"dof_horizontal_pass_us", counters.dof_horizontal_pass_us.load(std::memory_order_relaxed)},
+        {"dof_hpass_to_output_us", counters.dof_hpass_to_output_us.load(std::memory_order_relaxed)},
+        {"dof_vertical_pass_us", counters.dof_vertical_pass_us.load(std::memory_order_relaxed)},
+        {"dof_writeback_us", counters.dof_writeback_us.load(std::memory_order_relaxed)},
+        {"dof_roi_pixels", counters.dof_roi_pixels.load(std::memory_order_relaxed)},
+        {"dof_blur_source_pixels", counters.dof_blur_source_pixels.load(std::memory_order_relaxed)},
+        {"dof_max_radius_milli", counters.dof_max_radius_milli.load(std::memory_order_relaxed)},
+        {"dof_scratch_bytes", counters.dof_scratch_bytes.load(std::memory_order_relaxed)},
+        {"dof_estimated_bytes_read", counters.dof_estimated_bytes_read.load(std::memory_order_relaxed)},
+        {"dof_estimated_bytes_written", counters.dof_estimated_bytes_written.load(std::memory_order_relaxed)},
         {"layer_culling_tests", counters.layer_culling_tests.load(std::memory_order_relaxed)},
         {"layers_culled", counters.layers_culled.load(std::memory_order_relaxed)},
         {"layers_visible", counters.layers_visible.load(std::memory_order_relaxed)},
@@ -233,6 +247,17 @@ inline std::vector<chronon3d::telemetry::PhaseTelemetryRecord> capture_graph_pha
     add_phase("node_schedule_ms", counters.node_schedule_ms.load(std::memory_order_relaxed));
     add_phase("node_dispatch_ms", counters.node_dispatch_ms.load(std::memory_order_relaxed));
     add_phase("telemetry_emit_ms", counters.telemetry_emit_ms.load(std::memory_order_relaxed));
+    const auto add_us_phase = [&](const char* name, uint64_t value) {
+        if (value > 0) phases.push_back({name, static_cast<double>(value) / 1000.0});
+    };
+    add_us_phase("dof_roi_analysis_ms", counters.dof_roi_analysis_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_blur_radius_generation_ms", counters.dof_blur_radius_generation_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_scratch_allocation_ms", counters.dof_scratch_allocation_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_copy_to_hpass_ms", counters.dof_copy_to_hpass_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_horizontal_pass_ms", counters.dof_horizontal_pass_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_hpass_to_output_ms", counters.dof_hpass_to_output_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_vertical_pass_ms", counters.dof_vertical_pass_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_writeback_ms", counters.dof_writeback_us.load(std::memory_order_relaxed));
     return phases;
 }
 
