@@ -117,6 +117,20 @@ namespace chronon3d {
     X(effect_stack_calls) \
     X(effect_pixels) \
     X(effect_stack_total_ms) \
+    X(dof_roi_analysis_us) \
+    X(dof_blur_radius_generation_us) \
+    X(dof_scratch_allocation_us) \
+    X(dof_copy_to_hpass_us) \
+    X(dof_horizontal_pass_us) \
+    X(dof_hpass_to_output_us) \
+    X(dof_vertical_pass_us) \
+    X(dof_writeback_us) \
+    X(dof_roi_pixels) \
+    X(dof_blur_source_pixels) \
+    X(dof_max_radius_milli) \
+    X(dof_scratch_bytes) \
+    X(dof_estimated_bytes_read) \
+    X(dof_estimated_bytes_written) \
     X(effect_focus_in_ladder_precompute_ms) \
     X(effect_focus_in_ladder_crossfade_ms)
 
