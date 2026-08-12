@@ -536,6 +536,7 @@ NodeExecResult TextRunNode::execute(
     f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
     const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
     if (!ctx.policy.diagnostic_overlay_only) {
+#ifdef CHRONON3D_ENABLE_TEXT
         auto dispatch = text_run::render_text_run_item(
             ctx, *backend, *fb, *m_shape, m_placement, opacity);
 
@@ -561,6 +562,17 @@ NodeExecResult TextRunNode::execute(
         if (dispatch.value().actual_ink_bbox) {
             ctx.node_exec.actual_ink_bbox = *dispatch.value().actual_ink_bbox;
         }
+#else
+        NodeExecutionError error{
+            RenderBackendErrorCode::UnsupportedCapability,
+            m_name,
+            "text rendering is disabled in this build"
+        };
+        if (ctx.frame_error && !ctx.frame_error->has_value()) {
+            *ctx.frame_error = error;
+        }
+        return NodeExecResult{std::move(error)};
+#endif
 
         // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
         if (ctx.policy.diagnostics_enabled) {
