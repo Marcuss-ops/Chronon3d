@@ -776,6 +776,49 @@ TEST_CASE("FrameGraphCompiler - physical allocation plan colors transient interv
           plan.allocation_for(e)->physical_slot);
 }
 
+TEST_CASE("FrameGraphCompiler - FrameVariant resources remain transient and alias") {
+    RenderGraph graph;
+    const auto a = graph.add_node(std::make_unique<CompilerTestNode>(
+        "variant-a", frame_variant_cache("camera-dependent-a")));
+    const auto b = graph.add_node(std::make_unique<CompilerTestNode>(
+        "transient-b", no_cache("transient-b")));
+    const auto c = graph.add_node(std::make_unique<CompilerTestNode>(
+        "transient-c", no_cache("transient-c")));
+    const auto d = graph.add_node(std::make_unique<CompilerTestNode>(
+        "transient-d", no_cache("transient-d")));
+    const auto e = graph.add_node(std::make_unique<CompilerTestNode>(
+        "variant-e", frame_variant_cache("camera-dependent-e")));
+    const auto output = graph.add_node(std::make_unique<CompilerTestNode>(
+        "output", no_cache("output")));
+    graph.connect(a, b);
+    graph.connect(b, output);
+    graph.connect(c, d);
+    graph.connect(d, e);
+    graph.connect(e, output);
+    graph.set_output(output);
+
+    RenderGraphContext ctx;
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+    options.compute_lifetimes = true;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx, options);
+    REQUIRE(compiled.valid);
+    const auto& plan = compiled.physical_framebuffer_plan;
+    REQUIRE(plan.allocation_for(a) != nullptr);
+    REQUIRE(plan.allocation_for(e) != nullptr);
+
+    CHECK(compiled.nodes[a].cache_policy.frame_dependent());
+    CHECK(compiled.nodes[e].cache_policy.frame_dependent());
+    CHECK_FALSE(plan.allocation_for(a)->persistent);
+    CHECK_FALSE(plan.allocation_for(e)->persistent);
+    CHECK(plan.allocation_for(a)->aliasable);
+    CHECK(plan.allocation_for(e)->aliasable);
+    CHECK(plan.allocation_for(a)->physical_slot ==
+          plan.allocation_for(e)->physical_slot);
+}
+
 TEST_CASE("FrameGraphCompiler - persistent and non-releasable resources are excluded") {
     RenderGraph graph;
     const auto persistent = graph.add_node(std::make_unique<CompilerTestNode>(
