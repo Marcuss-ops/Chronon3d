@@ -267,7 +267,7 @@ static void log_graph_cache_diagnostics(
         ctx.policy.track_dof_depth = true;
         ctx.node_exec.dof_depth.assign(
             static_cast<size_t>(width) * static_cast<size_t>(height),
-            1e18f);
+            0.0f);
     } else {
         ctx.policy.track_dof_depth = false;
         ctx.node_exec.dof_depth.clear();

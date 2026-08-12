@@ -54,8 +54,10 @@ struct FramebufferPoolConfig {
     // Override via --fb-pool-budget-mb CLI flag or CHRONON3D_FB_POOL_BUDGET_MB env.
     size_t max_retained_bytes = 384ULL * 1024ULL * 1024ULL;
 
-    // Avoid one size class keeping too many buffers.
-    size_t max_buffers_per_size_class = 4;
+    // Keep enough transient surfaces for concurrent 2.5D layers without
+    // forcing the pool to discard and reallocate the same rounded class on
+    // every frame. The global byte budget remains the hard memory bound.
+    size_t max_buffers_per_size_class = 16;
 
     // When true, eviction prefers the least-recently-used entry.
     bool enable_lru_eviction = true;
@@ -198,6 +200,15 @@ public:
     /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).
     /// Zero atomic overhead vs shared_ptr — use in the hot execution path.
     OwnedFB acquire_owned(int width, int height, bool clear = true);
+
+    /// Acquire an OwnedFB with exactly the requested physical extent.
+    ///
+    /// This intentionally bypasses best-fit reuse. It is for cache-resident
+    /// tight surfaces (for example projected text), where retaining a
+    /// full-frame physical allocation behind a small logical view defeats
+    /// the cache's memory accounting. The returned buffer is deleted rather
+    /// than returned to the general-size pool.
+    OwnedFB acquire_owned_exact(int width, int height, bool clear = true);
 
     /// Acquire a framebuffer with no explicit content zeroing.
     ///

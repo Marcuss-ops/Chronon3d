@@ -5,7 +5,6 @@
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
-#include <chronon3d/render_graph/nodes/dof_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <memory>
@@ -75,23 +74,15 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         layer_output = effect_id;
     }
 
-    // DOF blur (only for projected 2.5D layers)
-    // Skip per-layer DOF when scene-level per-pixel DOF is active —
-    // the PerPixelDofNode handles all DOF after compositing.
+    // DOF blur (only for projected 2.5D layers).
+    // The camera DOF path is scene-level and is inserted by OutputPass as a
+    // single PerPixelDofNode after compositing. Do not consult
+    // ctx.policy.track_dof_depth here: OutputPass sets that policy after the
+    // layer graph is built, so the old check caused one legacy DofEffectNode
+    // per projected layer plus the final post-composite node (double DOF).
     if (item.projected && cam25d.dof.enabled) {
-        // Per-pixel DOF is signalled by track_dof_depth being set in the ctx.
-        // When active, the per-layer DofEffectNode is skipped to avoid
-        // double-blurring.
-        if (!ctx.policy.track_dof_depth) {
-            // PR2-cleanup: DofEffectNode is intrinsically frame-dependent via its
-            // built-in `static_memory_cache` default; the legacy `!is_static`
-            // distinction was removed. Single node, taken as id.
-            {
-                GraphNodeId dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z), node_ctx);
-                graph.connect(layer_output, dof_node);
-                layer_output = dof_node;
-            }
-        }
+        // Intentionally no per-layer node: the final post-composite pass owns
+        // the camera DOF contract and has the complete depth/alpha field.
     }
 }
 
@@ -135,7 +126,12 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     if (!needs_transform) return;
 
     std::unique_ptr<TransformNode> transform_node;
-    const bool is_static = layer.cache_static || item.is_static;
+    // A projected layer may be authoring-static while its camera-space
+    // transform changes every frame. Persisting that transformed framebuffer
+    // in the inter-frame cache creates one large entry per camera pose and
+    // defeats the framebuffer lifetime/aliasing path. Tight text raster is
+    // cached separately; the camera projection is deliberately transient.
+    const bool is_static = (layer.cache_static || item.is_static) && !item.projected;
     const Frame cache_frame = is_static ? Frame{0} : Frame{-1};
     const auto placement = evaluate_layer_placement(item, ctx);
     transform_node = std::make_unique<TransformNode>(placement.render_matrix,

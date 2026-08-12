@@ -92,7 +92,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
         rctx.policy.track_dof_depth = true;
         rctx.node_exec.dof_depth.assign(
             static_cast<size_t>(rctx.frame_input.width) * rctx.frame_input.height,
-            1e18f  // sentinel: no layer contributed
+            0.0f  // neutral screen/background plane; layers overwrite their pixels
         );
         // The node keeps this value as an isolated-test fallback, but reads
         // the evaluated camera from the frame context during execution so

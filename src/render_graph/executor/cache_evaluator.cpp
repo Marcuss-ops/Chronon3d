@@ -24,13 +24,15 @@ CacheEvalResult evaluate_cache(
         policy.frame_dependent() ||
         (has_cacheable_inputs && inputs_frame_dependent);
 
-    // FrameVariant nodes are explicitly documented as cacheable within the same
-    // render frame ("multiple consumers within the same render frame may still
-    // dedupe").  The temporal_key (set below when node_frame_dependent) already
-    // isolates cache entries across frames, so intra-frame dedup is safe.
-    // The cache_hit_fast_path in node_runner.cpp correctly skips frame_dependent
-    // nodes, so they still re-execute each frame.
-    cr.use_cache = is_cacheable && ctx.services.node_cache;
+    // Frame-dependent results are already shared between all consumers of the
+    // node through ExecutionState::temp for the current frame. Persisting the
+    // same full-frame framebuffer in the inter-frame LRU is therefore wasteful:
+    // cache_hit_fast_path intentionally cannot reuse it, while the retained
+    // shared_ptr prevents its storage from returning to FramebufferPool. Only
+    // frame-invariant results enter the inter-frame cache; this is the semantic
+    // boundary between reusable text/raster assets and dynamic projections.
+    cr.use_cache = is_cacheable && !cr.node_frame_dependent &&
+                   ctx.services.node_cache;
     cr.is_cacheable = is_cacheable;
 
     // ── CompositeNode: always bypass cache (zero-copy enablement) ─────

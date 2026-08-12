@@ -175,6 +175,7 @@ TileExecutionResult execute_dirty_tiles(
     const int coalesced_count = static_cast<int>(regions.size());
 
     TileExecutionResult result;
+    result.regions_executed = coalesced_count;
 
     // PR-1 — use the authoritative scheduler's for_each_index() instead
     // of the raw tbb parallel_for.  The scheduler handles Sequential/TbbFixed/

@@ -24,12 +24,11 @@ struct OptimizationConfig {
     /// Run first so subsequent passes operate on a minimal graph.
     bool enable_dead_node_elimination = true;
 
-    /// TICKET-FUSION-PASS-COMPILER-V1: fuse ColorMatrix → Opacity → Blend
-    /// 3-node patterns into a single FusedPixelProgram descriptor.
-    /// The pass is non-mutating in the F3.1 first commit; it emits
-    /// descriptors via an OUT parameter. The runtime executor
-    /// consumes the descriptors.
-    bool enable_pixel_fusion         = true;
+    /// Experimental descriptor-only ColorMatrix → Opacity → Blend pass.
+    /// It is intentionally opt-in until the descriptor is persisted in the
+    /// compiled graph and consumed by an executor node. Runtime color fusion
+    /// uses the canonical ColorPipeline in the software effect dispatcher.
+    bool enable_pixel_fusion         = false;
 };
 
 // ── Optimization result ─────────────────────────────────────────────────

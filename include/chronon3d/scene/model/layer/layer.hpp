@@ -73,6 +73,10 @@ struct Layer {
     TimeRemap time_remap{};
     bool      visible{true};
     bool      uses_2_5d_projection{false};
+    // Screen-space layers are evaluated in framebuffer/canvas coordinates and
+    // are never sent through the scene camera.  This is the model-side
+    // contract behind SceneBuilder::screen_layer().
+    bool      screen_space{false};
     bool      hierarchy_resolved{false};
     bool      cache_static{false};
     Mask      mask{};

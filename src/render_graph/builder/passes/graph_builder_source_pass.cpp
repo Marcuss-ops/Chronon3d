@@ -126,6 +126,14 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         layer.name.c_str(), node.name.c_str());
                     return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
                 }
+                // Resolve the placement before finalizing the cache key. A
+                // tight projected TextRun is a local raster surface; camera
+                // pose and projected matrix belong to the downstream
+                // TransformNode and must not create one raster-cache entry
+                // per camera frame.
+                f32 resolved_opacity = 0.0f;
+                auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
+
                 cache::NodeCacheKey run_key{
                     .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
                     .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
@@ -135,15 +143,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
                 // TICKET-ae-cam-hash-collision Soluzione B
-                if (ctx.frame_input.has_camera_2_5d) {
+                if (ctx.frame_input.has_camera_2_5d && !placement.tight_surface) {
                     cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
                 }
-
-                // ITEM 7: use dedicated resolve_text_run_placement()
-                // instead of source_space_world_matrix() +
-                // should_use_centered_rendering() + manual canvas-center bake.
-                f32 resolved_opacity = 0.0f;
-                auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
 
                 source = graph.add_node(std::make_unique<TextRunNode>(
                     std::string(node.name),
@@ -191,8 +193,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     std::optional<Mat4>(shape_matrix),
                     std::optional<f32>(shape_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source"),
-                    true,
-                    item.projected && !item.native_3d,
+                    !item.layer->screen_space,
+                    item.projected && !item.native_3d && !item.layer->screen_space,
                     item.native_3d
                 ), node_ctx);
             }
@@ -278,8 +280,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .node = &node,
                 .matrix = shape_matrix,
                 .opacity = shape_opacity,
-                .defer_camera_projection = item.projected && !item.native_3d,
-                .apply_camera_projection = true,
+                .defer_camera_projection = item.projected && !item.native_3d &&
+                    !item.layer->screen_space,
+                .apply_camera_projection = !item.layer->screen_space,
                 .native_3d = item.native_3d,
             });
         }
