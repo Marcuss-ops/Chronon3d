@@ -60,6 +60,9 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 
 namespace chronon3d::graph {
 
@@ -68,12 +71,50 @@ NodeExecResult PerPixelDofNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes)
 {
+    // DOF mutates its destination in place.  Unlike a composite, it must
+    // never take ownership of (and blur) its input: the input may still be
+    // referenced by the graph cache or by the frame-lifetime state.  Disable
+    // the executor's zero-copy hints for this node and make an independent
+    // framebuffer copy before applying the kernel.
+    ctx.node_exec.planned_physical_slot = nullptr;
+    ctx.node_exec.reusable_bottom.reset();
+    const auto clone_input = [&](const Framebuffer& input) {
+        auto copy = ctx.acquire_owned_fb(input.width(), input.height(), false);
+        for (i32 y = 0; y < input.height(); ++y) {
+            std::memcpy(copy->pixels_row(y), input.pixels_row(y),
+                        static_cast<std::size_t>(input.width()) * sizeof(Color));
+        }
+        copy->set_origin(input.origin_x(), input.origin_y());
+        copy->set_opaque(input.is_opaque());
+        copy->set_content_cleared(input.is_content_cleared());
+        return copy;
+    };
+
     const auto& camera = camera_for(ctx);
     const auto& dof_depth = ctx.node_exec.dof_depth_buffer();
     if (ctx.policy.diagnostics_enabled) {
+        std::size_t non_neutral_depth = 0;
+        i32 depth_x0 = ctx.frame_input.width;
+        i32 depth_y0 = ctx.frame_input.height;
+        i32 depth_x1 = 0;
+        i32 depth_y1 = 0;
+        for (i32 y = 0; y < ctx.frame_input.height; ++y) {
+            for (i32 x = 0; x < ctx.frame_input.width; ++x) {
+                const float z = dof_depth[static_cast<size_t>(y) * ctx.frame_input.width + x];
+                if (std::abs(z) > 1e-4f && z < 1e17f) {
+                    ++non_neutral_depth;
+                    depth_x0 = std::min(depth_x0, x);
+                    depth_y0 = std::min(depth_y0, y);
+                    depth_x1 = std::max(depth_x1, x + 1);
+                    depth_y1 = std::max(depth_y1, y + 1);
+                }
+            }
+        }
         spdlog::info("[PerPixelDofNode] focus_z={:.1f} enabled={} dof_depth_size={} inputs_count={}",
             camera.dof.focus_z, camera.dof.enabled,
             dof_depth.size(), inputs.size());
+        spdlog::info("[PerPixelDofNode] non_neutral_depth={} bbox=[{}:{} -> {}:{}]",
+            non_neutral_depth, depth_x0, depth_y0, depth_x1, depth_y1);
     }
 
     if (inputs.empty() || !inputs[0]) {
@@ -83,26 +124,22 @@ NodeExecResult PerPixelDofNode::execute(
     }
 
     if (!camera.dof.enabled) {
-        return ctx.acquire_owned_fb(*inputs[0]);
+        return NodeExecResult{clone_input(*inputs[0])};
     }
 
     // Check that the depth buffer was populated during compositing
     if (dof_depth.empty()) {
         // No depth data — fall through without blur
-        return ctx.acquire_owned_fb(*inputs[0]);
+        return NodeExecResult{clone_input(*inputs[0])};
     }
 
-    auto result = ctx.acquire_owned_fb(*inputs[0]);
+    auto result = clone_input(*inputs[0]);
 
-    // Determine clip region
-    std::optional<raster::BBox> clip = ctx.node_exec.clip_rect;
-    auto pred = predicted_bbox(ctx, input_bboxes);
-    if (pred && clip) {
-        clip->x0 = std::max(clip->x0, pred->x0);
-        clip->y0 = std::max(clip->y0, pred->y0);
-        clip->x1 = std::min(clip->x1, pred->x1);
-        clip->y1 = std::min(clip->y1, pred->y1);
-    }
+    // DOF is a screen-space post-process over the complete composite. The
+    // source-driven kernel treats in-focus background pixels as point samples,
+    // while defocused text pixels spread according to their own depth. This
+    // avoids both layer-local double blur and sharp+blurred duplicate text.
+    const std::optional<raster::BBox> clip = std::nullopt;
 
     // Apply per-pixel DOF blur via the render backend.
     if (ctx.services.backend) {

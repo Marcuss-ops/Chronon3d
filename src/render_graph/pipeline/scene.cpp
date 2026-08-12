@@ -165,6 +165,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         reuse_eval.frame_fp.active_at_fp != 0 &&
         reuse_eval.frame_fp.active_at_fp ==
             (sw_renderer ? sw_renderer->frame_history().prev_active_at_fingerprint : 0);
+    // DOF changes post-composite payload and depth-tracking execution state.
+    // Until cached-graph refresh updates that state atomically, rebuild this
+    // graph path to preserve warm/cold byte determinism.
+    if (ctx.frame_input.has_camera_2_5d && ctx.frame_input.camera_2_5d.dof.enabled) {
+        ctx.policy.graph_structure_unchanged = false;
+    }
 
     if (ctx.policy.diagnostics_enabled && !isolated_temporal_sample) {
         const auto& history = sw_renderer->frame_history();
@@ -360,6 +366,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
         frame, width, height, root_scope);
     const auto t_exec1 = profiling::now();
+
+    if (sw_renderer && !isolated_temporal_sample) {
+        sw_renderer->dirty_telemetry().record_execution_cost(
+            exec_result.use_tile_execution,
+            profiling::duration_ms(t_exec0, t_exec1));
+    }
 
     // ── 12. Phase timing telemetry ──
     compute_and_record_timings(

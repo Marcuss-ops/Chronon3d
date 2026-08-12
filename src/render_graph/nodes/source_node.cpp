@@ -213,6 +213,41 @@ NodeExecResult SourceNode::execute(
 ) {
     CHRONON_ZONE_C("source_render", trace_category::kRasterize);
     const bool full_frame_seed = can_seed_full_frame(ctx);
+    const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+    const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+
+    // A screen-space solid background is semantically a clear, not a shape
+    // raster.  Keep this predicate deliberately narrow: only an un-stroked,
+    // solid, opaque rectangle with an affine placement that covers exactly
+    // the logical canvas may take it.  Gradients, rounded corners, camera
+    // projection, clips and transformed rectangles continue through the
+    // general raster path.
+    bool direct_full_frame_fill = false;
+    if (!m_apply_camera_projection && !m_defer_camera_projection && !m_native_3d &&
+        m_node.shape.type() == ShapeType::Rect &&
+        !m_node.shape.rect().stroke.enabled &&
+        m_node.fill.type == FillType::Solid &&
+        m_node.corner_radius <= 0.0f && opacity >= 0.999f &&
+        m_node.color.a >= 0.999f &&
+        (!ctx.node_exec.clip_rect ||
+         (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
+          ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width &&
+          ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height))) {
+        const auto placement = detail::evaluate_source_payload_placement(
+            base_matrix,
+            opacity,
+            ctx,
+            false,
+            false,
+            false,
+            m_name,
+            "direct_full_frame_fill");
+        direct_full_frame_fill = placement && covers_full_frame_as_rectangle(
+            placement->render_matrix,
+            static_cast<f32>(ctx.frame_input.width),
+            static_cast<f32>(ctx.frame_input.height),
+            false);
+    }
 
     // Skip clear when full-frame opaque with integer translation — no
     // sub-pixel gaps are possible because the source covers every pixel
@@ -232,9 +267,24 @@ NodeExecResult SourceNode::execute(
         }
     }
 
-    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, !skip_clear);
-    const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-    const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+    auto fb = ctx.acquire_owned_fb(
+        ctx.frame_input.width,
+        ctx.frame_input.height,
+        !skip_clear && !direct_full_frame_fill);
+
+    if (direct_full_frame_fill) {
+        Color fill_color = m_node.color.to_linear();
+        fill_color.a *= opacity;
+        fb->clear(fill_color);
+        fb->set_opaque(true);
+        if (ctx.policy.diagnostics_enabled) {
+            spdlog::info("[source-fast-path] node='{}' direct_full_frame_fill=1 pixels={}",
+                         m_name,
+                         static_cast<std::uint64_t>(ctx.frame_input.width) *
+                             static_cast<std::uint64_t>(ctx.frame_input.height));
+        }
+        return NodeExecResult{std::move(fb)};
+    }
 
     if (ctx.services.backend) {
         RenderState state;

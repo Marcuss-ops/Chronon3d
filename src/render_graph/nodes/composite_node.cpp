@@ -8,6 +8,7 @@
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
+#include <cstring>
 
 namespace chronon3d::graph {
 
@@ -54,19 +55,18 @@ NodeExecResult CompositeNode::execute(
                     const uint64_t area = static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
                     ctx.node_exec.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
                     // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — skip-opaque
-                    // optimization is a full-frame pass (swap_contents
-                    // touches every pixel; the byte cost stays zero).
+                    // optimization is a full-frame pass.  The top input may
+                    // be a cached framebuffer, so it must remain immutable;
+                    // do not swap its pixel storage into the result.
                     ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
                 }
                 auto result = ctx.acquire_owned_fb(top->width(), top->height(), false);
+                for (i32 y = 0; y < top->height(); ++y) {
+                    std::memcpy(result->pixels_row(y), top->pixels_row(y),
+                                static_cast<std::size_t>(top->width()) * sizeof(Color));
+                }
                 result->set_origin(top->origin_x(), top->origin_y());
                 result->set_opaque(true);
-                result->swap_contents(*top);
-                // F3.2 — swap_contents is zero-copy (no byte duplication),
-                // but it IS a full-frame pass (every pixel reassigned via
-                // metadata swap). Already counted above for the counter
-                // branch; on no-counters path, no-op (counters are an
-                // invariant here).
                 return NodeExecResult{std::move(result)};
             }
         }

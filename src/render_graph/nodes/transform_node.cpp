@@ -9,6 +9,7 @@
 #include <tbb/parallel_for.h>
 #include <span>
 #include <array>
+#include <cstring>
 
 // Internal helpers extracted into separate compilation units
 #include "transform_internal.hpp"
@@ -85,14 +86,19 @@ NodeExecResult TransformNode::execute(
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
         }
-        // Swap pixel storage from the input framebuffer — zero-copy.
-        // Safe because in a render graph DAG each node output has exactly
-        // one consumer, so consuming the input's pixels won't affect other
-        // downstream nodes.  The pool-held Framebuffer shell left behind
-        // is returned to the pool on the shared_ptr's next release.
+        // Keep the input immutable.  It may be a cached framebuffer and the
+        // DAG's single-consumer property does not prove exclusive ownership
+        // of its pixel storage.  Swapping here contaminated cached identity
+        // transforms and made a warm sequential render differ from a cold
+        // single-frame render.
         auto result = ctx.acquire_owned_fb(out_w, out_h, false, out_bounds);
+        for (i32 y = 0; y < input->height(); ++y) {
+            std::memcpy(result->pixels_row(y), input->pixels_row(y),
+                        static_cast<std::size_t>(input->width()) * sizeof(Color));
+        }
+        result->set_origin(input->origin_x(), input->origin_y());
         result->set_opaque(input->is_opaque());
-        result->swap_contents(*input);
+        result->set_content_cleared(input->is_content_cleared());
         return NodeExecResult{std::move(result)};
     }
 

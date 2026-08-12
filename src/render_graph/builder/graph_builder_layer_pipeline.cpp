@@ -198,6 +198,15 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     const Layer& layer = *item.layer;
 
+    // Projection/frustum/backface resolution is authoritative.  A projected
+    // layer can remain structurally present in the graph while being marked
+    // invisible by resolve_layer_graph_item(); do not build or composite its
+    // source in that case.  Without this guard BackfaceMode::Hidden emitted
+    // the correct diagnostic but the stale source still reached the output.
+    if (!item.visible || !layer.visible) {
+        return;
+    }
+
     // A fully transparent layer is identity for SourceOver composition. Do
     // not build a transparent source/composite branch: besides wasting the
     // raster pass, it can replace a valid backdrop when an opaque fast path

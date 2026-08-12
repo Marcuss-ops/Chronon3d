@@ -42,7 +42,9 @@ namespace chronon3d {
         builder.font_engine(m_font_engine);  // cascade scene-level bind
         std::forward<Fn>(fn)(builder);
 
-        commit_layer(builder.build());
+        Layer layer = builder.build();
+        layer.screen_space = true;
+        commit_layer(std::move(layer));
         return *this;
     }
 

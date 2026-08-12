@@ -65,7 +65,10 @@ namespace chronon3d {
     X(tile_clean_count) \
     X(tile_pixels_rendered) \
     X(tile_pixels_skipped) \
-    X(tile_full_fallbacks)
+    X(tile_full_fallbacks) \
+    X(tile_regions_executed) \
+    X(tile_region_pixels) \
+    X(tile_execution_ms)
 
 #define CHRONON_COUNTERS_COMPOSITE(X) \
     X(clear_skipped_calls) \
@@ -220,7 +223,9 @@ namespace chronon3d {
     X(encoder_slots_allocated) /* gauge: current pool capacity */ \
     X(encoder_slot_reuses) /* gauge: cumulative pool reuse events */ \
     X(frame_conversion_ms) \
-    X(frame_submit_ms)
+    X(frame_submit_ms) \
+    X(color_pipeline_batches) \
+    X(color_pipeline_effects)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 

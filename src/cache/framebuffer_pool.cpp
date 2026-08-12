@@ -222,6 +222,16 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 
+OwnedFB FramebufferPool::acquire_owned_exact(int width, int height, bool clear) {
+    // Do not take a best-fit framebuffer here: a tight cached surface must
+    // not inherit a full-frame physical allocation through resize_logical().
+    // It is deliberately not returned to the general pool because its size
+    // class is not representative of the transient full-frame workload.
+    return OwnedFB(
+        new Framebuffer(width, height, clear),
+        PoolFbDeleter(DeleteFramebuffer{}));
+}
+
 // ── acquire_noclear — hot-miss zero-fill-cost opt-in ────────────────
 //
 // Thin public wrapper around `acquire_unique()` that DOES NOT call

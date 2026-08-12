@@ -77,7 +77,11 @@ inline void apply_per_pixel_dof(
     if (x0 >= x1 || y0 >= y1) return;
 
     // Pre-compute per-pixel blur radii from the depth buffer.
-    std::vector<float> blur_radii(static_cast<size_t>(w) * h, 0.0f);
+    // Negative radius is a separate "no depth" sentinel. A zero radius is
+    // a valid in-focus surface and must remain eligible as a neighbour for
+    // another out-of-focus pixel; treating both as zero reintroduces opaque
+    // background samples into the text blur and creates bbox-shaped patches.
+    std::vector<float> blur_radii(static_cast<size_t>(w) * h, -1.0f);
     float max_r = 0.0f;
     for (i32 y = y0; y < y1; ++y) {
         for (i32 x = x0; x < x1; ++x) {
@@ -91,6 +95,10 @@ inline void apply_per_pixel_dof(
     }
     if (max_r < 0.5f) return; // No visible blur
 
+    // The blur is source-driven: a defocused source pixel contributes to
+    // nearby destinations, while a focused background pixel contributes only
+    // at its own coordinate. This is the separable form of a scatter blur and
+    // avoids assigning the maximum radius to an entire destination rectangle.
     // Scratch buffers for the two-pass separable blur.
     // `hpass` stores the horizontally-blurred result; `output` stores the final.
     // Both are allocated at full framebuffer size (including non-clipped regions
@@ -113,7 +121,8 @@ inline void apply_per_pixel_dof(
                 const Color* src_row = fb.pixels_row(y);
                 Color* dst_row = &hpass[static_cast<size_t>(y) * w];
 
-                dof_h_gather_simd(src_row, dst_row, blur_radii.data(),
+                dof_h_gather_simd(src_row, dst_row, blur_radii.data(), max_r,
+                                  fb.is_opaque(),
                                   x0, x1, w, y, w);
             }
         }
@@ -166,7 +175,9 @@ inline void apply_per_pixel_dof(
 
                 for (i32 y = ty0; y < ty1; ++y) {
                     dof_v_gather_simd(hpass.data(), output.data(),
-                                      blur_radii.data(), tx0, tx1, y, h, w);
+                                      blur_radii.data(), max_r,
+                                      fb.is_opaque(),
+                                      tx0, tx1, y, h, w);
                 }
             }
         }

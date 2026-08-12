@@ -33,9 +33,21 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     const double conv_copy_ms = session.renderer && session.renderer->counters()
         ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_ms.load())
         : 0.0;
+    const auto conversion_bytes = session.renderer && session.renderer->counters()
+        ? session.renderer->counters()->conversion_bytes_written.load()
+        : 0ULL;
+    const auto staging_copy_bytes = session.renderer && session.renderer->counters()
+        ? session.renderer->counters()->encoder_staging_copy_bytes.load()
+        : 0ULL;
+    const auto encoder_slot_reuses = session.renderer && session.renderer->counters()
+        ? session.renderer->counters()->encoder_slot_reuses.load()
+        : 0ULL;
 
     spdlog::info("[video] Encoder write blocked duration: {:.2f} ms", result.write_blocked_ms);
     spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", conv_copy_ms);
+    spdlog::info(
+        "[video_diag] conversion_bytes_written={} encoder_staging_copy_bytes={} encoder_slot_reuses={}",
+        conversion_bytes, staging_copy_bytes, encoder_slot_reuses);
 
     if (is_native) {
         spdlog::info("[video_native] convert={:.2f}ms  send_frame={:.2f}ms  receive_packet={:.2f}ms  mux_write={:.2f}ms  trailer={:.2f}ms",

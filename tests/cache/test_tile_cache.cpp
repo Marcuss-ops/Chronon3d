@@ -12,6 +12,8 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <cstddef>
+#include <cstdint>
 using namespace chronon3d;
 
 using namespace chronon3d::cache;
@@ -350,6 +352,21 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     }
 
     int total_mismatches = 0;
+    auto framebuffer_hash = [](const Framebuffer& fb) {
+        const auto* bytes = reinterpret_cast<const std::byte*>(fb.data());
+        const std::size_t size = static_cast<std::size_t>(fb.width()) *
+            static_cast<std::size_t>(fb.height()) * sizeof(Color);
+        std::uint64_t hash = 1469598103934665603ull;
+        for (std::size_t i = 0; i < size; ++i) {
+            hash ^= static_cast<std::uint8_t>(bytes[i]);
+            hash *= 1099511628211ull;
+        }
+        return hash;
+    };
+    std::uint64_t baseline_first_hash = 0;
+    std::uint64_t optimized_first_hash = 0;
+    std::uint64_t baseline_last_hash = 0;
+    std::uint64_t optimized_last_hash = 0;
     for (Frame f = 0; f < 8; ++f) {
         auto fb_b = baseline.render(comp, f);
         auto fb_o = opt.render(comp, f);
@@ -370,6 +387,22 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
                     ++mism;
             }
         total_mismatches += mism;
+        const auto baseline_hash = framebuffer_hash(*fb_b);
+        const auto optimized_hash = framebuffer_hash(*fb_o);
+        if (f == 0) {
+            baseline_first_hash = baseline_hash;
+            optimized_first_hash = optimized_hash;
+        }
+        if (f == 7) {
+            baseline_last_hash = baseline_hash;
+            optimized_last_hash = optimized_hash;
+        }
     }
     CHECK(total_mismatches == 0);
+    CHECK(baseline_first_hash != baseline_last_hash);
+    CHECK(optimized_first_hash != optimized_last_hash);
+    CHECK(optimized_first_hash == baseline_first_hash);
+    CHECK(optimized_last_hash == baseline_last_hash);
+    CHECK(opt.counters()->tile_pixels_rendered.load() <
+          static_cast<std::uint64_t>(W) * H * 8);
 }

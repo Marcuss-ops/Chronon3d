@@ -105,6 +105,10 @@ private:
         CompiledFrameGraph& compiled
     ) const;
 
+    void build_physical_framebuffer_allocation_plan(
+        CompiledFrameGraph& compiled
+    ) const;
+
     void validate_renderable_shape(
         const ::chronon3d::RenderNode& render_node,
         const CompiledNodeInfo& node_info,

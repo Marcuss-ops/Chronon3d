@@ -5,6 +5,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
+#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <cstdint>
 #include <memory>
@@ -119,6 +120,12 @@ struct CompiledFrameGraph {
 
     std::vector<CompiledNodeInfo> nodes;
     std::vector<ResourceLifetime> lifetimes;
+
+    // Deterministic interval-coloring plan for transient node outputs. The
+    // plan is resolution-independent metadata consumed by the executor's
+    // existing framebuffer pool; persistent and asynchronous resources are
+    // explicitly excluded from aliasing.
+    PhysicalFramebufferAllocationPlan physical_framebuffer_plan;
 
     std::vector<bool> early_exit_skip;
     bool skip_initial_clear{false};

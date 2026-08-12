@@ -145,6 +145,7 @@ namespace chronon3d::graph {
             .modular_coordinates = true,
             .text_layout_debug    = settings.text_layout_debug,
             .diagnostic_overlay_only = settings.diagnostic_overlay_only,
+            .text_layout_debug_json_path = settings.text_layout_debug_json_path,
             .optimize_compositing = settings.compositing.optimize_compositing,
             // Without this, the Clear node can erase an entire reused buffer,
             // which wipes cached full-frame backgrounds on the next frame.

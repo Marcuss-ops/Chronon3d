@@ -271,6 +271,7 @@ void SoftwareBackend::apply_effect_stack(
     effects::EffectExecutionContext local_context = context;
     local_context.clip = local_clip;
     local_context.curve_cache = m_proc_ctx.curve_cache;
+    local_context.counters = m_counters;
 
     if (context.processors_resolved) {
         // Compiled graph path: processor identities were resolved once by the
