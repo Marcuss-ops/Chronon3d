@@ -199,6 +199,7 @@ public:
     
     [[nodiscard]] LruCache<NodeCacheKey, Value, NodeCacheKeyHash>::Stats stats() const { return m_cache.stats(); }
     [[nodiscard]] size_t size() const { return m_cache.stats().current_size; }
+    [[nodiscard]] size_t capacity() const noexcept { return m_cache.capacity(); }
 
     /// Return the largest resident entries by physical framebuffer weight.
     /// Intended for benchmark/diagnostic reports; resident-entry hit counts

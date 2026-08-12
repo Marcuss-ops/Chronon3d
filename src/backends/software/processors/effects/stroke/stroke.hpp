@@ -23,6 +23,7 @@ namespace chronon3d {
 
 // Forward declaration — full definition in effect_params.hpp
 enum class StrokeMode;
+struct EffectScratchResources;
 
 } // namespace chronon3d
 
@@ -49,6 +50,7 @@ void apply_stroke(
     float width,
     float softness,
     StrokeMode mode,
-    const std::optional<raster::BBox>& clip = std::nullopt);
+    const std::optional<raster::BBox>& clip = std::nullopt,
+    ::chronon3d::EffectScratchResources* scratch = nullptr);
 
 } // namespace chronon3d::renderer

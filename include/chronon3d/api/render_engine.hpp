@@ -43,10 +43,15 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/runtime/resource_plan.hpp>
 
 #include <filesystem>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 
 namespace chronon3d {
 
@@ -60,6 +65,68 @@ namespace runtime { class RenderRuntime; }
 // sufficient (no full include).
 class SoftwareRenderer;
 struct CompiledComposition;
+class RenderEngine;
+
+struct PreparedRenderJobOptions {
+    /// Optional per-job NodeCache budget.  An unset value preserves Config.
+    std::optional<std::size_t> node_cache_capacity_bytes{};
+    /// Fixed number of planned pipeline resource slots.
+    std::size_t pipeline_depth{3};
+};
+
+struct PreparedRenderJobTelemetry {
+    std::uint64_t cache_hits{0};
+    std::uint64_t cache_misses{0};
+    std::uint64_t cache_evictions{0};
+    std::uint64_t nodes_executed{0};
+    std::uint64_t nodes_skipped{0};
+    std::uint64_t framebuffer_allocations{0};
+    std::uint64_t framebuffer_bytes_allocated{0};
+    std::size_t cache_entries{0};
+    std::size_t cache_bytes{0};
+    std::size_t cache_capacity_bytes{0};
+    std::size_t pipeline_depth{0};
+    std::size_t pipeline_in_flight{0};
+};
+
+using PreparedFrameEncoder = std::function<bool(Frame, const Framebuffer&)>;
+
+struct PreparedRenderBatchResult {
+    bool ok{true};
+    std::size_t frames_rendered{0};
+    std::size_t frames_encoded{0};
+    std::size_t max_queue_depth{0};
+    Frame failed_frame{-1};
+    std::string error{};
+};
+
+/// Compile-once execution handle for repeated frame rendering.
+/// The handle borrows its creating RenderEngine for its lifetime.
+class PreparedRenderJob {
+public:
+    PreparedRenderJob() noexcept = default;
+    ~PreparedRenderJob();
+    PreparedRenderJob(PreparedRenderJob&&) noexcept;
+    PreparedRenderJob& operator=(PreparedRenderJob&&) noexcept;
+    PreparedRenderJob(const PreparedRenderJob&) = delete;
+    PreparedRenderJob& operator=(const PreparedRenderJob&) = delete;
+
+    [[nodiscard]] Frame frame_count() const noexcept;
+    [[nodiscard]] const runtime::ResourcePlan& resource_plan() const noexcept;
+    [[nodiscard]] PreparedRenderJobTelemetry telemetry() const noexcept;
+    [[nodiscard]] std::shared_ptr<Framebuffer> render(Frame frame);
+    [[nodiscard]] PreparedRenderBatchResult render_frames(
+        Frame first,
+        Frame count,
+        const PreparedFrameEncoder& encoder);
+    void finish() noexcept;
+
+private:
+    friend class RenderEngine;
+    struct Impl;
+    explicit PreparedRenderJob(std::unique_ptr<Impl> impl) noexcept;
+    std::unique_ptr<Impl> m_impl;
+};
 
 /**
  * RenderEngine — INTERNAL ADAPTER for sdk::RenderEngine.
@@ -170,6 +237,11 @@ public:
     std::shared_ptr<Framebuffer> render_compiled(
         const CompiledComposition& compiled, Frame frame);
 
+    /// Compile and prepare once for repeated frame execution.
+    [[nodiscard]] PreparedRenderJob prepare(
+        const Composition& comp,
+        const PreparedRenderJobOptions& options = {});
+
     /// Immutable structured error snapshot from the most recent failed
     /// frame, or nullptr when no graph error was published. This exposes the
     /// existing NodeExecutionError channel to OPP consumers such as the
@@ -210,6 +282,7 @@ public:
     void reset_counters();
 
 private:
+    friend class PreparedRenderJob;
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };

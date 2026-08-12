@@ -34,6 +34,18 @@
 
 namespace chronon3d::renderer {
 
+struct DofScratchBuffers {
+    std::vector<float> blur_radii;
+    std::vector<Color> hpass;
+    std::vector<Color> output;
+
+    void ensure_size(std::size_t pixels) {
+        blur_radii.resize(pixels);
+        hpass.resize(pixels);
+        output.resize(pixels);
+    }
+};
+
 /// Apply per-pixel depth-of-field blur to @p fb using @p depth buffer.
 ///
 /// @param fb        Framebuffer to blur in-place.
@@ -56,7 +68,8 @@ inline void apply_per_pixel_dof(
     std::span<const float> depth,
     const DepthOfFieldSettings& dof,
     const LensModel& lens,
-    const std::optional<raster::BBox>& clip = std::nullopt)
+    const std::optional<raster::BBox>& clip = std::nullopt,
+    DofScratchBuffers* scratch = nullptr)
 {
     if (!dof.enabled) return;
 
@@ -89,7 +102,11 @@ inline void apply_per_pixel_dof(
     // a valid in-focus surface and must remain eligible as a neighbour for
     // another out-of-focus pixel; treating both as zero reintroduces opaque
     // background samples into the text blur and creates bbox-shaped patches.
-    std::vector<float> blur_radii(static_cast<size_t>(w) * h, -1.0f);
+    DofScratchBuffers local_scratch;
+    auto* buffers = scratch != nullptr ? scratch : &local_scratch;
+    buffers->ensure_size(static_cast<size_t>(w) * h);
+    auto& blur_radii = buffers->blur_radii;
+    std::fill(blur_radii.begin(), blur_radii.end(), -1.0f);
     float max_r = 0.0f;
     for (i32 y = y0; y < y1; ++y) {
         for (i32 x = x0; x < x1; ++x) {
@@ -122,8 +139,8 @@ inline void apply_per_pixel_dof(
     // Both are allocated at full framebuffer size (including non-clipped regions
     // which are copied unchanged from the source).
     const auto scratch_start = chronon3d::profiling::now();
-    std::vector<Color> hpass(static_cast<size_t>(w) * h);
-    std::vector<Color> output(static_cast<size_t>(w) * h);
+    auto& hpass = buffers->hpass;
+    auto& output = buffers->output;
     if (chronon3d::profiling::g_current_counters) {
         add_us(chronon3d::profiling::g_current_counters->dof_scratch_allocation_us,
                scratch_start);

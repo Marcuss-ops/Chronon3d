@@ -17,6 +17,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include "src/backends/software/processors/effects/blur/directional_blur.hpp"
 #include "tests/effects/test_helpers.hpp"
 using namespace test_fx;
@@ -68,6 +69,27 @@ TEST_CASE("DirectionalBlur: samples=1 is identity") {
                          original.get_pixel(x, 0),
                          kExactEpsilon);
     }
+}
+
+TEST_CASE("DirectionalBlur: prepared scratch path preserves output") {
+    Framebuffer baseline(16, 16);
+    fill_impulse(baseline, 8, 8);
+    Framebuffer prepared = baseline;
+
+    chronon3d::EffectScratchResources scratch;
+    scratch.ensure_size(16, 16);
+    auto* first_scratch_fb = scratch.framebuffer.get();
+
+    apply_directional_blur(baseline, 37.0f, 6.0f, 5);
+    apply_directional_blur(prepared, 37.0f, 6.0f, 5,
+                           std::nullopt, &scratch);
+    CHECK(framebuffer_max_error(baseline, prepared) <= kScalarEpsilon);
+
+    // Reuse is observable at the resource boundary: the second invocation
+    // does not replace the prewarmed temporary framebuffer.
+    apply_directional_blur(prepared, 37.0f, 6.0f, 5,
+                           std::nullopt, &scratch);
+    CHECK(scratch.framebuffer.get() == first_scratch_fb);
 }
 
 // =============================================================================

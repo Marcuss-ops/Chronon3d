@@ -367,6 +367,15 @@ public:
         return s;
     }
 
+    [[nodiscard]] size_t capacity() const {
+        size_t total = 0;
+        for (const auto& shard : m_shards) {
+            std::lock_guard lock(shard->mutex);
+            total += shard->capacity_weight;
+        }
+        return total;
+    }
+
 private:
     struct Entry {
         Value value;
