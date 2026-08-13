@@ -91,7 +91,8 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
         // `attach_software_backend()` factory (runtime_adapter.hpp).
         // Replaces the previously-inlined services bundle +
         // make_software_backend + attach_processor_context duplicate.
-        chronon3d::backends::software::attach_software_backend(renderer.get());
+        chronon3d::backends::software::attach_software_backend(
+            renderer.get(), renderer->runtime().config().backend_preference());
     }
 
     // Explicit CLI asset mounting for standalone renders.  Do not fall back

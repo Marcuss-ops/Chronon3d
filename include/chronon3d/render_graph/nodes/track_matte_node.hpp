@@ -56,6 +56,8 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }
 
+    [[nodiscard]] TrackMatteType type() const noexcept { return m_type; }
+
     NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,

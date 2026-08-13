@@ -4,6 +4,8 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
@@ -102,6 +104,9 @@ namespace chronon3d {
 // RenderRuntime grant them access to the now-private attach_backend().
 namespace chronon3d::backends::software {
     void attach_software_backend(::chronon3d::SoftwareRenderer*);
+    void attach_software_backend(
+        ::chronon3d::SoftwareRenderer*,
+        ::chronon3d::graph::BackendPreference);
 }
 namespace chronon3d::test {
     void attach_software_backend(::chronon3d::SoftwareRenderer*);
@@ -266,6 +271,10 @@ public:
     [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
     [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
     [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
+    [[nodiscard]] RenderSurfaceRegistry&                   surface_registry() noexcept { return m_surface_registry; }
+    [[nodiscard]] const RenderSurfaceRegistry&             surface_registry() const noexcept { return m_surface_registry; }
+    [[nodiscard]] GpuAssetCache&                           gpu_asset_cache() noexcept { return m_gpu_asset_cache; }
+    [[nodiscard]] const GpuAssetCache&                     gpu_asset_cache() const noexcept { return m_gpu_asset_cache; }
 
     // WP-3 PR 3.1 — `scene_hasher()` + `program_store()` accessors were
     // REMOVED here.  Both state engines are now per-session owned; reach
@@ -303,6 +312,9 @@ private:
     // established orchestration flow (runtime_adapter for production,
     // test_utils for tests).
     friend void ::chronon3d::backends::software::attach_software_backend(::chronon3d::SoftwareRenderer*);
+    friend void ::chronon3d::backends::software::attach_software_backend(
+        ::chronon3d::SoftwareRenderer*,
+        ::chronon3d::graph::BackendPreference);
     friend void ::chronon3d::test::attach_software_backend(::chronon3d::SoftwareRenderer*);
 
     chronon3d::Config                                   m_config;
@@ -312,6 +324,7 @@ private:
     /// member so lifetime is the runtime's, deterministic per engine.
     chronon3d::assets::AssetResolver                    m_resolver;
     chronon3d::assets::MeshPreparationCache              m_mesh_cache{};
+    RenderSurfaceRegistry                                 m_surface_registry{};
     mutable std::mutex                                  m_prepared_assets_mutex;
     std::shared_ptr<const PreparedAssets>                m_prepared_assets{};
     std::string                                         m_prepared_mesh_manifest_key;
@@ -348,6 +361,7 @@ private:
     std::unique_ptr<chronon3d::cache::PersistentFramebufferStore> m_framebuffer_store;
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
+    GpuAssetCache                                      m_gpu_asset_cache{};
     /// WP-9 PR 9.0 / R1 — runtime owns the per-runtime FontEngine.
     std::unique_ptr<chronon3d::FontEngine>            m_font_engine_owned;
     bool                                              m_populated{false};

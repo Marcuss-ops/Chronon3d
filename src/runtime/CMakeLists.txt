@@ -16,6 +16,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
     motion_graph_prewarm.cpp
     render_runtime.cpp
+    gpu_asset_cache.cpp
     # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
     #    graph::render_scene_via_graph / graph::render_composition_frame.
     render_pipeline.cpp

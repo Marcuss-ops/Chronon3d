@@ -60,6 +60,7 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 
 // TICKET-007 / TICKET-010 — render_graph_context.hpp is a public SDK header
 // consumed by graph-node TU families (transform_node, multi_source_node,
@@ -243,6 +244,7 @@ struct RenderPolicy {
 
 struct RenderServices {
     RenderBackend* backend{nullptr};
+    runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
     CompiledGraphCache* compiled_graph_cache{nullptr};

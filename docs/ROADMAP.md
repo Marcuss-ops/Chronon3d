@@ -40,6 +40,38 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
+## M4 — GPU backend Vulkan (IN PROGRESS, dopo la baseline corrente)
+
+Chronon GPU sarà un secondo backend completo, non una riscrittura del renderer
+CPU. `SoftwareBackend` resterà fallback e oracle di equivalenza; la selezione
+sarà esplicita (`auto`, `software`, `gpu`) e `gpu` fallirà senza fallback
+silenzioso quando Vulkan non è disponibile.
+
+Sequenza vincolante: registry/resolver/capabilities e `RenderSurfaceHandle`
+neutrale (prima tranche implementata con ADR-021) → runtime Vulkan persistente →
+resource planner e cache/upload GPU → overlay texture/transform/composite →
+text atlas, masks, blur/glow/DOF → graph compiler/barrier plan → equivalence
+checker CPU/Vulkan → encoder zero-copy dove supportato.
+
+Non-goal: GPU utilization costante al 100%, Vulkan types nel RenderGraph,
+allocazioni GPU per frame dopo warmup, readback CPU intermedio o fallback
+implicito da `--require-gpu`.
+
+> **Snapshot osservato (2026-08-13):** registry, selezione CLI strict, runtime
+> Vulkan headless persistente, registry engine-local delle superfici, kernel
+> compute source-over native, percorso CompositeNode con sincronizzazione
+> terminale, integer-translation con opacity, transform affine nearest/bilinear,
+> cache GPU LRU con rilascio delle superfici, registry dei kernel, upload
+> ticketed con timeline semaphore tramite staging ring multi-slot e blur
+> separabile H/V device-local, batching glow H/V+Add in una submission, il
+> color-adjust/tint e matte alpha/luma device-local e il dispatch dei nodi
+> full-frame `EffectStackNode`/`TrackMatteNode` verso le surface Vulkan (con
+> test graph-level e descriptor set riutilizzabili) sono compilabili e testati;
+> la selezione del physical device preferisce e certifica la GPU discreta
+> disponibile;
+> transfer queue separata, le trasformazioni projective e gli altri nodi GPU
+> restano da migrare.
+
 > **Snapshot osservato (2026-07-30):** `main@5cfdf1cd`. Glow V1, Camera 2.5D V1
 > e `GlowCameraProductV1` sono PASS sui gate Linux: video 60 frame, random
 > access, seriale/parallelo, cold/warm, SDK consumer e C ABI inclusi. La

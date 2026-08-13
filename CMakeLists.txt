@@ -62,6 +62,7 @@ option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
+option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
 # Blend2D is the only USE_ option because it is independent of its ENABLE_
@@ -132,6 +133,10 @@ endif()
 
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
+
+if(CHRONON3D_ENABLE_VULKAN)
+    find_package(Vulkan REQUIRED)
+endif()
 
 if(CHRONON3D_ENABLE_EXR)
     find_package(OpenEXR CONFIG REQUIRED)

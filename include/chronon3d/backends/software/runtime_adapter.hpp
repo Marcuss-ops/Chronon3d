@@ -18,6 +18,7 @@
 
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 
 namespace chronon3d::runtime { class RenderRuntime; }
@@ -55,5 +56,11 @@ void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg);
 /// the renderer ctor would be unsafe: the surrounding
 /// `shared_ptr<SoftwareRenderer>` can be moved before these refs are read.
 void attach_software_backend(chronon3d::SoftwareRenderer* renderer);
+
+/// Resolve and attach the requested backend. `GPU` is strict: it fails while
+/// Vulkan is not registered rather than silently selecting Software.
+void attach_software_backend(
+    chronon3d::SoftwareRenderer* renderer,
+    chronon3d::graph::BackendPreference preference);
 
 } // namespace chronon3d::backends::software

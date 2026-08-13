@@ -46,9 +46,45 @@
 
 #include <spdlog/spdlog.h>
 #include <cassert>
+#include <vector>
 #include "temporal_render_context.hpp"
 
 namespace chronon3d::graph {
+
+namespace {
+
+void synchronize_native_output(RenderGraphContext& ctx,
+                               const std::shared_ptr<Framebuffer>& framebuffer) {
+    if (!framebuffer || !ctx.services.backend ||
+        framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+        return;
+    }
+    std::vector<float> rgba(static_cast<std::size_t>(framebuffer->width()) *
+                            framebuffer->height() * 4);
+    const auto result = ctx.services.backend->download_surface(
+        framebuffer->surface_handle(), rgba);
+    if (!result.ok()) {
+        spdlog::error("[backend] native output synchronization failed: {}",
+                      result.error().message);
+        framebuffer->clear_surface_handle();
+        return;
+    }
+    std::size_t index = 0;
+    for (int y = 0; y < framebuffer->height(); ++y) {
+        for (int x = 0; x < framebuffer->width(); ++x) {
+            framebuffer->set_pixel(x, y, Color{
+                rgba[index], rgba[index + 1], rgba[index + 2], rgba[index + 3]});
+            index += 4;
+        }
+    }
+    if (ctx.services.surface_registry) {
+        (void)ctx.services.backend->release_surface(framebuffer->surface_handle());
+        (void)ctx.services.surface_registry->release(framebuffer->surface_handle());
+    }
+    framebuffer->clear_surface_handle();
+}
+
+} // namespace
 
 std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     RenderBackend& backend,
@@ -97,6 +133,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         temporal_context ? temporal_context->sample_key : TemporalSampleKey{});
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
+    if (sw_renderer) {
+        ctx.services.surface_registry = &sw_renderer->runtime().surface_registry();
+    }
 
     if (isolated_temporal_sample) {
         // Temporal samples get their own session/cache domains. The renderer
@@ -365,6 +404,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
 
         dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
         frame, width, height, root_scope);
+    // Native surfaces remain authoritative across composite nodes. The public
+    // render API still returns a CPU Framebuffer, so perform exactly one
+    // terminal synchronization here rather than between every graph pass.
+    synchronize_native_output(ctx, exec_result.fb);
     const auto t_exec1 = profiling::now();
 
     if (sw_renderer && !isolated_temporal_sample) {
