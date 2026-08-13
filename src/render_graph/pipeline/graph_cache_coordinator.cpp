@@ -14,6 +14,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/core/enum_utils.hpp>
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
@@ -194,6 +195,7 @@ static void log_graph_cache_diagnostics(
     ctx.policy.skip_initial_clear = mutable_ctx.policy.skip_initial_clear;
     ctx.policy.track_dof_depth = mutable_ctx.policy.track_dof_depth;
     ctx.node_exec.dof_depth = std::move(mutable_ctx.node_exec.dof_depth);
+    ctx.node_exec.dof_source_coverage = mutable_ctx.node_exec.dof_source_coverage;
     ctx.node_exec.early_exit_skip = std::move(mutable_ctx.node_exec.early_exit_skip);
 
     // Compile + optimize
@@ -267,10 +269,12 @@ static void log_graph_cache_diagnostics(
         ctx.policy.track_dof_depth = true;
         ctx.node_exec.dof_depth.assign(
             static_cast<size_t>(width) * static_cast<size_t>(height),
-            0.0f);
+            kUnsetDofDepth);
+        ctx.node_exec.dof_source_coverage.reset();
     } else {
         ctx.policy.track_dof_depth = false;
         ctx.node_exec.dof_depth.clear();
+        ctx.node_exec.dof_source_coverage.reset();
     }
 
     const auto t_refresh0 = profiling::now();
