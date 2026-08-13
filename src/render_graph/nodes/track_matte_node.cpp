@@ -21,9 +21,107 @@
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/compositor/matte.hpp>
 #include <chronon3d/simd/kernels.hpp>
+#include <cmath>
 #include <span>
+#include <vector>
 
 namespace chronon3d::graph {
+
+namespace {
+
+bool try_native_matte(RenderGraphContext& ctx,
+                      TrackMatteType type,
+                      const Framebuffer& target,
+                      const Framebuffer& matte,
+                      Framebuffer& output) {
+    const auto clip = ctx.node_exec.clip_rect;
+    const bool partial_clip = clip &&
+        (clip->x0 != target.origin_x() || clip->y0 != target.origin_y() ||
+         clip->x1 != target.origin_x() + target.width() ||
+         clip->y1 != target.origin_y() + target.height());
+    if (partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
+        target.width() != matte.width() || target.height() != matte.height() ||
+        target.origin_x() != matte.origin_x() || target.origin_y() != matte.origin_y() ||
+        output.surface_handle() != runtime::kInvalidRenderSurfaceHandle ||
+        (type != TrackMatteType::Alpha && type != TrackMatteType::AlphaInverted &&
+         type != TrackMatteType::Luma && type != TrackMatteType::LumaInverted)) {
+        return false;
+    }
+
+    const runtime::SurfaceDesc desc{
+        static_cast<std::uint32_t>(target.width()),
+        static_cast<std::uint32_t>(target.height()),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient,
+        static_cast<std::size_t>(target.width()) * target.height() * sizeof(float) * 4};
+    auto pack = [](const Framebuffer& framebuffer) {
+        std::vector<float> pixels(static_cast<std::size_t>(framebuffer.width()) *
+                                  framebuffer.height() * 4);
+        std::size_t index = 0;
+        for (int y = 0; y < framebuffer.height(); ++y) {
+            for (int x = 0; x < framebuffer.width(); ++x) {
+                const auto pixel = framebuffer.get_pixel(x, y);
+                pixels[index++] = pixel.r;
+                pixels[index++] = pixel.g;
+                pixels[index++] = pixel.b;
+                pixels[index++] = pixel.a;
+            }
+        }
+        return pixels;
+    };
+    const auto target_pixels = pack(target);
+    const auto matte_pixels = pack(matte);
+    const auto destination = ctx.services.surface_registry->create(desc);
+    const auto target_surface = ctx.services.surface_registry->create(desc);
+    const auto matte_surface = ctx.services.surface_registry->create(desc);
+    if (destination == runtime::kInvalidRenderSurfaceHandle ||
+        target_surface == runtime::kInvalidRenderSurfaceHandle ||
+        matte_surface == runtime::kInvalidRenderSurfaceHandle) {
+        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(destination);
+        if (target_surface != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(target_surface);
+        if (matte_surface != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(matte_surface);
+        return false;
+    }
+    const auto cleanup = [&] {
+        (void)ctx.services.backend->release_surface(destination);
+        (void)ctx.services.backend->release_surface(target_surface);
+        (void)ctx.services.backend->release_surface(matte_surface);
+        ctx.services.surface_registry->release(destination);
+        ctx.services.surface_registry->release(target_surface);
+        ctx.services.surface_registry->release(matte_surface);
+    };
+    auto created_target = ctx.services.backend->create_surface(target_surface, desc);
+    auto uploaded_target = created_target.ok()
+        ? ctx.services.backend->upload_surface(target_surface, desc, target_pixels)
+        : created_target;
+    auto created_matte = uploaded_target.ok()
+        ? ctx.services.backend->create_surface(matte_surface, desc)
+        : uploaded_target;
+    auto uploaded_matte = created_matte.ok()
+        ? ctx.services.backend->upload_surface(matte_surface, desc, matte_pixels)
+        : created_matte;
+    auto created_destination = uploaded_matte.ok()
+        ? ctx.services.backend->create_surface(destination, desc)
+        : uploaded_matte;
+    const bool luma = type == TrackMatteType::Luma || type == TrackMatteType::LumaInverted;
+    const bool inverted = type == TrackMatteType::AlphaInverted || type == TrackMatteType::LumaInverted;
+    const auto applied = created_destination.ok()
+        ? ctx.services.backend->matte_surface(destination, target_surface, matte_surface, luma, inverted)
+        : created_destination;
+    if (!applied.ok()) {
+        cleanup();
+        return false;
+    }
+    (void)ctx.services.backend->release_surface(target_surface);
+    (void)ctx.services.backend->release_surface(matte_surface);
+    ctx.services.surface_registry->release(target_surface);
+    ctx.services.surface_registry->release(matte_surface);
+    output.set_surface_handle(destination);
+    return true;
+}
+
+} // namespace
 
 NodeExecResult TrackMatteNode::execute(
     RenderGraphContext& ctx,
@@ -41,6 +139,11 @@ NodeExecResult TrackMatteNode::execute(
     const Framebuffer& matte  = *inputs[1];
 
     auto out = ctx.acquire_owned_fb(target.width(), target.height());
+
+    if (try_native_matte(ctx, m_type, target, matte, *out)) {
+        out->set_opaque(false);
+        return NodeExecResult{std::move(out)};
+    }
 
     const int W = target.width();
     const int H = target.height();

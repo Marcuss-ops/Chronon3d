@@ -159,6 +159,7 @@ namespace chronon3d::graph {
         },
         .services = RenderServices{
             .backend           = &backend,
+            .surface_registry  = nullptr,
             .node_cache        = &node_cache,
             .framebuffer_pool  = backend.framebuffer_pool(),
             .registry          = registry,

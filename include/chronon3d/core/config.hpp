@@ -31,6 +31,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>  // P1-21: FramebufferPoolClearPolicy
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
+#include <chronon3d/render_graph/backend_selection.hpp>
 
 namespace chronon3d {
 
@@ -204,6 +205,12 @@ public:
     /// the scheduler, decoder, encoder and writer pipeline.
     void set_cpu_budget(const CpuBudget& budget) { cpu_budget_ = budget; }
 
+    /// Select the rendering backend for this runtime. Auto may fall back to
+    /// Software; GPU is strict and must never silently degrade to CPU.
+    void set_backend_preference(chronon3d::graph::BackendPreference preference) noexcept {
+        backend_preference_ = preference;
+    }
+
     // ── Domain accessors ──────────────────────────────────────────────
 
     [[nodiscard]] const DebugConfig&     debug()     const noexcept { return debug_; }
@@ -211,6 +218,9 @@ public:
     [[nodiscard]] const SchedulerConfig& scheduler() const noexcept { return scheduler_; }
     [[nodiscard]] const PathConfig&      paths()     const noexcept { return paths_; }
     [[nodiscard]] const CpuBudget&       cpu_budget() const noexcept { return cpu_budget_; }
+    [[nodiscard]] chronon3d::graph::BackendPreference backend_preference() const noexcept {
+        return backend_preference_;
+    }
 
     // ── Utility (kept public, unchanged) ──────────────────────────────
 
@@ -233,6 +243,8 @@ private:
     SchedulerConfig scheduler_;
     PathConfig      paths_;
     CpuBudget       cpu_budget_;
+    chronon3d::graph::BackendPreference backend_preference_{
+        chronon3d::graph::BackendPreference::Auto};
 };
 
 } // namespace chronon3d

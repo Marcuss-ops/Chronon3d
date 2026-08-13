@@ -1,0 +1,49 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform writeonly image2D dst_image;
+layout(binding = 1, rgba32f) uniform readonly image2D src_image;
+
+layout(push_constant) uniform AffineParams {
+    vec4 source_x;
+    vec4 source_y;
+    vec4 limits; // max x, max y, opacity, bilinear flag
+    ivec2 destination_origin;
+} params;
+
+vec4 sample_nearest(vec2 source, ivec2 size) {
+    ivec2 p = ivec2(floor(source));
+    if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) return vec4(0.0);
+    return imageLoad(src_image, p);
+}
+
+vec4 sample_bilinear(vec2 source, ivec2 size) {
+    vec2 u = source - vec2(0.5);
+    ivec2 p = ivec2(floor(u));
+    vec2 f = fract(u);
+    ivec2 p00 = clamp(p, ivec2(0), size - ivec2(1));
+    ivec2 p10 = clamp(p + ivec2(1, 0), ivec2(0), size - ivec2(1));
+    ivec2 p01 = clamp(p + ivec2(0, 1), ivec2(0), size - ivec2(1));
+    ivec2 p11 = clamp(p + ivec2(1), ivec2(0), size - ivec2(1));
+    return mix(mix(imageLoad(src_image, p00), imageLoad(src_image, p10), f.x),
+               mix(imageLoad(src_image, p01), imageLoad(src_image, p11), f.x), f.y);
+}
+
+void main() {
+    ivec2 destination = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 destination_size = imageSize(dst_image);
+    if (destination.x >= destination_size.x || destination.y >= destination_size.y) return;
+
+    vec2 canvas = vec2(destination + params.destination_origin) + vec2(0.5);
+    vec2 source = vec2(dot(params.source_x.xyz, vec3(canvas, 1.0)),
+                       dot(params.source_y.xyz, vec3(canvas, 1.0)));
+    vec4 value = vec4(0.0);
+    if (source.x >= params.source_x.w && source.x < params.limits.x &&
+        source.y >= params.source_y.w && source.y < params.limits.y) {
+        value = params.limits.w > 0.5
+            ? sample_bilinear(source, imageSize(src_image))
+            : sample_nearest(source, imageSize(src_image));
+        value *= params.limits.z;
+    }
+    imageStore(dst_image, destination, value);
+}

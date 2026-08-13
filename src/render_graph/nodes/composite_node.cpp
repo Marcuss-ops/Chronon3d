@@ -12,8 +12,79 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <vector>
 
 namespace chronon3d::graph {
+
+namespace {
+
+bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
+    if (!ctx.services.backend || !ctx.services.surface_registry) return false;
+    if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        return true;
+    }
+
+    const runtime::SurfaceDesc desc{
+        static_cast<std::uint32_t>(framebuffer.width()),
+        static_cast<std::uint32_t>(framebuffer.height()),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient,
+        static_cast<std::size_t>(framebuffer.width()) * framebuffer.height() * sizeof(float) * 4};
+    const auto handle = ctx.services.surface_registry->create(desc);
+    if (handle == runtime::kInvalidRenderSurfaceHandle) return false;
+
+    std::vector<float> rgba(static_cast<std::size_t>(framebuffer.width()) *
+                            framebuffer.height() * 4);
+    std::size_t index = 0;
+    for (int y = 0; y < framebuffer.height(); ++y) {
+        for (int x = 0; x < framebuffer.width(); ++x) {
+            const auto pixel = framebuffer.get_pixel(x, y);
+            rgba[index++] = pixel.r;
+            rgba[index++] = pixel.g;
+            rgba[index++] = pixel.b;
+            rgba[index++] = pixel.a;
+        }
+    }
+
+    const auto created = ctx.services.backend->create_surface(handle, desc);
+    const auto uploaded = created.ok()
+        ? ctx.services.backend->upload_surface(handle, desc, rgba)
+        : RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::ExecutionFailure, created.error().message});
+    if (!uploaded.ok()) {
+        ctx.services.surface_registry->release(handle);
+        return false;
+    }
+    framebuffer.set_surface_handle(handle);
+    return true;
+}
+
+bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
+                          Framebuffer& source, BlendMode mode,
+                          CompositeOperator op,
+                          const std::optional<raster::BBox>& clip) {
+    if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver || clip) {
+        return false;
+    }
+    const auto original_handle = destination.surface_handle();
+    if (!ensure_native_surface(ctx, destination) ||
+        !ensure_native_surface(ctx, source)) {
+        if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
+            destination.clear_surface_handle();
+        }
+        return false;
+    }
+    const auto result = ctx.services.backend->composite_surfaces(
+        destination.surface_handle(), source.surface_handle(), mode, op);
+    if (result.ok()) return true;
+    if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
+        destination.clear_surface_handle();
+    }
+    return false;
+}
+
+} // namespace
 
 NodeExecResult CompositeNode::execute(
     RenderGraphContext& ctx,
@@ -199,7 +270,14 @@ NodeExecResult CompositeNode::execute(
 
         // Check if stencil/silhouette operator — these use the underlying
         // composite operator field instead of a blend mode when applicable.
-        if (m_operator != CompositeOperator::SourceOver) {
+        const bool native_composite = try_native_composite(
+            ctx, *result, *top, m_mode, m_operator, clip);
+        if (native_composite) {
+            // The native path has already composed the logical surfaces. The
+            // CPU pixels remain a reference snapshot for any legacy consumer;
+            // the handle is the authoritative value for subsequent native
+            // composite nodes.
+        } else if (m_operator != CompositeOperator::SourceOver) {
             // Stencil/Silhouette: use Normal blend to copy top first, then
             // apply the operator via the backend (which handles the masking).
             // The operator is passed along so the backend can apply the

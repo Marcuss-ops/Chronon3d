@@ -250,6 +250,40 @@ NodeExecResult TransformNode::execute(
         if (is_integer_translation) {
             const i32 itx = static_cast<i32>(std::round(tx));
             const i32 ity = static_cast<i32>(std::round(ty));
+
+            // Native GPU path for the canonical integer-translation case.
+            // The source must already be a device-local logical surface; the
+            // CPU implementation remains the fallback for the first upload,
+            // perspective, and filtered affine paths.
+            if (input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+                ctx.services.backend && ctx.services.surface_registry) {
+                const runtime::SurfaceDesc desc{
+                    static_cast<std::uint32_t>(result->width()),
+                    static_cast<std::uint32_t>(result->height()),
+                    runtime::PixelFormat::Rgba32Float,
+                    runtime::ResourceUsage::Storage,
+                    runtime::LifetimeClass::FrameTransient,
+                    static_cast<std::size_t>(result->width()) * result->height() * sizeof(float) * 4};
+                const auto handle = ctx.services.surface_registry->create(desc);
+                const auto created = handle != runtime::kInvalidRenderSurfaceHandle
+                    ? ctx.services.backend->create_surface(handle, desc)
+                    : RenderOpResult(RenderBackendError{
+                        RenderBackendErrorCode::InvalidInput,
+                        "TransformNode: unable to allocate native output handle"});
+                if (created.ok()) {
+                    const auto transformed = ctx.services.backend->transform_surface(
+                        handle, input->surface_handle(),
+                        input->origin_x() + itx - result->origin_x(),
+                        input->origin_y() + ity - result->origin_y(), opacity);
+                    if (transformed.ok()) {
+                        result->set_surface_handle(handle);
+                        return NodeExecResult{std::move(result)};
+                    }
+                }
+                if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                    ctx.services.surface_registry->release(handle);
+                }
+            }
             detail::execute_translate_clamped(
                 result.get(), input.get(),
                 x0, x1, y0, y1,
@@ -274,6 +308,54 @@ NodeExecResult TransformNode::execute(
                 x0, x1, y0, y1,
                 itx, ity, opacity);
             return NodeExecResult{std::move(result)};
+        }
+    }
+
+    // Native GPU path for the general affine (non-projective) case. The
+    // inverse homography is the same mapping used by execute_affine_rows;
+    // projective transforms and clipped passes remain on the CPU reference.
+    if (is_affine && !ctx.node_exec.clip_rect &&
+        input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.services.backend && ctx.services.surface_registry) {
+        runtime::SurfaceAffineTransform transform{};
+        transform.source_x[0] = inv_H_corrected[0][0];
+        transform.source_x[1] = inv_H_corrected[1][0];
+        transform.source_x[2] = inv_H_corrected[2][0];
+        transform.source_x[3] = x_min_src;
+        transform.source_y[0] = inv_H_corrected[0][1];
+        transform.source_y[1] = inv_H_corrected[1][1];
+        transform.source_y[2] = inv_H_corrected[2][1];
+        transform.source_y[3] = y_min_src;
+        transform.max_x = x_max_src;
+        transform.max_y = y_max_src;
+        transform.opacity = opacity;
+        transform.bilinear = m_mode == SamplingMode::Bilinear ? 1u : 0u;
+        transform.destination_origin_x = result->origin_x();
+        transform.destination_origin_y = result->origin_y();
+
+        const runtime::SurfaceDesc desc{
+            static_cast<std::uint32_t>(result->width()),
+            static_cast<std::uint32_t>(result->height()),
+            runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Storage,
+            runtime::LifetimeClass::FrameTransient,
+            static_cast<std::size_t>(result->width()) * result->height() * sizeof(float) * 4};
+        const auto handle = ctx.services.surface_registry->create(desc);
+        const auto created = handle != runtime::kInvalidRenderSurfaceHandle
+            ? ctx.services.backend->create_surface(handle, desc)
+            : RenderOpResult(RenderBackendError{
+                RenderBackendErrorCode::InvalidInput,
+                "TransformNode: unable to allocate native affine output handle"});
+        if (created.ok()) {
+            const auto transformed = ctx.services.backend->transform_surface_affine(
+                handle, input->surface_handle(), transform);
+            if (transformed.ok()) {
+                result->set_surface_handle(handle);
+                return NodeExecResult{std::move(result)};
+            }
+        }
+        if (handle != runtime::kInvalidRenderSurfaceHandle) {
+            ctx.services.surface_registry->release(handle);
         }
     }
 

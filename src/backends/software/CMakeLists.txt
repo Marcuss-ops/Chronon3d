@@ -52,6 +52,10 @@ if(TARGET chronon3d_backend_text)
     # Keep capability layout consistent for all consumers of the context.
     target_compile_definitions(chronon3d_backend_software PUBLIC CHRONON3D_HAS_BACKEND_TEXT)
 endif()
+if(CHRONON3D_ENABLE_VULKAN)
+    target_link_libraries(chronon3d_backend_software PUBLIC chronon3d_backend_vulkan)
+    target_compile_definitions(chronon3d_backend_software PUBLIC CHRONON3D_ENABLE_VULKAN)
+endif()
 
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_backend_software_diagnostics)
