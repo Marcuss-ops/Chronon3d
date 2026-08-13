@@ -91,6 +91,9 @@ if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
     add_subdirectory(backends/text)     # chronon3d_backend_text (needs Blend2D for glyph rasteriser)
 endif()
 add_subdirectory(backends/assets)   # chronon3d_backend_assets
+if(CHRONON3D_ENABLE_VULKAN)
+    add_subdirectory(backends/vulkan) # chronon3d_backend_vulkan
+endif()
 add_subdirectory(render_graph)      # chronon3d_graph
 add_subdirectory(runtime)           # chronon3d_runtime
 add_subdirectory(render_plan)      # chronon3d_render_plan (JSON Schema validator)
@@ -143,6 +146,10 @@ target_link_libraries(chronon3d_software INTERFACE
     chronon3d_backend_assets
     chronon3d_backend_image
 )
+
+if(CHRONON3D_ENABLE_VULKAN)
+    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_vulkan)
+endif()
 
 if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_video)

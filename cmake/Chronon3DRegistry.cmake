@@ -103,6 +103,7 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
     chronon3d_backend_assets
     chronon3d_backend_image
     chronon3d_backend_software
+    chronon3d_backend_vulkan                # CHRONON3D_ENABLE_VULKAN
 
     # ── Render graph sub-targets (src/render_graph) ──────────────────
     chronon3d_graph_builder

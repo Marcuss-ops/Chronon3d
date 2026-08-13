@@ -6,23 +6,11 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <chronon3d/runtime/render_surface.hpp>
 
 namespace chronon3d::runtime {
 
 using ResourceId = std::uint32_t;
-
-enum class ResourceKind : std::uint8_t {
-    Color,
-    Depth,
-    Yuv,
-    Bytes,
-};
-
-enum class LifetimeClass : std::uint8_t {
-    FrameTransient,
-    PipelineSlot,
-    JobPersistent,
-};
 
 /// Compatibility domain for a planned allocation. External resources are
 /// described for dependency analysis but never receive an arena slot.
@@ -30,21 +18,6 @@ enum class ResourceLifetime : std::uint8_t {
     Transient,
     Persistent,
     External,
-};
-
-enum class ResourceUsage : std::uint8_t {
-    Generic,
-    ColorAttachment,
-    DepthAttachment,
-    Storage,
-};
-
-enum class PixelFormat : std::uint8_t {
-    Unknown,
-    Rgba32Float,
-    Rgba8Unorm,
-    Depth32Float,
-    Bytes,
 };
 
 struct ResourceDesc {
@@ -61,6 +34,7 @@ struct ResourceDesc {
 /// description separate from the physical slot that backs it.
 struct LogicalResource {
     ResourceId id{0};
+    RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
     ResourceDesc desc{};
     std::size_t first_use{0};
     std::size_t last_use{0};
@@ -76,11 +50,13 @@ struct ResourceRequest {
     std::size_t last{0};
     std::size_t alignment{alignof(std::max_align_t)};
     ResourceDesc desc{};
+    RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
 };
 
 struct ResourceAllocation {
     std::size_t request_index{0};
     std::size_t physical_slot{std::numeric_limits<std::size_t>::max()};
+    RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
 };
 
 using ResourceBinding = ResourceAllocation;
@@ -163,7 +139,7 @@ public:
                 ? request.bytes : request.desc.bytes;
             if (request.desc.lifetime == ResourceLifetime::External) {
                 plan.allocations[index] = ResourceAllocation{
-                    index, std::numeric_limits<std::size_t>::max()};
+                    index, std::numeric_limits<std::size_t>::max(), request.surface};
                 continue;
             }
             std::size_t selected = std::numeric_limits<std::size_t>::max();
@@ -194,7 +170,7 @@ public:
                 physical.height = std::max(physical.height, request.desc.height);
                 ++plan.telemetry.buffer_reuse_count;
             }
-            plan.allocations[index] = ResourceAllocation{index, selected};
+            plan.allocations[index] = ResourceAllocation{index, selected, request.surface};
         }
 
         std::size_t max_point = 0;
