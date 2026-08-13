@@ -9,6 +9,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/backends/software/runtime_adapter.hpp>
+#include <chronon3d/render_graph/backend_registry.hpp>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
 
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
@@ -54,21 +58,10 @@ void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg) {
     chronon3d::renderer::register_builtin_processors(reg);
 }
 
-void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
-    assert(renderer && "attach_software_backend: null renderer");
-    // Idempotent — re-entry is silent so unit tests don't have to gate
-    // against the transition from attach_pending to attached.
-    if (renderer->runtime().backend_attached()) {
-        return;
-    }
+namespace {
 
-    // TICKET-118/119 — `SoftwareBackendServices::owner` REMOVED.  The
-    // public services bundle no longer carries the SoftwareRenderer*
-    // back-pointer; orchestrator-only fields (registry / image_backend /
-    // font_engine) are attached post-construction via
-    // `SoftwareBackend::attach_processor_context()`.  Lifetime invariant
-    // (preserved): renderer outlives the backend because `renderer->runtime()`
-    // owns the backend and `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.
+std::unique_ptr<chronon3d::graph::RenderBackend>
+make_software_backend_instance(chronon3d::SoftwareRenderer* renderer) {
     chronon3d::SoftwareBackendServices services{};
     services.counters         = renderer->counters();
     services.settings         = &renderer->render_settings();
@@ -80,35 +73,74 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
     auto factory_result = make_software_backend(services);
     if (!factory_result.has_value()) {
         const auto& e = factory_result.error();
-        spdlog::error(
-            "[backends::software] attach_software_backend rejected: code={} field='{}' msg='{}'",
-            static_cast<int>(e.code),
-            e.field_name,
-            e.message);
-        throw std::runtime_error(
-            std::string{"attach_software_backend: "} + e.message);
+        throw std::runtime_error(std::string{"attach_software_backend: "} + e.message);
     }
 
-    // TICKET-119 — wire the orchestrator-only fields through the internal
-    // bridge (`src/backends/software/internal/software_processor_services.hpp`).
-    // The resulting context carries nullptr `renderer` (m_owner eliminated)
-    // and a populated registry + image_backend [+ font_engine] triplet.
     auto backend = std::move(factory_result.value());
     internal::ProcessorSourceExtras extras{};
-    extras.registry      = &renderer->software_registry();
-    extras.image_backend = renderer->image_backend();
+    extras.registry       = &renderer->software_registry();
+    extras.image_backend  = renderer->image_backend();
     extras.image_renderer = &renderer->image_renderer();
-    extras.curve_cache = &renderer->runtime().curve_cache();
+    extras.curve_cache    = &renderer->runtime().curve_cache();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
-    extras.font_engine   = &renderer->font_engine();
+    extras.font_engine    = &renderer->font_engine();
 #endif
-    auto processor_context =
-        internal::make_processor_context(services, extras);
+    auto processor_context = internal::make_processor_context(services, extras);
     processor_context.image_renderer = &renderer->image_renderer();
     processor_context.image_backend = renderer->image_backend();
     backend->attach_processor_context(std::move(processor_context));
     backend->attach_image_services(&renderer->image_renderer(),
                                    renderer->image_backend());
+    return backend;
+}
+
+} // namespace
+
+void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
+    attach_software_backend(renderer, chronon3d::graph::BackendPreference::Auto);
+}
+
+void attach_software_backend(
+    chronon3d::SoftwareRenderer* renderer,
+    chronon3d::graph::BackendPreference preference) {
+    assert(renderer && "attach_software_backend: null renderer");
+    // Idempotent — re-entry is silent so unit tests don't have to gate
+    // against the transition from attach_pending to attached.
+    if (renderer->runtime().backend_attached()) {
+        return;
+    }
+
+    chronon3d::graph::BackendRegistry registry;
+    registry.register_backend(
+        chronon3d::graph::BackendType::Software,
+        chronon3d::graph::BackendCapabilities{
+            .graphics = true,
+            .max_texture_width = 16384,
+            .max_texture_height = 16384},
+        [renderer] { return make_software_backend_instance(renderer); });
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+    // Vulkan is strict-opt-in until RenderSurface execution replaces the
+    // current CPU Framebuffer node contract. Auto remains a safe CPU fallback
+    // during this migration and never silently runs a partial GPU path.
+    if (preference == chronon3d::graph::BackendPreference::GPU) {
+        registry.register_backend(
+            chronon3d::graph::BackendType::Vulkan,
+            chronon3d::graph::BackendCapabilities{
+                .graphics = true, .compute = true},
+            [] { return chronon3d::backends::vulkan::make_vulkan_backend(); });
+    }
+#endif
+
+    chronon3d::graph::BackendResolver resolver(registry);
+    auto resolved = resolver.resolve(preference);
+    if (!resolved.has_value()) {
+        const auto& error = resolved.error();
+        spdlog::error("[backend] selection failed: preference={} code={} message={}",
+                      chronon3d::graph::backend_preference_name(preference),
+                      static_cast<int>(error.code), error.message);
+        throw std::runtime_error("backend selection failed: " + error.message);
+    }
 
     // Fase C2 — attach_backend() is [[deprecated]] for public consumers.
     // This bridge is the canonical internal orchestration path; suppress
@@ -117,7 +149,7 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    renderer->runtime().attach_backend(std::move(backend));
+    renderer->runtime().attach_backend(resolved.take_value());
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif

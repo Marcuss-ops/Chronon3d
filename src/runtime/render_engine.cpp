@@ -135,7 +135,8 @@ struct RenderEngine::Impl {
         // This replaces the previously-inlined services bundle +
         // make_software_backend + attach_processor_context sequence
         // that was duplicated across 3 files.
-        chronon3d::backends::software::attach_software_backend(m_renderer.get());
+        chronon3d::backends::software::attach_software_backend(
+            m_renderer.get(), m_config.backend_preference());
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
         m_pipeline.emplace(m_renderer.get(), *m_runtime);

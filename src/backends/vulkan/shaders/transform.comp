@@ -1,0 +1,25 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform writeonly image2D dst_image;
+layout(binding = 1, rgba32f) uniform readonly image2D src_image;
+
+layout(push_constant) uniform TransformParams {
+    ivec2 offset;
+    float opacity;
+} params;
+
+void main() {
+    ivec2 dst_pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dst_size = imageSize(dst_image);
+    if (dst_pixel.x >= dst_size.x || dst_pixel.y >= dst_size.y) return;
+
+    ivec2 src_pixel = dst_pixel - params.offset;
+    ivec2 src_size = imageSize(src_image);
+    vec4 value = vec4(0.0);
+    if (src_pixel.x >= 0 && src_pixel.y >= 0 &&
+        src_pixel.x < src_size.x && src_pixel.y < src_size.y) {
+        value = imageLoad(src_image, src_pixel) * params.opacity;
+    }
+    imageStore(dst_image, dst_pixel, value);
+}

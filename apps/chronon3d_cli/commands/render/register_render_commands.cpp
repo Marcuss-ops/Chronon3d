@@ -54,6 +54,9 @@ void print_advanced_render_help(std::ostream& out) {
         "  --shutter-angle <degrees>\n"
         "  --shutter-phase <degrees>\n"
         "  --ssaa <factor>\n\n"
+        "Backend selection:\n"
+        "  --backend <auto|software|vulkan>\n"
+        "  (vulkan is strict and fails if GPU backend is unavailable)\n\n"
         "Video output (active for .mp4/.mov/.mkv/.webm):\n"
         "  --fps <N>\n"
         "  --crf <0-51>\n"
@@ -175,6 +178,10 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
     cmd->add_option("--assets-root", args.assets_root,
                     "Root directory for resolving relative assets");
+    cmd->add_option("--backend", args.backend,
+                    "Render backend: auto, software, or vulkan (strict)")
+        ->default_val("auto")
+        ->check(CLI::IsMember({"auto", "software", "vulkan"}));
     cmd->add_option("--props-file", state->props_file,
                     "Flat JSON object containing composition props");
     cmd->add_option("--props-json", state->props_json,

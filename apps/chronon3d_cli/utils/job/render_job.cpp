@@ -29,7 +29,8 @@ bool is_video_output(const std::string& output) {
 void fill_execution_options(RenderExecutionOptions& execution,
                             const RenderPipelineArgs& pipeline,
                             const CpuBudget& cpu_budget,
-                            bool video_output) {
+                            bool video_output,
+                            chronon3d::graph::BackendPreference backend_preference) {
     execution.warmup_renderer =
         pipeline.warmup_renderer || execution.warmup_renderer;
     execution.warmup_framebuffers = pipeline.warmup_framebuffers;
@@ -39,6 +40,7 @@ void fill_execution_options(RenderExecutionOptions& execution,
 
     Config cfg;
     cfg.set_cpu_budget(cpu_budget);
+    cfg.set_backend_preference(backend_preference);
     // Video exports keep several frames in flight.  A large retained pool
     // multiplies live framebuffer memory without improving this workload;
     // keep the video default bounded while preserving the existing still/
@@ -65,6 +67,13 @@ void fill_execution_options(RenderExecutionOptions& execution,
         }
     }
     execution.config = std::move(cfg);
+}
+
+chronon3d::graph::BackendPreference backend_preference_from_cli(
+    const std::string& value) {
+    if (value == "software") return chronon3d::graph::BackendPreference::Software;
+    if (value == "vulkan") return chronon3d::graph::BackendPreference::GPU;
+    return chronon3d::graph::BackendPreference::Auto;
 }
 
 void finalize_video_settings(RenderJob& job) {
@@ -152,7 +161,8 @@ std::optional<RenderRequest> make_render_request(
     request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
     fill_execution_options(
         request.execution, args.pipeline, args.cpu_budget,
-        request.mode == RenderMode::Video);
+        request.mode == RenderMode::Video,
+        backend_preference_from_cli(args.backend));
 
     return request;
 }

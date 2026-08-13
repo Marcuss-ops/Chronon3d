@@ -5,6 +5,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/memory/memory_utils.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <vector>
 #include <string>
@@ -89,7 +90,8 @@ public:
         : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
-          m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest) {
+          m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_surface_handle(other.m_surface_handle) {
         copy_pixels_from(other);
     }
 
@@ -97,7 +99,8 @@ public:
         : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
-          m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest) {
+          m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_surface_handle(other.m_surface_handle) {
         move_pixels_from(std::move(other));
     }
 
@@ -246,6 +249,15 @@ public:
     }
     [[nodiscard]] u64 key_digest() const { return m_key_digest; }
     void set_key_digest(u64 digest) { m_key_digest = digest; }
+    [[nodiscard]] runtime::RenderSurfaceHandle surface_handle() const noexcept {
+        return m_surface_handle;
+    }
+    void set_surface_handle(runtime::RenderSurfaceHandle handle) noexcept {
+        m_surface_handle = handle;
+    }
+    void clear_surface_handle() noexcept {
+        m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
+    }
     [[nodiscard]] bool is_arena_allocated() const { return !m_owns_pixels && m_external_pixels != nullptr; }
 
     /**
@@ -266,6 +278,7 @@ public:
         swap(m_opaque,           other.m_opaque);
         swap(m_content_cleared,  other.m_content_cleared);
         swap(m_key_digest,       other.m_key_digest);
+        swap(m_surface_handle,   other.m_surface_handle);
         swap(m_owns_pixels,      other.m_owns_pixels);
         swap(m_pixels,           other.m_pixels);
         swap(m_external_pixels,  other.m_external_pixels);
@@ -290,6 +303,8 @@ public:
 
 private:
     u64 m_key_digest{0};
+    runtime::RenderSurfaceHandle m_surface_handle{
+        runtime::kInvalidRenderSurfaceHandle};
 
     friend void swap(Framebuffer& a, Framebuffer& b) noexcept {
         a.swap_contents(b);
@@ -313,6 +328,7 @@ private:
         m_owns_pixels = other.m_owns_pixels;
         m_content_cleared = other.m_content_cleared;
         m_key_digest = other.m_key_digest;
+        m_surface_handle = other.m_surface_handle;
     }
 
     void copy_pixels_from(const Framebuffer& other) {
@@ -347,6 +363,7 @@ private:
         m_owns_pixels = true;
         m_external_pixels = nullptr;
         m_key_digest = 0;
+        m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
         m_content_cleared = false;
     }
 

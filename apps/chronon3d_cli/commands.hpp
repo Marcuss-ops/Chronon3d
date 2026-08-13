@@ -69,6 +69,7 @@ struct RenderArgs {
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
     std::string output;      // Output extension selects image or video mode
     std::string assets_root; // Explicit per-render asset mount (never CWD implicitly)
+    std::string backend{"auto"}; // auto | software | vulkan (vulkan is strict)
     RenderPipelineArgs pipeline{};
     VideoSettings video_settings{};
     // CLI11 does not distinguish a default value from an explicitly supplied

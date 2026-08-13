@@ -8,8 +8,182 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <spdlog/spdlog.h>
+#include <cmath>
+#include <vector>
 
 namespace chronon3d::graph {
+
+namespace {
+
+bool try_native_full_frame_glow(RenderGraphContext& ctx,
+                                const EffectStack& effect_stack,
+                                Framebuffer& result,
+                                const std::optional<raster::BBox>& clip) {
+    const bool has_partial_clip = clip &&
+        (clip->x0 != 0 || clip->y0 != 0 ||
+         clip->x1 != ctx.frame_input.width || clip->y1 != ctx.frame_input.height);
+    if (has_partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1 || result.origin_x() != 0 || result.origin_y() != 0 ||
+        result.width() != ctx.frame_input.width || result.height() != ctx.frame_input.height ||
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::Glow) return false;
+    const auto* params = std::get_if<GlowParams>(&instance.params);
+    if (!params || params->layers.size() != 0 || !params->preserve_source ||
+        params->blend != BlendMode::Add || params->threshold != 0.0f ||
+        params->spread != 1.0f || params->softness != 1.0f ||
+        params->falloff != 0.85f || params->core_strength != 0.70f ||
+        params->aura_strength != 0.35f || params->bloom_strength != 0.18f ||
+        params->outer_downscale != 0.25f || !std::isfinite(params->radius) ||
+        !std::isfinite(params->intensity) || params->radius < 0.0f ||
+        params->radius > 32.0f || params->intensity < 0.0f) {
+        return false;
+    }
+
+    const runtime::SurfaceDesc desc{
+        static_cast<std::uint32_t>(result.width()),
+        static_cast<std::uint32_t>(result.height()),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient,
+        static_cast<std::size_t>(result.width()) * result.height() * sizeof(float) * 4};
+    std::vector<float> rgba(static_cast<std::size_t>(result.width()) * result.height() * 4);
+    std::size_t index = 0;
+    for (int y = 0; y < result.height(); ++y) {
+        for (int x = 0; x < result.width(); ++x) {
+            const auto pixel = result.get_pixel(x, y);
+            rgba[index++] = pixel.r;
+            rgba[index++] = pixel.g;
+            rgba[index++] = pixel.b;
+            rgba[index++] = pixel.a;
+        }
+    }
+    const auto output = ctx.services.surface_registry->create(desc);
+    const auto horizontal = ctx.services.surface_registry->create(desc);
+    const auto vertical = ctx.services.surface_registry->create(desc);
+    if (output == runtime::kInvalidRenderSurfaceHandle ||
+        horizontal == runtime::kInvalidRenderSurfaceHandle ||
+        vertical == runtime::kInvalidRenderSurfaceHandle) {
+        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(output);
+        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(horizontal);
+        if (vertical != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(vertical);
+        return false;
+    }
+    const auto cleanup = [&] {
+        (void)ctx.services.backend->release_surface(output);
+        (void)ctx.services.backend->release_surface(horizontal);
+        (void)ctx.services.backend->release_surface(vertical);
+        ctx.services.surface_registry->release(output);
+        ctx.services.surface_registry->release(horizontal);
+        ctx.services.surface_registry->release(vertical);
+    };
+    const auto create_output = ctx.services.backend->create_surface(output, desc);
+    const auto upload = create_output.ok()
+        ? ctx.services.backend->upload_surface(output, desc, rgba)
+        : create_output;
+    const auto create_horizontal = upload.ok()
+        ? ctx.services.backend->create_surface(horizontal, desc)
+        : upload;
+    const auto create_vertical = create_horizontal.ok()
+        ? ctx.services.backend->create_surface(vertical, desc)
+        : create_horizontal;
+    const auto glow = create_vertical.ok()
+        ? ctx.services.backend->glow_surfaces(
+            output, output, horizontal, vertical, params->radius,
+            params->intensity, params->color)
+        : create_vertical;
+    if (!glow.ok()) {
+        cleanup();
+        return false;
+    }
+    (void)ctx.services.backend->release_surface(horizontal);
+    (void)ctx.services.backend->release_surface(vertical);
+    ctx.services.surface_registry->release(horizontal);
+    ctx.services.surface_registry->release(vertical);
+    result.set_surface_handle(output);
+    return true;
+}
+
+bool try_native_full_frame_tint(RenderGraphContext& ctx,
+                                const EffectStack& effect_stack,
+                                Framebuffer& result,
+                                const std::optional<raster::BBox>& clip) {
+    const bool has_partial_clip = clip &&
+        (clip->x0 != 0 || clip->y0 != 0 ||
+         clip->x1 != ctx.frame_input.width || clip->y1 != ctx.frame_input.height);
+    if (has_partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1 || result.origin_x() != 0 || result.origin_y() != 0 ||
+        result.width() != ctx.frame_input.width || result.height() != ctx.frame_input.height ||
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::Tint) return false;
+    const auto* params = std::get_if<TintParams>(&instance.params);
+    if (!params || !std::isfinite(params->amount) || !std::isfinite(params->color.r) ||
+        !std::isfinite(params->color.g) || !std::isfinite(params->color.b) ||
+        !std::isfinite(params->color.a) || params->amount < 0.0f ||
+        params->amount > 1.0f || params->color.a <= 0.0f) {
+        return false;
+    }
+
+    const runtime::SurfaceDesc desc{
+        static_cast<std::uint32_t>(result.width()),
+        static_cast<std::uint32_t>(result.height()),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient,
+        static_cast<std::size_t>(result.width()) * result.height() * sizeof(float) * 4};
+    std::vector<float> rgba(static_cast<std::size_t>(result.width()) * result.height() * 4);
+    std::size_t index = 0;
+    for (int y = 0; y < result.height(); ++y) {
+        for (int x = 0; x < result.width(); ++x) {
+            const auto pixel = result.get_pixel(x, y);
+            rgba[index++] = pixel.r;
+            rgba[index++] = pixel.g;
+            rgba[index++] = pixel.b;
+            rgba[index++] = pixel.a;
+        }
+    }
+    const auto source = ctx.services.surface_registry->create(desc);
+    const auto destination = ctx.services.surface_registry->create(desc);
+    if (source == runtime::kInvalidRenderSurfaceHandle ||
+        destination == runtime::kInvalidRenderSurfaceHandle) {
+        if (source != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(source);
+        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(destination);
+        return false;
+    }
+    const auto cleanup = [&] {
+        (void)ctx.services.backend->release_surface(source);
+        (void)ctx.services.backend->release_surface(destination);
+        ctx.services.surface_registry->release(source);
+        ctx.services.surface_registry->release(destination);
+    };
+    const auto created_source = ctx.services.backend->create_surface(source, desc);
+    const auto uploaded = created_source.ok()
+        ? ctx.services.backend->upload_surface(source, desc, rgba)
+        : created_source;
+    const auto created_destination = uploaded.ok()
+        ? ctx.services.backend->create_surface(destination, desc)
+        : uploaded;
+    const auto adjusted = created_destination.ok()
+        ? ctx.services.backend->color_adjust_surface(
+            destination, source, 0.0f, 1.0f, params->color,
+            params->color.a * params->amount)
+        : created_destination;
+    if (!adjusted.ok()) {
+        cleanup();
+        return false;
+    }
+    (void)ctx.services.backend->release_surface(source);
+    ctx.services.surface_registry->release(source);
+    result.set_surface_handle(destination);
+    return true;
+}
+
+} // namespace
 
 std::optional<raster::BBox> EffectStackNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -153,7 +327,10 @@ NodeExecResult EffectStackNode::execute(
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
 
         };
-        ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+        if (!try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
+            !try_native_full_frame_tint(ctx, m_effects, *result, local_clip)) {
+            ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+        }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
             uint64_t area = static_cast<uint64_t>(ctx.frame_input.width * ctx.frame_input.height);

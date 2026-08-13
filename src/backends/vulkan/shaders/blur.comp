@@ -1,0 +1,31 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform BlurParams {
+    float radius;
+    int horizontal;
+} params;
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    float sigma = max(params.radius, 0.5);
+    int extent = clamp(int(ceil(sigma * 2.0)), 1, 32);
+    vec4 accumulated = vec4(0.0);
+    float weight_sum = 0.0;
+    for (int offset = -extent; offset <= extent; ++offset) {
+        float distance = float(offset);
+        float weight = exp(-0.5 * distance * distance / (sigma * sigma));
+        ivec2 sample_pixel = pixel + (params.horizontal != 0
+            ? ivec2(offset, 0) : ivec2(0, offset));
+        sample_pixel = clamp(sample_pixel, ivec2(0), size - ivec2(1));
+        accumulated += imageLoad(source_image, sample_pixel) * weight;
+        weight_sum += weight;
+    }
+    imageStore(destination_image, pixel, accumulated / weight_sum);
+}

@@ -3,6 +3,7 @@
 # ==============================================================================
 
 add_library(chronon3d_registry OBJECT
+    backend_registry.cpp
     sampler_registry.cpp
     shape_registry.cpp
     source_registry.cpp

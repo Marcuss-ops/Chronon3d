@@ -9,8 +9,11 @@
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/render_graph/backend_selection.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
@@ -244,6 +247,132 @@ public:
         float radius,
         const std::optional<raster::BBox>& clip = std::nullopt
     ) = 0;
+
+    /// Backend-neutral logical-surface contract. SoftwareBackend may keep
+    /// using the legacy Framebuffer methods while GPU backends keep these
+    /// surfaces device-local between passes.
+    virtual RenderOpResult create_surface(
+        runtime::RenderSurfaceHandle /*handle*/,
+        const runtime::SurfaceDesc& /*desc*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::create_surface: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult release_surface(
+        runtime::RenderSurfaceHandle /*handle*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::release_surface: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult upload_surface(
+        runtime::RenderSurfaceHandle /*handle*/,
+        const runtime::SurfaceDesc& /*desc*/,
+        std::span<const float> /*rgba*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::upload_surface: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult upload_surface_async(
+        runtime::RenderSurfaceHandle /*handle*/,
+        const runtime::SurfaceDesc& /*desc*/,
+        std::span<const float> /*rgba*/,
+        runtime::UploadTicket& /*ticket*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::upload_surface_async: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult wait_upload(const runtime::UploadTicket& /*ticket*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::wait_upload: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult download_surface(
+        runtime::RenderSurfaceHandle /*handle*/,
+        std::span<float> /*rgba*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::download_surface: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult composite_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        BlendMode /*mode*/ = BlendMode::Normal,
+        CompositeOperator /*op*/ = CompositeOperator::SourceOver) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::composite_surfaces: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult transform_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        int /*offset_x*/, int /*offset_y*/, float /*opacity*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::transform_surface: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult transform_surface_affine(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const runtime::SurfaceAffineTransform& /*transform*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::transform_surface_affine: native surfaces are not supported"});
+    }
+
+    /// Apply one separable blur pass to native surfaces. Callers can issue
+    /// horizontal then vertical passes without moving pixels through CPU.
+    virtual RenderOpResult blur_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*radius*/, bool /*horizontal*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::blur_surface: native surfaces are not supported"});
+    }
+
+    /// Execute the canonical glow sequence using caller-planned scratch
+    /// surfaces. Implementations should record the complete sequence as one
+    /// backend submission when the native backend supports command batching.
+    virtual RenderOpResult glow_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*scratch_horizontal*/,
+        runtime::RenderSurfaceHandle /*scratch_vertical*/,
+        float /*radius*/, float /*intensity*/, const Color& /*tint*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::glow_surfaces: native surfaces are not supported"});
+    }
+
+    /// Apply brightness/contrast/tint to native surfaces without a CPU
+    /// readback. The source and destination may be distinct transient slots.
+    virtual RenderOpResult color_adjust_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*brightness*/, float /*contrast*/,
+        const Color& /*tint*/, float /*tint_amount*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::color_adjust_surface: native surfaces are not supported"});
+    }
+
+    virtual RenderOpResult matte_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*target*/,
+        runtime::RenderSurfaceHandle /*matte*/,
+        bool /*luma*/, bool /*inverted*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::matte_surface: native surfaces are not supported"});
+    }
 
     /// Draw a batched text run with per-glyph animation state.
     /// Returns RenderOpOutcome on success, or a RenderBackendError on failure.

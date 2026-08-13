@@ -19,6 +19,7 @@
 #include <chronon3d/core/profiling/render_counter_types.hpp>   // F3.2 — RenderCounters for full-frame copy/pass instrumentation
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 
 namespace chronon3d::graph {
 
@@ -165,9 +166,14 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         // manually and pair with the no-pool deleter.
         auto* fresh = new Framebuffer(other.width(), other.height(), false);
         out = OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
-        std::copy(other.data(),
-                  other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
-                  out->data());
+        // Framebuffer storage may have a cache-line padded stride. Copy the
+        // logical rows rather than treating the active image as contiguous;
+        // the latter silently copies row-0 padding and leaves later rows
+        // default-initialized (alpha=1), breaking transparent pixels.
+        const auto row_bytes = static_cast<std::size_t>(other.width()) * sizeof(Color);
+        for (i32 y = 0; y < other.height(); ++y) {
+            std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
+        }
     }
     return out;
 }
