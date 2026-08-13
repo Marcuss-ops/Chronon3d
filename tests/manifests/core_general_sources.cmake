@@ -13,6 +13,7 @@ set(CORE_TEST_SOURCES
     core/math/test_output_transform.cpp
     simd/test_simd_kernels.cpp
     simd/test_kernel_resolver_avx2_parity.cpp
+    simd/test_kernel_registry.cpp
     cache/test_lru_weight.cpp
     cache/test_lru_cache.cpp
     cache/test_framebuffer_pool.cpp

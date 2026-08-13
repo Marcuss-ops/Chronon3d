@@ -34,8 +34,10 @@
 #include <chronon3d/sdk/render_settings.hpp>   // sdk::RenderSettings
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <cstdint>
+#include <string_view>
 
 namespace chronon3d {
 // Forward-declare the canonical `Composition` type
@@ -47,6 +49,12 @@ struct CompiledComposition;
 }
 
 namespace chronon3d::sdk {
+
+enum class LogLevel : std::uint8_t { Trace, Debug, Info, Warning, Error };
+
+using LogCallback = std::function<void(
+    LogLevel level, std::string_view component, std::string_view message,
+    void* user)>;
 
 /// Neutral SDK render facade.
 class RenderEngine {
@@ -101,6 +109,9 @@ public:
     /// Set the assets root directory used to resolve fonts, images,
     /// and other relocatable resources.
     void set_assets_root(std::filesystem::path root);
+
+    /// Install an optional per-engine diagnostic sink.
+    void set_log_callback(LogCallback callback, void* user = nullptr);
 
 private:
     /// PImpl; the OPP-side definition lives in src/ and is the only

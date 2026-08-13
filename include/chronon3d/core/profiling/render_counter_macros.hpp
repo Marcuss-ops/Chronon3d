@@ -27,7 +27,15 @@ namespace chronon3d {
     X(layers_rendered) \
     X(images_sampled) \
     X(blur_pixels) \
-    X(simd_lerp_calls)
+    X(simd_lerp_calls) \
+    X(logical_resource_count) \
+    X(physical_resource_slot_count) \
+    X(logical_resource_bytes) \
+    X(physical_resource_bytes) \
+    X(alias_saved_bytes) \
+    X(alias_reuse_count) \
+    X(new_resource_slot_count) \
+    X(arena_peak_bytes)
 
 #define CHRONON_COUNTERS_CACHE(X) \
     X(cache_hits) \

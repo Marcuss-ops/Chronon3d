@@ -113,6 +113,36 @@ namespace chronon3d::graph {
     auto* parent_counters = ctx.node_exec.counters;
     auto* parent_pool = ctx.services.framebuffer_pool.get();
 
+    if (parent_counters) {
+        const auto& plan = compiled.physical_framebuffer_plan;
+        const auto logical_count = static_cast<std::uint64_t>(
+            plan.logical_resource_count);
+        const auto physical_count = static_cast<std::uint64_t>(
+            plan.physical_slot_count);
+        const auto frame_bytes = static_cast<std::uint64_t>(ctx.frame_input.width) *
+            static_cast<std::uint64_t>(ctx.frame_input.height) * sizeof(Color);
+        const auto logical_bytes = logical_count * frame_bytes;
+        const auto physical_bytes = physical_count * frame_bytes;
+        parent_counters->logical_resource_count.store(
+            logical_count, std::memory_order_relaxed);
+        parent_counters->physical_resource_slot_count.store(
+            physical_count, std::memory_order_relaxed);
+        parent_counters->logical_resource_bytes.store(
+            logical_bytes, std::memory_order_relaxed);
+        parent_counters->physical_resource_bytes.store(
+            physical_bytes, std::memory_order_relaxed);
+        parent_counters->alias_saved_bytes.store(
+            logical_bytes > physical_bytes ? logical_bytes - physical_bytes : 0,
+            std::memory_order_relaxed);
+        parent_counters->alias_reuse_count.store(
+            logical_count > physical_count ? logical_count - physical_count : 0,
+            std::memory_order_relaxed);
+        parent_counters->new_resource_slot_count.store(
+            physical_count, std::memory_order_relaxed);
+        parent_counters->arena_peak_bytes.store(
+            physical_bytes, std::memory_order_relaxed);
+    }
+
     // P0-1 — seed the shared frame_error slot before dispatching nodes.
     // Nodes that encounter backend failures write into this slot via
     // their cloned RenderGraphContext (shared via clone_for_node_execution).

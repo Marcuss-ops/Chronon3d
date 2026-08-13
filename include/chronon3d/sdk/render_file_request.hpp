@@ -39,6 +39,15 @@ struct VideoSettings {
     bool overwrite{true};
 };
 
+/// Optional per-job resource guards. A zero value disables that guard.
+/// Limits are checked before the encoder or frame loop starts.
+struct RenderLimits {
+    std::uint64_t max_memory_bytes{0};
+    std::uint64_t max_frames{0};
+    std::uint32_t max_width{0};
+    std::uint32_t max_height{0};
+};
+
 /// A contiguous frame range rendered through the canonical render pipeline.
 struct RenderFileRequest {
     const chronon3d::Composition* composition{nullptr};
@@ -52,6 +61,7 @@ struct RenderFileRequest {
     Frame step{1};
     FrameRate frame_rate{30, 1};
     VideoSettings video{};
+    RenderLimits limits{};
 };
 
 /// Optional cooperative controls for a file render.
@@ -65,6 +75,16 @@ struct RenderReport {
     std::filesystem::path output_path;
     std::uint64_t rendered_frames{0};
     double elapsed_seconds{0.0};
+    // Zero means the backend did not collect the metric; it is never an
+    // estimate. This keeps the report stable while backends gain telemetry.
+    double render_seconds{0.0};
+    double encode_seconds{0.0};
+    std::uint64_t peak_rss_bytes{0};
+    std::uint64_t peak_arena_bytes{0};
+    std::uint64_t cache_hits{0};
+    std::uint64_t cache_misses{0};
+    std::uint64_t nodes_executed{0};
+    std::uint64_t nodes_skipped{0};
 };
 
 } // namespace chronon3d::sdk

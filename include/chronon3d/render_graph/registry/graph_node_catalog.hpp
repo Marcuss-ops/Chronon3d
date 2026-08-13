@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <cstdint>
+#include <chronon3d/render_graph/core/cache_policy.hpp>
 
 namespace chronon3d::graph {
 
@@ -19,6 +21,7 @@ struct GraphNodeDescriptor {
     std::string description;   // short description for docs / introspection
     std::string category;      // grouping (e.g. "transform", "effect", "source", "composite")
     bool        builtin{false};
+    TemporalClass temporal_class{TemporalClass::Pure};
 
     /// Parameterized factory — receives the creation request.
     using NodeFactory = std::function<

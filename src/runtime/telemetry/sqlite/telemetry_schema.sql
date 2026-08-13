@@ -127,7 +127,15 @@ CREATE TABLE IF NOT EXISTS render_runs (
     cpu_model TEXT,
     cores INTEGER,
     image_sample_ms REAL DEFAULT 0,
-    image_sampled_pixels INTEGER DEFAULT 0
+    image_sampled_pixels INTEGER DEFAULT 0,
+    logical_resource_count INTEGER DEFAULT 0,
+    physical_resource_slot_count INTEGER DEFAULT 0,
+    logical_resource_bytes INTEGER DEFAULT 0,
+    physical_resource_bytes INTEGER DEFAULT 0,
+    alias_saved_bytes INTEGER DEFAULT 0,
+    alias_reuse_count INTEGER DEFAULT 0,
+    new_resource_slot_count INTEGER DEFAULT 0,
+    arena_peak_bytes INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS render_frames (

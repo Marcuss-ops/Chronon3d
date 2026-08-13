@@ -8,6 +8,8 @@
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -97,6 +99,14 @@ void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) 
     js << ",\"framebuffer_bytes_allocated\":" << run.framebuffer_bytes_allocated;
     js << ",\"framebuffer_bytes_peak\":" << run.framebuffer_bytes_peak;
     js << ",\"bytes_allocated_peak\":" << run.bytes_allocated_peak;
+    js << ",\"logical_resource_count\":" << run.logical_resource_count;
+    js << ",\"physical_resource_slot_count\":" << run.physical_resource_slot_count;
+    js << ",\"logical_resource_bytes\":" << run.logical_resource_bytes;
+    js << ",\"physical_resource_bytes\":" << run.physical_resource_bytes;
+    js << ",\"alias_saved_bytes\":" << run.alias_saved_bytes;
+    js << ",\"alias_reuse_count\":" << run.alias_reuse_count;
+    js << ",\"new_resource_slot_count\":" << run.new_resource_slot_count;
+    js << ",\"arena_peak_bytes\":" << run.arena_peak_bytes;
     js << ",\"compiler_info\":\"" << json_escape(run.compiler_info) << "\"";
     js << "}\n";
 
@@ -150,6 +160,54 @@ bool finalize_render_job(
     run.effective_fps = wall_time_ms > 0.0
         ? (static_cast<double>(run.frames_written) * 1000.0 / wall_time_ms)
         : 0.0;
+    if (setup.resource_plan.requests.empty() && setup.renderer) {
+        if (const auto* graph = setup.renderer->graph_cache().peek(
+                job.metadata.width, job.metadata.height); graph != nullptr) {
+            const auto bytes_per_resource = static_cast<std::size_t>(job.metadata.width) *
+                static_cast<std::size_t>(job.metadata.height) * sizeof(Color);
+            runtime::ResourcePlanner planner;
+            for (std::size_t id = 0;
+                 id < graph->physical_framebuffer_plan.resources.size(); ++id) {
+                const auto& allocation = graph->physical_framebuffer_plan.resources[id];
+                if (allocation.producer == graph::k_invalid_node ||
+                    id >= graph->lifetimes.size()) {
+                    continue;
+                }
+                const auto& lifetime = graph->lifetimes[id];
+                const bool persistent = allocation.persistent || allocation.async_use;
+                runtime::ResourceRequest request;
+                request.id = "GraphNode[" + std::to_string(id) + "]";
+                request.kind = runtime::ResourceKind::Color;
+                request.bytes = bytes_per_resource;
+                request.lifetime = persistent
+                    ? runtime::LifetimeClass::JobPersistent
+                    : runtime::LifetimeClass::FrameTransient;
+                request.first = persistent ? 0 : lifetime.first_level;
+                request.last = persistent ? 0 : lifetime.last_level;
+                request.alignment = alignof(Color);
+                request.desc = runtime::ResourceDesc{
+                    static_cast<std::uint32_t>(job.metadata.width),
+                    static_cast<std::uint32_t>(job.metadata.height),
+                    runtime::PixelFormat::Rgba32Float,
+                    runtime::ResourceUsage::ColorAttachment,
+                    bytes_per_resource,
+                    alignof(Color),
+                    persistent ? runtime::ResourceLifetime::Persistent
+                               : runtime::ResourceLifetime::Transient};
+                planner.add(std::move(request));
+            }
+            setup.resource_plan = planner.build();
+        }
+    }
+    const auto& plan_telemetry = setup.resource_plan.telemetry;
+    run.logical_resource_count = plan_telemetry.logical_count;
+    run.physical_resource_slot_count = plan_telemetry.physical_count;
+    run.logical_resource_bytes = plan_telemetry.logical_bytes;
+    run.physical_resource_bytes = plan_telemetry.physical_bytes;
+    run.alias_saved_bytes = plan_telemetry.alias_saved_bytes;
+    run.alias_reuse_count = plan_telemetry.buffer_reuse_count;
+    run.new_resource_slot_count = plan_telemetry.buffer_new_allocations;
+    run.arena_peak_bytes = plan_telemetry.arena_peak_bytes;
     run.started_at_iso = setup.job_started_iso;
     run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
 
