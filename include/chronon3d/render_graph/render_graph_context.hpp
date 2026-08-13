@@ -148,6 +148,16 @@ class PrecompBuilderService;
 class TextBboxReporter;   // TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session reporter (full def in src/render_graph/executor/text_bbox_reporter.hpp); forward-declared here so the SDK header stays lightweight (mirrors the AssetResolver pattern below).
 class NodeStatsReporter;  // TICKET-COUNTERS-NODE-MEMORY-V1-V2 — canonical per-session reporter (full def in <chronon3d/render_graph/executor/node_memory_metrics.hpp>); forward-declared here so the SDK header stays lightweight (parallel TextBboxReporter pattern).
 
+struct DofSourceCoverage {
+    std::optional<raster::BBox> source_bbox;
+    float max_radius{0.0f};
+
+    void reset() noexcept {
+        source_bbox.reset();
+        max_radius = 0.0f;
+    }
+};
+
 // ── Per-frame input: frame id, time, dimensions, camera, projection ─────────
 // Engine-generic, immutable-ish per frame.  Replaces the 7-substruct pair
 // (RenderFrameInfo + RenderCameraContext) folded together.
@@ -324,6 +334,10 @@ struct NodeExecutionContext {
     // Per-node clones share the parent frame's depth buffer instead of
     // copying it. The parent owns the vector for the duration of execution.
     std::vector<float>* shared_dof_depth{nullptr};
+    // Compositing publishes the tight bbox of visible defocused sources so
+    // PerPixelDofNode does not rediscover it with a full-frame depth scan.
+    DofSourceCoverage dof_source_coverage;
+    DofSourceCoverage* shared_dof_source_coverage{nullptr};
 
     [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept {
         return shared_dof_depth ? *shared_dof_depth : dof_depth;
@@ -331,6 +345,16 @@ struct NodeExecutionContext {
 
     [[nodiscard]] const std::vector<float>& dof_depth_buffer() const noexcept {
         return shared_dof_depth ? *shared_dof_depth : dof_depth;
+    }
+
+    [[nodiscard]] DofSourceCoverage& dof_sources() noexcept {
+        return shared_dof_source_coverage
+            ? *shared_dof_source_coverage : dof_source_coverage;
+    }
+
+    [[nodiscard]] const DofSourceCoverage& dof_sources() const noexcept {
+        return shared_dof_source_coverage
+            ? *shared_dof_source_coverage : dof_source_coverage;
     }
 
     // ── Tile clip / early-exit / dirty rect (was RenderTileContext) ───

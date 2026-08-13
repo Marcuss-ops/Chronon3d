@@ -19,7 +19,8 @@ void dof_h_gather_simd(const Color* __restrict src_row,
                        const float* __restrict blur_radii_row,
                        float max_radius,
                        bool normalize_opaque,
-                       int x0, int x1, int w, int y, int fb_w);
+                       int x0, int x1, int w, int y, int fb_w,
+                       int roi_x0, int roi_x1);
 
 /// SIMD vertical gather: for a row of pixels, gather from columns within
 /// [y-r, y+r] in the horizontally-blurred buffer.  Neighbors are strided
@@ -30,6 +31,8 @@ void dof_v_gather_simd(const Color* __restrict hpass,
                        const float* __restrict blur_radii,
                        float max_radius,
                        bool normalize_opaque,
-                       int x0, int x1, int y, int h, int fb_w);
+                       int x0, int x1, int y, int h, int fb_w,
+                       int roi_x0, int roi_x1, int roi_y0, int roi_y1,
+                       int roi_w);
 
 }  // namespace chronon3d::renderer

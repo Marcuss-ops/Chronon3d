@@ -652,7 +652,7 @@ PreparedRenderJob RenderEngine::prepare(
     (void)m_impl->m_renderer->scratch_buffer().ensure_size(
         comp.width(), comp.height());
     m_impl->m_renderer->software_session().software.dof_scratch.ensure_size(
-        static_cast<std::size_t>(comp.width()) * static_cast<std::size_t>(comp.height()));
+        0, 0, 0, 0);
     m_impl->m_renderer->software_session().software.effect_scratch.ensure_size(
         comp.width(), comp.height());
 
