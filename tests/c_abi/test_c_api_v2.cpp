@@ -18,6 +18,29 @@ namespace {
 
 TEST_CASE("C ABI reports the v2 contract") {
     CHECK(chronon_abi_version() == 2);
+    CHECK(std::string(chronon_status_name(CHRONON_ERROR_INVALID_PLAN)) ==
+          "INVALID_PLAN");
+    CHECK(std::string(chronon_status_name(CHRONON_ERROR_ABI_MISMATCH)) ==
+          "ABI_MISMATCH");
+}
+
+TEST_CASE("C ABI v2 exposes structured configuration diagnostics") {
+    chronon_engine_config config{
+        sizeof(config), chronon_abi_version() + 1u, nullptr, 0};
+    chronon_error_info error{sizeof(error), CHRONON_OK, nullptr};
+    chronon_engine* engine = nullptr;
+
+    CHECK(chronon_engine_create_v2(&config, &engine, &error) ==
+          CHRONON_ERROR_ABI_MISMATCH);
+    CHECK(engine == nullptr);
+    CHECK(error.status == CHRONON_ERROR_ABI_MISMATCH);
+    REQUIRE(error.message != nullptr);
+    CHECK(std::string(error.message).find("ABI version mismatch") !=
+          std::string::npos);
+    REQUIRE(error.code != nullptr);
+    CHECK(std::string(error.code) == "ABI_MISMATCH");
+    REQUIRE(error.component != nullptr);
+    CHECK(std::string(error.component) == "c_api");
 }
 
 constexpr char kPlan[] =
@@ -173,6 +196,40 @@ TEST_CASE("C ABI v2 caller-owned buffer query, too-small failure, and second ren
 struct CancellationState {
     std::atomic<bool> cancelled{true};
 };
+
+struct LogState {
+    int calls{0};
+    int last_level{-1};
+    std::string component;
+    std::string message;
+};
+
+void capture_log(int level, const char* component, const char* message, void* user) {
+    auto& state = *static_cast<LogState*>(user);
+    ++state.calls;
+    state.last_level = level;
+    state.component = component ? component : "";
+    state.message = message ? message : "";
+}
+
+TEST_CASE("C ABI exposes a per-engine structured log callback") {
+    EngineFixture fixture;
+    LogState logs;
+    REQUIRE(chronon_engine_set_log_callback(
+                fixture.engine, capture_log, &logs) == CHRONON_OK);
+
+    const auto output = unique_output_path("log_callback");
+    const auto status = chronon_render_file(
+        fixture.engine, fixture.plan, output.c_str(), 1, 0, 30, 1, nullptr);
+    CHECK(status == CHRONON_ERROR_RENDER_FAILED);
+    CHECK(logs.calls >= 1);
+    CHECK(logs.last_level == 4); // sdk::LogLevel::Error
+    CHECK_FALSE(logs.component.empty());
+    CHECK_FALSE(logs.message.empty());
+
+    CHECK(chronon_engine_set_log_callback(fixture.engine, nullptr, nullptr) ==
+          CHRONON_OK);
+}
 
 #if defined(CHRONON3D_ENABLE_VIDEO) && CHRONON3D_ENABLE_VIDEO
 TEST_CASE("C ABI v2 cancellation leaves no output or SDK temp sibling") {

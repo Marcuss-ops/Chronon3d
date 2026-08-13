@@ -13,6 +13,7 @@
 #include <cstring>
 #include <memory>
 #include <atomic>
+#include <cstddef>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -63,11 +64,23 @@ void clear_error(chronon_engine* engine) {
 
 void write_error_info(chronon_error_info* info, chronon_status status,
                       std::string message) {
-    if (!info || info->struct_size < sizeof(chronon_error_info)) return;
+    constexpr std::size_t base_size =
+        offsetof(chronon_error_info, message) + sizeof(chronon_error_info::message);
+    if (!info || info->struct_size < base_size) return;
     static thread_local std::string storage;
+    static thread_local std::string code_storage;
+    static thread_local std::string component_storage;
     storage = std::move(message);
+    code_storage = chronon_status_name(status);
+    component_storage = "c_api";
     info->status = status;
     info->message = storage.c_str();
+    if (info->struct_size >= sizeof(chronon_error_info)) {
+        info->code = code_storage.c_str();
+        info->component = component_storage.c_str();
+        info->node_id = nullptr;
+        info->asset = nullptr;
+    }
 }
 
 chronon_status validate_engine_config(const chronon_engine_config* config,
@@ -134,6 +147,24 @@ chronon_status render_error_status(const chronon3d::sdk::RenderError& error) {
         return CHRONON_ERROR_ASSET_CHANGED;
     if (error.code == chronon3d::sdk::RenderErrorCode::Cancelled)
         return CHRONON_ERROR_CANCELLED;
+    switch (error.code) {
+        case chronon3d::sdk::RenderErrorCode::InvalidPlan:
+            return CHRONON_ERROR_INVALID_PLAN;
+        case chronon3d::sdk::RenderErrorCode::UnsupportedSchema:
+            return CHRONON_ERROR_UNSUPPORTED_SCHEMA;
+        case chronon3d::sdk::RenderErrorCode::AssetNotFound:
+            return CHRONON_ERROR_ASSET_NOT_FOUND;
+        case chronon3d::sdk::RenderErrorCode::DecodeFailure:
+            return CHRONON_ERROR_DECODE_FAILED;
+        case chronon3d::sdk::RenderErrorCode::EncodeFailure:
+            return CHRONON_ERROR_ENCODE_FAILED;
+        case chronon3d::sdk::RenderErrorCode::OutOfMemory:
+            return CHRONON_ERROR_OUT_OF_MEMORY;
+        case chronon3d::sdk::RenderErrorCode::AbiMismatch:
+            return CHRONON_ERROR_ABI_MISMATCH;
+        default:
+            break;
+    }
     return CHRONON_ERROR_RENDER_FAILED;
 }
 
@@ -143,6 +174,32 @@ extern "C" {
 
 const char* chronon_version_string(void) {
     return CHRONON3D_PROJECT_VERSION_STRING;
+}
+
+const char* chronon_status_name(chronon_status status) {
+    switch (status) {
+        case CHRONON_OK: return "OK";
+        case CHRONON_ERROR_UNKNOWN: return "UNKNOWN";
+        case CHRONON_ERROR_INVALID_ARGUMENT: return "INVALID_ARGUMENT";
+        case CHRONON_ERROR_PARSE_FAILED: return "PARSE_FAILED";
+        case CHRONON_ERROR_RENDER_FAILED: return "RENDER_FAILED";
+        case CHRONON_ERROR_IO_FAILED: return "IO_FAILED";
+        case CHRONON_ERROR_UNSUPPORTED: return "UNSUPPORTED";
+        case CHRONON_ERROR_CANCELLED: return "CANCELLED";
+        case CHRONON_ERROR_ABI_MISMATCH: return "ABI_MISMATCH";
+        case CHRONON_ERROR_BUFFER_TOO_SMALL: return "BUFFER_TOO_SMALL";
+        case CHRONON_ERROR_BUSY: return "BUSY";
+        case CHRONON_ERROR_ASSET_CHANGED: return "ASSET_CHANGED";
+        case CHRONON_ERROR_BUDGET_EXCEEDED: return "BUDGET_EXCEEDED";
+        case CHRONON_ERROR_PREFLIGHT_FAILED: return "PREFLIGHT_FAILED";
+        case CHRONON_ERROR_INVALID_PLAN: return "INVALID_PLAN";
+        case CHRONON_ERROR_UNSUPPORTED_SCHEMA: return "UNSUPPORTED_SCHEMA";
+        case CHRONON_ERROR_ASSET_NOT_FOUND: return "ASSET_NOT_FOUND";
+        case CHRONON_ERROR_DECODE_FAILED: return "DECODE_FAILED";
+        case CHRONON_ERROR_ENCODE_FAILED: return "ENCODE_FAILED";
+        case CHRONON_ERROR_OUT_OF_MEMORY: return "OUT_OF_MEMORY";
+    }
+    return "UNKNOWN";
 }
 
 uint32_t chronon_abi_version(void) { return 2; }
@@ -209,6 +266,24 @@ void chronon_engine_destroy(chronon_engine* engine) {
 
 const char* chronon_engine_last_error(chronon_engine* engine) {
     return engine ? engine->last_error.c_str() : "invalid engine";
+}
+
+chronon_status chronon_engine_set_log_callback(
+    chronon_engine* engine, chronon_log_callback callback, void* user) {
+    if (!engine) return CHRONON_ERROR_INVALID_ARGUMENT;
+    if (!callback) {
+        engine->engine.set_log_callback({}, nullptr);
+        return CHRONON_OK;
+    }
+    engine->engine.set_log_callback(
+        [callback](chronon3d::sdk::LogLevel level,
+                   std::string_view component,
+                   std::string_view message, void* callback_user) {
+            callback(static_cast<int>(level),
+                     std::string(component).c_str(),
+                     std::string(message).c_str(), callback_user);
+        }, user);
+    return CHRONON_OK;
 }
 
 chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* source,

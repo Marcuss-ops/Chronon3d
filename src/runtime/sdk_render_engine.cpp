@@ -98,7 +98,8 @@ RenderError runtime_error(std::string message) {
             std::string::npos
         ? RenderErrorCode::AssetChanged
         : RenderErrorCode::RuntimeFailure;
-    return RenderError{.code = code, .message = std::move(message)};
+    return RenderError{.code = code, .message = std::move(message),
+                       .component = "render"};
 }
 
 #if CHRONON3D_ENABLE_VIDEO
@@ -146,6 +147,13 @@ struct RenderEngine::Impl {
     std::vector<std::uint8_t> pixel_buffer;
     RenderSettings             settings{};
     RenderOutput              last_output{};
+    LogCallback                log_callback{};
+    void*                      log_user{nullptr};
+
+    void log(LogLevel level, std::string_view component,
+             std::string_view message) const {
+        if (log_callback) log_callback(level, component, message, log_user);
+    }
 
     template <typename RenderFn>
     chronon3d::Result<RenderOutput, RenderError>
@@ -153,10 +161,13 @@ struct RenderEngine::Impl {
         std::lock_guard lock(state_mutex);
         try {
             if (settings.width <= 0 || settings.height <= 0) {
-                return RenderError{
+                auto result = RenderError{
                     .code = RenderErrorCode::InvalidSettings,
                     .message = "RenderSettings width and height must be positive",
+                    .component = "render",
                 };
+                log(LogLevel::Error, result.component, result.message);
+                return result;
             }
             const auto started = std::chrono::steady_clock::now();
             auto framebuffer = render_fn();
@@ -165,11 +176,15 @@ struct RenderEngine::Impl {
                 const std::string message = error->message.empty()
                     ? "internal render graph reported a frame error"
                     : error->message;
-                return runtime_error(message);
+                auto result = runtime_error(message);
+                log(LogLevel::Error, result.component, result.message);
+                return result;
             }
             if (!framebuffer) {
-                return runtime_error(
+                auto result = runtime_error(
                     "internal RenderEngine::render() returned a null framebuffer");
+                log(LogLevel::Error, result.component, result.message);
+                return result;
             }
 
             std::vector<std::uint8_t> rendered_pixels;
@@ -195,12 +210,17 @@ struct RenderEngine::Impl {
             last_output = output;
             return output;
         } catch (const std::exception& error) {
-            return runtime_error(std::string("render exception: ") + error.what());
+            auto result = runtime_error(std::string("render exception: ") + error.what());
+            log(LogLevel::Error, result.component, result.message);
+            return result;
         } catch (...) {
-            return RenderError{
+            auto result = RenderError{
                 .code = RenderErrorCode::InternalError,
                 .message = "render: unknown exception",
+                .component = "render",
             };
+            log(LogLevel::Error, result.component, result.message);
+            return result;
         }
     }
 
@@ -220,6 +240,12 @@ RenderEngine::RenderEngine()
 RenderEngine::RenderEngine(RenderSettings settings)
     : m_impl(std::make_unique<Impl>(settings))
 {}
+
+void RenderEngine::set_log_callback(LogCallback callback, void* user) {
+    std::lock_guard lock(m_impl->state_mutex);
+    m_impl->log_callback = std::move(callback);
+    m_impl->log_user = user;
+}
 
 RenderEngine::~RenderEngine() = default;
 
@@ -257,21 +283,28 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                              const RenderCallbacks& callbacks) {
     std::lock_guard lock(m_impl->state_mutex);
 
+    const auto reject = [&](RenderError error)
+        -> chronon3d::Result<RenderReport, RenderError> {
+        if (error.component.empty()) error.component = "render_job";
+        m_impl->log(LogLevel::Error, error.component, error.message);
+        return error;
+    };
+
     if (!request.composition && !request.compiled_composition) {
-        return RenderError{RenderErrorCode::InvalidComposition,
-                            "RenderFileRequest requires a composition or compiled_composition"};
+        return reject(RenderError{RenderErrorCode::InvalidComposition,
+                                   "RenderFileRequest requires a composition or compiled_composition"});
     }
     if (request.output_path.empty()) {
-        return RenderError{RenderErrorCode::InvalidSettings,
-                            "RenderFileRequest output_path must not be empty"};
+        return reject(RenderError{RenderErrorCode::InvalidSettings,
+                                   "RenderFileRequest output_path must not be empty"});
     }
     if (!request.video.overwrite && std::filesystem::exists(request.output_path)) {
-        return RenderError{RenderErrorCode::InvalidSettings,
-                            "output already exists and overwrite is disabled"};
+        return reject(RenderError{RenderErrorCode::InvalidSettings,
+                                   "output already exists and overwrite is disabled"});
     }
     if (m_impl->settings.width <= 0 || m_impl->settings.height <= 0) {
-        return RenderError{RenderErrorCode::InvalidSettings,
-                            "RenderSettings width and height must be positive"};
+        return reject(RenderError{RenderErrorCode::InvalidSettings,
+                                   "RenderSettings width and height must be positive"});
     }
 
     const auto start = request.start_frame.integral();
@@ -279,8 +312,40 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     const auto step = request.step.integral();
     if (end < start || step <= 0 || request.frame_rate.numerator <= 0 ||
         request.frame_rate.denominator <= 0) {
-        return RenderError{RenderErrorCode::InvalidSettings,
-                            "invalid frame range or frame rate"};
+        return reject(RenderError{RenderErrorCode::InvalidSettings,
+                                   "invalid frame range or frame rate"});
+    }
+    const auto total = static_cast<std::uint64_t>(((end - start) / step) + 1);
+    if (request.limits.max_frames != 0 && total > request.limits.max_frames) {
+        return reject(RenderError{RenderErrorCode::BudgetExceeded,
+                                   "render job frame limit exceeded",
+                                   "render_job"});
+    }
+    if (request.limits.max_width != 0 &&
+        static_cast<std::uint64_t>(m_impl->settings.width) > request.limits.max_width) {
+        return reject(RenderError{RenderErrorCode::BudgetExceeded,
+                                   "render job width limit exceeded",
+                                   "render_job"});
+    }
+    if (request.limits.max_height != 0 &&
+        static_cast<std::uint64_t>(m_impl->settings.height) > request.limits.max_height) {
+        return reject(RenderError{RenderErrorCode::BudgetExceeded,
+                                   "render job height limit exceeded",
+                                   "render_job"});
+    }
+    const auto width = static_cast<std::uint64_t>(m_impl->settings.width);
+    const auto height = static_cast<std::uint64_t>(m_impl->settings.height);
+    if (width != 0 && height > std::numeric_limits<std::uint64_t>::max() / width / 16) {
+        return reject(RenderError{RenderErrorCode::OutOfMemory,
+                                   "render job memory estimate overflow",
+                                   "memory"});
+    }
+    const auto estimated_frame_bytes = width * height * 16;
+    if (request.limits.max_memory_bytes != 0 &&
+        estimated_frame_bytes > request.limits.max_memory_bytes) {
+        return reject(RenderError{RenderErrorCode::BudgetExceeded,
+                                   "render job memory limit exceeded",
+                                   "memory"});
     }
 
 #if CHRONON3D_ENABLE_VIDEO
@@ -306,17 +371,20 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     if (!sink || !sink->open(config)) {
         const auto message = sink ? sink->last_error_message()
                                   : std::string{"video sink unavailable"};
-        return RenderError{RenderErrorCode::BackendUnavailable,
-                            message.empty() ? "failed to open video sink" : message};
+        return reject(RenderError{RenderErrorCode::BackendUnavailable,
+                                   message.empty() ? "failed to open video sink" : message,
+                                   "encoder"});
     }
 
     const auto started = std::chrono::steady_clock::now();
-    const auto total = ((end - start) / step) + 1;
+    const auto total_frames = ((end - start) / step) + 1;
 
     auto fail = [&](RenderError error) -> chronon3d::Result<RenderReport, RenderError> {
         sink->close();
         std::error_code cleanup_error;
         std::filesystem::remove(temp_path, cleanup_error);
+        if (error.component.empty()) error.component = "render_job";
+        m_impl->log(LogLevel::Error, error.component, error.message);
         return error;
     };
 
@@ -376,7 +444,7 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
 
         ++rendered;
         if (callbacks.progress) {
-            callbacks.progress(Frame{frame}, Frame{total});
+            callbacks.progress(Frame{frame}, Frame{total_frames});
         }
         if (end - frame < step) break;
     }
@@ -405,8 +473,9 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
             std::chrono::steady_clock::now() - started).count(),
     };
 #else
-    return RenderError{RenderErrorCode::BackendUnavailable,
-                       "Built without CHRONON3D_ENABLE_VIDEO support."};
+    return reject(RenderError{RenderErrorCode::BackendUnavailable,
+                               "Built without CHRONON3D_ENABLE_VIDEO support.",
+                               "encoder"});
 #endif
 }
 

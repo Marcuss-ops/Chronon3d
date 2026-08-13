@@ -3,8 +3,15 @@
 #include <cstdint>
 #include <string_view>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 
 namespace chronon3d::graph {
+
+enum class TemporalClass : std::uint8_t {
+    Pure,
+    TimeDependent,
+    Stateful,
+};
 
 // ---------------------------------------------------------------------------
 // CacheMode — single canonical axis for the cache contract
@@ -46,6 +53,7 @@ struct RenderNodeCachePolicy {
     CacheMode mode{CacheMode::FrameVariant};
     CacheInvalidation invalidation{CacheInvalidation::WhenInputsChange};
     std::string_view reason{"default"};
+    TemporalClass temporal_class{TemporalClass::Pure};
 
     [[nodiscard]] constexpr bool enabled() const noexcept {
         return mode != CacheMode::Disabled;
@@ -59,6 +67,22 @@ struct RenderNodeCachePolicy {
         return mode == CacheMode::FrameInvariantMemory;
     }
 };
+
+/// Build the temporal part of a cache key without coupling reuse to the
+/// output frame number.  A video node can pass its sampled source time here,
+/// so two output frames sampling the same source frame share the key.
+[[nodiscard]] inline TemporalSampleKey temporal_key_for(
+    TemporalClass temporal_class,
+    const SampleTime& sampled_time,
+    EvaluationVersion content_version = 0) noexcept {
+    if (temporal_class == TemporalClass::Pure) {
+        return TemporalSampleKey{Frame{0}, 0, content_version};
+    }
+    auto key = make_temporal_key(
+        sampled_time,
+        temporal_class == TemporalClass::Stateful ? content_version : 0);
+    return key;
+}
 
 /// Canonical frame component for a node cache key.
 [[nodiscard]] constexpr Frame cache_frame_for_policy(
@@ -77,6 +101,7 @@ constexpr RenderNodeCachePolicy no_cache(std::string_view reason) noexcept {
         .mode = CacheMode::Disabled,
         .invalidation = CacheInvalidation::Always,
         .reason = reason,
+        .temporal_class = TemporalClass::Pure,
     };
 }
 
@@ -85,6 +110,7 @@ constexpr RenderNodeCachePolicy frame_variant_cache(std::string_view reason) noe
         .mode = CacheMode::FrameVariant,
         .invalidation = CacheInvalidation::WhenInputsChange,
         .reason = reason,
+        .temporal_class = TemporalClass::TimeDependent,
     };
 }
 
@@ -93,6 +119,7 @@ constexpr RenderNodeCachePolicy static_memory_cache(std::string_view reason) noe
         .mode = CacheMode::FrameInvariantMemory,
         .invalidation = CacheInvalidation::WhenParamsChange,
         .reason = reason,
+        .temporal_class = TemporalClass::Pure,
     };
 }
 

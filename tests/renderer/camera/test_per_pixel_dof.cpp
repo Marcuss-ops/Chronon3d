@@ -28,8 +28,10 @@
 #include <cstdio>
 #include <fstream>
 #include <filesystem>
+#include <array>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
+namespace ctt = chronon3d::test;
 
 
 static const LensModel kDefaultLens;
@@ -171,6 +173,150 @@ TEST_CASE("PerPixelDOF: unset depth pixels are left unblurred") {
     Color c = fb.get_pixel(15, 15);
     CHECK(c.r == doctest::Approx(1.0f));
     CHECK(c.a == doctest::Approx(1.0f));
+}
+
+TEST_CASE("PerPixelDOF: gather is safe and deterministic at all framebuffer corners") {
+    constexpr i32 w = 64;
+    constexpr i32 h = 64;
+    constexpr i32 radius = 8;
+    const std::array<std::pair<i32, i32>, 4> corners{{
+        {0, 0}, {w - 1, 0}, {0, h - 1}, {w - 1, h - 1}
+    }};
+
+    for (const auto [sx, sy] : corners) {
+        Framebuffer first(w, h);
+        Framebuffer second(w, h);
+        first.clear(Color::transparent());
+        second.clear(Color::transparent());
+        first.set_pixel(sx, sy, Color::white());
+        second.set_pixel(sx, sy, Color::white());
+
+        std::vector<float> depth(static_cast<std::size_t>(w) * h,
+                                 kUnsetDofDepth);
+        depth[static_cast<std::size_t>(sy) * w + sx] = -1000.0f;
+        const raster::BBox clip{
+            std::max(0, sx - radius), std::max(0, sy - radius),
+            std::min(w, sx + radius + 1), std::min(h, sy + radius + 1)};
+        const DepthOfFieldSettings dof{
+            .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
+            .max_blur = static_cast<float>(radius)};
+
+        renderer::apply_per_pixel_dof(first, as_span(depth), dof, kDefaultLens, clip);
+        renderer::apply_per_pixel_dof(second, as_span(depth), dof, kDefaultLens, clip);
+
+        CHECK(ctt::framebuffer_hash(first) == ctt::framebuffer_hash(second));
+        for (i32 y = 0; y < h; ++y) {
+            for (i32 x = 0; x < w; ++x) {
+                const auto c = first.get_pixel(x, y);
+                CHECK(std::isfinite(c.r));
+                CHECK(std::isfinite(c.g));
+                CHECK(std::isfinite(c.b));
+                CHECK(std::isfinite(c.a));
+            }
+        }
+    }
+}
+
+TEST_CASE("PerPixelDOF: non-zero ROI origin indexes the full depth plane") {
+    constexpr i32 w = 800;
+    constexpr i32 h = 600;
+    constexpr i32 source_x = 713;
+    constexpr i32 source_y = 411;
+    Framebuffer fb(w, h);
+    fb.clear(Color::transparent());
+    fb.set_pixel(source_x, source_y, Color::white());
+
+    std::vector<float> depth(static_cast<std::size_t>(w) * h, kUnsetDofDepth);
+    depth[static_cast<std::size_t>(source_y) * w + source_x] = -1000.0f;
+    const raster::BBox clip{source_x - 8, source_y - 8,
+                            source_x + 9, source_y + 9};
+    const DepthOfFieldSettings dof{
+        .enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 8.0f};
+
+    renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens, clip);
+
+    CHECK(fb.get_pixel(source_x + 2, source_y).a > 0.0f);
+    CHECK(fb.get_pixel(source_x, source_y + 2).a > 0.0f);
+}
+
+TEST_CASE("PerPixelDOF: narrow vertical and horizontal ROIs keep local scratch dimensions") {
+    struct RoiCase { i32 x0, y0, width, height, sx, sy; };
+    const std::array<RoiCase, 2> cases{{
+        {28, 4, 9, 56, 32, 32},
+        {4, 28, 56, 9, 32, 32}
+    }};
+
+    for (const auto& c : cases) {
+        constexpr i32 w = 64;
+        constexpr i32 h = 64;
+        Framebuffer fb(w, h);
+        fb.clear(Color::transparent());
+        fb.set_pixel(c.sx, c.sy, Color::white());
+        std::vector<float> depth(static_cast<std::size_t>(w) * h,
+                                 kUnsetDofDepth);
+        depth[static_cast<std::size_t>(c.sy) * w + c.sx] = -1000.0f;
+        renderer::DofScratchBuffers scratch;
+        const raster::BBox clip{c.x0, c.y0, c.x0 + c.width, c.y0 + c.height};
+        const DepthOfFieldSettings dof{
+            .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
+            .max_blur = 8.0f};
+
+        renderer::apply_per_pixel_dof(
+            fb, as_span(depth), dof, kDefaultLens, clip, &scratch);
+
+        CHECK(scratch.origin_x == c.x0);
+        CHECK(scratch.origin_y == c.y0);
+        CHECK(scratch.width == c.width);
+        CHECK(scratch.height == c.height);
+        CHECK(scratch.blur_radii.size() ==
+              static_cast<std::size_t>(c.width) * c.height);
+    }
+}
+
+TEST_CASE("PerPixelDOF: one-pixel source uses a 49x49 maximum ROI") {
+    constexpr i32 w = 128;
+    constexpr i32 h = 128;
+    constexpr i32 sx = 64;
+    constexpr i32 sy = 64;
+    Framebuffer fb(w, h);
+    fb.clear(Color::transparent());
+    fb.set_pixel(sx, sy, Color::white());
+    std::vector<float> depth(static_cast<std::size_t>(w) * h,
+                             kUnsetDofDepth);
+    depth[static_cast<std::size_t>(sy) * w + sx] = -1000.0f;
+    renderer::DofScratchBuffers scratch;
+    const raster::BBox clip{sx - 24, sy - 24, sx + 25, sy + 25};
+    const DepthOfFieldSettings dof{
+        .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
+        .max_blur = 24.0f};
+
+    renderer::apply_per_pixel_dof(
+        fb, as_span(depth), dof, kDefaultLens, clip, &scratch);
+
+    CHECK(scratch.width == 49);
+    CHECK(scratch.height == 49);
+    CHECK(scratch.blur_radii.size() == 49U * 49U);
+    CHECK(fb.get_pixel(sx + 2, sy).a > 0.0f);
+}
+
+TEST_CASE("PerPixelDOF: full-frame source retains full-frame scratch") {
+    constexpr i32 w = 128;
+    constexpr i32 h = 128;
+    Framebuffer fb(w, h);
+    fb.clear(Color{0.2f, 0.2f, 0.2f, 1.0f});
+    std::vector<float> depth(static_cast<std::size_t>(w) * h, -1000.0f);
+    renderer::DofScratchBuffers scratch;
+    const DepthOfFieldSettings dof{
+        .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
+        .max_blur = 24.0f};
+
+    renderer::apply_per_pixel_dof(
+        fb, as_span(depth), dof, kDefaultLens,
+        raster::BBox{0, 0, w, h}, &scratch);
+
+    CHECK(scratch.width == w);
+    CHECK(scratch.height == h);
+    CHECK(scratch.blur_radii.size() == static_cast<std::size_t>(w) * h);
 }
 
 // ============================================================================
