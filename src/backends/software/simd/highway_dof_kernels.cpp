@@ -60,7 +60,7 @@ HWY_ATTR void dof_h_gather_impl(
     const float* HWY_RESTRICT blur_radii_row,
     float max_radius,
     bool normalize_opaque,
-    int x0, int x1, int w, int y, int fb_w)
+    int x0, int x1, int w, int y, int fb_w, int roi_x0, int roi_x1)
 {
     using DF = hn::ScalableTag<float>;
     const DF df;
@@ -69,14 +69,15 @@ HWY_ATTR void dof_h_gather_impl(
     const int PPB = L / kRGBA;  // Pixels per batch (2 on AVX2, 4 on AVX-512)
 
     for (int x = x0; x < x1; ++x) {
-        const size_t dst_idx = static_cast<size_t>(y) * fb_w + x;
+        const size_t local_x = static_cast<size_t>(x - roi_x0);
+        const size_t dst_idx = local_x;
         // In-focus destinations remain exact. Defocused source pixels still
         // spread into defocused destinations; this preserves sharp text edges
         // on transparent projected surfaces.
         if (!normalize_opaque && src_row[x].a > 0.0f &&
             blur_radii_row[dst_idx] >= 0.0f &&
             blur_radii_row[dst_idx] < 0.5f) {
-            dst_row[x] = src_row[x];
+            dst_row[local_x] = src_row[x];
             continue;
         }
         const int r = static_cast<int>(std::ceil(max_radius));
@@ -99,10 +100,11 @@ HWY_ATTR void dof_h_gather_impl(
             // 2. Compute per-pixel weights (scalar), broadcast to 4 RGBA lanes
             alignas(64) float w_broadcast[HWY_MAX_LANES_D(DF)] = {};
             for (int i = 0; i < PPB; ++i) {
+                if (kx + i < roi_x0 || kx + i >= roi_x1) continue;
                 const float dist = std::abs(
                     static_cast<float>(kx + i) - static_cast<float>(x));
                 const float neighbour_radius = blur_radii_row[
-                    static_cast<size_t>(y) * fb_w + kx + i];
+                    static_cast<size_t>(kx + i - roi_x0)];
                 const float kernel_w = neighbour_radius < 0.0f ? 0.0f
                     : (neighbour_radius < 0.5f
                         ? (dist == 0.0f ? 1.0f : 0.0f)
@@ -139,12 +141,13 @@ HWY_ATTR void dof_h_gather_impl(
 
         // ── Scalar tail: remaining neighbors (< PPB) ───────────────────
         for (; kx <= sx1; ++kx) {
+            if (kx < roi_x0 || kx >= roi_x1) continue;
             const Color& s = src_row[kx];
-            if (blur_radii_row[static_cast<size_t>(y) * fb_w + kx] < 0.0f) continue;
+            if (blur_radii_row[static_cast<size_t>(kx - roi_x0)] < 0.0f) continue;
             const float dist = std::abs(
                 static_cast<float>(kx) - static_cast<float>(x));
             const float source_radius = blur_radii_row[
-                static_cast<size_t>(y) * fb_w + kx];
+                static_cast<size_t>(kx - roi_x0)];
             const float kernel_w = source_radius < 0.5f
                 ? (dist == 0.0f ? 1.0f : 0.0f)
                 : compute_weight(dist, 1.0f / source_radius);
@@ -160,10 +163,10 @@ HWY_ATTR void dof_h_gather_impl(
         // ── Normalize ──────────────────────────────────────────────────
         if (total_weight > 1e-6f) {
             const float inv_w = 1.0f / total_weight;
-            dst_row[x] = {sum_r * inv_w, sum_g * inv_w,
+            dst_row[local_x] = {sum_r * inv_w, sum_g * inv_w,
                           sum_b * inv_w, sum_a * inv_w};
         } else {
-            dst_row[x] = src_row[x];
+            dst_row[local_x] = src_row[x];
         }
     }
 }
@@ -178,7 +181,8 @@ HWY_ATTR void dof_v_gather_impl(
     const float* HWY_RESTRICT blur_radii,
     float max_radius,
     bool normalize_opaque,
-    int x0, int x1, int y, int h, int fb_w)
+    int x0, int x1, int y, int h, int fb_w,
+    int roi_x0, int roi_x1, int roi_y0, int roi_y1, int roi_w)
 {
     using DF = hn::ScalableTag<float>;
     const DF df;
@@ -187,7 +191,8 @@ HWY_ATTR void dof_v_gather_impl(
     const int PPB = L / kRGBA;
 
     for (int x = x0; x < x1; ++x) {
-        const size_t idx = static_cast<size_t>(y) * fb_w + x;
+        const size_t idx = static_cast<size_t>(y - roi_y0) * roi_w +
+                           static_cast<size_t>(x - roi_x0);
         if (!normalize_opaque && hpass[idx].a > 0.0f &&
             blur_radii[idx] >= 0.0f && blur_radii[idx] < 0.5f) {
             output[idx] = hpass[idx];
@@ -208,7 +213,12 @@ HWY_ATTR void dof_v_gather_impl(
             // Gather PPB pixels from strided rows into a contiguous buffer
             alignas(64) Color batch[16]; // PPB max = 4 on AVX-512, 16 is plenty
             for (int i = 0; i < PPB; ++i) {
-                batch[i] = hpass[static_cast<size_t>(ky + i) * fb_w + x];
+                if (ky + i < roi_y0 || ky + i >= roi_y1) {
+                    batch[i] = {};
+                    continue;
+                }
+                batch[i] = hpass[static_cast<size_t>(ky + i - roi_y0) * roi_w +
+                                 static_cast<size_t>(x - roi_x0)];
             }
 
             auto v_colors = hn::LoadU(df,
@@ -216,10 +226,12 @@ HWY_ATTR void dof_v_gather_impl(
 
             alignas(64) float w_broadcast[HWY_MAX_LANES_D(DF)] = {};
             for (int i = 0; i < PPB; ++i) {
+                if (ky + i < roi_y0 || ky + i >= roi_y1) continue;
                 const float dist = std::abs(
                     static_cast<float>(ky + i) - static_cast<float>(y));
                 const float neighbour_radius = blur_radii[
-                    static_cast<size_t>(ky + i) * fb_w + x];
+                    static_cast<size_t>(ky + i - roi_y0) * roi_w +
+                    static_cast<size_t>(x - roi_x0)];
                 const float kernel_w = neighbour_radius < 0.0f ? 0.0f
                     : (neighbour_radius < 0.5f
                         ? (dist == 0.0f ? 1.0f : 0.0f)
@@ -251,12 +263,16 @@ HWY_ATTR void dof_v_gather_impl(
 
         // ── Scalar tail ────────────────────────────────────────────────
         for (; ky <= sy1; ++ky) {
-            const Color& s = hpass[static_cast<size_t>(ky) * fb_w + x];
-            if (blur_radii[static_cast<size_t>(ky) * fb_w + x] < 0.0f) continue;
+            if (ky < roi_y0 || ky >= roi_y1) continue;
+            const Color& s = hpass[static_cast<size_t>(ky - roi_y0) * roi_w +
+                                   static_cast<size_t>(x - roi_x0)];
+            if (blur_radii[static_cast<size_t>(ky - roi_y0) * roi_w +
+                           static_cast<size_t>(x - roi_x0)] < 0.0f) continue;
             const float dist = std::abs(
                 static_cast<float>(ky) - static_cast<float>(y));
             const float source_radius = blur_radii[
-                static_cast<size_t>(ky) * fb_w + x];
+                static_cast<size_t>(ky - roi_y0) * roi_w +
+                static_cast<size_t>(x - roi_x0)];
             const float kernel_w = source_radius < 0.5f
                 ? (dist == 0.0f ? 1.0f : 0.0f)
                 : compute_weight(dist, 1.0f / source_radius);
@@ -294,10 +310,11 @@ void dof_h_gather_simd(const Color* HWY_RESTRICT src_row,
                        const float* HWY_RESTRICT blur_radii_row,
                        float max_radius,
                        bool normalize_opaque,
-                       int x0, int x1, int w, int y, int fb_w) {
+                       int x0, int x1, int w, int y, int fb_w,
+                       int roi_x0, int roi_x1) {
     HWY_DYNAMIC_DISPATCH(dof_h_gather_impl)(
         src_row, dst_row, blur_radii_row, max_radius, normalize_opaque,
-        x0, x1, w, y, fb_w);
+        x0, x1, w, y, fb_w, roi_x0, roi_x1);
 }
 
 void dof_v_gather_simd(const Color* HWY_RESTRICT hpass,
@@ -305,10 +322,12 @@ void dof_v_gather_simd(const Color* HWY_RESTRICT hpass,
                        const float* HWY_RESTRICT blur_radii,
                        float max_radius,
                        bool normalize_opaque,
-                       int x0, int x1, int y, int h, int fb_w) {
+                       int x0, int x1, int y, int h, int fb_w,
+                       int roi_x0, int roi_x1, int roi_y0, int roi_y1,
+                       int roi_w) {
     HWY_DYNAMIC_DISPATCH(dof_v_gather_impl)(
         hpass, output, blur_radii, max_radius, normalize_opaque,
-        x0, x1, y, h, fb_w);
+        x0, x1, y, h, fb_w, roi_x0, roi_x1, roi_y0, roi_y1, roi_w);
 }
 
 }  // namespace chronon3d::renderer

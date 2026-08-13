@@ -38,8 +38,17 @@ struct DofScratchBuffers {
     std::vector<float> blur_radii;
     std::vector<Color> hpass;
     std::vector<Color> output;
+    i32 origin_x{0};
+    i32 origin_y{0};
+    i32 width{0};
+    i32 height{0};
 
-    void ensure_size(std::size_t pixels) {
+    void ensure_size(i32 x0, i32 y0, i32 w, i32 h) {
+        origin_x = x0;
+        origin_y = y0;
+        width = w;
+        height = h;
+        const std::size_t pixels = static_cast<std::size_t>(w) * h;
         blur_radii.resize(pixels);
         hpass.resize(pixels);
         output.resize(pixels);
@@ -104,14 +113,16 @@ inline void apply_per_pixel_dof(
     // background samples into the text blur and creates bbox-shaped patches.
     DofScratchBuffers local_scratch;
     auto* buffers = scratch != nullptr ? scratch : &local_scratch;
-    buffers->ensure_size(static_cast<size_t>(w) * h);
+    buffers->ensure_size(x0, y0, x1 - x0, y1 - y0);
+    const i32 roi_w = x1 - x0;
+    const i32 roi_h = y1 - y0;
     auto& blur_radii = buffers->blur_radii;
     std::fill(blur_radii.begin(), blur_radii.end(), -1.0f);
     float max_r = 0.0f;
     for (i32 y = y0; y < y1; ++y) {
         for (i32 x = x0; x < x1; ++x) {
-            const size_t idx = static_cast<size_t>(y) * w + x;
-            const float z = depth[idx];
+            const size_t idx = static_cast<size_t>(y - y0) * roi_w + (x - x0);
+            const float z = depth[static_cast<size_t>(y) * w + x];
             if (z < kUnsetDofDepth * 0.5f) {
                 blur_radii[idx] = compute_dof_blur_radius(dof, lens, z);
             }
@@ -136,8 +147,7 @@ inline void apply_per_pixel_dof(
     // avoids assigning the maximum radius to an entire destination rectangle.
     // Scratch buffers for the two-pass separable blur.
     // `hpass` stores the horizontally-blurred result; `output` stores the final.
-    // Both are allocated at full framebuffer size (including non-clipped regions
-    // which are copied unchanged from the source).
+    // Both are allocated only for the processing ROI.
     const auto scratch_start = chronon3d::profiling::now();
     auto& hpass = buffers->hpass;
     auto& output = buffers->output;
@@ -145,25 +155,26 @@ inline void apply_per_pixel_dof(
         add_us(chronon3d::profiling::g_current_counters->dof_scratch_allocation_us,
                scratch_start);
         const uint64_t scratch_bytes =
-            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color) * 2;
+            static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color) * 2;
         chronon3d::profiling::g_current_counters->dof_scratch_bytes.fetch_add(
             scratch_bytes, std::memory_order_relaxed);
     }
 
-    // Copy source into hpass as the starting point (non-clipped rows stay unchanged)
+    // Copy only the ROI into hpass; pixels outside it remain untouched in fb.
     const auto copy_start = chronon3d::profiling::now();
-    for (i32 y = 0; y < h; ++y) {
+    for (i32 y = y0; y < y1; ++y) {
         const Color* src_row = fb.pixels_row(y);
-        std::copy_n(src_row, w, &hpass[static_cast<size_t>(y) * w]);
+        std::copy_n(src_row + x0, roi_w,
+                    &hpass[static_cast<size_t>(y - y0) * roi_w]);
     }
     if (chronon3d::profiling::g_current_counters) {
         add_us(chronon3d::profiling::g_current_counters->dof_copy_to_hpass_us,
                copy_start);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
-            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
             std::memory_order_relaxed);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_written.fetch_add(
-            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
             std::memory_order_relaxed);
     }
 
@@ -175,11 +186,13 @@ inline void apply_per_pixel_dof(
         [&](const tbb::blocked_range<i32>& range) {
             for (i32 y = range.begin(); y < range.end(); ++y) {
                 const Color* src_row = fb.pixels_row(y);
-                Color* dst_row = &hpass[static_cast<size_t>(y) * w];
+                Color* dst_row = &hpass[static_cast<size_t>(y - y0) * roi_w];
+                const float* radius_row =
+                    &blur_radii[static_cast<size_t>(y - y0) * roi_w];
 
-                dof_h_gather_simd(src_row, dst_row, blur_radii.data(), max_r,
+                dof_h_gather_simd(src_row, dst_row, radius_row, max_r,
                                   fb.is_opaque(),
-                                  x0, x1, w, y, w);
+                                  x0, x1, w, y, w, x0, x1);
             }
         }
     );
@@ -196,10 +209,10 @@ inline void apply_per_pixel_dof(
         add_us(chronon3d::profiling::g_current_counters->dof_hpass_to_output_us,
                hpass_copy_start);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
-            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
             std::memory_order_relaxed);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_written.fetch_add(
-            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
             std::memory_order_relaxed);
     }
 
@@ -249,7 +262,8 @@ inline void apply_per_pixel_dof(
                     dof_v_gather_simd(hpass.data(), output.data(),
                                       blur_radii.data(), max_r,
                                       fb.is_opaque(),
-                                      tx0, tx1, y, h, w);
+                                      tx0, tx1, y, h, w,
+                                      x0, x1, y0, y1, roi_w);
                 }
             }
         }
@@ -266,12 +280,12 @@ inline void apply_per_pixel_dof(
             using namespace hwy::HWY_NAMESPACE;
             const ScalableTag<float> df;
             const size_t lanes = Lanes(df);
-            const int floats_per_row = w * 4;
+            const int floats_per_row = roi_w * 4;
 
             for (i32 y = range.begin(); y < range.end(); ++y) {
                 const float* src = reinterpret_cast<const float*>(
-                    &output[static_cast<size_t>(y) * w]);
-                float* dst = reinterpret_cast<float*>(fb.pixels_row(y));
+                    &output[static_cast<size_t>(y - y0) * roi_w]);
+                float* dst = reinterpret_cast<float*>(fb.pixels_row(y) + x0);
 
                 int fx = 0;
                 for (; fx + static_cast<int>(lanes) <= floats_per_row; fx += static_cast<int>(lanes)) {
@@ -287,7 +301,7 @@ inline void apply_per_pixel_dof(
         add_us(chronon3d::profiling::g_current_counters->dof_writeback_us,
                writeback_start);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
-            static_cast<uint64_t>(w) * static_cast<uint64_t>(h) * sizeof(Color),
+            static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
             std::memory_order_relaxed);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_written.fetch_add(
             static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0) * sizeof(Color),

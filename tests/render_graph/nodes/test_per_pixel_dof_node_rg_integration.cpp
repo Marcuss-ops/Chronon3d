@@ -57,16 +57,20 @@ Composition make_sparse_dof_scene() {
     return composition({.width = 128, .height = 128, .duration = 1},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true).dof(DepthOfFieldSettings{
+            s.camera().enable(true)
+                .position({0.0f, 0.0f, -1000.0f})
+                .zoom(1000.0f)
+                .look_at({0.0f, 0.0f, 0.0f})
+                .dof(DepthOfFieldSettings{
                 .enabled = true,
                 .focus_z = 0.0f,
                 .aperture = 0.05f,
                 .max_blur = 24.0f
             });
             s.layer("sparse", [](LayerBuilder& l) {
-                l.position({0.0f, 0.0f, -800.0f});
+                l.enable_3d(true).position({0.0f, 0.0f, -800.0f});
                 l.rect("box", {
-                    .size = {24.0f, 24.0f},
+                    .size = {8.0f, 8.0f},
                     .color = {1.0f, 1.0f, 1.0f, 1.0f},
                     .pos = {0.0f, 0.0f, 0.0f}
                 });

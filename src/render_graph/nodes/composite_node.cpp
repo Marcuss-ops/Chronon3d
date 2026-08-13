@@ -7,7 +7,10 @@
 
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace chronon3d::graph {
@@ -18,6 +21,48 @@ NodeExecResult CompositeNode::execute(
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
     if (inputs.size() < 2) {
+        // A pass-through composite is still a depth producer.  Some graph
+        // shapes collapse the bottom input, but the remaining input retains
+        // the layer surface represented by m_world_z.  Do not let this
+        // optimization bypass DOF provenance publication.
+        if (inputs.size() == 1 && inputs[0] &&
+            ctx.policy.track_dof_depth && !ctx.node_exec.dof_depth_buffer().empty()) {
+            auto& dof_depth = ctx.node_exec.dof_depth_buffer();
+            const i32 w = ctx.frame_input.width;
+            const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
+            const float source_radius = camera_2_5d.dof.enabled
+                ? compute_dof_blur_radius(camera_2_5d.dof, camera_2_5d.lens,
+                                          m_world_z, static_cast<float>(w))
+                : 0.0f;
+            const i32 bx0 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->x0 : 0;
+            const i32 by0 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->y0 : 0;
+            const i32 bx1 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->x1 : w;
+            const i32 by1 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->y1 : ctx.frame_input.height;
+            const Framebuffer& surface = *inputs[0];
+            for (i32 y = by0; y < by1; ++y) {
+                const i32 sy = y - surface.origin_y();
+                if (sy < 0 || sy >= surface.height()) continue;
+                const Color* row = surface.pixels_row(sy);
+                for (i32 x = bx0; x < bx1; ++x) {
+                    const i32 sx = x - surface.origin_x();
+                    if (sx < 0 || sx >= surface.width() || row[sx].a <= 0.01f) continue;
+                    dof_depth[static_cast<size_t>(y) * w + x] = m_world_z;
+                    if (std::isfinite(source_radius) && source_radius >= 0.5f) {
+                        auto& coverage = ctx.node_exec.dof_sources();
+                        if (!coverage.source_bbox) {
+                            coverage.source_bbox = raster::BBox{x, y, x + 1, y + 1};
+                        } else {
+                            auto& bbox = *coverage.source_bbox;
+                            bbox.x0 = std::min(bbox.x0, x);
+                            bbox.y0 = std::min(bbox.y0, y);
+                            bbox.x1 = std::max(bbox.x1, x + 1);
+                            bbox.y1 = std::max(bbox.y1, y + 1);
+                        }
+                        coverage.max_radius = std::max(coverage.max_radius, source_radius);
+                    }
+                }
+            }
+        }
         auto fallback = inputs.empty() ? ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height) : ctx.acquire_owned_fb(*inputs[0]);
         return NodeExecResult{std::move(fallback)};
     }
@@ -171,6 +216,11 @@ NodeExecResult CompositeNode::execute(
         if (ctx.policy.track_dof_depth && !dof_depth.empty()) {
             const i32 w = ctx.frame_input.width;
             const float wz = m_world_z;
+            const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
+            const float source_radius = camera_2_5d.dof.enabled
+                ? compute_dof_blur_radius(camera_2_5d.dof, camera_2_5d.lens,
+                                          wz, static_cast<float>(w))
+                : 0.0f;
             const i32 bx0 = clip ? clip->x0 : 0;
             const i32 by0 = clip ? clip->y0 : 0;
             const i32 bx1 = clip ? clip->x1 : ctx.frame_input.width;
@@ -184,6 +234,20 @@ NodeExecResult CompositeNode::execute(
                     if (sx < 0 || sx >= top->width()) continue;
                     if (src_row[sx].a > 0.01f) {
                         dof_depth[static_cast<size_t>(y) * w + x] = wz;
+                        if (std::isfinite(source_radius) && source_radius >= 0.5f) {
+                            auto& coverage = ctx.node_exec.dof_sources();
+                            if (!coverage.source_bbox) {
+                                coverage.source_bbox = raster::BBox{x, y, x + 1, y + 1};
+                            } else {
+                                auto& bbox = *coverage.source_bbox;
+                                bbox.x0 = std::min(bbox.x0, x);
+                                bbox.y0 = std::min(bbox.y0, y);
+                                bbox.x1 = std::max(bbox.x1, x + 1);
+                                bbox.y1 = std::max(bbox.y1, y + 1);
+                            }
+                            coverage.max_radius = std::max(coverage.max_radius,
+                                                            source_radius);
+                        }
                     }
                 }
             }

@@ -90,7 +90,8 @@ DofActiveRegion analyze_dof_active_region(
     i32 width,
     i32 height,
     const DepthOfFieldSettings& dof,
-    const LensModel& lens)
+    const LensModel& lens,
+    const DofSourceCoverage& published_sources)
 {
     DofActiveRegion region;
     region.depth_x0 = width;
@@ -111,15 +112,37 @@ DofActiveRegion analyze_dof_active_region(
     i32 active_y0 = height;
     i32 active_x1 = 0;
     i32 active_y1 = 0;
+    bool seeded_from_compositor = false;
+    if (published_sources.source_bbox && published_sources.max_radius >= 0.5f) {
+        const auto& source_bbox = *published_sources.source_bbox;
+        active_x0 = std::clamp(source_bbox.x0, 0, width);
+        active_y0 = std::clamp(source_bbox.y0, 0, height);
+        active_x1 = std::clamp(source_bbox.x1, 0, width);
+        active_y1 = std::clamp(source_bbox.y1, 0, height);
+        region.max_radius = published_sources.max_radius;
+        seeded_from_compositor = active_x0 < active_x1 && active_y0 < active_y1;
+    }
 
-    for (i32 y = 0; y < height; ++y) {
-        for (i32 x = 0; x < width; ++x) {
+    const i32 scan_margin = seeded_from_compositor
+        ? std::max(1, static_cast<i32>(std::ceil(region.max_radius))) : 0;
+    const i32 scan_x0 = seeded_from_compositor
+        ? std::max(0, active_x0 - scan_margin) : 0;
+    const i32 scan_y0 = seeded_from_compositor
+        ? std::max(0, active_y0 - scan_margin) : 0;
+    const i32 scan_x1 = seeded_from_compositor
+        ? std::min(width, active_x1 + scan_margin) : width;
+    const i32 scan_y1 = seeded_from_compositor
+        ? std::min(height, active_y1 + scan_margin) : height;
+
+    for (i32 y = scan_y0; y < scan_y1; ++y) {
+        for (i32 x = scan_x0; x < scan_x1; ++x) {
             const float z = depth[static_cast<std::size_t>(y) * width + x];
 
             // Keep the historical diagnostic definition intact.  In
             // particular, z == 0 (the common focus/background value) is not
             // counted as non-neutral even though it is a valid depth sample.
-            if (std::abs(z) > 1e-4f && z < 1e17f) {
+            if (!seeded_from_compositor && std::abs(z) > 1e-4f &&
+                z < kUnsetDofDepth * 0.5f) {
                 ++region.non_neutral_depth;
                 region.depth_x0 = std::min(region.depth_x0, x);
                 region.depth_y0 = std::min(region.depth_y0, y);
@@ -134,17 +157,20 @@ DofActiveRegion analyze_dof_active_region(
                 continue;
             }
 
-            const float radius = compute_dof_blur_radius(dof, lens, z);
+            const float radius = compute_dof_blur_radius(
+                dof, lens, z, static_cast<float>(width));
             if (!std::isfinite(radius) || radius < kVisibleBlurThreshold) {
                 continue;
             }
 
             ++region.blur_source_pixels;
             region.max_radius = std::max(region.max_radius, radius);
-            active_x0 = std::min(active_x0, x);
-            active_y0 = std::min(active_y0, y);
-            active_x1 = std::max(active_x1, x + 1);
-            active_y1 = std::max(active_y1, y + 1);
+            if (!seeded_from_compositor) {
+                active_x0 = std::min(active_x0, x);
+                active_y0 = std::min(active_y0, y);
+                active_x1 = std::max(active_x1, x + 1);
+                active_y1 = std::max(active_y1, y + 1);
+            }
         }
     }
 
@@ -242,7 +268,8 @@ NodeExecResult PerPixelDofNode::execute(
         ctx.frame_input.width,
         ctx.frame_input.height,
         camera.dof,
-        camera.lens);
+        camera.lens,
+        ctx.node_exec.dof_sources());
 
     if (profiling::g_current_counters) {
         profiling::g_current_counters->dof_blur_source_pixels.fetch_add(

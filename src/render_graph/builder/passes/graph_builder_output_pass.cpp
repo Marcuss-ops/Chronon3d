@@ -95,6 +95,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
             static_cast<size_t>(rctx.frame_input.width) * rctx.frame_input.height,
             kUnsetDofDepth  // no surface; CompositeNode writes world_z only where top alpha contributes
         );
+        rctx.node_exec.dof_source_coverage.reset();
         // The node keeps this value as an isolated-test fallback, but reads
         // the evaluated camera from the frame context during execution so
         // animated focus/aperture/max_blur are not frozen at graph build.
