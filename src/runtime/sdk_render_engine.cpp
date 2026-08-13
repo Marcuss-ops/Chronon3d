@@ -261,8 +261,13 @@ RenderEngine& RenderEngine::operator=(RenderEngine&& other) noexcept {
 chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
     return m_impl->render_frame(frame, [&] {
-        return m_impl->engine.render(
-            composition, chronon3d::Frame{frame.integral()});
+        // The prepared-job path is the canonical resource barrier: it
+        // resolves and populates the engine-local asset caches before graph
+        // execution. Calling the legacy direct adapter here leaves image
+        // lookup-only rendering with a placeholder and breaks multi-engine
+        // asset-root isolation.
+        auto prepared = m_impl->engine.prepare(composition);
+        return prepared.render(chronon3d::Frame{frame.integral()});
     });
 }
 

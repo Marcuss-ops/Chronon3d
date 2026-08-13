@@ -56,6 +56,7 @@ Layer::Layer(const Layer& other)
       m_card3d_material(std::make_unique<Card3DMaterial>(*other.m_card3d_material)),
       transition_in(other.transition_in),
       transition_out(other.transition_out),
+      asset_manifest(other.asset_manifest),
       nodes(other.nodes),
       precomp_composition_name(other.precomp_composition_name),
       m_static_hash(other.m_static_hash),
@@ -97,6 +98,7 @@ Layer& Layer::operator=(const Layer& other) {
     *m_card3d_material = *other.m_card3d_material;
     transition_in = other.transition_in;
     transition_out = other.transition_out;
+    asset_manifest = other.asset_manifest;
     nodes = other.nodes;
     precomp_composition_name = other.precomp_composition_name;
     m_static_hash = other.m_static_hash;
