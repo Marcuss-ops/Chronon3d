@@ -31,6 +31,13 @@ enum class RenderErrorCode : std::uint8_t {
     Cancelled          = 6,   ///< CancellationToken fired during render
     BudgetExceeded     = 7,   ///< CPU / memory / time budget exhausted
     AssetChanged       = 8,   ///< Prepared asset identity changed at render time
+    InvalidPlan        = 9,   ///< RenderPlan failed schema or semantic validation
+    UnsupportedSchema  = 10,  ///< RenderPlan schema/version is not supported
+    AssetNotFound      = 11,  ///< Referenced asset is unavailable
+    DecodeFailure      = 12,  ///< Input/media decoding failed
+    EncodeFailure      = 13,  ///< Output encoding failed
+    OutOfMemory        = 14,  ///< Resource or allocation budget exhausted
+    AbiMismatch        = 15,  ///< Public ABI contract version mismatch
     InternalError      = 255, ///< Catch-all OPP-side error
 };
 
@@ -38,6 +45,9 @@ enum class RenderErrorCode : std::uint8_t {
 struct RenderError {
     RenderErrorCode code{RenderErrorCode::Ok};
     std::string     message;   ///< Free-form diagnostic, never null
+    std::string     component; ///< Stable subsystem name, when known
+    std::string     node_id;   ///< Optional logical node identifier
+    std::string     asset;     ///< Optional logical asset reference
 };
 
 /// Stable string-form name for each `RenderErrorCode`.  For logging
@@ -54,6 +64,13 @@ inline const char* render_error_code_name(RenderErrorCode c) noexcept {
         case RenderErrorCode::Cancelled:          return "Cancelled";
         case RenderErrorCode::BudgetExceeded:     return "BudgetExceeded";
         case RenderErrorCode::AssetChanged:       return "AssetChanged";
+        case RenderErrorCode::InvalidPlan:        return "InvalidPlan";
+        case RenderErrorCode::UnsupportedSchema:  return "UnsupportedSchema";
+        case RenderErrorCode::AssetNotFound:      return "AssetNotFound";
+        case RenderErrorCode::DecodeFailure:      return "DecodeFailure";
+        case RenderErrorCode::EncodeFailure:      return "EncodeFailure";
+        case RenderErrorCode::OutOfMemory:        return "OutOfMemory";
+        case RenderErrorCode::AbiMismatch:        return "AbiMismatch";
         case RenderErrorCode::InternalError:      return "InternalError";
     }
     return "Unknown";

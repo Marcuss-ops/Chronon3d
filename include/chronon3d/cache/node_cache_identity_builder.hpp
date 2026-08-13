@@ -50,6 +50,16 @@ public:
         return *this;
     }
 
+    NodeCacheIdentityBuilder& versions(
+        ContentVersion params,
+        ContentVersion source,
+        ContentVersion input = 0) {
+        m_key.params_version = params;
+        m_key.source_version = source;
+        m_key.input_version = input;
+        return *this;
+    }
+
     NodeCacheIdentityBuilder& hashes(u64 params_hash, u64 source_hash, u64 input_hash = 0) {
         m_key.params_hash = params_hash;
         m_key.source_hash = source_hash;

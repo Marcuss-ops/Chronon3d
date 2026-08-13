@@ -250,6 +250,21 @@ TEST_CASE("SDK render fails loud when a logical image is absent from its root") 
     remove_test_root(test_root);
 }
 
+TEST_CASE("SDK RenderLimits reject before opening the encoder") {
+    c3d::sdk::RenderEngine engine{deterministic_settings()};
+    const auto composition = empty_composition();
+    c3d::sdk::RenderFileRequest request;
+    request.composition = &composition;
+    request.output_path = fs::temp_directory_path() / "chronon3d-limit-test.mp4";
+    request.end_frame = c3d::sdk::Frame{0};
+    request.limits.max_width = 64;
+
+    const auto result = engine.render_to_file(request);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == c3d::sdk::RenderErrorCode::BudgetExceeded);
+    CHECK(result.error().component == "render_job");
+}
+
 TEST_CASE("AssetResolver fails closed for missing relative assets") {
     const fs::path test_root = unique_test_root();
     const fs::path empty_root = fs::absolute(test_root / "empty-root");

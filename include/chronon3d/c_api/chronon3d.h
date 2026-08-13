@@ -10,6 +10,8 @@ extern "C" {
 
 typedef struct chronon_engine chronon_engine;
 typedef struct chronon_plan chronon_plan;
+typedef void (*chronon_log_callback)(int level, const char* component,
+                                     const char* message, void* user);
 
 typedef enum chronon_status {
     CHRONON_OK = 0,
@@ -26,9 +28,16 @@ typedef enum chronon_status {
     ,CHRONON_ERROR_ASSET_CHANGED = 11
     ,CHRONON_ERROR_BUDGET_EXCEEDED = 12
     ,CHRONON_ERROR_PREFLIGHT_FAILED = 13
+    ,CHRONON_ERROR_INVALID_PLAN = 14
+    ,CHRONON_ERROR_UNSUPPORTED_SCHEMA = 15
+    ,CHRONON_ERROR_ASSET_NOT_FOUND = 16
+    ,CHRONON_ERROR_DECODE_FAILED = 17
+    ,CHRONON_ERROR_ENCODE_FAILED = 18
+    ,CHRONON_ERROR_OUT_OF_MEMORY = 19
 } chronon_status;
 
 CHRONON3D_API const char* chronon_version_string(void);
+CHRONON3D_API const char* chronon_status_name(chronon_status status);
 
 typedef struct chronon_engine_config {
     uint32_t struct_size;
@@ -64,6 +73,10 @@ typedef struct chronon_error_info {
     // by the caller. chronon_engine_last_error() instead returns storage owned
     // by the engine and callers must serialize access to that engine handle.
     const char* message;
+    const char* code;
+    const char* component;
+    const char* node_id;
+    const char* asset;
 } chronon_error_info;
 
 typedef struct chronon_frame_info {
@@ -90,6 +103,8 @@ CHRONON3D_API chronon_status chronon_engine_create_v2(
     chronon_error_info* out_error);
 CHRONON3D_API void chronon_engine_destroy(chronon_engine* engine);
 CHRONON3D_API const char* chronon_engine_last_error(chronon_engine* engine);
+CHRONON3D_API chronon_status chronon_engine_set_log_callback(
+    chronon_engine* engine, chronon_log_callback callback, void* user);
 
 CHRONON3D_API chronon_status chronon_plan_compile_json(
     chronon_engine* engine, const char* json, chronon_plan** out_plan);

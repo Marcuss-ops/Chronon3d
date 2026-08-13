@@ -2,6 +2,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/render_graph/core/cache_policy.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::cache;
@@ -30,6 +31,35 @@ TEST_CASE("NodeCache: explicit capacity is respected") {
     // that the cache stores items without exceeding the expected limit.
     CHECK(stats.current_size == 0);
     CHECK(stats.current_weight == 0);
+}
+
+TEST_CASE("NodeCacheKey: content versions participate in dependency identity") {
+    auto base = make_node_cache_key();
+    auto params = base;
+    params.params_version = 2;
+    auto source = base;
+    source.source_version = 2;
+    auto input = base;
+    input.input_version = 2;
+
+    CHECK(base.digest() != params.digest());
+    CHECK(base.digest() != source.digest());
+    CHECK(base.digest() != input.digest());
+    CHECK(params.digest() != source.digest());
+    CHECK(params.digest() == params.digest());
+}
+
+TEST_CASE("Temporal cache keys use sampled time and preserve pure reuse") {
+    using namespace chronon3d::graph;
+    const auto rate = chronon3d::FrameRate{30, 1};
+    const auto sampled = chronon3d::SampleTime::from_frame(40.25, rate);
+    const auto pure = temporal_key_for(TemporalClass::Pure, sampled, 52);
+    const auto video = temporal_key_for(TemporalClass::TimeDependent, sampled);
+    CHECK(pure.frame == chronon3d::Frame{0});
+    CHECK(pure.subframe_tick == 0);
+    CHECK(pure.version == 52);
+    CHECK(video.frame == chronon3d::Frame{40});
+    CHECK(video.subframe_tick != 0);
 }
 
 TEST_CASE("NodeCache: top entries report physical backing weight") {

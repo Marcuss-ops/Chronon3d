@@ -97,6 +97,14 @@ struct RenderTelemetryRecord {
     uint64_t framebuffer_pool_evicted_bytes{0};
     uint64_t framebuffer_pool_pressure_count{0};
     uint64_t framebuffer_pool_size_class_count{0};
+    uint64_t logical_resource_count{0};
+    uint64_t physical_resource_slot_count{0};
+    uint64_t logical_resource_bytes{0};
+    uint64_t physical_resource_bytes{0};
+    uint64_t alias_saved_bytes{0};
+    uint64_t alias_reuse_count{0};
+    uint64_t new_resource_slot_count{0};
+    uint64_t arena_peak_bytes{0};
     uint64_t unaligned_memory_copies{0};
     uint64_t frame_conversion_copy_ms{0};
     uint64_t video_graph_eval_ms{0};

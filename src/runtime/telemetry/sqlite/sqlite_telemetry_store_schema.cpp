@@ -9,7 +9,7 @@ namespace chronon3d::telemetry {
 namespace {
 
 // Canonical column count for render_runs (from telemetry_schema.sql)
-constexpr int CANONICAL_RUN_COLUMNS = 120;
+constexpr int CANONICAL_RUN_COLUMNS = 128;
 
 // Ordered column names for render_runs matching telemetry_schema.sql
 constexpr const char* RUN_COLUMN_NAMES[] = {
@@ -59,7 +59,10 @@ constexpr const char* RUN_COLUMN_NAMES[] = {
     "e2e_wall_ms",
     "started_at_iso", "finished_at_iso", "git_commit_short", "build_type",
     "compiler_info", "os", "cpu_model", "cores",
-    "image_sample_ms", "image_sampled_pixels"
+    "image_sample_ms", "image_sampled_pixels",
+    "logical_resource_count", "physical_resource_slot_count",
+    "logical_resource_bytes", "physical_resource_bytes", "alias_saved_bytes",
+    "alias_reuse_count", "new_resource_slot_count", "arena_peak_bytes"
 };
 
 // Map of table name → expected column names (for migration across all tables)

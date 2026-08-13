@@ -53,6 +53,14 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.images_sampled = counters.images_sampled.load(std::memory_order_relaxed);
     run.blur_pixels = counters.blur_pixels.load(std::memory_order_relaxed);
     run.simd_lerp_calls = counters.simd_lerp_calls.load(std::memory_order_relaxed);
+    run.logical_resource_count = counters.logical_resource_count.load(std::memory_order_relaxed);
+    run.physical_resource_slot_count = counters.physical_resource_slot_count.load(std::memory_order_relaxed);
+    run.logical_resource_bytes = counters.logical_resource_bytes.load(std::memory_order_relaxed);
+    run.physical_resource_bytes = counters.physical_resource_bytes.load(std::memory_order_relaxed);
+    run.alias_saved_bytes = counters.alias_saved_bytes.load(std::memory_order_relaxed);
+    run.alias_reuse_count = counters.alias_reuse_count.load(std::memory_order_relaxed);
+    run.new_resource_slot_count = counters.new_resource_slot_count.load(std::memory_order_relaxed);
+    run.arena_peak_bytes = counters.arena_peak_bytes.load(std::memory_order_relaxed);
     run.node_cache_hash_collisions = counters.node_cache_hash_collisions.load(std::memory_order_relaxed);
     run.clear_skipped_calls = counters.clear_skipped_calls.load(std::memory_order_relaxed);
     run.clear_skipped_pixels = counters.clear_skipped_pixels.load(std::memory_order_relaxed);
