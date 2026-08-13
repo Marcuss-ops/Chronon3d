@@ -4,6 +4,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/runtime/resource_plan.hpp>
 
 #include "render_job.hpp"
 
@@ -26,6 +27,7 @@ struct RenderJobSetupResult {
     uint64_t saved_fb_peak{0};
     bool preparation_ok{true};
     std::string preparation_diagnostic;
+    runtime::ResourcePlan resource_plan{};
 };
 
 /// Initialise renderer/runtime services from an immutable canonical job.

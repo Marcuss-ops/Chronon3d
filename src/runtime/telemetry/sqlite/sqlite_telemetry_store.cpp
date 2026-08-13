@@ -71,7 +71,10 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
         "e2e_wall_ms, image_sample_ms, image_sampled_pixels, "
         "started_at_iso, finished_at_iso, git_commit_short, build_type, "
-        "compiler_info, os, cpu_model, cores"
+        "compiler_info, os, cpu_model, cores, "
+        "logical_resource_count, physical_resource_slot_count, logical_resource_bytes, "
+        "physical_resource_bytes, alias_saved_bytes, alias_reuse_count, "
+        "new_resource_slot_count, arena_peak_bytes"
 
         ") VALUES ("
         "?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, "
@@ -86,7 +89,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
         "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108, "
         "?109, ?110, ?111, ?112, ?113, ?114, "
-        "?115, ?116, ?117, ?118, ?119, ?120"
+        "?115, ?116, ?117, ?118, ?119, ?120, ?121, ?122, ?123, ?124, "
+        "?125, ?126, ?127, ?128"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -215,7 +219,15 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.compiler_info,
         run.os,
         run.cpu_model,
-        run.cores
+        run.cores,
+        run.logical_resource_count,
+        run.physical_resource_slot_count,
+        run.logical_resource_bytes,
+        run.physical_resource_bytes,
+        run.alias_saved_bytes,
+        run.alias_reuse_count,
+        run.new_resource_slot_count,
+        run.arena_peak_bytes
     ) && stmt.step_done();
 }
 

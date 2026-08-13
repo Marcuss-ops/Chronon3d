@@ -28,3 +28,12 @@ TEST_CASE("FrameArena default mode retains compatibility upstream") {
         arena.resource()->deallocate(memory, 128, alignof(std::max_align_t));
     }());
 }
+
+TEST_CASE("FrameArena reserves a prepared plan and exposes offsets") {
+    chronon3d::FrameArena arena(16, true);
+    arena.reserve(128);
+    REQUIRE(arena.capacity() == 128);
+    CHECK(arena.at(64) == arena.base() + 64);
+    auto* memory = static_cast<std::byte*>(arena.resource()->allocate(8, 8));
+    CHECK(memory >= arena.base());
+}

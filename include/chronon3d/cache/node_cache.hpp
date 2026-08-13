@@ -17,6 +17,8 @@
 
 namespace chronon3d::cache {
 
+using ContentVersion = u64;
+
 struct NodeCacheKey {
     std::string scope;
     Frame       frame{0};
@@ -25,6 +27,13 @@ struct NodeCacheKey {
     u64         params_hash{0};
     u64         source_hash{0};
     u64         input_hash{0};
+
+    // Version-based dependency inputs. Zero preserves the legacy hash-only
+    // contract; non-zero versions let callers invalidate without hashing
+    // framebuffer contents.
+    ContentVersion params_version{0};
+    ContentVersion source_version{0};
+    ContentVersion input_version{0};
 
     /// Sub-frame temporal key for motion blur / temporal supersampling.
     /// Static nodes share the same key (frame=0, tick=0) to avoid
