@@ -34,6 +34,8 @@ Scene Scene::clone() const {
     s.m_rim = m_rim;
     s.m_depth_grade = m_depth_grade;
     s.m_hierarchy_baked = m_hierarchy_baked;
+    s.m_assets_root = m_assets_root;
+    s.m_manifest = m_manifest;
     s.m_camera_descriptor = m_camera_descriptor;
     s.m_camera_program = m_camera_program;
     s.m_camera_timeline = m_camera_timeline;
