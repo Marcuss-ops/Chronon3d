@@ -34,6 +34,16 @@ struct ResolvedCompositionSpec {
     std::function<Composition()> construct;
 };
 
+/// Canonical content-type category tags consumed by CompositionRegistry's
+/// typed accessors. A composition is classified as a phrase, important word,
+/// image, or named text only via one of these tags (single source of truth).
+namespace content_category {
+inline constexpr std::string_view Phrase        = "Phrase";
+inline constexpr std::string_view ImportantWord = "ImportantWord";
+inline constexpr std::string_view Image         = "Image";
+inline constexpr std::string_view NamedText     = "NamedText";
+} // namespace content_category
+
 /**
  * CompositionRegistry holds one canonical descriptor map in deterministic
  * alphabetical order. Registration is explicit and every descriptor is
@@ -168,6 +178,40 @@ public:
             result.push_back(descriptor);
         }
         return result;
+    }
+
+    /// Return every descriptor whose `category` matches `category`, in
+    /// deterministic alphabetical order by id (std::map iteration order).
+    [[nodiscard]] std::vector<CompositionDescriptor>
+    by_category(std::string_view category) const {
+        std::vector<CompositionDescriptor> result;
+        for (const auto& [_, descriptor] : descriptors_) {
+            if (descriptor.category == category) {
+                result.push_back(descriptor);
+            }
+        }
+        return result;
+    }
+
+    // ── Typed content accessors ───────────────────────────────────────
+    // Thin views over by_category() keyed by the canonical content-type tags.
+    // They unify content classification in one registry (no parallel
+    // registries per content type).
+
+    [[nodiscard]] std::vector<CompositionDescriptor> phrases() const {
+        return by_category(content_category::Phrase);
+    }
+
+    [[nodiscard]] std::vector<CompositionDescriptor> important_words() const {
+        return by_category(content_category::ImportantWord);
+    }
+
+    [[nodiscard]] std::vector<CompositionDescriptor> images() const {
+        return by_category(content_category::Image);
+    }
+
+    [[nodiscard]] std::vector<CompositionDescriptor> named_texts() const {
+        return by_category(content_category::NamedText);
     }
 
     void clear() noexcept {

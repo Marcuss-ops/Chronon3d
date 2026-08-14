@@ -141,3 +141,39 @@ TEST_CASE("CompositionRegistry::freeze blocks registration; clear resets freeze"
         "second",
         [](const CompositionProps&) { return make_stub_composition(); })));
 }
+
+TEST_CASE("CompositionRegistry::typed content accessors filter by category") {
+    CompositionRegistry registry;
+
+    const auto add_tagged = [&registry](std::string id, std::string category) {
+        registry.add(TypedCompositionDescriptor<NewsProps>{
+            .id = std::move(id),
+            .category = std::move(category),
+            .defaults = NewsProps{"tagged", 60},
+            .factory = [](const NewsProps&) { return make_stub_composition(); },
+        }.to_descriptor());
+    };
+
+    add_tagged("phrase-alpha", std::string{content_category::Phrase});
+    add_tagged("phrase-beta", std::string{content_category::Phrase});
+    add_tagged("word-alpha", std::string{content_category::ImportantWord});
+    add_tagged("image-alpha", std::string{content_category::Image});
+    add_tagged("name-alpha", std::string{content_category::NamedText});
+    add_tagged("news-unrelated", "News");
+
+    // Each typed accessor surfaces only its canonical content type.
+    CHECK(registry.phrases().size() == 2);
+    CHECK(registry.important_words().size() == 1);
+    CHECK(registry.images().size() == 1);
+    CHECK(registry.named_texts().size() == 1);
+
+    // Unrelated categories are not surfaced by any typed accessor.
+    CHECK(registry.by_category("News").size() == 1);
+    CHECK(registry.phrases().size() == 2);
+
+    // Deterministic alphabetical order by id.
+    const auto phrases = registry.phrases();
+    REQUIRE(phrases.size() == 2);
+    CHECK(phrases[0].id == "phrase-alpha");
+    CHECK(phrases[1].id == "phrase-beta");
+}
