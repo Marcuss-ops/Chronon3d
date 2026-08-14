@@ -42,6 +42,15 @@ public:
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
 
+    /// Frame-batching lifecycle overrides.  While a frame batch is active
+    /// every surface operation (composite, transform, blur, matte, glow,
+    /// color adjust) records into a single command buffer and defers
+    /// submission to end_frame_batch(), producing one vkQueueSubmit per
+    /// frame.  Outside a batch the operations keep their immediate
+    /// submit+wait semantics, preserving single-pass test compatibility.
+    void begin_frame_batch() override;
+    void end_frame_batch() override;
+
     void apply_per_pixel_dof(
         Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,
         const LensModel&, const std::optional<raster::BBox>&) override;

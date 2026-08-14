@@ -664,6 +664,56 @@ TEST_CASE("Vulkan glow sequence uses blur passes followed by additive composite"
     CHECK(backend.stats().submissions == second_before + 1);
 }
 
+TEST_CASE("Vulkan frame batch records every pass into a single submission") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        4, 4, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    std::vector<float> source(4 * 4 * 4, 0.0f);
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+    source[center + 0] = 0.8f;
+    source[center + 3] = 1.0f;
+    std::vector<float> output(source.size(), 0.0f);
+
+    REQUIRE(backend.create_surface(521, desc).ok());
+    REQUIRE(backend.create_surface(522, desc).ok());
+    REQUIRE(backend.create_surface(523, desc).ok());
+    REQUIRE(backend.create_surface(524, desc).ok());
+    REQUIRE(backend.upload_surface(521, desc, source).ok());
+
+    const auto submissions_before = backend.stats().submissions;
+    backend.begin_frame_batch();
+    REQUIRE(backend.transform_surface(522, 521, 0, 0, 1.0f).ok());
+    REQUIRE(backend.blur_surface(523, 522, 1.5f, true).ok());
+    REQUIRE(backend.color_adjust_surface(
+        524, 523, 0.0f, 1.0f,
+        chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.0f).ok());
+    REQUIRE(backend.composite_surfaces(
+        524, 521, chronon3d::BlendMode::Normal,
+        chronon3d::CompositeOperator::SourceOver).ok());
+    backend.end_frame_batch();
+    // Four recorded passes must coalesce into exactly one queue submission:
+    // the whole frame is submitted once, not once per operation.
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    REQUIRE(backend.download_surface(524, output).ok());
+    // The transform → blur → color adjust → composite chain preserved the
+    // bright opaque center pixel.
+    CHECK(output[center + 0] > 0.0f);
+    CHECK(output[center + 3] > 0.0f);
+
+    // A second batch reuses the frame-batch slot and the descriptor pool
+    // without an extra submission or pool exhaustion.
+    const auto second_before = backend.stats().submissions;
+    backend.begin_frame_batch();
+    REQUIRE(backend.transform_surface(522, 521, 0, 0, 1.0f).ok());
+    backend.end_frame_batch();
+    CHECK(backend.stats().submissions == second_before + 1);
+    REQUIRE(backend.download_surface(522, output).ok());
+    CHECK(output[center + 0] == doctest::Approx(0.8f).epsilon(1e-3f));
+}
+
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     chronon3d::runtime::RenderSurfaceRegistry registry;
