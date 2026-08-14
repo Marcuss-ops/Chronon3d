@@ -243,11 +243,26 @@ public:
         }
         plan.resources = planner.build();
 
+        // Emit one transition per surface access so the backend can place
+        // image barriers: a Read transition for every non-destination surface
+        // a pass samples (sources + scratch), then a Write transition for the
+        // destination.  Together these describe the per-pass read/write
+        // access — e.g. a surface written in pass N and read in pass N+1
+        // surfaces as Write@N followed by Read@N+1, which the consumer turns
+        // into a write→read barrier.
         for (std::size_t index = 0; index < m_passes.size(); ++index) {
-            const auto destination = detail::destination_handle(m_passes[index]);
-            if (destination == kInvalidRenderSurfaceHandle) continue;
-            plan.barriers.transitions.push_back(BarrierTransition{
-                index, destination, ResourceAccess::Write});
+            const auto& pass = m_passes[index];
+            const auto destination = detail::destination_handle(pass);
+            for (const auto handle : detail::referenced_handles(pass)) {
+                if (handle == kInvalidRenderSurfaceHandle) continue;
+                if (handle == destination) continue;
+                plan.barriers.transitions.push_back(BarrierTransition{
+                    index, handle, ResourceAccess::Read});
+            }
+            if (destination != kInvalidRenderSurfaceHandle) {
+                plan.barriers.transitions.push_back(BarrierTransition{
+                    index, destination, ResourceAccess::Write});
+            }
         }
         return plan;
     }
