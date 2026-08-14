@@ -46,15 +46,25 @@ struct VulkanBackend::Impl {
         bool initialized{false};
     };
 
-    /// State of an in-flight frame batch.  While active, surface operations
-    /// only record commands into `command_buffer` (never submit); the single
-    /// vkQueueSubmit for the frame happens in submit_batch() called from
-    /// end_frame_batch().  `descriptor_sets` tracks the per-pass sets
-    /// allocated from the shared descriptor pool so they survive until the
-    /// batch is submitted and can be invalidated in bulk on the next reset.
+    /// State of the frame-batch ring.  While active, surface operations
+    /// only record commands into the current slot's command buffer (never
+    /// submit); the single vkQueueSubmit for the frame happens in
+    /// submit_batch() called from end_frame_batch().  Each slot owns its own
+    /// command buffer, fence and descriptor pool so begin_frame_batch()
+    /// waits ONLY on the fence of the slot it is about to reuse (never
+    /// vkDeviceWaitIdle per frame) and resets only that slot's pool —
+    /// batches still in flight on the other slots keep their descriptor
+    /// sets valid.  The ring bounds CPU-GPU overlap: slot N is reused after
+    /// kSlotCount batches, so recording can run up to kSlotCount - 1 frames
+    /// ahead of GPU execution.
     struct FrameBatchState {
+        static constexpr std::size_t kSlotCount = 3;
         bool active{false};
-        VkCommandBuffer command_buffer{VK_NULL_HANDLE};
+        std::size_t next_slot{0};
+        std::array<VkCommandBuffer, kSlotCount> command_buffers{};
+        std::array<VkFence, kSlotCount> fences{};
+        std::array<bool, kSlotCount> in_flight{};
+        std::array<VkDescriptorPool, kSlotCount> descriptor_pools{};
         std::vector<VkDescriptorSet> descriptor_sets;
         std::size_t pass_count{0};
     };
@@ -116,12 +126,13 @@ struct VulkanBackend::Impl {
 
         // One persistent set serves the single-pass operations; glow reuses
         // three additional sets so all three dispatches in its one command
-        // buffer retain distinct image bindings until execution.  A frame
-        // batch allocates one descriptor set per recorded pass from the same
-        // pool (the set keeps its image bindings until end_frame_batch()
-        // submits), so the pool is sized for deep multi-pass batches.  The
-        // chunked FrameDescriptorAllocator replaces this single pool in a
-        // later milestone.
+        // buffer retain distinct image bindings until execution.  Frame
+        // batches allocate one descriptor set per recorded pass from the
+        // current ring slot's own pool (see FrameBatchState), so the shared
+        // pool only ever serves the persistent standalone sets and never
+        // needs to be reset on the frame boundary.  The chunked
+        // FrameDescriptorAllocator generalizes the per-slot pools in a later
+        // milestone.
         const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512};
         const VkDescriptorPoolCreateInfo pool_info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 256, 512, &pool_size};
@@ -296,16 +307,31 @@ struct VulkanBackend::Impl {
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
         check(vkAllocateCommandBuffers(device, &command_info, &command_buffer),
               "vkAllocateCommandBuffers");
-        // Dedicated command buffer for frame batches so batch recording never
-        // conflicts with the standalone command buffer used by uploads,
-        // downloads and single-pass operations.
+        // Dedicated command buffers + fences + descriptor pools for the
+        // frame-batch ring so batch recording never conflicts with the
+        // standalone command buffer used by uploads, downloads and
+        // single-pass operations, and each slot can be synchronized and its
+        // descriptor pool reset independently of the others.
         const VkCommandBufferAllocateInfo batch_command_info{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
-        check(vkAllocateCommandBuffers(device, &batch_command_info,
-                                      &frame_batch.command_buffer),
-              "vkAllocateCommandBuffers(frame batch)");
+        for (auto& slot_buffer : frame_batch.command_buffers) {
+            check(vkAllocateCommandBuffers(device, &batch_command_info, &slot_buffer),
+                  "vkAllocateCommandBuffers(frame batch slot)");
+        }
         const VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
+        for (auto& slot_fence : frame_batch.fences) {
+            check(vkCreateFence(device, &fence_info, nullptr, &slot_fence),
+                  "vkCreateFence(frame batch slot)");
+        }
+        const VkDescriptorPoolSize batch_pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512};
+        for (auto& slot_pool : frame_batch.descriptor_pools) {
+            const VkDescriptorPoolCreateInfo slot_pool_info{
+                VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
+                256, 512, &batch_pool_size};
+            check(vkCreateDescriptorPool(device, &slot_pool_info, nullptr, &slot_pool),
+                  "vkCreateDescriptorPool(frame batch slot)");
+        }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
         const VkSemaphoreTypeCreateInfo timeline_type{
             VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO, nullptr,
@@ -327,8 +353,18 @@ struct VulkanBackend::Impl {
         if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
         if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
-        if (frame_batch.command_buffer != VK_NULL_HANDLE) {
-            vkFreeCommandBuffers(device, command_pool, 1, &frame_batch.command_buffer);
+        for (auto& slot_pool : frame_batch.descriptor_pools) {
+            if (slot_pool != VK_NULL_HANDLE) {
+                vkDestroyDescriptorPool(device, slot_pool, nullptr);
+            }
+        }
+        for (auto& slot_fence : frame_batch.fences) {
+            if (slot_fence != VK_NULL_HANDLE) vkDestroyFence(device, slot_fence, nullptr);
+        }
+        for (auto& slot_buffer : frame_batch.command_buffers) {
+            if (slot_buffer != VK_NULL_HANDLE) {
+                vkFreeCommandBuffers(device, command_pool, 1, &slot_buffer);
+            }
         }
         if (fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
         if (timeline_semaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timeline_semaphore, nullptr);
@@ -447,16 +483,23 @@ struct VulkanBackend::Impl {
         return set;
     }
 
+    // The command buffer of the slot currently being recorded.  next_slot is
+    // stable during a batch; it only advances in submit_batch(), so this is
+    // the correct target for every record_* call of the active frame.
+    [[nodiscard]] VkCommandBuffer active_command_buffer() const noexcept {
+        return frame_batch.command_buffers[frame_batch.next_slot];
+    }
+
     // Allocate a descriptor set for one recorded pass of the active frame
-    // batch.  Each pass binds its own set so the image bindings written now
-    // stay valid until end_frame_batch() submits the whole batch; the sets
-    // are tracked so begin_frame_batch() can invalidate them with the next
-    // vkResetDescriptorPool.
+    // batch from the CURRENT slot's pool.  Each pass binds its own set so
+    // the image bindings written now stay valid until end_frame_batch()
+    // submits the whole batch; the sets are tracked so begin_frame_batch()
+    // invalidates them with the slot's next vkResetDescriptorPool.
     VkDescriptorSet allocate_pass_descriptor_set() {
         VkDescriptorSet set = VK_NULL_HANDLE;
         const VkDescriptorSetAllocateInfo allocation{
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr,
-            descriptor_pool, 1, &descriptor_layout};
+            frame_batch.descriptor_pools[frame_batch.next_slot], 1, &descriptor_layout};
         check(vkAllocateDescriptorSets(device, &allocation, &set),
               "vkAllocateDescriptorSets(frame batch pass)");
         frame_batch.descriptor_sets.push_back(set);
@@ -609,11 +652,13 @@ struct VulkanBackend::Impl {
                       (destination.height + 15) / 16, 1);
     }
 
-    // End the active frame batch's command buffer and submit it exactly once.
-    // No wait-for-completion happens here: the caller waits only when the
-    // frame-batch slot is reused (begin_frame_batch()) or before a readback.
+    // End the active frame batch's command buffer and submit it exactly once
+    // with the current slot's fence.  No wait-for-completion happens here:
+    // the caller waits only when that slot is reused (begin_frame_batch())
+    // or before a readback (wait_for_pending()).
     void submit_batch() {
-        check(vkEndCommandBuffer(frame_batch.command_buffer),
+        const auto slot = frame_batch.next_slot;
+        check(vkEndCommandBuffer(frame_batch.command_buffers[slot]),
               "vkEndCommandBuffer(frame batch)");
         const auto signal_value = ++next_timeline_value;
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
@@ -622,12 +667,13 @@ struct VulkanBackend::Impl {
         const VkSemaphore signal_semaphores[] = {timeline_semaphore};
         const VkSubmitInfo submit_info{
             VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit, 0, nullptr, nullptr,
-            1, &frame_batch.command_buffer, 1, signal_semaphores};
-        check(vkQueueSubmit(queue, 1, &submit_info, fence),
+            1, &frame_batch.command_buffers[slot], 1, signal_semaphores};
+        check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
         ++stats.submissions;
-        pending_timeline_value = signal_value;
+        frame_batch.in_flight[slot] = true;
         frame_batch.pass_count = 0;
+        frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;
     }
 
     Image& ensure_surface(runtime::RenderSurfaceHandle handle,
@@ -819,7 +865,7 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_composite(frame_batch.command_buffer, descriptors,
+            record_composite(active_command_buffer(), descriptors,
                              dst_image, src_image, blend_mode, 1.0f, kIdentityTint);
             ++frame_batch.pass_count;
             return;
@@ -846,7 +892,7 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_transform(frame_batch.command_buffer, descriptors,
+            record_transform(active_command_buffer(), descriptors,
                              dst_image, src_image, offset_x, offset_y, opacity);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
@@ -874,7 +920,7 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_transform_affine(frame_batch.command_buffer, descriptors,
+            record_transform_affine(active_command_buffer(), descriptors,
                                     dst_image, src_image, transform);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
@@ -906,7 +952,7 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_blur(frame_batch.command_buffer, descriptors,
+            record_blur(active_command_buffer(), descriptors,
                         dst_image, src_image, radius, horizontal);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
@@ -954,11 +1000,11 @@ struct VulkanBackend::Impl {
             write_descriptors(vertical_descriptor, vertical, horizontal);
             const auto composite_descriptor = allocate_pass_descriptor_set();
             write_descriptors(composite_descriptor, dst, vertical);
-            record_blur(frame_batch.command_buffer, horizontal_descriptor,
+            record_blur(active_command_buffer(), horizontal_descriptor,
                         horizontal, src, radius, true);
-            record_blur(frame_batch.command_buffer, vertical_descriptor,
+            record_blur(active_command_buffer(), vertical_descriptor,
                         vertical, horizontal, radius, false);
-            record_composite(frame_batch.command_buffer, composite_descriptor,
+            record_composite(active_command_buffer(), composite_descriptor,
                              dst, vertical, 1, intensity, tint_rgba);
             horizontal.initialized = true;
             vertical.initialized = true;
@@ -1001,7 +1047,7 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst, src);
-            record_color_adjust(frame_batch.command_buffer, descriptors,
+            record_color_adjust(active_command_buffer(), descriptors,
                                 dst, src, brightness, contrast, tint, tint_amount);
             dst.initialized = true;
             ++frame_batch.pass_count;
@@ -1036,7 +1082,7 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_matte_descriptors(descriptors, dst, target_image, matte_image);
-            record_matte(frame_batch.command_buffer, descriptors,
+            record_matte(active_command_buffer(), descriptors,
                          dst, target_image, matte_image, luma, inverted);
             dst.initialized = true;
             ++frame_batch.pass_count;
@@ -1106,10 +1152,22 @@ struct VulkanBackend::Impl {
     }
 
     void wait_for_pending() {
-        if (pending_timeline_value == 0) return;
-        check(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
-        check(vkResetFences(device, 1, &fence), "vkResetFences");
-        pending_timeline_value = 0;
+        if (pending_timeline_value != 0) {
+            check(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
+            check(vkResetFences(device, 1, &fence), "vkResetFences");
+            pending_timeline_value = 0;
+        }
+        // Synchronize any frame-batch slots still in flight.  This is a sync
+        // point (release/readback path), distinct from begin_frame_batch()
+        // which waits ONLY on the fence of the slot being reused.
+        for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+            if (!frame_batch.in_flight[i]) continue;
+            check(vkWaitForFences(device, 1, &frame_batch.fences[i], VK_TRUE, UINT64_MAX),
+                  "vkWaitForFences(frame batch slot)");
+            check(vkResetFences(device, 1, &frame_batch.fences[i]),
+                  "vkResetFences(frame batch slot)");
+            frame_batch.in_flight[i] = false;
+        }
     }
 
     std::uint64_t submit(bool wait_for_completion = true) {
@@ -1369,23 +1427,28 @@ void VulkanBackend::begin_frame_batch() {
         throw std::logic_error(
             "VulkanBackend::begin_frame_batch: a frame batch is already active");
     }
-    // Reuse the frame-batch slot only after its previous submission
-    // completed: the fence signals when the prior batch (and everything
-    // queued before it on this queue) finished executing.
-    m_impl->wait_for_pending();
-    // Every recorded pass owns a descriptor set from the shared pool; reset
-    // the pool for the new batch and lazily re-allocate the persistent
-    // standalone handles afterwards.
-    check(vkResetDescriptorPool(m_impl->device, m_impl->descriptor_pool, 0),
-          "vkResetDescriptorPool(frame batch)");
-    m_impl->descriptor_set = VK_NULL_HANDLE;
-    m_impl->glow_descriptor_sets = {};
+    const auto slot = batch.next_slot;
+    // Wait ONLY on the fence of the slot being reused.  The other slots may
+    // still be in flight; this is what bounds CPU-GPU overlap to the ring
+    // size instead of stalling the whole device every frame.
+    if (batch.in_flight[slot]) {
+        check(vkWaitForFences(m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX),
+              "vkWaitForFences(frame batch slot)");
+        check(vkResetFences(m_impl->device, 1, &batch.fences[slot]),
+              "vkResetFences(frame batch slot)");
+        batch.in_flight[slot] = false;
+    }
+    // Every recorded pass owns a descriptor set from this slot's pool;
+    // resetting it now is safe because the slot's previous submission (the
+    // only one referencing those sets) has completed.
+    check(vkResetDescriptorPool(m_impl->device, batch.descriptor_pools[slot], 0),
+          "vkResetDescriptorPool(frame batch slot)");
     const VkCommandBufferBeginInfo begin{
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr};
-    check(vkResetCommandBuffer(batch.command_buffer, 0),
-          "vkResetCommandBuffer(frame batch)");
-    check(vkBeginCommandBuffer(batch.command_buffer, &begin),
-          "vkBeginCommandBuffer(frame batch)");
+    check(vkResetCommandBuffer(batch.command_buffers[slot], 0),
+          "vkResetCommandBuffer(frame batch slot)");
+    check(vkBeginCommandBuffer(batch.command_buffers[slot], &begin),
+          "vkBeginCommandBuffer(frame batch slot)");
     batch.active = true;
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
