@@ -64,7 +64,7 @@ bool execute_command_plan(graph::RenderBackend& backend,
                           RenderSurfaceRegistry& registry,
                           const CommandPlan& plan) {
     bind_plan_slots(plan.resources, registry);
-    backend.begin_plan_batch(plan.barriers);
+    backend.begin_plan_batch(plan);
     bool success = true;
     for (const auto& pass : plan.passes.passes) {
         if (!execute_pass(backend, pass)) {

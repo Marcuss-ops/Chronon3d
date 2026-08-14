@@ -43,6 +43,13 @@ public:
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
 
+    /// Number of distinct physical VkImages currently backing the surface
+    /// bindings.  Plan-driven aliasing binds several logical handles to one
+    /// physical slot, so this is the observable proof that lifetime-disjoint
+    /// surfaces share device memory instead of allocating one image per
+    /// handle.  Test-observable; not part of the base backend contract.
+    [[nodiscard]] std::size_t physical_surface_count() const noexcept;
+
     /// Frame-batching lifecycle overrides.  While a frame batch is active
     /// every surface operation (composite, transform, blur, matte, glow,
     /// color adjust) records into a single command buffer and defers
@@ -58,8 +65,11 @@ public:
     /// write→read / read→write / write→write barriers) instead of the
     /// conservative per-pass fallback used by direct op calls.  The caller
     /// must invoke the surface operations in plan.passes order; pass_count
-    /// doubles as the plan pass index.
-    void begin_plan_batch(const runtime::BarrierPlan& plan) override;
+    /// doubles as the plan pass index.  The backend also consumes
+    /// plan.resources: each allocation's handle is bound to its planned
+    /// physical slot and every slot is backed by exactly one VkImage, so
+    /// lifetime-disjoint surfaces alias the same device memory.
+    void begin_plan_batch(const runtime::CommandPlan& plan) override;
 
     void apply_per_pixel_dof(
         Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,

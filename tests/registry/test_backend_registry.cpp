@@ -786,7 +786,7 @@ TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper"
     CHECK(plan.barriers.size() >= 4);
 
     const auto submissions_before = backend.stats().submissions;
-    backend.begin_plan_batch(plan.barriers);
+    backend.begin_plan_batch(plan);
     REQUIRE(backend.transform_surface(542, 541, 0, 0, 1.0f).ok());
     REQUIRE(backend.blur_surface(543, 542, 1.5f, true).ok());
     REQUIRE(backend.composite_surfaces(
@@ -924,6 +924,83 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
     CHECK(result[center + 0] > 0.0f);
     CHECK(result[center + 3] > 0.0f);
     CHECK(result[corner + 0] > 0.0f);
+}
+
+TEST_CASE("physical slots back several logical handles with one VkImage (aliasing, no double free)") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    const SurfaceDesc surface_desc{4, 4, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const auto background = registry.create(surface_desc);
+    const auto t1 = registry.create(surface_desc);
+    const auto t2 = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(background != kInvalidRenderSurfaceHandle);
+    REQUIRE(t1 != kInvalidRenderSurfaceHandle);
+    REQUIRE(t2 != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {background, t1, t2, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    std::vector<float> bg(4 * 4 * 4, 0.0f);
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+    bg[center + 0] = 0.8f;
+    bg[center + 3] = 1.0f;
+    REQUIRE(backend.upload_surface(background, surface_desc, bg).ok());
+
+    const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     4 * 4 * 4 * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(background, resource_desc);
+    planner.declare_surface(t1, resource_desc);
+    planner.declare_surface(t2, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{t1, background, 0, 0, 1.0f});
+    planner.blur(BlurPass{t2, t1, 1.5f, 1});
+    planner.color_adjust(ColorAdjustPass{output, t2, 0.0f, 1.0f, 0.0f,
+                                         {1.0f, 1.0f, 1.0f, 1.0f}});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 3);
+
+    const auto submissions_before = backend.stats().submissions;
+    REQUIRE(execute_command_plan(backend, registry, plan));
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    // Backend-side aliasing proof: lifetime-disjoint transient surfaces are
+    // backed by FEWER VkImages than logical handles (t1 and output share one
+    // physical slot here), because ownership lives per slot, not per handle.
+    const auto physical_after_plan = backend.physical_surface_count();
+    CHECK(physical_after_plan > 0);
+    CHECK(physical_after_plan < 4);
+
+    std::vector<float> result(4 * 4 * 4, 0.0f);
+    REQUIRE(backend.download_surface(output, result).ok());
+    // The background center survived transform→blur→color adjust through the
+    // shared-slot chain (the per-slot barrier mapper ordered the aliased
+    // write-after-read on t1/output's shared image).
+    CHECK(result[center + 0] > 0.0f);
+    CHECK(result[center + 3] > 0.0f);
+
+    // Releasing ONE handle must never invalidate a sibling aliasing the same
+    // slot: the backing image is destroyed only when no handle references it
+    // (ownership separated from identity → no double free).
+    REQUIRE(backend.release_surface(t1).ok());
+    std::vector<float> sibling(4 * 4 * 4, 0.0f);
+    REQUIRE(backend.download_surface(output, sibling).ok());
+    CHECK(backend.physical_surface_count() <= physical_after_plan);
+
+    // Releasing every remaining handle frees every backing image exactly
+    // once; the count reaches zero and downloads of released surfaces fail.
+    REQUIRE(backend.release_surface(output).ok());
+    REQUIRE(backend.release_surface(t2).ok());
+    REQUIRE(backend.release_surface(background).ok());
+    CHECK(backend.physical_surface_count() == 0);
+    std::vector<float> gone(4 * 4 * 4, 0.0f);
+    CHECK_FALSE(backend.download_surface(output, gone).ok());
 }
 
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
