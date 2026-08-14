@@ -46,13 +46,95 @@ struct VulkanBackend::Impl {
         bool initialized{false};
     };
 
+    /// Per-frame descriptor set allocator, one per frame-batch ring slot.
+    /// Allocates one descriptor set per recorded pass from chunked pools
+    /// that grow geometrically (64, 128, 256, ...) when a frame exceeds the
+    /// current chunk.  reset() is called when the owning ring slot is
+    /// reused, returning every chunk to its initial state so the pools are
+    /// recycled across frames instead of reallocated.
+    class FrameDescriptorAllocator {
+    public:
+        static constexpr std::size_t kInitialChunkSets = 64;
+        // Worst case per set: the layout exposes 3 storage-image bindings
+        // (matte uses all three; the other kernels use two).  Pool sizing
+        // over-reserves so any pass can allocate safely from the chunk.
+        static constexpr std::size_t kDescriptorsPerSet = 3;
+
+        void create(VkDevice device, VkDescriptorSetLayout layout) {
+            device_ = device;
+            layout_ = layout;
+        }
+
+        void destroy() {
+            for (auto pool : pools_) {
+                if (pool != VK_NULL_HANDLE) {
+                    vkDestroyDescriptorPool(device_, pool, nullptr);
+                }
+            }
+            pools_.clear();
+            active_pool_ = 0;
+        }
+
+        // Return every chunk to its initial state.  Only valid once the
+        // owning ring slot's submission has completed (begin_frame_batch()
+        // waits on that slot's fence first).
+        void reset() {
+            for (auto pool : pools_) {
+                check(vkResetDescriptorPool(device_, pool, 0),
+                      "vkResetDescriptorPool(frame descriptor chunk)");
+            }
+            active_pool_ = 0;
+        }
+
+        VkDescriptorSet allocate() {
+            if (active_pool_ >= pools_.size()) grow();
+            VkDescriptorSet set = VK_NULL_HANDLE;
+            const VkDescriptorSetAllocateInfo allocation{
+                VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr,
+                pools_[active_pool_], 1, &layout_};
+            const VkResult result =
+                vkAllocateDescriptorSets(device_, &allocation, &set);
+            if (result == VK_ERROR_OUT_OF_POOL_MEMORY ||
+                result == VK_ERROR_FRAGMENTED_POOL) {
+                // The current chunk is exhausted: move to the next chunk,
+                // growing it geometrically if no chunk is left.
+                ++active_pool_;
+                return allocate();
+            }
+            check(result, "vkAllocateDescriptorSets(frame descriptor chunk)");
+            return set;
+        }
+
+    private:
+        void grow() {
+            const std::size_t sets = kInitialChunkSets * (1u << pools_.size());
+            const VkDescriptorPoolSize pool_size{
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                static_cast<std::uint32_t>(sets * kDescriptorsPerSet)};
+            const VkDescriptorPoolCreateInfo pool_info{
+                VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
+                static_cast<std::uint32_t>(sets),
+                static_cast<std::uint32_t>(sets * kDescriptorsPerSet),
+                &pool_size};
+            VkDescriptorPool pool = VK_NULL_HANDLE;
+            check(vkCreateDescriptorPool(device_, &pool_info, nullptr, &pool),
+                  "vkCreateDescriptorPool(frame descriptor chunk)");
+            pools_.push_back(pool);
+        }
+
+        VkDevice device_{VK_NULL_HANDLE};
+        VkDescriptorSetLayout layout_{VK_NULL_HANDLE};
+        std::vector<VkDescriptorPool> pools_{};
+        std::size_t active_pool_{0};
+    };
+
     /// State of the frame-batch ring.  While active, surface operations
     /// only record commands into the current slot's command buffer (never
     /// submit); the single vkQueueSubmit for the frame happens in
     /// submit_batch() called from end_frame_batch().  Each slot owns its own
-    /// command buffer, fence and descriptor pool so begin_frame_batch()
+    /// command buffer, fence and descriptor allocator so begin_frame_batch()
     /// waits ONLY on the fence of the slot it is about to reuse (never
-    /// vkDeviceWaitIdle per frame) and resets only that slot's pool —
+    /// vkDeviceWaitIdle per frame) and resets only that slot's allocator —
     /// batches still in flight on the other slots keep their descriptor
     /// sets valid.  The ring bounds CPU-GPU overlap: slot N is reused after
     /// kSlotCount batches, so recording can run up to kSlotCount - 1 frames
@@ -64,7 +146,7 @@ struct VulkanBackend::Impl {
         std::array<VkCommandBuffer, kSlotCount> command_buffers{};
         std::array<VkFence, kSlotCount> fences{};
         std::array<bool, kSlotCount> in_flight{};
-        std::array<VkDescriptorPool, kSlotCount> descriptor_pools{};
+        std::array<FrameDescriptorAllocator, kSlotCount> descriptor_allocators{};
         std::vector<VkDescriptorSet> descriptor_sets;
         std::size_t pass_count{0};
     };
@@ -128,11 +210,9 @@ struct VulkanBackend::Impl {
         // three additional sets so all three dispatches in its one command
         // buffer retain distinct image bindings until execution.  Frame
         // batches allocate one descriptor set per recorded pass from the
-        // current ring slot's own pool (see FrameBatchState), so the shared
-        // pool only ever serves the persistent standalone sets and never
-        // needs to be reset on the frame boundary.  The chunked
-        // FrameDescriptorAllocator generalizes the per-slot pools in a later
-        // milestone.
+        // current ring slot's own allocator (see FrameBatchState), so the
+        // shared pool only ever serves the persistent standalone sets and
+        // never needs to be reset on the frame boundary.
         const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512};
         const VkDescriptorPoolCreateInfo pool_info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 256, 512, &pool_size};
@@ -324,13 +404,8 @@ struct VulkanBackend::Impl {
             check(vkCreateFence(device, &fence_info, nullptr, &slot_fence),
                   "vkCreateFence(frame batch slot)");
         }
-        const VkDescriptorPoolSize batch_pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512};
-        for (auto& slot_pool : frame_batch.descriptor_pools) {
-            const VkDescriptorPoolCreateInfo slot_pool_info{
-                VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
-                256, 512, &batch_pool_size};
-            check(vkCreateDescriptorPool(device, &slot_pool_info, nullptr, &slot_pool),
-                  "vkCreateDescriptorPool(frame batch slot)");
+        for (auto& allocator : frame_batch.descriptor_allocators) {
+            allocator.create(device, descriptor_layout);
         }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
         const VkSemaphoreTypeCreateInfo timeline_type{
@@ -353,10 +428,8 @@ struct VulkanBackend::Impl {
         if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
         if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
-        for (auto& slot_pool : frame_batch.descriptor_pools) {
-            if (slot_pool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(device, slot_pool, nullptr);
-            }
+        for (auto& allocator : frame_batch.descriptor_allocators) {
+            allocator.destroy();
         }
         for (auto& slot_fence : frame_batch.fences) {
             if (slot_fence != VK_NULL_HANDLE) vkDestroyFence(device, slot_fence, nullptr);
@@ -491,17 +564,13 @@ struct VulkanBackend::Impl {
     }
 
     // Allocate a descriptor set for one recorded pass of the active frame
-    // batch from the CURRENT slot's pool.  Each pass binds its own set so
-    // the image bindings written now stay valid until end_frame_batch()
+    // batch from the CURRENT slot's allocator.  Each pass binds its own set
+    // so the image bindings written now stay valid until end_frame_batch()
     // submits the whole batch; the sets are tracked so begin_frame_batch()
-    // invalidates them with the slot's next vkResetDescriptorPool.
+    // invalidates them with the slot's next allocator reset.
     VkDescriptorSet allocate_pass_descriptor_set() {
-        VkDescriptorSet set = VK_NULL_HANDLE;
-        const VkDescriptorSetAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr,
-            frame_batch.descriptor_pools[frame_batch.next_slot], 1, &descriptor_layout};
-        check(vkAllocateDescriptorSets(device, &allocation, &set),
-              "vkAllocateDescriptorSets(frame batch pass)");
+        const auto set =
+            frame_batch.descriptor_allocators[frame_batch.next_slot].allocate();
         frame_batch.descriptor_sets.push_back(set);
         return set;
     }
@@ -1438,11 +1507,10 @@ void VulkanBackend::begin_frame_batch() {
               "vkResetFences(frame batch slot)");
         batch.in_flight[slot] = false;
     }
-    // Every recorded pass owns a descriptor set from this slot's pool;
+    // Every recorded pass owns a descriptor set from this slot's allocator;
     // resetting it now is safe because the slot's previous submission (the
     // only one referencing those sets) has completed.
-    check(vkResetDescriptorPool(m_impl->device, batch.descriptor_pools[slot], 0),
-          "vkResetDescriptorPool(frame batch slot)");
+    batch.descriptor_allocators[slot].reset();
     const VkCommandBufferBeginInfo begin{
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr};
     check(vkResetCommandBuffer(batch.command_buffers[slot], 0),

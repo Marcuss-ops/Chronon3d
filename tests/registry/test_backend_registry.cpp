@@ -718,6 +718,37 @@ TEST_CASE("Vulkan frame batch records every pass into a single submission") {
     CHECK(output[center + 0] == doctest::Approx(0.8f).epsilon(1e-3f));
 }
 
+TEST_CASE("Vulkan frame batch descriptor allocator grows past the first chunk") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        4, 4, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    std::vector<float> source(4 * 4 * 4, 0.0f);
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+    source[center + 0] = 0.9f;
+    source[center + 3] = 1.0f;
+    std::vector<float> output(source.size(), 0.0f);
+
+    REQUIRE(backend.create_surface(531, desc).ok());
+    REQUIRE(backend.create_surface(532, desc).ok());
+    REQUIRE(backend.upload_surface(531, desc, source).ok());
+
+    // 100 recorded passes need 200 storage-image descriptors, exceeding the
+    // first 64-set chunk (192 descriptors): the allocator must grow a second
+    // chunk (128 sets) while the whole frame still submits exactly once.
+    const auto submissions_before = backend.stats().submissions;
+    backend.begin_frame_batch();
+    for (int i = 0; i < 100; ++i) {
+        REQUIRE(backend.transform_surface(532, 531, 0, 0, 1.0f).ok());
+    }
+    backend.end_frame_batch();
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    REQUIRE(backend.download_surface(532, output).ok());
+    CHECK(output[center + 0] == doctest::Approx(0.9f).epsilon(1e-3f));
+}
+
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     chronon3d::runtime::RenderSurfaceRegistry registry;
