@@ -31,6 +31,9 @@ void check(VkResult result, const char* operation) {
     }
 }
 
+// Default tint for plain composite passes (no tint applied).
+constexpr float kIdentityTint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+
 } // namespace
 
 struct VulkanBackend::Impl {
@@ -41,6 +44,19 @@ struct VulkanBackend::Impl {
         std::uint32_t width{0};
         std::uint32_t height{0};
         bool initialized{false};
+    };
+
+    /// State of an in-flight frame batch.  While active, surface operations
+    /// only record commands into `command_buffer` (never submit); the single
+    /// vkQueueSubmit for the frame happens in submit_batch() called from
+    /// end_frame_batch().  `descriptor_sets` tracks the per-pass sets
+    /// allocated from the shared descriptor pool so they survive until the
+    /// batch is submitted and can be invalidated in bulk on the next reset.
+    struct FrameBatchState {
+        bool active{false};
+        VkCommandBuffer command_buffer{VK_NULL_HANDLE};
+        std::vector<VkDescriptorSet> descriptor_sets;
+        std::size_t pass_count{0};
     };
 
     VkPhysicalDevice physical_device;
@@ -77,6 +93,7 @@ struct VulkanBackend::Impl {
     Image dst{};
     Image src{};
     std::unordered_map<runtime::RenderSurfaceHandle, Image> surfaces;
+    FrameBatchState frame_batch{};
     VulkanBackendStats stats{};
 
     Impl(VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
@@ -99,10 +116,15 @@ struct VulkanBackend::Impl {
 
         // One persistent set serves the single-pass operations; glow reuses
         // three additional sets so all three dispatches in its one command
-        // buffer retain distinct image bindings until execution.
-        const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 12};
+        // buffer retain distinct image bindings until execution.  A frame
+        // batch allocates one descriptor set per recorded pass from the same
+        // pool (the set keeps its image bindings until end_frame_batch()
+        // submits), so the pool is sized for deep multi-pass batches.  The
+        // chunked FrameDescriptorAllocator replaces this single pool in a
+        // later milestone.
+        const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512};
         const VkDescriptorPoolCreateInfo pool_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 4, 12, &pool_size};
+            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 256, 512, &pool_size};
         check(vkCreateDescriptorPool(device, &pool_info, nullptr, &descriptor_pool),
               "vkCreateDescriptorPool");
 
@@ -274,6 +296,15 @@ struct VulkanBackend::Impl {
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
         check(vkAllocateCommandBuffers(device, &command_info, &command_buffer),
               "vkAllocateCommandBuffers");
+        // Dedicated command buffer for frame batches so batch recording never
+        // conflicts with the standalone command buffer used by uploads,
+        // downloads and single-pass operations.
+        const VkCommandBufferAllocateInfo batch_command_info{
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,
+            VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
+        check(vkAllocateCommandBuffers(device, &batch_command_info,
+                                      &frame_batch.command_buffer),
+              "vkAllocateCommandBuffers(frame batch)");
         const VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
         const VkSemaphoreTypeCreateInfo timeline_type{
@@ -296,6 +327,9 @@ struct VulkanBackend::Impl {
         if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
         if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
+        if (frame_batch.command_buffer != VK_NULL_HANDLE) {
+            vkFreeCommandBuffers(device, command_pool, 1, &frame_batch.command_buffer);
+        }
         if (fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
         if (timeline_semaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timeline_semaphore, nullptr);
         for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
@@ -411,6 +445,189 @@ struct VulkanBackend::Impl {
         check(vkAllocateDescriptorSets(device, &allocation, &set),
               "vkAllocateDescriptorSets(glow)");
         return set;
+    }
+
+    // Allocate a descriptor set for one recorded pass of the active frame
+    // batch.  Each pass binds its own set so the image bindings written now
+    // stay valid until end_frame_batch() submits the whole batch; the sets
+    // are tracked so begin_frame_batch() can invalidate them with the next
+    // vkResetDescriptorPool.
+    VkDescriptorSet allocate_pass_descriptor_set() {
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        const VkDescriptorSetAllocateInfo allocation{
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr,
+            descriptor_pool, 1, &descriptor_layout};
+        check(vkAllocateDescriptorSets(device, &allocation, &set),
+              "vkAllocateDescriptorSets(frame batch pass)");
+        frame_batch.descriptor_sets.push_back(set);
+        return set;
+    }
+
+    // ── record-only kernel primitives ────────────────────────────────────────
+    // These functions only append Vulkan commands to the given command
+    // buffer: pipeline bind, descriptor bind, push constants, dispatch.
+    // They NEVER submit; the caller owns submission (standalone submit() or
+    // submit_batch() from end_frame_batch()).  They also never mutate
+    // surface state (the `initialized` flags are updated by the operation
+    // wrappers).
+
+    void record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
+                          const Image& destination, const Image& source,
+                          std::int32_t blend_mode, float source_scale,
+                          const float tint[4]) {
+        transition(command, destination.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t blend_mode;
+            float source_scale;
+            float tint[4];
+        } params{blend_mode, source_scale, {tint[0], tint[1], tint[2], tint[3]}};
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
+                          const Image& destination, const Image& source,
+                          int offset_x, int offset_y, float opacity) {
+        transition(command, destination.image,
+                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Transform)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t offset_x;
+            std::int32_t offset_y;
+            float opacity;
+            float padding;
+        } push{offset_x, offset_y, opacity, 0.0f};
+        vkCmdPushConstants(command, pipeline_layout,
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_transform_affine(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                 const Image& destination, const Image& source,
+                                 const runtime::SurfaceAffineTransform& transform) {
+        transition(command, destination.image,
+                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::AffineTransform)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(transform), &transform);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
+                     const Image& destination, const Image& source,
+                     float radius, bool horizontal) {
+        transition(command, destination.image,
+                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Blur)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float radius;
+            std::int32_t horizontal;
+        } params{radius, horizontal ? 1 : 0};
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
+                             const Image& destination, const Image& source,
+                             float brightness, float contrast,
+                             const Color& tint, float tint_amount) {
+        transition(command, destination.image,
+                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::ColorAdjust)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float brightness;
+            float contrast;
+            float tint_amount;
+            float padding;
+            float tint[4];
+        } params{brightness, contrast, tint_amount, 0.0f,
+                 {tint.r, tint.g, tint.b, tint.a}};
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
+                      const Image& destination, const Image& target,
+                      const Image& matte, bool luma, bool inverted) {
+        transition(command, destination.image,
+                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, target.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command, matte.image, VK_IMAGE_LAYOUT_GENERAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Matte)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t luma;
+            std::int32_t inverted;
+        } params{luma ? 1 : 0, inverted ? 1 : 0};
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    // End the active frame batch's command buffer and submit it exactly once.
+    // No wait-for-completion happens here: the caller waits only when the
+    // frame-batch slot is reused (begin_frame_batch()) or before a readback.
+    void submit_batch() {
+        check(vkEndCommandBuffer(frame_batch.command_buffer),
+              "vkEndCommandBuffer(frame batch)");
+        const auto signal_value = ++next_timeline_value;
+        const VkTimelineSemaphoreSubmitInfo timeline_submit{
+            VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
+            0, nullptr, 1, &signal_value};
+        const VkSemaphore signal_semaphores[] = {timeline_semaphore};
+        const VkSubmitInfo submit_info{
+            VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit, 0, nullptr, nullptr,
+            1, &frame_batch.command_buffer, 1, signal_semaphores};
+        check(vkQueueSubmit(queue, 1, &submit_info, fence),
+              "vkQueueSubmit(frame batch)");
+        ++stats.submissions;
+        pending_timeline_value = signal_value;
+        frame_batch.pass_count = 0;
     }
 
     Image& ensure_surface(runtime::RenderSurfaceHandle handle,
@@ -598,23 +815,19 @@ struct VulkanBackend::Impl {
         }
         auto& dst_image = dst_it->second;
         auto& src_image = src_it->second;
+        const std::int32_t blend_mode = mode == BlendMode::Add ? 1 : 0;
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_descriptors(descriptors, dst_image, src_image);
+            record_composite(frame_batch.command_buffer, descriptors,
+                             dst_image, src_image, blend_mode, 1.0f, kIdentityTint);
+            ++frame_batch.pass_count;
+            return;
+        }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
-        transition(command_buffer, dst_image.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, src_image.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        struct PushConstants {
-            std::int32_t blend_mode;
-            float source_scale;
-            float tint[4];
-        } params{mode == BlendMode::Add ? 1 : 0, 1.0f, {1.0f, 1.0f, 1.0f, 1.0f}};
-        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(params), &params);
-        vkCmdDispatch(command_buffer, (dst_image.width + 15) / 16,
-                      (dst_image.height + 15) / 16, 1);
+        record_composite(command_buffer, descriptor_set, dst_image, src_image,
+                         blend_mode, 1.0f, kIdentityTint);
         submit();
     }
 
@@ -630,27 +843,19 @@ struct VulkanBackend::Impl {
         }
         auto& dst_image = dst_it->second;
         auto& src_image = src_it->second;
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_descriptors(descriptors, dst_image, src_image);
+            record_transform(frame_batch.command_buffer, descriptors,
+                             dst_image, src_image, offset_x, offset_y, opacity);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            return;
+        }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
-        transition(command_buffer, dst_image.image,
-                   dst_image.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, src_image.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Transform)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        struct PushConstants {
-            std::int32_t offset_x;
-            std::int32_t offset_y;
-            float opacity;
-            float padding;
-        } push{offset_x, offset_y, opacity, 0.0f};
-        vkCmdPushConstants(command_buffer, pipeline_layout,
-                           VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
-        vkCmdDispatch(command_buffer, (dst_image.width + 15) / 16,
-                      (dst_image.height + 15) / 16, 1);
+        record_transform(command_buffer, descriptor_set, dst_image, src_image,
+                         offset_x, offset_y, opacity);
         dst_image.initialized = true;
         submit();
     }
@@ -666,21 +871,19 @@ struct VulkanBackend::Impl {
         }
         auto& dst_image = dst_it->second;
         auto& src_image = src_it->second;
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_descriptors(descriptors, dst_image, src_image);
+            record_transform_affine(frame_batch.command_buffer, descriptors,
+                                    dst_image, src_image, transform);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            return;
+        }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
-        transition(command_buffer, dst_image.image,
-                   dst_image.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, src_image.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::AffineTransform)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(transform), &transform);
-        vkCmdDispatch(command_buffer, (dst_image.width + 15) / 16,
-                      (dst_image.height + 15) / 16, 1);
+        record_transform_affine(command_buffer, descriptor_set,
+                                dst_image, src_image, transform);
         dst_image.initialized = true;
         submit();
     }
@@ -700,25 +903,19 @@ struct VulkanBackend::Impl {
         }
         auto& dst_image = dst_it->second;
         auto& src_image = src_it->second;
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_descriptors(descriptors, dst_image, src_image);
+            record_blur(frame_batch.command_buffer, descriptors,
+                        dst_image, src_image, radius, horizontal);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            return;
+        }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
-        transition(command_buffer, dst_image.image,
-                   dst_image.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, src_image.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Blur)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        struct PushConstants {
-            float radius;
-            std::int32_t horizontal;
-        } params{radius, horizontal ? 1 : 0};
-        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(params), &params);
-        vkCmdDispatch(command_buffer, (dst_image.width + 15) / 16,
-                      (dst_image.height + 15) / 16, 1);
+        record_blur(command_buffer, descriptor_set,
+                    dst_image, src_image, radius, horizontal);
         dst_image.initialized = true;
         submit();
     }
@@ -748,51 +945,42 @@ struct VulkanBackend::Impl {
             vertical.width != src.width || vertical.height != src.height) {
             throw std::invalid_argument("Vulkan glow surfaces have incompatible dimensions");
         }
+        const float tint_rgba[4] = {tint.r, tint.g, tint.b, tint.a};
+
+        if (frame_batch.active) {
+            const auto horizontal_descriptor = allocate_pass_descriptor_set();
+            write_descriptors(horizontal_descriptor, horizontal, src);
+            const auto vertical_descriptor = allocate_pass_descriptor_set();
+            write_descriptors(vertical_descriptor, vertical, horizontal);
+            const auto composite_descriptor = allocate_pass_descriptor_set();
+            write_descriptors(composite_descriptor, dst, vertical);
+            record_blur(frame_batch.command_buffer, horizontal_descriptor,
+                        horizontal, src, radius, true);
+            record_blur(frame_batch.command_buffer, vertical_descriptor,
+                        vertical, horizontal, radius, false);
+            record_composite(frame_batch.command_buffer, composite_descriptor,
+                             dst, vertical, 1, intensity, tint_rgba);
+            horizontal.initialized = true;
+            vertical.initialized = true;
+            frame_batch.pass_count += 3;
+            return;
+        }
 
         begin_command_buffer();
-        const auto dispatch = [&](Image& output, Image& input, bool horizontal_pass) {
-            const auto pass_index = horizontal_pass ? 0u : 1u;
-            const auto descriptor = ensure_glow_descriptor_set(pass_index);
-            write_descriptors(descriptor, output, input);
-            transition(command_buffer, output.image,
-                       output.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                       VK_IMAGE_LAYOUT_GENERAL);
-            transition(command_buffer, input.image, VK_IMAGE_LAYOUT_GENERAL,
-                       VK_IMAGE_LAYOUT_GENERAL);
-            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                              reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Blur)));
-            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                    pipeline_layout, 0, 1, &descriptor, 0, nullptr);
-            struct BlurPush { float radius; std::int32_t horizontal; } push{
-                radius, horizontal_pass ? 1 : 0};
-            vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                               0, sizeof(push), &push);
-            vkCmdDispatch(command_buffer, (output.width + 15) / 16,
-                          (output.height + 15) / 16, 1);
-            output.initialized = true;
-        };
-        dispatch(horizontal, src, true);
-        dispatch(vertical, horizontal, false);
-
+        const auto horizontal_descriptor = ensure_glow_descriptor_set(0);
+        write_descriptors(horizontal_descriptor, horizontal, src);
+        const auto vertical_descriptor = ensure_glow_descriptor_set(1);
+        write_descriptors(vertical_descriptor, vertical, horizontal);
         const auto composite_descriptor = ensure_glow_descriptor_set(2);
         write_descriptors(composite_descriptor, dst, vertical);
-        transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, vertical.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &composite_descriptor, 0, nullptr);
-        struct CompositePush {
-            std::int32_t blend_mode;
-            float source_scale;
-            float tint[4];
-        } composite_push{1, intensity, {tint.r, tint.g, tint.b, tint.a}};
-        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(composite_push), &composite_push);
-        vkCmdDispatch(command_buffer, (dst.width + 15) / 16,
-                      (dst.height + 15) / 16, 1);
+        record_blur(command_buffer, horizontal_descriptor,
+                    horizontal, src, radius, true);
+        record_blur(command_buffer, vertical_descriptor,
+                    vertical, horizontal, radius, false);
+        record_composite(command_buffer, composite_descriptor,
+                         dst, vertical, 1, intensity, tint_rgba);
+        horizontal.initialized = true;
+        vertical.initialized = true;
         submit();
     }
 
@@ -810,28 +998,19 @@ struct VulkanBackend::Impl {
         }
         auto& dst = dst_it->second;
         auto& src = src_it->second;
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_descriptors(descriptors, dst, src);
+            record_color_adjust(frame_batch.command_buffer, descriptors,
+                                dst, src, brightness, contrast, tint, tint_amount);
+            dst.initialized = true;
+            ++frame_batch.pass_count;
+            return;
+        }
         bind_descriptors(dst, src);
         begin_command_buffer();
-        transition(command_buffer, dst.image,
-                   dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, src.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::ColorAdjust)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        struct PushConstants {
-            float brightness;
-            float contrast;
-            float tint_amount;
-            float padding;
-            float tint[4];
-        } params{brightness, contrast, tint_amount, 0.0f,
-                 {tint.r, tint.g, tint.b, tint.a}};
-        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(params), &params);
-        vkCmdDispatch(command_buffer, (dst.width + 15) / 16,
-                      (dst.height + 15) / 16, 1);
+        record_color_adjust(command_buffer, descriptor_set,
+                            dst, src, brightness, contrast, tint, tint_amount);
         dst.initialized = true;
         submit();
     }
@@ -854,24 +1033,20 @@ struct VulkanBackend::Impl {
         auto& dst = dst_it->second;
         auto& target_image = target_it->second;
         auto& matte_image = matte_it->second;
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_matte_descriptors(descriptors, dst, target_image, matte_image);
+            record_matte(frame_batch.command_buffer, descriptors,
+                         dst, target_image, matte_image, luma, inverted);
+            dst.initialized = true;
+            ++frame_batch.pass_count;
+            return;
+        }
         ensure_descriptor_set();
         write_matte_descriptors(descriptor_set, dst, target_image, matte_image);
         begin_command_buffer();
-        transition(command_buffer, dst.image,
-                   dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, target_image.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, matte_image.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Matte)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        struct PushConstants { std::int32_t luma; std::int32_t inverted; } params{
-            luma ? 1 : 0, inverted ? 1 : 0};
-        vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(params), &params);
-        vkCmdDispatch(command_buffer, (dst.width + 15) / 16,
-                      (dst.height + 15) / 16, 1);
+        record_matte(command_buffer, descriptor_set,
+                     dst, target_image, matte_image, luma, inverted);
         dst.initialized = true;
         submit();
     }
@@ -1184,6 +1359,49 @@ const GpuKernelRegistry& VulkanBackend::kernel_registry() const noexcept {
 #else
     static const GpuKernelRegistry empty{};
     return empty;
+#endif
+}
+
+void VulkanBackend::begin_frame_batch() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    auto& batch = m_impl->frame_batch;
+    if (batch.active) {
+        throw std::logic_error(
+            "VulkanBackend::begin_frame_batch: a frame batch is already active");
+    }
+    // Reuse the frame-batch slot only after its previous submission
+    // completed: the fence signals when the prior batch (and everything
+    // queued before it on this queue) finished executing.
+    m_impl->wait_for_pending();
+    // Every recorded pass owns a descriptor set from the shared pool; reset
+    // the pool for the new batch and lazily re-allocate the persistent
+    // standalone handles afterwards.
+    check(vkResetDescriptorPool(m_impl->device, m_impl->descriptor_pool, 0),
+          "vkResetDescriptorPool(frame batch)");
+    m_impl->descriptor_set = VK_NULL_HANDLE;
+    m_impl->glow_descriptor_sets = {};
+    const VkCommandBufferBeginInfo begin{
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr};
+    check(vkResetCommandBuffer(batch.command_buffer, 0),
+          "vkResetCommandBuffer(frame batch)");
+    check(vkBeginCommandBuffer(batch.command_buffer, &begin),
+          "vkBeginCommandBuffer(frame batch)");
+    batch.active = true;
+    batch.pass_count = 0;
+    batch.descriptor_sets.clear();
+#else
+    (void)0;  // no-op when the Vulkan backend is not compiled
+#endif
+}
+
+void VulkanBackend::end_frame_batch() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    auto& batch = m_impl->frame_batch;
+    if (!batch.active) return;
+    m_impl->submit_batch();
+    batch.active = false;
+#else
+    (void)0;  // no-op when the Vulkan backend is not compiled
 #endif
 }
 
