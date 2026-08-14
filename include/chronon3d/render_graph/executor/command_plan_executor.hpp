@@ -6,8 +6,8 @@
 // Backend-neutral executor for the runtime GPU CommandPlan.  It plays the
 // frame orchestrator role for a compiled plan:
 //
-//   bind_plan_slots(plan.resources, registry)   // alias physical slots
-//   backend.begin_plan_batch(plan.barriers)     // open the frame batch
+//   bind_plan_slots(plan.resources, registry)   // alias physical slots (identity)
+//   backend.begin_plan_batch(plan)              // open the batch + bind backing
 //   for each pass: one canonical RenderBackend surface operation
 //   backend.end_frame_batch()                   // single frame submission
 //
@@ -27,8 +27,10 @@ namespace chronon3d::runtime {
 /// Steps, in order:
 ///   1. bind_plan_slots(plan.resources, registry) — propagates the physical
 ///      slot aliasing onto the surface registry's identity records;
-///   2. backend.begin_plan_batch(plan.barriers) — opens the frame batch with
-///      plan-driven barrier synchronization (no-op on non-batching backends);
+///   2. backend.begin_plan_batch(plan) — opens the frame batch with
+///      plan-driven barrier synchronization AND binds the backend's physical
+///      slots (one backing image per slot) from plan.resources (no-op on
+///      non-batching backends);
 ///   3. one canonical RenderBackend surface operation per GpuPass, in plan
 ///      order;
 ///   4. backend.end_frame_batch() — the single submission for the frame.

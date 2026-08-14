@@ -189,13 +189,30 @@ struct VulkanBackend::Impl {
     std::size_t next_upload_slot{0};
     Image dst{};
     Image src{};
-    std::unordered_map<runtime::RenderSurfaceHandle, Image> surfaces;
-    // Last access kind per surface within the current frame's plan-driven
-    // batch, consumed by emit_plan_pass_barriers() to derive the precise
-    // write→read / read→write / write→write memory dependencies.  Cleared at
-    // begin_frame_batch(); conservative batches never touch it.
-    std::unordered_map<runtime::RenderSurfaceHandle, runtime::ResourceAccess>
-        m_surface_last_access{};
+
+    // ── Logical→physical surface ownership ───────────────────────────────
+    // A physical slot owns exactly one VkImage (PhysicalSurface); logical
+    // handles bind to slots, and several handles may bind the SAME slot when
+    // their lifetimes never overlap (plan-driven aliasing).  Ownership is
+    // therefore separated from identity: destroying a handle binding must
+    // never destroy a VkImage still referenced by another handle.
+    // resolve_image() is the single lookup path for every operation.
+    struct PhysicalSurface {
+        Image image;
+        runtime::SurfaceDesc desc{};
+    };
+    // slot → backing image (ownership lives here, exactly once per slot)
+    std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces;
+    // handle → slot (identity only; no ownership)
+    std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
+    std::size_t next_slot{0};
+    // Last access kind per PHYSICAL SLOT within the current frame's
+    // plan-driven batch, consumed by emit_plan_pass_barriers() to derive the
+    // precise write→read / read→write / write→write memory dependencies.
+    // Keyed by slot (not by logical handle) because aliased handles share
+    // one image: the barrier chain must follow the image, not the identity.
+    // Cleared at begin_frame_batch(); conservative batches never touch it.
+    std::unordered_map<std::size_t, runtime::ResourceAccess> m_slot_last_access{};
     FrameBatchState frame_batch{};
     VulkanBackendStats stats{};
 
@@ -430,9 +447,9 @@ struct VulkanBackend::Impl {
 
     ~Impl() {
         if (device != VK_NULL_HANDLE) vkDeviceWaitIdle(device);
-        for (auto& [handle, image] : surfaces) {
-            (void)handle;
-            destroy_image(image);
+        for (auto& [slot, physical] : physical_surfaces) {
+            (void)slot;
+            destroy_image(physical.image);
         }
         destroy_image(dst);
         destroy_image(src);
@@ -667,14 +684,17 @@ struct VulkanBackend::Impl {
         for (const auto& transition : plan.transitions) {
             if (transition.pass_index != pass_index) continue;
             if (transition.surface == runtime::kInvalidRenderSurfaceHandle) continue;
-            const auto surface_it = surfaces.find(transition.surface);
-            if (surface_it == surfaces.end()) continue;
-            const auto& image = surface_it->second;
+            const auto binding = surface_bindings.find(transition.surface);
+            if (binding == surface_bindings.end()) continue;
+            const auto slot = binding->second;
+            const auto physical_it = physical_surfaces.find(slot);
+            if (physical_it == physical_surfaces.end()) continue;
+            const auto& image = physical_it->second.image;
             const bool is_write =
                 transition.access == runtime::ResourceAccess::Write ||
                 transition.access == runtime::ResourceAccess::ReadWrite;
-            const auto prev_it = m_surface_last_access.find(transition.surface);
-            if (prev_it != m_surface_last_access.end()) {
+            const auto prev_it = m_slot_last_access.find(slot);
+            if (prev_it != m_slot_last_access.end()) {
                 const bool prev_write =
                     prev_it->second == runtime::ResourceAccess::Write ||
                     prev_it->second == runtime::ResourceAccess::ReadWrite;
@@ -687,7 +707,7 @@ struct VulkanBackend::Impl {
                     image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
                     VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT));
             }
-            m_surface_last_access[transition.surface] = transition.access;
+            m_slot_last_access[slot] = transition.access;
         }
         emit_barriers(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, barriers);
@@ -833,6 +853,100 @@ struct VulkanBackend::Impl {
         frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;
     }
 
+    static bool surface_compatible(const runtime::SurfaceDesc& a,
+                                   const runtime::SurfaceDesc& b) {
+        return a.width == b.width && a.height == b.height && a.format == b.format;
+    }
+
+    // True when at least one logical handle currently references `slot`.
+    bool slot_in_use(std::size_t slot) const {
+        for (const auto& [handle, bound_slot] : surface_bindings) {
+            (void)handle;
+            if (bound_slot == slot) return true;
+        }
+        return false;
+    }
+
+    std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const {
+        const auto it = surface_bindings.find(handle);
+        if (it == surface_bindings.end()) {
+            throw std::invalid_argument(
+                "Vulkan surface handle is not bound to a physical slot");
+        }
+        return it->second;
+    }
+
+    // The single resolve path: handle → slot → backing image.
+    Image& resolve_image(runtime::RenderSurfaceHandle handle) {
+        const auto slot = bound_slot(handle);
+        const auto physical_it = physical_surfaces.find(slot);
+        if (physical_it == physical_surfaces.end()) {
+            throw std::invalid_argument("Vulkan physical slot has no backing image");
+        }
+        return physical_it->second.image;
+    }
+
+    // True when some handle OTHER than `self` is bound to `slot` and the
+    // slot's image already holds content.  Pre-initialized images (uploaded
+    // assets) are never aliased: the liveness model covers in-frame
+    // producers only, so sharing such a slot with a writer could clobber
+    // pixels the frame still needs to sample.
+    bool slot_has_initialized_occupant(std::size_t slot,
+                                       runtime::RenderSurfaceHandle self) const {
+        const auto physical_it = physical_surfaces.find(slot);
+        if (physical_it == physical_surfaces.end() ||
+            !physical_it->second.image.initialized) {
+            return false;
+        }
+        for (const auto& [handle, bound_slot] : surface_bindings) {
+            if (handle != self && bound_slot == slot) return true;
+        }
+        return false;
+    }
+
+    // Bind a handle to a slot, creating (or resizing) the slot's single
+    // backing image as needed.  Aliased handles resolve to the same image
+    // (one VkImage per slot, never per handle).  Two conservative guards
+    // keep aliasing safe when content already exists:
+    //   * a handle whose image holds content (uploaded before the batch) is
+    //     PINNED to its current slot — pixels never migrate to another slot;
+    //   * a handle never aliases a slot whose occupant image is initialized
+    //     — such a slot is DIVERTED to a fresh private slot instead.
+    Image& bind_handle_to_slot(runtime::RenderSurfaceHandle handle,
+                               std::size_t slot,
+                               const runtime::SurfaceDesc& desc) {
+        const auto previous = surface_bindings.find(handle);
+        if (previous != surface_bindings.end() && previous->second != slot) {
+            const auto old_slot = previous->second;
+            const auto old_it = physical_surfaces.find(old_slot);
+            const bool pinned = old_it != physical_surfaces.end() &&
+                                old_it->second.image.initialized;
+            if (pinned) {
+                slot = old_slot;  // content stays where it is
+            } else {
+                surface_bindings.erase(previous);
+                if (!slot_in_use(old_slot) && old_it != physical_surfaces.end()) {
+                    destroy_image(old_it->second.image);
+                    physical_surfaces.erase(old_it);
+                }
+            }
+        }
+        if (slot_has_initialized_occupant(slot, handle)) {
+            slot = next_slot++;  // never share pre-initialized content
+        }
+        auto& physical = physical_surfaces[slot];
+        if (physical.image.image == VK_NULL_HANDLE ||
+            physical.image.width != desc.width ||
+            physical.image.height != desc.height) {
+            if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
+            make_image(physical.image, desc.width, desc.height);
+            physical.image.initialized = false;
+        }
+        physical.desc = desc;
+        surface_bindings[handle] = slot;
+        return physical.image;
+    }
+
     Image& ensure_surface(runtime::RenderSurfaceHandle handle,
                           const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
@@ -840,13 +954,28 @@ struct VulkanBackend::Impl {
             desc.width == 0 || desc.height == 0) {
             throw std::invalid_argument("Vulkan surface requires a non-empty Rgba32Float description");
         }
-        auto [it, inserted] = surfaces.try_emplace(handle);
-        if (inserted || it->second.width != desc.width || it->second.height != desc.height) {
-            if (!inserted) destroy_image(it->second);
-            make_image(it->second, desc.width, desc.height);
+        const auto binding = surface_bindings.find(handle);
+        if (binding != surface_bindings.end()) {
+            auto& physical = physical_surfaces.at(binding->second);
+            if (physical.image.width != desc.width ||
+                physical.image.height != desc.height) {
+                destroy_image(physical.image);
+                make_image(physical.image, desc.width, desc.height);
+                physical.desc = desc;
+            }
+            ensure_descriptor_set();
+            return physical.image;
+        }
+        // Unbound: alias a compatible, currently-unused physical slot
+        // (lifetime-disjoint reuse) before allocating a fresh one.
+        for (auto& [slot, physical] : physical_surfaces) {
+            if (!slot_in_use(slot) && surface_compatible(physical.desc, desc)) {
+                ensure_descriptor_set();
+                return bind_handle_to_slot(handle, slot, desc);
+            }
         }
         ensure_descriptor_set();
-        return it->second;
+        return bind_handle_to_slot(handle, next_slot++, desc);
     }
 
     void wait_upload_slot(UploadSlot& slot) {
@@ -980,11 +1109,13 @@ struct VulkanBackend::Impl {
     }
 
     void download(runtime::RenderSurfaceHandle handle, std::span<float> rgba) {
-        auto it = surfaces.find(handle);
-        if (it == surfaces.end() || !it->second.initialized) {
+        if (surface_bindings.count(handle) == 0) {
             throw std::invalid_argument("Vulkan download references an uninitialized surface");
         }
-        auto& image = it->second;
+        auto& image = resolve_image(handle);
+        if (!image.initialized) {
+            throw std::invalid_argument("Vulkan download references an uninitialized surface");
+        }
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(image.width) * image.height * sizeof(float) * 4;
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan download size does not match surface");
         ++stats.readback_calls;
@@ -1008,16 +1139,13 @@ struct VulkanBackend::Impl {
 
     void composite(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source, BlendMode mode) {
-        auto dst_it = surfaces.find(destination);
-        auto src_it = surfaces.find(source);
-        if (dst_it == surfaces.end() || src_it == surfaces.end() ||
-            !src_it->second.initialized ||
-            dst_it->second.width != src_it->second.width ||
-            dst_it->second.height != src_it->second.height) {
+        auto& dst_image = resolve_image(destination);
+        auto& src_image = resolve_image(source);
+        if (!src_image.initialized ||
+            dst_image.width != src_image.width ||
+            dst_image.height != src_image.height) {
             throw std::invalid_argument("Vulkan composite references incompatible surfaces");
         }
-        auto& dst_image = dst_it->second;
-        auto& src_image = src_it->second;
         const std::int32_t blend_mode = mode == BlendMode::Add ? 1 : 0;
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
@@ -1040,15 +1168,12 @@ struct VulkanBackend::Impl {
     void transform(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source,
                    int offset_x, int offset_y, float opacity) {
-        auto dst_it = surfaces.find(destination);
-        auto src_it = surfaces.find(source);
-        if (dst_it == surfaces.end() || src_it == surfaces.end() ||
-            !src_it->second.initialized ||
-            dst_it->second.width == 0 || dst_it->second.height == 0) {
+        auto& dst_image = resolve_image(destination);
+        auto& src_image = resolve_image(source);
+        if (!src_image.initialized ||
+            dst_image.width == 0 || dst_image.height == 0) {
             throw std::invalid_argument("Vulkan transform references incompatible surfaces");
         }
-        auto& dst_image = dst_it->second;
-        auto& src_image = src_it->second;
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
@@ -1072,14 +1197,11 @@ struct VulkanBackend::Impl {
     void transform_affine(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle source,
                           const runtime::SurfaceAffineTransform& transform) {
-        auto dst_it = surfaces.find(destination);
-        auto src_it = surfaces.find(source);
-        if (dst_it == surfaces.end() || src_it == surfaces.end() ||
-            !src_it->second.initialized || dst_it->second.width == 0 || dst_it->second.height == 0) {
+        auto& dst_image = resolve_image(destination);
+        auto& src_image = resolve_image(source);
+        if (!src_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
             throw std::invalid_argument("Vulkan affine transform references incompatible surfaces");
         }
-        auto& dst_image = dst_it->second;
-        auto& src_image = src_it->second;
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
@@ -1105,16 +1227,13 @@ struct VulkanBackend::Impl {
         if (!(radius >= 0.0f) || radius > 32.0f) {
             throw std::invalid_argument("Vulkan blur radius must be within [0, 32]");
         }
-        auto dst_it = surfaces.find(destination);
-        auto src_it = surfaces.find(source);
-        if (dst_it == surfaces.end() || src_it == surfaces.end() ||
-            !src_it->second.initialized ||
-            dst_it->second.width != src_it->second.width ||
-            dst_it->second.height != src_it->second.height) {
+        auto& dst_image = resolve_image(destination);
+        auto& src_image = resolve_image(source);
+        if (!src_image.initialized ||
+            dst_image.width != src_image.width ||
+            dst_image.height != src_image.height) {
             throw std::invalid_argument("Vulkan blur references incompatible surfaces");
         }
-        auto& dst_image = dst_it->second;
-        auto& src_image = src_it->second;
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
@@ -1143,11 +1262,7 @@ struct VulkanBackend::Impl {
             throw std::invalid_argument("Vulkan glow radius must be within [0, 32]");
         }
         auto find_surface = [&](runtime::RenderSurfaceHandle handle) -> Image& {
-            const auto it = surfaces.find(handle);
-            if (it == surfaces.end()) {
-                throw std::invalid_argument("Vulkan glow references an unknown surface");
-            }
-            return it->second;
+            return resolve_image(handle);
         };
         auto& dst = find_surface(destination);
         auto& src = find_surface(source);
@@ -1212,16 +1327,13 @@ struct VulkanBackend::Impl {
                       runtime::RenderSurfaceHandle source,
                       float brightness, float contrast,
                       const Color& tint, float tint_amount) {
-        auto dst_it = surfaces.find(destination);
-        auto src_it = surfaces.find(source);
-        if (dst_it == surfaces.end() || src_it == surfaces.end() ||
-            !src_it->second.initialized ||
-            dst_it->second.width != src_it->second.width ||
-            dst_it->second.height != src_it->second.height) {
+        auto& dst = resolve_image(destination);
+        auto& src = resolve_image(source);
+        if (!src.initialized ||
+            dst.width != src.width ||
+            dst.height != src.height) {
             throw std::invalid_argument("Vulkan color adjust references incompatible surfaces");
         }
-        auto& dst = dst_it->second;
-        auto& src = src_it->second;
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst, src);
@@ -1246,20 +1358,16 @@ struct VulkanBackend::Impl {
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,
                bool luma, bool inverted) {
-        auto dst_it = surfaces.find(destination);
-        auto target_it = surfaces.find(target);
-        auto matte_it = surfaces.find(matte_surface);
-        if (dst_it == surfaces.end() || target_it == surfaces.end() || matte_it == surfaces.end() ||
-            !target_it->second.initialized || !matte_it->second.initialized ||
-            dst_it->second.width != target_it->second.width ||
-            dst_it->second.height != target_it->second.height ||
-            dst_it->second.width != matte_it->second.width ||
-            dst_it->second.height != matte_it->second.height) {
+        auto& dst = resolve_image(destination);
+        auto& target_image = resolve_image(target);
+        auto& matte_image = resolve_image(matte_surface);
+        if (!target_image.initialized || !matte_image.initialized ||
+            dst.width != target_image.width ||
+            dst.height != target_image.height ||
+            dst.width != matte_image.width ||
+            dst.height != matte_image.height) {
             throw std::invalid_argument("Vulkan matte references incompatible surfaces");
         }
-        auto& dst = dst_it->second;
-        auto& target_image = target_it->second;
-        auto& matte_image = matte_it->second;
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_matte_descriptors(descriptors, dst, target_image, matte_image);
@@ -1594,6 +1702,14 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
 #endif
 }
 
+std::size_t VulkanBackend::physical_surface_count() const noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    return m_impl ? m_impl->physical_surfaces.size() : 0;
+#else
+    return 0;
+#endif
+}
+
 const GpuKernelRegistry& VulkanBackend::kernel_registry() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     static const GpuKernelRegistry empty{};
@@ -1636,16 +1752,32 @@ void VulkanBackend::begin_frame_batch() {
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
     batch.sync_plan = nullptr;
-    m_impl->m_surface_last_access.clear();
+    m_impl->m_slot_last_access.clear();
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
 #endif
 }
 
-void VulkanBackend::begin_plan_batch(const runtime::BarrierPlan& plan) {
+void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     begin_frame_batch();
-    m_impl->frame_batch.sync_plan = &plan;
+    m_impl->frame_batch.sync_plan = &plan.barriers;
+    // Bind every planned allocation to its physical slot, backing each slot
+    // with exactly one VkImage.  Lifetime-disjoint handles that share a
+    // planned slot therefore alias the same device image (the registry-side
+    // bind_plan_slots() propagates the same mapping for identity records).
+    for (const auto& allocation : plan.resources.allocations) {
+        if (allocation.surface == runtime::kInvalidRenderSurfaceHandle) continue;
+        if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) continue;
+        if (allocation.physical_slot >= plan.resources.slots.size()) continue;
+        const auto& planned = plan.resources.slots[allocation.physical_slot];
+        const runtime::SurfaceDesc desc{
+            planned.width, planned.height, planned.format,
+            planned.usage, runtime::LifetimeClass::FrameTransient,
+            static_cast<std::size_t>(planned.width) * planned.height *
+                sizeof(float) * 4};
+        m_impl->bind_handle_to_slot(allocation.surface, allocation.physical_slot, desc);
+    }
 #else
     (void)plan;
     unsupported("begin_plan_batch");
@@ -1691,16 +1823,27 @@ graph::RenderOpResult VulkanBackend::release_surface(
                 graph::RenderBackendErrorCode::InvalidInput,
                 "VulkanBackend::release_surface: invalid handle"});
         }
-        const auto it = m_impl->surfaces.find(handle);
-        if (it == m_impl->surfaces.end()) {
+        const auto binding = m_impl->surface_bindings.find(handle);
+        if (binding == m_impl->surface_bindings.end()) {
             return graph::RenderOpResult(graph::RenderOpOutcome{});
         }
         // Surface memory may be referenced by the last asynchronous upload
         // or render submission.  Reclaim only after the backend's completion
         // fence, otherwise cache eviction can destroy an in-flight VkImage.
         m_impl->wait_for_pending();
-        m_impl->destroy_image(it->second);
-        m_impl->surfaces.erase(it);
+        const auto slot = binding->second;
+        m_impl->surface_bindings.erase(binding);
+        // Destroy the backing image only when no other handle still
+        // references this slot: plan-driven aliasing shares one VkImage
+        // across several logical handles, so releasing one of them must
+        // never free memory another handle is still bound to.
+        if (!m_impl->slot_in_use(slot)) {
+            const auto physical_it = m_impl->physical_surfaces.find(slot);
+            if (physical_it != m_impl->physical_surfaces.end()) {
+                m_impl->destroy_image(physical_it->second.image);
+                m_impl->physical_surfaces.erase(physical_it);
+            }
+        }
         ++m_impl->stats.surface_releases;
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
