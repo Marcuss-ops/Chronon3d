@@ -183,6 +183,92 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
     return true;
 }
 
+bool try_native_full_frame_blur(RenderGraphContext& ctx,
+                                const EffectStack& effect_stack,
+                                Framebuffer& result,
+                                const std::optional<raster::BBox>& clip) {
+    const bool has_partial_clip = clip &&
+        (clip->x0 != 0 || clip->y0 != 0 ||
+         clip->x1 != ctx.frame_input.width || clip->y1 != ctx.frame_input.height);
+    if (has_partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1 || result.origin_x() != 0 || result.origin_y() != 0 ||
+        result.width() != ctx.frame_input.width || result.height() != ctx.frame_input.height ||
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::Blur) return false;
+    const auto* params = std::get_if<BlurParams>(&instance.params);
+    if (!params || !std::isfinite(params->radius) ||
+        params->radius < 0.0f || params->radius > 32.0f) {
+        return false;
+    }
+
+    const runtime::SurfaceDesc desc{
+        static_cast<std::uint32_t>(result.width()),
+        static_cast<std::uint32_t>(result.height()),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient,
+        static_cast<std::size_t>(result.width()) * result.height() * sizeof(float) * 4};
+    std::vector<float> rgba(static_cast<std::size_t>(result.width()) * result.height() * 4);
+    std::size_t index = 0;
+    for (int y = 0; y < result.height(); ++y) {
+        for (int x = 0; x < result.width(); ++x) {
+            const auto pixel = result.get_pixel(x, y);
+            rgba[index++] = pixel.r;
+            rgba[index++] = pixel.g;
+            rgba[index++] = pixel.b;
+            rgba[index++] = pixel.a;
+        }
+    }
+    const auto source = ctx.services.surface_registry->create(desc);
+    const auto horizontal = ctx.services.surface_registry->create(desc);
+    const auto output = ctx.services.surface_registry->create(desc);
+    if (source == runtime::kInvalidRenderSurfaceHandle ||
+        horizontal == runtime::kInvalidRenderSurfaceHandle ||
+        output == runtime::kInvalidRenderSurfaceHandle) {
+        if (source != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(source);
+        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(horizontal);
+        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(output);
+        return false;
+    }
+    const auto cleanup = [&] {
+        (void)ctx.services.backend->release_surface(source);
+        (void)ctx.services.backend->release_surface(horizontal);
+        (void)ctx.services.backend->release_surface(output);
+        ctx.services.surface_registry->release(source);
+        ctx.services.surface_registry->release(horizontal);
+        ctx.services.surface_registry->release(output);
+    };
+    const auto created_source = ctx.services.backend->create_surface(source, desc);
+    const auto uploaded = created_source.ok()
+        ? ctx.services.backend->upload_surface(source, desc, rgba)
+        : created_source;
+    const auto created_horizontal = uploaded.ok()
+        ? ctx.services.backend->create_surface(horizontal, desc)
+        : uploaded;
+    const auto created_output = created_horizontal.ok()
+        ? ctx.services.backend->create_surface(output, desc)
+        : created_horizontal;
+    const auto blurred_horizontal = created_output.ok()
+        ? ctx.services.backend->blur_surface(horizontal, source, params->radius, /*horizontal=*/true)
+        : created_output;
+    const auto blurred_vertical = blurred_horizontal.ok()
+        ? ctx.services.backend->blur_surface(output, horizontal, params->radius, /*horizontal=*/false)
+        : blurred_horizontal;
+    if (!blurred_vertical.ok()) {
+        cleanup();
+        return false;
+    }
+    (void)ctx.services.backend->release_surface(source);
+    (void)ctx.services.backend->release_surface(horizontal);
+    ctx.services.surface_registry->release(source);
+    ctx.services.surface_registry->release(horizontal);
+    result.set_surface_handle(output);
+    return true;
+}
+
 } // namespace
 
 std::optional<raster::BBox> EffectStackNode::predicted_bbox(
@@ -327,7 +413,8 @@ NodeExecResult EffectStackNode::execute(
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
 
         };
-        if (!try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
+        if (!try_native_full_frame_blur(ctx, m_effects, *result, local_clip) &&
+            !try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
             !try_native_full_frame_tint(ctx, m_effects, *result, local_clip)) {
             ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
         }
