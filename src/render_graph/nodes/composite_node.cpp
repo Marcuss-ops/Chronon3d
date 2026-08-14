@@ -14,73 +14,11 @@
 #include <cstring>
 #include <vector>
 
+#include "native_surface.hpp"
+
 namespace chronon3d::graph {
 
 namespace {
-
-bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
-    if (!ctx.services.backend || !ctx.services.surface_registry) return false;
-    if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        return true;
-    }
-
-    const runtime::SurfaceDesc desc{
-        static_cast<std::uint32_t>(framebuffer.width()),
-        static_cast<std::uint32_t>(framebuffer.height()),
-        runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient,
-        static_cast<std::size_t>(framebuffer.width()) * framebuffer.height() * sizeof(float) * 4};
-    const auto handle = ctx.services.surface_registry->create(desc);
-    if (handle == runtime::kInvalidRenderSurfaceHandle) return false;
-
-    std::vector<float> rgba(static_cast<std::size_t>(framebuffer.width()) *
-                            framebuffer.height() * 4);
-    std::size_t index = 0;
-    for (int y = 0; y < framebuffer.height(); ++y) {
-        for (int x = 0; x < framebuffer.width(); ++x) {
-            const auto pixel = framebuffer.get_pixel(x, y);
-            rgba[index++] = pixel.r;
-            rgba[index++] = pixel.g;
-            rgba[index++] = pixel.b;
-            rgba[index++] = pixel.a;
-        }
-    }
-
-    const auto created = ctx.services.backend->create_surface(handle, desc);
-    if (!created.ok()) {
-        ctx.services.surface_registry->release(handle);
-        return false;
-    }
-    const auto uploaded = ctx.services.backend->upload_surface(handle, desc, rgba);
-    if (!uploaded.ok()) {
-        // The backend surface was already allocated by create_surface(); release
-        // it symmetrically before dropping the registry entry so the native
-        // path stays leak-free on the upload-failure branch.
-        (void)ctx.services.backend->release_surface(handle);
-        ctx.services.surface_registry->release(handle);
-        return false;
-    }
-    framebuffer.set_surface_handle(handle);
-    return true;
-}
-
-/// Release the native backing of a framebuffer's surface handle (backend
-/// resource + registry entry) and clear the handle.  This is the symmetric
-/// counterpart to ensure_native_surface() and must be used whenever a native
-/// path gives up on a handle it created, so transient failure branches do not
-/// leak device-local surfaces or registry identities.
-void release_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
-    const auto handle = framebuffer.surface_handle();
-    if (handle == runtime::kInvalidRenderSurfaceHandle) return;
-    if (ctx.services.backend) {
-        (void)ctx.services.backend->release_surface(handle);
-    }
-    if (ctx.services.surface_registry) {
-        ctx.services.surface_registry->release(handle);
-    }
-    framebuffer.clear_surface_handle();
-}
 
 bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
                           Framebuffer& source, BlendMode mode,
