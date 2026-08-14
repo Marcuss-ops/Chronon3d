@@ -273,14 +273,19 @@ Composition img_corner_smoothing();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_image_compositions(CompositionRegistry& registry) {
-    registry.add(make_composition_descriptor("ImgGradient", [](const CompositionProps&) { return img_gradient(); }));
-    registry.add(make_composition_descriptor("ImgChecker", [](const CompositionProps&) { return img_checker(); }));
-    registry.add(make_composition_descriptor("ImgGridTest", [](const CompositionProps&) { return img_grid_test(); }));
-    registry.add(make_composition_descriptor("ImgTestPattern", [](const CompositionProps&) { return img_test_pattern(); }));
-    registry.add(make_composition_descriptor("ImgShakeZoom", [](const CompositionProps&) { return img_shake_zoom(); }));
-    registry.add(make_composition_descriptor("ImgReferenceShakeReveal", [](const CompositionProps&) { return img_reference_shake_reveal(); }));
-    registry.add(make_composition_descriptor("ImgCornerSmoothing", [](const CompositionProps&) { return img_corner_smoothing(); }));
-    registry.add(make_composition_descriptor("ImageProofs", [](const CompositionProps&) { return image_proofs(); }));
+    const auto add = [&registry](const char* id, std::function<Composition(const CompositionProps&)> factory) {
+        registry.add(make_composition_descriptor(
+            CompositionDescriptor{.id = id, .category = std::string{content_category::Image}},
+            std::move(factory)));
+    };
+    add("ImgGradient", [](const CompositionProps&) { return img_gradient(); });
+    add("ImgChecker", [](const CompositionProps&) { return img_checker(); });
+    add("ImgGridTest", [](const CompositionProps&) { return img_grid_test(); });
+    add("ImgTestPattern", [](const CompositionProps&) { return img_test_pattern(); });
+    add("ImgShakeZoom", [](const CompositionProps&) { return img_shake_zoom(); });
+    add("ImgReferenceShakeReveal", [](const CompositionProps&) { return img_reference_shake_reveal(); });
+    add("ImgCornerSmoothing", [](const CompositionProps&) { return img_corner_smoothing(); });
+    add("ImageProofs", [](const CompositionProps&) { return image_proofs(); });
 }
 
 } // namespace chronon3d::content::images
