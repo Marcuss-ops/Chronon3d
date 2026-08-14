@@ -9,6 +9,7 @@
 #endif
 
 #include <memory>
+#include <span>
 #include <string>
 
 namespace chronon3d::backends::vulkan {
@@ -127,6 +128,9 @@ public:
     graph::RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, bool, bool) override;
+    graph::RenderOpResult draw_text_run_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        std::span<const runtime::GlyphInstance>) override;
 
 #ifdef CHRONON3D_ENABLE_VULKAN
     struct Impl;

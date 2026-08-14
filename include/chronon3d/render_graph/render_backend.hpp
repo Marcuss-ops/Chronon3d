@@ -425,6 +425,21 @@ public:
             "RenderBackend::draw_text_run: not supported by this backend (capabilities().text_run == false)"
         });
     }
+
+    /// Draw a batched text run by sampling a packed glyph atlas.  Each
+    /// GlyphInstance locates one glyph quad inside `atlas` and its placement
+    /// in `destination`; the backend composites every instance in a single
+    /// kernel dispatch (the GPU text-run primitive).  The CPU-rasterized
+    /// glyph bitmaps must already be resident in `atlas`.  Backends without
+    /// a text kernel return UnsupportedCapability.
+    virtual RenderOpResult draw_text_run_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*atlas*/,
+        std::span<const runtime::GlyphInstance> /*glyphs*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::draw_text_run_surface: not supported by this backend"});
+    }
 };
 
 } // namespace chronon3d::graph

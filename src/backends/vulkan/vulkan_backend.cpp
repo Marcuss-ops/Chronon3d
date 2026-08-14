@@ -7,6 +7,7 @@
 #include "blur_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
+#include "text_run_comp_spv.hpp"
 #endif
 
 #include <array>
@@ -56,9 +57,11 @@ struct VulkanBackend::Impl {
     public:
         static constexpr std::size_t kInitialChunkSets = 64;
         // Worst case per set: the layout exposes 3 storage-image bindings
-        // (matte uses all three; the other kernels use two).  Pool sizing
-        // over-reserves so any pass can allocate safely from the chunk.
-        static constexpr std::size_t kDescriptorsPerSet = 3;
+        // (matte uses all three; the other kernels use two) plus one
+        // storage-buffer binding (the text-run kernel's glyph instances).
+        // Pool sizing over-reserves so any pass can allocate safely.
+        static constexpr std::size_t kStorageImagesPerSet = 3;
+        static constexpr std::size_t kStorageBuffersPerSet = 1;
 
         void create(VkDevice device, VkDescriptorSetLayout layout) {
             device_ = device;
@@ -108,14 +111,14 @@ struct VulkanBackend::Impl {
     private:
         void grow() {
             const std::size_t sets = kInitialChunkSets * (1u << pools_.size());
-            const VkDescriptorPoolSize pool_size{
-                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                static_cast<std::uint32_t>(sets * kDescriptorsPerSet)};
+            const VkDescriptorPoolSize pool_sizes[] = {
+                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                 static_cast<std::uint32_t>(sets * kStorageImagesPerSet)},
+                {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                 static_cast<std::uint32_t>(sets * kStorageBuffersPerSet)}};
             const VkDescriptorPoolCreateInfo pool_info{
                 VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
-                static_cast<std::uint32_t>(sets),
-                static_cast<std::uint32_t>(sets * kDescriptorsPerSet),
-                &pool_size};
+                static_cast<std::uint32_t>(sets), 2, pool_sizes};
             VkDescriptorPool pool = VK_NULL_HANDLE;
             check(vkCreateDescriptorPool(device_, &pool_info, nullptr, &pool),
                   "vkCreateDescriptorPool(frame descriptor chunk)");
@@ -175,6 +178,13 @@ struct VulkanBackend::Impl {
     VkBuffer staging{VK_NULL_HANDLE};
     VkDeviceMemory staging_memory{VK_NULL_HANDLE};
     VkDeviceSize staging_capacity{0};
+    // Device-local storage buffer for the text-run kernel's glyph instances.
+    // Updated in-band via vkCmdUpdateBuffer so each recorded dispatch reads
+    // its own instance data even when several text runs accumulate in one
+    // command batch (a host-visible reuse would clobber earlier overlays).
+    VkBuffer glyph_instance_buffer{VK_NULL_HANDLE};
+    VkDeviceMemory glyph_instance_memory{VK_NULL_HANDLE};
+    VkDeviceSize glyph_instance_capacity{0};
     struct UploadSlot {
         VkBuffer buffer{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
@@ -237,9 +247,10 @@ struct VulkanBackend::Impl {
         const VkDescriptorSetLayoutBinding bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
-            {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+            {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo layout_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 3, bindings};
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 4, bindings};
         check(vkCreateDescriptorSetLayout(device, &layout_info, nullptr, &descriptor_layout),
               "vkCreateDescriptorSetLayout");
 
@@ -250,9 +261,12 @@ struct VulkanBackend::Impl {
         // current ring slot's own allocator (see FrameBatchState), so the
         // shared pool only ever serves the persistent standalone sets and
         // never needs to be reset on the frame boundary.
-        const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512};
+        const VkDescriptorPoolSize pool_sizes[] = {
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 64}};
         const VkDescriptorPoolCreateInfo pool_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 256, 512, &pool_size};
+            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
+            256, 2, pool_sizes};
         check(vkCreateDescriptorPool(device, &pool_info, nullptr, &descriptor_pool),
               "vkCreateDescriptorPool");
 
@@ -419,6 +433,32 @@ struct VulkanBackend::Impl {
             throw std::runtime_error("Vulkan kernel registry rejected Matte pipeline");
         }
 
+        const VkShaderModuleCreateInfo text_run_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_text_run_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_text_run_comp_spv)};
+        VkShaderModule text_run_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &text_run_shader_info, nullptr, &text_run_shader),
+              "vkCreateShaderModule(text run)");
+        const VkPipelineShaderStageCreateInfo text_run_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            text_run_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo text_run_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            text_run_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+        VkPipeline text_run_pipeline = VK_NULL_HANDLE;
+        const VkResult text_run_result = vkCreateComputePipelines(
+            device, VK_NULL_HANDLE, 1, &text_run_pipeline_info, nullptr, &text_run_pipeline);
+        vkDestroyShaderModule(device, text_run_shader, nullptr);
+        check(text_run_result, "vkCreateComputePipelines(text run)");
+        if (!kernel_registry.register_kernel(
+                GpuKernelId::TextRun,
+                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_run_pipeline))) {
+            vkDestroyPipeline(device, text_run_pipeline, nullptr);
+            throw std::runtime_error("Vulkan kernel registry rejected TextRun pipeline");
+        }
+
         const VkCommandBufferAllocateInfo command_info{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
@@ -464,6 +504,12 @@ struct VulkanBackend::Impl {
         destroy_image(src);
         if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
         if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
+        if (glyph_instance_buffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, glyph_instance_buffer, nullptr);
+        }
+        if (glyph_instance_memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, glyph_instance_memory, nullptr);
+        }
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
         for (auto& allocator : frame_batch.descriptor_allocators) {
             allocator.destroy();
@@ -480,7 +526,8 @@ struct VulkanBackend::Impl {
         if (timeline_semaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timeline_semaphore, nullptr);
         for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
                               GpuKernelId::AffineTransform, GpuKernelId::Blur,
-                              GpuKernelId::ColorAdjust, GpuKernelId::Matte}) {
+                              GpuKernelId::ColorAdjust, GpuKernelId::Matte,
+                              GpuKernelId::TextRun}) {
             const auto handle = kernel_registry.resolve(id);
             if (handle != 0) {
                 vkDestroyPipeline(device,
@@ -579,6 +626,21 @@ struct VulkanBackend::Impl {
              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &target_info, nullptr, nullptr},
             {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 2, 0, 1,
              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &matte_info, nullptr, nullptr}};
+        vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
+    }
+
+    void write_text_run_descriptors(VkDescriptorSet set, const Image& destination,
+                                    const Image& atlas, VkBuffer instance_buffer) {
+        const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+        const VkDescriptorImageInfo atlas_info{VK_NULL_HANDLE, atlas.view, VK_IMAGE_LAYOUT_GENERAL};
+        const VkDescriptorBufferInfo buffer_info{instance_buffer, 0, VK_WHOLE_SIZE};
+        const VkWriteDescriptorSet writes[] = {
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &atlas_info, nullptr, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 3, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &buffer_info, nullptr}};
         vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
     }
 
@@ -853,6 +915,31 @@ struct VulkanBackend::Impl {
             std::int32_t luma;
             std::int32_t inverted;
         } params{luma ? 1 : 0, inverted ? 1 : 0};
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
+                         const Image& destination, std::int32_t glyph_count) {
+        // The glyph instances were written by a preceding vkCmdUpdateBuffer
+        // (transfer stage); publish them to the compute shader before dispatch.
+        const VkBufferMemoryBarrier barrier{
+            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+            glyph_instance_buffer, 0, VK_WHOLE_SIZE};
+        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                             0, nullptr, 1, &barrier, 0, nullptr);
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::TextRun)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t glyph_count;
+        } params{glyph_count};
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
@@ -1419,6 +1506,50 @@ struct VulkanBackend::Impl {
         submit();
     }
 
+    // GPU text-run primitive: composite a batch of glyph quads sampled from a
+    // packed atlas texture into the destination in ONE kernel dispatch.
+    void text_run_surface(runtime::RenderSurfaceHandle destination,
+                          runtime::RenderSurfaceHandle atlas,
+                          std::span<const runtime::GlyphInstance> glyphs) {
+        if (glyphs.empty()) {
+            throw std::invalid_argument("Vulkan text run requires at least one glyph");
+        }
+        const VkDeviceSize bytes =
+            static_cast<VkDeviceSize>(glyphs.size() * sizeof(runtime::GlyphInstance));
+        if (bytes > 65536) {
+            throw std::invalid_argument(
+                "Vulkan text run exceeds the 65536-byte vkCmdUpdateBuffer limit");
+        }
+        auto& dst_image = resolve_image(destination);
+        auto& atlas_image = resolve_image(atlas);
+        if (!atlas_image.initialized || !dst_image.initialized ||
+            dst_image.width == 0 || dst_image.height == 0) {
+            throw std::invalid_argument("Vulkan text run references incompatible surfaces");
+        }
+        ensure_glyph_instance_buffer(bytes);
+        const std::int32_t glyph_count = static_cast<std::int32_t>(glyphs.size());
+
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_text_run_descriptors(descriptors, dst_image, atlas_image, glyph_instance_buffer);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image, &atlas_image});
+            vkCmdUpdateBuffer(cmd, glyph_instance_buffer, 0, bytes, glyphs.data());
+            record_text_run(cmd, descriptors, dst_image, glyph_count);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            return;
+        }
+        ensure_descriptor_set();
+        write_text_run_descriptors(descriptor_set, dst_image, atlas_image, glyph_instance_buffer);
+        begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst_image, &atlas_image});
+        vkCmdUpdateBuffer(command_buffer, glyph_instance_buffer, 0, bytes, glyphs.data());
+        record_text_run(command_buffer, descriptor_set, dst_image, glyph_count);
+        dst_image.initialized = true;
+        submit();
+    }
+
     void ensure_images(std::uint32_t width, std::uint32_t height) {
         if (dst.width == width && dst.height == height && src.image != VK_NULL_HANDLE) return;
         destroy_image(dst);
@@ -1450,6 +1581,36 @@ struct VulkanBackend::Impl {
         check(vkAllocateMemory(device, &allocation, nullptr, &staging_memory), "vkAllocateMemory(staging)");
         check(vkBindBufferMemory(device, staging, staging_memory, 0), "vkBindBufferMemory");
         staging_capacity = bytes;
+    }
+
+    // Grow (or create) the device-local glyph-instance storage buffer.  The
+    // buffer is updated in-band with vkCmdUpdateBuffer and read by the
+    // text-run compute kernel, so it needs both transfer-dst and storage
+    // usage; device-local memory keeps the GPU read path on-card.
+    void ensure_glyph_instance_buffer(VkDeviceSize bytes) {
+        if (glyph_instance_capacity >= bytes) return;
+        if (glyph_instance_buffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, glyph_instance_buffer, nullptr);
+        }
+        if (glyph_instance_memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, glyph_instance_memory, nullptr);
+        }
+        const VkBufferCreateInfo info{
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+        check(vkCreateBuffer(device, &info, nullptr, &glyph_instance_buffer),
+              "vkCreateBuffer(glyph instances)");
+        VkMemoryRequirements requirements{};
+        vkGetBufferMemoryRequirements(device, glyph_instance_buffer, &requirements);
+        const VkMemoryAllocateInfo allocation{
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
+            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+        check(vkAllocateMemory(device, &allocation, nullptr, &glyph_instance_memory),
+              "vkAllocateMemory(glyph instances)");
+        check(vkBindBufferMemory(device, glyph_instance_buffer, glyph_instance_memory, 0),
+              "vkBindBufferMemory(glyph instances)");
+        glyph_instance_capacity = bytes;
     }
 
     static void transition(VkCommandBuffer command, VkImage image,
@@ -1489,6 +1650,14 @@ struct VulkanBackend::Impl {
             check(vkResetFences(device, 1, &frame_batch.fences[i]),
                   "vkResetFences(frame batch slot)");
             frame_batch.in_flight[i] = false;
+        }
+        // Synchronize any in-flight upload slots too.  release_surface() and
+        // every standalone path call wait_for_pending() before reusing or
+        // destroying a surface, and an asynchronous upload may still be
+        // copying into it; draining these slots closes the use-after-free
+        // where an in-flight VkImage was destroyed before its copy completed.
+        for (auto& slot : upload_slots) {
+            wait_upload_slot(slot);
         }
     }
 
@@ -2180,6 +2349,26 @@ graph::RenderOpResult VulkanBackend::matte_surface(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::matte_surface: Vulkan support is disabled"});
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::draw_text_run_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle atlas,
+    std::span<const runtime::GlyphInstance> glyphs) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        m_impl->text_run_surface(destination, atlas, glyphs);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)destination; (void)atlas; (void)glyphs;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::draw_text_run_surface: Vulkan support is disabled"});
 #endif
 }
 
