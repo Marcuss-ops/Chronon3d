@@ -811,7 +811,7 @@ TEST_CASE("command planner aliases non-overlapping transient surfaces") {
     CHECK(input_slot != scratch_slot);
 }
 
-TEST_CASE("command planner emits a write barrier per destination pass") {
+TEST_CASE("command planner emits read and write barriers per pass") {
     using namespace chronon3d::runtime;
     GpuCommandPlanner planner;
     const RenderSurfaceHandle input{1};
@@ -823,13 +823,22 @@ TEST_CASE("command planner emits a write barrier per destination pass") {
                           .radius = 1.0f, .horizontal = 0});
 
     const auto plan = planner.build();
-    REQUIRE(plan.barriers.size() == 2);
+    REQUIRE(plan.barriers.size() == 4);
+    // Pass 0: input sampled (Read), scratch written (Write).
     CHECK(plan.barriers.transitions[0].pass_index == 0);
-    CHECK(plan.barriers.transitions[0].surface == scratch);
-    CHECK(plan.barriers.transitions[0].access == ResourceAccess::Write);
-    CHECK(plan.barriers.transitions[1].pass_index == 1);
-    CHECK(plan.barriers.transitions[1].surface == output);
+    CHECK(plan.barriers.transitions[0].surface == input);
+    CHECK(plan.barriers.transitions[0].access == ResourceAccess::Read);
+    CHECK(plan.barriers.transitions[1].pass_index == 0);
+    CHECK(plan.barriers.transitions[1].surface == scratch);
     CHECK(plan.barriers.transitions[1].access == ResourceAccess::Write);
+    // Pass 1: scratch sampled (Read) — the write→read transition — and
+    // output written (Write).
+    CHECK(plan.barriers.transitions[2].pass_index == 1);
+    CHECK(plan.barriers.transitions[2].surface == scratch);
+    CHECK(plan.barriers.transitions[2].access == ResourceAccess::Read);
+    CHECK(plan.barriers.transitions[3].pass_index == 1);
+    CHECK(plan.barriers.transitions[3].surface == output);
+    CHECK(plan.barriers.transitions[3].access == ResourceAccess::Write);
 }
 
 TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
