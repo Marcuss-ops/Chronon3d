@@ -263,7 +263,11 @@ inline void record_output_run(const std::string& composition_id,
     // exporter.  Mirror it onto the run row so the summary does not report a
     // zero budget when the pool was explicitly bounded.
     for (const auto& counter : resolved_counters) {
-        if (counter.counter_name == "framebuffer_pool_budget_bytes")
+        if (counter.counter_name == "gpu_submissions")
+            run.gpu_submissions = counter.counter_value;
+        else if (counter.counter_name == "passes_executed")
+            run.passes_executed = counter.counter_value;
+        else if (counter.counter_name == "framebuffer_pool_budget_bytes")
             run.framebuffer_pool_budget_bytes = counter.counter_value;
         else if (counter.counter_name == "framebuffer_pool_retained_bytes")
             run.framebuffer_pool_retained_bytes = counter.counter_value;
