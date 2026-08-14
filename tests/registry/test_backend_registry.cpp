@@ -749,6 +749,58 @@ TEST_CASE("Vulkan frame batch descriptor allocator grows past the first chunk") 
     CHECK(output[center + 0] == doctest::Approx(0.9f).epsilon(1e-3f));
 }
 
+TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        4, 4, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    std::vector<float> source(4 * 4 * 4, 0.0f);
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+    source[center + 0] = 0.7f;
+    source[center + 3] = 1.0f;
+    std::vector<float> output(source.size(), 0.0f);
+
+    REQUIRE(backend.create_surface(541, desc).ok());
+    REQUIRE(backend.create_surface(542, desc).ok());
+    REQUIRE(backend.create_surface(543, desc).ok());
+    REQUIRE(backend.upload_surface(541, desc, source).ok());
+
+    // Compile the same dependency chain as a CommandPlan so the backend
+    // synchronizes through the BarrierPlan mapper (precise compute-stage
+    // barriers) instead of the conservative per-pass fallback.
+    const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage, 4 * 4 * 4 * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(541, resource_desc);
+    planner.declare_surface(542, resource_desc);
+    planner.declare_surface(543, resource_desc);
+    planner.transform(TransformPass{542, 541, 0, 0, 1.0f});
+    planner.blur(BlurPass{543, 542, 1.5f, 1});
+    planner.composite(CompositePass{543, 541, 0});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 3);
+    CHECK(plan.barriers.size() >= 4);
+
+    const auto submissions_before = backend.stats().submissions;
+    backend.begin_plan_batch(plan.barriers);
+    REQUIRE(backend.transform_surface(542, 541, 0, 0, 1.0f).ok());
+    REQUIRE(backend.blur_surface(543, 542, 1.5f, true).ok());
+    REQUIRE(backend.composite_surfaces(
+        543, 541, chronon3d::BlendMode::Normal,
+        chronon3d::CompositeOperator::SourceOver).ok());
+    backend.end_frame_batch();
+    // Three plan passes still coalesce into exactly one queue submission.
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    REQUIRE(backend.download_surface(543, output).ok());
+    // The write→read chain (transform writes 542, blur reads 542, composite
+    // overwrites 543) produced a valid result through the plan barriers.
+    CHECK(output[center + 0] > 0.0f);
+    CHECK(output[center + 3] > 0.0f);
+}
+
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     chronon3d::runtime::RenderSurfaceRegistry registry;
