@@ -984,6 +984,88 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
     CHECK(result[corner + 0] > 0.0f);
 }
 
+TEST_CASE("minimal background + 1 overlay render produces a pixel-correct frame") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+
+    constexpr std::uint32_t kWidth = 4;
+    constexpr std::uint32_t kHeight = 4;
+    constexpr std::size_t kPixelCount = kWidth * kHeight;
+    constexpr std::size_t kFloatCount = kPixelCount * 4;
+    const auto at = [](std::size_t x, std::size_t y) {
+        return (y * kWidth + x) * 4;
+    };
+
+    const SurfaceDesc surface_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const auto background = registry.create(surface_desc);
+    const auto overlay = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(background != kInvalidRenderSurfaceHandle);
+    REQUIRE(overlay != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {background, overlay, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    // Background: an opaque per-pixel varying pattern so any cross-pixel
+    // bleed or mis-copy is caught by the full-frame check below.
+    std::vector<float> background_px(kFloatCount, 0.0f);
+    for (std::uint32_t y = 0; y < kHeight; ++y) {
+        for (std::uint32_t x = 0; x < kWidth; ++x) {
+            const float f = static_cast<float>(y * kWidth + x) /
+                            static_cast<float>(kPixelCount - 1);
+            background_px[at(x, y) + 0] = 0.1f + f * 0.5f;
+            background_px[at(x, y) + 1] = 0.2f + f * 0.3f;
+            background_px[at(x, y) + 2] = 0.3f + f * 0.2f;
+            background_px[at(x, y) + 3] = 1.0f;
+        }
+    }
+    // Overlay: one opaque premultiplied red pixel at the centre, transparent
+    // everywhere else.
+    std::vector<float> overlay_px(kFloatCount, 0.0f);
+    overlay_px[at(2, 2) + 0] = 1.0f;  // R
+    overlay_px[at(2, 2) + 3] = 1.0f;  // A (premultiplied: a == 1)
+    REQUIRE(backend.upload_surface(background, surface_desc, background_px).ok());
+    REQUIRE(backend.upload_surface(overlay, surface_desc, overlay_px).ok());
+
+    // Minimal render: copy the background into the output, then composite the
+    // single overlay on top (source-over).
+    const ResourceDesc resource_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     kFloatCount * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(background, resource_desc);
+    planner.declare_surface(overlay, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{output, background, 0, 0, 1.0f});
+    planner.composite(CompositePass{output, overlay, 0});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 2);
+
+    REQUIRE(execute_command_plan(backend, registry, plan));
+
+    std::vector<float> actual(kFloatCount, 0.0f);
+    REQUIRE(backend.download_surface(output, actual).ok());
+
+    // Pixel-correct: every pixel is the background pattern, except the centre
+    // where the opaque overlay wins outright (source-over: src + dst*(1-src.a)).
+    for (std::uint32_t y = 0; y < kHeight; ++y) {
+        for (std::uint32_t x = 0; x < kWidth; ++x) {
+            const bool centre = (x == 2 && y == 2);
+            const std::size_t index = at(x, y);
+            for (int c = 0; c < 4; ++c) {
+                const float expected = centre ? ((c == 0 || c == 3) ? 1.0f : 0.0f)
+                                              : background_px[index + c];
+                CHECK(actual[index + c] ==
+                      doctest::Approx(expected).epsilon(1e-5));
+            }
+        }
+    }
+}
+
 TEST_CASE("medium CommandPlan render certifies a correct frame through pass barriers") {
     using namespace chronon3d::runtime;
     chronon3d::backends::vulkan::VulkanBackend backend;
