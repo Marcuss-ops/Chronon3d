@@ -703,13 +703,17 @@ TEST_CASE("Vulkan frame batch records every pass into a single submission") {
     CHECK(output[center + 0] > 0.0f);
     CHECK(output[center + 3] > 0.0f);
 
-    // A second batch reuses the frame-batch slot and the descriptor pool
-    // without an extra submission or pool exhaustion.
-    const auto second_before = backend.stats().submissions;
-    backend.begin_frame_batch();
-    REQUIRE(backend.transform_surface(522, 521, 0, 0, 1.0f).ok());
-    backend.end_frame_batch();
-    CHECK(backend.stats().submissions == second_before + 1);
+    // The frame-batch ring keeps one fence per slot: four consecutive
+    // batches rotate through all three slots, and the last one reuses a
+    // slot whose previous submission is still in flight — begin_frame_batch()
+    // must wait on that slot's fence instead of stalling the whole device.
+    const auto ring_before = backend.stats().submissions;
+    for (int i = 0; i < 4; ++i) {
+        backend.begin_frame_batch();
+        REQUIRE(backend.transform_surface(522, 521, 0, 0, 1.0f).ok());
+        backend.end_frame_batch();
+    }
+    CHECK(backend.stats().submissions == ring_before + 4);
     REQUIRE(backend.download_surface(522, output).ok());
     CHECK(output[center + 0] == doctest::Approx(0.8f).epsilon(1e-3f));
 }
