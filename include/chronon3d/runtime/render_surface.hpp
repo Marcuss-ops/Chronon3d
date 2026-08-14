@@ -52,6 +52,24 @@ struct SurfaceAffineTransform {
     std::int32_t destination_origin_y{0};
 };
 
+/// Per-glyph instance for the GPU text-run kernel.  It locates one glyph
+/// quad inside a packed atlas texture and places it in the destination
+/// canvas.  The byte layout MUST match the std430 `GlyphInstance` block in
+/// text_run.comp exactly (three ivec2 + two floats = 32 bytes, no padding),
+/// because instances are copied verbatim into the kernel's storage buffer.
+struct GlyphInstance {
+    std::int32_t dst_x{0};     // destination canvas origin (pixels)
+    std::int32_t dst_y{0};
+    std::int32_t atlas_x{0};   // packed atlas origin (pixels)
+    std::int32_t atlas_y{0};
+    std::int32_t width{0};     // glyph quad size (pixels)
+    std::int32_t height{0};
+    float opacity{1.0f};       // per-glyph premultiplied opacity
+    float pad{0.0f};
+};
+static_assert(sizeof(GlyphInstance) == 32,
+              "GlyphInstance must stay 32 bytes to match text_run.comp");
+
 struct SurfaceRecord {
     RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
     SurfaceDesc desc{};
