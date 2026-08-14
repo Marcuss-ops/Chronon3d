@@ -11,6 +11,8 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace chronon3d::backends::vulkan {
 
@@ -25,6 +27,10 @@ struct VulkanBackendStats {
     std::uint64_t readback_calls{0};
     std::uint64_t readback_bytes{0};
     std::uint64_t submissions{0};
+    /// Cumulative number of GPU command-plan passes executed. Incremented
+    /// per recorded pass (not per vkQueueSubmit), so it stays correct even
+    /// when N overlays coalesce into a single command-batch submission.
+    std::uint64_t passes_executed{0};
 };
 
 /// Persistent headless Vulkan backend foundation. It owns the device and
@@ -43,6 +49,11 @@ public:
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override;
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
+
+    /// Feeds the backend's GPU counters into the telemetry run record as
+    /// name/value pairs (`gpu_submissions`, `passes_executed`).
+    void export_gpu_telemetry_counters(
+        std::vector<std::pair<std::string, std::uint64_t>>& out) const override;
 
     /// Number of distinct physical VkImages currently backing the surface
     /// bindings.  Plan-driven aliasing binds several logical handles to one

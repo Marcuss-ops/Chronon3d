@@ -319,6 +319,17 @@ void record_pipe_telemetry(
         resolved_counters.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
     }
 
+    // GPU backend counters (vkQueueSubmit count + executed command-plan
+    // passes) flow into render_counters so the summary can print them next to
+    // the CPU/FFmpeg breakdown.  Software backends contribute nothing.
+    if (session.renderer->runtime().backend_attached()) {
+        std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
+        session.renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+        for (const auto& [name, value] : gpu_counters) {
+            resolved_counters.push_back({name, value});
+        }
+    }
+
     // ── Compute render artifact (P0 video/text — Fase 1) ────────────────────
     std::vector<chronon3d::telemetry::RenderArtifactRecord> artifacts;
     {

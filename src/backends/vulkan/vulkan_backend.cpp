@@ -1272,6 +1272,7 @@ struct VulkanBackend::Impl {
             record_composite(cmd, descriptors, dst_image, src_image,
                              blend_mode, 1.0f, kIdentityTint);
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         bind_descriptors(dst_image, src_image);
@@ -1300,6 +1301,7 @@ struct VulkanBackend::Impl {
                              dst_image, src_image, offset_x, offset_y, opacity);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         bind_descriptors(dst_image, src_image);
@@ -1328,6 +1330,7 @@ struct VulkanBackend::Impl {
                                     dst_image, src_image, transform);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         bind_descriptors(dst_image, src_image);
@@ -1359,6 +1362,7 @@ struct VulkanBackend::Impl {
             record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         bind_descriptors(dst_image, src_image);
@@ -1416,6 +1420,7 @@ struct VulkanBackend::Impl {
             horizontal.initialized = true;
             vertical.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
 
@@ -1460,6 +1465,7 @@ struct VulkanBackend::Impl {
                                 dst, src, brightness, contrast, tint, tint_amount);
             dst.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         bind_descriptors(dst, src);
@@ -1494,6 +1500,7 @@ struct VulkanBackend::Impl {
                          dst, target_image, matte_image, luma, inverted);
             dst.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         ensure_descriptor_set();
@@ -1538,6 +1545,7 @@ struct VulkanBackend::Impl {
             record_text_run(cmd, descriptors, dst_image, glyph_count);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
+            ++stats.passes_executed;
             return;
         }
         ensure_descriptor_set();
@@ -1898,6 +1906,17 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
     return m_impl ? m_impl->stats : VulkanBackendStats{};
 #else
     return {};
+#endif
+}
+
+void VulkanBackend::export_gpu_telemetry_counters(
+    std::vector<std::pair<std::string, std::uint64_t>>& out) const {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!m_impl) return;
+    out.emplace_back("gpu_submissions", m_impl->stats.submissions);
+    out.emplace_back("passes_executed", m_impl->stats.passes_executed);
+#else
+    (void)out;
 #endif
 }
 
