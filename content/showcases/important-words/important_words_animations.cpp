@@ -444,23 +444,32 @@ Composition important_story_image() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_important_word_compositions(CompositionRegistry& registry) {
-    registry.add(make_composition_descriptor("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); }));
-    registry.add(make_composition_descriptor("ImportantWordActorWarm", [](const CompositionProps&) { return important_word_actor_warm(); }));
-    registry.add(make_composition_descriptor("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); }));
-    registry.add(make_composition_descriptor("ImportantWordTrio", [](const CompositionProps&) { return important_word_trio(); }));
-    for (const PhraseStackPreset preset : kPhraseStackPresets) {
+    const auto add_word = [&registry](const char* id, std::function<Composition(const CompositionProps&)> factory) {
         registry.add(make_composition_descriptor(
-            std::string(preset.name),
-            [preset](const CompositionProps&) { return make_phrase_stack(preset); }));
+            CompositionDescriptor{.id = id, .category = std::string{content_category::ImportantWord}},
+            std::move(factory)));
+    };
+    const auto add_phrase = [&registry](std::string id, std::function<Composition(const CompositionProps&)> factory) {
+        registry.add(make_composition_descriptor(
+            CompositionDescriptor{.id = std::move(id), .category = std::string{content_category::Phrase}},
+            std::move(factory)));
+    };
+    add_word("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); });
+    add_word("ImportantWordActorWarm", [](const CompositionProps&) { return important_word_actor_warm(); });
+    add_word("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); });
+    add_word("ImportantWordTrio", [](const CompositionProps&) { return important_word_trio(); });
+    for (const PhraseStackPreset preset : kPhraseStackPresets) {
+        add_phrase(std::string(preset.name),
+                   [preset](const CompositionProps&) { return make_phrase_stack(preset); });
     }
-    registry.add(make_composition_descriptor("SubtitleYellowFade", [](const CompositionProps&) { return subtitle_yellow_fade(); }));
-    registry.add(make_composition_descriptor("ImportantWordsRedLower", [](const CompositionProps&) { return important_words_red_lower(); }));
-    registry.add(make_composition_descriptor("ImportantStoryImage", [](const CompositionProps&) { return important_story_image(); }));
-    registry.add(make_composition_descriptor("ImportantWordFocus", [](const CompositionProps&) { return important_word_focus(); }));
-    registry.add(make_composition_descriptor("ImportantWordAction", [](const CompositionProps&) { return important_word_action(); }));
-    registry.add(make_composition_descriptor("ImportantWordCreate", [](const CompositionProps&) { return important_word_create(); }));
-    registry.add(make_composition_descriptor("ImportantWordStory", [](const CompositionProps&) { return important_word_story(); }));
-    registry.add(make_composition_descriptor("ImportantWordImpact", [](const CompositionProps&) { return important_word_impact(); }));
+    add_word("SubtitleYellowFade", [](const CompositionProps&) { return subtitle_yellow_fade(); });
+    add_word("ImportantWordsRedLower", [](const CompositionProps&) { return important_words_red_lower(); });
+    add_word("ImportantStoryImage", [](const CompositionProps&) { return important_story_image(); });
+    add_word("ImportantWordFocus", [](const CompositionProps&) { return important_word_focus(); });
+    add_word("ImportantWordAction", [](const CompositionProps&) { return important_word_action(); });
+    add_word("ImportantWordCreate", [](const CompositionProps&) { return important_word_create(); });
+    add_word("ImportantWordStory", [](const CompositionProps&) { return important_word_story(); });
+    add_word("ImportantWordImpact", [](const CompositionProps&) { return important_word_impact(); });
 }
 
 } // namespace chronon3d::content::important_words
