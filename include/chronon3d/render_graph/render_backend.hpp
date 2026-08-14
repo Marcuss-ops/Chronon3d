@@ -20,7 +20,9 @@
 #include <span>
 #include <string>
 #include <typeindex>
+#include <utility>
 #include <variant>
+#include <vector>
 
 namespace chronon3d {
     namespace renderer {
@@ -149,6 +151,16 @@ public:
 
     virtual RenderCounters* counters() { return nullptr; }
     virtual std::shared_ptr<cache::FramebufferPool> framebuffer_pool() { return nullptr; }
+
+    /// Export backend-specific GPU counters for the telemetry
+    /// render_counters table (e.g. the vkQueueSubmit count and the number of
+    /// executed command-plan passes).  The default is a no-op so software
+    /// backends contribute nothing; GPU backends override this to feed their
+    /// counters into the run record.  Counters are name/value pairs so the
+    /// render_graph layer never depends on the telemetry record types.
+    virtual void export_gpu_telemetry_counters(
+        std::vector<std::pair<std::string, std::uint64_t>>& /*out*/) const {}
+
 
     /// Frame-batching lifecycle.  Backends that record many passes into a
     /// single submission override these; the default is a no-op so

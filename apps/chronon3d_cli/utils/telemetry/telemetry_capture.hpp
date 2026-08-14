@@ -2,9 +2,11 @@
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::cli::telemetry {
@@ -223,6 +225,26 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
     }
 
     return result;
+}
+
+/// Appends backend-exported GPU counters (gpu_submissions, passes_executed)
+/// to the counter list and mirrors the two canonical fields onto the run
+/// record.  Software backends leave the list untouched (their export is the
+/// default no-op), so a software run reports 0 for both, as intended.
+inline void capture_backend_gpu_counters(
+    const chronon3d::graph::RenderBackend& backend,
+    std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters,
+    chronon3d::telemetry::RenderTelemetryRecord& run) {
+    std::vector<std::pair<std::string, std::uint64_t>> gpu;
+    backend.export_gpu_telemetry_counters(gpu);
+    for (const auto& [name, value] : gpu) {
+        counters.push_back({name, value});
+        if (name == "gpu_submissions") {
+            run.gpu_submissions = value;
+        } else if (name == "passes_executed") {
+            run.passes_executed = value;
+        }
+    }
 }
 
 /// Captures non-zero graph phase timings from counters as PhaseTelemetryRecords.
