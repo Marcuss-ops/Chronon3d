@@ -234,6 +234,41 @@ struct PhaseTelemetryRecord {
     double duration_ms{0.0};
 };
 
+/// Canonical per-phase render pipeline breakdown (all values in milliseconds).
+///
+/// Five stable, non-overlapping phases that a GPU-resident overlay factory
+/// cares about, so render speed is never conflated with encoding or I/O:
+///
+///   scene_eval_ms    graph/scene evaluation, easing, layout, scheduling —
+///                    everything in the render loop that is not pixel work.
+///   gpu_render_ms    actual node pixel execution (transform/composite/blur).
+///   gpu_readback_ms  framebuffer → encoder conversion/copy (the readback).
+///   encode_ms        codec encode of the readback frames.
+///   disk_io_ms       writing encoded data to disk (pipe/mux + flush/close).
+struct RenderPhaseTimings {
+    static constexpr const char* kSceneEval   = "scene_eval_ms";
+    static constexpr const char* kGpuRender   = "gpu_render_ms";
+    static constexpr const char* kGpuReadback = "gpu_readback_ms";
+    static constexpr const char* kEncode      = "encode_ms";
+    static constexpr const char* kDiskIo      = "disk_io_ms";
+
+    double scene_eval_ms{0.0};
+    double gpu_render_ms{0.0};
+    double gpu_readback_ms{0.0};
+    double encode_ms{0.0};
+    double disk_io_ms{0.0};
+
+    [[nodiscard]] std::vector<PhaseTelemetryRecord> to_phase_records() const {
+        return {
+            {kSceneEval,   scene_eval_ms},
+            {kGpuRender,   gpu_render_ms},
+            {kGpuReadback, gpu_readback_ms},
+            {kEncode,      encode_ms},
+            {kDiskIo,      disk_io_ms},
+        };
+    }
+};
+
 struct CounterTelemetryRecord {
     std::string counter_name;
     uint64_t counter_value{0};
