@@ -83,6 +83,13 @@ void generate_telemetry_report(std::stringstream& out, const RunSummary& run) {
     out << "- FFmpeg flush+close: " << format_ms(run.ffmpeg_flush_close_ms) << "\n";
     out << "- End-to-end wall: " << format_ms(run.e2e_wall_ms) << "\n\n";
 
+    out << "## Canonical render phases (GPU overlay factory view)\n";
+    out << "- scene_eval: " << format_ms(run.phase_scene_eval_ms) << "\n";
+    out << "- gpu_render: " << format_ms(run.phase_gpu_render_ms) << "\n";
+    out << "- gpu_readback: " << format_ms(run.phase_gpu_readback_ms) << "\n";
+    out << "- encode: " << format_ms(run.phase_encode_ms) << "\n";
+    out << "- disk_io: " << format_ms(run.phase_disk_io_ms) << "\n\n";
+
     out << "## Counters\n";
     out << "- Pixels touched: " << run.pixels_touched << "\n";
     out << "- Cache hits / misses: " << run.cache_hits << " / " << run.cache_misses << "\n";
