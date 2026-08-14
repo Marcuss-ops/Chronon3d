@@ -908,6 +908,67 @@ TEST_CASE("command plan executor dispatches passes through the canonical backend
     CHECK(result[center + 3] > 0.0f);
 }
 
+TEST_CASE("Vulkan backend exports gpu_submissions and passes_executed telemetry counters") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    const SurfaceDesc surface_desc{4, 4, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const auto input = registry.create(surface_desc);
+    const auto scratch = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(input != kInvalidRenderSurfaceHandle);
+    REQUIRE(scratch != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {input, scratch, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    std::vector<float> source(4 * 4 * 4, 0.0f);
+    source[(static_cast<std::size_t>(1) * 4 + 1) * 4 + 0] = 0.5f;
+    source[(static_cast<std::size_t>(1) * 4 + 1) * 4 + 3] = 1.0f;
+    REQUIRE(backend.upload_surface(input, surface_desc, source).ok());
+
+    const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     4 * 4 * 4 * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(input, resource_desc);
+    planner.declare_surface(scratch, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{scratch, input, 0, 0, 1.0f});
+    planner.blur(BlurPass{output, scratch, 1.5f, 1});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 2);
+
+    const auto before = backend.stats();
+    REQUIRE(execute_command_plan(backend, registry, plan));
+    const auto after = backend.stats();
+    // One vkQueueSubmit for the 2-pass plan, and exactly two executed passes
+    // (independent of how many submits the passes coalesced into).
+    CHECK(after.submissions == before.submissions + 1);
+    CHECK(after.passes_executed == before.passes_executed + 2);
+
+    // The export mirrors the live counters as name/value pairs that the
+    // telemetry render_counters table consumes.
+    std::vector<std::pair<std::string, std::uint64_t>> exported;
+    backend.export_gpu_telemetry_counters(exported);
+    bool found_submissions = false;
+    bool found_passes = false;
+    for (const auto& [name, value] : exported) {
+        if (name == "gpu_submissions") {
+            CHECK(value == after.submissions);
+            found_submissions = true;
+        } else if (name == "passes_executed") {
+            CHECK(value == after.passes_executed);
+            found_passes = true;
+        }
+    }
+    CHECK(found_submissions);
+    CHECK(found_passes);
+}
+
 TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one submission") {
     using namespace chronon3d::runtime;
     chronon3d::backends::vulkan::VulkanBackend backend;

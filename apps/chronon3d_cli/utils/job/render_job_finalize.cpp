@@ -242,6 +242,14 @@ bool finalize_render_job(
     counters_list.push_back({"framebuffer_pool_pressure_count", pool_stats.pressure_count});
     counters_list.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
 
+    // GPU backend counters (vkQueueSubmit count + executed command-plan
+    // passes).  Software backends contribute nothing; a GPU backend feeds
+    // gpu_submissions / passes_executed into the render_counters table.
+    if (setup.renderer->runtime().backend_attached()) {
+        cli::telemetry::capture_backend_gpu_counters(
+            setup.renderer->runtime().backend(), counters_list, run);
+    }
+
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {
         {"setup_renderer", profiling::duration_ms(setup.setup_t0, setup.setup_t1)}
     };
