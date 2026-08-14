@@ -228,6 +228,49 @@ void record_pipe_telemetry(
         phases.push_back({"ffmpeg_encode_total_ms", close_result.write_blocked_ms});
     }
 
+    // ── Canonical per-phase breakdown (GPU overlay factory view) ────────────
+    // scene_eval / gpu_render split the render loop so pixel work is never
+    // masked by easing/layout/scheduling.  gpu_readback / encode / disk_io
+    // split the writer side so codec and I/O never mask GPU readback.
+    const uint64_t node_execute_ms = session.renderer->counters()
+        ? session.renderer->counters()->node_execute_actual_ms.load(std::memory_order_relaxed)
+        : 0ULL;
+
+    chronon3d::telemetry::RenderPhaseTimings phase_timings;
+    phase_timings.gpu_render_ms = static_cast<double>(node_execute_ms);
+    phase_timings.scene_eval_ms = std::max(
+        0.0, loop_result.render_graph_eval_ms - phase_timings.gpu_render_ms);
+
+    double readback_sum = 0.0;
+    double codec_sum = 0.0;
+    double pipe_sum = 0.0;
+    for (const auto& f : session.frame_encoder_telemetry) {
+        if (is_native) {
+            readback_sum += f.native_convert_ms;
+            codec_sum += f.native_send_ms + f.native_receive_ms;
+            pipe_sum += f.native_mux_ms;
+        } else {
+            readback_sum += f.conversion_copy_ms;
+            codec_sum += f.encoder_ms;
+            pipe_sum += f.pipe_write_ms;
+        }
+    }
+    // Fall back to the already-aggregated totals when the per-frame breakdown
+    // is empty (zero-frame / error paths).
+    if (session.frame_encoder_telemetry.empty()) {
+        readback_sum = conv_copy_ms;
+        codec_sum = writer_encode_ms;
+        pipe_sum = is_native ? 0.0 : close_result.write_blocked_ms;
+    }
+    phase_timings.gpu_readback_ms = readback_sum;
+    phase_timings.encode_ms = codec_sum;
+    // encode_ms is the close+flush tail (render_end → wall end): the final
+    // bytes-to-disk portion that the per-frame pipe/mux breakdown excludes.
+    phase_timings.disk_io_ms = pipe_sum + encode_ms;
+
+    const auto canonical_phases = phase_timings.to_phase_records();
+    phases.insert(phases.end(), canonical_phases.begin(), canonical_phases.end());
+
     // ── Counters ───────────────────────────────────────────────────────────
     if (session.renderer->counters()) {
         session.sys_metrics.fill_system_counters(*session.renderer->counters());
