@@ -104,13 +104,17 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
         "daemon", "Start a warm render shell with persistent caches");
     auto assets_root = std::make_shared<std::string>();
     auto build_command = std::make_shared<std::string>("bash build-fast.sh cli");
+    auto socket_path = std::make_shared<std::string>();
     command->add_option("-a,--assets-root", *assets_root,
                         "Asset root directory (fonts, images)");
     command->add_option("-b,--build-cmd", *build_command,
                         "Build command used by the manual reload action");
-    command->callback([assets_root, build_command, &ctx]() {
+    command->add_option("-s,--socket", *socket_path,
+                        "Serve the RenderingGen→Chronon IPC protocol on this "
+                        "UNIX-domain socket path instead of stdin");
+    command->callback([assets_root, build_command, socket_path, &ctx]() {
         ctx.exit_code = command_daemon(
-            ctx.registry, *assets_root, *build_command);
+            ctx.registry, *assets_root, *build_command, *socket_path);
     });
 }
 

@@ -1,12 +1,14 @@
 #pragma once
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include "chronon_ipc.hpp"
 #include <string>
 #include <memory>
 #include <vector>
 
 namespace chronon3d {
     class RenderEngine;
+    class PreparedRenderJob;
     class Config;
 }
 
@@ -44,6 +46,15 @@ struct DaemonOptions {
  *                                 manual restart; see NOTE above)
  *   help   / h                    Show help
  *   quit   / q                    Shutdown
+ *
+ * Or, via a UNIX-domain socket (RenderingGen → Chronon), keeps the same warm
+ * engine alive across hundreds of jobs using a length-prefixed binary
+ * protocol (see chronon_ipc.hpp):
+ *   PREFETCH_ASSET <path>         Warm the asset cache
+ *   PREPARE_PLAN   <comp-id>      Compile + plan once (PreparedRenderJob)
+ *   RENDER_OVERLAY <frame> [out]  Render a frame from the prepared plan
+ *   STATUS                        Engine statistics
+ *   SHUTDOWN                      Stop serving
  */
 class DaemonService {
 public:
@@ -53,6 +64,10 @@ public:
     /// Blocking main loop — reads commands from stdin until 'quit'.
     void run();
 
+    /// Blocking main loop over a UNIX-domain socket at `path`.  Serves the
+    /// IPC protocol until a client sends SHUTDOWN (or a transport error).
+    void run_socket(const std::string& path);
+
 private:
     void handle_command(const std::string& line);
     void cmd_render(const std::vector<std::string>& args);
@@ -61,9 +76,18 @@ private:
     void cmd_status();
     void cmd_help();
 
+    // ── UNIX-socket IPC dispatch (RenderingGen → Chronon) ───────────────
+    ipc::Reply handle_ipc(const ipc::Request& req);
+    ipc::Reply ipc_prefetch_asset(const std::string& path);
+    ipc::Reply ipc_prepare_plan(const std::string& comp_id);
+    ipc::Reply ipc_render_overlay(const std::string& args);
+    ipc::Reply ipc_status();
+
     const CompositionRegistry& m_registry;
     DaemonOptions m_options;
     std::unique_ptr<RenderEngine> m_engine;
+    std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
+    std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
     bool m_running{true};
     int m_render_count{0};
     double m_total_render_ms{0.0};

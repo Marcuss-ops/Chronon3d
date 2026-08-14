@@ -7,14 +7,19 @@ namespace chronon3d::cli {
 
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root,
-                   const std::string& build_command) {
+                   const std::string& build_command,
+                   const std::string& socket_path) {
     DaemonOptions options;
     options.assets_root = assets_root;
     options.build_command = build_command;
     options.watch_dirs = {"src", "include", "apps", "content"};
 
     DaemonService daemon(registry, std::move(options));
-    daemon.run();
+    if (!socket_path.empty()) {
+        daemon.run_socket(socket_path);
+    } else {
+        daemon.run();
+    }
 
     return 0;
 }
