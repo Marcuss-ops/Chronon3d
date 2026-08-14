@@ -1,0 +1,47 @@
+#version 450
+
+// GPU text-run kernel: composites a batch of glyph quads sampled from a
+// packed glyph atlas into the destination canvas.  One dispatch covers the
+// whole destination image; each destination pixel accumulates the glyph
+// instances whose quad contains it.  Atlas pixels are premultiplied RGBA,
+// so the blend is plain premultiplied source-over.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0, rgba32f) uniform image2D dst_image;
+layout(binding = 1, rgba32f) uniform readonly image2D atlas_image;
+
+// Byte layout must match chronon3d::runtime::GlyphInstance (32 bytes).
+struct GlyphInstance {
+    ivec2 dst_origin;
+    ivec2 atlas_origin;
+    ivec2 glyph_size;
+    float opacity;
+    float pad;
+};
+
+layout(binding = 3, std430) buffer GlyphInstances {
+    GlyphInstance glyphs[];
+};
+
+layout(push_constant) uniform TextRunParams {
+    int glyph_count;
+} params;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(dst_image);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec4 accum = imageLoad(dst_image, pixel);
+    for (int i = 0; i < params.glyph_count; ++i) {
+        GlyphInstance glyph = glyphs[i];
+        ivec2 local = pixel - glyph.dst_origin;
+        if (local.x >= 0 && local.y >= 0 &&
+            local.x < glyph.glyph_size.x && local.y < glyph.glyph_size.y) {
+            vec4 src = imageLoad(atlas_image, glyph.atlas_origin + local) * glyph.opacity;
+            accum = src + accum * (1.0 - src.a);
+        }
+    }
+    imageStore(dst_image, pixel, accum);
+}

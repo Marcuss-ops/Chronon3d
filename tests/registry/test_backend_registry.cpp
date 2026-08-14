@@ -123,7 +123,7 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     const auto device_stats = vulkan->stats();
     CHECK(device_stats.discrete_gpu);
     CHECK(device_stats.device_name.find("RTX A4000") != std::string::npos);
-    CHECK(vulkan->kernel_registry().size() == 6);
+    CHECK(vulkan->kernel_registry().size() == 7);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::Composite));
     CHECK(vulkan->kernel_registry().contains(
@@ -136,6 +136,8 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
         chronon3d::backends::vulkan::GpuKernelId::ColorAdjust));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::Matte));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::TextRun));
 }
 
 TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
@@ -172,6 +174,56 @@ TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
     const float luma = 0.4f * 0.2126f + 0.1f * 0.7152f + 0.05f * 0.0722f;
     CHECK(output[4] == doctest::Approx(0.4f * luma).epsilon(1e-5));
     CHECK(output[7] == doctest::Approx(0.5f * luma).epsilon(1e-5));
+}
+
+TEST_CASE("Vulkan text-run kernel samples a packed glyph atlas into the canvas") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+
+    // 2x1 packed glyph atlas holding two 1x1 glyph quads (premultiplied):
+    //   atlas (0,0) = solid red, atlas (1,0) = solid green.
+    const runtime::SurfaceDesc atlas_desc{
+        2, 1, runtime::PixelFormat::Rgba32Float, runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent, 0};
+    const runtime::SurfaceDesc canvas_desc{
+        4, 2, runtime::PixelFormat::Rgba32Float, runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> atlas{
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f};
+    std::vector<float> empty_canvas(4 * 2 * 4, 0.0f);
+
+    REQUIRE(backend.create_surface(601, canvas_desc).ok());
+    REQUIRE(backend.create_surface(602, atlas_desc).ok());
+    REQUIRE(backend.upload_surface(602, atlas_desc, atlas).ok());
+    REQUIRE(backend.upload_surface(601, canvas_desc, empty_canvas).ok());
+
+    // Red glyph at canvas (1,0) full opacity; green glyph at (3,1) half opacity.
+    const std::vector<runtime::GlyphInstance> glyphs{
+        runtime::GlyphInstance{1, 0, 0, 0, 1, 1, 1.0f, 0.0f},
+        runtime::GlyphInstance{3, 1, 1, 0, 1, 1, 0.5f, 0.0f}};
+    REQUIRE(backend.draw_text_run_surface(601, 602, glyphs).ok());
+
+    std::vector<float> output(4 * 2 * 4, 0.0f);
+    REQUIRE(backend.download_surface(601, output).ok());
+    const auto pixel = [&](int x, int y) -> const float* {
+        return &output[static_cast<std::size_t>(y * 4 + x) * 4];
+    };
+
+    // Glyph A (red, full opacity) landed at (1,0).
+    CHECK(pixel(1, 0)[0] == doctest::Approx(1.0f));
+    CHECK(pixel(1, 0)[1] == doctest::Approx(0.0f));
+    CHECK(pixel(1, 0)[3] == doctest::Approx(1.0f));
+    // Glyph B (green, half opacity) landed at (3,1) premultiplied.
+    CHECK(pixel(3, 1)[0] == doctest::Approx(0.0f));
+    CHECK(pixel(3, 1)[1] == doctest::Approx(0.5f));
+    CHECK(pixel(3, 1)[3] == doctest::Approx(0.5f));
+    // No bleed outside the glyph quads.
+    CHECK(pixel(0, 0)[3] == doctest::Approx(0.0f));
+    CHECK(pixel(2, 0)[3] == doctest::Approx(0.0f));
+    CHECK(pixel(3, 0)[3] == doctest::Approx(0.0f));
+    CHECK(pixel(0, 1)[3] == doctest::Approx(0.0f));
+    CHECK(pixel(2, 1)[3] == doctest::Approx(0.0f));
 }
 
 TEST_CASE("TrackMatteNode dispatches aligned full-frame matte to Vulkan") {
