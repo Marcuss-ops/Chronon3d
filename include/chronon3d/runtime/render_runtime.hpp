@@ -6,6 +6,7 @@
 #include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
@@ -275,6 +276,8 @@ public:
     [[nodiscard]] const RenderSurfaceRegistry&             surface_registry() const noexcept { return m_surface_registry; }
     [[nodiscard]] GpuAssetCache&                           gpu_asset_cache() noexcept { return m_gpu_asset_cache; }
     [[nodiscard]] const GpuAssetCache&                     gpu_asset_cache() const noexcept { return m_gpu_asset_cache; }
+    [[nodiscard]] GpuGlyphAtlas&                           gpu_glyph_atlas() noexcept { return m_gpu_glyph_atlas; }
+    [[nodiscard]] const GpuGlyphAtlas&                     gpu_glyph_atlas() const noexcept { return m_gpu_glyph_atlas; }
 
     // WP-3 PR 3.1 — `scene_hasher()` + `program_store()` accessors were
     // REMOVED here.  Both state engines are now per-session owned; reach
@@ -362,6 +365,7 @@ private:
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     GpuAssetCache                                      m_gpu_asset_cache{};
+    GpuGlyphAtlas                                      m_gpu_glyph_atlas{};
     /// WP-9 PR 9.0 / R1 — runtime owns the per-runtime FontEngine.
     std::unique_ptr<chronon3d::FontEngine>            m_font_engine_owned;
     bool                                              m_populated{false};

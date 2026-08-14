@@ -15,6 +15,7 @@
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/command_plan_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
@@ -1100,6 +1101,58 @@ TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
     CHECK(cache.stats().evictions == 1);
     CHECK(cache.stats().resident_bytes == 64);
     CHECK(registry.lookup(uploaded.handle) == nullptr);
+}
+
+TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metrics") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    chronon3d::runtime::RenderSurfaceRegistry registry;
+    chronon3d::runtime::GpuGlyphAtlas atlas;
+    atlas.attach(registry, backend);
+    // Two 4x4 float glyphs (64 bytes each) fit exactly; a third would evict.
+    atlas.set_budget_bytes(4 * 4 * 4 * sizeof(float) * 2);
+
+    const std::vector<float> glyph_pixels(4 * 4 * 4, 0.5f);
+    const chronon3d::runtime::GpuGlyphKey glyph_a{"font.ttf", 65, 32};
+    const chronon3d::runtime::GpuGlyphMetrics metrics_a{-1, -2, 8.0f};
+
+    const auto first = atlas.acquire(glyph_a, 4, 4, glyph_pixels, metrics_a);
+    REQUIRE(first.ok());
+    CHECK_FALSE(first.cache_hit);
+    CHECK(first.metrics.x_offset == -1);
+    CHECK(first.metrics.y_offset == -2);
+    CHECK(first.metrics.advance_x == 8.0f);
+
+    // Same glyph again: device-resident hit, same surface, same metrics.
+    const auto second = atlas.acquire(glyph_a, 4, 4, glyph_pixels, metrics_a);
+    REQUIRE(second.ok());
+    CHECK(second.cache_hit);
+    CHECK(second.handle == first.handle);
+    CHECK(second.metrics.advance_x == 8.0f);
+
+    // Metrics are queryable without touching the device.
+    const auto stored = atlas.metrics(glyph_a);
+    REQUIRE(stored.has_value());
+    CHECK(stored->advance_x == 8.0f);
+
+    // A different glyph is a miss with its own surface and metrics.
+    const chronon3d::runtime::GpuGlyphKey glyph_b{"font.ttf", 66, 32};
+    const auto third = atlas.acquire(glyph_b, 4, 4, glyph_pixels,
+                                     chronon3d::runtime::GpuGlyphMetrics{0, 0, 9.0f});
+    REQUIRE(third.ok());
+    CHECK_FALSE(third.cache_hit);
+    CHECK(third.handle != first.handle);
+    CHECK(atlas.stats().hits == 1);
+    CHECK(atlas.stats().misses == 2);
+    CHECK(atlas.stats().entries == 2);
+
+    // Both glyph surfaces remain device-resident within budget.
+    CHECK(registry.lookup(first.handle) != nullptr);
+    CHECK(registry.lookup(third.handle) != nullptr);
+
+    atlas.clear();
+    CHECK(atlas.stats().entries == 0);
+    CHECK_FALSE(atlas.metrics(glyph_a).has_value());
+    CHECK(registry.lookup(first.handle) == nullptr);
 }
 #endif
 
