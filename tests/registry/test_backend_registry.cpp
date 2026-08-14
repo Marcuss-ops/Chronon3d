@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -847,6 +848,82 @@ TEST_CASE("command plan executor dispatches passes through the canonical backend
     REQUIRE(backend.download_surface(output, result).ok());
     CHECK(result[center + 0] > 0.0f);
     CHECK(result[center + 3] > 0.0f);
+}
+
+TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one submission") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    const SurfaceDesc surface_desc{4, 4, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const auto background = registry.create(surface_desc);
+    const auto text = registry.create(surface_desc);
+    const auto transformed = registry.create(surface_desc);
+    const auto blurred = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(background != kInvalidRenderSurfaceHandle);
+    REQUIRE(text != kInvalidRenderSurfaceHandle);
+    REQUIRE(transformed != kInvalidRenderSurfaceHandle);
+    REQUIRE(blurred != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {background, text, transformed, blurred, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    std::vector<float> bg(4 * 4 * 4, 0.0f);
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+    bg[center + 0] = 0.8f;
+    bg[center + 3] = 1.0f;
+    std::vector<float> txt(4 * 4 * 4, 0.0f);
+    const auto corner = 0u;
+    txt[corner + 0] = 0.9f;
+    txt[corner + 3] = 1.0f;
+    REQUIRE(backend.upload_surface(background, surface_desc, bg).ok());
+    REQUIRE(backend.upload_surface(text, surface_desc, txt).ok());
+
+    const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     4 * 4 * 4 * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(background, resource_desc);
+    planner.declare_surface(text, resource_desc);
+    planner.declare_surface(transformed, resource_desc);
+    planner.declare_surface(blurred, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{transformed, background, 0, 0, 1.0f});
+    planner.blur(BlurPass{blurred, transformed, 1.5f, 1});
+    planner.composite(CompositePass{blurred, text, 0});
+    planner.color_adjust(ColorAdjustPass{output, blurred, 0.0f, 1.0f, 0.0f,
+                                         {1.0f, 1.0f, 1.0f, 1.0f}});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 4);
+    // One barrier transition per pass boundary (≥4 for the 4-pass chain).
+    CHECK(plan.barriers.size() >= 4);
+
+    // Aliasing proof: the 5 logical surfaces never overlap in pairs whose
+    // lifetimes are disjoint, so the planner must back them with fewer
+    // physical slots than logical surfaces.
+    std::unordered_set<std::size_t> physical_slots;
+    for (const auto& allocation : plan.resources.allocations) {
+        if (allocation.physical_slot != std::numeric_limits<std::size_t>::max()) {
+            physical_slots.insert(allocation.physical_slot);
+        }
+    }
+    CHECK(physical_slots.size() < 5);
+
+    const auto submissions_before = backend.stats().submissions;
+    REQUIRE(execute_command_plan(backend, registry, plan));
+    // The whole 4-pass scene coalesces into exactly one queue submission.
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    std::vector<float> result(4 * 4 * 4, 0.0f);
+    REQUIRE(backend.download_surface(output, result).ok());
+    // Background center survived transform→blur→color adjust; the text
+    // corner survived the composite.
+    CHECK(result[center + 0] > 0.0f);
+    CHECK(result[center + 3] > 0.0f);
+    CHECK(result[corner + 0] > 0.0f);
 }
 
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
