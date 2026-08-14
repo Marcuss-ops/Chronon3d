@@ -36,7 +36,8 @@ struct PixelTolerance {
 struct PixelCompareResult {
     bool matched{true};
     std::size_t mismatched_pixels{0};
-    float max_delta{0.0f};
+    float max_delta{0.0f};   // largest |reference - result| across all channels
+    float mean_delta{0.0f};  // mean |reference - result| across all channels
 };
 
 /// True when one RGBA channel value is within tolerance of the reference.
@@ -60,13 +61,18 @@ struct PixelCompareResult {
         report.mismatched_pixels = std::numeric_limits<std::size_t>::max();
         return report;
     }
+    double delta_sum = 0.0;
+    std::size_t channel_count = 0;
     for (std::size_t pixel = 0; pixel < reference.size() / 4; ++pixel) {
         const std::size_t base = pixel * 4;
         bool pixel_mismatch = false;
         for (std::size_t channel = 0; channel < 4; ++channel) {
             const float ref = reference[base + channel];
             const float res = result[base + channel];
-            report.max_delta = std::max(report.max_delta, std::abs(ref - res));
+            const float delta = std::abs(ref - res);
+            report.max_delta = std::max(report.max_delta, delta);
+            delta_sum += delta;
+            ++channel_count;
             if (!channel_within_tolerance(ref, res, tolerance)) {
                 pixel_mismatch = true;
             }
@@ -76,6 +82,9 @@ struct PixelCompareResult {
             ++report.mismatched_pixels;
         }
     }
+    report.mean_delta = channel_count > 0
+        ? static_cast<float>(delta_sum / static_cast<double>(channel_count))
+        : 0.0f;
     return report;
 }
 
