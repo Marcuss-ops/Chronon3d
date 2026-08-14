@@ -149,6 +149,15 @@ public:
     virtual RenderCounters* counters() { return nullptr; }
     virtual std::shared_ptr<cache::FramebufferPool> framebuffer_pool() { return nullptr; }
 
+    /// Frame-batching lifecycle.  Backends that record many passes into a
+    /// single submission override these; the default is a no-op so
+    /// single-pass/software backends are unaffected.  The frame orchestrator
+    /// calls begin_frame_batch() before graph execution and end_frame_batch()
+    /// once all passes are recorded, so a batching backend performs exactly
+    /// one submit per frame instead of one operation-per-submit.
+    virtual void begin_frame_batch() {}
+    virtual void end_frame_batch() {}
+
     /// Per-pixel depth-of-field blur.  Backends must implement.
     virtual void apply_per_pixel_dof(
         Framebuffer& framebuffer,
