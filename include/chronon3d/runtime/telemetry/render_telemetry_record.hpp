@@ -164,6 +164,13 @@ struct RenderTelemetryRecord {
     double phase_encode_ms{0.0};       // codec encode of the readback frames
     double phase_disk_io_ms{0.0};      // pipe/mux + flush/close writes to disk
 
+    // ── GPU overlay-factory counters (queried from render_counters) ──
+    // Fed by the GPU backend when it records telemetry; 0 on software runs.
+    // `gpu_submissions` is the vkQueueSubmit count (1 per command batch);
+    // `passes_executed` is the number of GPU command-plan passes executed.
+    uint64_t gpu_submissions{0};
+    uint64_t passes_executed{0};
+
     // ── Cache efficiency derived metrics ──
     double cache_hit_rate{0.0};
     double dirty_area_ratio{0.0};

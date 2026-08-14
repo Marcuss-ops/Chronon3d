@@ -129,6 +129,7 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.framebuffer_lifetime_ms = get_i64("framebuffer_lifetime_ms");
         run.node_schedule_ms = get_i64("node_schedule_ms");
         run.node_dispatch_ms = get_i64("node_dispatch_ms");
+        run.node_execute_actual_ms = get_i64("node_execute_actual_ms");
         run.telemetry_emit_ms = get_i64("telemetry_emit_ms");
 
         run.chronon_render_only_ms = get_double("chronon_render_only_ms");
@@ -147,6 +148,8 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.os = get_str("os");
         run.cpu_model = get_str("cpu_model");
         run.cores = static_cast<int>(get_i64("cores"));
+        run.logical_resource_count = get_i64("logical_resource_count");
+        run.physical_resource_slot_count = get_i64("physical_resource_slot_count");
     }
     sqlite3_finalize(stmt);
 
@@ -169,6 +172,8 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
             else if (name == "ffmpeg_cpu_sys_pct") run.ffmpeg_cpu_sys_pct = val;
             else if (name == "llc_references") run.llc_references = val;
             else if (name == "llc_misses") run.llc_misses = val;
+            else if (name == "gpu_submissions") run.gpu_submissions = val;
+            else if (name == "passes_executed") run.passes_executed = val;
         }
         sqlite3_finalize(counter_stmt);
     }
