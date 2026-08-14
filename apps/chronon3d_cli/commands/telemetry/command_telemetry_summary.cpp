@@ -173,6 +173,27 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         sqlite3_finalize(counter_stmt);
     }
 
+    // Query the five canonical per-phase timings from render_phase_events and
+    // surface them on the summary so they print alongside the Chronon/FFmpeg
+    // breakdowns.  The names are the canonical RenderPhaseTimings keys; SUM
+    // groups defensively in case a future path emits per-frame samples.
+    sqlite3_stmt* phase_stmt = nullptr;
+    const char* phase_sql =
+        "SELECT phase_name, SUM(duration_ms) FROM render_phase_events "
+        "WHERE run_id = ? GROUP BY phase_name;";
+    if (prepare_with_run_id(db, &phase_stmt, phase_sql, run_id)) {
+        while (sqlite3_step(phase_stmt) == SQLITE_ROW) {
+            const std::string name = sql_text(phase_stmt, 0);
+            const double value = sql_double(phase_stmt, 1);
+            if (name == "scene_eval_ms") run.phase_scene_eval_ms = value;
+            else if (name == "gpu_render_ms") run.phase_gpu_render_ms = value;
+            else if (name == "gpu_readback_ms") run.phase_gpu_readback_ms = value;
+            else if (name == "encode_ms") run.phase_encode_ms = value;
+            else if (name == "disk_io_ms") run.phase_disk_io_ms = value;
+        }
+        sqlite3_finalize(phase_stmt);
+    }
+
     return run;
 }
 #endif // CHRONON3D_ENABLE_SQLITE_TELEMETRY

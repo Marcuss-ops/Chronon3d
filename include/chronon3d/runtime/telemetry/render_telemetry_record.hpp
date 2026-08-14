@@ -155,6 +155,15 @@ struct RenderTelemetryRecord {
     double ffmpeg_flush_close_ms{0.0};    // FFmpeg flush + mux + file close after render loop
     double e2e_wall_ms{0.0};              // total wall time (setup + render + encode + close)
 
+    // ── Canonical per-phase render pipeline breakdown ──
+    // Five non-overlapping phases (mirrors RenderPhaseTimings) surfaced in the
+    // telemetry summary so render speed is never conflated with encode/IO.
+    double phase_scene_eval_ms{0.0};   // graph/scene eval, easing, layout, scheduling
+    double phase_gpu_render_ms{0.0};   // node pixel execution (transform/composite/blur)
+    double phase_gpu_readback_ms{0.0}; // framebuffer → encoder conversion/copy
+    double phase_encode_ms{0.0};       // codec encode of the readback frames
+    double phase_disk_io_ms{0.0};      // pipe/mux + flush/close writes to disk
+
     // ── Cache efficiency derived metrics ──
     double cache_hit_rate{0.0};
     double dirty_area_ratio{0.0};
