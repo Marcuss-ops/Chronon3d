@@ -89,12 +89,15 @@ namespace chronon3d::renderer {
             if (t >= a.offset && t <= b.offset) {
                 const f32 range = b.offset - a.offset;
                 const f32 local_t = (range < 1e-6f) ? 0.0f : (t - a.offset) / range;
-                // Gradient stops are authoring-space (sRGB) colors.  Match
-                // the established GradientDefinition contract by blending
-                // those stops first, then converting the sampled color into
-                // the renderer's linear working space.
-                const Color c_srgb = a.color + (b.color - a.color) * local_t;
-                c = c_srgb.to_linear();
+                // Authoring stops are sRGB values, but gradients are sampled
+                // in the renderer's linear working space.  Interpolating in
+                // sRGB would make a 50% red/blue stop roughly 21% linear and
+                // violate the canonical GradientDefinition contract (see
+                // sample_color_stops in graphics/gradient.hpp).  Match it by
+                // converting both stops to linear first, then interpolating.
+                const Color c_a = a.color.to_linear();
+                const Color c_b = b.color.to_linear();
+                c = c_a + (c_b - c_a) * local_t;
                 break;
             }
         }

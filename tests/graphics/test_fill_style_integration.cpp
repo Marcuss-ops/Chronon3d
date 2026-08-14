@@ -55,7 +55,7 @@ TEST_CASE("FillStyle linear gradient renders left red right blue") {
     Composition comp(CompositionSpec{.name = "GradRect", .width = W, .height = H, .duration = 1},
         [&](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill});
+            s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill});
             return s.build();
         });
 
@@ -103,7 +103,7 @@ TEST_CASE("KeyframeTrack<FillStyle> animates gradient red-blue to green-yellow")
         Composition comp(CompositionSpec{.name = "AF0", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill_track.sample_at(0.0f)});
+                s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill_track.sample_at(0.0f)});
                 return s.build();
             });
         auto fb = render_frame(comp, Frame{0});
@@ -117,7 +117,7 @@ TEST_CASE("KeyframeTrack<FillStyle> animates gradient red-blue to green-yellow")
         Composition comp(CompositionSpec{.name = "AF60", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill_track.sample_at(60.0f)});
+                s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill_track.sample_at(60.0f)});
                 return s.build();
             });
         auto fb = render_frame(comp, Frame{60});
@@ -134,7 +134,7 @@ TEST_CASE("KeyframeTrack<FillStyle> animates gradient red-blue to green-yellow")
         Composition comp(CompositionSpec{.name = "AF30", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill_track.sample_at(30.0f)});
+                s.rect("grad", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill_track.sample_at(30.0f)});
                 return s.build();
             });
         auto fb = render_frame(comp, Frame{30});
@@ -174,7 +174,7 @@ TEST_CASE("KeyframeTrack<FillStyle> morphs solid white to red-blue gradient") {
         Composition comp(CompositionSpec{.name = "SM0", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill_track.sample_at(0.0f)});
+                s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill_track.sample_at(0.0f)});
                 return s.build();
             });
         auto fb = render_frame(comp, Frame{0});
@@ -190,7 +190,7 @@ TEST_CASE("KeyframeTrack<FillStyle> morphs solid white to red-blue gradient") {
         Composition comp(CompositionSpec{.name = "SM60", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill_track.sample_at(60.0f)});
+                s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill_track.sample_at(60.0f)});
                 return s.build();
             });
         auto fb = render_frame(comp, Frame{60});
@@ -204,7 +204,7 @@ TEST_CASE("KeyframeTrack<FillStyle> morphs solid white to red-blue gradient") {
         Composition comp(CompositionSpec{.name = "SM30", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill_track.sample_at(30.0f)});
+                s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill_track.sample_at(30.0f)});
                 return s.build();
             });
         auto fb = render_frame(comp, Frame{30});
@@ -233,7 +233,7 @@ TEST_CASE("Radial gradient fills centre white, edge blue") {
     Composition comp(CompositionSpec{.name = "RadialGrad", .width = W, .height = H, .duration = 1},
         [&](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill});
+            s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill});
             return s.build();
         });
 
@@ -280,7 +280,7 @@ TEST_CASE("StrokeStyle linear gradient renders right stroke gradient") {
             // Use opaque color so the rasterizer doesn't early-return.
             // The rect is SMALLER than the framebuffer so the outer
             // half of the Center-aligned stroke falls inside the FB.
-            s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+            s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                 .stroke = stroke});
             return s.build();
         });
@@ -333,7 +333,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
         Composition comp(CompositionSpec{.name = "SA0", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                     .stroke = stroke_track.sample_at(0.0f)});
                 return s.build();
             });
@@ -348,7 +348,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
         Composition comp(CompositionSpec{.name = "SA60", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                     .stroke = stroke_track.sample_at(60.0f)});
                 return s.build();
             });
@@ -363,7 +363,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> animates gradient red-blue to green-yellow
         Composition comp(CompositionSpec{.name = "SA30", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                     .stroke = stroke_track.sample_at(30.0f)});
                 return s.build();
             });
@@ -403,7 +403,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue grad
         Composition comp(CompositionSpec{.name = "SS0", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                     .stroke = stroke_track.sample_at(0.0f)});
                 return s.build();
             });
@@ -420,7 +420,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue grad
         Composition comp(CompositionSpec{.name = "SS60", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                     .stroke = stroke_track.sample_at(60.0f)});
                 return s.build();
             });
@@ -434,7 +434,7 @@ TEST_CASE("KeyframeTrack<StrokeStyle> morphs solid white stroke to red-blue grad
         Composition comp(CompositionSpec{.name = "SS30", .width = W, .height = H, .duration = 1},
             [&](const FrameContext& ctx) {
                 SceneBuilder s(ctx);
-                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {0,0,0},
+                s.rect("shape", {.size = {RECT_W, RECT_W}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0},
                     .stroke = stroke_track.sample_at(30.0f)});
                 return s.build();
             });
@@ -462,7 +462,7 @@ TEST_CASE("Fill renders produce deterministic pixel output") {
     Composition comp(CompositionSpec{.name = "DetFill", .width = W, .height = H, .duration = 1},
         [&](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {0,0,0}, .fill = fill});
+            s.rect("shape", {.size = {W*1.0f, H*1.0f}, .color = Color::white(), .pos = {W * 0.5f, H * 0.5f, 0}, .fill = fill});
             return s.build();
         });
 
