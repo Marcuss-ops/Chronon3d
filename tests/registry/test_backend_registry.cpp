@@ -23,6 +23,7 @@
 #include <chronon3d/render_graph/executor/command_plan_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
+#include <tests/helpers/gpu_readiness_gate.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
@@ -1461,6 +1462,99 @@ TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pix
             << "ms speedup=" << parity.speedup << "x max_delta="
             << parity.comparison.max_delta << " mean_delta="
             << parity.comparison.mean_delta);
+}
+
+TEST_CASE("GPU readiness gate certifies the 7-point checklist") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+
+    // 1920x1080 matches the benchmark target; it is the scale where the GPU
+    // actually outruns the scalar CPU reference (unlike the tiny 64x64 probe).
+    constexpr std::uint32_t kWidth = 1920;
+    constexpr std::uint32_t kHeight = 1080;
+    constexpr std::size_t kPixels = kWidth * kHeight;
+    constexpr std::size_t kFloats = kPixels * 4;
+    const SurfaceDesc surface_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+
+    const auto overlay = registry.create(surface_desc);
+    const auto transformed = registry.create(surface_desc);
+    const auto blurred = registry.create(surface_desc);
+    const auto background = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(overlay != kInvalidRenderSurfaceHandle);
+    REQUIRE(transformed != kInvalidRenderSurfaceHandle);
+    REQUIRE(blurred != kInvalidRenderSurfaceHandle);
+    REQUIRE(background != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {overlay, transformed, blurred, background, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    // Inputs: one opaque premultiplied red overlay pixel at the centre over an
+    // opaque constant background.
+    std::vector<float> overlay_px(kFloats, 0.0f);
+    const std::size_t centre =
+        (static_cast<std::size_t>(kHeight / 2) * kWidth + kWidth / 2) * 4;
+    overlay_px[centre + 0] = 1.0f;
+    overlay_px[centre + 3] = 1.0f;
+    std::vector<float> background_px(kFloats, 0.0f);
+    for (std::size_t p = 0; p < kPixels; ++p) {
+        background_px[p * 4 + 0] = 0.2f;
+        background_px[p * 4 + 1] = 0.3f;
+        background_px[p * 4 + 2] = 0.4f;
+        background_px[p * 4 + 3] = 1.0f;
+    }
+    REQUIRE(backend.upload_surface(overlay, surface_desc, overlay_px).ok());
+    REQUIRE(backend.upload_surface(background, surface_desc, background_px).ok());
+
+    // Medium scene: transform → blur → composite → color adjust.
+    const ResourceDesc resource_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     kFloats * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(overlay, resource_desc);
+    planner.declare_surface(transformed, resource_desc);
+    planner.declare_surface(blurred, resource_desc);
+    planner.declare_surface(background, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{transformed, overlay, 1, 0, 1.0f});
+    planner.blur(BlurPass{blurred, transformed, 0.5f, 1});
+    planner.composite(CompositePass{background, blurred, 0});
+    planner.color_adjust(ColorAdjustPass{output, background, 0.1f, 1.2f, 0.25f,
+                                         {0.2f, 0.8f, 0.4f, 1.0f}});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 4);
+
+    const std::unordered_map<RenderSurfaceHandle, SurfaceDesc> surfaces{
+        {overlay, surface_desc}, {transformed, surface_desc}, {blurred, surface_desc},
+        {background, surface_desc}, {output, surface_desc}};
+    const std::unordered_map<RenderSurfaceHandle, std::vector<float>> inputs{
+        {overlay, overlay_px}, {background, background_px}};
+
+    const auto gate = chronon3d::test::certify_gpu_readiness(
+        backend, registry, plan, surfaces, inputs, output);
+
+    // All seven points must hold: this is the milestone gate that the first
+    // real Vulkan render pipeline is operational.
+    REQUIRE(gate.output_correct);
+    REQUIRE(gate.parity_ok);
+    REQUIRE(gate.one_submit_per_frame);
+    REQUIRE(gate.no_inter_pass_upload);
+    REQUIRE(gate.no_intermediate_readback);
+    REQUIRE(gate.physical_lt_logical);
+    REQUIRE(gate.gpu_faster);
+    CHECK(gate.passed() == chronon3d::test::GpuReadinessGate::kTotalPoints);
+
+    MESSAGE("readiness gate: " << gate.passed() << "/7 speedup=" << gate.speedup
+            << "x cpu=" << gate.cpu_ms << "ms gpu=" << gate.gpu_ms
+            << "ms plan_physical/logical=" << gate.physical_surfaces << "/"
+            << gate.logical_surfaces
+            << " backend_physical=" << backend.physical_surface_count()
+            << " max_delta=" << gate.pixels.max_delta
+            << " mean_delta=" << gate.pixels.mean_delta);
 }
 #endif
 
