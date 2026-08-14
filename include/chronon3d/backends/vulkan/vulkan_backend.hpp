@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/backends/vulkan/gpu_kernel_registry.hpp>
+#include <chronon3d/runtime/gpu_command_plan.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <vulkan/vulkan.h>
@@ -50,6 +51,15 @@ public:
     /// submit+wait semantics, preserving single-pass test compatibility.
     void begin_frame_batch() override;
     void end_frame_batch() override;
+
+    /// Plan-driven frame-batch entry point for the command-plan executor.
+    /// Like begin_frame_batch(), but while the batch is active every pass
+    /// synchronizes through the BarrierPlan (precise compute-stage
+    /// write→read / read→write / write→write barriers) instead of the
+    /// conservative per-pass fallback used by direct op calls.  The caller
+    /// must invoke the surface operations in plan.passes order; pass_count
+    /// doubles as the plan pass index.
+    void begin_plan_batch(const runtime::BarrierPlan& plan);
 
     void apply_per_pixel_dof(
         Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,
