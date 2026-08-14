@@ -280,4 +280,21 @@ private:
     std::unordered_map<RenderSurfaceHandle, SurfaceLiveness> m_liveness;
 };
 
+/// Propagate a ResourcePlan's physical-slot assignments onto the surface
+/// registry.  This is the bridge the backend consumes for memory aliasing:
+/// two transient surfaces whose lifetimes never overlap share a physical
+/// slot, and the backend can back them with the same device memory.  The
+/// registry owns identity only; backing storage remains the backend's
+/// responsibility.
+inline void bind_plan_slots(const ResourcePlan& plan,
+                            RenderSurfaceRegistry& registry) {
+    for (const auto& allocation : plan.allocations) {
+        if (allocation.surface == kInvalidRenderSurfaceHandle) continue;
+        if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) {
+            continue;
+        }
+        registry.bind_physical_slot(allocation.surface, allocation.physical_slot);
+    }
+}
+
 } // namespace chronon3d::runtime
