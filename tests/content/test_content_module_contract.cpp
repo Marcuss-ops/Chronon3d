@@ -117,3 +117,41 @@ TEST_CASE("All content modules: available list is sorted (std::map guarantee)") 
         CHECK(ids[i - 1] <= ids[i]);
     }
 }
+
+TEST_CASE("Content type accessors return the tagged content after registration") {
+    CompositionRegistry registry;
+    ensure_content_registered(registry);
+
+    // The four canonical content types resolve to their tagged compositions.
+    CHECK(registry.phrases().size() == 4);
+    CHECK(registry.important_words().size() == 12);
+    CHECK(registry.named_texts().size() == 7);
+
+    // Every descriptor surfaced by a typed accessor carries that type's tag.
+    for (const auto& descriptor : registry.phrases()) {
+        CHECK(descriptor.category == content_category::Phrase);
+    }
+    for (const auto& descriptor : registry.important_words()) {
+        CHECK(descriptor.category == content_category::ImportantWord);
+    }
+    for (const auto& descriptor : registry.named_texts()) {
+        CHECK(descriptor.category == content_category::NamedText);
+    }
+
+    // Known ids land in the correct accessor.
+    const auto contains_id = [](const std::vector<CompositionDescriptor>& descriptors,
+                                std::string_view id) {
+        return std::any_of(descriptors.begin(), descriptors.end(),
+                           [id](const CompositionDescriptor& d) { return d.id == id; });
+    };
+    CHECK(contains_id(registry.phrases(), "ImportantPhrasesStack"));
+    CHECK(contains_id(registry.important_words(), "ImportantWordFocus"));
+    CHECK(contains_id(registry.named_texts(), "SpecialNameFadeUp"));
+
+    // Image compositions are DEV-gated; otherwise the accessor is empty.
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    CHECK(registry.images().size() == 8);
+#else
+    CHECK(registry.images().empty());
+#endif
+}
