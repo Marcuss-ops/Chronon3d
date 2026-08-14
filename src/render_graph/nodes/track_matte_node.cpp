@@ -25,6 +25,8 @@
 #include <span>
 #include <vector>
 
+#include "native_surface.hpp"
+
 namespace chronon3d::graph {
 
 namespace {
@@ -48,30 +50,9 @@ bool try_native_matte(RenderGraphContext& ctx,
         return false;
     }
 
-    const runtime::SurfaceDesc desc{
-        static_cast<std::uint32_t>(target.width()),
-        static_cast<std::uint32_t>(target.height()),
-        runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient,
-        static_cast<std::size_t>(target.width()) * target.height() * sizeof(float) * 4};
-    auto pack = [](const Framebuffer& framebuffer) {
-        std::vector<float> pixels(static_cast<std::size_t>(framebuffer.width()) *
-                                  framebuffer.height() * 4);
-        std::size_t index = 0;
-        for (int y = 0; y < framebuffer.height(); ++y) {
-            for (int x = 0; x < framebuffer.width(); ++x) {
-                const auto pixel = framebuffer.get_pixel(x, y);
-                pixels[index++] = pixel.r;
-                pixels[index++] = pixel.g;
-                pixels[index++] = pixel.b;
-                pixels[index++] = pixel.a;
-            }
-        }
-        return pixels;
-    };
-    const auto target_pixels = pack(target);
-    const auto matte_pixels = pack(matte);
+    const auto desc = native_surface_desc(target.width(), target.height());
+    const auto target_pixels = pack_framebuffer_rgba(target);
+    const auto matte_pixels = pack_framebuffer_rgba(matte);
     const auto destination = ctx.services.surface_registry->create(desc);
     const auto target_surface = ctx.services.surface_registry->create(desc);
     const auto matte_surface = ctx.services.surface_registry->create(desc);

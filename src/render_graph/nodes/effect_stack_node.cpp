@@ -11,6 +11,8 @@
 #include <cmath>
 #include <vector>
 
+#include "native_surface.hpp"
+
 namespace chronon3d::graph {
 
 namespace {
@@ -42,24 +44,8 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         return false;
     }
 
-    const runtime::SurfaceDesc desc{
-        static_cast<std::uint32_t>(result.width()),
-        static_cast<std::uint32_t>(result.height()),
-        runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient,
-        static_cast<std::size_t>(result.width()) * result.height() * sizeof(float) * 4};
-    std::vector<float> rgba(static_cast<std::size_t>(result.width()) * result.height() * 4);
-    std::size_t index = 0;
-    for (int y = 0; y < result.height(); ++y) {
-        for (int x = 0; x < result.width(); ++x) {
-            const auto pixel = result.get_pixel(x, y);
-            rgba[index++] = pixel.r;
-            rgba[index++] = pixel.g;
-            rgba[index++] = pixel.b;
-            rgba[index++] = pixel.a;
-        }
-    }
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto rgba = pack_framebuffer_rgba(result);
     const auto output = ctx.services.surface_registry->create(desc);
     const auto horizontal = ctx.services.surface_registry->create(desc);
     const auto vertical = ctx.services.surface_registry->create(desc);
@@ -129,24 +115,8 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
         return false;
     }
 
-    const runtime::SurfaceDesc desc{
-        static_cast<std::uint32_t>(result.width()),
-        static_cast<std::uint32_t>(result.height()),
-        runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient,
-        static_cast<std::size_t>(result.width()) * result.height() * sizeof(float) * 4};
-    std::vector<float> rgba(static_cast<std::size_t>(result.width()) * result.height() * 4);
-    std::size_t index = 0;
-    for (int y = 0; y < result.height(); ++y) {
-        for (int x = 0; x < result.width(); ++x) {
-            const auto pixel = result.get_pixel(x, y);
-            rgba[index++] = pixel.r;
-            rgba[index++] = pixel.g;
-            rgba[index++] = pixel.b;
-            rgba[index++] = pixel.a;
-        }
-    }
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto rgba = pack_framebuffer_rgba(result);
     const auto source = ctx.services.surface_registry->create(desc);
     const auto destination = ctx.services.surface_registry->create(desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
@@ -204,24 +174,8 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         return false;
     }
 
-    const runtime::SurfaceDesc desc{
-        static_cast<std::uint32_t>(result.width()),
-        static_cast<std::uint32_t>(result.height()),
-        runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient,
-        static_cast<std::size_t>(result.width()) * result.height() * sizeof(float) * 4};
-    std::vector<float> rgba(static_cast<std::size_t>(result.width()) * result.height() * 4);
-    std::size_t index = 0;
-    for (int y = 0; y < result.height(); ++y) {
-        for (int x = 0; x < result.width(); ++x) {
-            const auto pixel = result.get_pixel(x, y);
-            rgba[index++] = pixel.r;
-            rgba[index++] = pixel.g;
-            rgba[index++] = pixel.b;
-            rgba[index++] = pixel.a;
-        }
-    }
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto rgba = pack_framebuffer_rgba(result);
     const auto source = ctx.services.surface_registry->create(desc);
     const auto horizontal = ctx.services.surface_registry->create(desc);
     const auto output = ctx.services.surface_registry->create(desc);
