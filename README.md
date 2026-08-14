@@ -29,6 +29,59 @@ comandi separati `still` e `video` sono stati rimossi.
 
 Build incrementali: [`docs/FAST_BUILD.md`](docs/FAST_BUILD.md).
 
+## Usare Chronon3D da un altro progetto C++
+
+Chronon3D espone un solo target CMake pubblico: `Chronon3D::SDK`.
+Dopo aver installato l'SDK in un prefix visibile a CMake:
+
+```cmake
+find_package(Chronon3D CONFIG REQUIRED)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE Chronon3D::SDK)
+```
+
+In alternativa, se Chronon3D è incluso come sorgente nel workspace, usare
+`add_subdirectory(...)` e linkare lo stesso target `Chronon3D::SDK`. Le
+dipendenze C++ di Chronon3D devono comunque essere risolte dal toolchain del
+progetto host.
+
+Per metadata semantici riutilizzabili tra pipeline e progetti è disponibile un
+registry instance-owned e deterministico:
+
+```cpp
+#include <chronon3d/registry/content_registry.hpp>
+
+chronon3d::registry::ContentRegistrySet content;
+
+content.phrases.add({
+    .id = "phrase.intro",
+    .text = "Welcome to Chronon",
+});
+
+content.important_words.add({
+    .id = "word.chronon",
+    .word = "Chronon",
+    .importance = 1.0F,
+});
+
+content.images.add({
+    .id = "image.logo",
+    .asset_path = "images/logo.png",
+    .caption = "Chronon logo",
+});
+
+content.named_texts.add({
+    .id = "person.host",
+    .name = "Host",
+    .text = "Main presenter",
+});
+```
+
+`ImageEntry::asset_path` resta un path/id logico: la risoluzione del filesystem
+rimane responsabilità dell'`AssetResolver` engine-local. Non viene introdotto
+nessun registry globale o singleton.
+
 ## Asset authoring
 
 Gli asset sono path logici. L’authoring non risolve il filesystem e non possiede
