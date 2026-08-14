@@ -149,6 +149,11 @@ struct VulkanBackend::Impl {
         std::array<FrameDescriptorAllocator, kSlotCount> descriptor_allocators{};
         std::vector<VkDescriptorSet> descriptor_sets;
         std::size_t pass_count{0};
+        // When set, the batch is plan-driven: ops synchronize through this
+        // BarrierPlan (via begin_plan_batch) instead of the conservative
+        // fallback.  pass_count doubles as the plan pass index: ops are
+        // called in plan order and each op advances it by one.
+        const runtime::BarrierPlan* sync_plan{nullptr};
     };
 
     VkPhysicalDevice physical_device;
@@ -185,6 +190,12 @@ struct VulkanBackend::Impl {
     Image dst{};
     Image src{};
     std::unordered_map<runtime::RenderSurfaceHandle, Image> surfaces;
+    // Last access kind per surface within the current frame's plan-driven
+    // batch, consumed by emit_plan_pass_barriers() to derive the precise
+    // write→read / read→write / write→write memory dependencies.  Cleared at
+    // begin_frame_batch(); conservative batches never touch it.
+    std::unordered_map<runtime::RenderSurfaceHandle, runtime::ResourceAccess>
+        m_surface_last_access{};
     FrameBatchState frame_batch{};
     VulkanBackendStats stats{};
 
@@ -575,22 +586,126 @@ struct VulkanBackend::Impl {
         return set;
     }
 
+    // ── synchronization helpers (single emission site) ───────────────────────
+    // Layout transitions and memory barriers for the pass pipeline are built
+    // ONLY here.  Kernels (record_*) never synchronize; the operation
+    // wrappers route through either the BarrierPlan mapper (plan-driven
+    // batches via begin_plan_batch) or the conservative fallback (standalone
+    // ops and direct op calls without a plan).
+
+    VkImageMemoryBarrier make_image_barrier(const Image& image,
+                                            VkImageLayout old_layout,
+                                            VkImageLayout new_layout,
+                                            VkAccessFlags src_access,
+                                            VkAccessFlags dst_access) const {
+        return VkImageMemoryBarrier{
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr,
+            src_access, dst_access, old_layout, new_layout,
+            VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+            image.image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+    }
+
+    void emit_barriers(VkCommandBuffer command, VkPipelineStageFlags src_stage,
+                       VkPipelineStageFlags dst_stage,
+                       const std::vector<VkImageMemoryBarrier>& barriers) {
+        if (barriers.empty()) return;
+        vkCmdPipelineBarrier(command, src_stage, dst_stage, 0,
+                             0, nullptr, 0, nullptr,
+                             static_cast<std::uint32_t>(barriers.size()),
+                             barriers.data());
+    }
+
+    // Conservative fallback for plan-less paths (standalone ops and direct
+    // op calls inside a plain begin_frame_batch): one full image memory
+    // barrier per accessed surface plus the first-write layout transition.
+    // This reproduces the legacy per-pass synchronization exactly, but lives
+    // in ONE place instead of being duplicated inside every kernel.
+    void emit_conservative_pass_sync(VkCommandBuffer command,
+                                     std::initializer_list<const Image*> images) {
+        std::vector<VkImageMemoryBarrier> barriers;
+        barriers.reserve(images.size());
+        for (const Image* image : images) {
+            barriers.push_back(make_image_barrier(
+                *image,
+                image->initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT));
+        }
+        emit_barriers(command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, barriers);
+    }
+
+    // Route one pass's synchronization: the BarrierPlan mapper when the
+    // batch is plan-driven, the conservative fallback otherwise.
+    void emit_pass_sync(VkCommandBuffer command,
+                        std::initializer_list<const Image*> images) {
+        if (frame_batch.sync_plan) {
+            emit_plan_pass_barriers(command, *frame_batch.sync_plan,
+                                    frame_batch.pass_count);
+        } else {
+            emit_conservative_pass_sync(command, images);
+        }
+    }
+
+    // The single BarrierPlan→Vulkan mapper.  Emits, into `command`, the
+    // image memory barriers the plan requires before the pass at
+    // `pass_index` records its dispatch:
+    //   * an in-frame previous access becomes a compute-stage memory barrier
+    //     (SHADER_WRITE / SHADER_READ source access from the previous
+    //     transition, destination access from the current one) — this covers
+    //     the write→read / read→write / write→write chains between passes;
+    //   * a first write to a never-initialized surface becomes an
+    //     UNDEFINED→GENERAL layout transition (contents discarded);
+    //   * a first read needs no barrier: every previous submission (uploads,
+    //     earlier batches) is queued before this one on the same queue, so
+    //     FIFO ordering already made it visible.
+    void emit_plan_pass_barriers(VkCommandBuffer command,
+                                 const runtime::BarrierPlan& plan,
+                                 std::size_t pass_index) {
+        std::vector<VkImageMemoryBarrier> barriers;
+        for (const auto& transition : plan.transitions) {
+            if (transition.pass_index != pass_index) continue;
+            if (transition.surface == runtime::kInvalidRenderSurfaceHandle) continue;
+            const auto surface_it = surfaces.find(transition.surface);
+            if (surface_it == surfaces.end()) continue;
+            const auto& image = surface_it->second;
+            const bool is_write =
+                transition.access == runtime::ResourceAccess::Write ||
+                transition.access == runtime::ResourceAccess::ReadWrite;
+            const auto prev_it = m_surface_last_access.find(transition.surface);
+            if (prev_it != m_surface_last_access.end()) {
+                const bool prev_write =
+                    prev_it->second == runtime::ResourceAccess::Write ||
+                    prev_it->second == runtime::ResourceAccess::ReadWrite;
+                barriers.push_back(make_image_barrier(
+                    image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+                    prev_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT,
+                    is_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT));
+            } else if (is_write && !image.initialized) {
+                barriers.push_back(make_image_barrier(
+                    image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+                    VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT));
+            }
+            m_surface_last_access[transition.surface] = transition.access;
+        }
+        emit_barriers(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, barriers);
+    }
+
     // ── record-only kernel primitives ────────────────────────────────────────
     // These functions only append Vulkan commands to the given command
     // buffer: pipeline bind, descriptor bind, push constants, dispatch.
-    // They NEVER submit; the caller owns submission (standalone submit() or
-    // submit_batch() from end_frame_batch()).  They also never mutate
-    // surface state (the `initialized` flags are updated by the operation
-    // wrappers).
+    // They NEVER submit and they NEVER synchronize — layout transitions and
+    // memory barriers are emitted by the caller through the single sync
+    // helpers below (the BarrierPlan mapper, or the conservative fallback
+    // for plan-less calls).  They also never mutate surface state (the
+    // `initialized` flags are updated by the operation wrappers).
 
     void record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           std::int32_t blend_mode, float source_scale,
                           const float tint[4]) {
-        transition(command, destination.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -609,11 +724,6 @@ struct VulkanBackend::Impl {
     void record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           int offset_x, int offset_y, float opacity) {
-        transition(command, destination.image,
-                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Transform)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -633,11 +743,6 @@ struct VulkanBackend::Impl {
     void record_transform_affine(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  const Image& destination, const Image& source,
                                  const runtime::SurfaceAffineTransform& transform) {
-        transition(command, destination.image,
-                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::AffineTransform)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -651,11 +756,6 @@ struct VulkanBackend::Impl {
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
                      float radius, bool horizontal) {
-        transition(command, destination.image,
-                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Blur)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -674,11 +774,6 @@ struct VulkanBackend::Impl {
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
                              const Color& tint, float tint_amount) {
-        transition(command, destination.image,
-                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, source.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::ColorAdjust)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -700,13 +795,6 @@ struct VulkanBackend::Impl {
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted) {
-        transition(command, destination.image,
-                   destination.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, target.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
-        transition(command, matte.image, VK_IMAGE_LAYOUT_GENERAL,
-                   VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Matte)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -934,13 +1022,16 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_composite(active_command_buffer(), descriptors,
-                             dst_image, src_image, blend_mode, 1.0f, kIdentityTint);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image, &src_image});
+            record_composite(cmd, descriptors, dst_image, src_image,
+                             blend_mode, 1.0f, kIdentityTint);
             ++frame_batch.pass_count;
             return;
         }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_composite(command_buffer, descriptor_set, dst_image, src_image,
                          blend_mode, 1.0f, kIdentityTint);
         submit();
@@ -961,7 +1052,9 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_transform(active_command_buffer(), descriptors,
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image, &src_image});
+            record_transform(cmd, descriptors,
                              dst_image, src_image, offset_x, offset_y, opacity);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
@@ -969,6 +1062,7 @@ struct VulkanBackend::Impl {
         }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_transform(command_buffer, descriptor_set, dst_image, src_image,
                          offset_x, offset_y, opacity);
         dst_image.initialized = true;
@@ -989,7 +1083,9 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_transform_affine(active_command_buffer(), descriptors,
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image, &src_image});
+            record_transform_affine(cmd, descriptors,
                                     dst_image, src_image, transform);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
@@ -997,6 +1093,7 @@ struct VulkanBackend::Impl {
         }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_transform_affine(command_buffer, descriptor_set,
                                 dst_image, src_image, transform);
         dst_image.initialized = true;
@@ -1021,14 +1118,16 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
-            record_blur(active_command_buffer(), descriptors,
-                        dst_image, src_image, radius, horizontal);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image, &src_image});
+            record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
             return;
         }
         bind_descriptors(dst_image, src_image);
         begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_blur(command_buffer, descriptor_set,
                     dst_image, src_image, radius, horizontal);
         dst_image.initialized = true;
@@ -1069,15 +1168,22 @@ struct VulkanBackend::Impl {
             write_descriptors(vertical_descriptor, vertical, horizontal);
             const auto composite_descriptor = allocate_pass_descriptor_set();
             write_descriptors(composite_descriptor, dst, vertical);
-            record_blur(active_command_buffer(), horizontal_descriptor,
-                        horizontal, src, radius, true);
-            record_blur(active_command_buffer(), vertical_descriptor,
-                        vertical, horizontal, radius, false);
-            record_composite(active_command_buffer(), composite_descriptor,
-                             dst, vertical, 1, intensity, tint_rgba);
+            // Glow is a single plan pass whose internal blur→blur→composite
+            // chain is a write→read dependency chain between dispatches; the
+            // full barriers below are glow's own structure (the only
+            // multi-dispatch operation), so the pass-level mapper call is
+            // skipped for it.
+            const auto cmd = active_command_buffer();
+            emit_conservative_pass_sync(cmd, {&horizontal, &src});
+            record_blur(cmd, horizontal_descriptor, horizontal, src, radius, true);
+            emit_conservative_pass_sync(cmd, {&vertical, &horizontal});
+            record_blur(cmd, vertical_descriptor, vertical, horizontal, radius, false);
+            emit_conservative_pass_sync(cmd, {&dst, &vertical});
+            record_composite(cmd, composite_descriptor, dst, vertical,
+                             1, intensity, tint_rgba);
             horizontal.initialized = true;
             vertical.initialized = true;
-            frame_batch.pass_count += 3;
+            ++frame_batch.pass_count;
             return;
         }
 
@@ -1088,10 +1194,13 @@ struct VulkanBackend::Impl {
         write_descriptors(vertical_descriptor, vertical, horizontal);
         const auto composite_descriptor = ensure_glow_descriptor_set(2);
         write_descriptors(composite_descriptor, dst, vertical);
+        emit_conservative_pass_sync(command_buffer, {&horizontal, &src});
         record_blur(command_buffer, horizontal_descriptor,
                     horizontal, src, radius, true);
+        emit_conservative_pass_sync(command_buffer, {&vertical, &horizontal});
         record_blur(command_buffer, vertical_descriptor,
                     vertical, horizontal, radius, false);
+        emit_conservative_pass_sync(command_buffer, {&dst, &vertical});
         record_composite(command_buffer, composite_descriptor,
                          dst, vertical, 1, intensity, tint_rgba);
         horizontal.initialized = true;
@@ -1116,7 +1225,9 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst, src);
-            record_color_adjust(active_command_buffer(), descriptors,
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst, &src});
+            record_color_adjust(cmd, descriptors,
                                 dst, src, brightness, contrast, tint, tint_amount);
             dst.initialized = true;
             ++frame_batch.pass_count;
@@ -1124,6 +1235,7 @@ struct VulkanBackend::Impl {
         }
         bind_descriptors(dst, src);
         begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst, &src});
         record_color_adjust(command_buffer, descriptor_set,
                             dst, src, brightness, contrast, tint, tint_amount);
         dst.initialized = true;
@@ -1151,7 +1263,9 @@ struct VulkanBackend::Impl {
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_matte_descriptors(descriptors, dst, target_image, matte_image);
-            record_matte(active_command_buffer(), descriptors,
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst, &target_image, &matte_image});
+            record_matte(cmd, descriptors,
                          dst, target_image, matte_image, luma, inverted);
             dst.initialized = true;
             ++frame_batch.pass_count;
@@ -1160,6 +1274,7 @@ struct VulkanBackend::Impl {
         ensure_descriptor_set();
         write_matte_descriptors(descriptor_set, dst, target_image, matte_image);
         begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst, &target_image, &matte_image});
         record_matte(command_buffer, descriptor_set,
                      dst, target_image, matte_image, luma, inverted);
         dst.initialized = true;
@@ -1520,8 +1635,20 @@ void VulkanBackend::begin_frame_batch() {
     batch.active = true;
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
+    batch.sync_plan = nullptr;
+    m_impl->m_surface_last_access.clear();
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
+#endif
+}
+
+void VulkanBackend::begin_plan_batch(const runtime::BarrierPlan& plan) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    begin_frame_batch();
+    m_impl->frame_batch.sync_plan = &plan;
+#else
+    (void)plan;
+    unsupported("begin_plan_batch");
 #endif
 }
 
