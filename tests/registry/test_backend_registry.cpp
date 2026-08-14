@@ -14,6 +14,7 @@
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -870,4 +871,45 @@ TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
     CHECK(output_record->physical_slot != std::numeric_limits<std::size_t>::max());
     CHECK(input_record->physical_slot == output_record->physical_slot);
     CHECK(input_record->physical_slot != scratch_record->physical_slot);
+}
+
+TEST_CASE("checkbackend pixel comparison matches identical buffers") {
+    using namespace chronon3d::graph;
+    const std::vector<float> buffer{0.1f, 0.2f, 0.3f, 0.4f,
+                                    0.5f, 0.6f, 0.7f, 0.8f};
+    const auto result = compare_pixels(buffer, buffer);
+    CHECK(result.matched);
+    CHECK(result.mismatched_pixels == 0);
+    CHECK(result.max_delta == doctest::Approx(0.0f));
+}
+
+TEST_CASE("checkbackend pixel comparison rejects out-of-tolerance channels") {
+    using namespace chronon3d::graph;
+    const std::vector<float> reference{0.5f, 0.5f, 0.5f, 0.5f};
+    std::vector<float> result = reference;
+    result[0] = 0.6f;  // delta 0.1 exceeds the relative gate
+    const PixelTolerance tolerance{.epsilon = 1e-4f, .absolute = 1e-4f};
+    const auto report = compare_pixels(reference, result, tolerance);
+    CHECK_FALSE(report.matched);
+    CHECK(report.mismatched_pixels == 1);
+    CHECK(report.max_delta == doctest::Approx(0.1f).epsilon(1e-4));
+}
+
+TEST_CASE("checkbackend pixel comparison respects the absolute tolerance floor") {
+    using namespace chronon3d::graph;
+    // A near-zero reference makes the relative gate tiny; the absolute floor
+    // must still admit a small delta.
+    const std::vector<float> reference{0.0f, 0.0f, 0.0f, 0.0f};
+    const std::vector<float> result{1e-5f, 0.0f, 0.0f, 0.0f};
+    const PixelTolerance tolerance{.epsilon = 1e-4f, .absolute = 1e-4f};
+    CHECK(compare_pixels(reference, result, tolerance).matched);
+}
+
+TEST_CASE("checkbackend size mismatch is reported as a sentinel failure") {
+    using namespace chronon3d::graph;
+    const std::vector<float> reference(8, 0.0f);
+    const std::vector<float> result(4, 0.0f);
+    const auto report = compare_pixels(reference, result);
+    CHECK_FALSE(report.matched);
+    CHECK(report.mismatched_pixels == std::numeric_limits<std::size_t>::max());
 }
