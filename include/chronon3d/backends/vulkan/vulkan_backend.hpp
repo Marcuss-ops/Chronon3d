@@ -59,7 +59,7 @@ public:
     /// conservative per-pass fallback used by direct op calls.  The caller
     /// must invoke the surface operations in plan.passes order; pass_count
     /// doubles as the plan pass index.
-    void begin_plan_batch(const runtime::BarrierPlan& plan);
+    void begin_plan_batch(const runtime::BarrierPlan& plan) override;
 
     void apply_per_pixel_dof(
         Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,

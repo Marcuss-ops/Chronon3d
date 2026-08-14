@@ -11,6 +11,7 @@
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -157,6 +158,13 @@ public:
     /// one submit per frame instead of one operation-per-submit.
     virtual void begin_frame_batch() {}
     virtual void end_frame_batch() {}
+
+    /// Plan-driven variant of begin_frame_batch().  The command-plan
+    /// executor calls it with the frame's BarrierPlan so a batching backend
+    /// synchronizes every pass with the precise barriers from the plan
+    /// instead of a conservative per-pass fallback.  The default is a no-op
+    /// so single-pass/software backends are unaffected.
+    virtual void begin_plan_batch(const runtime::BarrierPlan& /*plan*/) {}
 
     /// Per-pixel depth-of-field blur.  Backends must implement.
     virtual void apply_per_pixel_dof(
