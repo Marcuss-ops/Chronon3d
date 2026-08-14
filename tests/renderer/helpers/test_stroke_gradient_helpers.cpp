@@ -167,13 +167,15 @@ TEST_CASE("resolve_stroke_gradient_color: linear at t=1 returns last stop (blue)
 TEST_CASE("resolve_stroke_gradient_color: linear at t=0.5 interpolates") {
     Shape s = make_shape(ShapeType::Rect, make_linear_rb_gradient());
     // lp = centre → norm.x = 0.5 → t = 0.5
-    // Interpolated sRGB: (0.5, 0, 0.5) → linear: (0.214, 0, 0.214)
+    // Authoring stops are sRGB; gradients are sampled in the renderer's
+    // linear working space (canonical GradientDefinition contract — see
+    // sample_color_stops in graphics/gradient.hpp).  Both stops convert to
+    // linear (red 1,0,0 and blue 0,0,1 are already linear primaries), so
+    // the midpoint is 0.5 linear, NOT linear(sRGB 0.5) ≈ 0.214.
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
-    // sRGB(0.5, 0, 0.5) → linear space
-    const float half_lin = Color{0.5f, 0.0f, 0.5f, 1.0f}.to_linear().r;
-    CHECK(c.r == doctest::Approx(half_lin).epsilon(0.01f));
+    CHECK(c.r == doctest::Approx(0.5f).epsilon(0.01f));
     CHECK(c.g == doctest::Approx(0.0f).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(half_lin).epsilon(0.01f));
+    CHECK(c.b == doctest::Approx(0.5f).epsilon(0.01f));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: linear clamps outside [0,1]") {
