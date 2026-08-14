@@ -2,6 +2,7 @@
 
 #include <array>
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -978,6 +979,176 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
     CHECK(result[center + 0] > 0.0f);
     CHECK(result[center + 3] > 0.0f);
     CHECK(result[corner + 0] > 0.0f);
+}
+
+TEST_CASE("medium CommandPlan render certifies a correct frame through pass barriers") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+
+    constexpr std::uint32_t kWidth = 6;
+    constexpr std::uint32_t kHeight = 6;
+    constexpr std::size_t kPixelCount = kWidth * kHeight;
+    constexpr std::size_t kFloatCount = kPixelCount * 4;
+    const auto at = [](std::size_t x, std::size_t y) {
+        return (y * kWidth + x) * 4;
+    };
+
+    const SurfaceDesc surface_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const auto overlay = registry.create(surface_desc);
+    const auto transformed = registry.create(surface_desc);
+    const auto blurred = registry.create(surface_desc);
+    const auto background = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(overlay != kInvalidRenderSurfaceHandle);
+    REQUIRE(transformed != kInvalidRenderSurfaceHandle);
+    REQUIRE(blurred != kInvalidRenderSurfaceHandle);
+    REQUIRE(background != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {overlay, transformed, blurred, background, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    // Inputs: one opaque premultiplied red overlay pixel at (1,3) over an
+    // opaque constant background.  Distinct values keep every pass's
+    // contribution individually checkable.
+    std::vector<float> overlay_px(kFloatCount, 0.0f);
+    overlay_px[at(1, 3) + 0] = 1.0f;  // R (premultiplied: alpha == 1)
+    overlay_px[at(1, 3) + 3] = 1.0f;  // A
+    std::vector<float> background_px(kFloatCount, 0.0f);
+    for (std::size_t p = 0; p < kPixelCount; ++p) {
+        background_px[p * 4 + 0] = 0.2f;
+        background_px[p * 4 + 1] = 0.3f;
+        background_px[p * 4 + 2] = 0.4f;
+        background_px[p * 4 + 3] = 1.0f;
+    }
+    REQUIRE(backend.upload_surface(overlay, surface_desc, overlay_px).ok());
+    REQUIRE(backend.upload_surface(background, surface_desc, background_px).ok());
+
+    // Medium scene: transform → blur → composite → color adjust.
+    const ResourceDesc resource_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     kFloatCount * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(overlay, resource_desc);
+    planner.declare_surface(transformed, resource_desc);
+    planner.declare_surface(blurred, resource_desc);
+    planner.declare_surface(background, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{transformed, overlay, 1, 0, 1.0f});
+    planner.blur(BlurPass{blurred, transformed, 0.5f, 1});
+    planner.composite(CompositePass{background, blurred, 0});
+    planner.color_adjust(ColorAdjustPass{output, background, 0.1f, 1.2f, 0.25f,
+                                         {0.2f, 0.8f, 0.4f, 1.0f}});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 4);
+    // One Read transition per sampled source + one Write per destination
+    // = 2 transitions × 4 passes.
+    CHECK(plan.barriers.size() == 8);
+
+    // Lifetime-disjoint aliasing: overlay[0,0]/blurred[1,2]/output[3,3]
+    // share one physical slot and transformed[0,1]/background[2,3] share the
+    // other.  This is the write-after-read aliasing the barriers must order.
+    std::unordered_set<std::size_t> physical_slots;
+    for (const auto& allocation : plan.resources.allocations) {
+        if (allocation.physical_slot != std::numeric_limits<std::size_t>::max()) {
+            physical_slots.insert(allocation.physical_slot);
+        }
+    }
+    CHECK(physical_slots.size() == 2);
+
+    // ── CPU oracle mirroring the exact compute-kernel math ────────────────
+    // transform.comp: out(dst) = src(dst - offset) * opacity, else 0.
+    std::vector<float> transformed_px(kFloatCount, 0.0f);
+    for (std::uint32_t y = 0; y < kHeight; ++y) {
+        for (std::uint32_t x = 0; x < kWidth; ++x) {
+            const std::int32_t sx = static_cast<std::int32_t>(x) - 1;
+            const std::int32_t sy = static_cast<std::int32_t>(y);
+            if (sx >= 0 && sy >= 0 &&
+                sx < static_cast<std::int32_t>(kWidth) &&
+                sy < static_cast<std::int32_t>(kHeight)) {
+                const std::size_t src = (static_cast<std::size_t>(sy) * kWidth +
+                                         static_cast<std::size_t>(sx)) * 4;
+                for (int c = 0; c < 4; ++c) {
+                    transformed_px[at(x, y) + c] = overlay_px[src + c] * 1.0f;
+                }
+            }
+        }
+    }
+
+    // blur.comp (horizontal): gaussian with sigma = max(radius, 0.5).
+    constexpr float kRadius = 0.5f;
+    const float sigma = std::max(kRadius, 0.5f);
+    const int extent = std::clamp(static_cast<int>(std::ceil(sigma * 2.0f)), 1, 32);
+    std::vector<float> blurred_px(kFloatCount, 0.0f);
+    for (std::uint32_t y = 0; y < kHeight; ++y) {
+        for (std::uint32_t x = 0; x < kWidth; ++x) {
+            float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            float wsum = 0.0f;
+            for (int off = -extent; off <= extent; ++off) {
+                const std::int32_t sx = std::clamp(
+                    static_cast<std::int32_t>(x) + off, 0,
+                    static_cast<std::int32_t>(kWidth) - 1);
+                const float dist = static_cast<float>(off);
+                const float weight = static_cast<float>(
+                    std::exp(-0.5 * dist * dist / (sigma * sigma)));
+                const std::size_t sample = (static_cast<std::size_t>(y) * kWidth +
+                                            static_cast<std::size_t>(sx)) * 4;
+                for (int c = 0; c < 4; ++c) acc[c] += transformed_px[sample + c] * weight;
+                wsum += weight;
+            }
+            for (int c = 0; c < 4; ++c) blurred_px[at(x, y) + c] = acc[c] / wsum;
+        }
+    }
+
+    // composite.comp (Normal, premultiplied source-over): src + dst * (1 - src.a).
+    auto composited_px = background_px;
+    for (std::size_t p = 0; p < kPixelCount; ++p) {
+        const float src_a = blurred_px[p * 4 + 3];
+        for (int c = 0; c < 3; ++c) {
+            composited_px[p * 4 + c] =
+                blurred_px[p * 4 + c] + background_px[p * 4 + c] * (1.0f - src_a);
+        }
+        composited_px[p * 4 + 3] = src_a + background_px[p * 4 + 3] * (1.0f - src_a);
+    }
+
+    // color_adjust.comp: clamp((rgb + b - 0.5) * contrast + 0.5), then mix tint.
+    constexpr float kBrightness = 0.1f;
+    constexpr float kContrast = 1.2f;
+    constexpr float kTintAmount = 0.25f;
+    const float tint[3] = {0.2f, 0.8f, 0.4f};
+    auto expected = composited_px;
+    for (std::size_t p = 0; p < kPixelCount; ++p) {
+        if (composited_px[p * 4 + 3] <= 0.0f) continue;  // transparent passthrough
+        for (int c = 0; c < 3; ++c) {
+            const float adjusted = std::clamp(
+                (composited_px[p * 4 + c] + kBrightness - 0.5f) * kContrast + 0.5f,
+                0.0f, 1.0f);
+            expected[p * 4 + c] =
+                adjusted * (1.0f - kTintAmount) + tint[c] * kTintAmount;
+        }
+    }
+
+    const auto submissions_before = backend.stats().submissions;
+    REQUIRE(execute_command_plan(backend, registry, plan));
+    // The 4-pass medium scene coalesces into exactly one queue submission.
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    std::vector<float> result(kFloatCount, 0.0f);
+    REQUIRE(backend.download_surface(output, result).ok());
+
+    // Full-frame parity: the barriers ordered the aliased write-after-read
+    // chain so the GPU output matches the CPU oracle pixel-for-pixel.
+    const auto report = chronon3d::graph::compare_pixels(expected, result);
+    CHECK(report.matched);
+    CHECK(report.mismatched_pixels == 0);
+
+    // Semantic spot checks: the red overlay survived transform→blur→composite→
+    // grade and outshines the far background, proving the chain actually ran.
+    CHECK(result[at(2, 3) + 0] > 0.5f);
+    CHECK(result[at(2, 3) + 0] > result[at(0, 0) + 0]);
 }
 
 TEST_CASE("physical slots back several logical handles with one VkImage (aliasing, no double free)") {
