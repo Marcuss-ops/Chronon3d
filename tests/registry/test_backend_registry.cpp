@@ -15,6 +15,7 @@
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
+#include <chronon3d/render_graph/executor/command_plan_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -799,6 +800,53 @@ TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper"
     // overwrites 543) produced a valid result through the plan barriers.
     CHECK(output[center + 0] > 0.0f);
     CHECK(output[center + 3] > 0.0f);
+}
+
+TEST_CASE("command plan executor dispatches passes through the canonical backend API") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    const SurfaceDesc surface_desc{4, 4, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const auto input = registry.create(surface_desc);
+    const auto scratch = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(input != kInvalidRenderSurfaceHandle);
+    REQUIRE(scratch != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(input, surface_desc).ok());
+    REQUIRE(backend.create_surface(scratch, surface_desc).ok());
+    REQUIRE(backend.create_surface(output, surface_desc).ok());
+
+    std::vector<float> source(4 * 4 * 4, 0.0f);
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+    source[center + 0] = 0.6f;
+    source[center + 3] = 1.0f;
+    REQUIRE(backend.upload_surface(input, surface_desc, source).ok());
+
+    const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     4 * 4 * 4 * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(input, resource_desc);
+    planner.declare_surface(scratch, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{scratch, input, 0, 0, 1.0f});
+    planner.blur(BlurPass{output, scratch, 1.5f, 1});
+    planner.composite(CompositePass{output, input, 0});
+    const auto plan = planner.build();
+
+    const auto submissions_before = backend.stats().submissions;
+    REQUIRE(execute_command_plan(backend, registry, plan));
+    // The executor opens + closes one frame batch: every plan pass coalesces
+    // into a single queue submission.
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    std::vector<float> result(4 * 4 * 4, 0.0f);
+    REQUIRE(backend.download_surface(output, result).ok());
+    CHECK(result[center + 0] > 0.0f);
+    CHECK(result[center + 3] > 0.0f);
 }
 
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
