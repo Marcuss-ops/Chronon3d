@@ -5,6 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -21,6 +22,7 @@
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/command_plan_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <tests/helpers/cpu_gpu_parity.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
@@ -1377,6 +1379,88 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     CHECK(atlas.stats().entries == 0);
     CHECK_FALSE(atlas.metrics(glyph_a).has_value());
     CHECK(registry.lookup(first.handle) == nullptr);
+}
+
+TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pixel error") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+
+    constexpr std::uint32_t kWidth = 64;
+    constexpr std::uint32_t kHeight = 64;
+    constexpr std::size_t kPixels = kWidth * kHeight;
+    constexpr std::size_t kFloats = kPixels * 4;
+    const SurfaceDesc surface_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+
+    const auto overlay = registry.create(surface_desc);
+    const auto transformed = registry.create(surface_desc);
+    const auto blurred = registry.create(surface_desc);
+    const auto background = registry.create(surface_desc);
+    const auto output = registry.create(surface_desc);
+    REQUIRE(overlay != kInvalidRenderSurfaceHandle);
+    REQUIRE(transformed != kInvalidRenderSurfaceHandle);
+    REQUIRE(blurred != kInvalidRenderSurfaceHandle);
+    REQUIRE(background != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+    for (const auto handle : {overlay, transformed, blurred, background, output}) {
+        REQUIRE(backend.create_surface(handle, surface_desc).ok());
+    }
+
+    // Inputs: one opaque premultiplied red overlay pixel near the centre over
+    // an opaque constant background.
+    std::vector<float> overlay_px(kFloats, 0.0f);
+    const std::size_t centre =
+        (static_cast<std::size_t>(kHeight / 2) * kWidth + kWidth / 2) * 4;
+    overlay_px[centre + 0] = 1.0f;
+    overlay_px[centre + 3] = 1.0f;
+    std::vector<float> background_px(kFloats, 0.0f);
+    for (std::size_t p = 0; p < kPixels; ++p) {
+        background_px[p * 4 + 0] = 0.2f;
+        background_px[p * 4 + 1] = 0.3f;
+        background_px[p * 4 + 2] = 0.4f;
+        background_px[p * 4 + 3] = 1.0f;
+    }
+    REQUIRE(backend.upload_surface(overlay, surface_desc, overlay_px).ok());
+    REQUIRE(backend.upload_surface(background, surface_desc, background_px).ok());
+
+    // Medium scene: transform → blur → composite → color adjust.
+    const ResourceDesc resource_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     kFloats * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(overlay, resource_desc);
+    planner.declare_surface(transformed, resource_desc);
+    planner.declare_surface(blurred, resource_desc);
+    planner.declare_surface(background, resource_desc);
+    planner.declare_surface(output, resource_desc);
+    planner.transform(TransformPass{transformed, overlay, 1, 0, 1.0f});
+    planner.blur(BlurPass{blurred, transformed, 0.5f, 1});
+    planner.composite(CompositePass{background, blurred, 0});
+    planner.color_adjust(ColorAdjustPass{output, background, 0.1f, 1.2f, 0.25f,
+                                         {0.2f, 0.8f, 0.4f, 1.0f}});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.size() == 4);
+
+    const std::unordered_map<RenderSurfaceHandle, SurfaceDesc> surfaces{
+        {overlay, surface_desc}, {transformed, surface_desc}, {blurred, surface_desc},
+        {background, surface_desc}, {output, surface_desc}};
+    const std::unordered_map<RenderSurfaceHandle, std::vector<float>> inputs{
+        {overlay, overlay_px}, {background, background_px}};
+
+    const auto parity = chronon3d::test::run_cpu_gpu_parity(
+        backend, registry, plan, surfaces, inputs, output);
+
+    // Parity is the correctness gate; the timings are informational because a
+    // 64x64 scene is dominated by GPU driver overhead (no speedup gate here —
+    // the real speedup must be measured on the A4000/WBH at 1920x1080).
+    CHECK(parity.matched);
+    CHECK(parity.comparison.mismatched_pixels == 0);
+    MESSAGE("CPU vs GPU parity: cpu=" << parity.cpu_ms << "ms gpu=" << parity.gpu_ms
+            << "ms speedup=" << parity.speedup << "x max_delta="
+            << parity.comparison.max_delta << " mean_delta="
+            << parity.comparison.mean_delta);
 }
 #endif
 
