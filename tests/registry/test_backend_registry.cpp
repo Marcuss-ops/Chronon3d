@@ -12,6 +12,7 @@
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
+#include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 
@@ -749,4 +750,83 @@ TEST_CASE("framebuffer copies preserve opaque surface identity") {
     CHECK(moved.surface_handle() == 77);
     moved.clear_surface_handle();
     CHECK(moved.surface_handle() == chronon3d::runtime::kInvalidRenderSurfaceHandle);
+}
+
+TEST_CASE("command planner preserves pass order and kinds") {
+    using namespace chronon3d::runtime;
+    GpuCommandPlanner planner;
+    planner.composite(CompositePass{.destination = 1, .source = 2, .blend_mode = 0});
+    planner.transform(TransformPass{.destination = 3, .source = 1,
+                                    .offset_x = 1, .offset_y = 1, .opacity = 0.5f});
+    planner.matte(MattePass{.destination = 4, .target = 3, .matte = 2,
+                            .luma = 0, .inverted = 0});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.pass_count() == 3);
+    CHECK(plan.passes.passes[0].kind == GpuPassKind::Composite);
+    CHECK(plan.passes.passes[1].kind == GpuPassKind::Transform);
+    CHECK(plan.passes.passes[2].kind == GpuPassKind::Matte);
+    CHECK(std::get<TransformPass>(plan.passes.passes[1].params).destination == 3);
+    CHECK(std::get<MattePass>(plan.passes.passes[2].params).target == 3);
+}
+
+TEST_CASE("command planner aliases non-overlapping transient surfaces") {
+    using namespace chronon3d::runtime;
+    GpuCommandPlanner planner;
+    const RenderSurfaceHandle input{1};
+    const RenderSurfaceHandle scratch{2};
+    const RenderSurfaceHandle output{3};
+    const ResourceDesc desc{16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
+                            16 * 8 * 4, alignof(std::max_align_t),
+                            ResourceLifetime::Transient};
+    planner.declare_surface(input, desc);
+    planner.declare_surface(scratch, desc);
+    planner.declare_surface(output, desc);
+
+    // scratch (0..1) bridges the two passes; input (0..0) and output (1..1)
+    // never overlap so the planner must alias them onto one physical slot.
+    planner.blur(BlurPass{.destination = scratch, .source = input,
+                          .radius = 2.0f, .horizontal = 1});
+    planner.blur(BlurPass{.destination = output, .source = scratch,
+                          .radius = 2.0f, .horizontal = 0});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.pass_count() == 2);
+
+    const auto slot_for = [&](RenderSurfaceHandle handle) {
+        for (const auto& allocation : plan.resources.allocations) {
+            if (allocation.surface == handle) return allocation.physical_slot;
+        }
+        return std::numeric_limits<std::size_t>::max();
+    };
+
+    const auto input_slot = slot_for(input);
+    const auto scratch_slot = slot_for(scratch);
+    const auto output_slot = slot_for(output);
+    CHECK(input_slot != std::numeric_limits<std::size_t>::max());
+    CHECK(scratch_slot != std::numeric_limits<std::size_t>::max());
+    CHECK(output_slot != std::numeric_limits<std::size_t>::max());
+    CHECK(input_slot == output_slot);
+    CHECK(input_slot != scratch_slot);
+}
+
+TEST_CASE("command planner emits a write barrier per destination pass") {
+    using namespace chronon3d::runtime;
+    GpuCommandPlanner planner;
+    const RenderSurfaceHandle input{1};
+    const RenderSurfaceHandle scratch{2};
+    const RenderSurfaceHandle output{3};
+    planner.blur(BlurPass{.destination = scratch, .source = input,
+                          .radius = 1.0f, .horizontal = 1});
+    planner.blur(BlurPass{.destination = output, .source = scratch,
+                          .radius = 1.0f, .horizontal = 0});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.barriers.size() == 2);
+    CHECK(plan.barriers.transitions[0].pass_index == 0);
+    CHECK(plan.barriers.transitions[0].surface == scratch);
+    CHECK(plan.barriers.transitions[0].access == ResourceAccess::Write);
+    CHECK(plan.barriers.transitions[1].pass_index == 1);
+    CHECK(plan.barriers.transitions[1].surface == output);
+    CHECK(plan.barriers.transitions[1].access == ResourceAccess::Write);
 }
