@@ -830,3 +830,44 @@ TEST_CASE("command planner emits a write barrier per destination pass") {
     CHECK(plan.barriers.transitions[1].surface == output);
     CHECK(plan.barriers.transitions[1].access == ResourceAccess::Write);
 }
+
+TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
+    using namespace chronon3d::runtime;
+    RenderSurfaceRegistry registry;
+    const auto input = registry.create(SurfaceDesc{16, 8, PixelFormat::Rgba8Unorm,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient, 0});
+    const auto scratch = registry.create(SurfaceDesc{16, 8, PixelFormat::Rgba8Unorm,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient, 0});
+    const auto output = registry.create(SurfaceDesc{16, 8, PixelFormat::Rgba8Unorm,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient, 0});
+    REQUIRE(input != kInvalidRenderSurfaceHandle);
+    REQUIRE(scratch != kInvalidRenderSurfaceHandle);
+    REQUIRE(output != kInvalidRenderSurfaceHandle);
+
+    const ResourceDesc desc{16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
+                            16 * 8 * 4, alignof(std::max_align_t),
+                            ResourceLifetime::Transient};
+    GpuCommandPlanner planner;
+    planner.declare_surface(input, desc);
+    planner.declare_surface(scratch, desc);
+    planner.declare_surface(output, desc);
+    planner.blur(BlurPass{.destination = scratch, .source = input,
+                          .radius = 2.0f, .horizontal = 1});
+    planner.blur(BlurPass{.destination = output, .source = scratch,
+                          .radius = 2.0f, .horizontal = 0});
+
+    const auto plan = planner.build();
+    bind_plan_slots(plan.resources, registry);
+
+    const auto* input_record = registry.lookup(input);
+    const auto* scratch_record = registry.lookup(scratch);
+    const auto* output_record = registry.lookup(output);
+    REQUIRE(input_record != nullptr);
+    REQUIRE(scratch_record != nullptr);
+    REQUIRE(output_record != nullptr);
+    CHECK(input_record->physical_slot != std::numeric_limits<std::size_t>::max());
+    CHECK(scratch_record->physical_slot != std::numeric_limits<std::size_t>::max());
+    CHECK(output_record->physical_slot != std::numeric_limits<std::size_t>::max());
+    CHECK(input_record->physical_slot == output_record->physical_slot);
+    CHECK(input_record->physical_slot != scratch_record->physical_slot);
+}
