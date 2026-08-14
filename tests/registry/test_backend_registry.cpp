@@ -16,6 +16,7 @@
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/command_plan_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
@@ -1155,6 +1156,61 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     CHECK(registry.lookup(first.handle) == nullptr);
 }
 #endif
+
+TEST_CASE("overlay template cache compiles a template once per structural descriptor") {
+    using namespace chronon3d::runtime;
+    OverlayTemplateCache cache(2);  // two-entry capacity → third distinct evicts
+
+    const OverlayTemplateDesc factory{64, 64, 5, 2, 1, true};
+    std::size_t build_count = 0;
+    const auto builder = [&](const OverlayTemplateDesc& desc) -> CommandPlan {
+        ++build_count;
+        GpuCommandPlanner planner;
+        const ResourceDesc rd{desc.width, desc.height, PixelFormat::Rgba32Float,
+                              ResourceUsage::Storage,
+                              static_cast<std::size_t>(desc.width) * desc.height *
+                                  4 * sizeof(float)};
+        RenderSurfaceHandle slot = 100;
+        const std::uint32_t total =
+            desc.image_layers + desc.text_layers + desc.logo_layers;
+        for (std::uint32_t i = 0; i < total; ++i) {
+            const auto src = slot++;
+            const auto dst = slot++;
+            planner.declare_surface(src, rd);
+            planner.declare_surface(dst, rd);
+            planner.transform(TransformPass{dst, src, 0, 0, 1.0f});
+        }
+        return planner.build();
+    };
+
+    const auto first = cache.compile(factory, builder);
+    CHECK(build_count == 1);
+    CHECK(first.plan.pass_count() == 8);
+
+    // Same descriptor → cache hit, the builder is NOT re-invoked.
+    const auto second = cache.compile(factory, builder);
+    CHECK(build_count == 1);
+    CHECK(second.plan.pass_count() == first.plan.pass_count());
+    CHECK(cache.stats().hits == 1);
+    CHECK(cache.stats().misses == 1);
+    CHECK(cache.stats().entries == 1);
+
+    // Different structural descriptor → a separate compile.
+    const OverlayTemplateDesc other{64, 64, 1, 1, 0, false};
+    (void)cache.compile(other, builder);
+    CHECK(build_count == 2);
+    CHECK(cache.stats().entries == 2);
+
+    // A third distinct descriptor evicts the LRU tail (capacity 2).
+    const OverlayTemplateDesc extra{32, 32, 0, 0, 1, false};
+    (void)cache.compile(extra, builder);
+    CHECK(build_count == 3);
+    CHECK(cache.stats().entries == 2);
+    CHECK(cache.stats().evictions >= 1);
+
+    cache.clear();
+    CHECK(cache.stats().entries == 0);
+}
 
 TEST_CASE("resource planner preserves opaque surface identity across aliasing") {
     using namespace chronon3d::runtime;
