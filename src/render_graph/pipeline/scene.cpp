@@ -399,11 +399,16 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         session_ref, session_ref.arena(),
         graph_result.compiled.graph_instance_id);
     const auto t_exec0 = profiling::now();
+    // Frame-batching boundary: a batching backend records every graph pass
+    // between these calls and performs a single submission in
+    // end_frame_batch().  No-op for backends without batching support.
+    backend.begin_frame_batch();
     auto exec_result = execute_tile_or_fallback(
         ctx, graph_result.compiled,        resolved, effective_settings, dirty_out,
 
         dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
         frame, width, height, root_scope);
+    backend.end_frame_batch();
     // Native surfaces remain authoritative across composite nodes. The public
     // render API still returns a CPU Framebuffer, so perform exactly one
     // terminal synchronization here rather than between every graph pass.
