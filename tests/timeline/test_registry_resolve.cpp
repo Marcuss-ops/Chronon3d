@@ -177,3 +177,35 @@ TEST_CASE("CompositionRegistry::typed content accessors filter by category") {
     CHECK(phrases[0].id == "phrase-alpha");
     CHECK(phrases[1].id == "phrase-beta");
 }
+
+TEST_CASE("CompositionRegistry::by_category is extensible to future content types") {
+    CompositionRegistry registry;
+
+    const auto add = [&registry](std::string id, std::string category) {
+        registry.add(TypedCompositionDescriptor<NewsProps>{
+            .id = std::move(id),
+            .category = std::move(category),
+            .defaults = NewsProps{"future", 60},
+            .factory = [](const NewsProps&) { return make_stub_composition(); },
+        }.to_descriptor());
+    };
+
+    // Future content types (Audio, Video, Icon, Quote) resolve through the
+    // single by_category() resolver core — no new registry and no new
+    // resolver logic per type.
+    add("audio-ambient", "Audio");
+    add("video-broll", "Video");
+    add("icon-check", "Icon");
+    add("quote-impact", "Quote");
+
+    CHECK(registry.by_category("Audio").size() == 1);
+    CHECK(registry.by_category("Video").size() == 1);
+    CHECK(registry.by_category("Icon").size() == 1);
+    CHECK(registry.by_category("Quote").size() == 1);
+
+    // Canonical typed accessors are unaffected by future-type entries.
+    CHECK(registry.phrases().empty());
+
+    REQUIRE(registry.by_category("Audio").size() == 1);
+    CHECK(registry.by_category("Audio")[0].id == "audio-ambient");
+}
