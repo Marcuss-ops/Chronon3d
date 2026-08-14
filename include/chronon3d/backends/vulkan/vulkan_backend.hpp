@@ -71,6 +71,14 @@ public:
     /// lifetime-disjoint surfaces alias the same device memory.
     void begin_plan_batch(const runtime::CommandPlan& plan) override;
 
+    /// Command-batch overrides.  While a command batch is active,
+    /// end_frame_batch() no longer submits: it keeps recording into the
+    /// single batch command buffer, so N overlays (each an execute_command_plan
+    /// frame) accumulate.  end_command_batch() performs exactly one
+    /// vkQueueSubmit for all of them.
+    void begin_command_batch() override;
+    void end_command_batch() override;
+
     void apply_per_pixel_dof(
         Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,
         const LensModel&, const std::optional<raster::BBox>&) override;
