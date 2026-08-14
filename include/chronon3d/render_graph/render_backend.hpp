@@ -160,11 +160,13 @@ public:
     virtual void end_frame_batch() {}
 
     /// Plan-driven variant of begin_frame_batch().  The command-plan
-    /// executor calls it with the frame's BarrierPlan so a batching backend
-    /// synchronizes every pass with the precise barriers from the plan
-    /// instead of a conservative per-pass fallback.  The default is a no-op
-    /// so single-pass/software backends are unaffected.
-    virtual void begin_plan_batch(const runtime::BarrierPlan& /*plan*/) {}
+    /// executor calls it with the frame's CommandPlan so a batching backend
+    /// synchronizes every pass with the precise barriers from plan.barriers
+    /// (instead of a conservative per-pass fallback) and consumes
+    /// plan.resources to bind logical handles to physical slots (one backing
+    /// VkImage per slot, so lifetime-disjoint surfaces alias).  The default
+    /// is a no-op so single-pass/software backends are unaffected.
+    virtual void begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
 
     /// Per-pixel depth-of-field blur.  Backends must implement.
     virtual void apply_per_pixel_dof(
