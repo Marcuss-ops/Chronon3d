@@ -74,14 +74,24 @@ inline void cpu_transform(std::vector<float>& dst, const std::vector<float>& src
 }
 
 // blur.comp: one separable gaussian pass (sigma = max(radius, 0.5)).
+// Weights depend only on (offset, sigma), so they are hoisted out of the
+// pixel loops — identical math, just a representative CPU implementation.
 inline void cpu_blur(std::vector<float>& dst, const std::vector<float>& src,
                      std::uint32_t w, std::uint32_t h, float radius, bool horizontal) {
     const float sigma = std::max(radius, 0.5f);
     const int extent = std::clamp(static_cast<int>(std::ceil(sigma * 2.0f)), 1, 32);
+    std::vector<float> weights(static_cast<std::size_t>(2 * extent + 1));
+    float wsum_total = 0.0f;
+    for (int off = -extent; off <= extent; ++off) {
+        const float dist = static_cast<float>(off);
+        const float weight = static_cast<float>(
+            std::exp(-0.5 * dist * dist / (sigma * sigma)));
+        weights[static_cast<std::size_t>(off + extent)] = weight;
+        wsum_total += weight;
+    }
     for (std::uint32_t y = 0; y < h; ++y) {
         for (std::uint32_t x = 0; x < w; ++x) {
             float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            float wsum = 0.0f;
             for (int off = -extent; off <= extent; ++off) {
                 const std::uint32_t sx = horizontal
                     ? static_cast<std::uint32_t>(std::clamp<std::int64_t>(
@@ -91,15 +101,12 @@ inline void cpu_blur(std::vector<float>& dst, const std::vector<float>& src,
                     ? y
                     : static_cast<std::uint32_t>(std::clamp<std::int64_t>(
                           static_cast<std::int64_t>(y) + off, 0, h - 1));
-                const float dist = static_cast<float>(off);
-                const float weight = static_cast<float>(
-                    std::exp(-0.5 * dist * dist / (sigma * sigma)));
+                const float weight = weights[static_cast<std::size_t>(off + extent)];
                 const std::size_t s = pixel_index(sx, sy, w);
                 for (int c = 0; c < 4; ++c) acc[c] += src[s + c] * weight;
-                wsum += weight;
             }
             const std::size_t out = pixel_index(x, y, w);
-            for (int c = 0; c < 4; ++c) dst[out + c] = acc[c] / wsum;
+            for (int c = 0; c < 4; ++c) dst[out + c] = acc[c] / wsum_total;
         }
     }
 }
