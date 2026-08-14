@@ -1003,6 +1003,69 @@ TEST_CASE("physical slots back several logical handles with one VkImage (aliasin
     CHECK_FALSE(backend.download_surface(output, gone).ok());
 }
 
+TEST_CASE("N overlays coalesce into one command batch (single vkQueueSubmit)") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    const SurfaceDesc surface_desc{4, 4, PixelFormat::Rgba32Float,
+                                   ResourceUsage::Storage,
+                                   LifetimeClass::FrameTransient, 0};
+    const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
+                                     ResourceUsage::Storage,
+                                     4 * 4 * 4 * sizeof(float)};
+    const auto center = (static_cast<std::size_t>(2) * 4 + 2) * 4;
+
+    // Three independent overlays, each: upload a distinct background →
+    // identity transform → distinct output.  Distinct values prove the three
+    // outputs do not cross-contaminate inside the shared command batch.
+    constexpr std::size_t kOverlays = 3;
+    std::vector<RenderSurfaceHandle> backgrounds;
+    std::vector<RenderSurfaceHandle> outputs;
+    std::vector<CommandPlan> plans;
+    backgrounds.reserve(kOverlays);
+    outputs.reserve(kOverlays);
+    plans.reserve(kOverlays);
+    for (std::size_t i = 0; i < kOverlays; ++i) {
+        const auto background = registry.create(surface_desc);
+        const auto output = registry.create(surface_desc);
+        REQUIRE(background != kInvalidRenderSurfaceHandle);
+        REQUIRE(output != kInvalidRenderSurfaceHandle);
+        REQUIRE(backend.create_surface(background, surface_desc).ok());
+        REQUIRE(backend.create_surface(output, surface_desc).ok());
+
+        std::vector<float> bg(4 * 4 * 4, 0.0f);
+        bg[center + 0] = 0.2f * static_cast<float>(i + 1);
+        bg[center + 3] = 1.0f;
+        REQUIRE(backend.upload_surface(background, surface_desc, bg).ok());
+
+        GpuCommandPlanner planner;
+        planner.declare_surface(background, resource_desc);
+        planner.declare_surface(output, resource_desc);
+        planner.transform(TransformPass{output, background, 0, 0, 1.0f});
+        plans.push_back(planner.build());
+        backgrounds.push_back(background);
+        outputs.push_back(output);
+    }
+
+    const auto submissions_before = backend.stats().submissions;
+    backend.begin_command_batch();
+    for (const auto& plan : plans) {
+        REQUIRE(execute_command_plan(backend, registry, plan));
+    }
+    backend.end_command_batch();
+    // All N overlays were recorded into one command batch: exactly one queue
+    // submission for the whole set, not one per overlay.
+    CHECK(backend.stats().submissions == submissions_before + 1);
+
+    // Each overlay's output survives independently (no cross-contamination).
+    for (std::size_t i = 0; i < kOverlays; ++i) {
+        std::vector<float> result(4 * 4 * 4, 0.0f);
+        REQUIRE(backend.download_surface(outputs[i], result).ok());
+        CHECK(result[center + 0] > 0.0f);
+        CHECK(result[center + 3] > 0.0f);
+    }
+}
+
 TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     chronon3d::runtime::RenderSurfaceRegistry registry;

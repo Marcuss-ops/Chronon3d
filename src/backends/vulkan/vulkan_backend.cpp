@@ -214,6 +214,15 @@ struct VulkanBackend::Impl {
     // Cleared at begin_frame_batch(); conservative batches never touch it.
     std::unordered_map<std::size_t, runtime::ResourceAccess> m_slot_last_access{};
     FrameBatchState frame_batch{};
+    // Command-batch state: while active, end_frame_batch() defers the single
+    // submission it would otherwise perform and keeps recording into the SAME
+    // command buffer, so N overlays (N frame batches) accumulate and are
+    // submitted with exactly one vkQueueSubmit at end_command_batch().
+    // command_batch_started distinguishes the first frame (which opens the
+    // buffer) from subsequent frames (which only flush a boundary barrier and
+    // reset per-frame bookkeeping).
+    bool command_batch_active{false};
+    bool command_batch_started{false};
     VulkanBackendStats stats{};
 
     Impl(VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
@@ -663,6 +672,27 @@ struct VulkanBackend::Impl {
         } else {
             emit_conservative_pass_sync(command, images);
         }
+    }
+
+    // Cross-overlay boundary inside a command batch.  When the next overlay
+    // begins, every physical image the previous overlay wrote must be visible
+    // before any of the next overlay's passes sample it, regardless of how
+    // logical handles alias slots across the two overlays.  A single
+    // conservative full-barrier over all initialized images is the safe,
+    // per-boundary cost (once per overlay, not per pass).
+    void emit_command_batch_boundary() {
+        std::vector<VkImageMemoryBarrier> barriers;
+        for (auto& [slot, physical] : physical_surfaces) {
+            (void)slot;
+            if (!physical.image.initialized) continue;
+            barriers.push_back(make_image_barrier(
+                physical.image,
+                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT));
+        }
+        emit_barriers(active_command_buffer(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, barriers);
     }
 
     // The single BarrierPlan→Vulkan mapper.  Emits, into `command`, the
@@ -1727,6 +1757,20 @@ void VulkanBackend::begin_frame_batch() {
         throw std::logic_error(
             "VulkanBackend::begin_frame_batch: a frame batch is already active");
     }
+    // Second and later frames of an active command batch keep recording into
+    // the SAME command buffer (opened by the first frame).  Flush a
+    // cross-overlay boundary barrier and reset only per-frame bookkeeping;
+    // the descriptor allocator and command buffer stay intact so every
+    // overlay's recorded descriptor sets remain valid until the single
+    // submission at end_command_batch().
+    if (m_impl->command_batch_active && m_impl->command_batch_started) {
+        m_impl->emit_command_batch_boundary();
+        batch.pass_count = 0;
+        batch.sync_plan = nullptr;
+        m_impl->m_slot_last_access.clear();
+        batch.active = true;
+        return;
+    }
     const auto slot = batch.next_slot;
     // Wait ONLY on the fence of the slot being reused.  The other slots may
     // still be in flight; this is what bounds CPU-GPU overlap to the ring
@@ -1753,6 +1797,30 @@ void VulkanBackend::begin_frame_batch() {
     batch.descriptor_sets.clear();
     batch.sync_plan = nullptr;
     m_impl->m_slot_last_access.clear();
+    // The first frame of a command batch opened the buffer above; mark the
+    // batch as started so subsequent frames take the soft-reset path.
+    if (m_impl->command_batch_active) {
+        m_impl->command_batch_started = true;
+    }
+#else
+    (void)0;  // no-op when the Vulkan backend is not compiled
+#endif
+}
+
+void VulkanBackend::begin_command_batch() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (m_impl->command_batch_active) {
+        throw std::logic_error(
+            "VulkanBackend::begin_command_batch: a command batch is already active");
+    }
+    if (m_impl->frame_batch.active) {
+        throw std::logic_error(
+            "VulkanBackend::begin_command_batch: a frame batch is already active");
+    }
+    // The first overlay's begin_plan_batch → begin_frame_batch opens the
+    // single command buffer for the whole batch.
+    m_impl->command_batch_active = true;
+    m_impl->command_batch_started = false;
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
 #endif
@@ -1788,8 +1856,31 @@ void VulkanBackend::end_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
+    if (m_impl->command_batch_active) {
+        // Defer the submission: end_command_batch() performs exactly one
+        // vkQueueSubmit for every overlay recorded into this command batch.
+        batch.active = false;
+        return;
+    }
     m_impl->submit_batch();
     batch.active = false;
+#else
+    (void)0;  // no-op when the Vulkan backend is not compiled
+#endif
+}
+
+void VulkanBackend::end_command_batch() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!m_impl->command_batch_active) return;
+    if (m_impl->command_batch_started) {
+        // The final frame's end_frame_batch() deferred its submission, so the
+        // single command buffer is still open and holds all N overlays.  One
+        // vkQueueSubmit flushes the whole batch.
+        m_impl->submit_batch();
+    }
+    m_impl->frame_batch.active = false;
+    m_impl->command_batch_active = false;
+    m_impl->command_batch_started = false;
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
 #endif
