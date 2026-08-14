@@ -230,7 +230,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                                   int motion_blur_samples = 8);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
-                   const std::string& build_command = "");
+                   const std::string& build_command = "",
+                   const std::string& socket_path = "");
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir);

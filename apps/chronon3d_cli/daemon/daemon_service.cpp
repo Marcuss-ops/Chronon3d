@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <sstream>
 
@@ -279,6 +280,143 @@ void DaemonService::cmd_help() {
     spdlog::info("  h                              Show this help");
     spdlog::info("  q                              Shutdown daemon");
     spdlog::info("");
+}
+
+// ── UNIX-socket IPC (RenderingGen → Chronon) ───────────────────────────────
+
+void DaemonService::run_socket(const std::string& path) {
+    ipc::UnixSocketServer server;
+    try {
+        server.listen(path);
+    } catch (const std::system_error& e) {
+        spdlog::error("Failed to bind Unix socket '{}': {}", path, e.what());
+        return;
+    }
+
+    spdlog::info("🔌 Daemon listening on Unix socket '{}'", server.path());
+    spdlog::info("   PREFETCH_ASSET | PREPARE_PLAN | RENDER_OVERLAY | STATUS | SHUTDOWN");
+
+    const int rc = server.serve([this](const ipc::Request& req) {
+        return handle_ipc(req);
+    });
+
+    if (rc != 0) {
+        spdlog::error("Unix socket serve loop exited with error {} ({})",
+                      rc, std::strerror(rc));
+    }
+    spdlog::info("Daemon socket shutdown. {} frames rendered in {:.1f}ms total.",
+                 m_render_count, m_total_render_ms);
+}
+
+ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
+    switch (req.cmd) {
+        case ipc::Command::PrefetchAsset:
+            return ipc_prefetch_asset(req.payload);
+        case ipc::Command::PreparePlan:
+            return ipc_prepare_plan(req.payload);
+        case ipc::Command::RenderOverlay:
+            return ipc_render_overlay(req.payload);
+        case ipc::Command::Status:
+            return ipc_status();
+        case ipc::Command::Shutdown:
+            return ipc::Reply{ipc::Status::Shutdown, "bye"};
+        default:
+            return ipc::Reply{ipc::Status::BadRequest, "unknown command"};
+    }
+}
+
+ipc::Reply DaemonService::ipc_prefetch_asset(const std::string& path) {
+    if (path.empty()) {
+        return ipc::Reply{ipc::Status::BadRequest, "PREFETCH_ASSET requires an asset path"};
+    }
+    // Register the asset in the engine-owned registry so subsequent renders
+    // resolve it from the warm cache instead of re-importing it.
+    const auto id = m_engine->assets().import_by_extension(path);
+    if (!id) {
+        return ipc::Reply{ipc::Status::NotFound,
+                          "unrecognized asset extension: '" + path + "'"};
+    }
+    spdlog::info("📦 PREFETCH_ASSET {} (id {})", path, *id);
+    return ipc::Reply{ipc::Status::Ok, "prefetched"};
+}
+
+ipc::Reply DaemonService::ipc_prepare_plan(const std::string& comp_id) {
+    if (comp_id.empty()) {
+        return ipc::Reply{ipc::Status::BadRequest, "PREPARE_PLAN requires a composition id"};
+    }
+    if (!m_registry.contains(comp_id)) {
+        return ipc::Reply{ipc::Status::NotFound, "unknown composition '" + comp_id + "'"};
+    }
+    try {
+        auto comp = m_registry.create(comp_id);
+        m_prepared_job =
+            std::make_unique<PreparedRenderJob>(m_engine->prepare(comp));
+        m_prepared_comp_id = comp_id;
+    } catch (const std::exception& e) {
+        m_prepared_job.reset();
+        m_prepared_comp_id.clear();
+        return ipc::Reply{ipc::Status::Error, std::string{"prepare failed: "} + e.what()};
+    }
+    spdlog::info("🧠 PREPARE_PLAN '{}' — resource plan slots: {}",
+                 comp_id, m_prepared_job->resource_plan().slots.size());
+    return ipc::Reply{ipc::Status::Ok, "plan ready"};
+}
+
+ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
+    const auto tokens = split_args(args);
+    if (tokens.empty()) {
+        return ipc::Reply{ipc::Status::BadRequest,
+                          "RENDER_OVERLAY requires '<frame> [output]'"};
+    }
+    if (!m_prepared_job) {
+        return ipc::Reply{ipc::Status::Error,
+                          "no prepared plan — send PREPARE_PLAN first"};
+    }
+
+    Frame frame{0};
+    try {
+        frame = Frame(std::stoll(tokens[0]));
+    } catch (const std::exception&) {
+        return ipc::Reply{ipc::Status::BadRequest,
+                          "invalid frame number: '" + tokens[0] + "'"};
+    }
+
+    std::string output = tokens.size() > 1 ? tokens[1]
+                                           : "output/overlay_####.png";
+    output = format_output_path(output, static_cast<i32>(frame));
+
+    std::shared_ptr<Framebuffer> fb;
+    try {
+        fb = m_prepared_job->render(frame);
+    } catch (const std::exception& e) {
+        return ipc::Reply{ipc::Status::Error,
+                          std::string{"render failed: "} + e.what()};
+    }
+    if (!fb) {
+        return ipc::Reply{ipc::Status::Error,
+                          "renderer returned a null framebuffer"};
+    }
+
+    std::filesystem::path out_path(output);
+    if (out_path.has_parent_path()) {
+        std::filesystem::create_directories(out_path.parent_path());
+    }
+    ImageWriteOptions write_opts;
+    write_opts.format = image_format_from_path(output);
+    if (!save_image(*fb, output, write_opts)) {
+        return ipc::Reply{ipc::Status::Error, "failed to save frame to '" + output + "'"};
+    }
+
+    m_render_count++;
+    return ipc::Reply{ipc::Status::Ok, output};
+}
+
+ipc::Reply DaemonService::ipc_status() {
+    std::ostringstream ss;
+    ss << "frames_rendered=" << m_render_count
+       << " total_ms=" << m_total_render_ms
+       << " prepared_comp=" << (m_prepared_comp_id.empty() ? "(none)" : m_prepared_comp_id);
+    return ipc::Reply{ipc::Status::Ok, ss.str()};
 }
 
 } // namespace chronon3d::cli
