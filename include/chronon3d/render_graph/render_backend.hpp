@@ -168,6 +168,18 @@ public:
     /// is a no-op so single-pass/software backends are unaffected.
     virtual void begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
 
+    /// Command-batch lifecycle.  While a command batch is active, a batching
+    /// backend defers the single submission it would otherwise perform per
+    /// frame batch and instead records N overlays/frames into one command
+    /// batch, submitting them all with exactly one queue submission at
+    /// end_command_batch().  This is the "N overlays in one command batch"
+    /// primitive: the caller wraps N begin_frame_batch()/end_frame_batch()
+    /// (or N execute_command_plan() calls) between begin_command_batch() and
+    /// end_command_batch().  The default is a no-op so single-pass/software
+    /// backends are unaffected (each frame submits immediately as before).
+    virtual void begin_command_batch() {}
+    virtual void end_command_batch() {}
+
     /// Per-pixel depth-of-field blur.  Backends must implement.
     virtual void apply_per_pixel_dof(
         Framebuffer& framebuffer,
