@@ -110,13 +110,14 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Inject the single CLI CpuBudget so the runtime does not recompute it.
     Config renderer_cfg = Config::from_environment(cpu_budget);
     session->renderer = create_renderer(
-        registry, settings, std::move(renderer_cfg), session->opts.assets_root);
+        registry, settings, std::move(renderer_cfg), session->opts.assets_root,
+        &session->engine_init_ms, &session->backend_init_ms);
     const auto renderer_t1 = profiling::now();
 
     if (session->renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
             profiling::duration_ms(renderer_t0, renderer_t1));
-        session->renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+        session->renderer->counters()->setup_graph_parsing_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
     // 06 R3b — `create_renderer` returns `std::shared_ptr<SoftwareRenderer>`
     // (the CLI-side type contract is now SoftwareRenderer-direct).  No
@@ -136,6 +137,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                           preparation.diagnostic());
             return session;
         }
+        session->prepare_timings.accumulate(preparation.timings);
     }
 
     // ── Wire counters into encoder so async converter thread can report telemetry ──
@@ -197,7 +199,7 @@ RenderLoopOutput run_pipe_export_loop(
     auto native_decoder = std::make_shared<NativeVideoFrameDecoder>();
     media::MediaFrameProvider* video_decoder = native_decoder.get();
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     telemetry_frames.reserve(session.total_frames > 0
         ? static_cast<size_t>(session.total_frames) : 0);
 

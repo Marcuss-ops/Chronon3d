@@ -3,6 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
+#include <cmath>
 #include <filesystem>
 
 namespace chronon3d {
@@ -32,7 +33,14 @@ std::optional<ImageAssetKey> ImageCache::canonical_key_for(
 
 std::shared_ptr<const CachedImage> ImageCache::get_or_load(
     const std::string& path, ImageDecodeOptions options) {
+    // Asset resolve: canonical path + decode-options key resolution.
+    const auto resolve_t0 = profiling::now();
     const auto key = canonical_key(path, options);
+    const double resolve_us = profiling::duration_us(resolve_t0, profiling::now());
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->image_resolve_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(resolve_us)), std::memory_order_relaxed);
+    }
     if (!key) {
         spdlog::warn("ImageCache: asset '{}' is outside the engine asset root", path);
         return nullptr;
@@ -48,10 +56,29 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
         return nullptr;
     }
 
+    // TICKET-CACHE-COUNTERS-V1 — count image decode-cache hit/miss so
+    // decode-once (miss ≈ 1) vs decode-per-frame (miss ≈ frames) is visible
+    // in telemetry for the static-asset benchmark.
+    if (profiling::g_current_counters) {
+        if (m_cache.contains(*key)) {
+            profiling::g_current_counters->image_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->image_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+
     auto shared = m_cache.compute_if_absent(*key,
         [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
             const auto t0 = profiling::now();
+            // Decode: backend loads + decodes the image bytes into raw RGBA.
+            const auto decode_t0 = profiling::now();
             auto buffer = backend->load_image(resolved_path);
+            const double decode_us = profiling::duration_us(decode_t0, profiling::now());
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->image_decode_wall_us.fetch_add(
+                    static_cast<uint64_t>(std::llround(decode_us)), std::memory_order_relaxed);
+                profiling::g_current_counters->image_decode_count.fetch_add(1, std::memory_order_relaxed);
+            }
             if (!buffer || !buffer->pixels) {
                 return {std::make_shared<CachedImage>(), 1};
             }
@@ -59,6 +86,10 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
             auto entry = std::make_shared<CachedImage>();
             entry->width = buffer->width;
             entry->height = buffer->height;
+
+            // Convert: premultiply + sRGB→linear color conversion into the
+            // Blend2D BLImage and the float Framebuffer.
+            const auto convert_t0 = profiling::now();
 
 #ifdef CHRONON3D_USE_BLEND2D
             entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
@@ -96,6 +127,12 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                         dst_row[x] = Color{r, g, b, a}.to_linear().premultiplied();
                     }
                 }
+            }
+
+            const double convert_us = profiling::duration_us(convert_t0, profiling::now());
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->image_convert_wall_us.fetch_add(
+                    static_cast<uint64_t>(std::llround(convert_us)), std::memory_order_relaxed);
             }
 
             const double load_dur_ms = profiling::elapsed_ms(t0);

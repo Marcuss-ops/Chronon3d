@@ -6,6 +6,7 @@
 
 #include <chronon3d/text/text_run_builder.hpp>
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 
 #include "compiler/text_compile_internal.hpp"
@@ -75,6 +76,11 @@ compile_text_layout(
     }
 
     // 3–4. Shape each run and apply the configured failure policy.
+    // TICKET-TEXT-TIMING-V1 — time the non-cached layout compile (shape +
+    // bidi + compose + align + cache store) so a per-frame re-layout
+    // regression is visible.  The cache-hit path returns above and is
+    // effectively free, so it is deliberately excluded.
+    const auto layout_start = profiling::now();
     auto per_run_results = tci::shape_paragraph_runs(
         paragraph.runs,
         engine,
@@ -139,6 +145,14 @@ compile_text_layout(
         layout,
         request,
         text_layout);
+
+    // TICKET-TEXT-TIMING-V1 — accumulate layout wall time on the success
+    // path only (error returns above skip attribution, matching shaping).
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->text_layout_wall_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_ms(layout_start))),
+            std::memory_order_relaxed);
+    }
 
     return text_layout;
 }

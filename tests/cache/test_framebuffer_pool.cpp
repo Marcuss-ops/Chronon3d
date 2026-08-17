@@ -525,7 +525,7 @@ TEST_CASE("FramebufferPool::acquire_noclear + manual clear == acquire (byte-iden
     }
 
     // ── Counter parity. ──
-    // Acquire_noclear MUST NOT trigger framebuffer_pool_clear_ms —
+    // Acquire_noclear MUST NOT trigger framebuffer_pool_clear_wall_ms —
     // its purpose is precisely to skip the clear.  The default path
     // (second acquire) ALSO skipped clear on this run (because the FB
     // is_content_cleared() from the manual clear).  Net: zero clears

@@ -636,10 +636,19 @@ std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
     u32 glyph_id,
     u32 font_size
 ) {
+    // TICKET-TEXT-TIMING-V1 — time the per-glyph atlas lookup so a cache
+    // probe that regressed into re-rasterization is visible in telemetry.
+    const auto lookup_t0 = profiling::now();
     ensure_glyph_atlas_materialized();
     detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
     std::shared_lock lock(glyph_atlas->mutex);
-    return glyph_atlas->cache.get(key);
+    auto result = glyph_atlas->cache.get(key);
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->glyph_cache_lookup_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_us(lookup_t0))),
+            std::memory_order_relaxed);
+    }
+    return result;
 }
 
 void TextRenderResources::store_glyph_atlas(
@@ -648,6 +657,9 @@ void TextRenderResources::store_glyph_atlas(
     u32 font_size,
     const GlyphAtlasEntry& entry
 ) {
+    // TICKET-TEXT-TIMING-V1 — time the atlas upload/store so glyph-atlas
+    // population cost (frame 0 vs steady-state 0) is visible in telemetry.
+    const auto store_t0 = profiling::now();
     ensure_glyph_atlas_materialized();
     // Weight is the image byte size (width × height × 4 for PRGB32);
     // the metadata struct is ~24 bytes and is amortized over the image
@@ -660,6 +672,11 @@ void TextRenderResources::store_glyph_atlas(
     detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
     std::unique_lock lock(glyph_atlas->mutex);
     glyph_atlas->cache.put(key, entry, weight);
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->glyph_atlas_upload_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_us(store_t0))),
+            std::memory_order_relaxed);
+    }
 }
 
 void TextRenderResources::store_glyph_atlas_from_placed_run(

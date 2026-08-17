@@ -35,9 +35,9 @@ Key Metrics Compared (15 KPIs):
     effective_fps              — Effective frames per second
     e2e_wall_time_ms           — End-to-end wall time
     chronon_render_ms          — Pure render time (render_ms from DB)
-    frame_conversion_copy_ms   — Frame conversion + copy time
-    clearnode_restore_ms       — ClearNode restore time
-    clearnode_clear_ms         — ClearNode clear time
+    frame_conversion_copy_wall_ms   — Frame conversion + copy time
+    clearnode_restore_wall_ms       — ClearNode restore time
+    clearnode_clear_wall_ms         — ClearNode clear time
     image_layer_multi_ms       — ImageLayerMulti node average time
     composite_ms               — Composite total time
     transform_ms               — Transform total time
@@ -145,10 +145,10 @@ def load_metrics_from_json(path: str) -> Tuple[Dict[str, Any], str]:
     # Counters (from _counters sub-object if present)
     counters: Dict[str, Any] = data.get("_counters", {})
 
-    m["frame_conversion_copy_ms"] = counters.get("frame_conversion_copy_ms", 0)
-    m["clearnode_restore_ms"] = counters.get("clearnode_restore_ms", 0)
-    m["clearnode_clear_ms"] = counters.get("clearnode_clear_ms", 0)
-    m["clearnode_ms"] = counters.get("clearnode_ms", 0)
+    m["frame_conversion_copy_wall_ms"] = counters.get("frame_conversion_copy_wall_ms", 0)
+    m["clearnode_restore_wall_ms"] = counters.get("clearnode_restore_wall_ms", 0)
+    m["clearnode_clear_wall_ms"] = counters.get("clearnode_clear_wall_ms", 0)
+    m["clearnode_wall_ms"] = counters.get("clearnode_wall_ms", 0)
     m["composite_calls"] = counters.get("composite_calls", 0)
     m["composite_pixels"] = counters.get("composite_pixels", 0)
     m["transform_calls"] = counters.get("transform_calls", 0)
@@ -239,10 +239,10 @@ def extract_run_metrics(db: sqlite3.Connection, run_id: str) -> Dict[str, Any]:
     except sqlite3.OperationalError:
         print("Warning: render_counters table not found — counter metrics will be zero", file=sys.stderr)
 
-    m["frame_conversion_copy_ms"] = counter_map.get("frame_conversion_copy_ms", 0)
-    m["clearnode_restore_ms"] = counter_map.get("clearnode_restore_ms", 0)
-    m["clearnode_clear_ms"] = counter_map.get("clearnode_clear_ms", 0)
-    m["clearnode_ms"] = counter_map.get("clearnode_ms", 0)
+    m["frame_conversion_copy_wall_ms"] = counter_map.get("frame_conversion_copy_wall_ms", 0)
+    m["clearnode_restore_wall_ms"] = counter_map.get("clearnode_restore_wall_ms", 0)
+    m["clearnode_clear_wall_ms"] = counter_map.get("clearnode_clear_wall_ms", 0)
+    m["clearnode_wall_ms"] = counter_map.get("clearnode_wall_ms", 0)
     m["composite_calls"] = counter_map.get("composite_calls", 0)
     m["composite_pixels"] = counter_map.get("composite_pixels", 0)
     m["transform_calls"] = counter_map.get("transform_calls", 0)
@@ -434,9 +434,9 @@ def compare_runs(
         ("effective_fps",           "Effective FPS",              "fps",  False),
         ("e2e_wall_time_ms",        "E2E Wall Time",              "ms",   True),
         ("chronon_render_ms",       "Chronon Render Time",        "ms",   True),
-        ("frame_conversion_copy_ms","Frame Conversion & Copy",    "ms",   True),
-        ("clearnode_restore_ms",    "ClearNode Restore",          "ms",   True),
-        ("clearnode_clear_ms",      "ClearNode Clear",            "ms",   True),
+        ("frame_conversion_copy_wall_ms","Frame Conversion & Copy",    "ms",   True),
+        ("clearnode_restore_wall_ms",    "ClearNode Restore",          "ms",   True),
+        ("clearnode_clear_wall_ms",      "ClearNode Clear",            "ms",   True),
         ("image_layer_multi_ms",    "Image Layer Multi",          "ms",   True),
         ("composite_ms",            "Composite Total",            "ms",   True),
         ("transform_ms",            "Transform Total",            "ms",   True),
@@ -505,7 +505,7 @@ def compare_runs(
 
     # ── Secondary metrics ─────────────────────────────────────────────────
     secondary_metrics = [
-        ("clearnode_ms",            "ClearNode Total",         "ms"),
+        ("clearnode_wall_ms",            "ClearNode Total",         "ms"),
         ("framebuffer_pool_current_bytes", "FB Pool Current",  "mb"),
         ("composite_calls",         "Composite Calls",         "int"),
         ("composite_pixels",        "Composite Pixels",        "int"),

@@ -19,6 +19,7 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
         .add("chronon3d.render-plan.fingerprint.v2")
         // job_id is runtime routing metadata, not content identity.
         .add("")
+        .add(plan.style_profile)
         .add(plan.canvas.width)
         .add(plan.canvas.height)
         .add(plan.canvas.fps)
@@ -476,6 +477,11 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
     try {
         RenderPlan plan;
         plan.job_id = root.value("job_id", std::string{"chronon_plan"});
+        plan.style_profile = root.value("style_profile", std::string{"discovery"});
+        if (plan.style_profile != "discovery" && plan.style_profile != "young" &&
+            plan.style_profile != "crime") {
+            return PlanDecodeError{"style_profile", "must be discovery, young, or crime"};
+        }
         const auto& canvas = root.at("canvas");
         plan.canvas = CanvasSpec{
             canvas.at("width").get<int>(),
@@ -524,6 +530,10 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
         plan.output.profile_id = output.value("profile_id", std::string{});
+        if (plan.output.profile_id == "velox-h264-1080p30-v1" &&
+            (plan.canvas.width != 1920 || plan.canvas.height != 1080 || plan.canvas.fps != 30)) {
+            return PlanDecodeError{"canvas", "velox-h264-1080p30-v1 requires 1920x1080 at 30 fps"};
+        }
         if (root.contains("budget")) {
             const auto& budget = root.at("budget");
             plan.budget.max_temporal_pixels = budget.value(

@@ -62,10 +62,15 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             ctx.writer_encode_us_total.fetch_add(enc_us, std::memory_order_relaxed);
 
             ctx.frame_encoder_telemetry.push_back({
-                .frame_number = package.frame_number,
+                .frame_number = static_cast<int>(package.frame_number),
                 .conversion_copy_ms = ctx.encoder.last_frame_telemetry().conversion_copy_ms,
+                .pixel_format_convert_ms = ctx.encoder.last_frame_telemetry().pixel_format_convert_ms,
+                .color_space_convert_ms = ctx.encoder.last_frame_telemetry().color_space_convert_ms,
                 .encoder_ms = ctx.encoder.last_frame_telemetry().encoder_ms,
                 .pipe_write_ms = ctx.encoder.last_frame_telemetry().pipe_write_ms,
+                .backpressure_wait_ms = ctx.encoder.last_frame_telemetry().backpressure_wait_ms,
+                .pipe_write_cpu_ms = ctx.encoder.last_frame_telemetry().pipe_write_cpu_ms,
+                .pipe_backpressure_wait_ms = ctx.encoder.last_frame_telemetry().pipe_backpressure_wait_ms,
                 .native_convert_ms = ctx.encoder.last_frame_telemetry().native_convert_ms,
                 .native_send_ms = ctx.encoder.last_frame_telemetry().native_send_ms,
                 .native_receive_ms = ctx.encoder.last_frame_telemetry().native_receive_ms,
@@ -84,6 +89,90 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     auto& status = result.status;
     const int total = static_cast<int>(ctx.end - ctx.start);
     Frame current_frame = ctx.start;
+    const auto loop_t0 = profiling::now();
+
+    // Per-frame architectural breakdown: snapshot the cumulative render-phase
+    // counters before/after each frame and take deltas.  Graph execution
+    // writes these counters synchronously on the render thread, so a
+    // before/after read is a clean per-frame window.
+    struct PhaseCounters {
+        uint64_t timeline_eval{0};
+        uint64_t text{0};
+        uint64_t graph_prepare{0};
+        uint64_t graph_execute{0};
+        uint64_t compositing{0};
+        uint64_t effects{0};
+        uint64_t surface{0};
+        uint64_t overhead{0};
+    };
+    const auto snapshot_phases = [&ctx]() {
+        PhaseCounters s;
+        if (!ctx.counters) return s;
+        const auto load = [](const auto& c) {
+            return c.load(std::memory_order_relaxed);
+        };
+        s.timeline_eval = load(ctx.counters->timeline_eval_wall_ms);
+        s.text = load(ctx.counters->text_layout_wall_ms)
+               + load(ctx.counters->text_rasterization_wall_ms)
+               + load(ctx.counters->text_shaping_wall_ms)
+               + load(ctx.counters->text_bidi_wall_ms);
+        s.graph_prepare = load(ctx.counters->graph_resolve_layers_wall_ms)
+                        + load(ctx.counters->graph_dirty_rect_wall_ms)
+                        + load(ctx.counters->graph_build_wall_ms);
+        s.graph_execute = load(ctx.counters->graph_execute_wall_ms);
+        s.compositing = load(ctx.counters->clearnode_wall_ms)
+                      + load(ctx.counters->compositenode_blend_wall_ms)
+                      + load(ctx.counters->compositenode_setup_wall_ms)
+                      + load(ctx.counters->compositenode_copy_wall_ms)
+                      + load(ctx.counters->compositenode_dispatch_wall_ms);
+        s.effects = load(ctx.counters->effect_stack_total_wall_ms);
+        s.surface = load(ctx.counters->framebuffer_acquire_wall_ms)
+                  + load(ctx.counters->framebuffer_clear_wall_ms)
+                  + load(ctx.counters->framebuffer_lifetime_wall_ms);
+        s.overhead = load(ctx.counters->node_overhead_wall_ms)
+                   + load(ctx.counters->node_dispatch_wall_ms)
+                   + load(ctx.counters->node_schedule_wall_ms)
+                   + load(ctx.counters->telemetry_emit_wall_ms);
+        return s;
+    };
+    struct ImageDrawCounters {
+        uint64_t draw_us{0};
+        uint64_t draw_count{0};
+    };
+    const auto snapshot_image = [&ctx]() {
+        ImageDrawCounters s;
+        if (!ctx.counters) return s;
+        s.draw_us = ctx.counters->image_draw_wall_us.load(std::memory_order_relaxed);
+        s.draw_count = ctx.counters->image_draw_count.load(std::memory_order_relaxed);
+        return s;
+    };
+    // Per-frame text pipeline: shaping/bidi/layout are prepare-only in
+    // steady state (≈ 0 delta per frame); glyph lookup / raster / atlas
+    // upload / draw accumulate on the render thread each frame.
+    struct TextCounters {
+        uint64_t shaping_ms{0};
+        uint64_t bidi_ms{0};
+        uint64_t layout_ms{0};
+        uint64_t glyph_lookup_us{0};
+        uint64_t raster_ms{0};
+        uint64_t atlas_upload_us{0};
+        uint64_t draw_us{0};
+    };
+    const auto snapshot_text = [&ctx]() {
+        TextCounters s;
+        if (!ctx.counters) return s;
+        const auto load = [](const auto& c) {
+            return c.load(std::memory_order_relaxed);
+        };
+        s.shaping_ms = load(ctx.counters->text_shaping_wall_ms);
+        s.bidi_ms = load(ctx.counters->text_bidi_wall_ms);
+        s.layout_ms = load(ctx.counters->text_layout_wall_ms);
+        s.glyph_lookup_us = load(ctx.counters->glyph_cache_lookup_wall_us);
+        s.raster_ms = load(ctx.counters->text_rasterization_wall_ms);
+        s.atlas_upload_us = load(ctx.counters->glyph_atlas_upload_wall_us);
+        s.draw_us = load(ctx.counters->text_draw_wall_us);
+        return s;
+    };
 
     try {
         for (; current_frame < ctx.end; ++current_frame) {
@@ -110,18 +199,71 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
+            const PhaseCounters phase_before = snapshot_phases();
+            const ImageDrawCounters image_before = snapshot_image();
+            const TextCounters text_before = snapshot_text();
+            const uint64_t node_lookup_before = ctx.counters
+                ? ctx.counters->node_cache_lookup_wall_us.load(std::memory_order_relaxed) : 0;
             const auto frame_t0 = profiling::now();
             auto fb = graph::render_compiled_composition_frame_temporal(
                 ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
                 ctx.video_decoder, ctx.compiled, current_frame,
                 ctx.sw_renderer, ctx.opts.cancellation_token);
             const auto frame_t1 = profiling::now();
+            const PhaseCounters phase_after = snapshot_phases();
+            const ImageDrawCounters image_after = snapshot_image();
+            const TextCounters text_after = snapshot_text();
+            const uint64_t node_lookup_after = ctx.counters
+                ? ctx.counters->node_cache_lookup_wall_us.load(std::memory_order_relaxed) : 0;
             const double frame_ms =
                 profiling::duration_ms(frame_t0, frame_t1);
             result.render_graph_eval_ms += frame_ms;
 
+            chronon3d::telemetry::FrameRenderBreakdown breakdown;
+            breakdown.timeline_eval_ms =
+                static_cast<double>(phase_after.timeline_eval - phase_before.timeline_eval);
+            breakdown.text_ms =
+                static_cast<double>(phase_after.text - phase_before.text);
+            breakdown.graph_prepare_ms =
+                static_cast<double>(phase_after.graph_prepare - phase_before.graph_prepare);
+            breakdown.graph_execute_ms =
+                static_cast<double>(phase_after.graph_execute - phase_before.graph_execute);
+            breakdown.compositing_ms =
+                static_cast<double>(phase_after.compositing - phase_before.compositing);
+            breakdown.effects_ms =
+                static_cast<double>(phase_after.effects - phase_before.effects);
+            breakdown.surface_management_ms =
+                static_cast<double>(phase_after.surface - phase_before.surface);
+            breakdown.backend_overhead_ms =
+                static_cast<double>(phase_after.overhead - phase_before.overhead);
+            // animation_eval_ms remains 0.0 — folded into timeline_eval_ms.
+
+            chronon3d::telemetry::FrameImageTiming image_timing;
+            image_timing.draw_ms =
+                static_cast<double>(image_after.draw_us - image_before.draw_us) / 1000.0;
+            image_timing.draw_count = image_after.draw_count - image_before.draw_count;
+
+            chronon3d::telemetry::FrameTextTiming text_timing;
+            text_timing.shaping_ms =
+                static_cast<double>(text_after.shaping_ms - text_before.shaping_ms);
+            text_timing.bidi_ms =
+                static_cast<double>(text_after.bidi_ms - text_before.bidi_ms);
+            text_timing.layout_ms =
+                static_cast<double>(text_after.layout_ms - text_before.layout_ms);
+            text_timing.glyph_cache_lookup_ms =
+                static_cast<double>(text_after.glyph_lookup_us - text_before.glyph_lookup_us) / 1000.0;
+            text_timing.raster_ms =
+                static_cast<double>(text_after.raster_ms - text_before.raster_ms);
+            text_timing.atlas_upload_ms =
+                static_cast<double>(text_after.atlas_upload_us - text_before.atlas_upload_us) / 1000.0;
+            text_timing.draw_ms =
+                static_cast<double>(text_after.draw_us - text_before.draw_us) / 1000.0;
+
+            const double node_lookup_ms =
+                static_cast<double>(node_lookup_after - node_lookup_before) / 1000.0;
+
             if (ctx.counters) {
-                ctx.counters->video_graph_eval_ms.fetch_add(
+                ctx.counters->video_graph_eval_wall_ms.fetch_add(
                     static_cast<uint64_t>(frame_ms), std::memory_order_relaxed);
             }
 
@@ -160,11 +302,11 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             if (ctx.counters) {
                 if (fast_path_reused) {
                     ctx.counters->graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->graph_skipped_ms_sum.fetch_add(
+                    ctx.counters->graph_skipped_wall_ms_sum.fetch_add(
                         static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
                 } else {
                     ctx.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->graph_executed_ms_sum.fetch_add(
+                    ctx.counters->graph_executed_wall_ms_sum.fetch_add(
                         static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
                 }
             }
@@ -197,7 +339,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             result.queue_wait_ms += wait_ms;
 
             if (ctx.counters) {
-                ctx.counters->io_queue_push_blocked_ms.fetch_add(
+                ctx.counters->io_queue_push_wait_ms.fetch_add(
                     static_cast<uint64_t>(wait_ms), std::memory_order_relaxed);
             }
 
@@ -223,11 +365,16 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             ctx.telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
+                .wall_start_ms = profiling::duration_ms(loop_t0, frame_t0),
                 .duration_ms = frame_ms + wait_ms,
                 .cache_hit = cache_hit,
                 .dirty_area_ratio = dirty_ratio,
+                .node_lookup_ms = node_lookup_ms,
                 .graph_eval_ms = frame_ms,
                 .queue_wait_ms = wait_ms,
+                .render_breakdown = breakdown,
+                .image_timing = image_timing,
+                .text_timing = text_timing,
                 .dirty_rect_enabled = dirty_rect_enabled,
                 .dirty_rect_x0 = dirty_rect ? dirty_rect->x0 : 0,
                 .dirty_rect_y0 = dirty_rect ? dirty_rect->y0 : 0,

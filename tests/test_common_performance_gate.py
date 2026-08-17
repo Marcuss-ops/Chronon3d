@@ -51,7 +51,7 @@ def test_invalid_percentile_order_fails():
 def test_runtime_aliases_are_normalized():
     current = report()
     del current["counters"]["conversion_ms"]
-    current["counters"]["video_conversion_ms"] = 0.5
+    current["counters"]["video_conversion_wall_ms"] = 0.5
     del current["memory"]["peak_framebuffer_bytes"]
     current["memory"]["framebuffer_bytes_peak"] = 20.0
     assert module.validate(current) == []

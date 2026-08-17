@@ -105,7 +105,7 @@ namespace chronon3d::graph {
     );
     const auto t_fb1 = profiling::now();
     if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->framebuffer_lifetime_ms.fetch_add(
+        ctx.node_exec.counters->framebuffer_lifetime_wall_ms.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
             std::memory_order_relaxed);
     }

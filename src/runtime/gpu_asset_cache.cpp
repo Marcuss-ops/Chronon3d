@@ -1,4 +1,5 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <algorithm>
 #include <iterator>
@@ -40,9 +41,15 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
         m_lru.splice(m_lru.end(), m_lru, it->second.lru_position);
         it->second.lru_position = std::prev(m_lru.end());
         ++m_stats.hits;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_asset_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        }
         return {it->second.handle, true, {}};
     }
     ++m_stats.misses;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_asset_cache_misses.fetch_add(1, std::memory_order_relaxed);
+    }
 
     const auto handle = m_registry->create(desc);
     if (handle == kInvalidRenderSurfaceHandle) {

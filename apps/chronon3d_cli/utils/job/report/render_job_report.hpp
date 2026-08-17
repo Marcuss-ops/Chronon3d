@@ -13,7 +13,7 @@ struct RenderReportContext {
     chronon3d::telemetry::RenderTelemetryRecord run;
     std::vector<chronon3d::telemetry::CounterTelemetryRecord> counters;
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> frames;
     uint64_t pool_current_bytes{0};
     uint64_t pool_available_count{0};
     std::vector<chronon3d::cache::NodeCacheEntrySnapshot> node_cache_top_entries;

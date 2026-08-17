@@ -50,7 +50,7 @@ public:
         last_run = run;
         return true;
     }
-    bool write_frames(const std::string&, const std::vector<FrameTelemetryRecord>&) override {
+    bool write_frames(const std::string&, const std::vector<FrameTelemetry>&) override {
         frames_written = true;
         return true;
     }
@@ -93,7 +93,8 @@ TEST_CASE("Telemetry: TelemetryManager and MockStore Orchestration") {
     run.composition_id = "test_comp";
     run.success = true;
 
-    std::vector<FrameTelemetryRecord> frames = {{0, 16.6, true, 1.0}};
+    std::vector<FrameTelemetry> frames = {
+        {.frame_number = 0, .duration_ms = 16.6, .cache_hit = true, .dirty_area_ratio = 1.0}};
     std::vector<PhaseTelemetryRecord> phases = {{"render", 10.0}};
     std::vector<CounterTelemetryRecord> counters = {{"cache_hits", 100}};
 
@@ -231,7 +232,7 @@ TEST_CASE("Telemetry: image sampling metrics survive run storage") {
     RenderTelemetryRecord run;
     run.composition_id = "test_image_metrics";
     run.success = true;
-    run.image_decode_ms = 1.25;
+    run.image_decode_wall_ms = 1.25;
     run.image_sample_ms = 3.5;
     run.image_sampled_pixels = 480000;
 
@@ -239,7 +240,7 @@ TEST_CASE("Telemetry: image sampling metrics survive run storage") {
     CHECK(ok);
     CHECK(mock->run_written);
     CHECK(mock->last_run.composition_id == "test_image_metrics");
-    CHECK(mock->last_run.image_decode_ms == doctest::Approx(1.25));
+    CHECK(mock->last_run.image_decode_wall_ms == doctest::Approx(1.25));
     CHECK(mock->last_run.image_sample_ms == doctest::Approx(3.5));
     CHECK(mock->last_run.image_sampled_pixels == 480000);
 }
@@ -255,7 +256,8 @@ TEST_CASE("NullTelemetryStore: all writes succeed without SQLite") {
     run.composition_id = "null_test";
     CHECK(null_store.write_render_run(run));
 
-    std::vector<FrameTelemetryRecord> frames = {{0, 16.6, true, 0.1}};
+    std::vector<FrameTelemetry> frames = {
+        {.frame_number = 0, .duration_ms = 16.6, .cache_hit = true, .dirty_area_ratio = 0.1}};
     CHECK(null_store.write_frames("run_1", frames));
 
     std::vector<PhaseTelemetryRecord> phases = {{"render", 10.0}};
@@ -305,7 +307,8 @@ TEST_CASE("NullTelemetryStore: TelemetryManager with null store does not fail") 
     run.composition_id = "null_mgr";
     run.success = true;
 
-    std::vector<FrameTelemetryRecord> frames = {{0, 10.0, true, 0.5}};
+    std::vector<FrameTelemetry> frames = {
+        {.frame_number = 0, .duration_ms = 10.0, .cache_hit = true, .dirty_area_ratio = 0.5}};
     std::vector<PhaseTelemetryRecord> phases = {{"setup", 5.0}};
     std::vector<CounterTelemetryRecord> counters = {{"cache_hits", 1}};
 

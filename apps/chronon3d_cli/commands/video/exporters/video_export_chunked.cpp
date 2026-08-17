@@ -89,7 +89,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     std::vector<chronon3d::telemetry::ImageTelemetryRecord> image_events;
     std::vector<chronon3d::telemetry::TileTelemetryRecord> tile_events;
     std::mutex telemetry_data_mutex;
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     std::mutex frames_mutex;
 
     auto ranges = split_frame_range(start, end, chunks);
@@ -111,9 +111,9 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 if (renderer->counters()) {
                     const auto setup_ms = static_cast<uint64_t>(
                         profiling::duration_ms(renderer_t0, renderer_t1));
-                    renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+                    renderer->counters()->setup_graph_parsing_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
                     // Note: in chunked mode each worker creates its own renderer, so
-                    // setup_graph_parsing_ms will be summed across all workers in the aggregate.
+                    // setup_graph_parsing_wall_ms will be summed across all workers in the aggregate.
                 }
 
                 // Warmup
@@ -149,9 +149,9 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     if (renderer->counters()) {
                         const auto warmup_ms = static_cast<uint64_t>(
                             profiling::duration_ms(warmup_t0, warmup_t1));
-                        renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
+                        renderer->counters()->setup_pool_preallocation_wall_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
                         // Note: in chunked mode each worker runs its own warmup, so
-                        // setup_pool_preallocation_ms will be summed across all workers in the aggregate.
+                        // setup_pool_preallocation_wall_ms will be summed across all workers in the aggregate.
 
                         saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
                         saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
@@ -174,7 +174,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     chronon3d::telemetry::clear_telemetry_stores();
                 }
 
-                std::vector<chronon3d::telemetry::FrameTelemetryRecord> local_frames;
+                std::vector<chronon3d::telemetry::FrameTelemetry> local_frames;
                 local_frames.reserve(static_cast<size_t>(chunk.end - chunk.start));
                 for (Frame f = chunk.start; f < chunk.end; ++f) {
                     if (failed.load()) return;

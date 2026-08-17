@@ -91,10 +91,10 @@ void generate_telemetry_report(std::stringstream& out, const RunSummary& run) {
     out << "- disk_io: " << format_ms(run.phase_disk_io_ms) << "\n\n";
 
     out << "## Per-phase metric breakdown (overlay factory)\n";
-    out << "- Graph compile: " << format_ms(static_cast<double>(run.compiled_graph_refresh_ms)) << "\n";
-    out << "- Asset upload: " << format_ms(static_cast<double>(run.setup_asset_io_load_ms)) << "\n";
-    out << "- Render GPU: " << format_ms(static_cast<double>(run.node_execute_actual_ms)) << "\n";
-    out << "- Readback: " << format_ms(static_cast<double>(run.frame_conversion_copy_ms)) << "\n";
+    out << "- Graph compile: " << format_ms(static_cast<double>(run.compiled_graph_refresh_wall_ms)) << "\n";
+    out << "- Asset upload: " << format_ms(static_cast<double>(run.setup_asset_io_load_wall_ms)) << "\n";
+    out << "- Render GPU: " << format_ms(static_cast<double>(run.node_execute_actual_wall_ms)) << "\n";
+    out << "- Readback: " << format_ms(static_cast<double>(run.frame_conversion_copy_wall_ms)) << "\n";
     out << "- Encoding: " << format_ms(run.ffmpeg_encode_total_ms) << "\n";
     out << "- GPU submissions: " << run.gpu_submissions << "\n";
     out << "- Passes executed: " << run.passes_executed << "\n";

@@ -18,9 +18,22 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"pixels_touched", counters.pixels_touched.load(std::memory_order_relaxed)},
         {"cache_hits", counters.cache_hits.load(std::memory_order_relaxed)},
         {"cache_misses", counters.cache_misses.load(std::memory_order_relaxed)},
+        {"node_cache_hits", counters.node_cache_hits.load(std::memory_order_relaxed)},
+        {"node_cache_misses", counters.node_cache_misses.load(std::memory_order_relaxed)},
+        {"image_cache_hits", counters.image_cache_hits.load(std::memory_order_relaxed)},
+        {"image_cache_misses", counters.image_cache_misses.load(std::memory_order_relaxed)},
+        {"font_cache_hits", counters.font_cache_hits.load(std::memory_order_relaxed)},
+        {"font_cache_misses", counters.font_cache_misses.load(std::memory_order_relaxed)},
+        {"glyph_cache_hits", counters.glyph_cache_hits.load(std::memory_order_relaxed)},
+        {"glyph_cache_misses", counters.glyph_cache_misses.load(std::memory_order_relaxed)},
+        {"gpu_asset_cache_hits", counters.gpu_asset_cache_hits.load(std::memory_order_relaxed)},
+        {"gpu_asset_cache_misses", counters.gpu_asset_cache_misses.load(std::memory_order_relaxed)},
         {"nodes_executed", counters.nodes_executed.load(std::memory_order_relaxed)},
         {"layers_rendered", counters.layers_rendered.load(std::memory_order_relaxed)},
         {"text_glyphs_rasterized", counters.text_glyphs_rasterized.load(std::memory_order_relaxed)},
+        {"text_shaping_calls", counters.text_shaping_calls.load(std::memory_order_relaxed)},
+        {"text_shaping_wall_ms", counters.text_shaping_wall_ms.load(std::memory_order_relaxed)},
+        {"text_bidi_wall_ms", counters.text_bidi_wall_ms.load(std::memory_order_relaxed)},
         {"images_sampled", counters.images_sampled.load(std::memory_order_relaxed)},
         {"blur_pixels", counters.blur_pixels.load(std::memory_order_relaxed)},
         {"simd_lerp_calls", counters.simd_lerp_calls.load(std::memory_order_relaxed)},
@@ -29,26 +42,26 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"tiles_miss", counters.tiles_miss.load(std::memory_order_relaxed)},
         {"tiles_partial", counters.tiles_partial.load(std::memory_order_relaxed)},
         {"node_cache_hash_collisions", counters.node_cache_hash_collisions.load(std::memory_order_relaxed)},
-        {"graph_resolve_layers_ms", counters.graph_resolve_layers_ms.load(std::memory_order_relaxed)},
-        {"graph_dirty_rect_ms", counters.graph_dirty_rect_ms.load(std::memory_order_relaxed)},
-        {"graph_build_ms", counters.graph_build_ms.load(std::memory_order_relaxed)},
-        {"graph_execute_ms", counters.graph_execute_ms.load(std::memory_order_relaxed)},
-        {"graph_total_ms", counters.graph_total_ms.load(std::memory_order_relaxed)},
-        {"compiled_graph_refresh_ms", counters.compiled_graph_refresh_ms.load(std::memory_order_relaxed)},
-        {"cache_eval_ms", counters.cache_eval_ms.load(std::memory_order_relaxed)},
-        {"dirty_eval_ms", counters.dirty_eval_ms.load(std::memory_order_relaxed)},
-        {"input_resolve_ms", counters.input_resolve_ms.load(std::memory_order_relaxed)},
-        {"framebuffer_lifetime_ms", counters.framebuffer_lifetime_ms.load(std::memory_order_relaxed)},
-        {"node_schedule_ms", counters.node_schedule_ms.load(std::memory_order_relaxed)},
-        {"node_dispatch_ms", counters.node_dispatch_ms.load(std::memory_order_relaxed)},
-        {"node_execute_actual_ms", counters.node_execute_actual_ms.load(std::memory_order_relaxed)},
-        {"node_overhead_ms", counters.node_overhead_ms.load(std::memory_order_relaxed)},
+        {"graph_resolve_layers_wall_ms", counters.graph_resolve_layers_wall_ms.load(std::memory_order_relaxed)},
+        {"graph_dirty_rect_wall_ms", counters.graph_dirty_rect_wall_ms.load(std::memory_order_relaxed)},
+        {"graph_build_wall_ms", counters.graph_build_wall_ms.load(std::memory_order_relaxed)},
+        {"graph_execute_wall_ms", counters.graph_execute_wall_ms.load(std::memory_order_relaxed)},
+        {"graph_total_wall_ms", counters.graph_total_wall_ms.load(std::memory_order_relaxed)},
+        {"compiled_graph_refresh_wall_ms", counters.compiled_graph_refresh_wall_ms.load(std::memory_order_relaxed)},
+        {"cache_eval_wall_ms", counters.cache_eval_wall_ms.load(std::memory_order_relaxed)},
+        {"dirty_eval_wall_ms", counters.dirty_eval_wall_ms.load(std::memory_order_relaxed)},
+        {"input_resolve_wall_ms", counters.input_resolve_wall_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_lifetime_wall_ms", counters.framebuffer_lifetime_wall_ms.load(std::memory_order_relaxed)},
+        {"node_schedule_wall_ms", counters.node_schedule_wall_ms.load(std::memory_order_relaxed)},
+        {"node_dispatch_wall_ms", counters.node_dispatch_wall_ms.load(std::memory_order_relaxed)},
+        {"node_execute_actual_wall_ms", counters.node_execute_actual_wall_ms.load(std::memory_order_relaxed)},
+        {"node_overhead_wall_ms", counters.node_overhead_wall_ms.load(std::memory_order_relaxed)},
         {"level_parallel_count", counters.level_parallel_count.load(std::memory_order_relaxed)},
         {"level_sequential_count", counters.level_sequential_count.load(std::memory_order_relaxed)},
-        {"telemetry_emit_ms", counters.telemetry_emit_ms.load(std::memory_order_relaxed)},
-        {"predicted_bbox_ms", counters.predicted_bbox_ms.load(std::memory_order_relaxed)},
-        {"clone_context_ms", counters.clone_context_ms.load(std::memory_order_relaxed)},
-        {"state_assign_ms", counters.state_assign_ms.load(std::memory_order_relaxed)},
+        {"telemetry_emit_wall_ms", counters.telemetry_emit_wall_ms.load(std::memory_order_relaxed)},
+        {"predicted_bbox_wall_ms", counters.predicted_bbox_wall_ms.load(std::memory_order_relaxed)},
+        {"clone_context_wall_ms", counters.clone_context_wall_ms.load(std::memory_order_relaxed)},
+        {"state_assign_wall_ms", counters.state_assign_wall_ms.load(std::memory_order_relaxed)},
         {"clear_calls", counters.clear_calls.load(std::memory_order_relaxed)},
         {"clear_pixels", counters.clear_pixels.load(std::memory_order_relaxed)},
         {"clearnode_copy_pixels", counters.clearnode_copy_pixels.load(std::memory_order_relaxed)},
@@ -68,15 +81,15 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"transform_pixels", counters.transform_pixels.load(std::memory_order_relaxed)},
         {"effect_stack_calls", counters.effect_stack_calls.load(std::memory_order_relaxed)},
         {"effect_pixels", counters.effect_pixels.load(std::memory_order_relaxed)},
-        {"effect_stack_total_ms", counters.effect_stack_total_ms.load(std::memory_order_relaxed)},
-        {"dof_roi_analysis_us", counters.dof_roi_analysis_us.load(std::memory_order_relaxed)},
-        {"dof_blur_radius_generation_us", counters.dof_blur_radius_generation_us.load(std::memory_order_relaxed)},
-        {"dof_scratch_allocation_us", counters.dof_scratch_allocation_us.load(std::memory_order_relaxed)},
-        {"dof_copy_to_hpass_us", counters.dof_copy_to_hpass_us.load(std::memory_order_relaxed)},
-        {"dof_horizontal_pass_us", counters.dof_horizontal_pass_us.load(std::memory_order_relaxed)},
-        {"dof_hpass_to_output_us", counters.dof_hpass_to_output_us.load(std::memory_order_relaxed)},
-        {"dof_vertical_pass_us", counters.dof_vertical_pass_us.load(std::memory_order_relaxed)},
-        {"dof_writeback_us", counters.dof_writeback_us.load(std::memory_order_relaxed)},
+        {"effect_stack_total_wall_ms", counters.effect_stack_total_wall_ms.load(std::memory_order_relaxed)},
+        {"dof_roi_analysis_wall_us", counters.dof_roi_analysis_wall_us.load(std::memory_order_relaxed)},
+        {"dof_blur_radius_generation_wall_us", counters.dof_blur_radius_generation_wall_us.load(std::memory_order_relaxed)},
+        {"dof_scratch_allocation_wall_us", counters.dof_scratch_allocation_wall_us.load(std::memory_order_relaxed)},
+        {"dof_copy_to_hpass_wall_us", counters.dof_copy_to_hpass_wall_us.load(std::memory_order_relaxed)},
+        {"dof_horizontal_pass_wall_us", counters.dof_horizontal_pass_wall_us.load(std::memory_order_relaxed)},
+        {"dof_hpass_to_output_wall_us", counters.dof_hpass_to_output_wall_us.load(std::memory_order_relaxed)},
+        {"dof_vertical_pass_wall_us", counters.dof_vertical_pass_wall_us.load(std::memory_order_relaxed)},
+        {"dof_writeback_wall_us", counters.dof_writeback_wall_us.load(std::memory_order_relaxed)},
         {"dof_roi_pixels", counters.dof_roi_pixels.load(std::memory_order_relaxed)},
         {"dof_blur_source_pixels", counters.dof_blur_source_pixels.load(std::memory_order_relaxed)},
         {"dof_max_radius_milli", counters.dof_max_radius_milli.load(std::memory_order_relaxed)},
@@ -105,45 +118,45 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"dirty_full_fallback_effect_bounds_unknown",
             counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
                 .value.load(std::memory_order_relaxed)},
-        {"framebuffer_acquire_ms", counters.framebuffer_acquire_ms.load(std::memory_order_relaxed)},
-        {"framebuffer_clear_ms", counters.framebuffer_clear_ms.load(std::memory_order_relaxed)},
-        {"clearnode_ms", counters.clearnode_ms.load(std::memory_order_relaxed)},
-        {"clearnode_restore_ms", counters.clearnode_restore_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_acquire_wall_ms", counters.framebuffer_acquire_wall_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_clear_wall_ms", counters.framebuffer_clear_wall_ms.load(std::memory_order_relaxed)},
+        {"clearnode_wall_ms", counters.clearnode_wall_ms.load(std::memory_order_relaxed)},
+        {"clearnode_restore_wall_ms", counters.clearnode_restore_wall_ms.load(std::memory_order_relaxed)},
         {"clearnode_restore_rect_count", counters.clearnode_restore_rect_count.load(std::memory_order_relaxed)},
         {"clearnode_restore_pixels", counters.clearnode_restore_pixels.load(std::memory_order_relaxed)},
         {"clearnode_restore_bytes", counters.clearnode_restore_bytes.load(std::memory_order_relaxed)},
         {"clearnode_restore_full_frame_count", counters.clearnode_restore_full_frame_count.load(std::memory_order_relaxed)},
         {"clearnode_restore_dirty_rect_count", counters.clearnode_restore_dirty_rect_count.load(std::memory_order_relaxed)},
         {"clearnode_restore_noop_count", counters.clearnode_restore_noop_count.load(std::memory_order_relaxed)},
-        {"clearnode_memcpy_ms", counters.clearnode_memcpy_ms.load(std::memory_order_relaxed)},
-        {"clearnode_acquire_ms", counters.clearnode_acquire_ms.load(std::memory_order_relaxed)},
-        {"clearnode_clear_ms", counters.clearnode_clear_ms.load(std::memory_order_relaxed)},
-        {"compositenode_blend_ms", counters.compositenode_blend_ms.load(std::memory_order_relaxed)},
-        {"compositenode_setup_ms", counters.compositenode_setup_ms.load(std::memory_order_relaxed)},
-        {"compositenode_copy_ms", counters.compositenode_copy_ms.load(std::memory_order_relaxed)},
-        {"compositenode_row_ms", counters.compositenode_row_ms.load(std::memory_order_relaxed)},
-        {"compositenode_acquire_ms", counters.compositenode_acquire_ms.load(std::memory_order_relaxed)},
-        {"compositenode_dispatch_ms", counters.compositenode_dispatch_ms.load(std::memory_order_relaxed)},
-        {"compositenode_overhead_ms", counters.compositenode_overhead_ms.load(std::memory_order_relaxed)},
-        {"compositenode_internal_us", counters.compositenode_internal_us.load(std::memory_order_relaxed)},
-        {"framebuffer_pool_clear_ms", counters.framebuffer_pool_clear_ms.load(std::memory_order_relaxed)},
-        {"framebuffer_enqueue_ms", counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed)},
+        {"clearnode_memcpy_wall_ms", counters.clearnode_memcpy_wall_ms.load(std::memory_order_relaxed)},
+        {"clearnode_acquire_wall_ms", counters.clearnode_acquire_wall_ms.load(std::memory_order_relaxed)},
+        {"clearnode_clear_wall_ms", counters.clearnode_clear_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_blend_wall_ms", counters.compositenode_blend_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_setup_wall_ms", counters.compositenode_setup_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_copy_wall_ms", counters.compositenode_copy_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_row_wall_ms", counters.compositenode_row_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_acquire_wall_ms", counters.compositenode_acquire_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_dispatch_wall_ms", counters.compositenode_dispatch_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_overhead_wall_ms", counters.compositenode_overhead_wall_ms.load(std::memory_order_relaxed)},
+        {"compositenode_internal_wall_us", counters.compositenode_internal_wall_us.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_clear_wall_ms", counters.framebuffer_pool_clear_wall_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_enqueue_wall_ms", counters.framebuffer_enqueue_wall_ms.load(std::memory_order_relaxed)},
         {"framebuffer_pool_empty_alloc", counters.framebuffer_pool_empty_alloc.load(std::memory_order_relaxed)},
         {"framebuffer_pool_best_fit_reuse", counters.framebuffer_pool_best_fit_reuse.load(std::memory_order_relaxed)},
         {"framebuffer_pool_exact_hit", counters.framebuffer_pool_exact_hit.load(std::memory_order_relaxed)},
         {"framebuffer_buffer_returned_to_pool_count", counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed)},
         {"framebuffer_prealloc_created", counters.framebuffer_prealloc_created.load(std::memory_order_relaxed)},
         {"unaligned_memory_copies", counters.unaligned_memory_copies.load(std::memory_order_relaxed)},
-        {"frame_conversion_copy_ms", counters.frame_conversion_copy_ms.load(std::memory_order_relaxed)},
-        {"video_graph_eval_ms", counters.video_graph_eval_ms.load(std::memory_order_relaxed)},
-        {"video_conversion_ms", counters.video_conversion_ms.load(std::memory_order_relaxed)},
-        {"video_pipe_write_ms", counters.video_pipe_write_ms.load(std::memory_order_relaxed)},
-        {"video_ffmpeg_latency_ms", counters.video_ffmpeg_latency_ms.load(std::memory_order_relaxed)},
-        {"io_queue_push_blocked_ms", counters.io_queue_push_blocked_ms.load(std::memory_order_relaxed)},
+        {"frame_conversion_copy_wall_ms", counters.frame_conversion_copy_wall_ms.load(std::memory_order_relaxed)},
+        {"video_graph_eval_wall_ms", counters.video_graph_eval_wall_ms.load(std::memory_order_relaxed)},
+        {"video_conversion_wall_ms", counters.video_conversion_wall_ms.load(std::memory_order_relaxed)},
+        {"video_pipe_write_wall_ms", counters.video_pipe_write_wall_ms.load(std::memory_order_relaxed)},
+        {"video_ffmpeg_wait_ms", counters.video_ffmpeg_wait_ms.load(std::memory_order_relaxed)},
+        {"io_queue_push_wait_ms", counters.io_queue_push_wait_ms.load(std::memory_order_relaxed)},
         {"io_queue_pop_wait_ms", counters.io_queue_pop_wait_ms.load(std::memory_order_relaxed)},
         {"io_writer_idle_wait_ms", counters.io_writer_idle_wait_ms.load(std::memory_order_relaxed)},
         {"io_queue_peak_depth", counters.io_queue_peak_depth.load(std::memory_order_relaxed)},
-        {"ffmpeg_pipe_write_blocked_ms", counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed)},
+        {"ffmpeg_pipe_write_wall_ms", counters.ffmpeg_pipe_write_wall_ms.load(std::memory_order_relaxed)},
         {"converted_frame_cache_hits",  counters.converted_frame_cache_hits.load(std::memory_order_relaxed)},
         {"converted_frame_cache_misses", counters.converted_frame_cache_misses.load(std::memory_order_relaxed)},
         {"program_cache_hits",     counters.program_cache_hits.load(std::memory_order_relaxed)},
@@ -151,7 +164,17 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"program_cache_evictions", counters.program_cache_evictions.load(std::memory_order_relaxed)},
         {"program_cache_capacity",  counters.program_cache_capacity.load(std::memory_order_relaxed)},
         {"program_cache_tune",       counters.program_cache_tune.load(std::memory_order_relaxed)},
-        {"ffmpeg_flush_ms", counters.ffmpeg_flush_ms.load(std::memory_order_relaxed)},
+        {"ffmpeg_flush_wall_ms", counters.ffmpeg_flush_wall_ms.load(std::memory_order_relaxed)},
+        {"encoder_submit_cpu_ms", counters.encoder_submit_cpu_ms.load(std::memory_order_relaxed)},
+        {"encoder_backpressure_wait_ms", counters.encoder_backpressure_wait_ms.load(std::memory_order_relaxed)},
+        {"encoder_flush_wall_ms", counters.encoder_flush_wall_ms.load(std::memory_order_relaxed)},
+        {"mux_finalize_wall_ms", counters.mux_finalize_wall_ms.load(std::memory_order_relaxed)},
+        {"pixel_format_convert_wall_ms", counters.pixel_format_convert_wall_ms.load(std::memory_order_relaxed)},
+        {"color_space_convert_wall_ms", counters.color_space_convert_wall_ms.load(std::memory_order_relaxed)},
+        {"pipe_write_cpu_ms", counters.pipe_write_cpu_ms.load(std::memory_order_relaxed)},
+        {"pipe_write_wall_ms", counters.pipe_write_wall_ms.load(std::memory_order_relaxed)},
+        {"pipe_write_cpu_wall_us", counters.pipe_write_cpu_wall_us.load(std::memory_order_relaxed)},
+        {"pipe_backpressure_wait_wall_us", counters.pipe_backpressure_wait_wall_us.load(std::memory_order_relaxed)},
         {"process_context_switches_voluntary", counters.process_context_switches_voluntary.load(std::memory_order_relaxed)},
         {"process_context_switches_involuntary", counters.process_context_switches_involuntary.load(std::memory_order_relaxed)},
         {"os_page_faults_major", counters.os_page_faults_major.load(std::memory_order_relaxed)},
@@ -179,8 +202,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"skipped_encoder_backpressure", counters.skipped_encoder_backpressure.load(std::memory_order_relaxed)},
         {"graph_executed_frames", counters.graph_executed_frames.load(std::memory_order_relaxed)},
         {"graph_skipped_frames", counters.graph_skipped_frames.load(std::memory_order_relaxed)},
-        {"graph_executed_ms_sum", counters.graph_executed_ms_sum.load(std::memory_order_relaxed)},
-        {"graph_skipped_ms_sum", counters.graph_skipped_ms_sum.load(std::memory_order_relaxed)},
+        {"graph_executed_wall_ms_sum", counters.graph_executed_wall_ms_sum.load(std::memory_order_relaxed)},
+        {"graph_skipped_wall_ms_sum", counters.graph_skipped_wall_ms_sum.load(std::memory_order_relaxed)},
         {"framebuffer_pool_capacity", 0},
         {"framebuffer_pool_available_count", 0},
         {"framebuffer_pool_current_bytes", 0},
@@ -256,30 +279,30 @@ inline std::vector<chronon3d::telemetry::PhaseTelemetryRecord> capture_graph_pha
         }
     };
 
-    add_phase("graph_resolve_layers_ms", counters.graph_resolve_layers_ms.load(std::memory_order_relaxed));
-    add_phase("graph_dirty_rect_ms", counters.graph_dirty_rect_ms.load(std::memory_order_relaxed));
-    add_phase("graph_build_ms", counters.graph_build_ms.load(std::memory_order_relaxed));
-    add_phase("graph_execute_ms", counters.graph_execute_ms.load(std::memory_order_relaxed));
-    add_phase("graph_total_ms", counters.graph_total_ms.load(std::memory_order_relaxed));
-    add_phase("compiled_graph_refresh_ms", counters.compiled_graph_refresh_ms.load(std::memory_order_relaxed));
-    add_phase("cache_eval_ms", counters.cache_eval_ms.load(std::memory_order_relaxed));
-    add_phase("dirty_eval_ms", counters.dirty_eval_ms.load(std::memory_order_relaxed));
-    add_phase("input_resolve_ms", counters.input_resolve_ms.load(std::memory_order_relaxed));
-    add_phase("framebuffer_lifetime_ms", counters.framebuffer_lifetime_ms.load(std::memory_order_relaxed));
-    add_phase("node_schedule_ms", counters.node_schedule_ms.load(std::memory_order_relaxed));
-    add_phase("node_dispatch_ms", counters.node_dispatch_ms.load(std::memory_order_relaxed));
-    add_phase("telemetry_emit_ms", counters.telemetry_emit_ms.load(std::memory_order_relaxed));
+    add_phase("graph_resolve_layers_wall_ms", counters.graph_resolve_layers_wall_ms.load(std::memory_order_relaxed));
+    add_phase("graph_dirty_rect_wall_ms", counters.graph_dirty_rect_wall_ms.load(std::memory_order_relaxed));
+    add_phase("graph_build_wall_ms", counters.graph_build_wall_ms.load(std::memory_order_relaxed));
+    add_phase("graph_execute_wall_ms", counters.graph_execute_wall_ms.load(std::memory_order_relaxed));
+    add_phase("graph_total_wall_ms", counters.graph_total_wall_ms.load(std::memory_order_relaxed));
+    add_phase("compiled_graph_refresh_wall_ms", counters.compiled_graph_refresh_wall_ms.load(std::memory_order_relaxed));
+    add_phase("cache_eval_wall_ms", counters.cache_eval_wall_ms.load(std::memory_order_relaxed));
+    add_phase("dirty_eval_wall_ms", counters.dirty_eval_wall_ms.load(std::memory_order_relaxed));
+    add_phase("input_resolve_wall_ms", counters.input_resolve_wall_ms.load(std::memory_order_relaxed));
+    add_phase("framebuffer_lifetime_wall_ms", counters.framebuffer_lifetime_wall_ms.load(std::memory_order_relaxed));
+    add_phase("node_schedule_wall_ms", counters.node_schedule_wall_ms.load(std::memory_order_relaxed));
+    add_phase("node_dispatch_wall_ms", counters.node_dispatch_wall_ms.load(std::memory_order_relaxed));
+    add_phase("telemetry_emit_wall_ms", counters.telemetry_emit_wall_ms.load(std::memory_order_relaxed));
     const auto add_us_phase = [&](const char* name, uint64_t value) {
         if (value > 0) phases.push_back({name, static_cast<double>(value) / 1000.0});
     };
-    add_us_phase("dof_roi_analysis_ms", counters.dof_roi_analysis_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_blur_radius_generation_ms", counters.dof_blur_radius_generation_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_scratch_allocation_ms", counters.dof_scratch_allocation_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_copy_to_hpass_ms", counters.dof_copy_to_hpass_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_horizontal_pass_ms", counters.dof_horizontal_pass_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_hpass_to_output_ms", counters.dof_hpass_to_output_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_vertical_pass_ms", counters.dof_vertical_pass_us.load(std::memory_order_relaxed));
-    add_us_phase("dof_writeback_ms", counters.dof_writeback_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_roi_analysis_ms", counters.dof_roi_analysis_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_blur_radius_generation_ms", counters.dof_blur_radius_generation_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_scratch_allocation_ms", counters.dof_scratch_allocation_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_copy_to_hpass_ms", counters.dof_copy_to_hpass_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_horizontal_pass_ms", counters.dof_horizontal_pass_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_hpass_to_output_ms", counters.dof_hpass_to_output_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_vertical_pass_ms", counters.dof_vertical_pass_wall_us.load(std::memory_order_relaxed));
+    add_us_phase("dof_writeback_ms", counters.dof_writeback_wall_us.load(std::memory_order_relaxed));
     return phases;
 }
 

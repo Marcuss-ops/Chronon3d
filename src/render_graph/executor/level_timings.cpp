@@ -88,31 +88,31 @@ void LevelTimings::roll_up(RenderCounters& counters,
     // `using` alias would fail to compile with "'memory_order_relaxed'
     // does not name a type").
 
-    counters.input_resolve_ms.fetch_add(
+    counters.input_resolve_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(input_ms)), std::memory_order_relaxed);
-    counters.node_schedule_ms.fetch_add(
+    counters.node_schedule_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(schedule_ms)), std::memory_order_relaxed);
-    counters.node_dispatch_ms.fetch_add(
+    counters.node_dispatch_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(dispatch_ms)), std::memory_order_relaxed);
-    counters.framebuffer_lifetime_ms.fetch_add(
+    counters.framebuffer_lifetime_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(framebuffer_ms)), std::memory_order_relaxed);
 
-    counters.cache_eval_ms.fetch_add(
+    counters.cache_eval_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(cache_sum)), std::memory_order_relaxed);
-    counters.dirty_eval_ms.fetch_add(
+    counters.dirty_eval_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(dirty_sum)), std::memory_order_relaxed);
-    counters.telemetry_emit_ms.fetch_add(
+    counters.telemetry_emit_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(telemetry_sum)), std::memory_order_relaxed);
-    counters.node_execute_actual_ms.fetch_add(
+    counters.node_execute_actual_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(execute_sum)), std::memory_order_relaxed);
-    counters.predicted_bbox_ms.fetch_add(
+    counters.predicted_bbox_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(pred_bbox_sum)), std::memory_order_relaxed);
-    counters.clone_context_ms.fetch_add(
+    counters.clone_context_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(clone_ctx_sum)), std::memory_order_relaxed);
-    counters.state_assign_ms.fetch_add(
+    counters.state_assign_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(state_sum)), std::memory_order_relaxed);
 
-    counters.node_overhead_ms.fetch_add(
+    counters.node_overhead_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(overhead_ms)), std::memory_order_relaxed);
 }
 

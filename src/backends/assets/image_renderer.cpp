@@ -219,7 +219,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
-        profiling::g_current_counters->image_decode_ms.fetch_add(
+        profiling::g_current_counters->image_decode_wall_ms.fetch_add(
             static_cast<uint64_t>(std::llround(decode_ms)),
             std::memory_order_relaxed
         );
@@ -416,6 +416,12 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
     const auto t_sample1 = profiling::now();
     const double sample_ms = profiling::duration_ms(composite_start, t_sample1);
+    if (profiling::g_current_counters) {
+        const double draw_us = profiling::duration_us(composite_start, t_sample1);
+        profiling::g_current_counters->image_draw_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(draw_us)), std::memory_order_relaxed);
+        profiling::g_current_counters->image_draw_count.fetch_add(1, std::memory_order_relaxed);
+    }
     const uint64_t sampled_pixels = static_cast<uint64_t>(src_w) * static_cast<uint64_t>(src_h);
     record_image_telemetry(
         state,
@@ -445,7 +451,7 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
-        profiling::g_current_counters->image_decode_ms.fetch_add(
+        profiling::g_current_counters->image_decode_wall_ms.fetch_add(
             static_cast<uint64_t>(std::llround(decode_ms)),
             std::memory_order_relaxed
         );
@@ -509,6 +515,12 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
 
     const auto t_sample1 = profiling::now();
     const double sample_ms = profiling::duration_ms(composite_start, t_sample1);
+    if (profiling::g_current_counters) {
+        const double draw_us = profiling::duration_us(composite_start, t_sample1);
+        profiling::g_current_counters->image_draw_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(draw_us)), std::memory_order_relaxed);
+        profiling::g_current_counters->image_draw_count.fetch_add(1, std::memory_order_relaxed);
+    }
     record_image_telemetry(
         state,
         image.path,
