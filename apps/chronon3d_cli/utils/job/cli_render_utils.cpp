@@ -4,6 +4,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include "../common/render_error_formatter.hpp"
 
@@ -59,7 +60,10 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,
     std::optional<Config> config,
-    std::optional<std::filesystem::path> assets_root) {
+    std::optional<std::filesystem::path> assets_root,
+    double* engine_init_ms,
+    double* backend_init_ms) {
+    const auto engine_t0 = profiling::now();
     auto renderer = config.has_value()
         ? std::make_shared<SoftwareRenderer>(std::move(*config))
         : std::make_shared<SoftwareRenderer>(Config::from_environment());
@@ -68,6 +72,9 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
 
     // Inject default backends
     renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
+    if (engine_init_ms) {
+        *engine_init_ms = profiling::duration_ms(engine_t0, profiling::now());
+    }
 
     // FIX (M4 init-order bug): SoftwareRenderer::backend() dereferences
     // m_runtime->backend(), which throws `RenderRuntime::backend() called
@@ -86,6 +93,7 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // further up this function could be moved before these refs were
     // read.
     assert(renderer != nullptr);
+    const auto backend_t0 = profiling::now();
     if (!renderer->runtime().backend_attached()) {
         // Fase A2 — unified backend construction via the canonical
         // `attach_software_backend()` factory (runtime_adapter.hpp).
@@ -93,6 +101,9 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
         // make_software_backend + attach_processor_context duplicate.
         chronon3d::backends::software::attach_software_backend(
             renderer.get(), renderer->runtime().config().backend_preference());
+    }
+    if (backend_init_ms) {
+        *backend_init_ms = profiling::duration_ms(backend_t0, profiling::now());
     }
 
     // Explicit CLI asset mounting for standalone renders.  Do not fall back

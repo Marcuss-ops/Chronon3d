@@ -58,7 +58,7 @@ DirtyRectOutput compute_dirty_rect(
     if (!out.use_dirty_rects) {
         out.dirty_rect = raster::BBox{0, 0, width, height};
         if (ctx.node_exec.counters) {
-            ctx.node_exec.counters->dirty_eval_ms.fetch_add(
+            ctx.node_exec.counters->dirty_eval_wall_ms.fetch_add(
                 static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
                 std::memory_order_relaxed);
         }
@@ -246,7 +246,7 @@ DirtyRectOutput compute_dirty_rect(
     }
 
     if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->dirty_eval_ms.fetch_add(
+        ctx.node_exec.counters->dirty_eval_wall_ms.fetch_add(
             static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
             std::memory_order_relaxed);
     }

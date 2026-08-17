@@ -24,14 +24,8 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     const bool is_native = (session.opts.encoder.encoder_backend == "native");
     result.write_blocked_ms = pipe_write_blocked_ms(is_native, *session.encoder);
 
-    result.native_convert_ms   = session.encoder->native_convert_ms();
-    result.native_send_ms      = session.encoder->native_send_frame_ms();
-    result.native_receive_ms   = session.encoder->native_receive_packet_ms();
-    result.native_mux_ms       = session.encoder->native_mux_write_ms();
-    result.native_trailer_ms   = session.encoder->native_trailer_ms();
-
     const double conv_copy_ms = session.renderer && session.renderer->counters()
-        ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_ms.load())
+        ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_wall_ms.load())
         : 0.0;
     const auto conversion_bytes = session.renderer && session.renderer->counters()
         ? session.renderer->counters()->conversion_bytes_written.load()
@@ -49,15 +43,30 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
         "[video_diag] conversion_bytes_written={} encoder_staging_copy_bytes={} encoder_slot_reuses={}",
         conversion_bytes, staging_copy_bytes, encoder_slot_reuses);
 
-    if (is_native) {
-        spdlog::info("[video_native] convert={:.2f}ms  send_frame={:.2f}ms  receive_packet={:.2f}ms  mux_write={:.2f}ms  trailer={:.2f}ms",
-                     result.native_convert_ms, result.native_send_ms,
-                     result.native_receive_ms, result.native_mux_ms, result.native_trailer_ms);
-    }
-
     result.success = session.encoder->close();
     if (!result.success) {
         spdlog::error("[video] Encoder close failed");
+    }
+
+    // Read the native accessors AFTER close() so the flush-time
+    // receive/mux/trailer accumulation (drain + av_write_trailer) is
+    // included.  Reading before close() would silently drop the final
+    // packets and the trailer, under-reporting those tails.
+    result.native_convert_ms      = session.encoder->native_convert_ms();
+    result.native_send_ms         = session.encoder->native_send_frame_ms();
+    result.native_backpressure_ms = session.encoder->native_backpressure_ms();
+    result.native_flush_ms        = session.encoder->native_flush_ms();
+    result.native_receive_ms      = session.encoder->native_receive_packet_ms();
+    result.native_mux_ms          = session.encoder->native_mux_write_ms();
+    result.native_trailer_ms      = session.encoder->native_trailer_ms();
+
+    if (is_native) {
+        spdlog::info(
+            "[video_native] convert={:.2f}ms  send_frame={:.2f}ms  backpressure={:.2f}ms  "
+            "flush={:.2f}ms  receive_packet={:.2f}ms  mux_write={:.2f}ms  trailer={:.2f}ms",
+            result.native_convert_ms, result.native_send_ms, result.native_backpressure_ms,
+            result.native_flush_ms, result.native_receive_ms, result.native_mux_ms,
+            result.native_trailer_ms);
     }
 
     return result;
@@ -121,10 +130,12 @@ PipeExportResult make_pipe_export_result(
         // P1-B: ffprobe validation before rename
         // Verify the .partial file is a valid video with correct stream,
         // resolution, fps, and non-zero file size.
+        const auto validation_t0 = profiling::now();
         const bool valid = validate_video_output(
             session.opts.output.output,
             session.canvas_width, session.canvas_height,
             session.opts.output.fps, session.total_frames);
+        result.validation_ms = profiling::duration_ms(validation_t0, profiling::now());
         if (!valid) {
             spdlog::error("[video] ffprobe validation failed — output may be corrupt");
             result.success = false;
@@ -135,8 +146,10 @@ PipeExportResult make_pipe_export_result(
         }
 
         // Atomic rename: .partial → final path
+        const auto output_t0 = profiling::now();
         std::error_code ec;
         std::filesystem::rename(partial_path, final_path, ec);
+        result.output_finalize_ms = profiling::duration_ms(output_t0, profiling::now());
         if (ec) {
             spdlog::error("[video] Failed to rename {} → {}: {}",
                          partial_path.string(), final_path.string(), ec.message());
@@ -158,18 +171,18 @@ void record_pipe_telemetry(
     PipeExportSession& session,
     const RenderLoopResult& loop_result,
     const EncoderCloseResult& close_result,
-    const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+    const std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
     double wall_time_ms,
     double render_ms,
     double encode_ms)
 {
     const bool is_native = (session.opts.encoder.encoder_backend == "native");
     const double conv_copy_ms = session.renderer && session.renderer->counters()
-        ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_ms.load())
+        ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_wall_ms.load())
         : 0.0;
 
     // ── Merge encoder telemetry into frame records ────────────────────────
-    std::vector<FrameEncoderTelemetryRecord> sorted_encoder = session.frame_encoder_telemetry;
+    std::vector<chronon3d::telemetry::FrameTelemetry> sorted_encoder = session.frame_encoder_telemetry;
     std::sort(sorted_encoder.begin(), sorted_encoder.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
 
@@ -185,6 +198,9 @@ void record_pipe_telemetry(
         frame.conversion_copy_ms = encode_it->conversion_copy_ms;
         frame.encoder_ms = encode_it->encoder_ms;
         frame.pipe_write_ms = encode_it->pipe_write_ms;
+        frame.backpressure_wait_ms = encode_it->backpressure_wait_ms;
+        frame.pipe_write_cpu_ms = encode_it->pipe_write_cpu_ms;
+        frame.pipe_backpressure_wait_ms = encode_it->pipe_backpressure_wait_ms;
         frame.native_convert_ms = encode_it->native_convert_ms;
         frame.native_send_ms = encode_it->native_send_ms;
         frame.native_receive_ms = encode_it->native_receive_ms;
@@ -233,7 +249,7 @@ void record_pipe_telemetry(
     // masked by easing/layout/scheduling.  gpu_readback / encode / disk_io
     // split the writer side so codec and I/O never mask GPU readback.
     const uint64_t node_execute_ms = session.renderer->counters()
-        ? session.renderer->counters()->node_execute_actual_ms.load(std::memory_order_relaxed)
+        ? session.renderer->counters()->node_execute_actual_wall_ms.load(std::memory_order_relaxed)
         : 0ULL;
 
     chronon3d::telemetry::RenderPhaseTimings phase_timings;
@@ -276,20 +292,16 @@ void record_pipe_telemetry(
         session.sys_metrics.fill_system_counters(*session.renderer->counters());
 
         if (is_native) {
-            session.renderer->counters()->native_av_convert_ms.store(
+            session.renderer->counters()->native_av_convert_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_convert_ms), std::memory_order_relaxed);
-            session.renderer->counters()->native_av_send_frame_ms.store(
-                static_cast<uint64_t>(close_result.native_send_ms), std::memory_order_relaxed);
-            session.renderer->counters()->native_av_receive_packet_ms.store(
+            session.renderer->counters()->native_av_receive_packet_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_receive_ms), std::memory_order_relaxed);
-            session.renderer->counters()->native_av_mux_write_ms.store(
+            session.renderer->counters()->native_av_mux_write_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_mux_ms), std::memory_order_relaxed);
-            session.renderer->counters()->native_av_trailer_ms.store(
-                static_cast<uint64_t>(close_result.native_trailer_ms), std::memory_order_relaxed);
         } else {
-            session.renderer->counters()->video_pipe_write_ms.store(
+            session.renderer->counters()->video_pipe_write_wall_ms.store(
                 static_cast<uint64_t>(close_result.write_blocked_ms), std::memory_order_relaxed);
-            session.renderer->counters()->ffmpeg_pipe_write_blocked_ms.store(
+            session.renderer->counters()->ffmpeg_pipe_write_wall_ms.store(
                 static_cast<uint64_t>(close_result.write_blocked_ms), std::memory_order_relaxed);
         }
     }

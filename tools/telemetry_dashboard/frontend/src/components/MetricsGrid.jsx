@@ -45,20 +45,20 @@ export default function MetricsGrid({ runDetail }) {
   const progCacheHitRate = progCacheTotal > 0
     ? (progCacheHits / progCacheTotal * 100).toFixed(1)
     : '—';
-  const fbAcquireMs = getCounter('framebuffer_acquire_ms');
-  const fbClearMs = getCounter('framebuffer_clear_ms');
-  const fbEnqueueMs = getCounter('framebuffer_enqueue_ms');
-  const frameConvCopyMs = getCounter('frame_conversion_copy_ms');
+  const fbAcquireMs = getCounter('framebuffer_acquire_wall_ms');
+  const fbClearMs = getCounter('framebuffer_clear_wall_ms');
+  const fbEnqueueMs = getCounter('framebuffer_enqueue_wall_ms');
+  const frameConvCopyMs = getCounter('frame_conversion_copy_wall_ms');
   const fbReturnedPool = getCounter('framebuffer_buffer_returned_to_pool_count');
   const fbEmptyAlloc = getCounter('framebuffer_pool_empty_alloc');
   const fbBestFitReuse = getCounter('framebuffer_pool_best_fit_reuse');
   const fbMissTotal = fbEmptyAlloc + fbBestFitReuse;
 
   // Benchmark separation counters (per-run totals)
-  const videoGraphEvalMs = getCounter('video_graph_eval_ms');
-  const videoConversionMs = getCounter('video_conversion_ms');
-  const videoPipeWriteMs = getCounter('video_pipe_write_ms');
-  const videoFfmpegLatencyMs = getCounter('video_ffmpeg_latency_ms');
+  const videoGraphEvalMs = getCounter('video_graph_eval_wall_ms');
+  const videoConversionMs = getCounter('video_conversion_wall_ms');
+  const videoPipeWriteMs = getCounter('video_pipe_write_wall_ms');
+  const videoFfmpegLatencyMs = getCounter('video_ffmpeg_wait_ms');
 
   // OS & Process Diagnostics
   const ctxSwitchesVoluntary = getCounter('process_context_switches_voluntary');
@@ -72,10 +72,10 @@ export default function MetricsGrid({ runDetail }) {
   const llcMissRate = llcReferences > 0 ? (llcMisses / llcReferences * 100).toFixed(2) : '—';
 
   // Setup Deep Dive
-  const setupGraphParsingMs = getCounter('setup_graph_parsing_ms');
-  const setupAssetIoLoadMs = getCounter('setup_asset_io_load_ms');
-  const setupPoolPreallocMs = getCounter('setup_pool_preallocation_ms');
-  const imageDecodeMs = getCounter('image_decode_ms');
+  const setupGraphParsingWallMs = getCounter('setup_graph_parsing_wall_ms');
+  const setupAssetIoLoadWallMs = getCounter('setup_asset_io_load_wall_ms');
+  const setupPoolPreallocWallMs = getCounter('setup_pool_preallocation_wall_ms');
+  const imageDecodeWallMs = getCounter('image_decode_wall_ms');
 
   // Nuove metriche benchmark separation
   const chrononRenderOnlyMs = Number(r.chronon_render_only_ms || 0);
@@ -217,7 +217,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Framebuffer Acquire Duration
-            {renderInfoIcon('framebuffer_acquire_ms')}
+            {renderInfoIcon('framebuffer_acquire_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: fbAcquireMs > 50 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
             {fbAcquireMs.toFixed(2)}
@@ -230,7 +230,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Framebuffer Clear Duration
-            {renderInfoIcon('framebuffer_clear_ms')}
+            {renderInfoIcon('framebuffer_clear_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: fbClearMs > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
             {fbClearMs.toFixed(2)}
@@ -243,7 +243,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Frame Conversion & Copy
-            {renderInfoIcon('frame_conversion_copy_ms')}
+            {renderInfoIcon('frame_conversion_copy_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: frameConvCopyMs > 20 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
             {frameConvCopyMs.toFixed(2)}
@@ -256,7 +256,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Framebuffer Enqueue Duration
-            {renderInfoIcon('framebuffer_enqueue_ms')}
+            {renderInfoIcon('framebuffer_enqueue_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: fbEnqueueMs > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
             {fbEnqueueMs.toFixed(2)}
@@ -477,7 +477,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Graph Eval
-            {renderInfoIcon('video_graph_eval_ms')}
+            {renderInfoIcon('video_graph_eval_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(videoGraphEvalMs, 100, 500) }}>
             {videoGraphEvalMs.toFixed(2)}
@@ -490,7 +490,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Conversion (SIMD)
-            {renderInfoIcon('video_conversion_ms')}
+            {renderInfoIcon('video_conversion_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(videoConversionMs, 20, 100) }}>
             {videoConversionMs.toFixed(2)}
@@ -503,7 +503,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             Pipe Write
-            {renderInfoIcon('video_pipe_write_ms')}
+            {renderInfoIcon('video_pipe_write_wall_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(videoPipeWriteMs, 50, 200) }}>
             {videoPipeWriteMs.toFixed(2)}
@@ -516,7 +516,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
             FFmpeg Backpressure
-            {renderInfoIcon('video_ffmpeg_latency_ms')}
+            {renderInfoIcon('video_ffmpeg_wait_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(videoFfmpegLatencyMs, 20, 100) }}>
             {videoFfmpegLatencyMs.toFixed(2)}
@@ -536,10 +536,10 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
             Graph Parsing
-            {renderInfoIcon('setup_graph_parsing_ms')}
+            {renderInfoIcon('setup_graph_parsing_wall_ms')}
           </div>
-          <div className="metric-value" style={{ color: getDurationColor(setupGraphParsingMs, 200, 1000) }}>
-            {setupGraphParsingMs.toFixed(2)}
+          <div className="metric-value" style={{ color: getDurationColor(setupGraphParsingWallMs, 200, 1000) }}>
+            {setupGraphParsingWallMs.toFixed(2)}
             <span className="metric-unit">ms</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -549,10 +549,10 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
             Asset I/O Load
-            {renderInfoIcon('setup_asset_io_load_ms')}
+            {renderInfoIcon('setup_asset_io_load_wall_ms')}
           </div>
-          <div className="metric-value" style={{ color: pageFaultsMajor > 0 ? 'var(--color-danger)' : getDurationColor(setupAssetIoLoadMs, 200, 1000) }}>
-            {setupAssetIoLoadMs.toFixed(2)}
+          <div className="metric-value" style={{ color: pageFaultsMajor > 0 ? 'var(--color-danger)' : getDurationColor(setupAssetIoLoadWallMs, 200, 1000) }}>
+            {setupAssetIoLoadWallMs.toFixed(2)}
             <span className="metric-unit">ms</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -562,10 +562,10 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
             Pool Preallocation
-            {renderInfoIcon('setup_pool_preallocation_ms')}
+            {renderInfoIcon('setup_pool_preallocation_wall_ms')}
           </div>
-          <div className="metric-value" style={{ color: getDurationColor(setupPoolPreallocMs, 100, 500) }}>
-            {setupPoolPreallocMs.toFixed(2)}
+          <div className="metric-value" style={{ color: getDurationColor(setupPoolPreallocWallMs, 100, 500) }}>
+            {setupPoolPreallocWallMs.toFixed(2)}
             <span className="metric-unit">ms</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -575,10 +575,10 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
             Image Decode
-            {renderInfoIcon('image_decode_ms')}
+            {renderInfoIcon('image_decode_wall_ms')}
           </div>
-          <div className="metric-value" style={{ color: getDurationColor(imageDecodeMs, 50, 200) }}>
-            {imageDecodeMs.toFixed(2)}
+          <div className="metric-value" style={{ color: getDurationColor(imageDecodeWallMs, 50, 200) }}>
+            {imageDecodeWallMs.toFixed(2)}
             <span className="metric-unit">ms</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -969,7 +969,7 @@ export default function MetricsGrid({ runDetail }) {
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">Sequential Level Exec</div>
           <div className="metric-value">
-            {getCounter('sequential_level_execute_ms').toFixed(2)}
+            {getCounter('sequential_level_execute_wall_ms').toFixed(2)}
             <span className="metric-unit">ms</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -978,8 +978,8 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">FB Copy Duration</div>
-          <div className="metric-value" style={{ color: getCounter('framebuffer_copy_ms') > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
-            {getCounter('framebuffer_copy_ms').toFixed(2)}
+          <div className="metric-value" style={{ color: getCounter('framebuffer_copy_wall_ms') > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
+            {getCounter('framebuffer_copy_wall_ms').toFixed(2)}
             <span className="metric-unit">ms</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>

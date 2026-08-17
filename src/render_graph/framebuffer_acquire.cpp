@@ -154,7 +154,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     // Net effect: zero pixel copies; `other` returns a 1×1 placeholder
     // to the pool instead of an 8 MB alloc.  Replaces the ~8 MB
     // `pool->acquire_from(other) → memcpy` that previously dominated
-    // `compositenode_acquire_ms` in chained composite layouts.
+    // `compositenode_acquire_wall_ms` in chained composite layouts.
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {

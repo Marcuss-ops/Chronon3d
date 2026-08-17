@@ -139,11 +139,16 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
 /// Create and configure a SoftwareRenderer from the given settings.
 /// If `config` is provided, passes it to SoftwareRenderer's Config-accepting
 /// constructor; otherwise uses the default constructor (env-var-based Config).
+/// `engine_init_ms` (if non-null) receives the renderer construction + wiring
+/// duration; `backend_init_ms` (if non-null) receives the backend attach
+/// duration.  Both are wall-time measurements in milliseconds.
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,
     std::optional<Config> config = std::nullopt,
-    std::optional<std::filesystem::path> assets_root = std::nullopt);
+    std::optional<std::filesystem::path> assets_root = std::nullopt,
+    double* engine_init_ms = nullptr,
+    double* backend_init_ms = nullptr);
 
 } // namespace cli
 } // namespace chronon3d

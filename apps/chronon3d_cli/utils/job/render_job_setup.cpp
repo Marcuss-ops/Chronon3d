@@ -33,7 +33,7 @@ void setup_render_job(const CompositionRegistry& registry,
     if (out.renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
             profiling::duration_ms(out.setup_t0, renderer_t1));
-        out.renderer->counters()->setup_graph_parsing_ms.fetch_add(
+        out.renderer->counters()->setup_graph_parsing_wall_ms.fetch_add(
             setup_ms, std::memory_order_relaxed);
     }
 
@@ -109,7 +109,7 @@ void setup_render_job(const CompositionRegistry& registry,
     if (preparation.warmup_performed && out.renderer->counters()) {
         const auto warmup_ms = static_cast<uint64_t>(
             profiling::duration_ms(warmup_t0, warmup_t1));
-        out.renderer->counters()->setup_pool_preallocation_ms.fetch_add(
+        out.renderer->counters()->setup_pool_preallocation_wall_ms.fetch_add(
             warmup_ms, std::memory_order_relaxed);
 
         out.saved_fb_alloc = out.renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);

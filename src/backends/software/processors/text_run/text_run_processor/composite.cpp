@@ -17,6 +17,7 @@
 
 #include "text_run_stages.hpp"
 #include "../../../utils/blend2d_bridge.hpp"
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -89,6 +90,10 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
         return graph::RenderOpResult(graph::RenderOpOutcome{s.glyphs_drawn});
     }
 
+    // TICKET-TEXT-TIMING-V1 — time the final text composite (draw) to the
+    // framebuffer so it is separable from glyph rasterization.
+    const auto draw_start = profiling::now();
+
     // ── Stage 8 — Composite MAIN onto framebuffer (full model_matrix) ────
     //
     // Compose the user's model with the run-local translate so the image
@@ -118,6 +123,10 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
     release_surface(s, std::move(s.img));
 
     if (rctx.counters) {
+        rctx.counters->text_draw_wall_us.fetch_add(
+            static_cast<std::uint64_t>(std::llround(profiling::elapsed_us(draw_start))),
+            std::memory_order_relaxed
+        );
         rctx.counters->text_glyphs_rasterized.fetch_add(
             static_cast<std::uint64_t>(s.glyphs_drawn),
             std::memory_order_relaxed

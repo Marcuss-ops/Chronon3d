@@ -37,12 +37,21 @@ VisualPresetDescriptor
 ├── id
 ├── version
 ├── supported_layer      (VisualLayerKind: image | video | text | color)
+├── base_preset          (materializer TEXT canonico: caption_safe_area |
+│                         kinetic_word | subtitle_bottom | lower_third;
+│                         vuoto per i preset image/video)
 ├── style                (VisualStyle — default paint recipe)
 ├── anchor               (AnchorSpec — layout INTENT, non coordinate)
 ├── animation            (AnimationSpec — preset + unit word/glyph/line)
 ├── fallback_anchors     (ordine preferred → fallback)
 └── capabilities         (tag: card, local_background, collision_avoid, ...)
 ```
+
+Il mapping preset → materializer vive ESCLUSIVAMENTE nel campo
+`base_preset` del descriptor: il render-plan compiler lo consuma dalla
+registry e non mantiene tabelle parallele (`visual_base_preset` è stato
+rimosso da `render_plan_compiler.cpp`). Aggiungere un preset significa
+aggiungere un descriptor; il compiler non cambia.
 
 La separazione dei ruoli diventa:
 
@@ -132,6 +141,13 @@ risoluzioni e lunghezze.
 registry su build host funzionante (vedi ADR-025: macchina-verifica
 deferred quando l'ambiente vcpkg è bloccato).
 
+(g) **`TICKET-VISUAL-PRESET-ADAPTIVE-CONTRAST`** — content-aware styling
+(sample pixels behind text → luminance → white/black + shadow strength +
+card opacity) è **rimandato a una fase successiva**. V1 usa SOLO
+leggibilità locale deterministica: background/shadow/stroke della text
+card (campo `VisualStyle`). Nessun contrast veil globale che scurisca
+l'intero frame — il resto del video resta intatto.
+
 ## Cross-references
 
 - AGENTS.md §regole "No nuovi singleton/registry/resolver/cache senza
@@ -142,6 +158,8 @@ deferred quando l'ambiente vcpkg è bloccato).
   (`text_preset_registry.hpp`, `shape_registry.hpp`).
 - `RenderingGen/renderinggen/internal/overlay/compiler.go`
   (`semanticTemplateRegistry` — da eliminare in (d)).
+- `src/render_plan/render_plan_compiler.cpp` — consuma
+  `VisualPresetDescriptor::base_preset`; nessuna tabella preset parallela.
 - `refactored/internal/capabilities/overlays/template_registry.go`
   (da ridurre a SemanticOverlayResolver in (d)).
 

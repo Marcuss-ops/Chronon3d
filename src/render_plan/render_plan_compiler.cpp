@@ -1,5 +1,7 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
+#include <chronon3d/render_plan/animation_intent.hpp>
+#include <chronon3d/render_plan/visual_preset_materializer.hpp>
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
@@ -23,167 +25,36 @@
 namespace chronon3d::render_plan {
 namespace {
 
-std::optional<chronon3d::Color> parse_hex_color(std::string_view value,
-                                                 float alpha = 1.0f) {
-    if (value.size() != 7 || value.front() != '#') return std::nullopt;
-    auto hex = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        return -1;
-    };
-    const int r1 = hex(value[1]), r2 = hex(value[2]);
-    const int g1 = hex(value[3]), g2 = hex(value[4]);
-    const int b1 = hex(value[5]), b2 = hex(value[6]);
-    if (r1 < 0 || r2 < 0 || g1 < 0 || g2 < 0 || b1 < 0 || b2 < 0)
-        return std::nullopt;
-    return chronon3d::Color{
-        static_cast<float>(r1 * 16 + r2) / 255.0f,
-        static_cast<float>(g1 * 16 + g2) / 255.0f,
-        static_cast<float>(b1 * 16 + b2) / 255.0f,
-        std::clamp(alpha, 0.0f, 1.0f)};
-}
+// Text overlay that has been materialized but NOT yet placed.  `layout` is
+// set only when the overlay must go through the scene-wide layout resolver
+// (entity cards, explicit job anchors, image presets, …); caption/word
+// presets without an explicit anchor keep their native safe-area box and
+// skip the resolver entirely.
+struct MaterializedText {
+    chronon3d::TextDefinition definition;
+    std::optional<ResolvedLayoutIntent> layout;
+};
 
-std::string visual_base_preset(std::string_view id) {
-    if (id == "caption_card") return "caption_safe_area";
-    if (id == "active_word_pop") return "kinetic_word";
-    if (id == "subtitle_card") return "subtitle_bottom";
-    if (id == "lower_third_safe" || id == "organization_card" ||
-        id == "location_card") return "lower_third";
-    return {};
-}
-
-chronon3d::TextPlacementKind placement_kind(std::string_view type) {
-    using K = chronon3d::TextPlacementKind;
-    if (type == "top_left") return K::TopLeft;
-    if (type == "top_right") return K::TopRight;
-    if (type == "bottom_left") return K::BottomLeft;
-    if (type == "bottom_right" || type == "lower_third") return K::BottomLeft;
-    if (type == "safe_area" || type == "safe_area_center") return K::SafeAreaCenter;
-    if (type == "top") return K::SafeAreaTop;
-    if (type == "bottom") return K::SafeAreaBottom;
-    return K::CanvasCenter;
-}
-
-void apply_visual_style(chronon3d::TextDefinition& definition,
-                        const chronon3d::registry::VisualStyle& style) {
-    if (!style.font_family.empty()) definition.style.font.font_family = style.font_family;
-    if (style.font_weight) definition.style.font.font_weight = *style.font_weight;
-    if (style.font_size) definition.style.font.font_size = *style.font_size;
-    if (const auto fill = parse_hex_color(style.fill)) definition.style.color = *fill;
-
-    if (!style.stroke_color.empty() || style.stroke_width) {
-        definition.style.paint.stroke_enabled = true;
-        if (const auto color = parse_hex_color(style.stroke_color))
-            definition.style.paint.stroke_color = *color;
-        if (style.stroke_width) definition.style.paint.stroke_width = *style.stroke_width;
-    }
-    if (!style.shadow_color.empty() || style.shadow_blur || style.shadow_opacity) {
-        chronon3d::TextShadow shadow;
-        shadow.enabled = true;
-        if (const auto color = parse_hex_color(style.shadow_color)) shadow.color = *color;
-        if (style.shadow_blur) shadow.blur = *style.shadow_blur;
-        if (style.shadow_opacity) shadow.opacity = *style.shadow_opacity;
-        if (style.shadow_offset) {
-            shadow.offset = {(*style.shadow_offset)[0], (*style.shadow_offset)[1]};
-        }
-        definition.style.shadows = {shadow};
-    }
-    if (!style.background_color.empty() || style.background_opacity ||
-        style.radius || style.padding) {
-        definition.style.box_style.enabled = true;
-        const float opacity = style.background_opacity.value_or(1.0f);
-        if (const auto color = parse_hex_color(style.background_color, opacity))
-            definition.style.box_style.background = *color;
-        if (style.radius) definition.style.box_style.radius = *style.radius;
-        if (style.padding) {
-            definition.style.box_style.padding = {
-                (*style.padding)[0], (*style.padding)[1]};
-        }
-    }
-}
-
-void apply_visual_plan_overrides(chronon3d::TextDefinition& definition,
-                                 const LayerPlan& layer) {
-    if (layer.style) {
-        const auto& style = *layer.style;
-        if (!style.font_family.empty()) definition.style.font.font_family = style.font_family;
-        if (style.font_weight) definition.style.font.font_weight = *style.font_weight;
-        if (style.font_size) definition.style.font.font_size = *style.font_size;
-        if (const auto fill = parse_hex_color(style.fill)) definition.style.color = *fill;
-        if (style.stroke) {
-            definition.style.paint.stroke_enabled = true;
-            if (const auto color = parse_hex_color(style.stroke->color))
-                definition.style.paint.stroke_color = *color;
-            if (style.stroke->width) definition.style.paint.stroke_width = *style.stroke->width;
-        }
-        if (style.shadow) {
-            chronon3d::TextShadow shadow;
-            shadow.enabled = true;
-            if (const auto color = parse_hex_color(style.shadow->color)) shadow.color = *color;
-            shadow.opacity = style.shadow->opacity.value_or(1.0f);
-            shadow.blur = style.shadow->blur.value_or(0.0f);
-            if (style.shadow->offset_dimensions >= 2)
-                shadow.offset = {style.shadow->offset[0], style.shadow->offset[1]};
-            definition.style.shadows = {shadow};
-        }
-        if (style.background) {
-            definition.style.box_style.enabled = true;
-            const auto& background = *style.background;
-            if (const auto color = parse_hex_color(
-                    background.color, background.opacity.value_or(1.0f)))
-                definition.style.box_style.background = *color;
-            if (background.radius) definition.style.box_style.radius = *background.radius;
-            if (background.padding_dimensions >= 2)
-                definition.style.box_style.padding = {
-                    background.padding[0], background.padding[1]};
-        }
-    }
-    if (layer.anchor) {
-        definition.frame.placement = chronon3d::TextPlacement{
-            placement_kind(layer.anchor->type)};
-        definition.frame.align = layer.anchor->alignment == "right"
-            ? chronon3d::TextAlign::Right
-            : layer.anchor->alignment == "center"
-                ? chronon3d::TextAlign::Center : chronon3d::TextAlign::Left;
-    }
-    if (layer.font_asset) {
-        definition.style.font.font_path = layer.font_asset->asset;
-        if (!layer.font_asset->family.empty())
-            definition.style.font.font_family = layer.font_asset->family;
-        if (layer.font_asset->weight)
-            definition.style.font.font_weight = *layer.font_asset->weight;
-    }
-    if (!layer.font.empty()) definition.style.font.font_path = layer.font;
-    if (layer.font_size) definition.style.font.font_size = *layer.font_size;
-}
-
-void resolve_visual_layout(chronon3d::TextDefinition& definition,
-                           const LayerPlan& layer,
-                           const chronon3d::registry::VisualPresetDescriptor& visual,
-                           const chronon3d::CanvasInfo& canvas) {
+// Build one OverlayLayoutRequest from a materializer-resolved layout intent.
+// The intent (anchor + fallback + content bounds) is already concrete; this
+// only fills the scene-wide temporal framing.  `priority` is intentionally
+// left at the resolver default (stable original order) until a plan-level
+// priority contract exists.
+chronon3d::layout::OverlayLayoutRequest layout_request(
+    const LayerPlan& layer,
+    const ResolvedLayoutIntent& layout,
+    std::int64_t composition_frames) {
     chronon3d::layout::OverlayLayoutRequest request;
     request.id = layer.id;
-    request.intent = visual.anchor.type;
-    request.fallback_intents = visual.fallback_anchors;
-    request.width = definition.frame.size.x;
-    request.height = definition.frame.size.y;
-    request.safe_margin = layer.anchor
-        ? layer.anchor->safe_margin : visual.anchor.safe_margin;
-    const auto resolved = chronon3d::layout::OverlayLayoutResolver{}.solve(
-        canvas.width, canvas.height, {std::move(request)});
-    if (resolved.empty() || !resolved.front().valid) {
-        throw std::runtime_error(resolved.empty()
-            ? "visual layout resolver returned no result"
-            : resolved.front().warning);
-    }
-    // The layout resolver owns the top-left box coordinate.  Use an absolute
-    // top-left text anchor so the renderer cannot apply a second implicit
-    // center/lower-third offset.
-    definition.frame.anchor = chronon3d::TextAnchor::TopLeft;
-    definition.frame.placement = chronon3d::TextPlacement{
-        chronon3d::TextPlacementKind::Absolute,
-        {resolved.front().x, resolved.front().y}};
+    request.intent = layout.intent;
+    request.fallback_intents = layout.fallback_intents;
+    request.width = layout.width;
+    request.height = layout.height;
+    request.safe_margin = layout.safe_margin;
+    request.start_frame = layer.start_frame.value_or(Frame{0}).value;
+    request.end_frame = request.start_frame +
+        layer.duration_frames.value_or(Frame{composition_frames}).value;
+    return request;
 }
 
 chronon3d::FitMode fit_mode(FitMode value) {
@@ -196,74 +67,63 @@ chronon3d::FitMode fit_mode(FitMode value) {
     return chronon3d::FitMode::Cover;
 }
 
-chronon3d::TextDefinition text_definition(const LayerPlan& layer,
-                                           const chronon3d::CanvasInfo& canvas) {
-    chronon3d::TextDefinition definition;
+MaterializedText materialize_text(const LayerPlan& layer,
+                                  const chronon3d::CanvasInfo& canvas,
+                                  std::string_view style_profile,
+                                  std::int64_t composition_frames) {
+    MaterializedText out;
     std::string base_preset = layer.preset;
     if (!layer.preset.empty()) {
         const auto& visual_registry = chronon3d::registry::builtin_visual_preset_registry();
         if (visual_registry.contains(layer.preset)) {
-            const auto& visual = visual_registry.get(layer.preset);
-            if (visual.supported_layer != chronon3d::registry::VisualLayerKind::Text)
-                throw std::runtime_error("visual preset '" + layer.preset +
-                                         "' cannot be used on a text layer");
-            base_preset = visual_base_preset(layer.preset);
-            if (base_preset.empty())
-                throw std::runtime_error("visual preset '" + layer.preset +
-                                         "' has no text materialization");
-            if (layer.semantic_role.empty()) {
-                // semantic_role is optional for compatibility; preset remains
-                // the authoritative visual choice.
+            // Single materializer consumes the existing registry and resolves
+            // style, font, animation and layout intent — the compiler no
+            // longer re-maps preset ids or knows profile/role specifics.
+            auto resolved = VisualPresetMaterializer{}.materialize(
+                layer, canvas, style_profile, visual_registry,
+                Frame{composition_frames});
+            out.definition = std::move(resolved.text);
+            // The canonical text presets already own their safe-area box and
+            // anchor. Replacing that pin with an absolute top-left coordinate
+            // loses the preset's box anchor at large canvases and can clip
+            // long captions. Resolve entity-card placement and explicit job
+            // anchors; preserve the native caption/word layout otherwise.
+            if (layer.anchor || (layer.preset != "caption_card" &&
+                                 layer.preset != "active_word_pop")) {
+                out.layout = std::move(resolved.layout);
             }
-            if (base_preset == "title_centered")
-                definition = chronon3d::presets::text::title_centered(layer.text, canvas);
-            else if (base_preset == "subtitle_bottom")
-                definition = chronon3d::presets::text::subtitle_bottom(layer.text, canvas);
-            else if (base_preset == "caption_safe_area")
-                definition = chronon3d::presets::text::caption_safe_area(layer.text, canvas);
-            else if (base_preset == "kinetic_word")
-                definition = chronon3d::presets::text::kinetic_word(layer.text, canvas);
-            else
-                definition = chronon3d::presets::text::lower_third(layer.text, canvas);
-            apply_visual_style(definition, visual.style);
-            definition.frame.placement = chronon3d::TextPlacement{
-                placement_kind(visual.anchor.type)};
-            definition.frame.align = visual.anchor.alignment == "right"
-                ? chronon3d::TextAlign::Right
-                : visual.anchor.alignment == "center"
-                    ? chronon3d::TextAlign::Center : chronon3d::TextAlign::Left;
-            apply_visual_plan_overrides(definition, layer);
-            resolve_visual_layout(definition, layer, visual, canvas);
-            return definition;
+            return out;
         }
     }
     if (base_preset == "title_centered")
-        definition = chronon3d::presets::text::title_centered(layer.text, canvas);
+        out.definition = chronon3d::presets::text::title_centered(layer.text, canvas);
     else if (base_preset == "subtitle_bottom")
-        definition = chronon3d::presets::text::subtitle_bottom(layer.text, canvas);
+        out.definition = chronon3d::presets::text::subtitle_bottom(layer.text, canvas);
     else if (base_preset == "caption_safe_area")
-        definition = chronon3d::presets::text::caption_safe_area(layer.text, canvas);
+        out.definition = chronon3d::presets::text::caption_safe_area(layer.text, canvas);
     else if (base_preset == "kinetic_word")
-        definition = chronon3d::presets::text::kinetic_word(layer.text, canvas);
+        out.definition = chronon3d::presets::text::kinetic_word(layer.text, canvas);
     else if (base_preset == "lower_third")
-        definition = chronon3d::presets::text::lower_third(layer.text, canvas);
+        out.definition = chronon3d::presets::text::lower_third(layer.text, canvas);
     else {
-        definition.content.value = layer.text;
-        definition.style.font.font_size = layer.font_size.value_or(48.0f);
-        definition.style.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
-        definition.frame.size = {
+        out.definition.content.value = layer.text;
+        out.definition.style.font.font_size = layer.font_size.value_or(48.0f);
+        out.definition.style.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+        out.definition.frame.size = {
             layer.box_width.value_or(static_cast<float>(canvas.width)),
             layer.box_height.value_or(static_cast<float>(canvas.height))};
-        definition.frame.align = chronon3d::TextAlign::Center;
-        definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
+        out.definition.frame.align = chronon3d::TextAlign::Center;
+        out.definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
     }
     // Presets supply placement and styling defaults; an explicit plan font is
     // authoritative so asset materialization remains deterministic.
     if (!layer.font.empty())
-        definition.style.font.font_path = layer.font;
+        out.definition.style.font.font_path = layer.font;
     if (layer.font_size)
-        definition.style.font.font_size = *layer.font_size;
-    return definition;
+        out.definition.style.font.font_size = *layer.font_size;
+    apply_text_animation_intent(out.definition, layer, std::nullopt,
+                                composition_frames);
+    return out;
 }
 
 std::uint64_t render_settings_fingerprint(
@@ -332,7 +192,9 @@ RenderJobFingerprint render_job_fingerprint(
             material("chronon.render-request.v2", request_hash, true))};
 }
 
-void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
+void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer,
+                        std::string_view style_profile,
+                        Frame composition_frames) {
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
     if (layer.position_dimensions >= 2)
@@ -343,13 +205,39 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
         if (layer.animation->start_frame) builder.from(*layer.animation->start_frame);
         if (layer.animation->duration_frames)
             builder.duration(*layer.animation->duration_frames);
-        if (!layer.animation->preset.empty()) builder.motion(layer.animation->preset);
-    } else if (!layer.preset.empty()) {
+    }
+
+    // Resolve the layer-level animation intent ONCE (registry defaults +
+    // plan overrides).  Entry and exit are treated separately:
+    //   ENTRY — one-shot motion preset with the resolved enter duration
+    //           wired through MotionParameters (fade_in stays a pure entry;
+    //           it is never converted into a double animation).
+    //   EXIT  — the transition catalog owns the fade-out via
+    //           transition_out(); exit_duration drives its length.
+    std::optional<chronon3d::registry::AnimationSpec> preset_animation;
+    if (!layer.preset.empty()) {
         const auto& registry = chronon3d::registry::builtin_visual_preset_registry();
         if (registry.contains(layer.preset)) {
-            const auto& animation = registry.get(layer.preset).animation;
-            if (!animation.preset.empty()) builder.motion(animation.preset);
+            preset_animation =
+                registry.get_for_profile(layer.preset, style_profile).animation;
         }
+    }
+    if (!layer.animation && !preset_animation) return;
+
+    const auto resolved =
+        resolve_animation(preset_animation, layer, composition_frames);
+    if (!resolved.preset.empty()) {
+        presets::MotionParameters motion_params;
+        motion_params.duration = resolved.enter_duration;
+        builder.motion(resolved.preset, motion_params);
+    }
+    if (resolved.exit_duration > Frame{0}) {
+        chronon3d::LayerTransitionSpec exit_spec;
+        exit_spec.transition_id = "crossfade";
+        exit_spec.direction = chronon3d::TransitionDirection::None;
+        exit_spec.duration = builder.frame_rate().to_seconds(resolved.exit_duration);
+        exit_spec.easing = chronon3d::Easing::InCubic;
+        builder.transition_out(std::move(exit_spec));
     }
 }
 
@@ -431,9 +319,84 @@ compile_render_plan(
         spec.frame_rate = {plan.canvas.fps, 1};
         spec.duration = plan.canvas.duration;
 
+        // COLLECT — materialize every text/image overlay first, deferring
+        // placement.  Layout requests accumulate here so a SINGLE resolver
+        // pass can see all overlays (and the regions they occupy) at once,
+        // instead of resolving each overlay against a half-built scene.
+        std::vector<std::optional<chronon3d::TextDefinition>> prepared_texts(
+            plan.layers.size());
+        std::vector<std::optional<chronon3d::Vec2>> prepared_image_positions(
+            plan.layers.size());
+        struct LayoutTarget {
+            std::size_t layer_index;
+            bool is_image;  // true → image position; false → text placement
+        };
+        std::vector<chronon3d::layout::OverlayLayoutRequest> layout_requests;
+        std::vector<LayoutTarget> layout_targets;
+        for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+            const auto& layer = plan.layers[index];
+            if (layer.type == LayerType::Text) {
+                auto materialized = materialize_text(
+                    layer, canvas, plan.style_profile,
+                    plan.canvas.duration.value);
+                if (materialized.layout) {
+                    layout_requests.push_back(layout_request(
+                        layer, *materialized.layout, plan.canvas.duration.value));
+                    layout_targets.push_back({index, false});
+                }
+                prepared_texts[index] = std::move(materialized.definition);
+            } else if (layer.type == LayerType::Image && !layer.preset.empty()) {
+                const auto& visual_registry =
+                    chronon3d::registry::builtin_visual_preset_registry();
+                if (visual_registry.contains(layer.preset)) {
+                    // Image presets flow through the SAME materializer —
+                    // they resolve anchor + animation instead of staying
+                    // purely descriptive registry entries.
+                    const auto resolved =
+                        VisualPresetMaterializer{}.materialize_image(
+                            layer, canvas, plan.style_profile, visual_registry,
+                            Frame{plan.canvas.duration.value});
+                    layout_requests.push_back(layout_request(
+                        layer, resolved.layout, plan.canvas.duration.value));
+                    layout_targets.push_back({index, true});
+                }
+            }
+        }
+
+        // SOLVE TOGETHER — one deterministic greedy pass places every overlay
+        // in priority order (descending), avoiding the regions already taken.
+        const auto placements =
+            chronon3d::layout::OverlayLayoutResolver{}.solve(
+                canvas.width, canvas.height,
+                std::move(layout_requests), {});
+
+        // APPLY — fail-loud, then write the resolved x/y back onto each layer.
+        for (std::size_t i = 0; i < placements.size(); ++i) {
+            const auto& placement = placements[i];
+            if (!placement.valid) {
+                throw std::runtime_error(placement.warning);
+            }
+            const auto& target = layout_targets[i];
+            if (target.is_image) {
+                prepared_image_positions[target.layer_index] =
+                    chronon3d::Vec2{placement.x, placement.y};
+            } else {
+                // The layout resolver owns the top-left box coordinate.  Use
+                // an absolute top-left text anchor so the renderer cannot
+                // apply a second implicit center/lower-third offset.
+                auto& definition = *prepared_texts[target.layer_index];
+                definition.frame.anchor = chronon3d::TextAnchor::TopLeft;
+                definition.frame.placement = chronon3d::TextPlacement{
+                    chronon3d::TextPlacementKind::Absolute,
+                    {placement.x, placement.y}};
+            }
+        }
+
         CompositionDefinition definition;
         definition.composition = spec;
-        definition.scene = [plan, canvas, subtitles, resolved_video_paths](const FrameContext& ctx) {
+        definition.scene = [plan, canvas, subtitles, resolved_video_paths,
+                            prepared_texts, prepared_image_positions](
+                               const FrameContext& ctx) {
                 SceneBuilder scene(ctx);
                 for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                     const auto& layer = plan.layers[index];
@@ -447,6 +410,15 @@ compile_render_plan(
                                     layer.box_height.value_or(static_cast<float>(plan.canvas.height))};
                                 params.fit = fit_mode(layer.fit.value_or(FitMode::Cover));
                                 builder.image("image", std::move(params));
+                                // Anchor-resolved position from the image
+                                // materializer (explicit `position` in the
+                                // plan still wins via apply_layer_timing).
+                                if (prepared_image_positions[index]) {
+                                    builder.position({
+                                        prepared_image_positions[index]->x,
+                                        prepared_image_positions[index]->y,
+                                        0.0f});
+                                }
                                 break;
                             }
                             case LayerType::Video: {
@@ -468,7 +440,9 @@ compile_render_plan(
                             }
                             case LayerType::Text:
                                 builder.kind(LayerKind::Text);
-                                builder.text("text", text_definition(layer, canvas));
+                                if (!prepared_texts[index])
+                                    throw std::runtime_error("text layer was not prepared");
+                                builder.text("text", *prepared_texts[index]);
                                 break;
                             case LayerType::SubtitleTrack: {
                                 if (!subtitles[index])
@@ -481,7 +455,8 @@ compile_render_plan(
                                 break;
                             }
                         }
-                        apply_layer_timing(builder, layer);
+                        apply_layer_timing(builder, layer, plan.style_profile,
+                                           plan.canvas.duration);
                     });
                 }
                 return scene.build();

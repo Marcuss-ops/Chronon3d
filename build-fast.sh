@@ -101,15 +101,22 @@ resolve_build_dir() {
     # Honor explicit override first.
     if [[ -n "${BUILD_DIR_OVERRIDE:-}" ]]; then
         BUILD_DIR="$BUILD_DIR_OVERRIDE"
+        CMAKE_DIR="$BUILD_DIR_OVERRIDE"
         return
     fi
     # Default: derive from PRESET name so 'PRESET=linux-content-dev' Just Works.
     # Use project-local .tmp/ on disk, NOT /tmp (tmpfs) which runs out of space.
     BUILD_DIR="${ROOT_DIR}/.tmp/chronon-builds/${PRESET}"
     mkdir -p "$BUILD_DIR"
-    local symlink="$ROOT_DIR/build/chronon/${PRESET}"
-    mkdir -p "$(dirname "$symlink")"
-    ln -sfnT "$BUILD_DIR" "$symlink"
+    # Configure through the canonical symlink path (== the preset's binaryDir),
+    # NOT the real path.  If the build is configured with the real path, the
+    # linker bakes that real path into the CLI RUNPATH while `cmake --install`
+    # (invoked via the symlink) expects the symlink path in OLD_RPATH — so
+    # install fails at file(RPATH_CHANGE).  One canonical path keeps them in
+    # agreement.
+    CMAKE_DIR="$ROOT_DIR/build/chronon/${PRESET}"
+    mkdir -p "$(dirname "$CMAKE_DIR")"
+    ln -sfnT "$BUILD_DIR" "$CMAKE_DIR"
 }
 
 PRESET="linux-fast-dev"
@@ -123,7 +130,7 @@ JOBS="${JOBS:-8}"
 
 ensure_configured() {
     if [[ ! -f "$BUILD_DIR/build.ninja" ]]; then
-        cmake --preset "$PRESET" -B "$BUILD_DIR"
+        cmake --preset "$PRESET" -B "$CMAKE_DIR"
     fi
 }
 
@@ -208,7 +215,7 @@ case "${TARGET}" in
         mkdir -p "$(dirname "$content_symlink")"
         ln -sfnT "$CONTENT_BUILD_DIR" "$content_symlink"
         if [[ ! -f "$CONTENT_BUILD_DIR/build.ninja" ]]; then
-            cmake --preset "$CONTENT_PRESET" -B "$CONTENT_BUILD_DIR"
+            cmake --preset "$CONTENT_PRESET" -B "$content_symlink"
         fi
         echo "╔══════════════════════════════════════════╗"
         echo "║  📦 CONTENT build: CLI + content ON      ║"
@@ -225,7 +232,7 @@ case "${TARGET}" in
         mkdir -p "$(dirname "$dash_symlink")"
         ln -sfnT "$DASH_BUILD_DIR" "$dash_symlink"
         if [[ ! -f "$DASH_BUILD_DIR/build.ninja" ]]; then
-            cmake --preset "$DASH_PRESET" -B "$DASH_BUILD_DIR"
+            cmake --preset "$DASH_PRESET" -B "$dash_symlink"
         fi
         echo "╔══════════════════════════════════════════╗"
         echo "║  📊 DASHBOARD build: content + telemetry ║"
@@ -252,7 +259,7 @@ case "${TARGET}" in
         mkdir -p "$(dirname "$release_symlink")"
         ln -sfnT "$RELEASE_BUILD_DIR" "$release_symlink"
         if [[ ! -f "$RELEASE_BUILD_DIR/build.ninja" ]]; then
-            cmake --preset "$RELEASE_PRESET" -B "$RELEASE_BUILD_DIR"
+            cmake --preset "$RELEASE_PRESET" -B "$release_symlink"
         fi
         echo "╔══════════════════════════════════════════╗"
         echo "║  ⚡ RELEASE build: RelWithDebInfo        ║"

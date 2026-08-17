@@ -93,6 +93,7 @@ chronon3d_add_test_suite(
         runtime/test_telemetry.cpp
         runtime/test_telemetry_report.cpp
         runtime/test_telemetry_semantic.cpp
+        runtime/test_telemetry_session.cpp
         scene/shapes/mask_tests.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)

@@ -14,6 +14,8 @@ add_library(chronon3d_render_plan OBJECT
 
 add_library(chronon3d_render_plan_compiler OBJECT
     render_plan_compiler.cpp
+    animation_intent.cpp
+    visual_preset_materializer.cpp
 )
 
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE

@@ -234,8 +234,8 @@ function App() {
     const graphSkippedCount = cachedFrames.length;
 
     // ── Time Attribution Gap Analysis ──
-    const nodeDispatchMs = c('node_dispatch_ms');
-    const nodeExecuteMs = c('node_execute_actual_ms');
+    const nodeDispatchMs = c('node_dispatch_wall_ms');
+    const nodeExecuteMs = c('node_execute_actual_wall_ms');
     const hotNodeSum = nodeEvents.reduce((sum, n) => sum + n.duration_ms, 0);
     const attributionGap = nodeDispatchMs - hotNodeSum;
     const attributionGapPct = nodeDispatchMs > 0 ? ((attributionGap / nodeDispatchMs) * 100).toFixed(1) : '0.0';
@@ -260,7 +260,7 @@ function App() {
     const fallbackEffect = c('dirty_full_fallback_effect_bounds_unknown');
 
     // ── IO Queue ──
-    const ioPushBlocked = c('io_queue_push_blocked_ms');
+    const ioPushBlocked = c('io_queue_push_wait_ms');
     const ioPopWait = c('io_queue_pop_wait_ms');
     const ioIdle = c('io_writer_idle_wait_ms');
     const ioPeakDepth = c('io_queue_peak_depth');
@@ -363,10 +363,10 @@ function App() {
           ['Peak Memory', formatBytes(r.bytes_allocated_peak)],
           ['Framebuffer Bytes Allocated (last frame)', formatBytes(r.framebuffer_bytes_allocated)],
           ['Framebuffer Peak (last frame)', formatBytes(r.framebuffer_bytes_peak)],
-          ['FB Acquire Duration', `${c('framebuffer_acquire_ms')} ms`],
-          ['FB Clear Duration', `${c('framebuffer_clear_ms')} ms`],
-          ['Frame Conversion & Copy', `${c('frame_conversion_copy_ms')} ms`],
-          ['FB Enqueue Duration', `${c('framebuffer_enqueue_ms')} ms`],
+          ['FB Acquire Duration', `${c('framebuffer_acquire_wall_ms')} ms`],
+          ['FB Clear Duration', `${c('framebuffer_clear_wall_ms')} ms`],
+          ['Frame Conversion & Copy', `${c('frame_conversion_copy_wall_ms')} ms`],
+          ['FB Enqueue Duration', `${c('framebuffer_enqueue_wall_ms')} ms`],
           ['FB Pool Exact Hit', String(poolExactHit)],
           ['FB Pool Empty Alloc', String(poolEmptyAlloc)],
           ['FB Pool Best-Fit Reuse', String(poolBestFitReuse)],
@@ -406,8 +406,8 @@ function App() {
       mdTable(
         ['Metric', 'Value'],
         [
-          ['node_dispatch_ms (total)', `${nodeDispatchMs.toFixed(2)} ms`],
-          ['node_execute_actual_ms', `${nodeExecuteMs.toFixed(2)} ms`],
+          ['node_dispatch_wall_ms (total)', `${nodeDispatchMs.toFixed(2)} ms`],
+          ['node_execute_actual_wall_ms', `${nodeExecuteMs.toFixed(2)} ms`],
           ['Sum of Hot Nodes', `${hotNodeSum.toFixed(2)} ms`],
           ['ATTRIBUTION GAP', `${attributionGap.toFixed(2)} ms (${attributionGapPct}%)`],
           ['CPU User', `${cpuUser.toFixed(2)} ms`],
@@ -418,7 +418,7 @@ function App() {
       ),
       '',
       attributionGap > nodeDispatchMs * 0.3
-        ? `⚠️ LARGE Attribution Gap: ${attributionGapPct}% of node_dispatch_ms is UNACCOUNTED. Hot Nodes only explain ${(100 - Number(attributionGapPct)).toFixed(1)}% of dispatch time. Check: framebuffer clear/composite/transform inside nodes may not be tracked in Hot Nodes.`
+        ? `⚠️ LARGE Attribution Gap: ${attributionGapPct}% of node_dispatch_wall_ms is UNACCOUNTED. Hot Nodes only explain ${(100 - Number(attributionGapPct)).toFixed(1)}% of dispatch time. Check: framebuffer clear/composite/transform inside nodes may not be tracked in Hot Nodes.`
         : `✅ Attribution Gap is reasonable at ${attributionGapPct}%. Hot nodes account for most of the dispatch time.`,
       '',
       `## 🏊 Pool Health`,
@@ -501,7 +501,7 @@ function App() {
       `- Pool miss rate: ${poolMissRate}. Higher = more fresh allocs = more memory churn.`,
       `- Pool exact hit rate: ${poolHitRate}. Higher = more no-op reuses.`,
       `- CPU efficiency: ${cpuEff}% across ${cores} cores (${cpuEquiv} core-equivalent of ${cores} available).`,
-      `- Time attribution: ${attributionGapPct}% of node_dispatch_ms (${nodeDispatchMs.toFixed(0)}ms) is unaccounted by hot nodes (${hotNodeSum.toFixed(0)}ms).`,
+      `- Time attribution: ${attributionGapPct}% of node_dispatch_wall_ms (${nodeDispatchMs.toFixed(0)}ms) is unaccounted by hot nodes (${hotNodeSum.toFixed(0)}ms).`,
       graphSkippedCount > graphExecutedCount
         ? `- Graph skip is working well: ${graphSkippedCount} frames skipped (${avgCachedMs.toFixed(2)}ms avg) vs ${graphExecutedCount} executed (${avgActiveMs.toFixed(2)}ms avg).`
         : `- All ${graphExecutedCount} frames executed through the graph — no skip optimization in effect. Check if layers are cache_static.`,

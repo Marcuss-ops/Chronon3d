@@ -51,6 +51,10 @@ Vec2 top_left_for(Anchor anchor, Vec2 pin, float box_w, float box_h) {
 }
 
 bool overlaps(const OverlayRegion& a, const OverlayRegion& b) {
+    const bool temporal_known = a.start_frame >= 0 && a.end_frame > a.start_frame &&
+                                b.start_frame >= 0 && b.end_frame > b.start_frame;
+    if (temporal_known && (a.end_frame <= b.start_frame || b.end_frame <= a.start_frame))
+        return false;
     const bool separated_x = a.x + a.width <= b.x || b.x + b.width <= a.x;
     const bool separated_y = a.y + a.height <= b.y || b.y + b.height <= a.y;
     return !(separated_x || separated_y);
@@ -111,7 +115,8 @@ std::vector<ResolvedOverlayLayout> OverlayLayoutResolver::solve(
             const Vec2 pin = pin_for(anchor, canvas_width, canvas_height,
                                      inset_x, inset_y);
             const Vec2 tl = top_left_for(anchor, pin, request.width, request.height);
-            const OverlayRegion box{tl.x, tl.y, request.width, request.height};
+            const OverlayRegion box{tl.x, tl.y, request.width, request.height,
+                                    request.start_frame, request.end_frame};
 
             if (inside_safe_area(box, canvas_width, canvas_height, inset_x, inset_y) &&
                 std::none_of(occupied.begin(), occupied.end(),

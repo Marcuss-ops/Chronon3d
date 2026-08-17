@@ -14,7 +14,7 @@ struct RenderLoopResult {
     double total_encode_ms{0.0};
     int frames_written{0};
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
 
     std::chrono::steady_clock::time_point loop_start;
     std::chrono::steady_clock::time_point loop_end;

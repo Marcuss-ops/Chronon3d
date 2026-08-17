@@ -14,19 +14,6 @@
 
 namespace chronon3d::cli {
 
-// ── Per-frame encoder telemetry ─────────────────────────────────────────────
-
-struct FrameEncoderTelemetryRecord {
-    Frame frame_number{0};
-    double conversion_copy_ms{0.0};
-    double encoder_ms{0.0};
-    double pipe_write_ms{0.0};
-    double native_convert_ms{0.0};
-    double native_send_ms{0.0};
-    double native_receive_ms{0.0};
-    double native_mux_ms{0.0};
-};
-
 // ── Boundary model for the final export result ──────────────────────────────
 
 struct PipeExportResult {
@@ -44,6 +31,8 @@ struct PipeExportResult {
     double wall_time_ms{0.0};
     double render_ms{0.0};
     double encode_ms{0.0};
+    double validation_ms{0.0};
+    double output_finalize_ms{0.0};
 };
 
 // ── Aggregated telemetry for the export pipeline ────────────────────────────
@@ -72,7 +61,7 @@ struct WriterThreadContext {
     SoftwareRenderer & renderer;
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
-    std::vector<FrameEncoderTelemetryRecord>& frame_encoder_telemetry;
+    std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
 };
 
 // ── Render loop ─────────────────────────────────────────────────────────────
@@ -92,7 +81,7 @@ struct RenderLoopContext {
     std::atomic<bool>& writer_failed;
     TripleBufferArena& triple_arena;
     RenderCounters* counters;
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;
 };
 
 struct RenderLoopResult {
@@ -103,7 +92,7 @@ struct RenderLoopResult {
 
 struct RenderLoopOutput {
     RenderLoopResult loop_result;
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     double render_ms{0.0};
     std::chrono::steady_clock::time_point render_end;
 };
@@ -122,6 +111,8 @@ struct EncoderCloseResult {
     double write_blocked_ms{0.0};
     double native_convert_ms{0.0};
     double native_send_ms{0.0};
+    double native_backpressure_ms{0.0};
+    double native_flush_ms{0.0};
     double native_receive_ms{0.0};
     double native_mux_ms{0.0};
     double native_trailer_ms{0.0};

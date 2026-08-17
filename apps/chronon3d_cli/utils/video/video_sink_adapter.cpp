@@ -279,6 +279,10 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     const size_t expected_size = encoder_frame.storage.size();
 
     const auto conv_t0 = profiling::now();
+    const uint64_t pixel_before = counters_
+        ? counters_->pixel_format_convert_wall_ms.load(std::memory_order_relaxed) : 0;
+    const uint64_t color_before = counters_
+        ? counters_->color_space_convert_wall_ms.load(std::memory_order_relaxed) : 0;
 
     // Use FrameConversionService to convert.
     const video::ConversionOptions copts{
@@ -295,6 +299,10 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         fb, copts, encoder_frame.storage.data(), expected_size);
 
     const auto conv_t1 = profiling::now();
+    const uint64_t pixel_after = counters_
+        ? counters_->pixel_format_convert_wall_ms.load(std::memory_order_relaxed) : 0;
+    const uint64_t color_after = counters_
+        ? counters_->color_space_convert_wall_ms.load(std::memory_order_relaxed) : 0;
     const double conv_ms = profiling::duration_ms(conv_t0, conv_t1);
 
     if (!converted) {
@@ -306,6 +314,8 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     // conversion result; `encoder_staging_copy_bytes` remains zero because
     // no Chronon-owned staging copy exists in this path.
     last_telemetry_.conversion_copy_ms = conv_ms;
+    last_telemetry_.pixel_format_convert_ms = static_cast<double>(pixel_after - pixel_before);
+    last_telemetry_.color_space_convert_ms = static_cast<double>(color_after - color_before);
     last_telemetry_.conversion_bytes_written = converted.data.size();
     last_telemetry_.encoder_staging_copy_bytes = 0;
     if (encoder_pool_) {
@@ -315,9 +325,9 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     }
 
     if (counters_) {
-        counters_->video_conversion_ms.fetch_add(
+        counters_->video_conversion_wall_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
-        counters_->frame_conversion_copy_ms.fetch_add(
+        counters_->frame_conversion_copy_wall_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         counters_->conversion_bytes_written.fetch_add(
             converted.data.size(), std::memory_order_relaxed);
@@ -328,7 +338,7 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
             pool_stats.slots_allocated, std::memory_order_relaxed);
         counters_->encoder_slot_reuses.store(
             pool_stats.slot_reuses, std::memory_order_relaxed);
-        counters_->frame_conversion_ms.fetch_add(
+        counters_->frame_conversion_wall_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         counters_->video_frames_converted.fetch_add(1, std::memory_order_relaxed);
     }
@@ -349,6 +359,13 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
 
     // ── 3. Submit to sink ──────────────────────────────────────────────
     const auto submit_t0 = std::chrono::steady_clock::now();
+    // Snapshot the pipe-write decomposition counters around submit() so the
+    // per-frame CPU copy vs back-pressure wait are separable (the write
+    // itself happens inside the sink's write_to_pipe, on the same thread).
+    const uint64_t pipe_cpu_before = counters_
+        ? counters_->pipe_write_cpu_wall_us.load(std::memory_order_relaxed) : 0;
+    const uint64_t pipe_bp_before = counters_
+        ? counters_->pipe_backpressure_wait_wall_us.load(std::memory_order_relaxed) : 0;
     // The conversion service produces tight-packed data for all formats.
     // For YUV420P: Y(w×h) + U(w/2×h/2) + V(w/2×h/2) — contiguous
     // For NV12:    Y(w×h) + UV(w×h/2) — contiguous
@@ -356,6 +373,10 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     // The sink's submit() handles all packed formats uniformly.
     bool ok = sink_->submit(view);
     const auto submit_t1 = std::chrono::steady_clock::now();
+    const uint64_t pipe_cpu_after = counters_
+        ? counters_->pipe_write_cpu_wall_us.load(std::memory_order_relaxed) : 0;
+    const uint64_t pipe_bp_after = counters_
+        ? counters_->pipe_backpressure_wait_wall_us.load(std::memory_order_relaxed) : 0;
 
     if (!ok) {
         spdlog::error("[video_adapter] sink->submit() failed at frame {}: {} — {}",
@@ -368,15 +389,19 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         submit_t1 - submit_t0).count();
     last_telemetry_.encoder_ms = submit_ms;
     last_telemetry_.frame_submit_ms = submit_ms;
+    last_telemetry_.pipe_write_cpu_ms =
+        static_cast<double>(pipe_cpu_after - pipe_cpu_before) / 1000.0;
+    last_telemetry_.pipe_backpressure_wait_ms =
+        static_cast<double>(pipe_bp_after - pipe_bp_before) / 1000.0;
     write_blocked_ms_ += submit_ms;
 
     if (counters_) {
         counters_->video_frames_submitted.fetch_add(1, std::memory_order_relaxed);
-        counters_->video_pipe_write_ms.fetch_add(
+        counters_->video_pipe_write_wall_ms.fetch_add(
             static_cast<uint64_t>(submit_ms), std::memory_order_relaxed);
         counters_->video_frames_written_counter.fetch_add(
             1, std::memory_order_relaxed);
-        counters_->frame_submit_ms.fetch_add(
+        counters_->frame_submit_wall_ms.fetch_add(
             static_cast<uint64_t>(submit_ms), std::memory_order_relaxed);
     }
 

@@ -3,6 +3,7 @@
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
@@ -30,6 +31,43 @@ std::string RenderPreparationResult::diagnostic() const {
 
 namespace {
 
+// Cumulative image-asset counters read around the decode loop so the
+// prepare barrier can attribute its image sub-phases without relying on the
+// (reset-prone) global counter surface surviving until finalize.
+struct ImageCounterSnapshot {
+    uint64_t resolve_us{0};
+    uint64_t decode_us{0};
+    uint64_t convert_us{0};
+    uint64_t decode_count{0};
+    uint64_t cache_hits{0};
+    uint64_t cache_misses{0};
+};
+
+ImageCounterSnapshot snapshot_image_counters(const RenderCounters& counters) {
+    ImageCounterSnapshot s;
+    s.resolve_us = counters.image_resolve_wall_us.load(std::memory_order_relaxed);
+    s.decode_us = counters.image_decode_wall_us.load(std::memory_order_relaxed);
+    s.convert_us = counters.image_convert_wall_us.load(std::memory_order_relaxed);
+    s.decode_count = counters.image_decode_count.load(std::memory_order_relaxed);
+    s.cache_hits = counters.image_cache_hits.load(std::memory_order_relaxed);
+    s.cache_misses = counters.image_cache_misses.load(std::memory_order_relaxed);
+    return s;
+}
+
+struct FontCounterSnapshot {
+    uint64_t resolve_us{0};
+    uint64_t cache_hits{0};
+    uint64_t cache_misses{0};
+};
+
+FontCounterSnapshot snapshot_font_counters(const RenderCounters& counters) {
+    FontCounterSnapshot s;
+    s.resolve_us = counters.font_resolve_wall_us.load(std::memory_order_relaxed);
+    s.cache_hits = counters.font_cache_hits.load(std::memory_order_relaxed);
+    s.cache_misses = counters.font_cache_misses.load(std::memory_order_relaxed);
+    return s;
+}
+
 RenderPreparationResult prepare_render_scene(
     SoftwareRenderer* renderer,
     const Scene& scene,
@@ -45,11 +83,20 @@ RenderPreparationResult prepare_render_scene(
         return result;
     }
 
+    // Route counter writes during the synchronous prepare barrier into the
+    // renderer's counters (image/font caches use profiling::g_current_counters,
+    // which is otherwise unset on the prepare thread).
+    profiling::ProfilingGuard profiling_scope(
+        renderer->counters(), renderer->framebuffer_pool().get());
+
     // The scene has already been materialized by the canonical compiled
     // composition path. Preparation validates exactly that payload.
+    const auto preflight_t0 = profiling::now();
     result.preflight = AssetPreflightResolver::check(
         scene, renderer->runtime().resolver(), options.preflight_mode,
         options.reference_frame);
+    result.timings.asset_preflight_ms =
+        profiling::duration_ms(preflight_t0, profiling::now());
     if (!result.preflight.ok()) {
         const auto issue = std::find_if(
             result.preflight.issues.begin(), result.preflight.issues.end(),
@@ -81,8 +128,11 @@ RenderPreparationResult prepare_render_scene(
     if (renderer->video_decoder() != nullptr) {
         resource_options.prepare_video_metadata = false;
     }
+    const auto resolve_t0 = profiling::now();
     auto prepared = ResourcePreparation::prepare(
         scene.asset_manifest(), renderer->runtime().resolver(), resource_options);
+    result.timings.asset_resolve_ms =
+        profiling::duration_ms(resolve_t0, profiling::now());
     if (!prepared.has_value()) {
         result.preparation_error = std::move(prepared.error());
         return result;
@@ -93,10 +143,14 @@ RenderPreparationResult prepare_render_scene(
     // ResourcePreparation pass above remains the deterministic manifest
     // barrier; these calls perform the actual cache population before the
     // first frame and therefore make invalid payloads fail early.
+    const auto font_t0 = profiling::now();
+    const FontCounterSnapshot font_before = snapshot_font_counters(*renderer->counters());
     if (options.resources.prepare_fonts &&
         !scene.asset_manifest().filter(assets::AssetKind::Font).empty()) {
         const auto fonts = renderer->preflight_fonts(
             scene, renderer->runtime().resolver());
+        result.timings.font_load_ms =
+            profiling::duration_ms(font_t0, profiling::now());
         if (fonts.preflight_missing != 0) {
             result.preparation_error = PreparationError{
                 .code = PreparationError::Code::CorruptedAsset,
@@ -106,7 +160,14 @@ RenderPreparationResult prepare_render_scene(
             return result;
         }
     }
+    const FontCounterSnapshot font_after = snapshot_font_counters(*renderer->counters());
+    result.timings.font_cache_hits = font_after.cache_hits - font_before.cache_hits;
+    result.timings.font_cache_misses = font_after.cache_misses - font_before.cache_misses;
+    result.timings.font_resolve_ms =
+        static_cast<double>(font_after.resolve_us - font_before.resolve_us) / 1000.0;
 
+    const auto decode_t0 = profiling::now();
+    const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
     if (options.resources.prepare_images) {
         for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
             const auto image = renderer->runtime().image_cache().get_or_load(ref.path);
@@ -127,10 +188,27 @@ RenderPreparationResult prepare_render_scene(
             }
         }
     }
+    const ImageCounterSnapshot image_after = snapshot_image_counters(*renderer->counters());
+
+    result.timings.asset_decode_ms =
+        profiling::duration_ms(decode_t0, profiling::now());
+    result.timings.image_resolve_ms =
+        static_cast<double>(image_after.resolve_us - image_before.resolve_us) / 1000.0;
+    result.timings.image_decode_ms =
+        static_cast<double>(image_after.decode_us - image_before.decode_us) / 1000.0;
+    result.timings.image_convert_ms =
+        static_cast<double>(image_after.convert_us - image_before.convert_us) / 1000.0;
+    result.timings.image_decode_count =
+        image_after.decode_count - image_before.decode_count;
+    result.timings.image_cache_hits = image_after.cache_hits - image_before.cache_hits;
+    result.timings.image_cache_misses = image_after.cache_misses - image_before.cache_misses;
 
     // Publish only after every requested preparation phase succeeds. The
     // render graph borrows this runtime-owned snapshot; it never loads assets.
+    const auto publish_t0 = profiling::now();
     renderer->runtime().publish_prepared_assets(*result.prepared_assets);
+    result.timings.backend_prepare_ms =
+        profiling::duration_ms(publish_t0, profiling::now());
     return result;
 }
 

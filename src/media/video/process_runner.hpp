@@ -53,10 +53,15 @@ public:
     /// Write bytes to the child's stdin with a per-write deadline.
     /// Uses poll() with POLLOUT so the write is non-blocking; drains stderr
     /// inside the poll loop to prevent the child from blocking on stderr.
+    /// @param cpu_write_ms Optional out-param: cumulative wall time spent
+    ///                     inside ::write() syscalls (the copy into the
+    ///                     kernel pipe buffer), excluding the poll() wait.
+    ///                     Set to 0.0 on entry.  nullptr = not measured.
     /// @return true if all bytes were written before the deadline,
     ///         false on timeout or pipe error.
     bool write_for(const std::uint8_t* data, std::size_t size,
-                   std::chrono::milliseconds timeout);
+                   std::chrono::milliseconds timeout,
+                   double* cpu_write_ms = nullptr);
 
     /// Close the write end of the stdin pipe.  The child receives EOF on
     /// its next read.  Idempotent.

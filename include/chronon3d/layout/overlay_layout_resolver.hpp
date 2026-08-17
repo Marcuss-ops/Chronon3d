@@ -23,6 +23,7 @@
 
 #include <chronon3d/layout/layout_rules.hpp>  // Anchor, Vec2
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,6 +36,10 @@ struct OverlayRegion {
     float y{0.0f};
     float width{0.0f};
     float height{0.0f};
+    // Optional temporal extent. -1 means the region is persistent/unknown
+    // and must collide with every temporal request.
+    std::int64_t start_frame{-1};
+    std::int64_t end_frame{-1};
 };
 
 // One overlay layer to place.
@@ -46,6 +51,8 @@ struct OverlayLayoutRequest {
     float height{0.0f};
     float safe_margin{0.06f};                 // fraction of canvas per side.
     float priority{0.0f};                     // higher resolves first.
+    std::int64_t start_frame{-1};
+    std::int64_t end_frame{-1};
 };
 
 // Resolved placement for one request.

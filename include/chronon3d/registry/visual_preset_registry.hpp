@@ -4,7 +4,8 @@
 // one place that knows how each preset is painted, anchored and animated:
 //
 //   caption_card / active_word_pop / subtitle_card / lower_third_safe /
-//   organization_card / location_card / image_focus_in
+//   organization_card / location_card / image_focus_in plus the 2D showcase
+//   families image_* / name_* / phrase_* (five choices per family).
 //
 // PipelineGen only resolves semantic_role → preset_id (editorial decision,
 // kept in its SemanticOverlayResolver); RenderingGen transports and
@@ -52,6 +53,12 @@ public:
 
     /// Throws std::runtime_error if id is unknown.
     [[nodiscard]] const VisualPresetDescriptor& get(std::string_view id) const;
+
+    /// Resolve a visual preset with one of the canonical editorial profiles.
+    /// The returned descriptor is a value copy because profile resolution may
+    /// replace its style and animation while preserving the base preset id.
+    [[nodiscard]] VisualPresetDescriptor get_for_profile(
+        std::string_view id, std::string_view profile) const;
 
     /// Returns ids of all registered presets (sorted, deterministic).
     [[nodiscard]] std::vector<std::string> available() const;

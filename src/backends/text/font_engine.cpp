@@ -6,6 +6,7 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/typewriter_layout_cache.hpp>
 #include <chronon3d/text/text_layout_cache.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
 // Cat-5 internal: definition of the cluster-fallback coverage probe free
@@ -299,6 +300,11 @@ struct FontEngine::Impl {
     std::optional<FaceEntry> load_face(const FontSpec& spec) {
         if (!ft_library) return std::nullopt;
 
+        // TICKET-TEXT-TIMING-V1 — time the font face resolve/load so a warm
+        // face cache (steady state ≈ 0 resolve) is distinguishable from a
+        // cold FT_New_Face on the prepare/render path.
+        const auto resolve_start = profiling::now();
+
         // WP-8 PR 8.0 — resolver is owned by the FontEngine (pointer
         // captured at construction).  `m_resolver` is never null in any
         // context that reaches load_face: the explicit ctor requires a
@@ -352,6 +358,14 @@ struct FontEngine::Impl {
         FT_Int notdef_idx = FT_Get_Name_Index(face, const_cast<FT_String*>(".notdef"));
         entry.notdef_glyph_id = (notdef_idx >= 0) ? static_cast<FT_UInt>(notdef_idx) : 0;
 
+        // TICKET-TEXT-TIMING-V1 — accumulate only on the successful resolve,
+        // mirroring the shaping counter contract (no timing on std::nullopt).
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->font_resolve_wall_us.fetch_add(
+                static_cast<uint64_t>(std::llround(profiling::elapsed_us(resolve_start))),
+                std::memory_order_relaxed);
+        }
+
         return entry;
     }
 
@@ -383,8 +397,22 @@ std::optional<GlyphRun> FontEngine::shape_text(
         return std::nullopt;
     }
 
+    // TICKET-TEXT-SHAPING-TIMING-V1 — time the shaping call so per-frame
+    // HarfBuzz re-shaping is visible in telemetry (steady state should be
+    // ~0 shaping calls inside the profiled render loop).
+    const auto shaping_start = profiling::now();
+
     std::unique_lock<std::shared_mutex> face_lock(m_impl->face_cache_mutex);
     auto it = m_impl->face_cache.find(spec);
+    // TICKET-CACHE-COUNTERS-V1 — font face cache hit/miss. Warm steady state
+    // should be ~0 misses (the face is resolved once at prepare time).
+    if (profiling::g_current_counters) {
+        if (it == m_impl->face_cache.end()) {
+            profiling::g_current_counters->font_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->font_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
     if (it == m_impl->face_cache.end()) {
         auto entry = m_impl->load_face(spec);
         if (!entry) return std::nullopt;
@@ -514,6 +542,16 @@ std::optional<GlyphRun> FontEngine::shape_text(
     run.descent = -static_cast<float>(face->size->metrics.descender) * scale;
     run.baseline = 0.0f;
     run.line_height = static_cast<float>(face->size->metrics.height) * scale;
+
+    // TICKET-TEXT-SHAPING-TIMING-V1 — successful shape: bump the call count
+    // and the accumulated wall time. A per-frame reshape regression shows up
+    // as text_shaping_calls ≈ frames_total instead of ≈ 0.
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->text_shaping_calls.fetch_add(1, std::memory_order_relaxed);
+        profiling::g_current_counters->text_shaping_wall_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_ms(shaping_start))),
+            std::memory_order_relaxed);
+    }
 
     return run;
 }

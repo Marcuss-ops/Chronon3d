@@ -1,4 +1,5 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include "composite_comp_spv.hpp"
@@ -233,6 +234,12 @@ struct VulkanBackend::Impl {
     // reset per-frame bookkeeping).
     bool command_batch_active{false};
     bool command_batch_started{false};
+    // Frame-level GPU timing: a VkQueryPool of VK_QUERY_TYPE_TIMESTAMP with
+    // two queries per frame-batch ring slot (start + end).  Null when the
+    // device does not expose timestamp support.
+    VkQueryPool timestamp_pool{VK_NULL_HANDLE};
+    float timestamp_period_ns{0.0f};
+    std::uint32_t timestamp_valid_bits{0};
     VulkanBackendStats stats{};
 
     Impl(VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
@@ -244,6 +251,8 @@ struct VulkanBackend::Impl {
         stats.device_name = device_properties.deviceName;
         stats.discrete_gpu =
             device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+        timestamp_period_ns = device_properties.limits.timestampPeriod;
+        timestamp_valid_bits = device_properties.limits.timestampValidBits;
         const VkDescriptorSetLayoutBinding bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
@@ -492,6 +501,15 @@ struct VulkanBackend::Impl {
             VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &timeline_type, 0};
         check(vkCreateSemaphore(device, &timeline_info, nullptr, &timeline_semaphore),
               "vkCreateSemaphore(timeline)");
+
+        if (timestamp_valid_bits != 0) {
+            const VkQueryPoolCreateInfo query_pool_info{
+                VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO, nullptr, 0,
+                VK_QUERY_TYPE_TIMESTAMP,
+                static_cast<std::uint32_t>(2 * FrameBatchState::kSlotCount), 0};
+            check(vkCreateQueryPool(device, &query_pool_info, nullptr, &timestamp_pool),
+                  "vkCreateQueryPool(timestamp)");
+        }
     }
 
     ~Impl() {
@@ -537,6 +555,7 @@ struct VulkanBackend::Impl {
         if (pipeline_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
         if (descriptor_pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
         if (descriptor_layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
+        if (timestamp_pool != VK_NULL_HANDLE) vkDestroyQueryPool(device, timestamp_pool, nullptr);
     }
 
     std::uint32_t memory_type(std::uint32_t bits, VkMemoryPropertyFlags required) const {
@@ -946,12 +965,38 @@ struct VulkanBackend::Impl {
                       (destination.height + 15) / 16, 1);
     }
 
+    // Read the frame's [start, end] timestamp pair for a ring slot after its
+    // fence has been signaled and accumulate the GPU elapsed duration.  The
+    // slot's queries are reset by vkCmdResetQueryPool when the buffer is
+    // re-recorded, so this must run after the fence wait and before that
+    // reset executes on the GPU.
+    void read_gpu_timestamps(std::size_t slot) {
+        if (timestamp_pool == VK_NULL_HANDLE) return;
+        std::uint64_t stamps[2] = {0, 0};
+        const VkResult result = vkGetQueryPoolResults(
+            device, timestamp_pool, static_cast<std::uint32_t>(2 * slot), 2,
+            sizeof(stamps), stamps, sizeof(std::uint64_t),
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+        if (result != VK_SUCCESS) return;
+        if (stamps[1] >= stamps[0]) {
+            const double elapsed_ns =
+                static_cast<double>(stamps[1] - stamps[0]) * timestamp_period_ns;
+            stats.gpu_execute_us += static_cast<std::uint64_t>(elapsed_ns / 1000.0);
+        }
+    }
+
     // End the active frame batch's command buffer and submit it exactly once
     // with the current slot's fence.  No wait-for-completion happens here:
     // the caller waits only when that slot is reused (begin_frame_batch())
     // or before a readback (wait_for_pending()).
     void submit_batch() {
         const auto slot = frame_batch.next_slot;
+        if (timestamp_pool != VK_NULL_HANDLE) {
+            vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
+                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                timestamp_pool,
+                                static_cast<std::uint32_t>(2 * slot + 1));
+        }
         check(vkEndCommandBuffer(frame_batch.command_buffers[slot]),
               "vkEndCommandBuffer(frame batch)");
         const auto signal_value = ++next_timeline_value;
@@ -962,8 +1007,10 @@ struct VulkanBackend::Impl {
         const VkSubmitInfo submit_info{
             VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit, 0, nullptr, nullptr,
             1, &frame_batch.command_buffers[slot], 1, signal_semaphores};
+        const auto submit_start = profiling::now();
         check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
+        stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
         frame_batch.in_flight[slot] = true;
         frame_batch.pass_count = 0;
@@ -1248,10 +1295,12 @@ struct VulkanBackend::Impl {
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
         submit();
+        const auto readback_start = profiling::now();
         void* mapped = nullptr;
         check(vkMapMemory(device, staging_memory, 0, bytes, 0, &mapped), "vkMapMemory(surface download)");
         std::memcpy(rgba.data(), mapped, static_cast<std::size_t>(bytes));
         vkUnmapMemory(device, staging_memory);
+        stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));
     }
 
     void composite(runtime::RenderSurfaceHandle destination,
@@ -1644,7 +1693,9 @@ struct VulkanBackend::Impl {
 
     void wait_for_pending() {
         if (pending_timeline_value != 0) {
+            const auto wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
+            stats.gpu_wait_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
             check(vkResetFences(device, 1, &fence), "vkResetFences");
             pending_timeline_value = 0;
         }
@@ -1653,11 +1704,14 @@ struct VulkanBackend::Impl {
         // which waits ONLY on the fence of the slot being reused.
         for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
             if (!frame_batch.in_flight[i]) continue;
+            const auto wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &frame_batch.fences[i], VK_TRUE, UINT64_MAX),
                   "vkWaitForFences(frame batch slot)");
+            stats.gpu_wait_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
             check(vkResetFences(device, 1, &frame_batch.fences[i]),
                   "vkResetFences(frame batch slot)");
             frame_batch.in_flight[i] = false;
+            read_gpu_timestamps(i);
         }
         // Synchronize any in-flight upload slots too.  release_surface() and
         // every standalone path call wait_for_pending() before reusing or
@@ -1679,7 +1733,9 @@ struct VulkanBackend::Impl {
         const VkSubmitInfo submit_info{
             VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit, 0, nullptr, nullptr,
             1, &command_buffer, 1, signal_semaphores};
+        const auto submit_start = profiling::now();
         check(vkQueueSubmit(queue, 1, &submit_info, fence), "vkQueueSubmit");
+        stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
         pending_timeline_value = signal_value;
         if (wait_for_completion) wait_for_pending();
@@ -1915,6 +1971,11 @@ void VulkanBackend::export_gpu_telemetry_counters(
     if (!m_impl) return;
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
+    out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
+    out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
+    out.emplace_back("readback_us", m_impl->stats.readback_us);
+    out.emplace_back("cpu_gpu_sync_us", m_impl->stats.gpu_wait_cpu_us + m_impl->stats.readback_us);
+    out.emplace_back("gpu_execute_us", m_impl->stats.gpu_execute_us);
 #else
     (void)out;
 #endif
@@ -1969,6 +2030,7 @@ void VulkanBackend::begin_frame_batch() {
         check(vkResetFences(m_impl->device, 1, &batch.fences[slot]),
               "vkResetFences(frame batch slot)");
         batch.in_flight[slot] = false;
+        m_impl->read_gpu_timestamps(slot);
     }
     // Every recorded pass owns a descriptor set from this slot's allocator;
     // resetting it now is safe because the slot's previous submission (the
@@ -1980,6 +2042,14 @@ void VulkanBackend::begin_frame_batch() {
           "vkResetCommandBuffer(frame batch slot)");
     check(vkBeginCommandBuffer(batch.command_buffers[slot], &begin),
           "vkBeginCommandBuffer(frame batch slot)");
+    if (m_impl->timestamp_pool != VK_NULL_HANDLE) {
+        const auto query_base = static_cast<std::uint32_t>(2 * slot);
+        vkCmdResetQueryPool(batch.command_buffers[slot], m_impl->timestamp_pool,
+                            query_base, 2);
+        vkCmdWriteTimestamp(batch.command_buffers[slot],
+                            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                            m_impl->timestamp_pool, query_base);
+    }
     batch.active = true;
     batch.pass_count = 0;
     batch.descriptor_sets.clear();

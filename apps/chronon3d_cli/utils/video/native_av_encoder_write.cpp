@@ -60,6 +60,10 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
 
     // 2. Convert the framebuffer to YUV (or skip for cache hit)
     const auto t_conv0 = Clock::now();
+    const uint64_t pixel_before = profiling::g_current_counters
+        ? profiling::g_current_counters->pixel_format_convert_wall_ms.load(std::memory_order_relaxed) : 0;
+    const uint64_t color_before = profiling::g_current_counters
+        ? profiling::g_current_counters->color_space_convert_wall_ms.load(std::memory_order_relaxed) : 0;
 
     double frame_conv_ms = 0.0;
     double frame_send_ms = 0.0;
@@ -113,21 +117,25 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         last_converted_color_matrix_= color_matrix;
     }
 
+    const uint64_t pixel_after = profiling::g_current_counters
+        ? profiling::g_current_counters->pixel_format_convert_wall_ms.load(std::memory_order_relaxed) : 0;
+    const uint64_t color_after = profiling::g_current_counters
+        ? profiling::g_current_counters->color_space_convert_wall_ms.load(std::memory_order_relaxed) : 0;
     const double conv_ms = elapsed_ms(t_conv0);
     frame_conv_ms = conv_ms;
     native_convert_ms_ += conv_ms;
 
     if (profiling::g_current_counters) {
-        profiling::g_current_counters->video_conversion_ms.fetch_add(
+        profiling::g_current_counters->video_conversion_wall_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
-        profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
+        profiling::g_current_counters->frame_conversion_copy_wall_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         if (same_as_last) {
             // Track how much time we saved by skipping conversion.
-            profiling::g_current_counters->native_av_convert_skipped_ms.fetch_add(
+            profiling::g_current_counters->native_av_convert_skipped_wall_ms.fetch_add(
                 static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         } else {
-            profiling::g_current_counters->native_av_convert_ms.fetch_add(
+            profiling::g_current_counters->native_av_convert_wall_ms.fetch_add(
                 static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         }
     }
@@ -135,14 +143,17 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     // 3. Set PTS (presentation timestamp) in frame number units
     frame_->pts = static_cast<int64_t>(frames_written_);
 
-    // 4. Send the frame to the encoder (with EAGAIN back-pressure loop)
-    //    Measure ONLY avcodec_send_frame time, excluding drain_packets,
-    //    to avoid temporal double-counting with receive/mux counters.
+    // 4. Send the frame to the encoder (with EAGAIN back-pressure loop).
+    //    `send_ms` measures ONLY avcodec_send_frame time (pure submit CPU),
+    //    excluding drain_packets, to avoid temporal double-counting with
+    //    receive/mux counters.  `backpressure_ms` separately captures the
+    //    drain+retry wait that EAGAIN triggers (encoder back-pressure).
     const auto t_send0 = Clock::now();
     int ret = avcodec_send_frame(codec_, frame_);
     double send_ms = elapsed_ms(t_send0);
 
     int eagain_retries = 0;
+    double backpressure_ms = 0.0;
     // Allow enough retries to match x264's internal frame queue depth.
     // With threads=auto + thread_type=frame on an 8-core machine, x264
     // keeps ~10-12 frames in flight, so 3 retries often hit EAGAIN and
@@ -151,10 +162,12 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     constexpr int kMaxEagainRetries = 12;
     while (ret == AVERROR(EAGAIN) && eagain_retries < kMaxEagainRetries) {
         ++eagain_retries;
-        // Encoder buffer full — drain packets to make room, then retry.
+        // Encoder buffer full — drain packets (back-pressure wait), then retry.
+        const auto t_bp0 = Clock::now();
         if (!drain_packets()) {
             return false;
         }
+        backpressure_ms += elapsed_ms(t_bp0);
         const auto t_retry = Clock::now();
         ret = avcodec_send_frame(codec_, frame_);
         send_ms += elapsed_ms(t_retry);
@@ -173,15 +186,21 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
 
     frame_send_ms = send_ms;
     native_send_frame_ms_ += send_ms;
+    native_backpressure_ms_ += backpressure_ms;
     if (profiling::g_current_counters) {
-        profiling::g_current_counters->native_av_send_frame_ms.fetch_add(
+        profiling::g_current_counters->encoder_submit_cpu_ms.fetch_add(
             static_cast<uint64_t>(send_ms), std::memory_order_relaxed);
+        profiling::g_current_counters->encoder_backpressure_wait_ms.fetch_add(
+            static_cast<uint64_t>(backpressure_ms), std::memory_order_relaxed);
     }
 
     ++frames_written_;
     last_frame_telemetry_ = {
         .conversion_copy_ms = frame_conv_ms,
+        .pixel_format_convert_ms = static_cast<double>(pixel_after - pixel_before),
+        .color_space_convert_ms = static_cast<double>(color_after - color_before),
         .encoder_ms = frame_send_ms,
+        .backpressure_wait_ms = backpressure_ms,
         .native_convert_ms = frame_conv_ms,
         .native_send_ms = frame_send_ms,
     };

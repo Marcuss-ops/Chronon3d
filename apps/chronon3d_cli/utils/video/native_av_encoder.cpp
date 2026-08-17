@@ -59,6 +59,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Reset telemetry accumulators
     native_convert_ms_         = 0.0;
     native_send_frame_ms_      = 0.0;
+    native_backpressure_ms_    = 0.0;
+    native_flush_ms_           = 0.0;
     native_receive_packet_ms_  = 0.0;
     native_mux_write_ms_       = 0.0;
     native_trailer_ms_         = 0.0;
@@ -203,20 +205,32 @@ bool NativeAvEncoder::close() {
         return true;
     }
 
-    const auto t_trailer0 = Clock::now();
-
-    // 1. Drain encoder: send NULL to flush internal buffers
+    // 1. Drain encoder: send NULL to flush internal buffers (encoder flush).
+    const auto t_flush0 = Clock::now();
     avcodec_send_frame(codec_, nullptr);
 
     // 2. Receive and write remaining packets (timing tracked inside drain_packets)
     drain_packets();
+    const double flush_ms = elapsed_ms(t_flush0);
+    native_flush_ms_ += flush_ms;
 
     // 3. Write trailer (finalizes the MP4 file, writes moov atom, etc.)
+    //    This is the mux finalization, measured separately from the encoder
+    //    flush so the two tails never mask each other.
+    const auto t_trailer0 = Clock::now();
     if (fmt_) {
         av_write_trailer(fmt_);
     }
+    const double trailer_ms = elapsed_ms(t_trailer0);
 
-    native_trailer_ms_ += elapsed_ms(t_trailer0);
+    native_trailer_ms_ += trailer_ms;
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->encoder_flush_wall_ms.fetch_add(
+            static_cast<uint64_t>(flush_ms), std::memory_order_relaxed);
+        profiling::g_current_counters->mux_finalize_wall_ms.fetch_add(
+            static_cast<uint64_t>(trailer_ms), std::memory_order_relaxed);
+    }
 
     // 5. Close the IO
     if (fmt_ && !(fmt_->oformat->flags & AVFMT_NOFILE)) {
@@ -297,9 +311,9 @@ bool NativeAvEncoder::drain_packets() {
         }
 
         if (profiling::g_current_counters) {
-            profiling::g_current_counters->native_av_receive_packet_ms.fetch_add(
+            profiling::g_current_counters->native_av_receive_packet_wall_ms.fetch_add(
                 static_cast<uint64_t>(recv_ms), std::memory_order_relaxed);
-            profiling::g_current_counters->native_av_mux_write_ms.fetch_add(
+            profiling::g_current_counters->native_av_mux_write_wall_ms.fetch_add(
                 static_cast<uint64_t>(mux_ms), std::memory_order_relaxed);
         }
     }

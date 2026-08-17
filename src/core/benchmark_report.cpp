@@ -64,11 +64,25 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     counters["cache_hits"] = report.counters.cache_hits;
     counters["cache_misses"] = report.counters.cache_misses;
     counters["cache_hit_rate"] = report.counters.cache_hit_rate;
+    counters["node_cache_hits"] = report.counters.node_cache_hits;
+    counters["node_cache_misses"] = report.counters.node_cache_misses;
+    counters["image_cache_hits"] = report.counters.image_cache_hits;
+    counters["image_cache_misses"] = report.counters.image_cache_misses;
+    counters["font_cache_hits"] = report.counters.font_cache_hits;
+    counters["font_cache_misses"] = report.counters.font_cache_misses;
+    counters["glyph_cache_hits"] = report.counters.glyph_cache_hits;
+    counters["glyph_cache_misses"] = report.counters.glyph_cache_misses;
+    counters["gpu_asset_cache_hits"] = report.counters.gpu_asset_cache_hits;
+    counters["gpu_asset_cache_misses"] = report.counters.gpu_asset_cache_misses;
     counters["nodes_executed"] = report.counters.nodes_executed;
     counters["pixels_touched"] = report.counters.pixels_touched;
     counters["blur_pixels"] = report.counters.blur_pixels;
     counters["images_sampled"] = report.counters.images_sampled;
-    counters["text_glyphs_rasterized"] = report.counters.text_glyphs_rasterized;    counters["framebuffer_copies"] = report.counters.framebuffer_copies;
+    counters["text_glyphs_rasterized"] = report.counters.text_glyphs_rasterized;
+    counters["text_shaping_calls"] = report.counters.text_shaping_calls;
+    counters["text_shaping_wall_ms"] = report.counters.text_shaping_wall_ms;
+    counters["text_bidi_wall_ms"] = report.counters.text_bidi_wall_ms;
+    counters["framebuffer_copies"] = report.counters.framebuffer_copies;
         counters["framebuffer_clears"] = report.counters.framebuffer_clears;
         // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — emit 2 raw cumulative
         // counters (CHRONON_COUNTERS_GRAPH) + 2 dashboard *per_frame rates
@@ -83,6 +97,16 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
         counters["fused_passes"] = report.counters.fused_passes;
         counters["full_frame_passes_per_frame"] = report.counters.full_frame_passes_per_frame;
         counters["full_frame_copies_per_frame"] = report.counters.full_frame_copies_per_frame;
+        // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — encoder/conversion/pipe
+        // backpressure-aware breakdown fields.
+        counters["encoder_submit_cpu_ms"] = report.counters.encoder_submit_cpu_ms;
+        counters["encoder_backpressure_wait_ms"] = report.counters.encoder_backpressure_wait_ms;
+        counters["encoder_flush_wall_ms"] = report.counters.encoder_flush_wall_ms;
+        counters["mux_finalize_wall_ms"] = report.counters.mux_finalize_wall_ms;
+        counters["pixel_format_convert_wall_ms"] = report.counters.pixel_format_convert_wall_ms;
+        counters["color_space_convert_wall_ms"] = report.counters.color_space_convert_wall_ms;
+        counters["pipe_write_cpu_ms"] = report.counters.pipe_write_cpu_ms;
+        counters["pipe_write_wall_ms"] = report.counters.pipe_write_wall_ms;
     js["counters"] = counters;
 
     nlohmann::json cats = nlohmann::json::object();
@@ -157,11 +181,24 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.counters.cache_hits = counters.value("cache_hits", uint64_t{0});
         report.counters.cache_misses = counters.value("cache_misses", uint64_t{0});
         report.counters.cache_hit_rate = counters.value("cache_hit_rate", 0.0);
+        report.counters.node_cache_hits = counters.value("node_cache_hits", uint64_t{0});
+        report.counters.node_cache_misses = counters.value("node_cache_misses", uint64_t{0});
+        report.counters.image_cache_hits = counters.value("image_cache_hits", uint64_t{0});
+        report.counters.image_cache_misses = counters.value("image_cache_misses", uint64_t{0});
+        report.counters.font_cache_hits = counters.value("font_cache_hits", uint64_t{0});
+        report.counters.font_cache_misses = counters.value("font_cache_misses", uint64_t{0});
+        report.counters.glyph_cache_hits = counters.value("glyph_cache_hits", uint64_t{0});
+        report.counters.glyph_cache_misses = counters.value("glyph_cache_misses", uint64_t{0});
+        report.counters.gpu_asset_cache_hits = counters.value("gpu_asset_cache_hits", uint64_t{0});
+        report.counters.gpu_asset_cache_misses = counters.value("gpu_asset_cache_misses", uint64_t{0});
         report.counters.nodes_executed = counters.value("nodes_executed", uint64_t{0});
         report.counters.pixels_touched = counters.value("pixels_touched", uint64_t{0});
         report.counters.blur_pixels = counters.value("blur_pixels", uint64_t{0});
         report.counters.images_sampled = counters.value("images_sampled", uint64_t{0});
         report.counters.text_glyphs_rasterized = counters.value("text_glyphs_rasterized", uint64_t{0});
+        report.counters.text_shaping_calls = counters.value("text_shaping_calls", uint64_t{0});
+        report.counters.text_shaping_wall_ms = counters.value("text_shaping_wall_ms", uint64_t{0});
+        report.counters.text_bidi_wall_ms = counters.value("text_bidi_wall_ms", uint64_t{0});
         report.counters.framebuffer_copies = counters.value("framebuffer_copies", uint64_t{0});
         report.counters.framebuffer_clears = counters.value("framebuffer_clears", uint64_t{0});
         // F3.2 — symmetric to the emitter side: read the 4 fields with
@@ -176,6 +213,15 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.counters.fused_passes = counters.value("fused_passes", uint64_t{0});
         report.counters.full_frame_passes_per_frame = counters.value("full_frame_passes_per_frame", 0.0);
         report.counters.full_frame_copies_per_frame = counters.value("full_frame_copies_per_frame", 0.0);
+        // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — forward-compatible defaults.
+        report.counters.encoder_submit_cpu_ms = counters.value("encoder_submit_cpu_ms", uint64_t{0});
+        report.counters.encoder_backpressure_wait_ms = counters.value("encoder_backpressure_wait_ms", uint64_t{0});
+        report.counters.encoder_flush_wall_ms = counters.value("encoder_flush_wall_ms", uint64_t{0});
+        report.counters.mux_finalize_wall_ms = counters.value("mux_finalize_wall_ms", uint64_t{0});
+        report.counters.pixel_format_convert_wall_ms = counters.value("pixel_format_convert_wall_ms", uint64_t{0});
+        report.counters.color_space_convert_wall_ms = counters.value("color_space_convert_wall_ms", uint64_t{0});
+        report.counters.pipe_write_cpu_ms = counters.value("pipe_write_cpu_ms", uint64_t{0});
+        report.counters.pipe_write_wall_ms = counters.value("pipe_write_wall_ms", uint64_t{0});
     }
 
     if (js.contains("categories_ms") && js["categories_ms"].is_object()) {

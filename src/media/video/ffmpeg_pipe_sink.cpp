@@ -4,8 +4,10 @@
 #include "ffmpeg_pipe_sink_internal.hpp"
 
 #include <chronon3d/media/video/video_frame.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -55,13 +57,31 @@ bool FfmpegPipeSinkInternal::write_to_pipe(FfmpegPipeSink& self, const uint8_t* 
     // Always use write_for() — it handles O_NONBLOCK correctly via poll().
     // When write_timeout is 0 (no deadline), write_for() substitutes a
     // large default internally so the write never spuriously fails on
-    // EAGAIN.
-    const bool ok = self.process_.write_for(data, size, self.write_timeout_);
+    // EAGAIN.  `cpu_write_ms` captures only the ::write() copy time, so the
+    // wall-minus-cpu remainder is the poll() back-pressure wait.
+    double cpu_write_ms = 0.0;
+    const bool ok = self.process_.write_for(data, size, self.write_timeout_, &cpu_write_ms);
 
     const auto t1 = std::chrono::steady_clock::now();
 
     const double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    // wall-minus-cpu is the poll() back-pressure wait — the pipe was ready
+    // for ::write() only after the child (FFmpeg) drained enough of its
+    // stdin.  Kept as its own counter so the sidecar can distinguish the
+    // copy cost from the blocked-on-consumer cost.
+    const double backpressure_ms = elapsed - cpu_write_ms;
     self.total_write_blocked_ms_ += elapsed;
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->pipe_write_cpu_ms.fetch_add(
+            static_cast<uint64_t>(cpu_write_ms), std::memory_order_relaxed);
+        profiling::g_current_counters->pipe_write_wall_ms.fetch_add(
+            static_cast<uint64_t>(elapsed), std::memory_order_relaxed);
+        profiling::g_current_counters->pipe_write_cpu_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(cpu_write_ms * 1000.0)), std::memory_order_relaxed);
+        profiling::g_current_counters->pipe_backpressure_wait_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(backpressure_ms * 1000.0)), std::memory_order_relaxed);
+    }
 
     if (!ok) {
         self.pipe_failed_ = true;

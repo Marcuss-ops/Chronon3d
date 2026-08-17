@@ -99,7 +99,7 @@ static RenderLoopContext make_loop_context(
     RenderFrameQueue<RenderFramePackage>& queue,
     std::atomic<bool>& writer_failed,
     TripleBufferArena& triple_arena,
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames)
+    std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames)
 {
     return RenderLoopContext{
         .backend = renderer.backend(),
@@ -142,7 +142,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     std::thread consumer(drain_queue_consumer,
         std::ref(queue), std::ref(triple_arena), std::ref(consumed));
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -182,7 +182,7 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     // 4 arenas for 1 frame — no consumer needed
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         0, 1, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -230,7 +230,7 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -267,7 +267,7 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
     std::atomic<bool> writer_failed{true}; // Pre-set failure
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -304,7 +304,7 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
     std::thread consumer(drain_queue_consumer,
         std::ref(queue), std::ref(triple_arena), std::ref(consumed));
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -347,7 +347,7 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
     std::thread consumer(drain_queue_consumer,
         std::ref(queue), std::ref(triple_arena), std::ref(consumed));
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         START, END, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -410,7 +410,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
         }
     });
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
@@ -443,7 +443,7 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
         5, 5, opts, queue, writer_failed, triple_arena, telemetry_frames);

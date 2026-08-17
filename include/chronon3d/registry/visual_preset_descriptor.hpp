@@ -4,9 +4,9 @@
 // VISUAL-SSOT-01 — Single-registry VisualPresetDescriptor.
 //
 // PUBLIC API — defines `VisualPresetDescriptor { id, version,
-// supported_layer, style, anchor, animation, fallback_anchors,
-// capabilities }` plus the value types it aggregates: `VisualLayerKind`,
-// `VisualStyle`, `AnchorSpec`, `AnimationSpec`.
+// supported_layer, base_preset, style, anchor, animation,
+// fallback_anchors, capabilities }` plus the value types it aggregates:
+// `VisualLayerKind`, `VisualStyle`, `AnchorSpec`, `AnimationSpec`.
 //
 // This is the SINGLE canonical descriptor type for overlay-level visual
 // presets (caption cards, lower thirds, organization/location cards,
@@ -77,8 +77,18 @@ to_string(VisualLayerKind k) {
 // 25-property style.  Color fields use canonical hex (`#RRGGBB`); empty
 // strings mean "renderer default".  Numeric fields are std::optional so
 // absence is distinguishable from an explicit zero.
+//
+// Readability is LOCAL-ONLY (ADR-029): the text card's background/shadow/
+// stroke, never a global contrast veil darkening the whole frame. Adaptive
+// (content-aware) contrast is deferred — see TICKET-VISUAL-PRESET-ADAPTIVE-
+// CONTRAST.
 struct VisualStyle {
-    std::string font_family;                 // "Poppins" — resolved as a font asset
+    std::string font_family;                 // "DejaVu Sans" — resolved as a font asset
+    // Canonical font asset logical path (relative to the asset root). This
+    // is the byte-identity anchor: the asset manifest hashes it (sha256) so
+    // every worker resolves identical bytes (no system-font / DejaVuSans
+    // fallback). Empty = the materialization preset's own default.
+    std::string font_asset;                  // "assets/fonts/DejaVuSans.ttf"
     std::optional<int> font_weight;          // 700
     std::optional<float> font_size;          // 58
     std::string fill;                        // "#FFFFFF"
@@ -135,6 +145,8 @@ struct AnimationSpec {
 //     id:               unique snake_case key (mirrors map index);
 //     version:          preset schema version;
 //     supported_layer:  VisualLayerKind the preset is valid for;
+//     base_preset:      canonical TEXT materializer id the preset lowers
+//                       onto (empty for image/video presets);
 //     style:            VisualStyle (default paint recipe);
 //     anchor:           AnchorSpec (preferred layout intent);
 //     animation:        AnimationSpec (motion intent);
@@ -145,8 +157,18 @@ struct AnimationSpec {
 //   }
 struct VisualPresetDescriptor {
     std::string id;                                 // O(1) lookup key — sole preset identity.
+    // Editorial category metadata. It does not resolve or render anything;
+    // Chronon still owns the single visual preset recipe.
+    std::string semantic_role;                      // image | name | important_phrase
     int version{1};                                 // preset schema version.
     VisualLayerKind supported_layer{VisualLayerKind::Text};
+    // Canonical TEXT materializer id this preset lowers onto
+    // ("caption_safe_area", "kinetic_word", "subtitle_bottom",
+    // "lower_third"). This is the SINGLE place the preset→materializer
+    // mapping lives: the render-plan compiler consumes it instead of
+    // keeping a parallel table. Empty for non-text presets (image/video),
+    // which materialize through their own layer branch.
+    std::string base_preset;
     VisualStyle style;                              // default paint recipe.
     AnchorSpec anchor;                              // preferred layout intent.
     AnimationSpec animation;                        // motion intent.

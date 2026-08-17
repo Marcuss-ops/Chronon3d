@@ -37,7 +37,7 @@ void record_pipe_telemetry(
     PipeExportSession& session,
     const RenderLoopResult& loop_result,
     const EncoderCloseResult& close_result,
-    const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+    const std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
     double wall_time_ms,
     double render_ms,
     double encode_ms);

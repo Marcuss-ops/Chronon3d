@@ -31,11 +31,27 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     report.counters.cache_hits = 1000;
     report.counters.cache_misses = 50;
     report.counters.cache_hit_rate = 0.95;
+    // TICKET-CACHE-COUNTERS-V1 — domain-scoped cache hit/miss counters.
+    report.counters.node_cache_hits = 900;
+    report.counters.node_cache_misses = 100;
+    report.counters.image_cache_hits = 149;
+    report.counters.image_cache_misses = 1;
+    report.counters.font_cache_hits = 149;
+    report.counters.font_cache_misses = 1;
+    report.counters.glyph_cache_hits = 147;
+    report.counters.glyph_cache_misses = 3;
+    report.counters.gpu_asset_cache_hits = 150;
+    report.counters.gpu_asset_cache_misses = 0;
     report.counters.nodes_executed = 3000;
     report.counters.pixels_touched = 1000000;
     report.counters.blur_pixels = 200000;
     report.counters.images_sampled = 500000;
     report.counters.text_glyphs_rasterized = 100;
+    // TICKET-TEXT-SHAPING-TIMING-V1 — per-frame reshape regression signal
+    // (calls ≈ frames) vs steady state (calls ≈ 0).
+    report.counters.text_shaping_calls = 150;
+    report.counters.text_shaping_wall_ms = 180;
+    report.counters.text_bidi_wall_ms = 0;
     report.counters.framebuffer_copies = 12;
     report.counters.framebuffer_clears = 7;
     // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — extend with the 4 new fields.
@@ -50,6 +66,15 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     // precedent; bench report is the canonical snapshot location).
     report.counters.full_frame_passes_per_frame = 3.0 / 120.0;
     report.counters.full_frame_copies_per_frame = 5.0 / 120.0;
+    // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — encoder/conversion/pipe breakdown.
+    report.counters.encoder_submit_cpu_ms = 150;
+    report.counters.encoder_backpressure_wait_ms = 30;
+    report.counters.encoder_flush_wall_ms = 12;
+    report.counters.mux_finalize_wall_ms = 4;
+    report.counters.pixel_format_convert_wall_ms = 210;
+    report.counters.color_space_convert_wall_ms = 360;
+    report.counters.pipe_write_cpu_ms = 5;
+    report.counters.pipe_write_wall_ms = 40;
     report.categories_ms["graph"] = 120.0;
     report.categories_ms["raster"] = 900.0;
 
@@ -91,11 +116,35 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     CHECK(js["counters"]["fused_passes"] == 4);
     CHECK(js["counters"]["full_frame_passes_per_frame"] == doctest::Approx(3.0 / 120.0));
     CHECK(js["counters"]["full_frame_copies_per_frame"] == doctest::Approx(5.0 / 120.0));
+    // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — breakdown fields round-trip.
+    CHECK(js["counters"]["encoder_submit_cpu_ms"] == 150);
+    CHECK(js["counters"]["encoder_backpressure_wait_ms"] == 30);
+    CHECK(js["counters"]["encoder_flush_wall_ms"] == 12);
+    CHECK(js["counters"]["mux_finalize_wall_ms"] == 4);
+    CHECK(js["counters"]["pixel_format_convert_wall_ms"] == 210);
+    CHECK(js["counters"]["color_space_convert_wall_ms"] == 360);
+    CHECK(js["counters"]["pipe_write_cpu_ms"] == 5);
+    CHECK(js["counters"]["pipe_write_wall_ms"] == 40);
 
     CHECK(js["counters"]["cache_hits"] == 1000);
     CHECK(js["counters"]["cache_misses"] == 50);
     CHECK(js["counters"]["cache_hit_rate"] == doctest::Approx(0.95));
     CHECK(js["counters"]["nodes_executed"] == 3000);
+    // TICKET-CACHE-COUNTERS-V1 — domain-scoped cache counters round-trip.
+    CHECK(js["counters"]["node_cache_hits"] == 900);
+    CHECK(js["counters"]["node_cache_misses"] == 100);
+    CHECK(js["counters"]["image_cache_hits"] == 149);
+    CHECK(js["counters"]["image_cache_misses"] == 1);
+    CHECK(js["counters"]["font_cache_hits"] == 149);
+    CHECK(js["counters"]["font_cache_misses"] == 1);
+    CHECK(js["counters"]["glyph_cache_hits"] == 147);
+    CHECK(js["counters"]["glyph_cache_misses"] == 3);
+    CHECK(js["counters"]["gpu_asset_cache_hits"] == 150);
+    CHECK(js["counters"]["gpu_asset_cache_misses"] == 0);
+    // TICKET-TEXT-SHAPING-TIMING-V1 — the 3 new text counters round-trip.
+    CHECK(js["counters"]["text_shaping_calls"] == 150);
+    CHECK(js["counters"]["text_shaping_wall_ms"] == 180);
+    CHECK(js["counters"]["text_bidi_wall_ms"] == 0);
 
     CHECK(js["categories_ms"]["graph"] == doctest::Approx(120.0));
     CHECK(js["categories_ms"]["raster"] == doctest::Approx(900.0));
@@ -136,6 +185,19 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     original.quality.ssim = 0.9999;
     original.counters.cache_hits = 500;
     original.counters.cache_misses = 25;
+    original.counters.node_cache_hits = 11;
+    original.counters.node_cache_misses = 12;
+    original.counters.image_cache_hits = 13;
+    original.counters.image_cache_misses = 14;
+    original.counters.font_cache_hits = 15;
+    original.counters.font_cache_misses = 16;
+    original.counters.glyph_cache_hits = 17;
+    original.counters.glyph_cache_misses = 18;
+    original.counters.gpu_asset_cache_hits = 19;
+    original.counters.gpu_asset_cache_misses = 20;
+    original.counters.text_shaping_calls = 3;
+    original.counters.text_shaping_wall_ms = 4;
+    original.counters.text_bidi_wall_ms = 5;
     original.counters.framebuffer_copies = 5;
     original.counters.framebuffer_clears = 2;
     // F3.2 — extend roundtrip test with the 4 new fields.
@@ -148,6 +210,14 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     original.counters.fused_passes = 2;
     original.counters.full_frame_passes_per_frame = 1.0 / 60.0;
     original.counters.full_frame_copies_per_frame = 4.0 / 60.0;
+    original.counters.encoder_submit_cpu_ms = 21;
+    original.counters.encoder_backpressure_wait_ms = 22;
+    original.counters.encoder_flush_wall_ms = 23;
+    original.counters.mux_finalize_wall_ms = 24;
+    original.counters.pixel_format_convert_wall_ms = 25;
+    original.counters.color_space_convert_wall_ms = 26;
+    original.counters.pipe_write_cpu_ms = 27;
+    original.counters.pipe_write_wall_ms = 28;
     original.categories_ms["composite"] = 300.0;
     original.frame_times_ms = {15.0, 16.0, 17.0};
 
@@ -173,6 +243,19 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     CHECK(loaded.quality.ssim == doctest::Approx(0.9999));
     CHECK(loaded.counters.cache_hits == 500);
     CHECK(loaded.counters.cache_misses == 25);
+    CHECK(loaded.counters.node_cache_hits == 11);
+    CHECK(loaded.counters.node_cache_misses == 12);
+    CHECK(loaded.counters.image_cache_hits == 13);
+    CHECK(loaded.counters.image_cache_misses == 14);
+    CHECK(loaded.counters.font_cache_hits == 15);
+    CHECK(loaded.counters.font_cache_misses == 16);
+    CHECK(loaded.counters.glyph_cache_hits == 17);
+    CHECK(loaded.counters.glyph_cache_misses == 18);
+    CHECK(loaded.counters.gpu_asset_cache_hits == 19);
+    CHECK(loaded.counters.gpu_asset_cache_misses == 20);
+    CHECK(loaded.counters.text_shaping_calls == 3);
+    CHECK(loaded.counters.text_shaping_wall_ms == 4);
+    CHECK(loaded.counters.text_bidi_wall_ms == 5);
     CHECK(loaded.counters.framebuffer_copies == 5);
     CHECK(loaded.counters.framebuffer_clears == 2);
     // F3.2 — verify the 4 new fields round-trip cleanly.
@@ -185,6 +268,14 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     CHECK(loaded.counters.fused_passes == 2);
     CHECK(loaded.counters.full_frame_passes_per_frame == doctest::Approx(1.0 / 60.0));
     CHECK(loaded.counters.full_frame_copies_per_frame == doctest::Approx(4.0 / 60.0));
+    CHECK(loaded.counters.encoder_submit_cpu_ms == 21);
+    CHECK(loaded.counters.encoder_backpressure_wait_ms == 22);
+    CHECK(loaded.counters.encoder_flush_wall_ms == 23);
+    CHECK(loaded.counters.mux_finalize_wall_ms == 24);
+    CHECK(loaded.counters.pixel_format_convert_wall_ms == 25);
+    CHECK(loaded.counters.color_space_convert_wall_ms == 26);
+    CHECK(loaded.counters.pipe_write_cpu_ms == 27);
+    CHECK(loaded.counters.pipe_write_wall_ms == 28);
     CHECK(loaded.categories_ms["composite"] == doctest::Approx(300.0));
     REQUIRE(loaded.frame_times_ms.size() == 3);
     CHECK(loaded.frame_times_ms[0] == doctest::Approx(15.0));
@@ -213,13 +304,34 @@ TEST_CASE("benchmark_report_from_json handles missing optional fields") {
     CHECK(loaded.quality.deterministic_hash.empty());
     CHECK(loaded.quality.ssim == doctest::Approx(0.0));
     CHECK(loaded.counters.cache_hits == 0);
+    CHECK(loaded.counters.node_cache_hits == 0);
+    CHECK(loaded.counters.node_cache_misses == 0);
+    CHECK(loaded.counters.image_cache_hits == 0);
+    CHECK(loaded.counters.image_cache_misses == 0);
+    CHECK(loaded.counters.font_cache_hits == 0);
+    CHECK(loaded.counters.font_cache_misses == 0);
+    CHECK(loaded.counters.glyph_cache_hits == 0);
+    CHECK(loaded.counters.glyph_cache_misses == 0);
+    CHECK(loaded.counters.gpu_asset_cache_hits == 0);
+    CHECK(loaded.counters.gpu_asset_cache_misses == 0);
     CHECK(loaded.counters.framebuffer_copies == 0);
     CHECK(loaded.counters.framebuffer_clears == 0);
+    CHECK(loaded.counters.text_shaping_calls == 0);
+    CHECK(loaded.counters.text_shaping_wall_ms == 0);
+    CHECK(loaded.counters.text_bidi_wall_ms == 0);
     CHECK(loaded.counters.full_frame_passes == 0);
     // F3.2 — verify the 4 new fields default to zero on missing fields.
     CHECK(loaded.counters.full_frame_copies == 0);
     CHECK(loaded.counters.full_frame_passes_per_frame == doctest::Approx(0.0));
     CHECK(loaded.counters.full_frame_copies_per_frame == doctest::Approx(0.0));
+    CHECK(loaded.counters.encoder_submit_cpu_ms == 0);
+    CHECK(loaded.counters.encoder_backpressure_wait_ms == 0);
+    CHECK(loaded.counters.encoder_flush_wall_ms == 0);
+    CHECK(loaded.counters.mux_finalize_wall_ms == 0);
+    CHECK(loaded.counters.pixel_format_convert_wall_ms == 0);
+    CHECK(loaded.counters.color_space_convert_wall_ms == 0);
+    CHECK(loaded.counters.pipe_write_cpu_ms == 0);
+    CHECK(loaded.counters.pipe_write_wall_ms == 0);
     CHECK(loaded.categories_ms.empty());
     CHECK(loaded.frame_times_ms.empty());
 }

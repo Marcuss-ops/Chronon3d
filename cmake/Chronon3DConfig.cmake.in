@@ -11,6 +11,22 @@ if(DEFINED VCPKG_INSTALLED_DIR AND NOT DEFINED _VCPKG_INSTALLED_DIR)
     set(_VCPKG_INSTALLED_DIR "${VCPKG_INSTALLED_DIR}")
 endif()
 
+# ── Self-contained C++ package: vendored third-party deps ─────────────
+# When the SDK was installed with CHRONON3D_VENDOR_THIRD_PARTY=ON (the
+# default), the transitive deps live at <prefix>/third_party/<triplet>.
+# Resolve the find_dependency() calls below from there so a C++ consumer does
+# not need a vcpkg triplet.  A consumer that DOES bring its own vcpkg keeps
+# priority (VCPKG_INSTALLED_DIR / _VCPKG_INSTALLED_DIR already set above).
+get_filename_component(_chronon3d_vendor_root
+    "${CMAKE_CURRENT_LIST_DIR}/../../../third_party" ABSOLUTE)
+set(_chronon3d_vendor_triplet "@VCPKG_TARGET_TRIPLET@")
+if(EXISTS "${_chronon3d_vendor_root}/${_chronon3d_vendor_triplet}/share"
+   AND NOT DEFINED _VCPKG_INSTALLED_DIR)
+    set(_VCPKG_INSTALLED_DIR "${_chronon3d_vendor_root}")
+    set(VCPKG_TARGET_TRIPLET "${_chronon3d_vendor_triplet}")
+    list(PREPEND CMAKE_PREFIX_PATH "${_chronon3d_vendor_root}/${_chronon3d_vendor_triplet}")
+endif()
+
 # Required third-party dependencies that propagate through the SDK link
 # graph.  find_dependency() resolves them at config-time so consumers
 # don't have to call find_package() for each one themselves.

@@ -262,8 +262,8 @@ TEST_CASE("PR2-RG-DoF: fully focused scene skips blur and scratch") {
     CHECK(counters->dof_blur_source_pixels.load(std::memory_order_relaxed) == 0);
     CHECK(counters->dof_roi_pixels.load(std::memory_order_relaxed) == 0);
     CHECK(counters->dof_scratch_bytes.load(std::memory_order_relaxed) == 0);
-    CHECK(counters->dof_horizontal_pass_us.load(std::memory_order_relaxed) == 0);
-    CHECK(counters->dof_vertical_pass_us.load(std::memory_order_relaxed) == 0);
+    CHECK(counters->dof_horizontal_pass_wall_us.load(std::memory_order_relaxed) == 0);
+    CHECK(counters->dof_vertical_pass_wall_us.load(std::memory_order_relaxed) == 0);
 }
 
 TEST_CASE("PR2-RG-DoF: focused and blurred sources share correct ROI") {

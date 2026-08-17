@@ -307,7 +307,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
                          warmup.framebuffers_created, warmup.pool_bytes_after, warmup.elapsed_ms);
         }
         if (renderer->counters()) {
-            renderer->counters()->setup_pool_preallocation_ms.fetch_add(
+            renderer->counters()->setup_pool_preallocation_wall_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(warmup.elapsed_ms)), std::memory_order_relaxed);
         }
     }
