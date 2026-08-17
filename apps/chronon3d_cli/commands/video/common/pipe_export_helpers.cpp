@@ -135,7 +135,8 @@ chronon3d::Result<chronon3d::runtime::RendererWarmupResult,
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
     const CompiledComposition& compiled,
-    const FfmpegExportOptions& opts)
+    const FfmpegExportOptions& opts,
+    chronon3d::runtime::RenderPreparationTimings* out_timings)
 {
     if (!opts.warmup.warmup_renderer) {
         return runtime::RendererWarmupResult{};
@@ -175,12 +176,15 @@ warmup_pipe_renderer(
             .phase = "render preparation",
         };
     }
+    if (out_timings) {
+        *out_timings = preparation.timings;
+    }
     const auto warmup_t1 = profiling::now();
 
     if (renderer.counters()) {
         const auto warmup_ms = static_cast<uint64_t>(
             profiling::duration_ms(warmup_t0, warmup_t1));
-        renderer.counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
+        renderer.counters()->setup_pool_preallocation_wall_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
 
         // Save ALL counters before reset so we can restore non-framebuffer ones
         saved_fb_alloc = renderer.counters()->framebuffer_allocations.load(std::memory_order_relaxed);
@@ -203,7 +207,7 @@ warmup_pipe_renderer(
         const uint64_t saved_skip_clear = renderer.counters()->skipped_clear_small.load(std::memory_order_relaxed);
         const uint64_t saved_skip_xform = renderer.counters()->skipped_transform_small.load(std::memory_order_relaxed);
         const uint64_t saved_skip_comp = renderer.counters()->skipped_composite_small.load(std::memory_order_relaxed);
-        const uint64_t saved_node_exec = renderer.counters()->node_execute_actual_ms.load(std::memory_order_relaxed);
+        const uint64_t saved_node_exec = renderer.counters()->node_execute_actual_wall_ms.load(std::memory_order_relaxed);
         const uint64_t saved_sys_cores = renderer.counters()->system_logical_cores.load(std::memory_order_relaxed);
         const uint64_t saved_cpu_user = renderer.counters()->process_cpu_user_ms.load(std::memory_order_relaxed);
         const uint64_t saved_cpu_sys = renderer.counters()->process_cpu_sys_ms.load(std::memory_order_relaxed);
@@ -233,7 +237,7 @@ warmup_pipe_renderer(
         if (saved_skip_clear > 0) renderer.counters()->skipped_clear_small.store(saved_skip_clear, std::memory_order_relaxed);
         if (saved_skip_xform > 0) renderer.counters()->skipped_transform_small.store(saved_skip_xform, std::memory_order_relaxed);
         if (saved_skip_comp > 0) renderer.counters()->skipped_composite_small.store(saved_skip_comp, std::memory_order_relaxed);
-        if (saved_node_exec > 0) renderer.counters()->node_execute_actual_ms.store(saved_node_exec, std::memory_order_relaxed);
+        if (saved_node_exec > 0) renderer.counters()->node_execute_actual_wall_ms.store(saved_node_exec, std::memory_order_relaxed);
         if (saved_sys_cores > 0) renderer.counters()->system_logical_cores.store(saved_sys_cores, std::memory_order_relaxed);
         if (saved_cpu_user > 0) renderer.counters()->process_cpu_user_ms.store(saved_cpu_user, std::memory_order_relaxed);
         if (saved_cpu_sys > 0) renderer.counters()->process_cpu_sys_ms.store(saved_cpu_sys, std::memory_order_relaxed);

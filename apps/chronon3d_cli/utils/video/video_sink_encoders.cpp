@@ -119,8 +119,8 @@ bool NullConvertEncoder::write_frame(const Framebuffer& fb) {
     const uint64_t ms = static_cast<uint64_t>(profiling::duration_ms(t0, t1));
 
     if (counters_) {
-        counters_->video_conversion_ms.fetch_add(ms, std::memory_order_relaxed);
-        counters_->frame_conversion_copy_ms.fetch_add(ms, std::memory_order_relaxed);
+        counters_->video_conversion_wall_ms.fetch_add(ms, std::memory_order_relaxed);
+        counters_->frame_conversion_copy_wall_ms.fetch_add(ms, std::memory_order_relaxed);
         counters_->video_frames_submitted.fetch_add(1, std::memory_order_relaxed);
         counters_->video_frames_converted.fetch_add(1, std::memory_order_relaxed);
     }

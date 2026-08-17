@@ -22,6 +22,7 @@
 #include "text_run_stages.hpp"
 #include "../../../utils/blend2d_bridge.hpp"
 #include "../../../utils/blend2d_paint.hpp"  // canonical to_bl_rgba + build_bl_gradient
+#include <chronon3d/core/profiling/profiling.hpp>
 // NOTE: `build_glyph_matrix` is defined in text_run_matrix.cpp (same
 // linker target).  The function lives in `chronon3d::renderer` namespace;
 // we forward-declare it below in `chrono::renderer` scope so unqualified
@@ -109,7 +110,9 @@ struct SingleGlyphRun {
     const TextRunDrawParams&        params,
     TextRunStageState&              s
 ) {
-    (void)rctx;  // (consumed implicitly via scratch_handle + s.* field-set in Stage 1)
+    // TICKET-TEXT-TIMING-V1 — time glyph rasterization (the per-frame text
+    // cost) so raster vs draw vs cache lookup are separable in telemetry.
+    const auto raster_start = profiling::now();
 
     // TICKET-TEXT-CLEANUP-4: silent_success_empty short-circuit removed.
     // Off-canvas text is now always rasterized (bbox approximation may be wrong).
@@ -417,6 +420,14 @@ struct SingleGlyphRun {
         downsample_supersampled(ds_img, s.img, s.raster_space.scale, s);
         release_surface(s, std::move(s.img));  // free supersampled
         s.img = std::move(ds_img);
+    }
+
+    // TICKET-TEXT-TIMING-V1 — accumulate only on the successful raster path
+    // (the zero-glyph early return above skips attribution).
+    if (rctx.counters) {
+        rctx.counters->text_rasterization_wall_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_ms(raster_start))),
+            std::memory_order_relaxed);
     }
 
     return graph::RenderOpResult(graph::RenderOpOutcome{s.glyphs_drawn});

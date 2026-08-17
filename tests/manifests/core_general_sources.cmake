@@ -82,6 +82,9 @@ set(CORE_TEST_SOURCES
     test_text_preset_registry.cpp
     registry/test_text_preset_descriptor.cpp
     registry/test_visual_preset_registry.cpp
+    registry/test_style_resolver.cpp
+    registry/test_resolved_plan_contract.cpp
+    registry/test_visual_preset_materializer.cpp
     text/test_text_run_umbrella_contract.cpp
     text/test_text_run_multi_run_failure_policy.cpp
     ${CORE_BLEND2D_TESTS}

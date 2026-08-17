@@ -37,11 +37,29 @@ struct BenchmarkCountersSnapshot {
     uint64_t cache_hits{};
     uint64_t cache_misses{};
     double cache_hit_rate{};
+    // TICKET-CACHE-COUNTERS-V1 — domain-scoped cache hit/miss counters so the
+    // benchmark can attribute reuse to node/image/font/glyph/gpu asset caches.
+    uint64_t node_cache_hits{};
+    uint64_t node_cache_misses{};
+    uint64_t image_cache_hits{};
+    uint64_t image_cache_misses{};
+    uint64_t font_cache_hits{};
+    uint64_t font_cache_misses{};
+    uint64_t glyph_cache_hits{};
+    uint64_t glyph_cache_misses{};
+    uint64_t gpu_asset_cache_hits{};
+    uint64_t gpu_asset_cache_misses{};
     uint64_t nodes_executed{};
     uint64_t pixels_touched{};
     uint64_t blur_pixels{};
     uint64_t images_sampled{};
     uint64_t text_glyphs_rasterized{};
+    // TICKET-TEXT-SHAPING-TIMING-V1 — text shaping/bidi telemetry. The call
+    // count is the per-frame reshape regression detector: steady state should
+    // be ~0 (shaping is prepare-time), a per-frame reshape shows calls ≈ frames.
+    uint64_t text_shaping_calls{};
+    uint64_t text_shaping_wall_ms{};
+    uint64_t text_bidi_wall_ms{};
     uint64_t framebuffer_copies{};
     uint64_t framebuffer_clears{};
     uint64_t full_frame_passes{};
@@ -61,6 +79,18 @@ struct BenchmarkCountersSnapshot {
     uint64_t fused_passes{};
     double full_frame_passes_per_frame{};
     double full_frame_copies_per_frame{};
+    // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — encoder / conversion / pipe
+    // backpressure-aware breakdown. Explicit *_cpu_ms / *_wall_ms /
+    // *_wait_ms suffixes distinguish CPU copy vs wall (which may contain
+    // poll/back-pressure wait) vs pure back-pressure wait.
+    uint64_t encoder_submit_cpu_ms{};
+    uint64_t encoder_backpressure_wait_ms{};
+    uint64_t encoder_flush_wall_ms{};
+    uint64_t mux_finalize_wall_ms{};
+    uint64_t pixel_format_convert_wall_ms{};
+    uint64_t color_space_convert_wall_ms{};
+    uint64_t pipe_write_cpu_ms{};
+    uint64_t pipe_write_wall_ms{};
 };
 
 /// Returns current UTC time formatted as ISO 8601 (e.g. "2026-05-21T12:00:00Z").

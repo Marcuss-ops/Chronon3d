@@ -125,7 +125,7 @@ TileExecutionResult execute_tile_or_fallback(
                     tile_result.regions_executed, std::memory_order_relaxed);
                 ctx.node_exec.counters->tile_region_pixels.fetch_add(
                     pixels_rendered, std::memory_order_relaxed);
-                ctx.node_exec.counters->tile_execution_ms.fetch_add(
+                ctx.node_exec.counters->tile_execution_wall_ms.fetch_add(
                     tile_elapsed_ms, std::memory_order_relaxed);
             }
 

@@ -1,6 +1,7 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <algorithm>
@@ -222,8 +223,22 @@ struct RequestedAsset {
         else if (layer.type == render_plan::LayerType::SubtitleTrack) {
             add(layer.source, PreparedAssetKind::Subtitle);
             add(layer.font, PreparedAssetKind::Font);
+            if (layer.font_asset)
+                add(layer.font_asset->asset, PreparedAssetKind::Font);
         } else if (layer.type == render_plan::LayerType::Text) {
             add(layer.font, PreparedAssetKind::Font);
+            if (layer.font_asset)
+                add(layer.font_asset->asset, PreparedAssetKind::Font);
+            // The visual preset's canonical font asset is an implicit plan
+            // reference: it must be hashed into the manifest so every worker
+            // resolves identical bytes (no system-font fallback).
+            if (!layer.preset.empty()) {
+                const auto& registry =
+                    chronon3d::registry::builtin_visual_preset_registry();
+                if (registry.contains(layer.preset))
+                    add(registry.get(layer.preset).style.font_asset,
+                        PreparedAssetKind::Font);
+            }
         }
     }
     for (const auto& track : plan.audio_tracks)

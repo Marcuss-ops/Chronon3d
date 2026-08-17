@@ -1,0 +1,246 @@
+// ─── visual_preset_materializer.cpp — VisualPresetMaterializer ─────────────
+//
+// VISUAL-SSOT-02 — the single materializer that consumes the existing
+// VisualPresetRegistry and lowers a LayerPlan onto a fully-resolved text
+// overlay.  It owns the preset→base-materializer dispatch, the style/font
+// resolution, the animation intent resolution and the layout intent; final
+// placement stays a separate scene-wide phase in the render-plan compiler.
+
+#include <chronon3d/render_plan/visual_preset_materializer.hpp>
+
+#include <chronon3d/presets/text/text_presets_v1.hpp>
+#include <chronon3d/registry/style_resolver.hpp>
+#include <chronon3d/registry/visual_preset_registry.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>  // LayerPlan (full definition)
+#include <chronon3d/text/text_placement.hpp>      // TextPlacementKind
+
+#include <algorithm>
+#include <optional>
+#include <stdexcept>
+#include <string_view>
+#include <utility>
+
+namespace chronon3d::render_plan {
+namespace {
+
+std::optional<chronon3d::Color> parse_hex_color(std::string_view value,
+                                                 float alpha = 1.0f) {
+    if (value.size() != 7 || value.front() != '#') return std::nullopt;
+    auto hex = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+    const int r1 = hex(value[1]), r2 = hex(value[2]);
+    const int g1 = hex(value[3]), g2 = hex(value[4]);
+    const int b1 = hex(value[5]), b2 = hex(value[6]);
+    if (r1 < 0 || r2 < 0 || g1 < 0 || g2 < 0 || b1 < 0 || b2 < 0)
+        return std::nullopt;
+    return chronon3d::Color{
+        static_cast<float>(r1 * 16 + r2) / 255.0f,
+        static_cast<float>(g1 * 16 + g2) / 255.0f,
+        static_cast<float>(b1 * 16 + b2) / 255.0f,
+        std::clamp(alpha, 0.0f, 1.0f)};
+}
+
+chronon3d::TextPlacementKind placement_kind(std::string_view type) {
+    using K = chronon3d::TextPlacementKind;
+    if (type == "top_left") return K::TopLeft;
+    if (type == "top_right") return K::TopRight;
+    if (type == "bottom_left") return K::BottomLeft;
+    if (type == "bottom_right" || type == "lower_third") return K::BottomLeft;
+    if (type == "safe_area" || type == "safe_area_center") return K::SafeAreaCenter;
+    if (type == "top") return K::SafeAreaTop;
+    if (type == "bottom") return K::SafeAreaBottom;
+    return K::CanvasCenter;
+}
+
+void apply_resolved_visual_style(
+    chronon3d::TextDefinition& definition,
+    const chronon3d::registry::ResolvedVisualStyle& style) {
+    if (!style.font_family.empty())
+        definition.style.font.font_family = style.font_family;
+    // Canonical preset font asset (byte-identity anchor). apply_visual_plan_
+    // overrides() runs after this and can replace font_path from the plan's
+    // explicit `font` / `font_asset` fields.
+    if (!style.font_asset.empty())
+        definition.style.font.font_path = style.font_asset;
+    if (style.font_weight)
+        definition.style.font.font_weight = *style.font_weight;
+    if (style.font_size)
+        definition.style.font.font_size = *style.font_size;
+    if (const auto fill = parse_hex_color(style.fill))
+        definition.style.color = *fill;
+
+    if (style.stroke_enabled) {
+        definition.style.paint.stroke_enabled = true;
+        if (const auto color = parse_hex_color(style.stroke_color))
+            definition.style.paint.stroke_color = *color;
+        if (style.stroke_width)
+            definition.style.paint.stroke_width = *style.stroke_width;
+    }
+    if (style.shadow_enabled) {
+        chronon3d::TextShadow shadow;
+        shadow.enabled = true;
+        if (const auto color = parse_hex_color(style.shadow_color))
+            shadow.color = *color;
+        shadow.opacity = style.shadow_opacity.value_or(1.0f);
+        shadow.blur = style.shadow_blur.value_or(0.0f);
+        if (style.shadow_offset)
+            shadow.offset = {(*style.shadow_offset)[0], (*style.shadow_offset)[1]};
+        definition.style.shadows = {shadow};
+    }
+    if (style.background_enabled) {
+        definition.style.box_style.enabled = true;
+        const float opacity = style.background_opacity.value_or(1.0f);
+        if (const auto color = parse_hex_color(style.background_color, opacity))
+            definition.style.box_style.background = *color;
+        if (style.radius)
+            definition.style.box_style.radius = *style.radius;
+        if (style.padding)
+            definition.style.box_style.padding = {
+                (*style.padding)[0], (*style.padding)[1]};
+    }
+}
+
+void apply_visual_plan_overrides(chronon3d::TextDefinition& definition,
+                                 const LayerPlan& layer) {
+    if (layer.anchor) {
+        definition.frame.placement = chronon3d::TextPlacement{
+            placement_kind(layer.anchor->type)};
+        definition.frame.align = layer.anchor->alignment == "right"
+            ? chronon3d::TextAlign::Right
+            : layer.anchor->alignment == "center"
+                ? chronon3d::TextAlign::Center : chronon3d::TextAlign::Left;
+    }
+    if (layer.font_asset) {
+        definition.style.font.font_path = layer.font_asset->asset;
+        if (!layer.font_asset->family.empty())
+            definition.style.font.font_family = layer.font_asset->family;
+        if (layer.font_asset->weight)
+            definition.style.font.font_weight = *layer.font_asset->weight;
+    }
+    if (!layer.font.empty()) definition.style.font.font_path = layer.font;
+    if (layer.font_size) definition.style.font.font_size = *layer.font_size;
+}
+
+}  // namespace
+
+void apply_text_animation_intent(
+    chronon3d::TextDefinition& definition,
+    const LayerPlan& layer,
+    const std::optional<registry::AnimationSpec>& preset_animation,
+    std::int64_t composition_frames) {
+    // Single resolution path: registry defaults + plan overrides, with the
+    // same deterministic window clamp used by the layer motion.
+    const auto resolved = resolve_animation(
+        preset_animation, layer, Frame{composition_frames});
+    // No per-unit intent anywhere → leave the text run static.
+    if (!resolved.text_intent) return;
+    definition.animation.animators.push_back(build_unit_reveal_animator(
+        resolved.unit, resolved.layer_start, resolved.layer_duration,
+        resolved.enter_duration,
+        resolved.exit_duration > Frame{0}
+            ? std::optional<Frame>{resolved.exit_duration} : std::nullopt));
+}
+
+ResolvedImageLayer VisualPresetMaterializer::materialize_image(
+    const LayerPlan& layer,
+    const chronon3d::CanvasInfo& canvas,
+    std::string_view style_profile,
+    const registry::VisualPresetRegistry& registry,
+    Frame composition_frames) const {
+    const auto visual = registry.get_for_profile(layer.preset, style_profile);
+    if (visual.supported_layer != registry::VisualLayerKind::Image) {
+        throw std::runtime_error("visual preset '" + layer.preset +
+                                 "' cannot be used on an image layer");
+    }
+
+    ResolvedImageLayer resolved;
+    resolved.preset_id = layer.preset;
+
+    // Layout INTENT: the image's anchor (image_left / image_right / center / …)
+    // + fallback order + content bounds (explicit box or full canvas).
+    resolved.layout.intent = visual.anchor.type;
+    resolved.layout.fallback_intents = visual.fallback_anchors;
+    resolved.layout.safe_margin =
+        layer.anchor ? layer.anchor->safe_margin : visual.anchor.safe_margin;
+    resolved.layout.width = layer.box_width.value_or(canvas.width);
+    resolved.layout.height = layer.box_height.value_or(canvas.height);
+
+    // Animation intent: registry defaults + plan overrides (motion + exit).
+    resolved.animation = resolve_animation(
+        visual.animation, layer, composition_frames);
+    return resolved;
+}
+
+ResolvedVisualLayer VisualPresetMaterializer::materialize(
+    const LayerPlan& layer,
+    const chronon3d::CanvasInfo& canvas,
+    std::string_view style_profile,
+    const registry::VisualPresetRegistry& registry,
+    Frame composition_frames) const {
+    const auto visual = registry.get_for_profile(layer.preset, style_profile);
+    if (visual.supported_layer != registry::VisualLayerKind::Text) {
+        throw std::runtime_error("visual preset '" + layer.preset +
+                                 "' cannot be used on a text layer");
+    }
+    if (visual.base_preset.empty()) {
+        throw std::runtime_error("visual preset '" + layer.preset +
+                                 "' has no text materialization");
+    }
+
+    ResolvedVisualLayer resolved;
+    resolved.preset_id = layer.preset;
+
+    // 1) Base text materializer — the registry's base_preset is the single
+    //    source of this dispatch; the consumer never re-maps preset ids.
+    const std::string_view base = visual.base_preset;
+    if (base == "title_centered")
+        resolved.text = chronon3d::presets::text::title_centered(layer.text, canvas);
+    else if (base == "subtitle_bottom")
+        resolved.text = chronon3d::presets::text::subtitle_bottom(layer.text, canvas);
+    else if (base == "caption_safe_area")
+        resolved.text = chronon3d::presets::text::caption_safe_area(layer.text, canvas);
+    else if (base == "kinetic_word")
+        resolved.text = chronon3d::presets::text::kinetic_word(layer.text, canvas);
+    else
+        resolved.text = chronon3d::presets::text::lower_third(layer.text, canvas);
+
+    // 2) Style: preset defaults + plan overrides = ResolvedVisualStyle.
+    const auto resolved_style = registry::VisualStyleResolver{}.resolve(
+        visual.style, layer.style ? &*layer.style : nullptr);
+    apply_resolved_visual_style(resolved.text, resolved_style);
+
+    // 3) Anchor intent → placement + alignment (layout INTENT, not coords).
+    resolved.text.frame.placement = chronon3d::TextPlacement{
+        placement_kind(visual.anchor.type)};
+    resolved.text.frame.align = visual.anchor.alignment == "right"
+        ? chronon3d::TextAlign::Right
+        : visual.anchor.alignment == "center"
+            ? chronon3d::TextAlign::Center : chronon3d::TextAlign::Left;
+
+    // 4) Font asset + explicit plan overrides (job is authoritative).
+    apply_visual_plan_overrides(resolved.text, layer);
+
+    // 5) Animation intent: registry defaults + plan overrides.  The per-unit
+    //    text animator is applied here; the layer motion runs separately in
+    //    the compiler's apply_layer_timing.
+    resolved.animation = resolve_animation(
+        visual.animation, layer, composition_frames);
+    apply_text_animation_intent(resolved.text, layer, visual.animation,
+                                composition_frames.integral());
+
+    // 6) Layout INTENT for the scene-wide OverlayLayoutResolver phase.
+    resolved.layout.intent = visual.anchor.type;
+    resolved.layout.fallback_intents = visual.fallback_anchors;
+    resolved.layout.safe_margin =
+        layer.anchor ? layer.anchor->safe_margin : visual.anchor.safe_margin;
+    resolved.layout.width = resolved.text.frame.size.x;
+    resolved.layout.height = resolved.text.frame.size.y;
+
+    return resolved;
+}
+
+}  // namespace chronon3d::render_plan

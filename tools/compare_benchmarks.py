@@ -11,8 +11,8 @@ Usage:
 Extracts the 6 key metrics:
   - avg active frame (ms)
   - p95 active frame (ms)
-  - graph_total_ms
-  - node_dispatch_ms
+  - graph_total_wall_ms
+  - node_dispatch_wall_ms
   - clearnode memcpy ms
   - peak memory (MB)
 
@@ -56,9 +56,9 @@ def extract_metrics(db: sqlite3.Connection, run_id: str) -> dict:
     ):
         counter_map[row[0]] = row[1]
 
-    metrics["graph_total_ms"] = counter_map.get("graph_total_ms", 0)
-    metrics["node_dispatch_ms"] = counter_map.get("node_dispatch_ms", 0)
-    metrics["clearnode_memcpy_ms"] = counter_map.get("clearnode_memcpy_ms", 0)
+    metrics["graph_total_wall_ms"] = counter_map.get("graph_total_wall_ms", 0)
+    metrics["node_dispatch_wall_ms"] = counter_map.get("node_dispatch_wall_ms", 0)
+    metrics["clearnode_memcpy_wall_ms"] = counter_map.get("clearnode_memcpy_wall_ms", 0)
 
     # ── Peak memory (from render_runs table) ─────────────────────────────
     row = db.execute(
@@ -171,9 +171,9 @@ def main():
     rows = [
         ("avg active frame", m_a["avg_active_frame_ms"], m_b["avg_active_frame_ms"], m_c["avg_active_frame_ms"]),
         ("p95 active frame", m_a["p95_active_frame_ms"], m_b["p95_active_frame_ms"], m_c["p95_active_frame_ms"]),
-        ("graph total", m_a["graph_total_ms"], m_b["graph_total_ms"], m_c["graph_total_ms"]),
-        ("node dispatch", m_a["node_dispatch_ms"], m_b["node_dispatch_ms"], m_c["node_dispatch_ms"]),
-        ("clearnode memcpy", m_a["clearnode_memcpy_ms"], m_b["clearnode_memcpy_ms"], m_c["clearnode_memcpy_ms"]),
+        ("graph total", m_a["graph_total_wall_ms"], m_b["graph_total_wall_ms"], m_c["graph_total_wall_ms"]),
+        ("node dispatch", m_a["node_dispatch_wall_ms"], m_b["node_dispatch_wall_ms"], m_c["node_dispatch_wall_ms"]),
+        ("clearnode memcpy", m_a["clearnode_memcpy_wall_ms"], m_b["clearnode_memcpy_wall_ms"], m_c["clearnode_memcpy_wall_ms"]),
         ("peak memory (max)", m_a["peak_memory_mb"], m_b["peak_memory_mb"], m_c["peak_memory_mb"]),
     ]
 

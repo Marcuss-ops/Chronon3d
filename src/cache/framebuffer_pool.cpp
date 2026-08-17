@@ -88,7 +88,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
     const auto t1 = profiling::now();
 
     if (profiling::g_current_counters) {
-        profiling::g_current_counters->framebuffer_acquire_ms.fetch_add(
+        profiling::g_current_counters->framebuffer_acquire_wall_ms.fetch_add(
             static_cast<uint64_t>(profiling::duration_ms(t0, t1)),
             std::memory_order_relaxed);
     }
@@ -100,8 +100,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
         m_total_clears.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
             const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(tc0, tc1));
-            profiling::g_current_counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-            profiling::g_current_counters->framebuffer_pool_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            profiling::g_current_counters->framebuffer_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            profiling::g_current_counters->framebuffer_pool_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }
     auto weak_pool = weak_from_this();

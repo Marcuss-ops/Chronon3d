@@ -245,6 +245,14 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         scene = evaluate_scene(ctx);
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
+        // Timeline/animation evaluation boundary (the pre-graph half of the
+        // frame).  Accumulated per-frame so the render loop can delta it for
+        // the per-frame architectural breakdown.
+        if (sw_sidecar && sw_sidecar->counters()) {
+            sw_sidecar->counters()->timeline_eval_wall_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(evaluate_ms)),
+                std::memory_order_relaxed);
+        }
         layer_count = static_cast<int>(scene.layers().size());
 
         const auto t_scene0 = profiling::now();

@@ -444,7 +444,7 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         << (render_counters ? render_counters->tile_region_pixels.load() : 0)
         << "\n";
     out << "Tile execution time.......... "
-        << (render_counters ? render_counters->tile_execution_ms.load() : 0)
+        << (render_counters ? render_counters->tile_execution_wall_ms.load() : 0)
         << " ms\n";
     out << "Nodes skipped................ "
         << (render_counters ? render_counters->nodes_skipped.load() : 0)
@@ -453,10 +453,10 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         << (render_counters ? render_counters->graph_skipped_frames.load() : 0)
         << "\n";
     out << "Dirty evaluation............ "
-        << (render_counters ? render_counters->dirty_eval_ms.load() : 0)
+        << (render_counters ? render_counters->dirty_eval_wall_ms.load() : 0)
         << " ms\n";
     out << "Graph dirty-rect time........ "
-        << (render_counters ? render_counters->graph_dirty_rect_ms.load() : 0)
+        << (render_counters ? render_counters->graph_dirty_rect_wall_ms.load() : 0)
         << " ms\n";
     out << "Full exec EWMA............... "
         << fmt::format("{:.3f}", renderer->dirty_telemetry().full_frame_exec_ms_ewma)
@@ -543,10 +543,10 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                 {"tile_full_fallbacks", counter(&RenderCounters::tile_full_fallbacks)},
                 {"tile_regions_executed", counter(&RenderCounters::tile_regions_executed)},
                 {"tile_region_pixels", counter(&RenderCounters::tile_region_pixels)},
-                {"tile_execution_ms", counter(&RenderCounters::tile_execution_ms)},
+                {"tile_execution_wall_ms", counter(&RenderCounters::tile_execution_wall_ms)},
                 {"nodes_skipped", counter(&RenderCounters::nodes_skipped)},
-                {"dirty_eval_ms", counter(&RenderCounters::dirty_eval_ms)},
-                {"graph_dirty_rect_ms", counter(&RenderCounters::graph_dirty_rect_ms)}
+                {"dirty_eval_wall_ms", counter(&RenderCounters::dirty_eval_wall_ms)},
+                {"graph_dirty_rect_wall_ms", counter(&RenderCounters::graph_dirty_rect_wall_ms)}
             }},
             {"cost_model", {
                 {"full_frame_exec_ms_ewma", renderer->dirty_telemetry().full_frame_exec_ms_ewma},

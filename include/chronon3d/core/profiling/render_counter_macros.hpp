@@ -41,6 +41,17 @@ namespace chronon3d {
     X(cache_hits) \
     X(cache_misses) \
     X(node_cache_hash_collisions) \
+    X(node_cache_hits) \
+    X(node_cache_misses) \
+    X(node_cache_lookup_wall_us) \
+    X(image_cache_hits) \
+    X(image_cache_misses) \
+    X(font_cache_hits) \
+    X(font_cache_misses) \
+    X(glyph_cache_hits) \
+    X(glyph_cache_misses) \
+    X(gpu_asset_cache_hits) \
+    X(gpu_asset_cache_misses) \
     X(glow_cache_hits) \
     X(glow_cache_misses) \
     X(converted_frame_cache_hits) \
@@ -49,12 +60,29 @@ namespace chronon3d {
     X(program_cache_misses) \
     X(program_cache_evictions)
 
+#define CHRONON_COUNTERS_IMAGE(X) \
+    X(image_resolve_wall_us) \
+    X(image_decode_wall_us) \
+    X(image_convert_wall_us) \
+    X(image_upload_wall_us) \
+    X(image_draw_wall_us) \
+    X(image_decode_count) \
+    X(image_upload_count) \
+    X(image_draw_count)
+
 #define CHRONON_COUNTERS_TEXT(X) \
     X(text_glyphs_rasterized) \
     X(text_cache_hits) \
     X(text_cache_misses) \
-    X(text_layout_ms) \
-    X(text_rasterization_ms) \
+    X(text_layout_wall_ms) \
+    X(text_rasterization_wall_ms) \
+    X(text_shaping_calls) \
+    X(text_shaping_wall_ms) \
+    X(text_bidi_wall_ms) \
+    X(font_resolve_wall_us) \
+    X(glyph_cache_lookup_wall_us) \
+    X(glyph_atlas_upload_wall_us) \
+    X(text_draw_wall_us) \
     X(text_shadow_cache_hits) \
     X(text_shadow_cache_misses) \
     X(text_glow_cache_hits) \
@@ -76,7 +104,7 @@ namespace chronon3d {
     X(tile_full_fallbacks) \
     X(tile_regions_executed) \
     X(tile_region_pixels) \
-    X(tile_execution_ms)
+    X(tile_execution_wall_ms)
 
 #define CHRONON_COUNTERS_COMPOSITE(X) \
     X(clear_skipped_calls) \
@@ -96,25 +124,25 @@ namespace chronon3d {
     X(prev_fb_use_count_peak) \
     X(composite_calls) \
     X(composite_pixels) \
-    X(clearnode_ms) \
-    X(clearnode_memcpy_ms) \
-    X(clearnode_restore_ms) \
-    X(clearnode_acquire_ms) \
-    X(clearnode_clear_ms) \
+    X(clearnode_wall_ms) \
+    X(clearnode_memcpy_wall_ms) \
+    X(clearnode_restore_wall_ms) \
+    X(clearnode_acquire_wall_ms) \
+    X(clearnode_clear_wall_ms) \
     X(clearnode_restore_rect_count) \
     X(clearnode_restore_pixels) \
     X(clearnode_restore_bytes) \
     X(clearnode_restore_full_frame_count) \
     X(clearnode_restore_dirty_rect_count) \
     X(clearnode_restore_noop_count) \
-    X(compositenode_blend_ms) \
-    X(compositenode_setup_ms) \
-    X(compositenode_copy_ms) \
-    X(compositenode_row_ms) \
-    X(compositenode_dispatch_ms) \
-    X(compositenode_acquire_ms) \
-    X(compositenode_overhead_ms) \
-    X(compositenode_internal_us)
+    X(compositenode_blend_wall_ms) \
+    X(compositenode_setup_wall_ms) \
+    X(compositenode_copy_wall_ms) \
+    X(compositenode_row_wall_ms) \
+    X(compositenode_dispatch_wall_ms) \
+    X(compositenode_acquire_wall_ms) \
+    X(compositenode_overhead_wall_ms) \
+    X(compositenode_internal_wall_us)
 
 #define CHRONON_COUNTERS_TRANSFORM(X) \
     X(transform_calls) \
@@ -124,37 +152,37 @@ namespace chronon3d {
 #define CHRONON_COUNTERS_EFFECTS(X) \
     X(effect_stack_calls) \
     X(effect_pixels) \
-    X(effect_stack_total_ms) \
-    X(dof_roi_analysis_us) \
-    X(dof_blur_radius_generation_us) \
-    X(dof_scratch_allocation_us) \
-    X(dof_copy_to_hpass_us) \
-    X(dof_horizontal_pass_us) \
-    X(dof_hpass_to_output_us) \
-    X(dof_vertical_pass_us) \
-    X(dof_writeback_us) \
+    X(effect_stack_total_wall_ms) \
+    X(dof_roi_analysis_wall_us) \
+    X(dof_blur_radius_generation_wall_us) \
+    X(dof_scratch_allocation_wall_us) \
+    X(dof_copy_to_hpass_wall_us) \
+    X(dof_horizontal_pass_wall_us) \
+    X(dof_hpass_to_output_wall_us) \
+    X(dof_vertical_pass_wall_us) \
+    X(dof_writeback_wall_us) \
     X(dof_roi_pixels) \
     X(dof_blur_source_pixels) \
     X(dof_max_radius_milli) \
     X(dof_scratch_bytes) \
     X(dof_estimated_bytes_read) \
     X(dof_estimated_bytes_written) \
-    X(effect_focus_in_ladder_precompute_ms) \
-    X(effect_focus_in_ladder_crossfade_ms)
+    X(effect_focus_in_ladder_precompute_wall_ms) \
+    X(effect_focus_in_ladder_crossfade_wall_ms)
 
 #define CHRONON_COUNTERS_FRAMEBUFFER(X) \
     X(framebuffer_allocations) \
     X(framebuffer_reuses) \
     X(framebuffer_bytes_allocated) \
     X(framebuffer_bytes_peak) \
-    X(framebuffer_pool_clear_ms) \
-    X(framebuffer_enqueue_ms) \
+    X(framebuffer_pool_clear_wall_ms) \
+    X(framebuffer_enqueue_wall_ms) \
     X(framebuffer_pool_empty_alloc) \
     X(framebuffer_pool_best_fit_reuse) \
     X(framebuffer_pool_exact_hit) \
     X(framebuffer_buffer_returned_to_pool_count) \
     X(framebuffer_prealloc_created) \
-    X(framebuffer_copy_ms) \
+    X(framebuffer_copy_wall_ms) \
     X(framebuffer_copy_parallel_calls) \
     X(unaligned_memory_copies) \
     X(framebuffer_pool_budget_bytes) \
@@ -169,7 +197,7 @@ namespace chronon3d {
     X(dirty_pixels) \
     X(dirty_union_area_pixels) \
     X(dirty_full_fallbacks) \
-    X(scroll_opt_copy_ms)
+    X(scroll_opt_copy_wall_ms)
 
 #define CHRONON_COUNTERS_LAYER(X) \
     X(layer_culling_tests) \
@@ -179,81 +207,91 @@ namespace chronon3d {
 #define CHRONON_COUNTERS_GRAPH(X) \
     X(graph_cache_hits) \
     X(graph_cache_misses) \
-    X(graph_resolve_layers_ms) \
-    X(graph_dirty_rect_ms) \
-    X(graph_build_ms) \
-    X(graph_execute_ms) \
-    X(graph_total_ms) \
+    X(graph_resolve_layers_wall_ms) \
+    X(graph_dirty_rect_wall_ms) \
+    X(graph_build_wall_ms) \
+    X(graph_execute_wall_ms) \
+    X(graph_total_wall_ms) \
+    X(timeline_eval_wall_ms) \
     X(pixel_fusion_passes_before) \
     X(pixel_fusion_passes_after) \
     X(pixel_fusion_bytes_saved) \
     X(full_frame_passes) \
     X(full_frame_copies) \
-    X(compiled_graph_refresh_ms) \
-    X(cache_eval_ms) \
-    X(dirty_eval_ms) \
-    X(input_resolve_ms) \
-    X(framebuffer_lifetime_ms) \
-    X(node_schedule_ms) \
-    X(node_dispatch_ms) \
-    X(node_execute_actual_ms) \
-    X(node_overhead_ms) \
+    X(compiled_graph_refresh_wall_ms) \
+    X(cache_eval_wall_ms) \
+    X(dirty_eval_wall_ms) \
+    X(input_resolve_wall_ms) \
+    X(framebuffer_lifetime_wall_ms) \
+    X(node_schedule_wall_ms) \
+    X(node_dispatch_wall_ms) \
+    X(node_execute_actual_wall_ms) \
+    X(node_overhead_wall_ms) \
     X(level_parallel_count) \
     X(level_sequential_count) \
-    X(telemetry_emit_ms) \
-    X(predicted_bbox_ms) \
-    X(clone_context_ms) \
-    X(state_assign_ms) \
+    X(telemetry_emit_wall_ms) \
+    X(predicted_bbox_wall_ms) \
+    X(clone_context_wall_ms) \
+    X(state_assign_wall_ms) \
     X(bypass_not_cacheable_count) \
     X(nodes_skipped) \
-    X(framebuffer_acquire_ms) \
-    X(framebuffer_clear_ms) \
+    X(framebuffer_acquire_wall_ms) \
+    X(framebuffer_clear_wall_ms) \
     X(graph_executed_frames) \
     X(graph_skipped_frames) \
-    X(graph_executed_ms_sum) \
-    X(graph_skipped_ms_sum)
+    X(graph_executed_wall_ms_sum) \
+    X(graph_skipped_wall_ms_sum)
 
 #define CHRONON_COUNTERS_VIDEO(X) \
-    X(frame_conversion_copy_ms) \
-    X(video_graph_eval_ms) \
-    X(video_conversion_ms) \
-    X(video_pipe_write_ms) \
-    X(video_ffmpeg_latency_ms) \
-    X(io_queue_push_blocked_ms) \
+    X(frame_conversion_copy_wall_ms) \
+    X(video_graph_eval_wall_ms) \
+    X(video_conversion_wall_ms) \
+    X(video_pipe_write_wall_ms) \
+    X(video_ffmpeg_wait_ms) \
+    X(io_queue_push_wait_ms) \
     X(io_queue_pop_wait_ms) \
     X(io_writer_idle_wait_ms) \
     X(io_queue_peak_depth) \
     X(io_queue_peak_bytes) \
-    X(ffmpeg_pipe_write_blocked_ms) \
-    X(ffmpeg_flush_ms) \
-    X(native_av_convert_ms) \
-    X(native_av_send_frame_ms) \
-    X(native_av_receive_packet_ms) \
-    X(native_av_mux_write_ms) \
-    X(native_av_trailer_ms) \
-    X(native_av_convert_skipped_ms) \
+    X(ffmpeg_pipe_write_wall_ms) \
+    X(ffmpeg_flush_wall_ms) \
+    X(native_av_convert_wall_ms) \
+    X(native_av_receive_packet_wall_ms) \
+    X(native_av_mux_write_wall_ms) \
+    X(native_av_convert_skipped_wall_ms) \
     X(video_sink_type_id) \
     X(video_frames_submitted) \
     X(video_frames_converted) \
     X(video_frames_written_counter) \
     X(video_frames_dropped) \
-    X(video_convert_only_ms) \
-    X(video_pipe_write_only_ms) \
+    X(video_convert_only_wall_ms) \
+    X(video_pipe_write_only_wall_ms) \
     X(video_writer_wait_ms) \
     X(conversion_bytes_written) \
     X(encoder_staging_copy_bytes) \
     X(encoder_slots_allocated) /* gauge: current pool capacity */ \
     X(encoder_slot_reuses) /* gauge: cumulative pool reuse events */ \
-    X(frame_conversion_ms) \
-    X(frame_submit_ms) \
+    X(frame_conversion_wall_ms) \
+    X(frame_submit_wall_ms) \
     X(color_pipeline_batches) \
-    X(color_pipeline_effects)
+    X(color_pipeline_effects) \
+    X(encoder_submit_cpu_ms) \
+    X(encoder_backpressure_wait_ms) \
+    X(encoder_flush_wall_ms) \
+    X(mux_finalize_wall_ms) \
+    X(pixel_format_convert_wall_ms) \
+    X(color_space_convert_wall_ms) \
+    X(pipe_write_cpu_ms) \
+    X(pipe_write_wall_ms) \
+    X(pipe_write_cpu_wall_us) \
+    X(pipe_backpressure_wait_wall_us)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 
 #define CHRONON_RENDER_COUNTERS(X) \
     CHRONON_COUNTERS_CORE(X) \
     CHRONON_COUNTERS_CACHE(X) \
+    CHRONON_COUNTERS_IMAGE(X) \
     CHRONON_COUNTERS_TEXT(X) \
     CHRONON_COUNTERS_TILE(X) \
     CHRONON_COUNTERS_COMPOSITE(X) \
@@ -288,7 +326,7 @@ namespace chronon3d {
     X(parallel_regions_skipped_small_level) \
     X(parallel_idle_worker_entry_sum) \
     X(parallel_idle_worker_samples) \
-    X(sequential_level_execute_ms) \
+    X(sequential_level_execute_wall_ms) \
     X(used_parallel_clear) \
     X(skipped_clear_small) \
     X(used_parallel_transform) \
@@ -298,9 +336,9 @@ namespace chronon3d {
     X(skipped_encoder_backpressure)
 
 #define CHRONON_RENDER_COUNTERS_SETUP(X) \
-    X(setup_graph_parsing_ms) \
-    X(setup_asset_io_load_ms) \
-    X(setup_pool_preallocation_ms) \
-    X(image_decode_ms)
+    X(setup_graph_parsing_wall_ms) \
+    X(setup_asset_io_load_wall_ms) \
+    X(setup_pool_preallocation_wall_ms) \
+    X(image_decode_wall_ms)
 
 } // namespace chronon3d

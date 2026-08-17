@@ -75,18 +75,18 @@ struct RenderTelemetryRecord {
     uint64_t dirty_full_fallback_transform_bounds_unknown{0};
     uint64_t dirty_full_fallback_effect_bounds_unknown{0};
 
-    uint64_t framebuffer_acquire_ms{0};
-    uint64_t framebuffer_clear_ms{0};
-    uint64_t clearnode_ms{0};
-    uint64_t clearnode_restore_ms{0};
+    uint64_t framebuffer_acquire_wall_ms{0};
+    uint64_t framebuffer_clear_wall_ms{0};
+    uint64_t clearnode_wall_ms{0};
+    uint64_t clearnode_restore_wall_ms{0};
     uint64_t clearnode_restore_rect_count{0};
     uint64_t clearnode_restore_pixels{0};
     uint64_t clearnode_restore_bytes{0};
     uint64_t clearnode_restore_full_frame_count{0};
     uint64_t clearnode_restore_dirty_rect_count{0};
     uint64_t clearnode_restore_noop_count{0};
-    uint64_t framebuffer_pool_clear_ms{0};
-    uint64_t framebuffer_enqueue_ms{0};
+    uint64_t framebuffer_pool_clear_wall_ms{0};
+    uint64_t framebuffer_enqueue_wall_ms{0};
     uint64_t framebuffer_pool_empty_alloc{0};
     uint64_t framebuffer_pool_best_fit_reuse{0};
     uint64_t framebuffer_pool_exact_hit{0};
@@ -106,43 +106,43 @@ struct RenderTelemetryRecord {
     uint64_t new_resource_slot_count{0};
     uint64_t arena_peak_bytes{0};
     uint64_t unaligned_memory_copies{0};
-    uint64_t frame_conversion_copy_ms{0};
-    uint64_t video_graph_eval_ms{0};
-    uint64_t video_conversion_ms{0};
-    uint64_t video_pipe_write_ms{0};
-    uint64_t video_ffmpeg_latency_ms{0};
-    uint64_t io_queue_push_blocked_ms{0};
+    uint64_t frame_conversion_copy_wall_ms{0};
+    uint64_t video_graph_eval_wall_ms{0};
+    uint64_t video_conversion_wall_ms{0};
+    uint64_t video_pipe_write_wall_ms{0};
+    uint64_t video_ffmpeg_wait_ms{0};
+    uint64_t io_queue_push_wait_ms{0};
     uint64_t io_queue_pop_wait_ms{0};
     uint64_t io_writer_idle_wait_ms{0};
     uint64_t io_queue_peak_depth{0};
-    uint64_t ffmpeg_pipe_write_blocked_ms{0};
+    uint64_t ffmpeg_pipe_write_wall_ms{0};
     uint64_t converted_frame_cache_hits{0};
     uint64_t program_cache_hits{0};
     uint64_t program_cache_misses{0};
     uint64_t program_cache_evictions{0};
-    uint64_t ffmpeg_flush_ms{0};
+    uint64_t ffmpeg_flush_wall_ms{0};
     uint64_t io_queue_peak_bytes{0};
 
     // ── Setup Deep Dive (cold start diagnostics) ──
-    uint64_t setup_graph_parsing_ms{0};
-    uint64_t setup_asset_io_load_ms{0};
-    uint64_t setup_pool_preallocation_ms{0};
-    double image_decode_ms{0.0};
+    uint64_t setup_graph_parsing_wall_ms{0};
+    uint64_t setup_asset_io_load_wall_ms{0};
+    uint64_t setup_pool_preallocation_wall_ms{0};
+    double image_decode_wall_ms{0.0};
 
     // ── Graph Executor Phase Timings ──
-    uint64_t compiled_graph_refresh_ms{0};
-    uint64_t cache_eval_ms{0};
-    uint64_t dirty_eval_ms{0};
-    uint64_t input_resolve_ms{0};
-    uint64_t predicted_bbox_ms{0};
-    uint64_t clone_context_ms{0};
-    uint64_t state_assign_ms{0};
-    uint64_t framebuffer_lifetime_ms{0};
-    uint64_t node_schedule_ms{0};
-    uint64_t node_dispatch_ms{0};
-    uint64_t node_execute_actual_ms{0};
-    uint64_t node_overhead_ms{0};
-    uint64_t telemetry_emit_ms{0};
+    uint64_t compiled_graph_refresh_wall_ms{0};
+    uint64_t cache_eval_wall_ms{0};
+    uint64_t dirty_eval_wall_ms{0};
+    uint64_t input_resolve_wall_ms{0};
+    uint64_t predicted_bbox_wall_ms{0};
+    uint64_t clone_context_wall_ms{0};
+    uint64_t state_assign_wall_ms{0};
+    uint64_t framebuffer_lifetime_wall_ms{0};
+    uint64_t node_schedule_wall_ms{0};
+    uint64_t node_dispatch_wall_ms{0};
+    uint64_t node_execute_actual_wall_ms{0};
+    uint64_t node_overhead_wall_ms{0};
+    uint64_t telemetry_emit_wall_ms{0};
 
     // ── Chronon Render Throughput Benchmark (pure Chronon pipeline) ──
     double chronon_render_only_ms{0.0};     // graph + cache + pixel ops (excl. conversion/copy/queue)
@@ -204,16 +204,73 @@ struct RenderTelemetryRecord {
     int cores{0};
 };
 
-struct FrameTelemetryRecord {
+/// Per-frame image sampling timing (the draw/composite phase of the image
+/// asset pipeline).  Resolve/io/decode/convert happen once in the prepare
+/// barrier (see RenderPreparationTimings), so only the draw phase is
+/// per-frame measurable here.
+struct FrameImageTiming {
+    double draw_ms{0.0};
+    uint64_t draw_count{0};
+};
+
+/// Per-frame text pipeline timing, in ms.  Populated by the render loop
+/// from per-frame counter deltas.  A field stays 0.0 when that phase did
+/// not run this frame (e.g. shaping/layout are prepare-only and steady
+/// state ≈ 0).  font_resolve is prepare-only, so it is reported at job
+/// level (RenderPreparationTimings / job.text), not per-frame.
+struct FrameTextTiming {
+    double shaping_ms{0.0};
+    double bidi_ms{0.0};
+    double layout_ms{0.0};
+    double glyph_cache_lookup_ms{0.0};
+    double raster_ms{0.0};
+    double atlas_upload_ms{0.0};
+    double draw_ms{0.0};
+};
+
+/// Architectural breakdown of a single frame's render time (render_ms), in ms.
+/// Populated by the render loop from per-frame counter deltas.  A field stays
+/// 0.0 when that phase is not yet measured (emitted as JSON null, never 0.0).
+struct FrameRenderBreakdown {
+    double timeline_eval_ms{0.0};
+    double animation_eval_ms{0.0};
+    double text_ms{0.0};
+    double graph_prepare_ms{0.0};
+    double graph_execute_ms{0.0};
+    double compositing_ms{0.0};
+    double effects_ms{0.0};
+    double surface_management_ms{0.0};
+    double backend_overhead_ms{0.0};
+};
+
+// The single canonical per-frame record.  Formerly split across
+// FrameTelemetryRecord + FrameEncoderTelemetryRecord (which duplicated the
+// encoder/conversion fields); the two were merged so one frame == one record
+// and the render thread + encoder thread write disjoint fields of the same
+// slot.
+struct FrameTelemetry {
     int frame_number{0};
+    // Monotonic wall-clock offset from the beginning of the render loop.
+    // This is intentionally a measured timestamp, not a presentation-time
+    // estimate derived from FPS.
+    double wall_start_ms{0.0};
     double duration_ms{0.0};
     bool cache_hit{false};
     double dirty_area_ratio{1.0};
+    double node_lookup_ms{0.0};
     double graph_eval_ms{0.0};
     double queue_wait_ms{0.0};
+    FrameRenderBreakdown render_breakdown{};
+    FrameImageTiming image_timing{};
+    FrameTextTiming text_timing{};
     double conversion_copy_ms{0.0};
+    double pixel_format_convert_ms{0.0};
+    double color_space_convert_ms{0.0};
     double encoder_ms{0.0};
     double pipe_write_ms{0.0};
+    double backpressure_wait_ms{0.0};
+    double pipe_write_cpu_ms{0.0};
+    double pipe_backpressure_wait_ms{0.0};
     double native_convert_ms{0.0};
     double native_send_ms{0.0};
     double native_receive_ms{0.0};
@@ -232,17 +289,6 @@ struct FrameTelemetryRecord {
     /// Current SceneProgramCache capacity at this frame.
     /// Populated by the render loop for per-frame trend charts.
     int program_cache_capacity{0};
-};
-
-struct FrameEncoderTelemetryRecord {
-    int frame_number{0};
-    double conversion_copy_ms{0.0};
-    double encoder_ms{0.0};
-    double pipe_write_ms{0.0};
-    double native_convert_ms{0.0};
-    double native_send_ms{0.0};
-    double native_receive_ms{0.0};
-    double native_mux_ms{0.0};
 };
 
 struct PhaseTelemetryRecord {

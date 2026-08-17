@@ -14,7 +14,7 @@ namespace chronon3d::cli {
 bool finalize_render_job(
     const RenderJob& job,
     RenderJobSetupResult& setup,
-    const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+    const std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
     double total_render_ms,
     double total_encode_ms,
     int frames_written,

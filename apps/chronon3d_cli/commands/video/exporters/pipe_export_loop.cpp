@@ -31,7 +31,7 @@ RenderLoopOutput run_pipe_export_loop(
     auto decoder = std::make_shared<NativeVideoFrameDecoder>();
     media::MediaFrameProvider* video_decoder = decoder.get();
 
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     telemetry_frames.reserve(session.total_frames > 0
         ? static_cast<size_t>(session.total_frames) : 0);
 

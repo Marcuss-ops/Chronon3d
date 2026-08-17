@@ -407,17 +407,17 @@ def gate_performance(bin_path: str, baseline_json: str,
     current_render = row[3]
     current_mem = row[4] / (1024 * 1024) if row[4] else 0
     current_fb = row[5] / (1024 * 1024) if row[5] else 0
-    current_restore = counters.get("clearnode_restore_ms", 0)
-    current_clear = counters.get("clearnode_clear_ms", 0)
-    current_conversion = counters.get("frame_conversion_copy_ms", 0)
+    current_restore = counters.get("clearnode_restore_wall_ms", 0)
+    current_clear = counters.get("clearnode_clear_wall_ms", 0)
+    current_conversion = counters.get("frame_conversion_copy_wall_ms", 0)
     current_composite = counters.get("composite_ms", 0)
     current_transform = counters.get("transform_ms", 0)
 
     baseline_fps = baseline.get("effective_fps", 0)
     baseline_mem = baseline.get("peak_memory_mb", 0)
-    baseline_restore = baseline.get("clearnode_restore_ms", 0)
-    baseline_clear = baseline.get("clearnode_clear_ms", 0)
-    baseline_conversion = baseline.get("frame_conversion_copy_ms", 0)
+    baseline_restore = baseline.get("clearnode_restore_wall_ms", 0)
+    baseline_clear = baseline.get("clearnode_clear_wall_ms", 0)
+    baseline_conversion = baseline.get("frame_conversion_copy_wall_ms", 0)
     baseline_composite = baseline.get("composite_ms", 0)
     baseline_transform = baseline.get("transform_ms", 0)
 

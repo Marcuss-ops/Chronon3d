@@ -9,6 +9,7 @@
     "schema": { "const": "chronon.render-plan" },
     "version": { "const": 1 },
     "job_id": { "type": "string", "minLength": 1 },
+    "style_profile": { "enum": ["discovery", "young", "crime"] },
     "canvas": {
       "type": "object",
       "additionalProperties": false,

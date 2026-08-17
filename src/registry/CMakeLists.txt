@@ -12,6 +12,14 @@ add_library(chronon3d_registry OBJECT
     # (ADR-029).  The only source of truth for how caption/word/entity/image
     # presets are painted, anchored and animated.
     visual_preset_registry.cpp
+    # ADR-029 forward-point (b) — StyleResolver (preset defaults + job
+    # overrides = ResolvedVisualStyle). Pure value merge, no content/backend
+    # dependency; keeps the edge direction canon (content → core/registry).
+    style_resolver.cpp
+    # ADR-029 forward-point (e) — resolved_plan diagnostic (expected vs
+    # resolved). Composes StyleResolver + OverlayLayoutResolver + preset
+    # without rendering; pure and deterministic.
+    resolved_plan.cpp
     # Phase 3.2 — AnimatorResolver implementations moved out of the public
     # header (include/chronon3d/registry/animator_resolver.hpp) into this
     # .cpp so the header is declaration-only. The three static bodies

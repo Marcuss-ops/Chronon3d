@@ -24,12 +24,12 @@ static std::vector<std::string> all_counter_names() {
 // These must stay in sync with command_telemetry_report.cpp
 
 static const std::vector<std::string> RENDER_FIELDS = {
-    "clearnode_ms", "video_graph_eval_ms"
+    "clearnode_wall_ms", "video_graph_eval_wall_ms"
 };
 
 static const std::vector<std::string> FRAMEBUFFER_FIELDS = {
-    "framebuffer_acquire_ms", "framebuffer_clear_ms", "framebuffer_pool_clear_ms",
-    "framebuffer_enqueue_ms", "framebuffer_pool_exact_hit",
+    "framebuffer_acquire_wall_ms", "framebuffer_clear_wall_ms", "framebuffer_pool_clear_wall_ms",
+    "framebuffer_enqueue_wall_ms", "framebuffer_pool_exact_hit",
     "framebuffer_pool_empty_alloc",
     "framebuffer_pool_best_fit_reuse", "framebuffer_buffer_returned_to_pool_count"
 };
@@ -39,16 +39,16 @@ static const std::vector<std::string> CLEAR_FIELDS = {
 };
 
 static const std::vector<std::string> CONVERSION_FIELDS = {
-    "frame_conversion_copy_ms", "video_conversion_ms",
-    "video_pipe_write_ms", "unaligned_memory_copies"
+    "frame_conversion_copy_wall_ms", "video_conversion_wall_ms",
+    "video_pipe_write_wall_ms", "unaligned_memory_copies"
 };
 
 static const std::vector<std::string> QUEUE_FIELDS = {
-    "io_queue_push_blocked_ms", "io_queue_pop_wait_ms", "io_writer_idle_wait_ms", "io_queue_peak_depth"
+    "io_queue_push_wait_ms", "io_queue_pop_wait_ms", "io_writer_idle_wait_ms", "io_queue_peak_depth"
 };
 
 static const std::vector<std::string> FFMPEG_PIPE_FIELDS = {
-    "ffmpeg_pipe_write_blocked_ms", "converted_frame_cache_hits", "ffmpeg_flush_ms", "video_ffmpeg_latency_ms"
+    "ffmpeg_pipe_write_wall_ms", "converted_frame_cache_hits", "ffmpeg_flush_wall_ms", "video_ffmpeg_wait_ms"
 };
 
 TEST_CASE("Telemetry Report: All section fields exist in CHRONON_RENDER_COUNTERS") {
@@ -72,14 +72,14 @@ TEST_CASE("Telemetry Report: All section fields exist in RenderTelemetryRecord")
     RenderTelemetryRecord r{};
 
     // Render section
-    r.clearnode_ms = 1;
-    r.video_graph_eval_ms = 2;
+    r.clearnode_wall_ms = 1;
+    r.video_graph_eval_wall_ms = 2;
 
     // Framebuffer section
-    r.framebuffer_acquire_ms = 10;
-    r.framebuffer_clear_ms = 11;
-    r.framebuffer_pool_clear_ms = 12;
-    r.framebuffer_enqueue_ms = 13;
+    r.framebuffer_acquire_wall_ms = 10;
+    r.framebuffer_clear_wall_ms = 11;
+    r.framebuffer_pool_clear_wall_ms = 12;
+    r.framebuffer_enqueue_wall_ms = 13;
     r.framebuffer_pool_exact_hit = 14;
     r.framebuffer_pool_empty_alloc = 16;
     r.framebuffer_buffer_returned_to_pool_count = 17;
@@ -91,45 +91,45 @@ TEST_CASE("Telemetry Report: All section fields exist in RenderTelemetryRecord")
     r.clear_skipped_pixels = 23;
 
     // Conversion section
-    r.frame_conversion_copy_ms = 30;
-    r.video_conversion_ms = 31;
-    r.video_pipe_write_ms = 32;
+    r.frame_conversion_copy_wall_ms = 30;
+    r.video_conversion_wall_ms = 31;
+    r.video_pipe_write_wall_ms = 32;
     r.unaligned_memory_copies = 33;
 
     // Queue section
-    r.io_queue_push_blocked_ms = 40;
+    r.io_queue_push_wait_ms = 40;
     r.io_queue_pop_wait_ms = 41;
     r.io_queue_peak_depth = 42;
 
     // FFmpeg pipe section
-    r.ffmpeg_pipe_write_blocked_ms = 50;
+    r.ffmpeg_pipe_write_wall_ms = 50;
     r.converted_frame_cache_hits = 7;
-    r.ffmpeg_flush_ms = 51;
-    r.video_ffmpeg_latency_ms = 52;
+    r.ffmpeg_flush_wall_ms = 51;
+    r.video_ffmpeg_wait_ms = 52;
 
     // All values must stick (no zero-init fallback from missing fields)
-    CHECK(r.clearnode_ms == 1);
-    CHECK(r.video_graph_eval_ms == 2);
-    CHECK(r.framebuffer_acquire_ms == 10);
-    CHECK(r.framebuffer_clear_ms == 11);
-    CHECK(r.framebuffer_pool_clear_ms == 12);
-    CHECK(r.framebuffer_enqueue_ms == 13);
+    CHECK(r.clearnode_wall_ms == 1);
+    CHECK(r.video_graph_eval_wall_ms == 2);
+    CHECK(r.framebuffer_acquire_wall_ms == 10);
+    CHECK(r.framebuffer_clear_wall_ms == 11);
+    CHECK(r.framebuffer_pool_clear_wall_ms == 12);
+    CHECK(r.framebuffer_enqueue_wall_ms == 13);
     CHECK(r.framebuffer_pool_exact_hit == 14);
     CHECK(r.clear_calls == 20);
     CHECK(r.clear_pixels == 21);
     CHECK(r.clear_skipped_calls == 22);
     CHECK(r.clear_skipped_pixels == 23);
-    CHECK(r.frame_conversion_copy_ms == 30);
-    CHECK(r.video_conversion_ms == 31);
-    CHECK(r.video_pipe_write_ms == 32);
+    CHECK(r.frame_conversion_copy_wall_ms == 30);
+    CHECK(r.video_conversion_wall_ms == 31);
+    CHECK(r.video_pipe_write_wall_ms == 32);
     CHECK(r.unaligned_memory_copies == 33);
-    CHECK(r.io_queue_push_blocked_ms == 40);
+    CHECK(r.io_queue_push_wait_ms == 40);
     CHECK(r.io_queue_pop_wait_ms == 41);
     CHECK(r.io_queue_peak_depth == 42);
-    CHECK(r.ffmpeg_pipe_write_blocked_ms == 50);
+    CHECK(r.ffmpeg_pipe_write_wall_ms == 50);
     CHECK(r.converted_frame_cache_hits == 7);
-    CHECK(r.ffmpeg_flush_ms == 51);
-    CHECK(r.video_ffmpeg_latency_ms == 52);
+    CHECK(r.ffmpeg_flush_wall_ms == 51);
+    CHECK(r.video_ffmpeg_wait_ms == 52);
 }
 
 TEST_CASE("Telemetry Report: Sections are mutually exclusive (no field in >1 section)") {

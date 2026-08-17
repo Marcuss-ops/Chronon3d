@@ -17,7 +17,7 @@ public:
     virtual void end_transaction(bool commit) {}
 
     virtual bool write_render_run(const RenderTelemetryRecord& run) = 0;
-    virtual bool write_frames(const std::string& run_id, const std::vector<FrameTelemetryRecord>& frames) = 0;
+    virtual bool write_frames(const std::string& run_id, const std::vector<FrameTelemetry>& frames) = 0;
     virtual bool write_phases(const std::string& run_id, const std::vector<PhaseTelemetryRecord>& phases) = 0;
     virtual bool write_counters(const std::string& run_id, const std::vector<CounterTelemetryRecord>& counters) = 0;
     virtual bool write_node_events(const std::string& run_id, const std::vector<NodeTelemetryRecord>& events) = 0;

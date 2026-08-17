@@ -274,7 +274,7 @@ NodeExecResult PerPixelDofNode::execute(
     if (profiling::g_current_counters) {
         profiling::g_current_counters->dof_blur_source_pixels.fetch_add(
             active_region.blur_source_pixels, std::memory_order_relaxed);
-        profiling::g_current_counters->dof_roi_analysis_us.fetch_add(
+        profiling::g_current_counters->dof_roi_analysis_wall_us.fetch_add(
             static_cast<uint64_t>(profiling::elapsed_us(roi_analysis_start)),
             std::memory_order_relaxed);
     }

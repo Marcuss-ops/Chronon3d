@@ -1,4 +1,5 @@
 #include <chronon3d/backends/text/bidi_segmenter.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <cstdlib>  // std::getenv for CHRONON3D_FORCE_NO_FRIBIDI golden-test env override
 
@@ -7,6 +8,7 @@
 #endif
 
 #include <cstdint>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -66,6 +68,10 @@ std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
     }
 
 #ifdef CHRONON3D_HAS_FRIBIDI
+
+    // TICKET-TEXT-SHAPING-TIMING-V1 — time the FriBidi segmentation so bidi
+    // re-segmentation (which should be prepare-only) is visible in telemetry.
+    const auto bidi_start = profiling::now();
 
     // ── Step 1: Convert UTF-8 to UTF-32 ────────────────────────────────
     const FriBidiStrIndex len = static_cast<FriBidiStrIndex>(text.size());
@@ -176,6 +182,14 @@ std::vector<BidiRun> segment_bidi_runs(std::string_view text, int base_dir) {
             }
         }
         runs.resize(write_idx + 1);
+    }
+
+    // TICKET-TEXT-SHAPING-TIMING-V1 — successful segmentation: accumulate the
+    // wall time so bidi cost is attributable alongside shaping/layout.
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->text_bidi_wall_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_ms(bidi_start))),
+            std::memory_order_relaxed);
     }
 
     return runs;

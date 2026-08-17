@@ -11,6 +11,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <tbb/parallel_for.h>
 #include <algorithm>
@@ -55,6 +56,13 @@ void convert_fb_to_rgba8(const Framebuffer& src,
                          bool apply_gamma,
                          uint8_t* rgba8)
 {
+    // pixel_format_convert_wall_ms — float→uint8 quantization stage of the
+    // RGBA→encoder-format conversion. This is the canonical float→RGBA8 step,
+    // shared by the packed backend (RGBA8 direct) and the swscale backend
+    // (staging before sws_scale), so it never double-counts with
+    // color_space_convert_wall_ms.
+    const auto t0 = profiling::now();
+
     const Color* src_data = src.data();
     const int alloc_w = src.allocated_width();
     const int grain = std::max(32, height / 16);
@@ -72,6 +80,12 @@ void convert_fb_to_rgba8(const Framebuffer& src,
             }
         }
     });
+
+    if (profiling::g_current_counters) {
+        const double ms = profiling::elapsed_ms(t0);
+        profiling::g_current_counters->pixel_format_convert_wall_ms.fetch_add(
+            static_cast<uint64_t>(ms), std::memory_order_relaxed);
+    }
 }
 
 // ── Native (non-FFmpeg) YUV420P / NV12 / RGB24 fallback ─────────────────────

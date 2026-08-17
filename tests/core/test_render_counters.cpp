@@ -24,6 +24,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include <thread>
 #include <vector>
 using namespace chronon3d;
@@ -64,7 +65,7 @@ TEST_CASE("RenderCounters: all atomic fields are 64-byte aligned") {
     CHECK(reinterpret_cast<std::uintptr_t>(&c.used_parallel_clear)        % 64 == 0);
 
     // Setup counters.
-    CHECK(reinterpret_cast<std::uintptr_t>(&c.image_decode_ms) % 64 == 0);
+    CHECK(reinterpret_cast<std::uintptr_t>(&c.image_decode_wall_ms) % 64 == 0);
 
     // dirty_full_fallback_reasons array is also 64-byte aligned.
     CHECK(reinterpret_cast<std::uintptr_t>(&c.dirty_full_fallback_reasons) % 64 == 0);
@@ -97,7 +98,7 @@ TEST_CASE("RenderCounters: merge_tls aggregates single-thread raw correctly") {
     raw.cache_hits = 7;
     raw.tiles_total = 100;
     raw.tbb_arena_max_concurrency = 16;
-    raw.image_decode_ms = 5;
+    raw.image_decode_wall_ms = 5;
     raw.dirty_full_fallback_reasons[0] = 3;
     if (dirty_fallback_reason_count() >= 2) {
         raw.dirty_full_fallback_reasons[1] = 11;
@@ -109,7 +110,7 @@ TEST_CASE("RenderCounters: merge_tls aggregates single-thread raw correctly") {
     CHECK(global.cache_hits.load()      == 7);
     CHECK(global.tiles_total.load()     == 100);
     CHECK(global.tbb_arena_max_concurrency.load() == 16);
-    CHECK(global.image_decode_ms.load() == 5);
+    CHECK(global.image_decode_wall_ms.load() == 5);
     CHECK(global.dirty_full_fallback_reasons[0].value.load() == 3);
     if (dirty_fallback_reason_count() >= 2) {
         CHECK(global.dirty_full_fallback_reasons[1].value.load() == 11);
@@ -305,4 +306,57 @@ TEST_CASE("RenderCounters: render_counters_field_count returns sensible value") 
     CHECK(n > 100);  // currently ~ 155; lower bound protects against silent
                      // macro-list corruption.
     CHECK(n < 1000); // upper bound protects against macro-list explosion.
+}
+
+// ---------------------------------------------------------------------------
+// 8. Timing counter suffix convention (TICKET-TIMING-SUFFIX-GATE).
+//    Any counter whose name carries a `_ms`/`_us` unit must qualify it with
+//    `_wall`, `_cpu`, `_gpu`, or `_wait` immediately before the unit.  A bare
+//    `_ms`/`_us` timing counter is a contract violation unless explicitly
+//    allowlisted below.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr std::string_view kQualifiedUnitMarkers[] = {
+    "_wall_ms", "_wall_us", "_cpu_ms", "_cpu_us",
+    "_gpu_ms",  "_gpu_us",  "_wait_ms", "_wait_us",
+};
+
+// Explicitly CPU time, but the qualifier precedes a final semantic word
+// (`user`/`sys`) rather than the unit itself — still conforming.
+constexpr std::string_view kConformingAllowlist[] = {
+    "process_cpu_user_ms",
+    "process_cpu_sys_ms",
+};
+
+bool mentions_timing_unit(std::string_view name) {
+    return name.find("_ms") != std::string_view::npos ||
+           name.find("_us") != std::string_view::npos;
+}
+
+bool has_qualified_unit(std::string_view name) {
+    for (auto marker : kQualifiedUnitMarkers) {
+        if (name.find(marker) != std::string_view::npos) return true;
+    }
+    return false;
+}
+
+bool is_allowlisted(std::string_view name) {
+    for (auto allowed : kConformingAllowlist) {
+        if (name == allowed) return true;
+    }
+    return false;
+}
+
+} // namespace
+
+TEST_CASE("RenderCounters: timing counters carry a wall/cpu/gpu/wait qualifier") {
+    for (auto name : kCounterNames) {
+        if (!mentions_timing_unit(name)) continue;
+        INFO("counter: ", name);
+        // doctest forbids `||` inside CHECK expressions, so precompute.
+        const bool conforms = has_qualified_unit(name) || is_allowlisted(name);
+        CHECK(conforms);
+    }
 }

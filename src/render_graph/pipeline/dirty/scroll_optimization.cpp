@@ -67,7 +67,7 @@ std::optional<raster::BBox> try_scroll_optimization(
             prev = std::make_shared<Framebuffer>(*prev);
         }
         if (profiling::g_current_counters) {
-            profiling::g_current_counters->scroll_opt_copy_ms.fetch_add(
+            profiling::g_current_counters->scroll_opt_copy_wall_ms.fetch_add(
                 static_cast<uint64_t>(profiling::duration_ms(t0, profiling::now())),
                 std::memory_order_relaxed);
         }

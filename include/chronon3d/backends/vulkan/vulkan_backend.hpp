@@ -31,6 +31,19 @@ struct VulkanBackendStats {
     /// per recorded pass (not per vkQueueSubmit), so it stays correct even
     /// when N overlays coalesce into a single command-batch submission.
     std::uint64_t passes_executed{0};
+    // ── CPU-side GPU timing (microseconds) ────────────────────────────
+    // `gpu_submit_cpu_us` is the CPU cost of vkQueueSubmit (recording is NOT
+    // included); `gpu_wait_cpu_us` is CPU blocked on GPU fences — the
+    // CPU→GPU synchronization point; `readback_us` is the map/memcpy/unmap
+    // cost of a surface download (GPU→CPU transfer). These are CPU-wall
+    // metrics and are deliberately distinct from GPU-elapsed timestamps.
+    std::uint64_t gpu_submit_cpu_us{0};
+    std::uint64_t gpu_wait_cpu_us{0};
+    std::uint64_t readback_us{0};
+    // GPU-elapsed duration measured with Vulkan timestamp queries (0 when
+    // the device exposes no timestamp support). This is the GPU execution
+    // time, distinct from the CPU-side submit/wait metrics above.
+    std::uint64_t gpu_execute_us{0};
 };
 
 /// Persistent headless Vulkan backend foundation. It owns the device and
@@ -51,7 +64,9 @@ public:
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
 
     /// Feeds the backend's GPU counters into the telemetry run record as
-    /// name/value pairs (`gpu_submissions`, `passes_executed`).
+    /// name/value pairs (`gpu_submissions`, `passes_executed`,
+    /// `gpu_submit_cpu_us`, `gpu_wait_cpu_us`, `readback_us`,
+    /// `cpu_gpu_sync_us`, `gpu_execute_us`).
     void export_gpu_telemetry_counters(
         std::vector<std::pair<std::string, std::uint64_t>>& out) const override;
 

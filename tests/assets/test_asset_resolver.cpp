@@ -84,6 +84,17 @@ const chronon3d::assets::PreparedAsset& only_asset(
     return manifest.assets().front();
 }
 
+chronon3d::render_plan::RenderPlan text_plan(std::string preset = {}) {
+    chronon3d::render_plan::RenderPlan plan;
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "text";
+    layer.type = chronon3d::render_plan::LayerType::Text;
+    layer.text = "HELLO";
+    layer.preset = std::move(preset);
+    plan.layers.push_back(std::move(layer));
+    return plan;
+}
+
 void remove_if_present(const std::filesystem::path& abs) {
     std::error_code ec;
     std::filesystem::remove(abs, ec);
@@ -261,6 +272,42 @@ TEST_CASE("PreparedAssetManifest hashes and normalizes logical assets") {
     CHECK(asset.content_digest.hex() ==
           "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     CHECK(result->manifest_digest().hex().size() == 64);
+}
+
+TEST_CASE("PreparedAssetManifest hashes font_asset references as Font assets") {
+    write_file(g_temp.path, "fonts/custom.ttf", "font-bytes");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+
+    auto plan = text_plan();
+    chronon3d::render_plan::FontAssetPlan font_asset;
+    font_asset.asset = "fonts/custom.ttf";
+    font_asset.family = "Custom";
+    font_asset.weight = 700;
+    plan.layers.front().font_asset = std::move(font_asset);
+
+    auto result = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(result);
+    REQUIRE(result->assets().size() == 1);
+    const auto& asset = result->assets().front();
+    CHECK(asset.logical_path == "fonts/custom.ttf");
+    CHECK(asset.kind == chronon3d::assets::PreparedAssetKind::Font);
+    CHECK(asset.content_digest == chronon3d::assets::sha256_string("font-bytes"));
+}
+
+TEST_CASE("PreparedAssetManifest hashes the visual preset's default font asset") {
+    write_file(g_temp.path, "assets/fonts/Poppins-Bold.ttf", "poppins-bold-bytes");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+
+    auto plan = text_plan("caption_card");
+    auto result = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(result);
+    REQUIRE(result->assets().size() == 1);
+    const auto& asset = result->assets().front();
+    CHECK(asset.logical_path == "assets/fonts/Poppins-Bold.ttf");
+    CHECK(asset.kind == chronon3d::assets::PreparedAssetKind::Font);
+    CHECK(asset.content_digest == chronon3d::assets::sha256_string("poppins-bold-bytes"));
 }
 
 TEST_CASE("PreparedAssetManifest rejects invalid logical paths") {

@@ -85,8 +85,8 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 const auto t_end = profiling::now();
                 const auto setup_ms = static_cast<uint64_t>(profiling::duration_ms(t_setup0, t_copy0));
                 const auto copy_ms = static_cast<uint64_t>(profiling::duration_ms(t_copy0, t_end));
-                cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
-                cnt->compositenode_copy_ms.fetch_add(copy_ms, std::memory_order_relaxed);
+                cnt->compositenode_setup_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+                cnt->compositenode_copy_wall_ms.fetch_add(copy_ms, std::memory_order_relaxed);
             }
             return;
         }
@@ -153,7 +153,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         const auto t_blend0 = profiling::now();
         if (cnt) {
             const auto setup_ms = static_cast<uint64_t>(profiling::duration_ms(t_setup0, t_blend0));
-            cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+            cnt->compositenode_setup_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
         }
         if (row_count >= 8) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
@@ -171,7 +171,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         if (cnt) {
             const auto t_end = profiling::now();
             const auto blend_ms = static_cast<uint64_t>(profiling::duration_ms(t_blend0, t_end));
-            cnt->compositenode_blend_ms.fetch_add(blend_ms, std::memory_order_relaxed);
+            cnt->compositenode_blend_wall_ms.fetch_add(blend_ms, std::memory_order_relaxed);
         }
     }
 }
@@ -194,7 +194,7 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
     const auto t_blend0 = profiling::now();
     if (cnt) {
         const auto setup_ms = static_cast<uint64_t>(profiling::duration_ms(t_setup0, t_blend0));
-        cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+        cnt->compositenode_setup_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
 
     // Row-setup timing is only valid in the sequential path (avoids race on TBB).
@@ -242,8 +242,8 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
         const auto t_end = profiling::now();
         const auto blend_ms = static_cast<uint64_t>(profiling::duration_ms(t_blend0, t_end));
         const auto row_ms = static_cast<uint64_t>(static_cast<double>(row_setup_ns) / 1e6);
-        cnt->compositenode_blend_ms.fetch_add(blend_ms, std::memory_order_relaxed);
-        cnt->compositenode_row_ms.fetch_add(row_ms, std::memory_order_relaxed);
+        cnt->compositenode_blend_wall_ms.fetch_add(blend_ms, std::memory_order_relaxed);
+        cnt->compositenode_row_wall_ms.fetch_add(row_ms, std::memory_order_relaxed);
     }
 
     return true;
@@ -263,7 +263,7 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
     const auto t_blend0 = profiling::now();
     if (cnt) {
         const auto setup_ms = static_cast<uint64_t>(profiling::duration_ms(t_setup0, t_blend0));
-        cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+        cnt->compositenode_setup_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
 
     auto process_rows = [&](i32 row_begin, i32 row_end) {
@@ -338,7 +338,7 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
     if (cnt) {
         const auto t_end = profiling::now();
         const auto blend_us = static_cast<uint64_t>(profiling::duration_ms(t_blend0, t_end));
-        cnt->compositenode_blend_ms.fetch_add(blend_us, std::memory_order_relaxed);
+        cnt->compositenode_blend_wall_ms.fetch_add(blend_us, std::memory_order_relaxed);
     }
 
     return true;

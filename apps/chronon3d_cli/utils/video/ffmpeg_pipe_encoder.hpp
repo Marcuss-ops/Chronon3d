@@ -16,8 +16,22 @@ namespace chronon3d::cli {
 /// Per-frame telemetry captured by the encoder during write_frame().
 struct EncoderFrameTelemetry {
     double conversion_copy_ms{0.0};
+    // Conversion sub-phases: float→RGBA8 quantization and RGBA→YUV color
+    // space.  scale/cpu_copy/gpu_readback/encoder_buffer_copy are not
+    // separable on the software path and stay 0 (emitted as JSON null).
+    double pixel_format_convert_ms{0.0};
+    double color_space_convert_ms{0.0};
     double encoder_ms{0.0};
     double pipe_write_ms{0.0};
+    // Encoder back-pressure wait (EAGAIN drain+retry) separated from the
+    // pure submit CPU time.  Zero on the pipe path (synchronous sink submit
+    // folds back-pressure into the submit wall time).
+    double backpressure_wait_ms{0.0};
+    // Pipe write decomposed into CPU copy (::write() syscall) vs poll()
+    // back-pressure wait (blocked on FFmpeg draining stdin).  Native-only
+    // path leaves both at 0.0.
+    double pipe_write_cpu_ms{0.0};
+    double pipe_backpressure_wait_ms{0.0};
     double native_convert_ms{0.0};
     double native_send_ms{0.0};
     double native_receive_ms{0.0};
@@ -47,6 +61,8 @@ struct IVideoEncoder {
     // ── Native encoder telemetry accessors ──
     [[nodiscard]] virtual double native_convert_ms()     const { return 0.0; }
     [[nodiscard]] virtual double native_send_frame_ms()  const { return 0.0; }
+    [[nodiscard]] virtual double native_backpressure_ms() const { return 0.0; }
+    [[nodiscard]] virtual double native_flush_ms()       const { return 0.0; }
     [[nodiscard]] virtual double native_receive_packet_ms() const { return 0.0; }
     [[nodiscard]] virtual double native_mux_write_ms()   const { return 0.0; }
     [[nodiscard]] virtual double native_trailer_ms()     const { return 0.0; }
