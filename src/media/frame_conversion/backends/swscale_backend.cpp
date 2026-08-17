@@ -121,7 +121,19 @@ static ConvertFrameResult dispatch(const ConvertFrameRequest& req,
         case EncoderPixelFormat::RGBA8:   // unreachable — RGBA8 routes to Packed
             break;
     }
+    // color_space_convert_wall_ms — RGBA→YUV color-space + scale stage. The
+    // float→RGBA8 quantization (pixel_format_convert_wall_ms) is measured inside
+    // packed::convert_fb_to_rgba8, so this only covers sws_scale itself.
+    const auto t_sws0 = profiling::timestamp_ns();
     const int ret = sws_scale(ctx, src_data, src_stride, 0, req.height, dst_data, dst_stride);
+    const double color_space_ms =
+        static_cast<double>(profiling::timestamp_ns() - t_sws0) / 1e6;
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->color_space_convert_wall_ms.fetch_add(
+            static_cast<uint64_t>(color_space_ms), std::memory_order_relaxed);
+    }
+
     return ConvertFrameResult{
         .success = (ret == req.height),
         .backend = FrameConversionBackend::Swscale,

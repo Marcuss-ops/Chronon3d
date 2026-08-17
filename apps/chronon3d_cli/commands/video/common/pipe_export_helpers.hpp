@@ -54,7 +54,8 @@ void track_pipe_encoder_process(
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
     const CompiledComposition& compiled,
-    const FfmpegExportOptions& opts);
+    const FfmpegExportOptions& opts,
+    chronon3d::runtime::RenderPreparationTimings* out_timings = nullptr);
 
 [[nodiscard]] double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder);
 

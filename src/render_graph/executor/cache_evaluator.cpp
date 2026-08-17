@@ -83,14 +83,22 @@ CacheEvalResult evaluate_cache(
     }
 
     if (cr.use_cache) {
+        const auto lookup_t0 = profiling::now();
         cr.result = ctx.services.node_cache->get(cr.key);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->node_cache_lookup_wall_us.fetch_add(
+                static_cast<uint64_t>(profiling::duration_us(lookup_t0, profiling::now())),
+                std::memory_order_relaxed);
+        }
 
         if (ctx.node_exec.counters) {
             if (cr.result) {
                 ctx.node_exec.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->node_cache_hits.fetch_add(1, std::memory_order_relaxed);
                 cr.cache_status = "hit";
             } else {
                 ctx.node_exec.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->node_cache_misses.fetch_add(1, std::memory_order_relaxed);
                 cr.cache_status = "miss";
             }
         } else {
@@ -132,7 +140,7 @@ CacheEvalResult evaluate_cache(
     }
 
     if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->cache_eval_ms.fetch_add(
+        ctx.node_exec.counters->cache_eval_wall_ms.fetch_add(
             static_cast<uint64_t>(profiling::duration_ms(t_cache0, profiling::now())),
             std::memory_order_relaxed);
     }

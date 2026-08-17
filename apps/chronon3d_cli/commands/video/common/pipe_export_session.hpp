@@ -6,6 +6,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 
 #include <atomic>
 #include <memory>
@@ -35,6 +36,15 @@ struct PipeExportSession {
     int canvas_width{0};
     int canvas_height{0};
 
+    // Job-level timings captured during renderer/backend construction so the
+    // frame-timing sidecar can report engine_init_ms vs backend_init_ms.
+    double engine_init_ms{0.0};
+    double backend_init_ms{0.0};
+
+    // Accumulated prepare-barrier sub-timings (preflight + font preflight +
+    // warmup), emitted as the `job.prepare` breakdown in the sidecar.
+    runtime::RenderPreparationTimings prepare_timings;
+
     // Queue + async writer
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
@@ -44,8 +54,8 @@ struct PipeExportSession {
     std::atomic<uint64_t> writer_encode_us_total{0};
     std::atomic<int> frames_encoded{0};
 
-    // Telemetry
-    std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
+    // Telemetry — single canonical frame record shared with the render thread.
+    std::vector<chronon3d::telemetry::FrameTelemetry> frame_encoder_telemetry;
 
     // P0-1 fix(pipe): RenderFrameQueue holds std::mutex + std::condition_variable
     // so it is neither movable nor assignable (copy/move ctors are =delete'd on

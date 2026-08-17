@@ -108,7 +108,7 @@ bool write_render_frame(const CompiledComposition& compiled,
                         const FrameRange& range,
                         const std::string& output_pattern,
                         bool& ok,
-                        std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+                        std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
                         double& total_render_ms,
                         double& total_encode_ms,
                         int& frames_written) {
@@ -171,7 +171,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
                            double render_ms,
                            int program_cache_capacity,
                            bool& ok,
-                           std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+                           std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
                            double& total_encode_ms,
                            int& frames_written) {
     if (!fb) {

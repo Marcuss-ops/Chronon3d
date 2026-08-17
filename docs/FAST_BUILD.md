@@ -86,6 +86,12 @@ may serve a stale object. Acceptable for dev; CI uses a fresh cache.
 another location. A symlink at `build/chronon/linux-fast-dev` keeps the CMake
 binaryDir stable so existing tools resolve it transparently.
 
+Configure always happens **through the symlink path** (`build/chronon/<preset>`),
+never the real path.  That single canonical path is what keeps the linker's
+RUNPATH and `cmake --install`'s RPATH rewrite (`file(RPATH_CHANGE)`) in
+agreement; configuring with the real path while installing via the symlink
+makes the CLI install fail with an RPATH-rewrite error.
+
 ### Measured timings on this host
 
 | Scenario | Wall‑clock | ccache hit | Notes |

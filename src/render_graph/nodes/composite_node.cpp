@@ -160,7 +160,7 @@ NodeExecResult CompositeNode::execute(
     // skipped and a full copy occurs.  This is mitigated by increasing
     // the framebuffer pool budget (1 GB) and max_buffers_per_size_class
     // (8) to reduce pool thrashing + eviction pressure — the root cause
-    // of the 70.9K ms compositenode_acquire_ms bottleneck.
+    // of the 70.9K ms compositenode_acquire_wall_ms bottleneck.
     const auto t_acquire0 = profiling::now();
     OwnedFB result;
     if (bottom->width() == ctx.frame_input.width && bottom->height() == ctx.frame_input.height) {
@@ -172,7 +172,7 @@ NodeExecResult CompositeNode::execute(
         }
         // F3.2 — size mismatch forces a full-canvas composite_layer
         // (every pixel touched). Surface as a full-frame pass. The byte
-        // side-cost is captured separately by framebuffer_copy_ms when the
+        // side-cost is captured separately by framebuffer_copy_wall_ms when the
         // pool returns a re-used allocation that demands std::copy.
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
@@ -182,16 +182,16 @@ NodeExecResult CompositeNode::execute(
     if (ctx.node_exec.counters) {
         const auto acquire_ms = static_cast<uint64_t>(
             profiling::duration_ms(t_acquire0, t_acquire1));
-        ctx.node_exec.counters->compositenode_acquire_ms.fetch_add(acquire_ms, std::memory_order_relaxed);
+        ctx.node_exec.counters->compositenode_acquire_wall_ms.fetch_add(acquire_ms, std::memory_order_relaxed);
     }
     // Note: when bottom doesn't fit (rare), the bottom composite_layer
     // call is included in this timing AND already tracked in
-    // compositenode_blend_ms.  This minor double-counting is acceptable
+    // compositenode_blend_wall_ms.  This minor double-counting is acceptable
     // because the common path (bottom fits, >=99% of frames) is pure.
 
     // Start dispatch timing here — AFTER acquire and optional bottom composite,
     // so dispatch_ms measures only clip/bbox computation + overhead, without
-    // double-counting bottom composite time (already in compositenode_blend_ms).
+    // double-counting bottom composite time (already in compositenode_blend_wall_ms).
     const auto t_dispatch0 = profiling::now();
 
     if (ctx.services.backend) {
@@ -225,7 +225,7 @@ NodeExecResult CompositeNode::execute(
         if (ctx.node_exec.counters) {
             _de = profiling::now();
             const auto dms = static_cast<uint64_t>(profiling::duration_ms(t_dispatch0, _de));
-            ctx.node_exec.counters->compositenode_dispatch_ms.fetch_add(dms, std::memory_order_relaxed);
+            ctx.node_exec.counters->compositenode_dispatch_wall_ms.fetch_add(dms, std::memory_order_relaxed);
         }
 
         // Check if stencil/silhouette operator — these use the underlying
@@ -317,7 +317,7 @@ NodeExecResult CompositeNode::execute(
             _oe = profiling::now();
             const auto oms = static_cast<uint64_t>(
                 profiling::duration_ms(_os, _oe));
-            ctx.node_exec.counters->compositenode_overhead_ms.fetch_add(oms, std::memory_order_relaxed);
+            ctx.node_exec.counters->compositenode_overhead_wall_ms.fetch_add(oms, std::memory_order_relaxed);
         }
 
         // Aggregate non-blend cost: (acquire + dispatch) + overhead.
@@ -326,7 +326,7 @@ NodeExecResult CompositeNode::execute(
             const auto nb_work = profiling::duration_us(t_acquire0, _de)
                                + profiling::duration_us(_os, _oe);
             const auto nb_us = static_cast<uint64_t>(std::max(0.0, nb_work));
-            ctx.node_exec.counters->compositenode_internal_us.fetch_add(
+            ctx.node_exec.counters->compositenode_internal_wall_us.fetch_add(
                 nb_us, std::memory_order_relaxed);
         }
     }

@@ -3,7 +3,7 @@
 
 The gate accepts the canonical nested bench.v3 report.  It derives p50/p95/p99
 and FPS from ``frame_times_ms`` when those values are absent, and normalizes
-counter aliases emitted by the runtime (for example ``video_conversion_ms``
+counter aliases emitted by the runtime (for example ``video_conversion_wall_ms``
 → ``conversion_ms`` and ``encoder_staging_copy_bytes`` →
 ``encoder_copy_bytes``). It never invents unavailable measurements: absent
 required counters remain a BLOCKED contract failure.
@@ -46,7 +46,7 @@ REQUIRED = {
 # Runtime aliases are explicit so the common report remains stable while the
 # existing counter vocabulary remains the source of truth.
 ALIASES = {
-    "conversion_ms": (("counters", "video_conversion_ms"),),
+    "conversion_ms": (("counters", "video_conversion_wall_ms"),),
     "encoder_copy_bytes": (("counters", "encoder_staging_copy_bytes"),),
     "fused_passes": (("counters", "pixel_fusion_passes_after"),),
     "peak_framebuffer_bytes": (("memory", "framebuffer_bytes_peak"),),

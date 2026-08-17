@@ -191,7 +191,7 @@ void execute_levels(
             }
             if (parent_counters) {
                 const auto seq_ms = profiling::duration_ms(t_seq0, profiling::now());
-                parent_counters->sequential_level_execute_ms.fetch_add(
+                parent_counters->sequential_level_execute_wall_ms.fetch_add(
                     static_cast<uint64_t>(std::llround(seq_ms)),
                     std::memory_order_relaxed);
             }

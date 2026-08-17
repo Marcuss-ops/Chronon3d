@@ -87,9 +87,9 @@ NodeExecResult ClearNode::execute(
                         if (ctx.node_exec.counters) {
                             const auto elapsed = static_cast<uint64_t>(
                                 profiling::duration_ms(t_clear0, t_clear1));
-                            ctx.node_exec.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                            ctx.node_exec.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                            ctx.node_exec.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->framebuffer_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->clearnode_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->clearnode_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
                             ctx.node_exec.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                             ctx.node_exec.counters->clear_pixels.fetch_add(
                                 static_cast<uint64_t>(logical_w) * h, std::memory_order_relaxed);
@@ -146,10 +146,10 @@ NodeExecResult ClearNode::execute(
                             const auto t_restore1 = profiling::now();
                             restore_elapsed = static_cast<uint64_t>(
                                 profiling::duration_ms(t_restore0, t_restore1));
-                            ctx.node_exec.counters->clearnode_restore_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
-                            ctx.node_exec.counters->clearnode_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
-                            ctx.node_exec.counters->clearnode_clear_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
-                            ctx.node_exec.counters->framebuffer_clear_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->clearnode_restore_wall_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->clearnode_wall_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->clearnode_clear_wall_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
+                            ctx.node_exec.counters->framebuffer_clear_wall_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
                             ctx.node_exec.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                             ctx.node_exec.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                             // ── Restore telemetry (dirty-region restore) ──
@@ -177,9 +177,9 @@ NodeExecResult ClearNode::execute(
                     if (ctx.node_exec.counters) {
                         const auto elapsed = static_cast<uint64_t>(
                             profiling::duration_ms(t_clear0, t_clear1));
-                        ctx.node_exec.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                        ctx.node_exec.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                        ctx.node_exec.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.node_exec.counters->framebuffer_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.node_exec.counters->clearnode_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.node_exec.counters->clearnode_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         ctx.node_exec.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                         ctx.node_exec.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                         ctx.node_exec.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
@@ -205,7 +205,7 @@ NodeExecResult ClearNode::execute(
                     if (ctx.node_exec.counters) {
                         const auto elapsed = static_cast<uint64_t>(
                             profiling::duration_ms(t0, t1));
-                        ctx.node_exec.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.node_exec.counters->framebuffer_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         ctx.node_exec.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                         ctx.node_exec.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                     }
@@ -342,7 +342,7 @@ NodeExecResult ClearNode::execute(
                 if (ctx.node_exec.counters) {
                     const auto t_restore1 = profiling::now();
                     const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t_restore0, t_restore1));
-                    ctx.node_exec.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.node_exec.counters->clearnode_restore_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
                     // New restore telemetry
                     ctx.node_exec.counters->clearnode_restore_dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
                     ctx.node_exec.counters->clearnode_restore_rect_count.fetch_add(1, std::memory_order_relaxed);
@@ -396,9 +396,9 @@ NodeExecResult ClearNode::execute(
                 const auto t1 = profiling::now();
                 if (ctx.node_exec.counters) {
                     const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t0, t1));
-                    ctx.node_exec.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.node_exec.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.node_exec.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.node_exec.counters->clearnode_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.node_exec.counters->clearnode_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.node_exec.counters->framebuffer_clear_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             }
             return NodeExecResult{ctx.acquire_owned_fb(std::move(fb))};

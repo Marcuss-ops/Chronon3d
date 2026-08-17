@@ -130,7 +130,7 @@ inline void apply_per_pixel_dof(
         }
     }
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_blur_radius_generation_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_blur_radius_generation_wall_us,
                radius_start);
         chronon3d::profiling::g_current_counters->dof_roi_pixels.fetch_add(
             static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0),
@@ -152,7 +152,7 @@ inline void apply_per_pixel_dof(
     auto& hpass = buffers->hpass;
     auto& output = buffers->output;
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_scratch_allocation_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_scratch_allocation_wall_us,
                scratch_start);
         const uint64_t scratch_bytes =
             static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color) * 2;
@@ -168,7 +168,7 @@ inline void apply_per_pixel_dof(
                     &hpass[static_cast<size_t>(y - y0) * roi_w]);
     }
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_copy_to_hpass_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_copy_to_hpass_wall_us,
                copy_start);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
             static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
@@ -197,7 +197,7 @@ inline void apply_per_pixel_dof(
         }
     );
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_horizontal_pass_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_horizontal_pass_wall_us,
                horizontal_start);
     }
 
@@ -206,7 +206,7 @@ inline void apply_per_pixel_dof(
     const auto hpass_copy_start = chronon3d::profiling::now();
     std::copy(hpass.begin(), hpass.end(), output.begin());
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_hpass_to_output_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_hpass_to_output_wall_us,
                hpass_copy_start);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
             static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),
@@ -269,7 +269,7 @@ inline void apply_per_pixel_dof(
         }
     );
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_vertical_pass_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_vertical_pass_wall_us,
                vertical_start);
     }
 
@@ -298,7 +298,7 @@ inline void apply_per_pixel_dof(
         }
     );
     if (chronon3d::profiling::g_current_counters) {
-        add_us(chronon3d::profiling::g_current_counters->dof_writeback_us,
+        add_us(chronon3d::profiling::g_current_counters->dof_writeback_wall_us,
                writeback_start);
         chronon3d::profiling::g_current_counters->dof_estimated_bytes_read.fetch_add(
             static_cast<uint64_t>(roi_w) * static_cast<uint64_t>(roi_h) * sizeof(Color),

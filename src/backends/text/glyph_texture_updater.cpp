@@ -57,6 +57,8 @@ GlyphTextureUpdater::Path GlyphTextureUpdater::render_placed(
         if (profiling::g_current_counters) {
             profiling::g_current_counters->glyph_atlas_hits
                 .fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->glyph_cache_hits
+                .fetch_add(1, std::memory_order_relaxed);
         }
         return Path::Hit;
     }
@@ -69,6 +71,8 @@ GlyphTextureUpdater::Path GlyphTextureUpdater::render_placed(
     ctx.fillGlyphRun(BLPoint(origin_x, origin_y), font, bl.bl_run);
     if (profiling::g_current_counters) {
         profiling::g_current_counters->glyph_atlas_misses
+            .fetch_add(1, std::memory_order_relaxed);
+        profiling::g_current_counters->glyph_cache_misses
             .fetch_add(1, std::memory_order_relaxed);
     }
     return Path::Miss;

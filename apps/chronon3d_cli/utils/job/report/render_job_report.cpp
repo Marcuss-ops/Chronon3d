@@ -22,12 +22,12 @@ static void write_hot_work_attribution(
     std::ofstream& out,
     const CounterGetter& get_counter)
 {
-    const uint64_t clr_memcpy = get_counter("clearnode_memcpy_ms");
-    const uint64_t clr_clear  = get_counter("clearnode_clear_ms");
-    const uint64_t c_blend    = get_counter("compositenode_blend_ms");
-    const uint64_t conv_ms    = get_counter("frame_conversion_copy_ms");
-    const uint64_t pipe_ms    = get_counter("video_pipe_write_ms");
-    const uint64_t n_exec     = get_counter("node_execute_actual_ms");
+    const uint64_t clr_memcpy = get_counter("clearnode_memcpy_wall_ms");
+    const uint64_t clr_clear  = get_counter("clearnode_clear_wall_ms");
+    const uint64_t c_blend    = get_counter("compositenode_blend_wall_ms");
+    const uint64_t conv_ms    = get_counter("frame_conversion_copy_wall_ms");
+    const uint64_t pipe_ms    = get_counter("video_pipe_write_wall_ms");
+    const uint64_t n_exec     = get_counter("node_execute_actual_wall_ms");
     const uint64_t clear_px   = get_counter("clear_pixels");
     const uint64_t copy_px    = get_counter("clearnode_copy_pixels");
     const uint64_t comp_px    = get_counter("composite_pixels");
@@ -148,23 +148,23 @@ static void write_bottleneck_diagnosis(
     const uint64_t cpu_sys    = get_counter("process_cpu_sys_ms");
     const uint64_t rss_peak   = get_counter("process_rss_peak_mb");
     const uint64_t ram_avail  = get_counter("system_ram_available_min_mb");
-    const uint64_t ffmpeg_blk = get_counter("ffmpeg_pipe_write_blocked_ms");
+    const uint64_t ffmpeg_blk = get_counter("ffmpeg_pipe_write_wall_ms");
     const uint64_t lev_par_c  = get_counter("level_parallel_count");
     const uint64_t lev_seq_c  = get_counter("level_sequential_count");
     const uint64_t cache_h    = get_counter("cache_hits");
     const uint64_t cache_m    = get_counter("cache_misses");
     const uint64_t dirty_px   = get_counter("dirty_pixels");
     const uint64_t tbb_peak_c = get_counter("tbb_active_workers_peak");
-    const uint64_t n_exec     = get_counter("node_execute_actual_ms");
+    const uint64_t n_exec     = get_counter("node_execute_actual_wall_ms");
     const uint64_t touched_px = get_counter("pixels_touched");
     const uint64_t used_par_c = get_counter("used_parallel_clear");
     const uint64_t used_par_t = get_counter("used_parallel_transform");
     const uint64_t used_par_p = get_counter("used_parallel_composite");
-    const uint64_t conv_ms    = get_counter("frame_conversion_copy_ms");
-    const uint64_t clr_memcpy = get_counter("clearnode_memcpy_ms");
-    const uint64_t clr_clear  = get_counter("clearnode_clear_ms");
-    const uint64_t c_blend    = get_counter("compositenode_blend_ms");
-    const uint64_t pipe_ms    = get_counter("video_pipe_write_ms");
+    const uint64_t conv_ms    = get_counter("frame_conversion_copy_wall_ms");
+    const uint64_t clr_memcpy = get_counter("clearnode_memcpy_wall_ms");
+    const uint64_t clr_clear  = get_counter("clearnode_clear_wall_ms");
+    const uint64_t c_blend    = get_counter("compositenode_blend_wall_ms");
+    const uint64_t pipe_ms    = get_counter("video_pipe_write_wall_ms");
     const uint64_t tbb_sum    = get_counter("tbb_active_workers_avg_sum");
     const uint64_t tbb_cnt    = get_counter("tbb_active_workers_avg_count");
     const double tbb_avg = tbb_cnt > 0

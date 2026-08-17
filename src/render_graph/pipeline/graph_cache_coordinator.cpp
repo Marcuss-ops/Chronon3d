@@ -321,7 +321,7 @@ static void log_graph_cache_diagnostics(
     graph_reused = true;
 
     if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->compiled_graph_refresh_ms.fetch_add(
+        ctx.node_exec.counters->compiled_graph_refresh_wall_ms.fetch_add(
             to_ms_u64(profiling::duration_ms(t_refresh0, t_refresh1)),
             std::memory_order_relaxed);
     }
@@ -412,7 +412,7 @@ GraphBuildResult build_or_reuse_graph(
     const auto t_graph1 = profiling::now();
 
     if (ctx.node_exec.counters && !result.graph_reused) {
-        ctx.node_exec.counters->graph_build_ms.fetch_add(
+        ctx.node_exec.counters->graph_build_wall_ms.fetch_add(
             to_ms_u64(profiling::duration_ms(t_graph0, t_graph1)),
             std::memory_order_relaxed);
     }

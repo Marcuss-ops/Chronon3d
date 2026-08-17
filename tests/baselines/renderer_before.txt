@@ -121,6 +121,7 @@ tests/renderer/test_blend_pixel_nan.cpp
 tests/runtime/test_telemetry.cpp
 tests/runtime/test_telemetry_report.cpp
 tests/runtime/test_telemetry_semantic.cpp
+tests/runtime/test_telemetry_session.cpp
 tests/scene/shapes/mask_tests.cpp
 tests/stabilization/test_stabilization.cpp
 tests/test_main.cpp

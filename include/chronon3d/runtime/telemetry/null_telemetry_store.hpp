@@ -17,7 +17,7 @@ public:
 
     bool initialize(const std::string& /*db_path*/) override { return true; }
     bool write_render_run(const RenderTelemetryRecord& /*run*/) override { return true; }
-    bool write_frames(const std::string& /*run_id*/, const std::vector<FrameTelemetryRecord>& /*frames*/) override { return true; }
+    bool write_frames(const std::string& /*run_id*/, const std::vector<FrameTelemetry>& /*frames*/) override { return true; }
     bool write_phases(const std::string& /*run_id*/, const std::vector<PhaseTelemetryRecord>& /*phases*/) override { return true; }
     bool write_counters(const std::string& /*run_id*/, const std::vector<CounterTelemetryRecord>& /*counters*/) override { return true; }
     bool write_node_events(const std::string& /*run_id*/, const std::vector<NodeTelemetryRecord>& /*events*/) override { return true; }

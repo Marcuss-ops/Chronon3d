@@ -26,11 +26,11 @@ void record_frame_timings(
             std::memory_order_relaxed);
     };
 
-    add_ms(counters->graph_resolve_layers_ms, timings.resolve_ms);
-    add_ms(counters->graph_dirty_rect_ms, timings.dirty_ms);
-    add_ms(counters->graph_build_ms, timings.graph_ms);
-    add_ms(counters->graph_execute_ms, timings.exec_ms);
-    add_ms(counters->graph_total_ms, timings.total_graph_ms);
+    add_ms(counters->graph_resolve_layers_wall_ms, timings.resolve_ms);
+    add_ms(counters->graph_dirty_rect_wall_ms, timings.dirty_ms);
+    add_ms(counters->graph_build_wall_ms, timings.graph_ms);
+    add_ms(counters->graph_execute_wall_ms, timings.exec_ms);
+    add_ms(counters->graph_total_wall_ms, timings.total_graph_ms);
 }
 
 void setup_pingpong_buffers(

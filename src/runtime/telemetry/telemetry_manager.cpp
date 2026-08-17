@@ -187,7 +187,7 @@ std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path() {
 }
 
 bool TelemetryManager::record_run(RenderTelemetryRecord& run,
-                                  const std::vector<FrameTelemetryRecord>& frames,
+                                  const std::vector<FrameTelemetry>& frames,
                                   const std::vector<PhaseTelemetryRecord>& phases,
                                   const std::vector<CounterTelemetryRecord>& counters,
                                   const std::vector<NodeTelemetryRecord>& node_events,

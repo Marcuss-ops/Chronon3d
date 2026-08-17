@@ -12,7 +12,7 @@
 // distinct, incomplete `chronon3d::graph::RenderCounters` type, which
 // is NOT type-compatible with the canonical `chronon3d::RenderCounters`
 // passed at the function-signature boundary (the original pre-P1
-// executor_levels.cpp accesses parent_counters->cache_eval_ms against
+// executor_levels.cpp accesses parent_counters->cache_eval_wall_ms against
 // the canonical type — a shadowed forward-decl breaks that call site
 // with "incomplete type" errors).
 //

@@ -201,9 +201,14 @@ bool ProcessRunner::write(const std::uint8_t* data, std::size_t size) {
 // ── write_for ───────────────────────────────────────────────────────────────
 
 bool ProcessRunner::write_for(const std::uint8_t* data, std::size_t size,
-                              std::chrono::milliseconds timeout) {
+                              std::chrono::milliseconds timeout,
+                              double* cpu_write_ms) {
     if (stdin_fd_ < 0) {
         return false;
+    }
+
+    if (cpu_write_ms) {
+        *cpu_write_ms = 0.0;
     }
 
     if (timeout.count() <= 0) {
@@ -248,7 +253,12 @@ bool ProcessRunner::write_for(const std::uint8_t* data, std::size_t size,
         }
 
         if (fds[0].revents & POLLOUT) {
+            const auto w0 = std::chrono::steady_clock::now();
             const ssize_t n = ::write(stdin_fd_, data + written, size - written);
+            if (cpu_write_ms) {
+                *cpu_write_ms += std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - w0).count();
+            }
             if (n > 0) {
                 written += static_cast<std::size_t>(n);
             } else if (n == 0) {

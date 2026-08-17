@@ -26,7 +26,7 @@ SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
 'tbb_active_workers_avg_sum','tbb_active_workers_avg_count',
 'used_parallel_clear','used_parallel_transform','used_parallel_composite',
-'framebuffer_copy_ms','compositenode_blend_ms','node_execute_actual_ms',
+'framebuffer_copy_wall_ms','compositenode_blend_wall_ms','node_execute_actual_wall_ms',
 'level_parallel_count','level_sequential_count','parallel_regions_skipped_small_level')
 ORDER BY counter_name;
 )";
@@ -45,12 +45,12 @@ GROUP BY node_name, node_type ORDER BY SUM(duration_ms) DESC LIMIT 50;
 inline constexpr const char* kPhaseCostCounters = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
-'framebuffer_copy_ms',
-'compositenode_blend_ms','compositenode_copy_ms','compositenode_setup_ms',
-'compositenode_acquire_ms','compositenode_dispatch_ms','compositenode_overhead_ms',
-'compositenode_internal_us',
-'frame_conversion_copy_ms','video_pipe_write_ms')
+'clearnode_memcpy_wall_ms','clearnode_clear_wall_ms','clearnode_restore_wall_ms',
+'framebuffer_copy_wall_ms',
+'compositenode_blend_wall_ms','compositenode_copy_wall_ms','compositenode_setup_wall_ms',
+'compositenode_acquire_wall_ms','compositenode_dispatch_wall_ms','compositenode_overhead_wall_ms',
+'compositenode_internal_wall_us',
+'frame_conversion_copy_wall_ms','video_pipe_write_wall_ms')
 ORDER BY counter_name;
 )";
 
@@ -63,11 +63,11 @@ SELECT COALESCE(SUM(duration_ms), 0) FROM render_node_events WHERE run_id = ?;
 inline constexpr const char* kHotWorkAttribution = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
-'compositenode_blend_ms',
-'compositenode_acquire_ms','compositenode_dispatch_ms','compositenode_overhead_ms',
-'compositenode_internal_us',
-'frame_conversion_copy_ms','video_pipe_write_ms')
+'clearnode_memcpy_wall_ms','clearnode_clear_wall_ms','clearnode_restore_wall_ms',
+'compositenode_blend_wall_ms',
+'compositenode_acquire_wall_ms','compositenode_dispatch_wall_ms','compositenode_overhead_wall_ms',
+'compositenode_internal_wall_us',
+'frame_conversion_copy_wall_ms','video_pipe_write_wall_ms')
 ORDER BY counter_name;
 )";
 
@@ -162,10 +162,10 @@ ELSE 10 END;
 inline constexpr const char* kBottleneckCoverage = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
-'compositenode_blend_ms',
-'compositenode_acquire_ms','compositenode_dispatch_ms','compositenode_overhead_ms',
-'compositenode_internal_us')
+'clearnode_memcpy_wall_ms','clearnode_clear_wall_ms','clearnode_restore_wall_ms',
+'compositenode_blend_wall_ms',
+'compositenode_acquire_wall_ms','compositenode_dispatch_wall_ms','compositenode_overhead_wall_ms',
+'compositenode_internal_wall_us')
 ORDER BY counter_name;
 )";
 

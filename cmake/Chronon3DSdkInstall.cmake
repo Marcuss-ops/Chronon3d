@@ -157,3 +157,34 @@ if(TARGET chronon3d_c)
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
     )
 endif()
+
+# ── Vendor third-party deps (self-contained C++ package) ──────────────
+# Chronon3D::SDK is a static archive whose INTERFACE_LINK_LIBRARIES carry
+# third-party targets (glm/fmt/spdlog/harfbuzz/freetype/blend2d/TBB/…).  By
+# default Chronon3DConfig.cmake resolves those via find_dependency(), which
+# forces the consumer to point CMAKE_PREFIX_PATH at a vcpkg triplet.  To make
+# `find_package(Chronon3D)` work with NO vcpkg, copy the whole triplet into the
+# install prefix at third_party/<triplet> and let Chronon3DConfig.cmake resolve
+# the deps from there (see the vendored-resolution block in
+# cmake/Chronon3DConfig.cmake.in).
+#
+# Disable with -DCHRONON3D_VENDOR_THIRD_PARTY=OFF for lean dev installs that
+# keep relying on the consumer's own vcpkg triplet.
+option(CHRONON3D_VENDOR_THIRD_PARTY
+    "Vendor the vcpkg triplet into the install so C++ consumers don't need vcpkg" ON)
+
+if(CHRONON3D_VENDOR_THIRD_PARTY AND DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+    set(_chronon3d_vendor_src "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+    if(IS_DIRECTORY "${_chronon3d_vendor_src}")
+        # Trailing slash copies the triplet's contents (include/, lib/, share/,
+        # debug/) into <prefix>/third_party/<triplet>/, preserving the layout
+        # that vcpkg's CONFIG files expect (${_VCPKG_INSTALLED_DIR}/
+        # ${VCPKG_TARGET_TRIPLET}/…).
+        install(DIRECTORY "${_chronon3d_vendor_src}/"
+            DESTINATION "third_party/${VCPKG_TARGET_TRIPLET}"
+            USE_SOURCE_PERMISSIONS
+        )
+    else()
+        message(WARNING "CHRONON3D_VENDOR_THIRD_PARTY=ON but the vcpkg triplet was not found: ${_chronon3d_vendor_src}")
+    endif()
+endif()
