@@ -30,8 +30,15 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
     for (const auto& layer : plan.layers) {
         hash.add(layer.id).add_enum(layer.type).add(layer.asset).add(layer.source)
             .add(layer.text).add(layer.font).add(layer.preset)
+            .add(layer.semantic_role)
             .add(layer.font_size.has_value());
         if (layer.font_size) hash.add(*layer.font_size);
+        hash.add(layer.font_asset.has_value());
+        if (layer.font_asset) {
+            hash.add(layer.font_asset->asset).add(layer.font_asset->family)
+                .add(layer.font_asset->weight.has_value());
+            if (layer.font_asset->weight) hash.add(*layer.font_asset->weight);
+        }
         hash.add(layer.box_width.has_value());
         if (layer.box_width) hash.add(*layer.box_width);
         hash.add(layer.box_height.has_value());
@@ -52,8 +59,59 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
             if (layer.animation->start_frame) hash.add(*layer.animation->start_frame);
             hash.add(layer.animation->duration_frames.has_value());
             if (layer.animation->duration_frames) hash.add(*layer.animation->duration_frames);
-            hash.add(layer.animation->preset);
+            hash.add(layer.animation->preset).add(layer.animation->unit);
+            hash.add(layer.animation->enter_duration_frames.has_value());
+            if (layer.animation->enter_duration_frames)
+                hash.add(*layer.animation->enter_duration_frames);
+            hash.add(layer.animation->exit_duration_frames.has_value());
+            if (layer.animation->exit_duration_frames)
+                hash.add(*layer.animation->exit_duration_frames);
         }
+        hash.add(layer.anchor.has_value());
+        if (layer.anchor) {
+            hash.add(layer.anchor->type).add(layer.anchor->safe_margin)
+                .add(layer.anchor->alignment);
+        }
+        for (const auto value : layer.offset) hash.add(value);
+        hash.add(layer.offset_dimensions);
+        hash.add(layer.style.has_value());
+        if (layer.style) {
+            const auto& style = *layer.style;
+            hash.add(style.font_family).add(style.font_weight.has_value());
+            if (style.font_weight) hash.add(*style.font_weight);
+            hash.add(style.font_size.has_value());
+            if (style.font_size) hash.add(*style.font_size);
+            hash.add(style.fill);
+            hash.add(style.stroke.has_value());
+            if (style.stroke) {
+                hash.add(style.stroke->color).add(style.stroke->width.has_value());
+                if (style.stroke->width) hash.add(*style.stroke->width);
+            }
+            hash.add(style.shadow.has_value());
+            if (style.shadow) {
+                hash.add(style.shadow->color).add(style.shadow->opacity.has_value());
+                if (style.shadow->opacity) hash.add(*style.shadow->opacity);
+                hash.add(style.shadow->blur.has_value());
+                if (style.shadow->blur) hash.add(*style.shadow->blur);
+                for (const auto value : style.shadow->offset) hash.add(value);
+                hash.add(style.shadow->offset_dimensions);
+            }
+            hash.add(style.background.has_value());
+            if (style.background) {
+                hash.add(style.background->color)
+                    .add(style.background->opacity.has_value());
+                if (style.background->opacity) hash.add(*style.background->opacity);
+                hash.add(style.background->radius.has_value());
+                if (style.background->radius) hash.add(*style.background->radius);
+                for (const auto value : style.background->padding) hash.add(value);
+                hash.add(style.background->padding_dimensions);
+            }
+        }
+        hash.add(layer.blend_mode.has_value());
+        if (layer.blend_mode) hash.add_enum(*layer.blend_mode);
+        hash.add(layer.opacity.has_value());
+        if (layer.opacity) hash.add(*layer.opacity);
+        hash.add(layer.loop);
     }
 
     hash.add(plan.audio_tracks.size());
@@ -112,6 +170,23 @@ FitMode fit_mode(const std::string& value) {
     return FitMode::Cover;
 }
 
+std::optional<BlendMode> blend_mode(const std::string& value) {
+    if (value == "normal") return BlendMode::Normal;
+    if (value == "add") return BlendMode::Add;
+    if (value == "multiply") return BlendMode::Multiply;
+    if (value == "screen") return BlendMode::Screen;
+    if (value == "overlay") return BlendMode::Overlay;
+    if (value == "darken") return BlendMode::Darken;
+    if (value == "lighten") return BlendMode::Lighten;
+    if (value == "difference") return BlendMode::Difference;
+    if (value == "exclusion") return BlendMode::Exclusion;
+    if (value == "soft_light") return BlendMode::SoftLight;
+    if (value == "hard_light") return BlendMode::HardLight;
+    if (value == "color_dodge") return BlendMode::ColorDodge;
+    if (value == "color_burn") return BlendMode::ColorBurn;
+    return std::nullopt;
+}
+
 SubtitleFormat subtitle_format(const std::string& value) {
     if (value == "vtt") return SubtitleFormat::Vtt;
     if (value == "json") return SubtitleFormat::Json;
@@ -141,7 +216,19 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.source = value.value("source", std::string{});
     layer.text = value.value("text", std::string{});
     layer.font = value.value("font", std::string{});
+    if (value.contains("font_asset")) {
+        const auto& font_asset = value.at("font_asset");
+        FontAssetPlan asset_plan;
+        asset_plan.asset = font_asset.value("asset", std::string{});
+        asset_plan.family = font_asset.value("family", std::string{});
+        asset_plan.weight = optional_value<int>(font_asset, "weight");
+        layer.font_asset = std::move(asset_plan);
+        // The canonical path field stays authoritative for the compiler; the
+        // richer object form supplies family/weight metadata.
+        if (layer.font.empty()) layer.font = layer.font_asset->asset;
+    }
     layer.preset = value.value("preset", std::string{});
+    layer.semantic_role = value.value("semantic_role", std::string{});
     layer.font_size = optional_value<float>(value, "font_size");
     layer.box_width = optional_value<float>(value, "box_width");
     layer.box_height = optional_value<float>(value, "box_height");
@@ -158,16 +245,88 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         for (std::size_t index = 0; index < position.size(); ++index)
             layer.position[index] = position.at(index).get<float>();
     }
+    if (value.contains("offset")) {
+        const auto& offset = value.at("offset");
+        layer.offset_dimensions = offset.size();
+        for (std::size_t index = 0; index < offset.size() && index < layer.offset.size(); ++index)
+            layer.offset[index] = offset.at(index).get<float>();
+    }
     if (value.contains("fit")) layer.fit = fit_mode(value.at("fit").get<std::string>());
     if (value.contains("format"))
         layer.subtitle_format = subtitle_format(value.at("format").get<std::string>());
     if (value.contains("animation")) {
         const auto& animation = value.at("animation");
-        layer.animation = AnimationTiming{
-            optional_frame(animation, "start_frame"),
-            optional_frame(animation, "duration_frames"),
-            animation.at("preset").get<std::string>()};
+        AnimationTiming timing;
+        timing.start_frame = optional_frame(animation, "start_frame");
+        timing.duration_frames = optional_frame(animation, "duration_frames");
+        timing.preset = animation.at("preset").get<std::string>();
+        timing.unit = animation.value("unit", std::string{});
+        if (animation.contains("enter"))
+            timing.enter_duration_frames =
+                optional_frame(animation.at("enter"), "duration_frames");
+        if (animation.contains("exit"))
+            timing.exit_duration_frames =
+                optional_frame(animation.at("exit"), "duration_frames");
+        layer.animation = std::move(timing);
     }
+    if (value.contains("anchor")) {
+        const auto& anchor = value.at("anchor");
+        AnchorPlan anchor_plan;
+        anchor_plan.type = anchor.value("type", std::string{});
+        anchor_plan.safe_margin = anchor.value("safe_margin", 0.06f);
+        anchor_plan.alignment = anchor.value("alignment", std::string{"left"});
+        layer.anchor = std::move(anchor_plan);
+    }
+    if (value.contains("style")) {
+        const auto& style = value.at("style");
+        LayerStylePlan style_plan;
+        style_plan.font_family = style.value("font_family", std::string{});
+        style_plan.font_weight = optional_value<int>(style, "font_weight");
+        style_plan.font_size = optional_value<float>(style, "font_size");
+        style_plan.fill = style.value("fill", std::string{});
+        if (style.contains("stroke")) {
+            const auto& stroke = style.at("stroke");
+            style_plan.stroke = StrokeStyle{
+                stroke.value("color", std::string{}),
+                optional_value<float>(stroke, "width")};
+        }
+        if (style.contains("shadow")) {
+            const auto& shadow = style.at("shadow");
+            ShadowStyle shadow_plan;
+            shadow_plan.color = shadow.value("color", std::string{});
+            shadow_plan.opacity = optional_value<float>(shadow, "opacity");
+            shadow_plan.blur = optional_value<float>(shadow, "blur");
+            if (shadow.contains("offset")) {
+                const auto& offset = shadow.at("offset");
+                shadow_plan.offset_dimensions = offset.size();
+                for (std::size_t i = 0; i < offset.size() && i < shadow_plan.offset.size(); ++i)
+                    shadow_plan.offset[i] = offset.at(i).get<float>();
+            }
+            style_plan.shadow = std::move(shadow_plan);
+        }
+        if (style.contains("background")) {
+            const auto& background = style.at("background");
+            BackgroundStyle background_plan;
+            background_plan.color = background.value("color", std::string{});
+            background_plan.opacity = optional_value<float>(background, "opacity");
+            background_plan.radius = optional_value<float>(background, "radius");
+            if (background.contains("padding")) {
+                const auto& padding = background.at("padding");
+                background_plan.padding_dimensions = padding.size();
+                for (std::size_t i = 0; i < padding.size() && i < background_plan.padding.size(); ++i)
+                    background_plan.padding[i] = padding.at(i).get<float>();
+            }
+            style_plan.background = std::move(background_plan);
+        }
+        layer.style = std::move(style_plan);
+    }
+    if (value.contains("blend_mode")) {
+        if (const auto mode = blend_mode(value.at("blend_mode").get<std::string>())) {
+            layer.blend_mode = mode;
+        }
+    }
+    layer.opacity = optional_value<float>(value, "opacity");
+    layer.loop = value.value("loop", false);
     return layer;
 }
 
@@ -364,6 +523,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.output.codec = video_codec(output.at("codec").get<std::string>());
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
+        plan.output.profile_id = output.value("profile_id", std::string{});
         if (root.contains("budget")) {
             const auto& budget = root.at("budget");
             plan.budget.max_temporal_pixels = budget.value(

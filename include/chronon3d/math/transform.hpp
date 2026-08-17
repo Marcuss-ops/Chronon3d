@@ -3,7 +3,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
+#include <chronon3d/render_graph/processor_handle.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <cstdint>
 #include <memory>

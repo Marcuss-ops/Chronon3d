@@ -1,4 +1,5 @@
 #include "../common/pipe_export_session.hpp"
+#include "../../../utils/video/native_video_frame_decoder.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -22,7 +23,13 @@ RenderLoopOutput run_pipe_export_loop(
     // second local cache.  This keeps still and video renders consistent and
     // avoids split statistics / capacity / clear behaviour.
     cache::NodeCache& node_cache = session.renderer->node_cache();
-    media::MediaFrameProvider* video_decoder = nullptr;
+
+    // The production video-frame decoder: video source layers (VideoNode)
+    // consume media::MediaFrameProvider; without a live decoder every video
+    // layer renders as an empty black framebuffer. The decoder is created
+    // per render and lazily opens one session per source path.
+    auto decoder = std::make_shared<NativeVideoFrameDecoder>();
+    media::MediaFrameProvider* video_decoder = decoder.get();
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     telemetry_frames.reserve(session.total_frames > 0

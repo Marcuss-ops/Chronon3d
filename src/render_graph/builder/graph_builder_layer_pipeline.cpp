@@ -211,8 +211,18 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     // not build a transparent source/composite branch: besides wasting the
     // raster pass, it can replace a valid backdrop when an opaque fast path
     // sees stale bounds from the skipped content.
-    if (layer.transform.opacity <= 0.0f ||
-        layer.anim_transform.opacity.evaluate(ctx.frame_input.sample_time) <= 0.0f) {
+    //
+    // Only a STATICALLY transparent layer is structural and safe to cull at
+    // topology build time.  `transform.opacity` is the value baked by
+    // LayerBuilder::build() at the current frame, so for an ANIMATED opacity
+    // (fade-in/slide-in) it is 0.0 at frame 0 and rises later.  Culling on
+    // that baked value would freeze the frame-0 decision into the cached
+    // graph topology and drop the layer from every subsequent frame of a
+    // range/video render (the topology is reused via the structure
+    // fingerprint).  Animated layers stay in the graph; their per-frame
+    // opacity is re-evaluated by the refresh path / node opacity evaluator.
+    if (!layer.anim_transform.opacity.is_time_dependent() &&
+        layer.transform.opacity <= 0.0f) {
         return;
     }
 

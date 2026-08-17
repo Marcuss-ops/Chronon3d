@@ -100,6 +100,31 @@ public:
     render_to_file(const RenderFileRequest& request,
                    const RenderCallbacks& callbacks = {});
 
+    /// Compile a canonical RenderPlan JSON document into an immutable
+    /// `CompiledComposition`.  This is a thin wrapper over the canonical
+    /// `render_plan` decode→compile pipeline (the same path the C ABI
+    /// exposes through `chronon_plan_compile_json`); it introduces no
+    /// second plan model.  The returned composition is caller-owned and can
+    /// be passed to render_compiled()/render_to_file().  The engine's output
+    /// dimensions are updated from the plan canvas so a subsequent render
+    /// runs at the plan's native resolution.
+    [[nodiscard]]
+    chronon3d::Result<std::shared_ptr<const chronon3d::CompiledComposition>,
+                      RenderError>
+    compile_plan_json(std::string_view json);
+
+    /// Read a RenderPlan JSON file, compile it, and render its full
+    /// duration to `output_path`.  Convenience wrapper over the canonical
+    /// render-plan pipeline + render_to_file.  Assets resolve against the
+    /// engine's assets root (set_assets_root); a non-empty `assets_root`
+    /// overrides it for this render.  Returns the same RenderReport as
+    /// render_to_file.
+    [[nodiscard]]
+    chronon3d::Result<RenderReport, RenderError>
+    render_plan_file(const std::filesystem::path& plan_path,
+                     std::filesystem::path output_path,
+                     std::filesystem::path assets_root = {});
+
     /// Apply new render settings.  Replaces whatever was set in the
     /// constructor or by a prior `set_settings` call.  Thread-safe
     /// relative to `render()` (the engine snapshots settings at the
