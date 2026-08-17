@@ -100,9 +100,16 @@ chk_install() {
     else
         SDK_BUILD="$(mktemp_dir chronon3d_sdk_product_build)"
         SDK_PREFIX="$(mktemp_dir chronon3d_sdk_product_prefix)"
-        log "configuring SDK (preset=$PRESET)"
+        log "configuring SDK (preset=$PRESET, CLI OFF)"
+        # The SDK install rules install chronon3d_cli (install(TARGETS
+        # chronon3d_cli ...)) whenever the target exists, but this
+        # certification only builds the SDK archive + C ABI and never
+        # exercises the CLI.  Force CHRONON3D_BUILD_CLI=OFF so
+        # `cmake --install` does not try to install a CLI binary that was
+        # never built.  (linux-ci leaves the option at its ON default.)
         cmake -S "$REPO_ROOT" -B "$SDK_BUILD" --preset "$PRESET" \
-            -DCMAKE_INSTALL_PREFIX="$SDK_PREFIX" >&2 || return 1
+            -DCMAKE_INSTALL_PREFIX="$SDK_PREFIX" \
+            -DCHRONON3D_BUILD_CLI=OFF >&2 || return 1
         log "building SDK archive + C ABI"
         cmake --build "$SDK_BUILD" --target chronon3d_sdk_impl chronon3d_c >&2 || return 1
         log "installing SDK into $SDK_PREFIX"
