@@ -16,6 +16,8 @@
 #   5. architecture-check       — Static rules + doctest skip tickets +
 #                                  architecture boundary grep (PR-0).
 #   6. install-consumer-script  — tools/install_consumer_test.sh (PR-0).
+#   7. sdk-product-certification — tools/verify_sdk_product.sh (release only:
+#                                  push to main; 15-check install certification).
 #
 # Why this file exists:
 # The previous CI (ci.yml) only built `chronon3d_tests_fast` on PRs and
@@ -235,6 +237,12 @@ jobs:
       - name: Run tools/check_gitignored_dirs.sh
         run: bash tools/check_gitignored_dirs.sh
 
+      # Public-target rule (SDK Product V1): external consumer projects may
+      # link ONLY Chronon3D::SDK and Chronon3D::C.  Fails CI if any consumer
+      # links an internal target (chronon3d_graph, chronon3d_runtime, …).
+      - name: Public-target rule (Chronon3D::SDK / Chronon3D::C only)
+        run: bash tools/check_public_targets.sh
+
   # ────────────────────────────────────────────────────────────────────
   # 6. Install consumer — end-to-end SDK boundary test (PR-0).
   #    Renumbered from "7" to "6" on 2026-06-29 because the profile-
@@ -263,8 +271,48 @@ jobs:
         if: runner.os == 'Linux'
         run: bash tools/install_consumer_test.sh
 
-  # ─────────────────────────────────────────────────────────────────────
-  # 7. Gate status summary — machine-readable JSON artifact (P3-A).
+  # ────────────────────────────────────────────────────────────────────
+  # 7. SDK product certification — tools/verify_sdk_product.sh (release).
+  #    The single certification command (15 checks): install the SDK, then
+  #    exercise the C++ / C / Go / Rust / Python consumers against the
+  #    INSTALLED package (never the source tree).  Release-only — runs on
+  #    push to main; any integration breakage turns this gate red and
+  #    blocks the release.  Terminates CHRONON_SDK_PRODUCT_PASS/_FAIL.
+  # ────────────────────────────────────────────────────────────────────
+  sdk-product-certification:
+    name: Gate 7 / sdk-product-certification (release)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      # Needed by the checksum-pinned public font-fixture bootstrap during
+      # the `linux-ci` configure step (see ci.yml — public downloads only).
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Setup Go (sdk_consumers/03_go)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: sdk_consumers/03_go/go.mod
+
+      - name: Setup Rust (sdk_consumers/04_rust)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: SDK product certification (15 checks)
+        run: bash tools/verify_sdk_product.sh
+
+  # 8. Gate status summary — machine-readable JSON artifact (P3-A).
   # Collects pass/fail from all gate jobs and produces a structured
   # ci_gates_status.json uploaded as a GitHub Actions artifact.
   # ─────────────────────────────────────────────────────────────────────

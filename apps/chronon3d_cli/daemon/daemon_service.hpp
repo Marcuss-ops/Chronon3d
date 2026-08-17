@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include "chronon_ipc.hpp"
+#include <functional>
 #include <string>
 #include <memory>
 #include <vector>
@@ -13,6 +14,13 @@ namespace chronon3d {
 }
 
 namespace chronon3d::cli {
+
+/// RENDER_JOB dispatcher, registered by the render command group when it is
+/// linked into the executable. Unset by default so a render-less build
+/// answers RENDER_JOB with NotFound. Keeps chronon3d_cli_core free of any
+/// render-group link dependency.
+using RenderJobDispatcher = std::function<ipc::Reply(const std::string&)>;
+RenderJobDispatcher& render_job_dispatcher();
 
 struct DaemonOptions {
     /// Root directory for asset resolution (fonts, images, etc.).
@@ -53,6 +61,7 @@ struct DaemonOptions {
  *   PREFETCH_ASSET <path>         Warm the asset cache
  *   PREPARE_PLAN   <comp-id>      Compile + plan once (PreparedRenderJob)
  *   RENDER_OVERLAY <frame> [out]  Render a frame from the prepared plan
+ *   RENDER_JOB     <json>         Render a chronon.render-plan.v1 file
  *   STATUS                        Engine statistics
  *   SHUTDOWN                      Stop serving
  */

@@ -51,6 +51,11 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const auto wall_t1 = profiling::now();
     const double wall_time_ms = profiling::duration_ms(wall_t0, wall_t1);
     const double encode_ms = profiling::duration_ms(loop_output.render_end, wall_t1);
+    const double writer_encode_ms = static_cast<double>(
+        session->writer_encode_us_total.load(std::memory_order_relaxed)) / 1000.0;
+
+    spdlog::info("[video] render_ms={:.2f} encode_ms={:.2f} writer_encode_ms={:.2f} wall_ms={:.2f}",
+                 loop_output.render_ms, encode_ms, writer_encode_ms, wall_time_ms);
 
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", loop_output.loop_result.queue_wait_ms);
 

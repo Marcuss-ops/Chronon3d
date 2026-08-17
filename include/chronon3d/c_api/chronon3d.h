@@ -2,7 +2,20 @@
 
 #include <stdint.h>
 
-#define CHRONON3D_API __attribute__((visibility("default")))
+// Portable export contract.  On Windows, CHRONON3D_BUILD_DLL is defined only
+// while building the shared library itself (see Chronon3DSdkTargets.cmake),
+// so its functions are exported as dllexport there and imported as dllimport
+// by consumers.  On ELF platforms the default visibility keeps the C ABI
+// symbols exported from libchronon3d_c.so.
+#if defined(_WIN32)
+  #ifdef CHRONON3D_BUILD_DLL
+    #define CHRONON3D_API __declspec(dllexport)
+  #else
+    #define CHRONON3D_API __declspec(dllimport)
+  #endif
+#else
+  #define CHRONON3D_API __attribute__((visibility("default")))
+#endif
 
 #ifdef __cplusplus
 extern "C" {

@@ -36,9 +36,12 @@ enum class RenderMode : std::uint8_t {
 /// Video-specific plain settings carried through the canonical request/job.
 struct VideoSettings {
     int         fps{30};
-    int         crf{16};
+    // crf 20 + preset medium is the production encode balance: visually
+    // transparent for social-video content at a fraction of the slow/crf16
+    // encode time. Overridable per invocation via --crf/--encode-preset.
+    int         crf{20};
     std::string codec{"auto"};
-    std::string encode_preset{"slow"};
+    std::string encode_preset{"medium"};
     std::string tune;
     bool        keep_frames{false};
     std::string frames_dir;

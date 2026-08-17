@@ -10,6 +10,7 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     commands/render/command_render_plan.cpp
+    commands/render/command_script.cpp
     commands/render/audio_muxer.cpp
     utils/job/render_job.cpp
     utils/job/render_job_setup.cpp
@@ -19,6 +20,7 @@ add_library(chronon3d_cli_render STATIC
     utils/job/render_job_write_frame.cpp
     utils/job/cli_render_utils.cpp
     utils/job/report/render_job_report.cpp
+    utils/semantic/semantic_script.cpp
 )
 
 target_include_directories(chronon3d_cli_render PRIVATE

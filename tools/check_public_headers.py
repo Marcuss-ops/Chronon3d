@@ -30,7 +30,7 @@ exec python3 "$0" "$@"
 #
 #   Gate B  no public header transitively pulls a non-manifest header
 #                                            (WARN, never fail)
-#     The V0.1 SDK umbrella header (#include <chronon3d/chronon3d.hpp>)
+#     The V0.1 SDK entry header (#include <chronon3d/sdk/render_engine.hpp>)
 #     and transitional internal paths may still pull transitives that
 #     are not listed in the manifest at this stage.  We surface them as
 #     `WARN: ...` lines so CI keeps working while the OPP-side

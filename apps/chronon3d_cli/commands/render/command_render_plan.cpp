@@ -33,6 +33,10 @@ struct RenderPlanState {
     std::uint64_t end_frame{0};
     std::uint32_t fps_num{30};
     std::uint32_t fps_den{1};
+    // Optional encoder overrides. Negative / empty = keep the engine default
+    // (production balance: crf 20, preset medium — see render_job.hpp).
+    int         crf{-1};
+    std::string encode_preset;
 };
 
 std::string read_file(const std::string& path) {
@@ -60,7 +64,7 @@ bool video_output(const std::string& path) {
            extension == ".mov";
 }
 
-int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
+int execute_render_plan(const CompositionRegistry& registry, const RenderPlanState& args) {
     try {
         const auto root = nlohmann::json::parse(read_file(args.input));
         const auto decoded = render_plan::decode_render_plan(root);
@@ -73,6 +77,13 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             : (std::getenv("CHRONON3D_CLI_ASSETS_ROOT")
                 ? std::getenv("CHRONON3D_CLI_ASSETS_ROOT") : "");
         auto plan = decoded.value();
+        // Explicit plan output.crf overrides the engine default when the plan
+        // document carries it (the decoder defaults an absent crf to 0, so
+        // presence is checked on the raw document, never the decoded value).
+        const auto& output_obj = root.value("output", nlohmann::json::object());
+        if (output_obj.contains("crf") && output_obj.at("crf").is_number_integer()) {
+            plan.output.crf = output_obj.at("crf").get<int>();
+        }
         chronon3d::assets::AssetResolver resolver;
         if (!effective_assets_root.empty()) {
             resolver.mount(std::filesystem::path{effective_assets_root});
@@ -123,6 +134,16 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? decoded->canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(decoded->output.codec);
+        // Encoder overrides: CLI flags win, then the plan's explicit crf,
+        // then the engine default.
+        if (args.crf >= 0) {
+            request.video_settings.crf = args.crf;
+        } else if (plan.output.crf > 0 && plan.output.crf <= 51) {
+            request.video_settings.crf = plan.output.crf;
+        }
+        if (!args.encode_preset.empty()) {
+            request.video_settings.encode_preset = args.encode_preset;
+        }
         if (video_output(output)) {
             request.mode = RenderMode::Video;
             request.first_frame = Frame{first};
@@ -138,7 +159,7 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
             request.last_frame = Frame{last};
         }
 
-        auto job = resolve_render_request(ctx.registry, std::move(request));
+        auto job = resolve_render_request(registry, std::move(request));
         if (!job) {
             spdlog::error("Render plan job failed: {}", job.error().message);
             return 1;
@@ -172,7 +193,7 @@ int execute_render_plan(CliContext& ctx, const RenderPlanState& args) {
 
 }  // namespace
 
-int run_render_plan_file(CliContext& ctx,
+int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& input,
                          const std::string& output,
                          const std::string& assets_root) {
@@ -180,7 +201,36 @@ int run_render_plan_file(CliContext& ctx,
     state.input = input;
     state.output = output;
     state.assets_root = assets_root;
-    return execute_render_plan(ctx, state);
+    return execute_render_plan(registry, state);
+}
+
+ipc::Reply ipc_render_job(const CompositionRegistry& registry,
+                          const std::string& payload) {
+    try {
+        const auto request = nlohmann::json::parse(payload);
+        const std::string plan_path = request.value("plan_path", "");
+        const std::string assets_root = request.value("assets_root", "");
+        const std::string output = request.value("output", "");
+        if (plan_path.empty()) {
+            return ipc::Reply{ipc::Status::BadRequest,
+                              "RENDER_JOB requires a plan_path"};
+        }
+
+        const int rc = run_render_plan_file(registry, plan_path, output, assets_root);
+        if (rc != 0) {
+            return ipc::Reply{ipc::Status::Error,
+                              "render job failed with exit code " + std::to_string(rc)};
+        }
+
+        nlohmann::json reply = {
+            {"status", "ok"},
+            {"output", output},
+        };
+        return ipc::Reply{ipc::Status::Ok, reply.dump()};
+    } catch (const std::exception& e) {
+        return ipc::Reply{ipc::Status::BadRequest,
+                          std::string{"RENDER_JOB parse failed: "} + e.what()};
+    }
 }
 
 void register_render_plan_command(CLI::App& app, CliContext& ctx) {
@@ -194,7 +244,9 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--end-frame", state->end_frame, "Last frame, inclusive");
     command->add_option("--fps-num", state->fps_num, "Frame-rate numerator");
     command->add_option("--fps-den", state->fps_den, "Frame-rate denominator");
-    command->callback([state, &ctx] { ctx.exit_code = execute_render_plan(ctx, *state); });
+    command->add_option("--crf", state->crf, "Encoder CRF override (0-51; default = engine default)");
+    command->add_option("--encode-preset", state->encode_preset, "x264 preset override (e.g. medium, veryfast)");
+    command->callback([state, &ctx] { ctx.exit_code = execute_render_plan(ctx.registry, *state); });
 }
 
 }  // namespace chronon3d::cli

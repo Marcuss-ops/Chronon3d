@@ -313,3 +313,102 @@ TEST_CASE("render plan fingerprint includes decoded content and preserves order"
     REQUIRE(budget_plan.has_value());
     CHECK(original->content_fingerprint != budget_plan->content_fingerprint);
 }
+
+TEST_CASE("render plan decoder decodes the extended visual contract fields") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan"},
+        {"version", 1},
+        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps", 30},
+                     {"duration_frames", 90}}},
+        {"layers", {{
+            {"id", "person_01"},
+            {"type", "text"},
+            {"text", "Tim Cook"},
+            {"preset", "lower_third_safe"},
+            {"semantic_role", "person"},
+            {"font_asset", {{"asset", "fonts/Poppins-Bold.ttf"},
+                             {"family", "Poppins"}, {"weight", 700}}},
+            {"anchor", {{"type", "lower_third"}, {"safe_margin", 0.06},
+                         {"alignment", "left"}}},
+            {"offset", {20, -10}},
+            {"style", {
+                {"font_family", "Poppins"}, {"font_weight", 700},
+                {"font_size", 58}, {"fill", "#FFFFFF"},
+                {"stroke", {{"color", "#000000"}, {"width", 2}}},
+                {"shadow", {{"color", "#000000"}, {"opacity", 0.65},
+                             {"blur", 16}, {"offset", {0, 6}}}},
+                {"background", {{"color", "#050509"}, {"opacity", 0.86},
+                                 {"radius", 12}, {"padding", {24, 14}}}}
+            }},
+            {"animation", {{"preset", "active_word_pop"}, {"unit", "word"},
+                            {"enter", {{"duration_frames", 8}}},
+                            {"exit", {{"duration_frames", 6}}}}}
+        }}},
+        {"output", {{"path", "out.mp4"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    const auto& layer = decoded->layers[0];
+
+    CHECK(layer.preset == "lower_third_safe");
+    CHECK(layer.semantic_role == "person");
+
+    REQUIRE(layer.font_asset.has_value());
+    CHECK(layer.font_asset->asset == "fonts/Poppins-Bold.ttf");
+    CHECK(layer.font_asset->family == "Poppins");
+    CHECK(layer.font_asset->weight == 700);
+    // Canonical path field stays authoritative for the compiler.
+    CHECK(layer.font == "fonts/Poppins-Bold.ttf");
+
+    REQUIRE(layer.anchor.has_value());
+    CHECK(layer.anchor->type == "lower_third");
+    CHECK(layer.anchor->alignment == "left");
+    CHECK(layer.offset_dimensions == 2);
+    CHECK(layer.offset[0] == doctest::Approx(20.0f));
+    CHECK(layer.offset[1] == doctest::Approx(-10.0f));
+
+    REQUIRE(layer.style.has_value());
+    CHECK(layer.style->font_family == "Poppins");
+    CHECK(layer.style->font_weight == 700);
+    CHECK(layer.style->font_size.value() == doctest::Approx(58.0f));
+    CHECK(layer.style->fill == "#FFFFFF");
+    REQUIRE(layer.style->stroke.has_value());
+    CHECK(layer.style->stroke->color == "#000000");
+    REQUIRE(layer.style->shadow.has_value());
+    CHECK(layer.style->shadow->blur.value() == doctest::Approx(16.0f));
+    CHECK(layer.style->shadow->offset[1] == doctest::Approx(6.0f));
+    REQUIRE(layer.style->background.has_value());
+    CHECK(layer.style->background->radius.value() == doctest::Approx(12.0f));
+    CHECK(layer.style->background->padding[0] == doctest::Approx(24.0f));
+
+    REQUIRE(layer.animation.has_value());
+    CHECK(layer.animation->unit == "word");
+    REQUIRE(layer.animation->enter_duration_frames.has_value());
+    CHECK(layer.animation->enter_duration_frames->integral() == 8);
+    REQUIRE(layer.animation->exit_duration_frames.has_value());
+    CHECK(layer.animation->exit_duration_frames->integral() == 6);
+}
+
+TEST_CASE("render plan decoder keeps the minimal {preset, text} form compatible") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan"},
+        {"version", 1},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+                     {"duration_frames", 30}}},
+        {"layers", {{
+            {"id", "minimal"},
+            {"type", "text"},
+            {"preset", "lower_third"},
+            {"text", "Tim Cook"}
+        }}},
+        {"output", {{"path", "out.mp4"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->layers[0].preset == "lower_third");
+    CHECK(decoded->layers[0].text == "Tim Cook");
+    CHECK(decoded->layers[0].semantic_role.empty());
+    CHECK_FALSE(decoded->layers[0].anchor.has_value());
+    CHECK_FALSE(decoded->layers[0].style.has_value());
+    CHECK_FALSE(decoded->layers[0].font_asset.has_value());
+}

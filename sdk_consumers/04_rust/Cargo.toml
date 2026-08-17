@@ -1,0 +1,12 @@
+[package]
+name = "chronon3d-rust-consumer"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "rust_minimal"
+path = "src/main.rs"
+
+# No third-party dependencies: the C ABI is bound with hand-written FFI.
+[dependencies]
