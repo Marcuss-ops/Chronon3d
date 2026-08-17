@@ -194,6 +194,14 @@ uint64_t SceneHasher::compute_active_at_fingerprint(const Scene& scene, Frame fr
     for (const auto& layer : scene.layers()) {
         h = hash_combine(h, hash_string(layer.name));
         h = hash_combine(h, layer.active_at(frame) ? 1 : 0);
+        // A video layer's sampled source frame advances every output frame,
+        // so its content is time-varying even while the layer stays active.
+        // Fold the current frame into the fingerprint so the frame-reuse fast
+        // path never replays a stale video frame (GOLDEN 04/05 light leak).
+        if (layer.kind == LayerKind::Video && layer.video_source &&
+            layer.active_at(frame)) {
+            h = hash_combine(h, static_cast<int64_t>(frame));
+        }
     }
     for (const auto& transition : scene.clip_transitions()) {
         h = hash_combine(h, hash_string(transition.layer_a));

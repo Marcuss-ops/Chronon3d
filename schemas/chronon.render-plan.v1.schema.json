@@ -34,6 +34,15 @@
           "source": { "type": "string" },
           "text": { "type": "string", "maxLength": 1048576 },
           "font": { "type": "string" },
+          "font_asset": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "asset": { "type": "string", "minLength": 1 },
+              "family": { "type": "string" },
+              "weight": { "type": "integer", "minimum": 1 }
+            }
+          },
           "font_size": { "type": "number", "exclusiveMinimum": 0 },
           "box_width": { "type": "number", "exclusiveMinimum": 0 },
           "box_height": { "type": "number", "exclusiveMinimum": 0 },
@@ -47,11 +56,75 @@
             "maxItems": 3,
             "items": { "type": "number" }
           },
+          "offset": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "number" }
+          },
           "start_frame": { "type": "integer", "minimum": 0 },
           "duration_frames": { "type": "integer", "minimum": 1 },
           "fit": { "enum": ["cover", "contain", "stretch", "none"] },
           "format": { "enum": ["srt", "vtt", "json"] },
           "preset": { "type": "string" },
+          "semantic_role": { "type": "string" },
+          "anchor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": { "enum": ["center", "safe_area", "lower_third", "lower_left", "lower_right", "top_left", "top_right", "bottom_left", "bottom_right", "image_left", "image_right"] },
+              "safe_margin": { "type": "number" },
+              "alignment": { "enum": ["left", "center", "right"] }
+            }
+          },
+          "style": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "font_family": { "type": "string" },
+              "font_weight": { "type": "integer", "minimum": 1 },
+              "font_size": { "type": "number", "exclusiveMinimum": 0 },
+              "fill": { "type": "string" },
+              "stroke": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "color": { "type": "string" },
+                  "width": { "type": "number", "exclusiveMinimum": 0 }
+                }
+              },
+              "shadow": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "color": { "type": "string" },
+                  "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "blur": { "type": "number", "minimum": 0 },
+                  "offset": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": { "type": "number" }
+                  }
+                }
+              },
+              "background": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "color": { "type": "string" },
+                  "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "radius": { "type": "number", "minimum": 0 },
+                  "padding": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": { "type": "number" }
+                  }
+                }
+              }
+            }
+          },
           "animation": {
             "type": "object",
             "additionalProperties": false,
@@ -59,9 +132,29 @@
             "properties": {
               "preset": { "type": "string", "minLength": 1 },
               "start_frame": { "type": "integer", "minimum": 0 },
-              "duration_frames": { "type": "integer", "minimum": 1 }
+              "duration_frames": { "type": "integer", "minimum": 1 },
+              "unit": { "enum": ["word", "glyph", "line"] },
+              "enter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "duration_frames": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "exit": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "duration_frames": { "type": "integer", "minimum": 1 }
+                }
+              }
             }
-          }
+          },
+          "blend_mode": {
+            "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn"]
+          },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "loop": { "type": "boolean" }
         }
       }
     },
@@ -103,6 +196,7 @@
         "path": { "type": "string", "minLength": 1 },
         "format": { "enum": ["png", "mp4", "mkv", "webm"] },
         "codec": { "enum": ["auto", "h264", "h265", "vp9", "av1"] },
+        "profile_id": { "type": "string", "minLength": 1 },
         "bitrate": { "type": "integer", "minimum": 0 },
         "crf": { "type": "integer", "minimum": 0, "maximum": 63 }
       }

@@ -8,6 +8,10 @@ add_library(chronon3d_registry OBJECT
     shape_registry.cpp
     source_registry.cpp
     text_preset_registry.cpp
+    # VISUAL-SSOT-01 — single canonical overlay-level visual-preset registry
+    # (ADR-029).  The only source of truth for how caption/word/entity/image
+    # presets are painted, anchored and animated.
+    visual_preset_registry.cpp
     # Phase 3.2 — AnimatorResolver implementations moved out of the public
     # header (include/chronon3d/registry/animator_resolver.hpp) into this
     # .cpp so the header is declaration-only. The three static bodies

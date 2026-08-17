@@ -284,6 +284,11 @@ void DaemonService::cmd_help() {
 
 // ── UNIX-socket IPC (RenderingGen → Chronon) ───────────────────────────────
 
+RenderJobDispatcher& render_job_dispatcher() {
+    static RenderJobDispatcher dispatcher;
+    return dispatcher;
+}
+
 void DaemonService::run_socket(const std::string& path) {
     ipc::UnixSocketServer server;
     try {
@@ -294,7 +299,7 @@ void DaemonService::run_socket(const std::string& path) {
     }
 
     spdlog::info("🔌 Daemon listening on Unix socket '{}'", server.path());
-    spdlog::info("   PREFETCH_ASSET | PREPARE_PLAN | RENDER_OVERLAY | STATUS | SHUTDOWN");
+    spdlog::info("   PREFETCH_ASSET | PREPARE_PLAN | RENDER_OVERLAY | RENDER_JOB | STATUS | SHUTDOWN");
 
     const int rc = server.serve([this](const ipc::Request& req) {
         return handle_ipc(req);
@@ -316,6 +321,14 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             return ipc_prepare_plan(req.payload);
         case ipc::Command::RenderOverlay:
             return ipc_render_overlay(req.payload);
+        case ipc::Command::RenderJob: {
+            auto& dispatcher = render_job_dispatcher();
+            if (dispatcher) {
+                return dispatcher(req.payload);
+            }
+            return ipc::Reply{ipc::Status::NotFound,
+                              "RENDER_JOB unavailable: render group not compiled"};
+        }
         case ipc::Command::Status:
             return ipc_status();
         case ipc::Command::Shutdown:

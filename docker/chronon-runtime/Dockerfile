@@ -9,6 +9,7 @@ ENV VCPKG_ROOT=/opt/vcpkg
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build git curl ca-certificates \
         pkg-config zip unzip tar python3-pip \
+        libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m pip install --break-system-packages --no-cache-dir 'cmake>=3.27' \
     && git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT" \
@@ -27,8 +28,9 @@ RUN cmake -S . -B build/docker -G Ninja \
         -DCHRONON3D_BUILD_DIAGNOSTICS=OFF \
         -DCHRONON3D_ENABLE_TEXT=ON \
         -DCHRONON3D_ENABLE_VIDEO=ON \
+        -DCHRONON3D_ENABLE_NATIVE_FFMPEG=ON \
         -DCHRONON3D_USE_BLEND2D=ON \
-    && cmake --build build/docker --target chronon3d_cli chronon3d_c --parallel \
+    && cmake --build build/docker --target chronon3d_cli chronon3d_c chronon3d_sdk_impl --parallel \
     && cmake --install build/docker --prefix /opt/chronon3d
 
 FROM debian:bookworm-slim
@@ -42,6 +44,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin chronon
 
 COPY --from=builder /opt/chronon3d /opt/chronon3d
+COPY VERSION /opt/chronon3d/VERSION
 
 RUN mkdir -p /work/assets /work/output \
     && chown -R chronon:chronon /work

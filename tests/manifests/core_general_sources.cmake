@@ -81,6 +81,7 @@ set(CORE_TEST_SOURCES
     core/math/test_expression_extended.cpp
     test_text_preset_registry.cpp
     registry/test_text_preset_descriptor.cpp
+    registry/test_visual_preset_registry.cpp
     text/test_text_run_umbrella_contract.cpp
     text/test_text_run_multi_run_failure_policy.cpp
     ${CORE_BLEND2D_TESTS}

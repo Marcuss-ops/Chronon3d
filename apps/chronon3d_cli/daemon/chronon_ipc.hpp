@@ -20,6 +20,10 @@
 //   PREFETCH_ASSET  <asset-path>              warm the asset cache
 //   PREPARE_PLAN    <composition-id>          compile + plan once
 //   RENDER_OVERLAY  "<frame> [output-path]"   render + save a frame
+//   RENDER_JOB      <json>                    render a chronon.render-plan.v1
+//                                            file: {"plan_path", "assets_root",
+//                                            "output"}; replies JSON
+//                                            {"status":"ok","output":"..."}
 //   STATUS          (empty)                   engine statistics
 //   SHUTDOWN        (empty)                   stop serving
 //
@@ -65,6 +69,7 @@ enum class Command : std::uint32_t {
     RenderOverlay = 3,   ///< payload: "<frame> [output]" → render + save
     Status        = 4,   ///< no payload → engine statistics
     Shutdown      = 5,   ///< no payload → stop serving
+    RenderJob     = 6,   ///< payload: JSON {plan_path, assets_root, output}
 };
 
 enum class Status : std::uint32_t {

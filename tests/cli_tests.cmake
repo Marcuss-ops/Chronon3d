@@ -20,11 +20,11 @@ set(_cli_test_sources
     cli/test_frame_range_parser.cpp
     cli/test_render_job_planning.cpp
     cli/test_render_error_formatter.cpp
-    cli/test_render_loop_integration.cpp
     cli/bench_json_tests.cpp
     cli/test_camera_path_command.cpp
     cli/test_populate_run_host_attribs.cpp
     cli/test_render_job_write_frame_sanity.cpp
+    cli/test_semantic_script.cpp
 )
 
 # Video exporter tests are appended only when the implementation target exists.
@@ -35,6 +35,7 @@ if(TARGET chronon3d_cli_video_export)
         chronon3d_media_video
     )
     list(APPEND _cli_test_sources
+        cli/test_render_loop_integration.cpp
         cli/test_frame_chunks.cpp
         cli/test_pipe_export_helpers.cpp
         cli/test_video_end_semantics.cpp

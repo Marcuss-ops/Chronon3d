@@ -1,0 +1,18 @@
+# Relocatable pkg-config metadata.  `prefix` is derived from `${pcfiledir}`
+# (the absolute directory holding this .pc) so the same installed package
+# works from any install prefix — including a `cmake --install --prefix`
+# that differs from the configure-time CMAKE_INSTALL_PREFIX.
+#
+# @_chronon3d_pc_prefix_rel@ is the relative path from
+# `${CMAKE_INSTALL_LIBDIR}/pkgconfig` back up to the install prefix, computed
+# at configure time in cmake/Chronon3DSdkInstall.cmake.
+prefix=${pcfiledir}/@_chronon3d_pc_prefix_rel@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: chronon3d
+Description: Chronon3D C ABI — cross-language render-plan facade (libchronon3d_c)
+Version: @PROJECT_VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lchronon3d_c

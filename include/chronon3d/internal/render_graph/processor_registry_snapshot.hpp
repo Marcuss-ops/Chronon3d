@@ -10,6 +10,7 @@
 // processor lifetime is independent from the mutable registry that produced it.
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/render_graph/processor_handle.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 
 #include <cstdint>
@@ -24,36 +25,6 @@ namespace chronon3d::renderer {
 
 class ShapeProcessor;
 class EffectProcessor;
-
-struct ShapeProcessorHandle {
-    std::uint32_t index{invalid_index()};
-
-    [[nodiscard]] static constexpr std::uint32_t invalid_index() noexcept {
-        return static_cast<std::uint32_t>(-1);
-    }
-
-    [[nodiscard]] constexpr bool valid() const noexcept {
-        return index != invalid_index();
-    }
-
-    friend constexpr bool operator==(ShapeProcessorHandle,
-                                     ShapeProcessorHandle) = default;
-};
-
-struct EffectProcessorHandle {
-    std::uint32_t index{invalid_index()};
-
-    [[nodiscard]] static constexpr std::uint32_t invalid_index() noexcept {
-        return static_cast<std::uint32_t>(-1);
-    }
-
-    [[nodiscard]] constexpr bool valid() const noexcept {
-        return index != invalid_index();
-    }
-
-    friend constexpr bool operator==(EffectProcessorHandle,
-                                     EffectProcessorHandle) = default;
-};
 
 class ProcessorRegistrySnapshot final {
 public:

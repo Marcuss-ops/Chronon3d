@@ -1,5 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include "../../daemon/daemon_service.hpp"
 #include "../../utils/common/props_file.hpp"
 #include "../../utils/common/props_inline.hpp"
 #include "../../utils/common/render_job_error_formatter.hpp"
@@ -169,6 +170,13 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<RenderState>();
     auto& args = *state->args;
 
+    // Wire the daemon's RENDER_JOB IPC command to the canonical render-plan
+    // executor. The daemon (chronon3d_cli_core) dispatches to this handler,
+    // so core never needs a link dependency on the render group.
+    render_job_dispatcher() = [registry = &ctx.registry](const std::string& payload) -> ipc::Reply {
+        return ipc_render_job(*registry, payload);
+    };
+
     auto* cmd = app.add_subcommand("render", "Render a composition");
     cmd->add_option("input", args.comp_id, "Composition name");
     cmd->add_option("--plan", state->plan_file,
@@ -292,7 +300,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         }
         if (!state->plan_file.empty()) {
             ctx.exit_code = run_render_plan_file(
-                ctx, state->plan_file, render_args.output, render_args.assets_root);
+                ctx.registry, state->plan_file, render_args.output, render_args.assets_root);
             return;
         }
         if (render_args.comp_id.empty()) {

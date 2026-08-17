@@ -1,0 +1,53 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# docker-runtime.yml — build + publish the chronon3d-runtime image.
+#
+# This is the single source of truth that produces the renderer image consumed
+# by RenderingGen: `ghcr.io/marcuss-ops/chronon3d-runtime:<version>`. It builds
+# the real engine (CLI + C API) from docker/chronon-runtime/Dockerfile and
+# publishes immutable, versioned tags — never `latest`.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: chronon3d-runtime
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/marcuss-ops/chronon3d-runtime
+
+jobs:
+  publish:
+    name: Build & publish chronon3d-runtime
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep -oP '^\s*VERSION\s+\K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | head -1)
+          echo "version=${VERSION:-0.1.0}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/chronon-runtime/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE }}:sha-${{ steps.version.outputs.short_sha }}

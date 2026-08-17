@@ -30,6 +30,7 @@
 namespace chronon3d::cli {
 
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
+void register_script_command(CLI::App& app, CliContext& ctx);
 namespace {
 
 struct ValidateState {
@@ -274,6 +275,7 @@ namespace chronon3d::cli::group_render {
 void register_commands(CLI::App& app, CliContext& ctx) {
     register_render_commands(app, ctx);
     register_render_plan_command(app, ctx);
+    register_script_command(app, ctx);
     register_validate_commands(app, ctx);
     register_bake_layer_commands(app, ctx);
 }
