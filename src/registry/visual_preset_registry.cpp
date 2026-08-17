@@ -68,7 +68,12 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
             .padding = std::array<float, 2>{16.0f, 10.0f},
         },
         .anchor = AnchorSpec{.type = "safe_area", .safe_margin = 0.06f, .alignment = "center"},
-        .animation = AnimationSpec{.preset = "active_word_pop", .unit = "word",
+        // The per-word pop is owned by the text preset `kinetic_word` /
+        // `active_word_pop`.  At layer level use the registered Chronon
+        // motion `fade_in`; passing the visual id here would make the motion
+        // catalog reject the plan because `active_word_pop` is not a layer
+        // motion preset.
+        .animation = AnimationSpec{.preset = "fade_in", .unit = "word",
                                    .enter_duration_frames = 8, .exit_duration_frames = 6},
         .fallback_anchors = {"center", "top", "bottom"},
         .capabilities = {"card", "local_background", "word_selector"},
