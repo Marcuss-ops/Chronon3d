@@ -26,8 +26,10 @@
 #include <utility>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/error.h>
+}  // extern "C"
 #endif
 
 namespace chronon3d::runtime {

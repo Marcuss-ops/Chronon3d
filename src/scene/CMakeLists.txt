@@ -13,6 +13,7 @@ add_library(chronon3d_scene OBJECT
     camera_tilt_clips.cpp
     camera_motion_applier.cpp
     layout_solver.cpp
+    overlay_layout_resolver.cpp
     path_utils.cpp
     media_placement.cpp
     path_factories.cpp

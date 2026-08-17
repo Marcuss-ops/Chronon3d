@@ -52,20 +52,31 @@ if(CHRONON3D_BUILD_C_API)
         chronon3d_sdk
         nlohmann_json::nlohmann_json
         # TICKET-JSON-SCHEMA-VALIDATOR — chronon3d_render_plan is the
-        # render-plan JSON Schema validator OBJECT library.  It is NOT
-        # linked into chronon3d_core (would require it in the SDK export
-        # set — see Chronon3DRegistry.cmake install/export wiring), so we
-        # link it directly to the C API SHARED lib here.  chronon3d_c is
-        # the only SDK surface that parses render-plan JSON
-        # (chronon_plan_compile_json + the legacy render entrypoint),
-        # so this direct link is the canonical propagation path.  In-tree
-        # tests link chronon3d_render_plan directly via
-        # tests/c_abi_tests.cmake LINK_TARGETS.
+        # render-plan JSON Schema validator OBJECT library.  It is also
+        # aggregated into libchronon3d_sdk_impl.a via
+        # CHRONON3D_REGISTRY_OBJECT_LIBS, which is what the C++ SDK facade
+        # (sdk::RenderEngine::compile_plan_json/render_plan_file) relies
+        # on.  We still link it directly to the C API SHARED lib here so
+        # chronon3d_c resolves the decode/compile symbols for its own
+        # standalone linkage.  In-tree tests link chronon3d_render_plan
+        # directly via tests/c_abi_tests.cmake LINK_TARGETS.
         chronon3d_render_plan
         chronon3d_render_plan_compiler
     )
+    # Windows export contract: define CHRONON3D_BUILD_DLL only while building
+    # the shared library so chronon3d.h expands CHRONON3D_API to
+    # __declspec(dllexport); consumers see __declspec(dllimport).  No-op on
+    # ELF platforms (the visibility-attribute path is taken instead).
+    target_compile_definitions(chronon3d_c PRIVATE CHRONON3D_BUILD_DLL)
+    # VERSION/SOVERSION give the shared library a real SONAME
+    # (libchronon3d_c.so.2) so Linux can distinguish ABI-incompatible
+    # releases.  SOVERSION tracks the C ABI contract reported by
+    # chronon_abi_version() (currently 2), NOT the project version; a
+    # breaking ABI change must bump BOTH together.
     set_target_properties(chronon3d_c PROPERTIES
         EXPORT_NAME C
+        VERSION ${PROJECT_VERSION}
+        SOVERSION 2
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         INSTALL_RPATH "$ORIGIN"

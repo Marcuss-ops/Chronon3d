@@ -3,6 +3,11 @@ build-*/
 dist/
 .cache/
 .ccache/
+.tmp/
+vcpkg_installed/
+output/
+test_renders/
+assets/
 *.log
 .git/
 .github/

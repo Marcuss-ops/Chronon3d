@@ -135,3 +135,25 @@ install(FILES
     "${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v1.schema.json"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/chronon3d/schemas
 )
+
+# ── pkg-config metadata ───────────────────────────────────────────────
+# For non-CMake consumers (Meson, Makefile, Rust build.rs, Go/cgo) that link
+# the C ABI shared library directly:
+#     pkg-config --cflags --libs chronon3d
+# Describes libchronon3d_c only; C++ consumers keep using find_package().
+if(TARGET chronon3d_c)
+    # Relative path from ${CMAKE_INSTALL_LIBDIR}/pkgconfig back up to the
+    # install prefix, so the generated .pc stays relocatable via ${pcfiledir}
+    # (see cmake/chronon3d.pc.in).
+    file(RELATIVE_PATH _chronon3d_pc_prefix_rel
+         "/${CMAKE_INSTALL_LIBDIR}/pkgconfig" "/")
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/chronon3d.pc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/chronon3d.pc"
+        @ONLY
+    )
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/chronon3d.pc"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+    )
+endif()

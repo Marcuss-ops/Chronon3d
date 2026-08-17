@@ -18,6 +18,15 @@
 | OpenType feature coverage | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 
+## Non-Blocking Backlog (P3 — non blockers)
+
+> Ticket che NON bloccano alcun percorso stabile; dettaglio nelle schede `tickets/`.
+
+| Epic / Area | Pri | Stato | Scheda |
+|---|---:|---|---|
+| Text: warning clipping testo oversized | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) — warning `[text-vis] CLIP_DROPS_INK` osservato sul golden canary E2E; formalizza la known limitation `TICKET-TEXT-CLIP-BOX` |
+| Text: test/regression clipping oversized | P3 | OPEN | [TEXT-OVERSIZED-CLIP-REGRESSION-TEST](tickets/TICKET-TEXT-OVERSIZED-CLIP-REGRESSION-TEST.md) — lock testuale separato: TEST_CASE render-plan-driven + promozione WARN→CHECK post-enforcement |
+
 ## Recently Closed
 
 - Render layer timing removed from the global job in `ecf183f5`; typed plan decoding and pre-frame preparation landed in `27dc34d6` and `67f7f00b`.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/runtime/render_surface_handle.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -7,16 +9,10 @@
 
 namespace chronon3d::runtime {
 
-/// Opaque logical surface identity. Backends resolve this handle to a CPU
-/// framebuffer, VkImage, or another device-local representation.
-using RenderSurfaceHandle = std::uint64_t;
-
 struct UploadTicket {
     std::uint64_t value{0};
     [[nodiscard]] bool valid() const noexcept { return value != 0; }
 };
-
-inline constexpr RenderSurfaceHandle kInvalidRenderSurfaceHandle = 0;
 
 enum class ResourceKind : std::uint8_t { Color, Depth, Yuv, Bytes };
 enum class LifetimeClass : std::uint8_t { FrameTransient, PipelineSlot, JobPersistent };

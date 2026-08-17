@@ -1,6 +1,7 @@
 #include "native_av_encoder.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
 #include <chrono>
 
 namespace chronon3d::cli {

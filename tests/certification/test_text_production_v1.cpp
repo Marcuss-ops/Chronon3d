@@ -778,12 +778,14 @@ TEST_CASE("Animation frame-by-frame → visible ink changes across frames") {
     INFO("animation alpha sum: f0=", alpha0, " f15=", alpha15, " f30=", alpha30);
 
     // Opacity 0 → 1: total alpha must be non-decreasing and strictly larger at the end.
-    // KNOWN LIMITATION (TICKET-TEXT-LAYER-OPACITY-ANIM): layer opacity animation is
-    // not yet applied to text layers, so the rendered output is identical across
-    // frames. Converted to WARN until the engine supports per-layer opacity anim.
-    WARN(alpha0 <= alpha15);
-    WARN(alpha15 <= alpha30);
-    WARN(alpha30 > alpha0);
+    // TICKET-TEXT-LAYER-OPACITY-ANIM (closed): the graph builder used to cull
+    // animated-opacity layers at frame 0 (baked opacity == 0), freezing the
+    // invisible topology into the reused graph so the in-process frame loop
+    // rendered identical frames.  Animated-opacity layers now stay in the
+    // graph and their per-frame opacity is refreshed, so the fade-in is real.
+    CHECK(alpha0 <= alpha15);
+    CHECK(alpha15 <= alpha30);
+    CHECK(alpha30 > alpha0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

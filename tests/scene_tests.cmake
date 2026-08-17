@@ -50,6 +50,7 @@ chronon3d_add_test_suite(
         scene/rendering/test_render_node_factory.cpp
         scene/rendering/test_depth_role.cpp
         scene/layout/test_layout_solver.cpp
+        scene/layout/test_overlay_layout_resolver.cpp
         layout/test_layout_flow_grid.cpp
         presets/test_presets.cpp
         presets/test_layer_motion_presets.cpp

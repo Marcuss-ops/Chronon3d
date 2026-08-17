@@ -17,7 +17,8 @@
 //                                         └── AssetRegistry
 //
 // External consumers MUST use chronon3d::sdk::RenderEngine (included via
-// <chronon3d/chronon3d.hpp> or <chronon3d/sdk/render_engine.hpp>).
+// <chronon3d/sdk/render_engine.hpp> — the only canonical include; there is
+// no umbrella mega-header).
 //
 // OPP-internal consumers (CLI daemon, tests, content composition) that
 // need the fuller API surface (set_image_backend, set_video_decoder,
@@ -144,7 +145,8 @@ private:
  *   of the public SDK umbrella and is excluded from the canonical V0.1
  *   public API surface.  External consumers MUST use
  *   `chronon3d::sdk::RenderEngine` instead (included via
- *   `<chronon3d/chronon3d.hpp>` or `<chronon3d/sdk/render_engine.hpp>`).
+ *   `<chronon3d/sdk/render_engine.hpp>` — the only canonical include;
+ *   there is no umbrella mega-header).
  *
  *   OPP-internal consumers (CLI daemon, tests) that need the fuller
  *   API surface may continue to use this class but must include

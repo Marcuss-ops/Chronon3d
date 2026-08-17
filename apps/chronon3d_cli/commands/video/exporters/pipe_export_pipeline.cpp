@@ -9,6 +9,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 
+#include "../../../utils/video/native_video_frame_decoder.hpp"
+
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <functional>
@@ -185,7 +187,15 @@ RenderLoopOutput run_pipe_export_loop(
     // second local cache.  This keeps still and video renders consistent and
     // avoids split statistics / capacity / clear behaviour.
     cache::NodeCache& node_cache = session.renderer->node_cache();
-    media::MediaFrameProvider* video_decoder = nullptr;
+
+    // Production video-frame decoder: video source layers (VideoNode) consume
+    // media::MediaFrameProvider; without a live decoder every video layer
+    // (light leaks, VIDEO_BACKGROUND, …) renders as an empty black framebuffer.
+    // The decoder is created per render and lazily opens one session per
+    // source path. NativeVideoFrameDecoder compiles to a null-decoding stub
+    // when CHRONON3D_ENABLE_NATIVE_FFMPEG is off.
+    auto native_decoder = std::make_shared<NativeVideoFrameDecoder>();
+    media::MediaFrameProvider* video_decoder = native_decoder.get();
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     telemetry_frames.reserve(session.total_frames > 0

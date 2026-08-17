@@ -126,3 +126,7 @@ out/
 
 # SSoT test fixture for F1.2 schema validator (TICKET-BENCH-SCHEMA-V1)
 !bench/example_report.json
+
+# ── SDK consumer projects (sdk_consumers/) ──────────────────────────────────
+sdk_consumers/02_c_minimal/c_minimal
+sdk_consumers/04_rust/target/

@@ -5,7 +5,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/memory/memory_utils.hpp>
-#include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <vector>
 #include <string>

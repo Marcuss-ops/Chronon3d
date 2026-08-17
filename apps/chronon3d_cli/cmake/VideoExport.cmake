@@ -37,6 +37,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE
         utils/video/native_av_encoder.cpp
         utils/video/native_av_encoder_write.cpp
+        utils/video/native_video_frame_decoder.cpp
     )
     target_link_libraries(chronon3d_cli_video_export PRIVATE
         chronon3d_ffmpeg_full
