@@ -5,6 +5,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <span>
@@ -29,6 +31,13 @@ struct ContentDigest {
 /// Hash a deterministic byte/string representation with the same SHA-256
 /// primitive used by prepared assets.
 [[nodiscard]] ContentDigest sha256_string(std::string_view value);
+
+/// Stream-SHA-256 a file's bytes with the same primitive. Returns nullopt if
+/// the file cannot be opened or fails while being read. This is the canonical
+/// content digest for rendered artifacts (post-render verification, `copy
+/// eligibility`), and is deliberately unbound by any asset-size policy.
+[[nodiscard]] std::optional<ContentDigest> sha256_file(
+    const std::filesystem::path& path);
 
 enum class PreparedAssetKind : std::uint8_t {
     Image,

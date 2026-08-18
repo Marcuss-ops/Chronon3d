@@ -113,6 +113,14 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
         hash.add(layer.opacity.has_value());
         if (layer.opacity) hash.add(*layer.opacity);
         hash.add(layer.loop);
+        hash.add(layer.background.has_value());
+        if (layer.background) {
+            hash.add(layer.background->asset);
+            hash.add(layer.background->fit.has_value());
+            if (layer.background->fit) hash.add_enum(*layer.background->fit);
+            hash.add(layer.background->opacity.has_value());
+            if (layer.background->opacity) hash.add(*layer.background->opacity);
+        }
     }
 
     hash.add(plan.audio_tracks.size());
@@ -321,6 +329,15 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         }
         layer.style = std::move(style_plan);
     }
+    if (value.contains("background")) {
+        const auto& background = value.at("background");
+        LayerBackgroundPlan background_plan;
+        background_plan.asset = background.value("asset", std::string{});
+        if (background.contains("fit"))
+            background_plan.fit = fit_mode(background.at("fit").get<std::string>());
+        background_plan.opacity = optional_value<float>(background, "opacity");
+        layer.background = std::move(background_plan);
+    }
     if (value.contains("blend_mode")) {
         if (const auto mode = blend_mode(value.at("blend_mode").get<std::string>())) {
             layer.blend_mode = mode;
@@ -419,6 +436,18 @@ std::optional<PlanDecodeError> validate_render_budget(
                            budget.max_asset_reference_bytes))
                 return fail("layers[]", "render budget max_asset_reference_bytes exceeded");
         }
+        if (layer.background) {
+            if (layer.background->asset.empty())
+                return fail("layers[" + std::to_string(index) + "].background.asset",
+                            "background asset must not be empty");
+            if (!add_bytes(asset_reference_bytes, layer.background->asset.size(),
+                           budget.max_asset_reference_bytes))
+                return fail("layers[].background.asset",
+                            "render budget max_asset_reference_bytes exceeded");
+            if (layer.background->opacity &&
+                !std::isfinite(*layer.background->opacity))
+                return fail("layers[].background.opacity", "value must be finite");
+        }
         for (const auto* numeric : {&layer.font_size, &layer.box_width,
                                     &layer.box_height}) {
             if (numeric->has_value()) {
@@ -497,6 +526,11 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             if (invalid_logical_path(decoded_layer.source)) {
                 return PlanDecodeError{"layers[].source",
                     "source references must be relative logical paths"};
+            }
+            if (decoded_layer.background &&
+                invalid_logical_path(decoded_layer.background->asset)) {
+                return PlanDecodeError{"layers[].background.asset",
+                    "background references must be relative logical paths"};
             }
             if (invalid_logical_path(decoded_layer.font)) {
                 return PlanDecodeError{"layers[].font",

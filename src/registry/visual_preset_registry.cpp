@@ -86,21 +86,21 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
         .semantic_role = "important_phrase",
         .version = 1,
         .supported_layer = VisualLayerKind::Text,
-        .base_preset = "caption_safe_area",
+        .base_preset = "title_centered",
         .style = VisualStyle{
             .font_family = "Poppins",
             .font_asset = "assets/fonts/Poppins-Bold.ttf",
             .font_weight = 700,
-            .font_size = 72.0f,
+            .font_size = 64.0f,
             .fill = "#FFFFFF",
-            .background_color = "#050509",
-            .background_opacity = 0.86f,
-            .radius = 12.0f,
-            .padding = std::array<float, 2>{24.0f, 14.0f},
+            .shadow_color = "#000000",
+            .shadow_opacity = 0.42f,
+            .shadow_blur = 10.0f,
+            .shadow_offset = std::array<float, 2>{0.0f, 4.0f},
         },
-        .anchor = AnchorSpec{.type = "safe_area", .safe_margin = 0.06f, .alignment = "center"},
+        .anchor = AnchorSpec{.type = "center", .safe_margin = 0.06f, .alignment = "center"},
         .animation = AnimationSpec{.preset = "fade_in", .unit = "line",
-                                   .enter_duration_frames = 8, .exit_duration_frames = 6},
+                                   .enter_duration_frames = 10, .exit_duration_frames = 8},
         .fallback_anchors = {"center", "top"},
         .capabilities = {"2d", "card", "local_background", "collision_avoid"},
     });
@@ -298,25 +298,6 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
         "name_scale_in", "name", VisualLayerKind::Text, "lower_third",
         "scale_drop", "line", "lower_third", "left", 58.0f, 700));
 
-    // Important phrases: readable centered cards with five simple entry
-    // treatments. Word-level reveal is expressed through the canonical text
-    // selector unit, not through a second animation implementation. They
-    // lower onto the canonical `caption_safe_area` text materializer.
-    r.register_preset(make_simple_2d_preset(
-        "phrase_fade_in", "important_phrase", VisualLayerKind::Text, "caption_safe_area",
-        "fade_in", "line", "safe_area", "center", 72.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_slide_up", "important_phrase", VisualLayerKind::Text, "caption_safe_area",
-        "reveal_from_bottom", "line", "safe_area", "center", 72.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_word_reveal", "important_phrase", VisualLayerKind::Text, "caption_safe_area",
-        "fade_in", "word", "safe_area", "center", 72.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_soft_pop", "important_phrase", VisualLayerKind::Text, "caption_safe_area",
-        "soft_pop", "line", "safe_area", "center", 72.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_scale_in", "important_phrase", VisualLayerKind::Text, "caption_safe_area",
-        "scale_drop", "line", "safe_area", "center", 72.0f, 700));
 }
 
 } // namespace

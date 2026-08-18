@@ -265,9 +265,10 @@ inline void seed_builtin_presets(MotionPresetCatalogBuilder& reg) {
             const f32 distance = amount_or(params, 100.0f);
             const Frame duration = duration_or(params, Frame{30});
             const EasingCurve easing = easing_or(params, EasingCurve{Easing::OutCubic});
+            const Vec3 target = lb.position_anim().evaluate(0.0);
             AnimationTrack<Vec3> pos_track;
-            pos_track.from(Frame{0}, Vec3{0.0f, distance, 0.0f}, easing.preset)
-                     .to(duration, Vec3{0.0f, 0.0f, 0.0f});
+            pos_track.from(Frame{0}, target + Vec3{0.0f, distance, 0.0f}, easing.preset)
+                     .to(duration, target);
             lb.position_anim().apply_track(pos_track);
 
             AnimationTrack<f32> op_track;
@@ -281,9 +282,10 @@ inline void seed_builtin_presets(MotionPresetCatalogBuilder& reg) {
             const Vec3 offset = vector_or(params, Vec3{0.0f, 40.0f, 0.0f});
             const Frame duration = duration_or(params, Frame{30});
             const EasingCurve easing = easing_or(params, EasingCurve{Easing::OutCubic});
+            const Vec3 target = lb.position_anim().evaluate(0.0);
             AnimationTrack<Vec3> pos_track;
-            pos_track.from(Frame{0}, offset, easing.preset)
-                     .to(duration, Vec3{0.0f, 0.0f, 0.0f});
+            pos_track.from(Frame{0}, target + offset, easing.preset)
+                     .to(duration, target);
             lb.position_anim().apply_track(pos_track);
 
             AnimationTrack<f32> op_track;
@@ -297,9 +299,10 @@ inline void seed_builtin_presets(MotionPresetCatalogBuilder& reg) {
             const Vec3 offset = vector_or(params, Vec3{-60.0f, 0.0f, 0.0f});
             const Frame duration = duration_or(params, Frame{30});
             const EasingCurve easing = easing_or(params, EasingCurve{Easing::OutCubic});
+            const Vec3 target = lb.position_anim().evaluate(0.0);
             AnimationTrack<Vec3> pos_track;
-            pos_track.from(Frame{0}, offset, easing.preset)
-                     .to(duration, Vec3{0.0f, 0.0f, 0.0f});
+            pos_track.from(Frame{0}, target + offset, easing.preset)
+                     .to(duration, target);
             lb.position_anim().apply_track(pos_track);
 
             AnimationTrack<f32> op_track;

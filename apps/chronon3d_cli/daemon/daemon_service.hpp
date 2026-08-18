@@ -11,6 +11,7 @@ namespace chronon3d {
     class RenderEngine;
     class PreparedRenderJob;
     class Config;
+    class SoftwareRenderer;
 }
 
 namespace chronon3d::cli {
@@ -21,6 +22,9 @@ namespace chronon3d::cli {
 /// render-group link dependency.
 using RenderJobDispatcher = std::function<ipc::Reply(const std::string&)>;
 RenderJobDispatcher& render_job_dispatcher();
+using WarmRenderJobDispatcher = std::function<ipc::Reply(
+    const std::string&, std::shared_ptr<SoftwareRenderer>)>;
+WarmRenderJobDispatcher& warm_render_job_dispatcher();
 
 struct DaemonOptions {
     /// Root directory for asset resolution (fonts, images, etc.).
@@ -95,6 +99,7 @@ private:
     const CompositionRegistry& m_registry;
     DaemonOptions m_options;
     std::unique_ptr<RenderEngine> m_engine;
+    std::shared_ptr<SoftwareRenderer> m_warm_renderer;
     std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
     bool m_running{true};

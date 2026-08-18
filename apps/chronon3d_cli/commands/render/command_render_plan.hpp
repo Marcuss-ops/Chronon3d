@@ -4,6 +4,9 @@
 #include "../../daemon/chronon_ipc.hpp"
 
 #include <string>
+#include <memory>
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace CLI { class App; }
 
@@ -12,7 +15,9 @@ namespace chronon3d::cli {
 int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& input,
                          const std::string& output = {},
-                         const std::string& assets_root = {});
+                         const std::string& assets_root = {},
+                         bool report = false,
+                         std::shared_ptr<SoftwareRenderer> warm_renderer = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload
@@ -20,5 +25,8 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx);
 /// {"status":"ok","output":"..."}.
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const std::string& payload);
+ipc::Reply ipc_render_job(const CompositionRegistry& registry,
+                          const std::string& payload,
+                          std::shared_ptr<SoftwareRenderer> warm_renderer);
 
 }  // namespace chronon3d::cli
