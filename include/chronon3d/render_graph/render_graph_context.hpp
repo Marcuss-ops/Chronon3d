@@ -90,6 +90,12 @@ namespace chronon3d {
     class DebugConfig;  // re-exported; see forward-declare above
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
     struct RenderSession;  // PR-5 — session ptr on RenderServices for PrecompNode inner exec
+    class TextRenderResources;
+}
+
+namespace chronon3d::runtime {
+    class GpuAssetCache;
+    class GpuGlyphAtlas;
 }
 
 namespace chronon3d::media {
@@ -245,6 +251,9 @@ struct RenderPolicy {
 struct RenderServices {
     RenderBackend* backend{nullptr};
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
+    runtime::GpuAssetCache* gpu_asset_cache{nullptr};
+    runtime::GpuGlyphAtlas* gpu_glyph_atlas{nullptr};
+    TextRenderResources* text_render_resources{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
     CompiledGraphCache* compiled_graph_cache{nullptr};
