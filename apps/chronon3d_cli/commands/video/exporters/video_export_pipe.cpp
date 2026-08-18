@@ -80,6 +80,15 @@ struct GpuMetrics {
     std::optional<uint64_t> gpu_upload_bytes;
     std::optional<uint64_t> gpu_submissions;
     std::optional<uint64_t> passes_executed;
+    std::optional<uint64_t> gpu_nodes;
+    std::optional<uint64_t> software_fallback_nodes;
+    std::optional<uint64_t> software_fallback_us;
+    std::optional<uint64_t> fallback_draw_node;
+    std::optional<uint64_t> fallback_text_run;
+    std::optional<uint64_t> fallback_composite;
+    std::optional<uint64_t> fallback_effect;
+    std::optional<uint64_t> fallback_blur;
+    std::optional<uint64_t> fallback_dof;
 };
 
 // Job-level timings written to the `job` object of the frame-timing sidecar.
@@ -437,6 +446,15 @@ void write_frame_timing_sidecar(
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
     put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
     put_gpu_u64("passes_executed", timings.gpu.passes_executed);
+    put_gpu_u64("gpu_nodes", timings.gpu.gpu_nodes);
+    put_gpu_u64("software_fallback_nodes", timings.gpu.software_fallback_nodes);
+    put_gpu_u64("software_fallback_us", timings.gpu.software_fallback_us);
+    put_gpu_u64("fallback_draw_node", timings.gpu.fallback_draw_node);
+    put_gpu_u64("fallback_text_run", timings.gpu.fallback_text_run);
+    put_gpu_u64("fallback_composite", timings.gpu.fallback_composite);
+    put_gpu_u64("fallback_effect", timings.gpu.fallback_effect);
+    put_gpu_u64("fallback_blur", timings.gpu.fallback_blur);
+    put_gpu_u64("fallback_dof", timings.gpu.fallback_dof);
 
     auto& prepare = job["prepare"];
     const auto put_prepare = [&prepare](const char* key, const std::optional<double>& value) {
@@ -727,6 +745,24 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.gpu_submissions = value;
             } else if (name == "passes_executed") {
                 timings.gpu.passes_executed = value;
+            } else if (name == "gpu_nodes") {
+                timings.gpu.gpu_nodes = value;
+            } else if (name == "software_fallback_nodes") {
+                timings.gpu.software_fallback_nodes = value;
+            } else if (name == "software_fallback_us") {
+                timings.gpu.software_fallback_us = value;
+            } else if (name == "fallback_draw_node") {
+                timings.gpu.fallback_draw_node = value;
+            } else if (name == "fallback_text_run") {
+                timings.gpu.fallback_text_run = value;
+            } else if (name == "fallback_composite") {
+                timings.gpu.fallback_composite = value;
+            } else if (name == "fallback_effect") {
+                timings.gpu.fallback_effect = value;
+            } else if (name == "fallback_blur") {
+                timings.gpu.fallback_blur = value;
+            } else if (name == "fallback_dof") {
+                timings.gpu.fallback_dof = value;
             }
         }
     }
