@@ -188,3 +188,74 @@ if(CHRONON3D_VENDOR_THIRD_PARTY AND DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPK
         message(WARNING "CHRONON3D_VENDOR_THIRD_PARTY=ON but the vcpkg triplet was not found: ${_chronon3d_vendor_src}")
     endif()
 endif()
+
+# ── SDK PACKAGE MANIFEST + VERSION (the stage IS the product) ──────────────
+# A self-describing install stage carries manifest.json (the SDK PACKAGE
+# MANIFEST — product/version/abi/schema/platform/build/features — NOT the
+# per-render receipt) and VERSION at its root, so `cmake --install --prefix`
+# already produces the distributable product.  tools/build_sdk_bundle.sh only
+# wraps that stage into chronon-sdk-<platform>/ and copies these two files
+# verbatim; the single source of truth for their content lives here.
+
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" _chronon3d_sdk_os)
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _chronon3d_sdk_arch)
+
+find_package(Git QUIET)
+set(_chronon3d_sdk_git_sha "unknown")
+if(GIT_EXECUTABLE)
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        RESULT_VARIABLE _chronon3d_sdk_git_rc
+        OUTPUT_VARIABLE _chronon3d_sdk_git_sha
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(NOT _chronon3d_sdk_git_rc EQUAL 0 OR _chronon3d_sdk_git_sha STREQUAL "")
+        set(_chronon3d_sdk_git_sha "unknown")
+    endif()
+endif()
+
+if(CHRONON3D_ENABLE_VULKAN)
+    set(_chronon3d_sdk_vulkan_flag "true")
+else()
+    set(_chronon3d_sdk_vulkan_flag "false")
+endif()
+if(CHRONON3D_ENABLE_TEXT)
+    set(_chronon3d_sdk_text_flag "true")
+else()
+    set(_chronon3d_sdk_text_flag "false")
+endif()
+if(CMAKE_BUILD_TYPE)
+    set(_chronon3d_sdk_build_type "${CMAKE_BUILD_TYPE}")
+else()
+    set(_chronon3d_sdk_build_type "Release")
+endif()
+
+set(_chronon3d_sdk_manifest "${CMAKE_CURRENT_BINARY_DIR}/sdk_manifest.json")
+file(WRITE "${_chronon3d_sdk_manifest}"
+"{\n"
+"  \"product\": \"chronon3d-sdk\",\n"
+"  \"version\": \"${PROJECT_VERSION}\",\n"
+"  \"abi\": 2,\n"
+"  \"render_plan_schema\": \"chronon.render-plan.v1\",\n"
+"  \"platform\": \"${_chronon3d_sdk_os}-${_chronon3d_sdk_arch}\",\n"
+"  \"build\": {\n"
+"    \"git_sha\": \"${_chronon3d_sdk_git_sha}\",\n"
+"    \"type\": \"${_chronon3d_sdk_build_type}\"\n"
+"  },\n"
+"  \"features\": {\n"
+"    \"software\": true,\n"
+"    \"vulkan\": ${_chronon3d_sdk_vulkan_flag},\n"
+"    \"text\": ${_chronon3d_sdk_text_flag}\n"
+"  }\n"
+"}\n"
+)
+
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/sdk_version.txt"
+"${PROJECT_VERSION}\n"
+)
+
+install(FILES "${_chronon3d_sdk_manifest}" DESTINATION . RENAME manifest.json)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sdk_version.txt"
+        DESTINATION . RENAME VERSION)

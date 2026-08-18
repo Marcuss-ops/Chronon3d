@@ -79,6 +79,31 @@ Tutti i punti seguenti devono essere veri:
    serializzazione BUSY e stato strutturato per asset modificati devono essere
    verificati da consumer C/C++ sul medesimo SHA.
 
+## Doctor — capability check encoder
+
+`chronon doctor` (flag `--json` e/o `--deep`) certifica la readiness
+ dell'ambiente di encoding interrogando l'eseguibile `ffmpeg` sul `PATH`.
+ I capability check encoder sono:
+
+| Check | Probe canonico | Assenza → |
+|---|---|---|
+| `encoder.ffmpeg` | `ffmpeg -version` | `FAIL` (blocca `ready`) |
+| `encoder.h264` | `ffmpeg -h encoder=libx264` | `FAIL` (codec baseline, blocca `ready`) |
+| `encoder.h265` | `ffmpeg -h encoder=libx265` | `SKIP` (opzionale) |
+| `encoder.av1` | `ffmpeg -h encoder=libaom-av1` | `SKIP` (opzionale) |
+| `encoder.nvenc` | `ffmpeg -h encoder=h264_nvenc` | `SKIP` (hardware NVIDIA) |
+
+Regole:
+
+1. `encoder.ffmpeg` e `encoder.h264` devono risultare `PASS` perché il doctor
+   riporti `ready=true` (assenza → `FAIL`);
+2. `encoder.h265`, `encoder.av1`, `encoder.nvenc` sono opzionali: assenza →
+   `SKIP` (advisory), non bloccano `ready`;
+3. se `ffmpeg` non è presente, tutti i check codec degradano a `SKIP`
+   (nessun probe viene tentato);
+4. il probe è una capability probe reale (`ffmpeg -h encoder=<name>`), non la
+   sola presenza dell'eseguibile (`ffmpeg -version`).
+
 ## Certificazione Globale Linux (21-item DoD)
 
 Il comando canonico per la certificazione prodotto end-to-end è:

@@ -16,6 +16,9 @@ namespace cli {
 // Forward declaration — full definition lives in `cli_context.hpp`.
 struct CliContext;
 
+// Full definition lives in `commands/dev/doctor_report.hpp`.
+struct DoctorOptions;
+
 struct RenderQualityArgs {
     // PR1 — motion blur is now a tri-state (Off | TemporalAccumulation |
     // VelocityApproximation). The `motion_blur` boolean is the convenient CLI
@@ -207,6 +210,7 @@ struct ExamplePropsArgs {
 // Phase 1d / Increment E
 struct ValidateArgs {
     std::string comp_id;
+    std::string plan_file;      // RenderPlan-first mode (--plan <file>)
     std::string props_file;     // reuses canonical load_props_file()
     std::string props_json;     // inline JSON object (TU-local parse helper)
     bool json{true};
@@ -233,7 +237,8 @@ int command_daemon(const CompositionRegistry& registry,
                    const std::string& build_command = "",
                    const std::string& socket_path = "");
 int command_info(const CompositionRegistry& registry, const std::string& id);
-int command_doctor(const CompositionRegistry& registry);
+int command_doctor(const CompositionRegistry& registry,
+                   const DoctorOptions& options);
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir);
 int command_render(const CompositionRegistry& registry,
                    const RenderArgs& args,

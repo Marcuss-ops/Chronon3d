@@ -269,7 +269,11 @@ compile_render_plan(
         if (!prepared_store) {
             return PlanDecodeError{
                 "assets." + prepared_store.error().logical_path,
-                prepared_store.error().message};
+                prepared_store.error().message,
+                prepared_store.error().code ==
+                        chronon3d::assets::AssetPreflightErrorCode::MissingAsset
+                    ? "MissingAsset" : "",
+                "asset_resolver"};
         }
         auto resources = std::move(prepared_store).value();
         auto assets = resources.manifest();

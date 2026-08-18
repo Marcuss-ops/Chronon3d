@@ -10,6 +10,9 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     commands/render/command_render_plan.cpp
+    commands/render/render_plan_preparation.cpp
+    commands/render/render_plan_inspection.cpp
+    commands/render/command_inspect_plan.cpp
     commands/render/command_script.cpp
     commands/render/audio_muxer.cpp
     utils/job/render_job.cpp
@@ -44,6 +47,10 @@ endif()
 
 target_compile_definitions(chronon3d_cli_core PRIVATE
     CHRONON3D_HAS_CLI_RENDER
+)
+
+target_compile_definitions(chronon3d_cli_render PRIVATE
+    CHRONON3D_CLI_PROJECT_VERSION="${PROJECT_VERSION}"
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)

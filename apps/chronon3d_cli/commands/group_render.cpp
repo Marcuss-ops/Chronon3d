@@ -5,6 +5,8 @@
 #include "command_registry.hpp"
 #include "commands.hpp"
 #include "render/render_profiles.hpp"
+#include "render/command_inspect_plan.hpp"
+#include "render/render_plan_preparation.hpp"
 #include "../utils/common/cli_asset_preflight_utils.hpp"
 #include "../utils/common/props_file.hpp"
 #include "../utils/job/cli_render_utils.hpp"
@@ -35,6 +37,7 @@ namespace {
 
 struct ValidateState {
     std::string comp_id;
+    std::string plan_file;
     std::string props_file;
     std::string output;
     std::string profile{"production"};
@@ -245,7 +248,9 @@ void register_validate_commands(CLI::App& app, CliContext& ctx) {
     auto* command = app.add_subcommand(
         "validate",
         "Validate composition props, metadata, assets and output settings without rendering");
-    command->add_option("input", state->comp_id, "Composition name")->required();
+    command->add_option("input", state->comp_id, "Composition name");
+    command->add_option("--plan", state->plan_file,
+                        "Validate a chronon.render-plan.v1 file (RenderPlan-first)");
     command->add_option("--props-file", state->props_file,
                         "Flat JSON object containing composition props");
     command->add_option("-o,--output", state->output,
@@ -260,6 +265,21 @@ void register_validate_commands(CLI::App& app, CliContext& ctx) {
             std::set<std::string>{"draft", "preview", "production", "maximum"},
             CLI::ignore_case));
     command->callback([state, &ctx]() {
+        // RenderPlan-first: `chronon validate --plan plan.json` routes through
+        // the SAME canonical prepare_render_plan() pipeline as
+        // `chronon render --plan --dry-run` (single validate engine).
+        if (!state->plan_file.empty()) {
+            RenderPlanPreparationOptions options;
+            options.input = state->plan_file;
+            options.assets_root = state->assets_root;
+            ctx.exit_code = validate_render_plan(options);
+            return;
+        }
+        if (state->comp_id.empty()) {
+            spdlog::error("validate requires a composition name or --plan <file>");
+            ctx.exit_code = 1;
+            return;
+        }
         try {
             ctx.exit_code = run_validate(ctx, *state);
         } catch (const std::exception& error) {
@@ -278,5 +298,6 @@ void register_commands(CLI::App& app, CliContext& ctx) {
     register_script_command(app, ctx);
     register_validate_commands(app, ctx);
     register_bake_layer_commands(app, ctx);
+    register_inspect_plan_command(app, ctx);
 }
 } // namespace chronon3d::cli::group_render
