@@ -374,7 +374,11 @@ NodeExecResult MultiSourceNode::execute(
                 state.projection  = ctx.frame_input.projection_ctx;
             }
 
-        ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
+        const bool native_image = item.node->shape.type() == ShapeType::Image &&
+            detail::try_native_image(ctx, *fb, *item.node, state);
+        if (!native_image) {
+            ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
+        }
 
         if (ctx.policy.diagnostics_enabled) {
             spdlog::info(
