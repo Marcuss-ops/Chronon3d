@@ -59,8 +59,11 @@ color::ColorSpace parse_color_output(const std::string& cs) {
 }
 
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder) {
+    if (hw_encoder == "nvenc") {
+        if (codec == "h264" || codec == "auto" || codec == "libx264") return "h264_nvenc";
+        if (codec == "hevc" || codec == "libx265") return "hevc_nvenc";
+    }
     if (codec != "auto") return codec;
-    if (hw_encoder == "nvenc") return "h264_nvenc";
     if (hw_encoder == "qsv") return "h264_qsv";
     if (hw_encoder == "videotoolbox" || hw_encoder == "vt") return "h264_videotoolbox";
     if (hw_encoder == "amf") return "h264_amf";
