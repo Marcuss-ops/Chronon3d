@@ -17,16 +17,23 @@ namespace chronon3d::graph {
 
 namespace {
 
+bool clip_covers_result(const std::optional<raster::BBox>& clip,
+                        const Framebuffer& result) {
+    if (!clip) return true;
+    const raster::BBox bounds{
+        result.origin_x(), result.origin_y(),
+        result.origin_x() + result.width(),
+        result.origin_y() + result.height()};
+    return clip->x0 <= bounds.x0 && clip->y0 <= bounds.y0 &&
+           clip->x1 >= bounds.x1 && clip->y1 >= bounds.y1;
+}
+
 bool try_native_full_frame_glow(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    const bool has_partial_clip = clip &&
-        (clip->x0 != 0 || clip->y0 != 0 ||
-         clip->x1 != ctx.frame_input.width || clip->y1 != ctx.frame_input.height);
-    if (has_partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
-        effect_stack.size() != 1 || result.origin_x() != 0 || result.origin_y() != 0 ||
-        result.width() != ctx.frame_input.width || result.height() != ctx.frame_input.height ||
+    if (!clip_covers_result(clip, result) || !ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1 ||
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
@@ -96,12 +103,8 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    const bool has_partial_clip = clip &&
-        (clip->x0 != 0 || clip->y0 != 0 ||
-         clip->x1 != ctx.frame_input.width || clip->y1 != ctx.frame_input.height);
-    if (has_partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
-        effect_stack.size() != 1 || result.origin_x() != 0 || result.origin_y() != 0 ||
-        result.width() != ctx.frame_input.width || result.height() != ctx.frame_input.height ||
+    if (!clip_covers_result(clip, result) || !ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1 ||
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
@@ -157,12 +160,8 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    const bool has_partial_clip = clip &&
-        (clip->x0 != 0 || clip->y0 != 0 ||
-         clip->x1 != ctx.frame_input.width || clip->y1 != ctx.frame_input.height);
-    if (has_partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
-        effect_stack.size() != 1 || result.origin_x() != 0 || result.origin_y() != 0 ||
-        result.width() != ctx.frame_input.width || result.height() != ctx.frame_input.height ||
+    if (!clip_covers_result(clip, result) || !ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1 ||
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
