@@ -218,6 +218,10 @@ struct VulkanBackend::Impl {
     std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces;
     // handle → slot (identity only; no ownership)
     std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
+    // Temporary native passes may release a logical handle while the active
+    // frame batch is still recording commands that reference its image. Keep
+    // the Vulkan binding alive until the batch has been submitted.
+    std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases;
     std::size_t next_slot{0};
     // Last access kind per PHYSICAL SLOT within the current frame's
     // plan-driven batch, consumed by emit_plan_pass_barriers() to derive the
@@ -1292,6 +1296,29 @@ struct VulkanBackend::Impl {
         }
     }
 
+    void release_surface_now(runtime::RenderSurfaceHandle handle) {
+        const auto binding = surface_bindings.find(handle);
+        if (binding == surface_bindings.end()) return;
+        wait_for_pending();
+        const auto slot = binding->second;
+        surface_bindings.erase(binding);
+        if (!slot_in_use(slot)) {
+            const auto physical_it = physical_surfaces.find(slot);
+            if (physical_it != physical_surfaces.end()) {
+                destroy_image(physical_it->second.image);
+                physical_surfaces.erase(physical_it);
+            }
+        }
+        ++stats.surface_releases;
+    }
+
+    void flush_deferred_surface_releases() {
+        if (deferred_surface_releases.empty()) return;
+        auto pending = std::move(deferred_surface_releases);
+        deferred_surface_releases.clear();
+        for (const auto handle : pending) release_surface_now(handle);
+    }
+
     std::uint64_t submit_upload(UploadSlot& slot, bool wait_for_completion) {
         check(vkEndCommandBuffer(slot.command_buffer), "vkEndCommandBuffer(upload slot)");
         const auto signal_value = ++next_timeline_value;
@@ -2258,6 +2285,7 @@ void VulkanBackend::end_frame_batch() {
         return;
     }
     m_impl->submit_batch();
+    m_impl->flush_deferred_surface_releases();
     batch.active = false;
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
@@ -2273,6 +2301,7 @@ void VulkanBackend::end_command_batch() {
         // vkQueueSubmit flushes the whole batch.
         m_impl->submit_batch();
     }
+    m_impl->flush_deferred_surface_releases();
     m_impl->frame_batch.active = false;
     m_impl->command_batch_active = false;
     m_impl->command_batch_started = false;
@@ -2309,28 +2338,15 @@ graph::RenderOpResult VulkanBackend::release_surface(
                 graph::RenderBackendErrorCode::InvalidInput,
                 "VulkanBackend::release_surface: invalid handle"});
         }
-        const auto binding = m_impl->surface_bindings.find(handle);
-        if (binding == m_impl->surface_bindings.end()) {
+        if (m_impl->frame_batch.active || m_impl->command_batch_active) {
+            if (std::find(m_impl->deferred_surface_releases.begin(),
+                          m_impl->deferred_surface_releases.end(), handle) ==
+                m_impl->deferred_surface_releases.end()) {
+                m_impl->deferred_surface_releases.push_back(handle);
+            }
             return graph::RenderOpResult(graph::RenderOpOutcome{});
         }
-        // Surface memory may be referenced by the last asynchronous upload
-        // or render submission.  Reclaim only after the backend's completion
-        // fence, otherwise cache eviction can destroy an in-flight VkImage.
-        m_impl->wait_for_pending();
-        const auto slot = binding->second;
-        m_impl->surface_bindings.erase(binding);
-        // Destroy the backing image only when no other handle still
-        // references this slot: plan-driven aliasing shares one VkImage
-        // across several logical handles, so releasing one of them must
-        // never free memory another handle is still bound to.
-        if (!m_impl->slot_in_use(slot)) {
-            const auto physical_it = m_impl->physical_surfaces.find(slot);
-            if (physical_it != m_impl->physical_surfaces.end()) {
-                m_impl->destroy_image(physical_it->second.image);
-                m_impl->physical_surfaces.erase(physical_it);
-            }
-        }
-        ++m_impl->stats.surface_releases;
+        m_impl->release_surface_now(handle);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::RenderBackendError{
