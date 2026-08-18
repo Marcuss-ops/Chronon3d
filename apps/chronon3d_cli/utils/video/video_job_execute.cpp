@@ -46,6 +46,12 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.warmup = std::move(warmup);
     opts.sink = std::move(sink);
     opts.assets_root = job.execution.assets_root;
+    // Honor the canonical backend preference resolved from --backend.
+    // The video pipe exporter otherwise rebuilt a fresh Config::from_environment
+    // (Auto → Software) and silently ignored --backend vulkan.
+    opts.backend_preference = job.execution.config
+        ? job.execution.config->backend_preference()
+        : chronon3d::graph::BackendPreference::Auto;
     return opts;
 }
 
@@ -63,8 +69,9 @@ int render_and_encode_ffmpeg(
         spdlog::error("[video] No output path specified.");
         return 1;
     }
-    if (!ffmpeg_in_path()) {
-        spdlog::error("[video] ffmpeg not found in PATH.");
+    if (encoder_backend_requires_ffmpeg(opts.encoder.encoder_backend) &&
+        !ffmpeg_in_path()) {
+        spdlog::error("[video] ffmpeg not found in PATH (required by the pipe encoder).");
         return 1;
     }
     if (end <= start) {

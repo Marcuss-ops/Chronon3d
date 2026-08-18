@@ -30,6 +30,9 @@ struct DaemonOptions {
     /// Root directory for asset resolution (fonts, images, etc.).
     std::string assets_root;
 
+    /// Backend selected for the persistent runtime (software | vulkan | auto).
+    std::string backend{"auto"};
+
     /// Shell command to rebuild the project (e.g. "bash build-fast.sh cli").
     /// Empty = no rebuild support.
     std::string build_command;
@@ -100,6 +103,7 @@ private:
     DaemonOptions m_options;
     std::unique_ptr<RenderEngine> m_engine;
     std::shared_ptr<SoftwareRenderer> m_warm_renderer;
+    std::string m_backend{"auto"};
     std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
     bool m_running{true};

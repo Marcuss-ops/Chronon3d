@@ -174,6 +174,14 @@ struct VisualPresetDescriptor {
     AnimationSpec animation;                        // motion intent.
     std::vector<std::string> fallback_anchors;      // preferred → fallback order.
     std::vector<std::string> capabilities;          // closed capability tags.
+    // ── Image geometry defaults (image presets only) ──────────────────────
+    // Canonical content box the image materializes with when the plan carries
+    // no explicit box/fit. Absent box → full canvas; empty fit → renderer
+    // default (cover). This is the ONE place image presets own their box;
+    // PipelineGen no longer hardcodes IMAGE_OVERLAY/PRODUCT/LOGO geometry.
+    std::optional<float> box_width;
+    std::optional<float> box_height;
+    std::string fit;                                // "cover" | "contain" | "stretch" | "none"
 };
 
 } // namespace chronon3d::registry

@@ -76,15 +76,18 @@ TEST_CASE("VisualPresetMaterializer: image preset resolves anchor + animation") 
     CHECK(resolved.preset_id == "image_focus_in");
     CHECK(resolved.layout.intent == "image_right");
     CHECK_FALSE(resolved.layout.fallback_intents.empty());
+    // The plan box (560×560) overrides the preset's canonical box (260×260).
     CHECK(resolved.layout.width == doctest::Approx(560.0f));
     CHECK(resolved.layout.height == doctest::Approx(560.0f));
+    // The preset's canonical fit (contain) drives execution.
+    CHECK(resolved.fit == chronon3d::render_plan::FitMode::Contain);
     // Registry animation defaults (motion + enter/exit) drive execution.
     CHECK(resolved.animation.preset == "focus_in");
     CHECK(resolved.animation.enter_duration == Frame{8});
     CHECK(resolved.animation.exit_duration == Frame{6});
 }
 
-TEST_CASE("VisualPresetMaterializer: image bounds default to the canvas") {
+TEST_CASE("VisualPresetMaterializer: image bounds default to the preset box") {
     const auto& registry = builtin_visual_preset_registry();
     const VisualPresetMaterializer materializer;
     const CanvasInfo canvas = CanvasInfo::from_dimensions(1920.0f, 1080.0f);
@@ -96,8 +99,11 @@ TEST_CASE("VisualPresetMaterializer: image bounds default to the canvas") {
     const auto resolved = materializer.materialize_image(
         layer, canvas, "discovery", registry, Frame{90});
 
-    CHECK(resolved.layout.width == doctest::Approx(1920.0f));
-    CHECK(resolved.layout.height == doctest::Approx(1080.0f));
+    // Image presets own their canonical box (260×260 contain, ADR-029): the
+    // plan no longer transports it, so the preset box is the default.
+    CHECK(resolved.layout.width == doctest::Approx(260.0f));
+    CHECK(resolved.layout.height == doctest::Approx(260.0f));
+    CHECK(resolved.fit == chronon3d::render_plan::FitMode::Contain);
 }
 
 TEST_CASE("VisualPresetMaterializer: image materialization rejects text presets") {

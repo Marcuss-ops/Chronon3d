@@ -9,6 +9,7 @@
 #include "color_adjust_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
+#include "fill_rect_comp_spv.hpp"
 #endif
 
 #include <array>
@@ -478,6 +479,32 @@ struct VulkanBackend::Impl {
             throw std::runtime_error("Vulkan kernel registry rejected TextRun pipeline");
         }
 
+        const VkShaderModuleCreateInfo fill_rect_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_fill_rect_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_fill_rect_comp_spv)};
+        VkShaderModule fill_rect_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &fill_rect_shader_info, nullptr, &fill_rect_shader),
+              "vkCreateShaderModule(fill rect)");
+        const VkPipelineShaderStageCreateInfo fill_rect_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            fill_rect_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo fill_rect_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            fill_rect_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+        VkPipeline fill_rect_pipeline = VK_NULL_HANDLE;
+        const VkResult fill_rect_result = vkCreateComputePipelines(
+            device, VK_NULL_HANDLE, 1, &fill_rect_pipeline_info, nullptr, &fill_rect_pipeline);
+        vkDestroyShaderModule(device, fill_rect_shader, nullptr);
+        check(fill_rect_result, "vkCreateComputePipelines(fill rect)");
+        if (!kernel_registry.register_kernel(
+                GpuKernelId::FillRect,
+                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(fill_rect_pipeline))) {
+            vkDestroyPipeline(device, fill_rect_pipeline, nullptr);
+            throw std::runtime_error("Vulkan kernel registry rejected FillRect pipeline");
+        }
+
         const VkCommandBufferAllocateInfo command_info{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
@@ -555,7 +582,7 @@ struct VulkanBackend::Impl {
         for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
                               GpuKernelId::AffineTransform, GpuKernelId::Blur,
                               GpuKernelId::ColorAdjust, GpuKernelId::Matte,
-                              GpuKernelId::TextRun}) {
+                              GpuKernelId::TextRun, GpuKernelId::FillRect}) {
             const auto handle = kernel_registry.resolve(id);
             if (handle != 0) {
                 vkDestroyPipeline(device,
@@ -641,6 +668,20 @@ struct VulkanBackend::Impl {
             {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &src_info, nullptr, nullptr}};
         vkUpdateDescriptorSets(device, 2, writes, 0, nullptr);
+    }
+
+    // fill_rect has a single-image binding (destination only, no source).
+    void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination) {
+        const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+        const VkWriteDescriptorSet writes[] = {
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr}};
+        vkUpdateDescriptorSets(device, 1, writes, 0, nullptr);
+    }
+
+    void bind_fill_rect_descriptors(const Image& destination) {
+        ensure_descriptor_set();
+        write_fill_rect_descriptors(descriptor_set, destination);
     }
 
     void write_matte_descriptors(VkDescriptorSet set, const Image& destination,
@@ -944,6 +985,25 @@ struct VulkanBackend::Impl {
             std::int32_t luma;
             std::int32_t inverted;
         } params{luma ? 1 : 0, inverted ? 1 : 0};
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+    }
+
+    void record_fill_rect(VkCommandBuffer command, VkDescriptorSet descriptors,
+                          const Image& destination,
+                          std::int32_t x0, std::int32_t y0,
+                          std::int32_t x1, std::int32_t y1,
+                          const Color& color) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::FillRect)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t rect[4];
+            float color[4];
+        } params{{x0, y0, x1, y1}, {color.r, color.g, color.b, color.a}};
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
@@ -1342,6 +1402,33 @@ struct VulkanBackend::Impl {
         emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_composite(command_buffer, descriptor_set, dst_image, src_image,
                          blend_mode, 1.0f, kIdentityTint);
+        submit();
+    }
+
+    void fill_rect(runtime::RenderSurfaceHandle destination,
+                   std::int32_t x0, std::int32_t y0,
+                   std::int32_t x1, std::int32_t y1,
+                   const Color& color) {
+        auto& dst_image = resolve_image(destination);
+        if (dst_image.width == 0 || dst_image.height == 0) {
+            throw std::invalid_argument("Vulkan fill_rect references an empty surface");
+        }
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_fill_rect_descriptors(descriptors, dst_image);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image});
+            record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1, color);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            ++stats.passes_executed;
+            return;
+        }
+        bind_fill_rect_descriptors(dst_image);
+        begin_command_buffer();
+        emit_conservative_pass_sync(command_buffer, {&dst_image});
+        record_fill_rect(command_buffer, descriptor_set, dst_image, x0, y0, x1, y1, color);
+        dst_image.initialized = true;
         submit();
     }
 
@@ -1952,6 +2039,7 @@ VulkanBackend::VulkanBackend(VulkanBackend&& other) noexcept {
 
 VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
     if (this == &other) return *this;
+    std::swap(m_draw_node_fallback, other.m_draw_node_fallback);
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::swap(m_impl, other.m_impl);
     std::swap(m_instance, other.m_instance);
@@ -1967,7 +2055,18 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
 }
 
 graph::RenderCapabilities VulkanBackend::capabilities() const noexcept {
-    return graph::RenderCapabilities{};
+    return graph::RenderCapabilities{
+        .text_run = m_draw_node_fallback != nullptr &&
+                    m_draw_node_fallback->capabilities().text_run};
+}
+
+std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+VulkanBackend::processor_snapshot() const noexcept {
+    return m_draw_node_fallback ? m_draw_node_fallback->processor_snapshot() : nullptr;
+}
+
+bool VulkanBackend::requires_processor_snapshot() const noexcept {
+    return m_draw_node_fallback && m_draw_node_fallback->requires_processor_snapshot();
 }
 
 VulkanBackendStats VulkanBackend::stats() const noexcept {
@@ -2332,6 +2431,27 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::fill_rect_surface(
+    runtime::RenderSurfaceHandle destination,
+    std::int32_t x0, std::int32_t y0,
+    std::int32_t x1, std::int32_t y1,
+    const Color& color) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        m_impl->fill_rect(destination, x0, y0, x1, y1, color);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)destination; (void)x0; (void)y0; (void)x1; (void)y1; (void)color;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::fill_rect_surface: Vulkan support is disabled"});
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::transform_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
@@ -2482,30 +2602,65 @@ void VulkanBackend::unsupported(const char* operation) {
                              ": RenderSurface execution is not wired yet");
 }
 
-void VulkanBackend::apply_per_pixel_dof(Framebuffer&, std::span<const float>,
-                                        const DepthOfFieldSettings&,
-                                        const LensModel&,
-                                        const std::optional<raster::BBox>&) {
+void VulkanBackend::apply_per_pixel_dof(
+    Framebuffer& framebuffer, std::span<const float> depth,
+    const DepthOfFieldSettings& dof, const LensModel& lens,
+    const std::optional<raster::BBox>& clip) {
+    // DOF still uses the legacy CPU framebuffer contract. Keep the selected
+    // runtime Vulkan-backed while delegating this unsupported operation to
+    // the canonical software backend until a surface-native DOF pass exists.
+    if (m_draw_node_fallback) {
+        m_draw_node_fallback->apply_per_pixel_dof(
+            framebuffer, depth, dof, lens, clip);
+        return;
+    }
     unsupported("apply_per_pixel_dof");
 }
-void VulkanBackend::draw_node(Framebuffer&, const RenderNode&, const RenderState&,
-                              const Camera&, int, int) {
-    unsupported("draw_node");
+void VulkanBackend::set_draw_node_fallback(
+    std::unique_ptr<graph::RenderBackend> fallback) {
+    m_draw_node_fallback = std::move(fallback);
 }
-void VulkanBackend::apply_effect_stack(Framebuffer&, const EffectStack&,
-                                       const effects::EffectExecutionContext&) {
+
+void VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
+                              const RenderState& state, const Camera& camera,
+                              int width, int height) {
+    if (m_draw_node_fallback) {
+        m_draw_node_fallback->draw_node(framebuffer, node, state, camera, width, height);
+        return;
+    }
+    unsupported("draw_node: no legacy-node fallback attached");
+}
+void VulkanBackend::apply_effect_stack(
+    Framebuffer& framebuffer, const EffectStack& stack,
+    const effects::EffectExecutionContext& context) {
+    if (m_draw_node_fallback) {
+        m_draw_node_fallback->apply_effect_stack(framebuffer, stack, context);
+        return;
+    }
     unsupported("apply_effect_stack");
 }
 void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer& source,
                                     BlendMode mode, const std::optional<raster::BBox>& clip,
                                     CompositeOperator op) {
     if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
+        if (m_draw_node_fallback) {
+            m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            return;
+        }
         throw std::runtime_error("VulkanBackend::composite_layer: only Normal/SourceOver is implemented");
     }
     if (clip) {
+        if (m_draw_node_fallback) {
+            m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            return;
+        }
         throw std::runtime_error("VulkanBackend::composite_layer: clipped surfaces are not implemented");
     }
     if (destination.width() != source.width() || destination.height() != source.height()) {
+        if (m_draw_node_fallback) {
+            m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            return;
+        }
         throw std::runtime_error("VulkanBackend::composite_layer: surface dimensions differ");
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -2514,8 +2669,25 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
     unsupported("composite_layer");
 #endif
 }
-void VulkanBackend::apply_blur(Framebuffer&, float,
-                               const std::optional<raster::BBox>&) {
+
+graph::RenderOpResult VulkanBackend::draw_text_run(
+    Framebuffer& framebuffer, const TextRunShape& shape,
+    const glm::mat4& model_matrix, float opacity) {
+    if (m_draw_node_fallback) {
+        return m_draw_node_fallback->draw_text_run(
+            framebuffer, shape, model_matrix, opacity);
+    }
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::draw_text_run: no legacy-node fallback attached"});
+}
+void VulkanBackend::apply_blur(
+    Framebuffer& framebuffer, float radius,
+    const std::optional<raster::BBox>& clip) {
+    if (m_draw_node_fallback) {
+        m_draw_node_fallback->apply_blur(framebuffer, radius, clip);
+        return;
+    }
     unsupported("apply_blur");
 }
 
