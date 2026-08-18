@@ -84,8 +84,12 @@ struct GpuMetrics {
     std::optional<uint64_t> software_fallback_nodes;
     std::optional<uint64_t> software_fallback_us;
     std::optional<uint64_t> fallback_draw_node;
+    std::optional<uint64_t> fallback_draw_image;
+    std::optional<uint64_t> fallback_draw_other;
     std::optional<uint64_t> fallback_text_run;
     std::optional<uint64_t> fallback_composite;
+    std::optional<uint64_t> fallback_composite_dimensions;
+    std::optional<uint64_t> fallback_composite_mode;
     std::optional<uint64_t> fallback_effect;
     std::optional<uint64_t> fallback_blur;
     std::optional<uint64_t> fallback_dof;
@@ -450,8 +454,12 @@ void write_frame_timing_sidecar(
     put_gpu_u64("software_fallback_nodes", timings.gpu.software_fallback_nodes);
     put_gpu_u64("software_fallback_us", timings.gpu.software_fallback_us);
     put_gpu_u64("fallback_draw_node", timings.gpu.fallback_draw_node);
+    put_gpu_u64("fallback_draw_image", timings.gpu.fallback_draw_image);
+    put_gpu_u64("fallback_draw_other", timings.gpu.fallback_draw_other);
     put_gpu_u64("fallback_text_run", timings.gpu.fallback_text_run);
     put_gpu_u64("fallback_composite", timings.gpu.fallback_composite);
+    put_gpu_u64("fallback_composite_dimensions", timings.gpu.fallback_composite_dimensions);
+    put_gpu_u64("fallback_composite_mode", timings.gpu.fallback_composite_mode);
     put_gpu_u64("fallback_effect", timings.gpu.fallback_effect);
     put_gpu_u64("fallback_blur", timings.gpu.fallback_blur);
     put_gpu_u64("fallback_dof", timings.gpu.fallback_dof);
@@ -763,10 +771,18 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.software_fallback_us = value;
             } else if (name == "fallback_draw_node") {
                 timings.gpu.fallback_draw_node = value;
+            } else if (name == "fallback_draw_image") {
+                timings.gpu.fallback_draw_image = value;
+            } else if (name == "fallback_draw_other") {
+                timings.gpu.fallback_draw_other = value;
             } else if (name == "fallback_text_run") {
                 timings.gpu.fallback_text_run = value;
             } else if (name == "fallback_composite") {
                 timings.gpu.fallback_composite = value;
+            } else if (name == "fallback_composite_dimensions") {
+                timings.gpu.fallback_composite_dimensions = value;
+            } else if (name == "fallback_composite_mode") {
+                timings.gpu.fallback_composite_mode = value;
             } else if (name == "fallback_effect") {
                 timings.gpu.fallback_effect = value;
             } else if (name == "fallback_blur") {
