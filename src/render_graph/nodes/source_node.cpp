@@ -29,7 +29,7 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
 // the immutable decoded pixels are promoted once into GpuAssetCache. Crop,
 // rounded corners, masks and projective transforms intentionally stay on the
 // reference path until equivalent native kernels exist.
-[[nodiscard]] bool try_native_image(
+[[nodiscard]] bool try_native_image_impl(
     RenderGraphContext& ctx, Framebuffer& fb,
     const RenderNode& node, const RenderState& state) {
     const auto& image = node.shape.image();
@@ -278,6 +278,12 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
 
 } // namespace
 
+bool detail::try_native_image(
+    RenderGraphContext& ctx, Framebuffer& fb,
+    const ::chronon3d::RenderNode& node, const RenderState& state) {
+    return try_native_image_impl(ctx, fb, node, state);
+}
+
 std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
@@ -519,7 +525,7 @@ NodeExecResult SourceNode::execute(
         const bool native_filled = try_native_rect_fill(ctx, *fb, m_node, state);
         const bool native_image = !native_filled &&
             m_node.shape.type() == ShapeType::Image &&
-            try_native_image(ctx, *fb, m_node, state);
+            detail::try_native_image(ctx, *fb, m_node, state);
         if (!native_filled && !native_image) {
             // P0-1: draw_node() returns void — backend failures (e.g. missing
             // processor-context, unsupported shape) are logged but cannot propagate

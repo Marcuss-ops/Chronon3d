@@ -11,6 +11,10 @@ class SourceNode;
 namespace detail {
 std::optional<raster::BBox> preflight_diagnostic_bbox(
     const SourceNode&, const RenderGraphContext&);
+
+[[nodiscard]] bool try_native_image(
+    RenderGraphContext&, Framebuffer&, const ::chronon3d::RenderNode&,
+    const RenderState&);
 }
 
 class SourceNode final : public RenderGraphNode {
