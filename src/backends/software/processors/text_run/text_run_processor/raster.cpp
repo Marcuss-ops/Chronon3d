@@ -433,7 +433,6 @@ struct SingleGlyphRun {
         && s.span_fonts.size() == 1
         && s.per_glyph_span_idx.size() == layout.placed.glyphs.size()
         && shape.dissolve_layout == nullptr
-        && shape.shadows.empty()
         && shape.paint.stroke_enabled == false) {
         const Color& fill = shape.paint.fill;
         const auto channel = [](float value) -> std::uint32_t {
