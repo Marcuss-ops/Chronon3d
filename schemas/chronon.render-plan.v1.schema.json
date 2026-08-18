@@ -27,10 +27,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "type"],
+        "required": ["id"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "type": { "enum": ["image", "video", "text", "color", "subtitle_track"] },
+          "type": {
+            "enum": ["image", "video", "text", "color", "subtitle_track"],
+            "description": "Layer primitive. Optional for preset-driven layers: Chronon derives it from the preset's supported_layer. Required (implicitly, no preset) for preset-less primitives such as background/video/shape/subtitle layers."
+          },
           "asset": { "type": "string" },
           "source": { "type": "string" },
           "text": { "type": "string", "maxLength": 1048576 },

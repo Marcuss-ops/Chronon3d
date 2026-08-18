@@ -22,7 +22,7 @@
 //   RENDER_OVERLAY  "<frame> [output-path]"   render + save a frame
 //   RENDER_JOB      <json>                    render a chronon.render-plan.v1
 //                                            file: {"plan_path", "assets_root",
-//                                            "output"}; replies JSON
+//                                            "output", "backend", "report"}; replies JSON
 //                                            {"status":"ok","output":"..."}
 //   STATUS          (empty)                   engine statistics
 //   SHUTDOWN        (empty)                   stop serving

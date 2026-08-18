@@ -113,6 +113,7 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
     auto assets_root = std::make_shared<std::string>();
     auto build_command = std::make_shared<std::string>("bash build-fast.sh cli");
     auto socket_path = std::make_shared<std::string>();
+    auto backend = std::make_shared<std::string>("auto");
     command->add_option("-a,--assets-root", *assets_root,
                         "Asset root directory (fonts, images)");
     command->add_option("-b,--build-cmd", *build_command,
@@ -120,9 +121,12 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
     command->add_option("-s,--socket", *socket_path,
                         "Serve the RenderingGen→Chronon IPC protocol on this "
                         "UNIX-domain socket path instead of stdin");
-    command->callback([assets_root, build_command, socket_path, &ctx]() {
+    command->add_option("--backend", *backend,
+                        "Persistent render backend: auto, software, or vulkan")
+        ->check(CLI::IsMember({"auto", "software", "vulkan"}));
+    command->callback([assets_root, build_command, socket_path, backend, &ctx]() {
         ctx.exit_code = command_daemon(
-            ctx.registry, *assets_root, *build_command, *socket_path);
+            ctx.registry, *assets_root, *build_command, *socket_path, *backend);
     });
 }
 

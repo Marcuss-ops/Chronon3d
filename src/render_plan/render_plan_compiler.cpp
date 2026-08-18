@@ -349,6 +349,11 @@ compile_render_plan(
             plan.layers.size());
         std::vector<std::optional<chronon3d::Vec2>> prepared_image_positions(
             plan.layers.size());
+        // Resolved image geometry (preset defaults + plan overrides) so the
+        // APPLY phase and scene builder consume the same box/fit the
+        // materializer used — they no longer re-read the raw plan box/fit.
+        std::vector<std::optional<ResolvedImageLayer>> prepared_images(
+            plan.layers.size());
         struct LayoutTarget {
             std::size_t layer_index;
             bool is_image;  // true → image position; false → text placement
@@ -390,6 +395,7 @@ compile_render_plan(
                 layout_requests.push_back(layout_request(
                     layer, resolved.layout, plan.canvas.duration.value));
                 layout_targets.push_back({index, true});
+                prepared_images[index] = resolved;
             }
         }
 
@@ -414,10 +420,9 @@ compile_render_plan(
                 // layers. Convert exactly once at this boundary:
                 //   top-left + half box - half canvas = centered world pos.
                 const auto& image_layer = plan.layers[target.layer_index];
-                const float box_width = image_layer.box_width.value_or(
-                    static_cast<float>(plan.canvas.width));
-                const float box_height = image_layer.box_height.value_or(
-                    static_cast<float>(plan.canvas.height));
+                const auto& resolved_image = *prepared_images[target.layer_index];
+                const float box_width = resolved_image.box_width;
+                const float box_height = resolved_image.box_height;
                 const float world_x = placement.x + box_width * 0.5f -
                                       static_cast<float>(plan.canvas.width) * 0.5f;
                 const float world_y = placement.y + box_height * 0.5f -
@@ -442,7 +447,8 @@ compile_render_plan(
         CompositionDefinition definition;
         definition.composition = spec;
         definition.scene = [plan, canvas, subtitles, resolved_video_paths,
-                            prepared_texts, prepared_image_positions](
+                            prepared_texts, prepared_image_positions,
+                            prepared_images](
                                const FrameContext& ctx) {
                 SceneBuilder scene(ctx);
 
@@ -472,10 +478,25 @@ compile_render_plan(
                             case LayerType::Image: {
                                 ImageParams params;
                                 params.asset_path = layer.asset;
+                                // Preset-driven images resolve their box/fit
+                                // through the materializer (preset defaults +
+                                // plan overrides); preset-less image primitives
+                                // still read the plan box/fit.
+                                const bool preset_resolved =
+                                    prepared_images[index].has_value();
                                 params.size = {
-                                    layer.box_width.value_or(static_cast<float>(plan.canvas.width)),
-                                    layer.box_height.value_or(static_cast<float>(plan.canvas.height))};
-                                params.fit = fit_mode(layer.fit.value_or(FitMode::Cover));
+                                    preset_resolved
+                                        ? prepared_images[index]->box_width
+                                        : layer.box_width.value_or(
+                                              static_cast<float>(plan.canvas.width)),
+                                    preset_resolved
+                                        ? prepared_images[index]->box_height
+                                        : layer.box_height.value_or(
+                                              static_cast<float>(plan.canvas.height))};
+                                params.fit = fit_mode(
+                                    preset_resolved
+                                        ? prepared_images[index]->fit
+                                        : layer.fit.value_or(FitMode::Cover));
                                 builder.image("image", std::move(params));
                                 // Anchor-resolved position from the image
                                 // materializer (explicit `position` in the

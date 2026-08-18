@@ -115,8 +115,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
         spdlog::info("[video] Reusing daemon-owned warm renderer");
     } else {
-        // Inject the single CLI CpuBudget so the runtime does not recompute it.
+        // Inject the single CLI CpuBudget so the runtime does not recompute it,
+        // and honor the CLI --backend selection.  Auto falls back to Software
+        // on the video pipe path; GPU strictly resolves the Vulkan backend
+        // (attach_software_backend registers Vulkan only for GPU preference).
         Config renderer_cfg = Config::from_environment(cpu_budget);
+        renderer_cfg.set_backend_preference(opts.backend_preference);
         session->renderer = create_renderer(
             registry, settings, std::move(renderer_cfg), session->opts.assets_root,
             &session->engine_init_ms, &session->backend_init_ms);

@@ -10,6 +10,7 @@
 #include "utils/common/render_error_formatter.hpp"
 
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,6 +23,12 @@ namespace chronon3d::cli {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 namespace {
+
+    graph::BackendPreference backend_preference_from_name(const std::string& value) {
+        if (value == "software") return graph::BackendPreference::Software;
+        if (value == "vulkan") return graph::BackendPreference::GPU;
+        return graph::BackendPreference::Auto;
+    }
 
     std::vector<std::string> split_args(const std::string& line) {
         std::vector<std::string> args;
@@ -59,8 +66,10 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
                              DaemonOptions options)
     : m_registry(registry)
     , m_options(std::move(options))
+    , m_backend(m_options.backend.empty() ? "auto" : m_options.backend)
 {
     Config config = Config::from_environment();
+    config.set_backend_preference(backend_preference_from_name(m_backend));
 
     if (!m_options.assets_root.empty()) {
         m_engine = std::make_unique<RenderEngine>(
@@ -75,13 +84,16 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     // RENDER_JOB uses this CLI-side renderer because the video exporter works
     // directly with SoftwareRenderer and can now reuse it across jobs.
     RenderSettings warm_settings;
+    Config warm_config = Config::from_environment();
+    warm_config.set_backend_preference(backend_preference_from_name(m_backend));
     m_warm_renderer = create_renderer(
-        m_registry, warm_settings, Config::from_environment(),
+        m_registry, warm_settings, std::move(warm_config),
         m_options.assets_root.empty()
             ? std::optional<std::filesystem::path>{}
             : std::optional<std::filesystem::path>{m_options.assets_root});
 
-    spdlog::info("🔥 Engine initialised. FB pool warm, font engines loaded.");
+    spdlog::info("🔥 Engine initialised. backend={}, FB pool warm, font engines loaded.",
+                 m_backend);
     spdlog::info("   {} compositions registered.", m_registry.available().size());
 }
 
@@ -338,6 +350,23 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
         case ipc::Command::RenderOverlay:
             return ipc_render_overlay(req.payload);
         case ipc::Command::RenderJob: {
+            // A daemon owns one persistent renderer. Reject a request that
+            // claims a different backend instead of silently rendering on the
+            // warm backend and producing misleading provenance.
+            try {
+                const auto request = nlohmann::json::parse(req.payload);
+                const auto requested = request.value("backend", m_backend);
+                if (requested != m_backend &&
+                    !(requested == "auto" && m_backend == "auto")) {
+                    return ipc::Reply{ipc::Status::BadRequest,
+                                      "RENDER_JOB backend '" + requested +
+                                      "' does not match daemon backend '" +
+                                      m_backend + "'"};
+                }
+            } catch (const std::exception& e) {
+                return ipc::Reply{ipc::Status::BadRequest,
+                                  std::string{"RENDER_JOB parse failed: "} + e.what()};
+            }
             auto& warm_dispatcher = warm_render_job_dispatcher();
             if (warm_dispatcher) {
                 return warm_dispatcher(req.payload, m_warm_renderer);

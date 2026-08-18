@@ -20,6 +20,10 @@ namespace chronon3d::cli {
 
 /// Map our options to the codec name that avcodec_find_encoder_by_name expects.
 static const char* resolve_encoder_name(const FfmpegPipeOptions& opt) {
+    if (opt.hardware_encoder == "nvenc") {
+        if (opt.codec == "hevc" || opt.codec == "libx265") return "hevc_nvenc";
+        return "h264_nvenc";
+    }
     if (opt.codec == "libx264rgb")
         return "libx264rgb";
     return "libx264";

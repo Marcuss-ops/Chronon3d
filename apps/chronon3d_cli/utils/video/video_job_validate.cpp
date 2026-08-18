@@ -23,8 +23,9 @@ bool validate_video_job(const RenderJob& job) {
             "Use 'bench' for benchmarking.");
         return false;
     }
-    if (!ffmpeg_in_path()) {
-        spdlog::error("[video] ffmpeg not found in PATH.");
+    if (encoder_backend_requires_ffmpeg(job.video_settings.encoder_backend) &&
+        !ffmpeg_in_path()) {
+        spdlog::error("[video] ffmpeg not found in PATH (required by the pipe encoder).");
         return false;
     }
     if (job.last_frame < job.first_frame) {

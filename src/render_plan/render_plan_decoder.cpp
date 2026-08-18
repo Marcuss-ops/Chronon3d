@@ -1,6 +1,7 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <chronon3d/core/hash/hash_builder.hpp>
+#include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 
 #include <nlohmann/json.hpp>
@@ -172,6 +173,20 @@ LayerType layer_type(const std::string& value) {
     return LayerType::Color;
 }
 
+// Derive the layer primitive from a visual preset's supported_layer. This is
+// the single place `type` is recovered when the plan omits it (ADR-029:
+// PipelineGen stops transporting `type` for preset-driven layers).
+LayerType visual_layer_type(chronon3d::registry::VisualLayerKind kind) {
+    using chronon3d::registry::VisualLayerKind;
+    switch (kind) {
+        case VisualLayerKind::Image: return LayerType::Image;
+        case VisualLayerKind::Video: return LayerType::Video;
+        case VisualLayerKind::Text: return LayerType::Text;
+        case VisualLayerKind::Color: return LayerType::Color;
+    }
+    return LayerType::Color;
+}
+
 FitMode fit_mode(const std::string& value) {
     if (value == "contain") return FitMode::Contain;
     if (value == "stretch") return FitMode::Stretch;
@@ -220,7 +235,25 @@ VideoCodec video_codec(const std::string& value) {
 LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
-    layer.type = layer_type(value.at("type").get<std::string>());
+    // `type` is optional: preset-driven layers omit it and Chronon derives it
+    // from the preset's supported_layer. A layer with neither an explicit type
+    // nor a resolvable preset is invalid (fail-closed).
+    if (value.contains("type")) {
+        layer.type = layer_type(value.at("type").get<std::string>());
+    } else {
+        const std::string preset = value.value("preset", std::string{});
+        if (preset.empty()) {
+            throw std::runtime_error(
+                "layer '" + layer.id + "' has no type and no preset to derive one from");
+        }
+        const auto& registry = chronon3d::registry::builtin_visual_preset_registry();
+        if (!registry.contains(preset)) {
+            throw std::runtime_error(
+                "layer '" + layer.id + "' preset '" + preset +
+                "' is unknown (cannot derive layer type)");
+        }
+        layer.type = visual_layer_type(registry.get(preset).supported_layer);
+    }
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
     layer.text = value.value("text", std::string{});

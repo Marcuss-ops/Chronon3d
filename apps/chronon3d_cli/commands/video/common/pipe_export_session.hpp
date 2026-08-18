@@ -65,6 +65,22 @@ struct PipeExportSession {
     // queue's mutex/cv forbid them), tolerated by unique_ptr-holding + reference-only call sites.
     explicit PipeExportSession(size_t queue_capacity)
         : queue(queue_capacity) {}
+
+    // ── P1-B safety: never destroy a joinable writer thread ─────────────
+    // The warmup/render phases run after the writer thread is started.  If
+    // one of them throws (e.g. a backend that cannot execute the node
+    // contract, like Vulkan before RenderSurface execution is wired), the
+    // exception unwinds through the session.  Closing the queue and joining
+    // the thread here keeps std::thread's destructor from calling
+    // std::terminate() on a joinable thread, so the error propagates as a
+    // structured failure instead of a core dump.  Idempotent on the normal
+    // path (run_pipe_export_loop already closes + joins).
+    ~PipeExportSession() {
+        queue.close();
+        if (writer_thread.joinable()) {
+            writer_thread.join();
+        }
+    }
 };
 
 } // namespace chronon3d::cli

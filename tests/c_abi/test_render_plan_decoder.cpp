@@ -31,6 +31,58 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
     CHECK(decoded->budget.max_temporal_pixels == 4096);
 }
 
+TEST_CASE("render plan decoder derives layer type from preset supported_layer") {
+    const auto plan_with = [](nlohmann::json layer) {
+        nlohmann::json source = {
+            {"schema", "chronon.render-plan"},
+            {"version", 1},
+            {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+                         {"duration_frames", 30}}},
+            {"layers", nlohmann::json::array({layer})},
+            {"output", {{"path", "out.mp4"}}}};
+        return source;
+    };
+
+    // Text preset: type omitted → derived from supported_layer == Text.
+    auto text_plan = plan_with(
+        {{"id", "person_01"}, {"preset", "lower_third_safe"},
+         {"text", "Tim Cook"}});
+    auto text = chronon3d::render_plan::decode_render_plan(text_plan);
+    REQUIRE(text.has_value());
+    CHECK(text->layers[0].type == chronon3d::render_plan::LayerType::Text);
+
+    // Image preset: type omitted → derived from supported_layer == Image.
+    auto image_plan = plan_with(
+        {{"id", "img_01"}, {"preset", "image_focus_in"},
+         {"asset", "portrait.png"}});
+    auto image = chronon3d::render_plan::decode_render_plan(image_plan);
+    REQUIRE(image.has_value());
+    CHECK(image->layers[0].type == chronon3d::render_plan::LayerType::Image);
+
+    // Explicit type still wins when present (compat with legacy plans).
+    auto explicit_plan = plan_with(
+        {{"id", "explicit"}, {"type", "image"}, {"preset", "image_focus_in"},
+         {"asset", "portrait.png"}});
+    auto explicit_decoded =
+        chronon3d::render_plan::decode_render_plan(explicit_plan);
+    REQUIRE(explicit_decoded.has_value());
+    CHECK(explicit_decoded->layers[0].type ==
+          chronon3d::render_plan::LayerType::Image);
+}
+
+TEST_CASE("render plan decoder rejects a layer with neither type nor preset") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan"},
+        {"version", 1},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+                     {"duration_frames", 30}}},
+        {"layers", {{{{"id", "orphan"}, {"text", "no type no preset"}}}}},
+        {"output", {{"path", "out.mp4"}}}};
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE_FALSE(decoded.has_value());
+    CHECK_FALSE(decoded.error().message.empty());
+}
+
 TEST_CASE("render plan decoder returns validation path on malformed plan") {
     const nlohmann::json source = {{"schema", "chronon.render-plan"}};
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);

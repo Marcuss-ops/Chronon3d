@@ -82,6 +82,7 @@ FfmpegPipeOptions make_pipe_options(
         .crf = opts.encoder.crf,
         .preset = effective_preset,
         .codec = codec,
+        .hardware_encoder = opts.encoder.hardware_encoder,
         .output_path = opts.output.output,
         .input_format = parse_pipe_pixfmt(opts.pipe.pipe_pixfmt),
         .verbose = opts.pipe.ffmpeg_verbose,
