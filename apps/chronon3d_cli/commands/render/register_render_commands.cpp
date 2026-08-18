@@ -7,6 +7,7 @@
 #include "../../utils/job/render_job.hpp"
 #include "render_profiles.hpp"
 #include "command_render_plan.hpp"
+#include "render_plan_preparation.hpp"
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
@@ -161,7 +162,7 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
         ->check(CLI::IsMember({"pipe"}));
 #endif
     video->add_flag("--dry-run", args.video_settings.dry_run,
-                    "Validate video settings without rendering");
+                    "Validate without rendering (video settings; render-plan validation with --plan)");
 }
 
 } // namespace
@@ -304,6 +305,15 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             render_args.pipe_pixfmt_explicit = pipe_pixfmt->count() > 0;
         }
         if (!state->plan_file.empty()) {
+            if (render_args.video_settings.dry_run) {
+                // Same canonical prepare_render_plan() pipeline as
+                // `chronon validate --plan`; no frame is rendered.
+                RenderPlanPreparationOptions options;
+                options.input = state->plan_file;
+                options.assets_root = render_args.assets_root;
+                ctx.exit_code = validate_render_plan(options);
+                return;
+            }
             ctx.exit_code = run_render_plan_file(
                 ctx.registry, state->plan_file, render_args.output, render_args.assets_root,
                 render_args.report);

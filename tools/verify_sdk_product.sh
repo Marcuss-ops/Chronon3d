@@ -126,6 +126,11 @@ chk_install() {
     # in).  Enforced by the dedicated gate script.
     SDK_PREFIX="$SDK_PREFIX" bash "$HERE/sdk/check_cabi_self_contained.sh" \
         || { log "installed C ABI .so is not self-contained"; return 1; }
+    # The C ABI .so must satisfy the frozen ABI2 symbol/SONAME contract: no
+    # baseline symbol removed, no type (signature) change, and SOVERSION
+    # (SONAME major) equal to the ABI major.  Enforced by the dedicated gate.
+    SDK_PREFIX="$SDK_PREFIX" bash "$HERE/sdk/check_cabi_abi_gate.sh" \
+        || { log "installed C ABI .so failed the ABI symbol/SONAME gate"; return 1; }
     # Derive the vcpkg closure from the SDK build so consumers can resolve the
     # SDK's transitive find_dependency() packages at configure time.
     if [[ -z "${VCPKG_INSTALLED_DIR:-}" && -f "$SDK_BUILD/CMakeCache.txt" ]]; then

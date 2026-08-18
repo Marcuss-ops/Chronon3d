@@ -1,32 +1,50 @@
 #include "../../commands.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
+#include "doctor_report.hpp"
+
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
 #include <cstdlib>
+#include <iostream>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
 namespace cli {
 
-int command_doctor(const CompositionRegistry& registry) {
-    bool ok = true;
+int command_doctor(const CompositionRegistry& /*registry*/,
+                   const DoctorOptions& options) {
+    const DoctorReport report = run_doctor(options);
 
-    const std::filesystem::path camera_reference{"assets/images/camera_reference.jpg"};
-    const bool camera_reference_exists = std::filesystem::exists(camera_reference);
-
-    spdlog::info("doctor: compositions={}", registry.available().size());
-    spdlog::info("doctor: camera reference {}", camera_reference_exists ? "found" : "missing");
-    if (!camera_reference_exists) {
-        ok = false;
+    if (options.json) {
+        nlohmann::json checks = nlohmann::json::array();
+        for (const auto& check : report.checks) {
+            checks.push_back({
+                {"id", check.id},
+                {"status", doctor_status_name(check.status)},
+                {"message", check.message},
+            });
+        }
+        std::cout << nlohmann::json{
+                         {"ready", report.ready},
+                         {"checks", std::move(checks)}}
+                         .dump(2)
+                  << '\n';
+    } else {
+        std::cout << "Chronon Doctor\n\n";
+        for (const auto& check : report.checks) {
+            std::cout << "  " << check.id << "\t"
+                      << doctor_status_label(check.status);
+            if (!check.message.empty()) {
+                std::cout << "\t" << check.message;
+            }
+            std::cout << '\n';
+        }
+        std::cout << "\nOverall\t" << (report.ready ? "READY" : "NOT READY")
+                  << '\n';
     }
 
-    {
-        const bool sys_ffmpeg =
-            (std::system("ffmpeg -version > /dev/null 2>&1") == 0);
-        spdlog::info("doctor: ffmpeg (system PATH)   {}", sys_ffmpeg ? "found" : "NOT found");
-        if (!sys_ffmpeg) ok = false;
-    }
-
-    return ok ? 0 : 1;
+    return report.ready ? 0 : 1;
 }
 
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir) {

@@ -43,6 +43,63 @@ TEST_CASE("C ABI v2 exposes structured configuration diagnostics") {
     CHECK(std::string(error.component) == "c_api");
 }
 
+TEST_CASE("C ABI v2 exposes the engine's last structured error") {
+    chronon_engine_config config{
+        sizeof(config), chronon_abi_version(), nullptr, 0};
+    chronon_error_info error{sizeof(error), CHRONON_OK, nullptr};
+    chronon_engine* engine = nullptr;
+    REQUIRE(chronon_engine_create_v2(&config, &engine, &error) == CHRONON_OK);
+    REQUIRE(engine != nullptr);
+
+    const std::string invalid =
+        R"({"schema":"chronon.render-plan","version":1,"layers":[],"output":{"path":"out.png"}})";
+    chronon_plan* plan = nullptr;
+    CHECK(chronon_plan_compile_json_n(
+              engine, invalid.data(), invalid.size(), &plan) != CHRONON_OK);
+
+    chronon_error_info info{sizeof(info), CHRONON_OK, nullptr};
+    CHECK(chronon_engine_last_error_info(engine, &info) == CHRONON_OK);
+    CHECK(info.status != CHRONON_OK);
+    REQUIRE(info.message != nullptr);
+    CHECK(info.message[0] != '\0');
+    REQUIRE(info.code != nullptr);
+    CHECK(std::string(info.code) == "PARSE_FAILED");
+    REQUIRE(info.component != nullptr);
+    CHECK(std::string(info.component) == "render_plan");
+
+    chronon_engine_destroy(engine);
+}
+
+TEST_CASE("C ABI v2 maps a missing asset to ASSET_NOT_FOUND") {
+    // AssetResolver::mount() requires an ABSOLUTE root; the CWD is absolute.
+    const std::string cwd = std::filesystem::current_path().string();
+    chronon_engine_config config{
+        sizeof(config), chronon_abi_version(), cwd.c_str(), 0};
+    chronon_error_info error{sizeof(error), CHRONON_OK, nullptr};
+    chronon_engine* engine = nullptr;
+    REQUIRE(chronon_engine_create_v2(&config, &engine, &error) == CHRONON_OK);
+    REQUIRE(engine != nullptr);
+
+    const std::string missing =
+        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps":30,"duration_frames":1},"layers":[{"id":"img","type":"image","asset":"cabi_missing_asset_never_exists.png"}],"output":{"path":"out.png"}})";
+    chronon_plan* plan = nullptr;
+    const chronon_status status = chronon_plan_compile_json_n(
+        engine, missing.data(), missing.size(), &plan);
+    CHECK(status == CHRONON_ERROR_ASSET_NOT_FOUND);
+
+    chronon_error_info info{sizeof(info), CHRONON_OK, nullptr};
+    CHECK(chronon_engine_last_error_info(engine, &info) == CHRONON_OK);
+    CHECK(info.status == CHRONON_ERROR_ASSET_NOT_FOUND);
+    REQUIRE(info.code != nullptr);
+    CHECK(std::string(info.code) == "ASSET_NOT_FOUND");
+    REQUIRE(info.asset != nullptr);
+    CHECK(std::string(info.asset) == "cabi_missing_asset_never_exists.png");
+    REQUIRE(info.component != nullptr);
+    CHECK(std::string(info.component) == "asset_resolver");
+
+    chronon_engine_destroy(engine);
+}
+
 constexpr char kPlan[] =
     "{\"schema\":\"chronon.render-plan\",\"version\":1,"
     "\"canvas\":{\"width\":320,\"height\":180,\"fps\":30,"

@@ -1,5 +1,6 @@
 #include "command_registry.hpp"
 #include "commands.hpp"
+#include "dev/doctor_report.hpp"
 #include "../utils/common/cli_utils.hpp"
 
 #include <memory>
@@ -80,10 +81,17 @@ void register_benchmark(CLI::App& app, CliContext& ctx) {
 }
 
 void register_doctor(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<DoctorOptions>();
     auto* command = app.add_subcommand(
         "doctor", "Check whether the local Chronon3d environment is ready");
-    command->callback([&ctx]() {
-        ctx.exit_code = command_doctor(ctx.registry);
+    command->add_flag("--json", state->json,
+                      "Emit a machine-readable JSON report");
+    command->add_option("--assets-root", state->assets_root,
+                        "Asset root used for font/asset resolution checks");
+    command->add_flag("--deep", state->deep,
+                      "Run the deep render smoke test (compile + render 1 frame)");
+    command->callback([state, &ctx]() {
+        ctx.exit_code = command_doctor(ctx.registry, *state);
     });
 }
 

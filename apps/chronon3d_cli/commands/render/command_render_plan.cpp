@@ -3,11 +3,12 @@
 #include "../../utils/job/render_job.hpp"
 #include "audio_muxer.hpp"
 #include "command_render_plan.hpp"
+#include "render_plan_preparation.hpp"
 
 #include <chronon3d/render_plan/render_plan.hpp>
-#include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
-#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/verification/render_receipt.hpp>
 
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
@@ -16,10 +17,7 @@
 #include <chronon3d/core/cancellation_token.hpp>
 
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <sstream>
 #include <string>
 
 namespace chronon3d::cli {
@@ -41,14 +39,6 @@ struct RenderPlanState {
     std::shared_ptr<SoftwareRenderer> warm_renderer;
 };
 
-std::string read_file(const std::string& path) {
-    std::ifstream input(path);
-    if (!input) throw std::runtime_error("cannot open render plan: " + path);
-    std::ostringstream contents;
-    contents << input.rdbuf();
-    return contents.str();
-}
-
 std::string codec_name(render_plan::VideoCodec codec) {
     switch (codec) {
         case render_plan::VideoCodec::H264: return "h264";
@@ -68,63 +58,28 @@ bool video_output(const std::string& path) {
 
 int execute_render_plan(const CompositionRegistry& registry, const RenderPlanState& args) {
     try {
-        const auto root = nlohmann::json::parse(read_file(args.input));
-        const auto decoded = render_plan::decode_render_plan(root);
-        if (!decoded) {
-            spdlog::error("Render plan decode failed: {}", decoded.error().message);
-            return 1;
-        }
-        const std::string effective_assets_root = !args.assets_root.empty()
-            ? args.assets_root
-            : (std::getenv("CHRONON3D_CLI_ASSETS_ROOT")
-                ? std::getenv("CHRONON3D_CLI_ASSETS_ROOT") : "");
-        auto plan = decoded.value();
-        // Explicit plan output.crf overrides the engine default when the plan
-        // document carries it (the decoder defaults an absent crf to 0, so
-        // presence is checked on the raw document, never the decoded value).
-        const auto& output_obj = root.value("output", nlohmann::json::object());
-        if (output_obj.contains("crf") && output_obj.at("crf").is_number_integer()) {
-            plan.output.crf = output_obj.at("crf").get<int>();
-        }
-        chronon3d::assets::AssetResolver resolver;
-        if (!effective_assets_root.empty()) {
-            resolver.mount(std::filesystem::path{effective_assets_root});
-        }
-        RenderSettings effective_settings;
-        effective_settings.fail_on_missing_assets = true;
-        render_plan::RenderPlanFingerprintOptions fingerprint_options;
-        fingerprint_options.render_settings.width = plan.canvas.width;
-        fingerprint_options.render_settings.height = plan.canvas.height;
-        fingerprint_options.render_settings.ssaa_factor = effective_settings.ssaa_factor;
-        fingerprint_options.render_settings.motion_blur =
-            chronon3d::is_motion_blur_active(effective_settings.motion_blur);
-        fingerprint_options.render_settings.dirty_rects = effective_settings.dirty.enabled;
-        fingerprint_options.render_settings.dirty_bitmask = effective_settings.dirty.use_bitmask;
-        fingerprint_options.render_settings.dirty_tiles = effective_settings.dirty.use_tiles;
-        fingerprint_options.render_settings.parallel_tiles = effective_settings.dirty.parallel_tiles;
-        fingerprint_options.render_settings.tile_size = effective_settings.dirty.tile_size;
-        fingerprint_options.render_settings.tile_dirty_ratio_threshold =
-            effective_settings.dirty.tile_dirty_ratio_threshold;
-        fingerprint_options.render_settings.optimize_compositing =
-            effective_settings.compositing.optimize_compositing;
-        fingerprint_options.render_settings.deterministic =
-            effective_settings.force_scalar_normal_blend;
-        fingerprint_options.render_settings.force_scalar_normal_blend =
-            effective_settings.force_scalar_normal_blend;
-        const auto compiled = render_plan::compile_render_plan(
-            plan, resolver, fingerprint_options);
-        if (!compiled) {
-            spdlog::error("Render plan compilation failed: {}", compiled.error().message);
+        RenderPlanPreparationOptions options;
+        options.input = args.input;
+        options.assets_root = args.assets_root;
+        auto preparation = prepare_render_plan(options);
+        if (!preparation) {
+            spdlog::error("Render plan preparation failed: {}",
+                          preparation.error().message);
             return 1;
         }
 
-        const auto output = args.output.empty() ? decoded->output.path : args.output;
+        auto context = std::move(preparation).value();
+        const auto& prepared = context.prepared;
+        auto& resolver = context.resolver;
+        const auto& effective_assets_root = context.effective_assets_root;
+        const auto& effective_settings = context.settings;
+
+        const auto output = args.output.empty() ? prepared.output.path : args.output;
         const auto first = static_cast<std::int64_t>(args.start_frame);
         const auto last = args.end_frame == 0
-            ? decoded->canvas.duration.integral() - 1
+            ? prepared.canvas.duration.integral() - 1
             : static_cast<std::int64_t>(args.end_frame);
         RenderRequest request;
-        const auto& prepared = compiled.value();
         request.comp_id = prepared.job_id;
         request.compiled_composition = std::make_shared<const CompiledComposition>(
             prepared.compiled_composition);
@@ -135,14 +90,14 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.settings = effective_settings;
         request.execution.report = args.report;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
-            ? decoded->canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
-        request.video_settings.codec = codec_name(decoded->output.codec);
+            ? prepared.canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
+        request.video_settings.codec = codec_name(prepared.output.codec);
         // Encoder overrides: CLI flags win, then the plan's explicit crf,
         // then the engine default.
         if (args.crf >= 0) {
             request.video_settings.crf = args.crf;
-        } else if (plan.output.crf > 0 && plan.output.crf <= 51) {
-            request.video_settings.crf = plan.output.crf;
+        } else if (prepared.output.crf > 0 && prepared.output.crf <= 51) {
+            request.video_settings.crf = prepared.output.crf;
         }
         if (!args.encode_preset.empty()) {
             request.video_settings.encode_preset = args.encode_preset;
@@ -187,6 +142,36 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         chronon3d::restore_default_signal_handlers();
         if (!mux_ok)
             return 1;
+
+        // M6 — canonical render receipt, emitted after a successful render so
+        // downstream tooling can verify content identity + copy_eligible.
+        try {
+            verification::RenderReceiptInput receipt_input;
+            receipt_input.job_id = prepared.job_id;
+            receipt_input.content_digest = prepared.fingerprint.content_digest.hex();
+            receipt_input.request_digest = prepared.fingerprint.request_digest.hex();
+            receipt_input.asset_manifest_digest =
+                prepared.assets.manifest_digest().hex();
+#ifdef CHRONON3D_CLI_PROJECT_VERSION
+            receipt_input.chronon_version = CHRONON3D_CLI_PROJECT_VERSION;
+#endif
+            receipt_input.git_sha = telemetry::TelemetryManager::get_git_commit();
+            receipt_input.width = prepared.canvas.width;
+            receipt_input.height = prepared.canvas.height;
+            receipt_input.fps_num = prepared.canvas.fps;
+            receipt_input.fps_den = 1;
+            receipt_input.frames = prepared.canvas.duration.integral();
+            receipt_input.requested_codec = codec_name(prepared.output.codec);
+            receipt_input.has_audio_tracks = !prepared.audio_tracks.empty();
+
+            const auto receipt = verification::build_render_receipt(
+                receipt_input, output, video_output(output));
+            const auto receipt_path =
+                verification::write_render_receipt(receipt, output);
+            spdlog::info("receipt: {}", receipt_path.string());
+        } catch (const std::exception& error) {
+            spdlog::warn("receipt generation failed: {}", error.what());
+        }
         return 0;
     } catch (const std::exception& error) {
         spdlog::error("Render plan error: {}", error.what());

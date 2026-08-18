@@ -96,6 +96,9 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
     # ── Runtime (src/runtime) ────────────────────────────────────────
     chronon3d_runtime
 
+    # ── Verification (src/verification) ──────────────────────────────
+    chronon3d_verification
+
     # ── Extension (src/extension) ────────────────────────────────────
     chronon3d_extension
 

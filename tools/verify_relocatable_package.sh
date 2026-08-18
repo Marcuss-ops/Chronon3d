@@ -3,9 +3,11 @@
 # tools/verify_relocatable_package.sh
 #
 # Proves the installed SDK package is relocatable and self-contained enough to
-# consume WITHOUT the Chronon source tree:
+# consume WITHOUT the Chronon source tree.  The relocation contract consumes
+# the REAL distributable artifact produced by tools/build_sdk_bundle.sh
+# (chronon-sdk-<platform>.tar.gz), never a hand-rolled flat tar:
 #
-#   tar xf chronon3d-sdk.tar.gz
+#   tar xf chronon-sdk-<platform>.tar.gz
 #   cmake -S external_project -B build -DCMAKE_PREFIX_PATH=<extracted>
 #   cmake --build build
 #   ./build/example
@@ -66,23 +68,33 @@ fi
 [[ -e "$SDK_PREFIX/lib/libchronon3d_c.so" ]] \
     || fail "installed libchronon3d_c.so missing"
 
-# ── 2. Package + extract into a scratch "fresh machine" ─────────────────────
-TARBALL="$WORK_DIR/chronon3d-sdk.tar"
-EXTRACTED="$WORK_DIR/extracted/opt/chronon"
-mkdir -p "$(dirname "$EXTRACTED")"
+# ── 2. Build the product bundle + extract into a scratch "fresh machine" ──
+# The gate consumes the exact chronon-sdk-<platform>.tar.gz a downstream user
+# would download, so relocation is proven against the real product layout
+# (bin/include/lib/share + VERSION + manifest.json) rather than a flat tar of
+# the prefix.
+log "building product bundle from $SDK_PREFIX"
+bundle_out="$(SDK_PREFIX="$SDK_PREFIX" SDK_BUNDLE_OUT="$WORK_DIR" \
+    bash "$HERE/build_sdk_bundle.sh")" || fail "build_sdk_bundle.sh failed"
 
-log "packaging $SDK_PREFIX -> chronon3d-sdk.tar"
-tar cf "$TARBALL" -C "$SDK_PREFIX" . || fail "tar create failed"
+TARBALL="$(printf '%s\n' "$bundle_out" | sed -n 's/^BUNDLE_TARBALL=//p')"
+[[ -n "$TARBALL" && -f "$TARBALL" ]] || fail "bundle tarball not produced"
 
-log "extracting tarball into $EXTRACTED"
-mkdir -p "$EXTRACTED"
-tar xf "$TARBALL" -C "$EXTRACTED" || fail "tar extract failed"
+bundle_name="$(basename "$TARBALL" .tar.gz)"
+EXTRACTED="$WORK_DIR/$bundle_name"
 
-# Sanity: the extracted tree must be usable on its own (no source tree).
+log "extracting $TARBALL into $WORK_DIR"
+tar xzf "$TARBALL" -C "$WORK_DIR" || fail "tar extract failed"
+
+# Sanity: the extracted bundle must be usable on its own (no source tree).
 [[ -f "$EXTRACTED/include/chronon3d/c_api/chronon3d.h" ]] \
     || fail "extracted C ABI header missing"
 [[ -e "$EXTRACTED/lib/libchronon3d_c.so" ]] \
     || fail "extracted libchronon3d_c.so missing"
+[[ -f "$EXTRACTED/manifest.json" && -s "$EXTRACTED/manifest.json" ]] \
+    || fail "extracted manifest.json missing/empty"
+[[ -f "$EXTRACTED/VERSION" && -s "$EXTRACTED/VERSION" ]] \
+    || fail "extracted VERSION missing/empty"
 
 # ── External consumer sources (created fresh, NOT from the repo) ────────────
 EXTERNAL="$WORK_DIR/external_project"
