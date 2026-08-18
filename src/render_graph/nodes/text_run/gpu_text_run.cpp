@@ -263,8 +263,7 @@ graph::RenderOpResult draw_cached_text_run(
             std::abs(state.rotation.x) > 1e-4f ||
             std::abs(state.rotation.y) > 1e-4f ||
             std::abs(state.rotation.z) > 1e-4f ||
-            std::abs(state.skew) > 1e-4f || state.stroke.a > 1e-4f ||
-            state.background.a > 1e-4f) {
+            std::abs(state.skew) > 1e-4f || state.blur > 1e-4f) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "draw_cached_text_run: animated/style feature requires legacy text path"});
@@ -284,33 +283,73 @@ graph::RenderOpResult draw_cached_text_run(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "draw_cached_text_run: unsupported glyph bitmap format"});
         }
-        std::vector<float> rgba(static_cast<std::size_t>(data.size.w) * data.size.h * 4);
-        for (int y = 0; y < data.size.h; ++y) {
-            const auto* row = static_cast<const std::uint8_t*>(data.pixelData) +
-                              static_cast<std::size_t>(y) * data.stride;
-            for (int x = 0; x < data.size.w; ++x) {
-                const auto* px = row + static_cast<std::size_t>(x) * 4;
-                const std::size_t off = (static_cast<std::size_t>(y) * data.size.w + x) * 4;
-                const float mask = px[3] / 255.0f;
-                const float alpha = mask * std::clamp(state.fill.a, 0.0f, 1.0f);
-                // The atlas is a coverage mask in practice. Bake the
-                // resolved per-glyph fill into premultiplied RGBA so the
-                // Vulkan kernel can composite it without a CPU framebuffer
-                // round-trip or a second style-specific shader variant.
-                rgba[off + 0] = std::clamp(state.fill.r, 0.0f, 1.0f) * alpha;
-                rgba[off + 1] = std::clamp(state.fill.g, 0.0f, 1.0f) * alpha;
-                rgba[off + 2] = std::clamp(state.fill.b, 0.0f, 1.0f) * alpha;
-                rgba[off + 3] = alpha;
+        const int stroke_radius = state.stroke.a > 1e-4f
+            ? static_cast<int>(std::ceil(std::max(0.0f, state.stroke_width))) : 0;
+        const int background_padding = state.background.a > 1e-4f ? 8 : 0;
+        const int pad = std::max(stroke_radius, background_padding);
+        const int output_width = data.size.w + pad * 2;
+        const int output_height = data.size.h + pad * 2;
+        std::vector<float> rgba(static_cast<std::size_t>(output_width) * output_height * 4, 0.0f);
+        auto source_alpha = [&](int x, int y) {
+            if (x < 0 || y < 0 || x >= data.size.w || y >= data.size.h) return 0.0f;
+            const auto* source_row = static_cast<const std::uint8_t*>(data.pixelData) +
+                static_cast<std::size_t>(y) * data.stride;
+            return source_row[static_cast<std::size_t>(x) * 4 + 3] / 255.0f;
+        };
+        auto over = [](float& dr, float& dg, float& db, float& da,
+                       float sr, float sg, float sb, float sa) {
+            dr = sr + dr * (1.0f - sa);
+            dg = sg + dg * (1.0f - sa);
+            db = sb + db * (1.0f - sa);
+            da = sa + da * (1.0f - sa);
+        };
+        for (int y = 0; y < output_height; ++y) {
+            const int source_y = y - pad;
+            for (int x = 0; x < output_width; ++x) {
+                const int source_x = x - pad;
+                const float mask = source_alpha(source_x, source_y);
+                float stroke_mask = 0.0f;
+                if (stroke_radius > 0) {
+                    for (int oy = -stroke_radius; oy <= stroke_radius; ++oy) {
+                        for (int ox = -stroke_radius; ox <= stroke_radius; ++ox) {
+                            if (ox * ox + oy * oy <= stroke_radius * stroke_radius) {
+                                stroke_mask = std::max(stroke_mask,
+                                    source_alpha(source_x + ox, source_y + oy));
+                            }
+                        }
+                    }
+                }
+                const std::size_t off = (static_cast<std::size_t>(y) * output_width + x) * 4;
+                float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
+                if (state.background.a > 1e-4f) {
+                    const float ba = std::clamp(state.background.a, 0.0f, 1.0f);
+                    over(r, g, b, a, state.background.r * ba,
+                         state.background.g * ba, state.background.b * ba, ba);
+                }
+                if (stroke_mask > 1e-4f && state.stroke.a > 1e-4f) {
+                    const float sa = stroke_mask * std::clamp(state.stroke.a, 0.0f, 1.0f);
+                    over(r, g, b, a, state.stroke.r * sa,
+                         state.stroke.g * sa, state.stroke.b * sa, sa);
+                }
+                if (mask > 1e-4f) {
+                    const float fa = mask * std::clamp(state.fill.a, 0.0f, 1.0f);
+                    over(r, g, b, a, state.fill.r * fa,
+                         state.fill.g * fa, state.fill.b * fa, fa);
+                }
+                rgba[off + 0] = r;
+                rgba[off + 1] = g;
+                rgba[off + 2] = b;
+                rgba[off + 3] = a;
             }
         }
         glyphs.push_back(GpuTextGlyph{
-            static_cast<std::uint32_t>(data.size.w),
-            static_cast<std::uint32_t>(data.size.h),
+            static_cast<std::uint32_t>(output_width),
+            static_cast<std::uint32_t>(output_height),
             std::move(rgba),
             static_cast<std::int32_t>(std::lround(model_matrix[3][0] +
-                placed.x + state.position.x + entry->x_offset)),
+                placed.x + state.position.x + entry->x_offset - pad)),
             static_cast<std::int32_t>(std::lround(model_matrix[3][1] +
-                placed.y + state.position.y + entry->y_offset)),
+                placed.y + state.position.y + entry->y_offset - pad)),
             state.scale.x,
             state.scale.y,
             state.opacity * opacity});
