@@ -1,27 +1,55 @@
+# syntax=docker/dockerfile:1.7
 # Build from the Chronon3d repository root:
 #   docker build -f docker/chronon-runtime/Dockerfile -t chronon3d-runtime:0.1.0-alpha.1 .
 
-FROM debian:bookworm-slim AS builder
+ARG VCPKG_REF=cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+
+FROM debian:bookworm-slim AS build-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV VCPKG_ROOT=/opt/vcpkg
 
+ARG VCPKG_REF
+
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build git curl ca-certificates \
+        build-essential cmake ninja-build ccache git curl ca-certificates \
         pkg-config zip unzip tar python3-pip \
         libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
-        libvulkan-dev \
+        libvulkan-dev glslang-tools \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m pip install --break-system-packages --no-cache-dir 'cmake>=3.27' \
     && git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT" \
+    && git -C "$VCPKG_ROOT" checkout --detach "$VCPKG_REF" \
     && "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+FROM build-base AS deps
+
+WORKDIR /src/chronon3d
+
+# This stage depends only on the manifest, so normal source changes do not
+# invalidate the dependency installation.
+COPY vcpkg.json ./
+
+RUN --mount=type=cache,id=chronon-vcpkg-archives,target=/root/.cache/vcpkg/archives \
+    --mount=type=cache,id=chronon-vcpkg-downloads,target=/opt/vcpkg/downloads \
+    /opt/vcpkg/vcpkg install \
+        --triplet x64-linux \
+        --x-manifest-root=/src/chronon3d \
+        --x-install-root=/opt/vcpkg_installed
+
+FROM deps AS builder
 
 WORKDIR /src/chronon3d
 COPY . .
 
-RUN cmake -S . -B build/docker -G Ninja \
+RUN --mount=type=cache,id=chronon-ccache,target=/root/.cache/ccache \
+    cmake -S . -B build/docker -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+        -DVCPKG_INSTALLED_DIR=/opt/vcpkg_installed \
+        -DVCPKG_MANIFEST_MODE=OFF \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DCHRONON3D_BUILD_CLI=ON \
         -DCHRONON3D_BUILD_C_API=ON \
         -DCHRONON3D_BUILD_TESTS=OFF \
