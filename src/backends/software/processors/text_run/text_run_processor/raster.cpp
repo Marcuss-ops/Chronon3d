@@ -422,6 +422,37 @@ struct SingleGlyphRun {
         s.img = std::move(ds_img);
     }
 
+    // Populate the renderer-owned canonical glyph atlas after the first
+    // successful raster.  The Vulkan graph path can then reuse the exact
+    // glyph bitmaps on the next frame/job without rasterizing text again.
+    // Only cache the stable, single-span, non-effect path: animated glyph
+    // paint, dissolve and shadows must remain on the software path until
+    // they have an equivalent native representation.
+    if (rctx.text_resources
+        && s.raster_space.scale == 1
+        && s.span_fonts.size() == 1
+        && s.per_glyph_span_idx.size() == layout.placed.glyphs.size()
+        && shape.dissolve_layout == nullptr
+        && shape.shadows.empty()
+        && shape.paint.stroke_enabled == false) {
+        const Color& fill = shape.paint.fill;
+        const auto channel = [](float value) -> std::uint32_t {
+            return static_cast<std::uint32_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+        };
+        const std::uint32_t fill_rgba =
+            (channel(fill.r) << 24u) | (channel(fill.g) << 16u)
+            | (channel(fill.b) << 8u) | channel(fill.a);
+        rctx.text_resources->store_glyph_atlas_from_placed_run(
+            layout.font.font_path,
+            s.img,
+            layout.placed,
+            s.span_fonts.front(),
+            -s.offset_x,
+            -s.offset_y,
+            layout.font_size,
+            fill_rgba);
+    }
+
     // TICKET-TEXT-TIMING-V1 — accumulate only on the successful raster path
     // (the zero-glyph early return above skips attribution).
     if (rctx.counters) {
