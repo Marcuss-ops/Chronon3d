@@ -1,4 +1,5 @@
 #include "render_job_finalize.hpp"
+#include "../process_start.hpp"
 #include "../telemetry/telemetry_run.hpp"
 #include "report/render_job_report.hpp"
 
@@ -107,6 +108,10 @@ void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) 
     js << ",\"alias_reuse_count\":" << run.alias_reuse_count;
     js << ",\"new_resource_slot_count\":" << run.new_resource_slot_count;
     js << ",\"arena_peak_bytes\":" << run.arena_peak_bytes;
+    js << ",\"process_startup_ms\":" << run.process_startup_ms;
+    js << ",\"framebuffer_allocations_per_frame\":" << run.framebuffer_allocations_per_frame;
+    js << ",\"ffprobe_wall_ms\":" << run.ffprobe_wall_ms;
+    js << ",\"sha256_wall_ms\":" << run.sha256_wall_ms;
     js << ",\"compiler_info\":\"" << json_escape(run.compiler_info) << "\"";
     js << "}\n";
 
@@ -214,6 +219,14 @@ bool finalize_render_job(
     if (counters) {
         cli::telemetry::populate_run_metrics(run, *counters);
     }
+
+    // Measured startup + per-frame allocation rate (never estimated):
+    // process_startup_ms spans process launch → job start; the allocation
+    // rate is the framebuffer allocation event count over rendered frames.
+    run.process_startup_ms = profiling::duration_ms(process_start_time(), setup.wall_t0);
+    run.framebuffer_allocations_per_frame = run.frames_total > 0
+        ? static_cast<double>(run.framebuffer_allocations) / static_cast<double>(run.frames_total)
+        : 0.0;
 
     const auto pool_current_bytes =
         setup.renderer->software_framebuffer_pool().current_bytes();

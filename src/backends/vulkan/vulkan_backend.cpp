@@ -252,7 +252,17 @@ struct VulkanBackend::Impl {
         stats.discrete_gpu =
             device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
         timestamp_period_ns = device_properties.limits.timestampPeriod;
-        timestamp_valid_bits = device_properties.limits.timestampValidBits;
+        // timestampValidBits is a property of the selected queue family, not
+        // VkPhysicalDeviceLimits.  Read it from the same family used for the
+        // graphics queue so timestamp queries are enabled only when that
+        // queue can actually report them.
+        std::uint32_t family_count = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &family_count, nullptr);
+        std::vector<VkQueueFamilyProperties> families(family_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &family_count, families.data());
+        if (queue_family < families.size()) {
+            timestamp_valid_bits = families[queue_family].timestampValidBits;
+        }
         const VkDescriptorSetLayoutBinding bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
@@ -1099,6 +1109,9 @@ struct VulkanBackend::Impl {
             slot = next_slot++;  // never share pre-initialized content
         }
         auto& physical = physical_surfaces[slot];
+        stats.physical_surfaces_peak = std::max(
+            stats.physical_surfaces_peak,
+            static_cast<std::uint64_t>(physical_surfaces.size()));
         if (physical.image.image == VK_NULL_HANDLE ||
             physical.image.width != desc.width ||
             physical.image.height != desc.height) {
@@ -1971,6 +1984,9 @@ void VulkanBackend::export_gpu_telemetry_counters(
     if (!m_impl) return;
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
+    out.emplace_back("gpu_upload_bytes", m_impl->stats.upload_bytes);
+    out.emplace_back("gpu_readback_bytes", m_impl->stats.readback_bytes);
+    out.emplace_back("physical_surfaces_peak", m_impl->stats.physical_surfaces_peak);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
     out.emplace_back("readback_us", m_impl->stats.readback_us);

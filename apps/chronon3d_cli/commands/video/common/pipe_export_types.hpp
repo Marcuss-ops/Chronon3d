@@ -30,6 +30,10 @@ struct PipeExportResult {
     bool copy_eligible{false};
     /// SHA-256 hex digest of the published artifact (empty = not computed).
     std::string sha256;
+    /// Wall time of the ffprobe subprocess during output verification, in ms.
+    double ffprobe_ms{0.0};
+    /// Wall time of the SHA-256 digest computation during verification, in ms.
+    double sha256_ms{0.0};
     int frames_rendered{0};
     int frames_enqueued{0};
     int frames_encoded{0};

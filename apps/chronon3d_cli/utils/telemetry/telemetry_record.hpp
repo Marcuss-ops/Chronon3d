@@ -246,6 +246,16 @@ inline void record_output_run(const std::string& composition_id,
             run.ffmpeg_encode_total_ms = phase.duration_ms;
         } else if (phase.phase_name == "e2e_wall_ms") {
             run.e2e_wall_ms = phase.duration_ms;
+        } else if (phase.phase_name == "scene_eval_ms") {
+            run.phase_scene_eval_ms = phase.duration_ms;
+        } else if (phase.phase_name == "gpu_render_ms") {
+            run.phase_gpu_render_ms = phase.duration_ms;
+        } else if (phase.phase_name == "gpu_readback_ms") {
+            run.phase_gpu_readback_ms = phase.duration_ms;
+        } else if (phase.phase_name == "encode_ms") {
+            run.phase_encode_ms = phase.duration_ms;
+        } else if (phase.phase_name == "disk_io_ms") {
+            run.phase_disk_io_ms = phase.duration_ms;
         }
     }
     // Compute chronon_render_throughput_ms as sum of the three Chronon phases
@@ -254,6 +264,11 @@ inline void record_output_run(const std::string& composition_id,
     if (counters_src) {
         populate_run_metrics(run, *counters_src);
     }
+    // Derived per-frame allocation rate (never estimated): the framebuffer
+    // allocation event count over the frames actually rendered.
+    run.framebuffer_allocations_per_frame = run.frames_total > 0
+        ? static_cast<double>(run.framebuffer_allocations) / static_cast<double>(run.frames_total)
+        : 0.0;
 
     const auto resolved_counters = counters.empty() && counters_src
         ? capture_counters(*counters_src)
@@ -267,6 +282,25 @@ inline void record_output_run(const std::string& composition_id,
             run.gpu_submissions = counter.counter_value;
         else if (counter.counter_name == "passes_executed")
             run.passes_executed = counter.counter_value;
+        else if (counter.counter_name == "gpu_submit_cpu_us") {
+            run.gpu_submit_cpu_us = counter.counter_value;
+            run.gpu_submit_cpu_ms = static_cast<double>(counter.counter_value) / 1000.0;
+        } else if (counter.counter_name == "gpu_wait_cpu_us") {
+            run.gpu_wait_cpu_us = counter.counter_value;
+            run.gpu_wait_cpu_ms = static_cast<double>(counter.counter_value) / 1000.0;
+        } else if (counter.counter_name == "gpu_execute_us") {
+            run.gpu_execute_ms = static_cast<double>(counter.counter_value) / 1000.0;
+        } else if (counter.counter_name == "readback_us") {
+            run.gpu_readback_ms = static_cast<double>(counter.counter_value) / 1000.0;
+        } else if (counter.counter_name == "gpu_upload_bytes") {
+            run.gpu_upload_bytes = counter.counter_value;
+        } else if (counter.counter_name == "gpu_readback_bytes") {
+            run.gpu_readback_bytes = counter.counter_value;
+        } else if (counter.counter_name == "physical_surfaces_peak") {
+            run.physical_surfaces_peak = counter.counter_value;
+        } else if (counter.counter_name == "barrier_count") {
+            run.barrier_count = counter.counter_value;
+        }
         else if (counter.counter_name == "framebuffer_pool_budget_bytes")
             run.framebuffer_pool_budget_bytes = counter.counter_value;
         else if (counter.counter_name == "framebuffer_pool_retained_bytes")
