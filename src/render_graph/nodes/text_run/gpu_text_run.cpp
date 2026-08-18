@@ -8,9 +8,16 @@
 #include "../native_surface.hpp"
 
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/text/glyph_atlas.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <blend2d.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -120,32 +127,61 @@ graph::RenderOpResult draw_packed_text_run(
             0.0f});
     }
 
-    // Create + upload the transient packed atlas surface.
+    // Keep the packed atlas in the runtime-owned asset cache when available.
+    // The bitmap bytes are the canonical identity: equal glyph pixels share
+    // one device-local surface across frames and warm daemon jobs.
     const runtime::SurfaceDesc atlas_desc{
         dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient,
+        runtime::ResourceUsage::Storage,
+        ctx.services.gpu_asset_cache
+            ? runtime::LifetimeClass::JobPersistent
+            : runtime::LifetimeClass::FrameTransient,
         0};
-    const auto atlas_handle = ctx.services.surface_registry->create(atlas_desc);
+    runtime::RenderSurfaceHandle atlas_handle = runtime::kInvalidRenderSurfaceHandle;
+    bool cached_atlas = false;
+    if (ctx.services.gpu_asset_cache) {
+        const std::string_view bytes(
+            reinterpret_cast<const char*>(atlas_buffer.data()),
+            atlas_buffer.size() * sizeof(float));
+        runtime::GpuAssetKey key{
+            assets::sha256_string(bytes),
+            runtime::PixelFormat::Rgba32Float,
+            dims.width,
+            dims.height};
+        const auto acquired = ctx.services.gpu_asset_cache->acquire(
+            key, atlas_desc, atlas_buffer);
+        atlas_handle = acquired.handle;
+        cached_atlas = acquired.ok();
+        if (!cached_atlas) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::ExecutionFailure,
+                "draw_packed_text_run: GPU atlas cache: " + acquired.error});
+        }
+    } else {
+        atlas_handle = ctx.services.surface_registry->create(atlas_desc);
+    }
     if (atlas_handle == runtime::kInvalidRenderSurfaceHandle) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::ExecutionFailure,
             "draw_packed_text_run: failed to create atlas surface"});
     }
-    auto created = ctx.services.backend->create_surface(atlas_handle, atlas_desc);
-    if (!created.ok()) {
-        ctx.services.surface_registry->release(atlas_handle);
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
-            "draw_packed_text_run: create_surface: " + created.error().message});
-    }
-    auto uploaded = ctx.services.backend->upload_surface(
-        atlas_handle, atlas_desc, atlas_buffer);
-    if (!uploaded.ok()) {
-        (void)ctx.services.backend->release_surface(atlas_handle);
-        ctx.services.surface_registry->release(atlas_handle);
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
-            "draw_packed_text_run: upload_surface: " + uploaded.error().message});
+    if (!cached_atlas) {
+        auto created = ctx.services.backend->create_surface(atlas_handle, atlas_desc);
+        if (!created.ok()) {
+            ctx.services.surface_registry->release(atlas_handle);
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::ExecutionFailure,
+                "draw_packed_text_run: create_surface: " + created.error().message});
+        }
+        auto uploaded = ctx.services.backend->upload_surface(
+            atlas_handle, atlas_desc, atlas_buffer);
+        if (!uploaded.ok()) {
+            (void)ctx.services.backend->release_surface(atlas_handle);
+            ctx.services.surface_registry->release(atlas_handle);
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::ExecutionFailure,
+                "draw_packed_text_run: upload_surface: " + uploaded.error().message});
+        }
     }
 
     // Ensure the destination carries a native surface, then dispatch.
@@ -160,9 +196,12 @@ graph::RenderOpResult draw_packed_text_run(
     auto drawn = ctx.services.backend->draw_text_run_surface(
         destination.surface_handle(), atlas_handle, instances);
 
-    // The atlas is frame-transient; release it regardless of the draw result.
-    (void)ctx.services.backend->release_surface(atlas_handle);
-    ctx.services.surface_registry->release(atlas_handle);
+    // Cached atlases belong to the runtime. Only the compatibility atlas is
+    // released here.
+    if (!cached_atlas) {
+        (void)ctx.services.backend->release_surface(atlas_handle);
+        ctx.services.surface_registry->release(atlas_handle);
+    }
 
     if (!drawn.ok()) {
         release_native_surface(ctx, destination);
@@ -170,6 +209,92 @@ graph::RenderOpResult draw_packed_text_run(
             drawn.error().code, drawn.error().message});
     }
     return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
+}
+
+graph::RenderOpResult draw_cached_text_run(
+    RenderGraphContext& ctx,
+    Framebuffer& destination,
+    const TextRunShape& shape,
+    const glm::mat4& model_matrix,
+    float opacity) {
+    if (!ctx.services.text_render_resources || !shape.layout ||
+        shape.layout->placed.glyphs.empty() ||
+        shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_cached_text_run: CPU glyph atlas is not ready"});
+    }
+
+    // The surface text kernel consumes integer pixel quads. Keep the first
+    // bridge deliberately affine/translation-only; animated opacity and
+    // placement still update the instance buffer every frame.
+    if (std::abs(model_matrix[0][1]) > 1e-4f ||
+        std::abs(model_matrix[1][0]) > 1e-4f ||
+        std::abs(model_matrix[0][0] - 1.0f) > 1e-4f ||
+        std::abs(model_matrix[1][1] - 1.0f) > 1e-4f ||
+        std::abs(model_matrix[3][3] - 1.0f) > 1e-4f) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_cached_text_run: non-translation transform"});
+    }
+
+    const auto& layout = *shape.layout;
+    const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
+    std::vector<GpuTextGlyph> glyphs;
+    glyphs.reserve(layout.placed.glyphs.size());
+    for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
+        const auto& state = shape.glyphs[i];
+        if (std::abs(state.scale.x - 1.0f) > 1e-4f ||
+            std::abs(state.scale.y - 1.0f) > 1e-4f ||
+            std::abs(state.rotation.x) > 1e-4f ||
+            std::abs(state.rotation.y) > 1e-4f ||
+            std::abs(state.rotation.z) > 1e-4f ||
+            std::abs(state.skew) > 1e-4f || state.stroke.a > 1e-4f ||
+            state.background.a > 1e-4f) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "draw_cached_text_run: animated/style feature requires legacy text path"});
+        }
+        const auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
+            layout.font.font_path, state.glyph_id,
+            static_cast<u32>(font_size));
+        if (!entry || !entry->image || entry->image->empty()) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "draw_cached_text_run: glyph bitmap not prewarmed"});
+        }
+        BLImageData data{};
+        if (entry->image->getData(&data) != BL_SUCCESS ||
+            data.format != BL_FORMAT_PRGB32 || data.size.w <= 0 || data.size.h <= 0) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "draw_cached_text_run: unsupported glyph bitmap format"});
+        }
+        std::vector<float> rgba(static_cast<std::size_t>(data.size.w) * data.size.h * 4);
+        for (int y = 0; y < data.size.h; ++y) {
+            const auto* row = static_cast<const std::uint8_t*>(data.pixelData) +
+                              static_cast<std::size_t>(y) * data.stride;
+            for (int x = 0; x < data.size.w; ++x) {
+                const auto* px = row + static_cast<std::size_t>(x) * 4;
+                const std::size_t off = (static_cast<std::size_t>(y) * data.size.w + x) * 4;
+                rgba[off + 0] = px[2] / 255.0f;
+                rgba[off + 1] = px[1] / 255.0f;
+                rgba[off + 2] = px[0] / 255.0f;
+                rgba[off + 3] = px[3] / 255.0f;
+            }
+        }
+        const auto& placed = layout.placed.glyphs[i];
+        glyphs.push_back(GpuTextGlyph{
+            static_cast<std::uint32_t>(data.size.w),
+            static_cast<std::uint32_t>(data.size.h),
+            std::move(rgba),
+            static_cast<std::int32_t>(std::lround(model_matrix[3][0] +
+                placed.x + state.position.x + entry->x_offset)),
+            static_cast<std::int32_t>(std::lround(model_matrix[3][1] +
+                placed.y + state.position.y + entry->y_offset)),
+            state.opacity * opacity});
+    }
+    return draw_packed_text_run(ctx, destination, glyphs);
 }
 
 } // namespace chronon3d::graph::text_run
