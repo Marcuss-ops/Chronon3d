@@ -1,5 +1,6 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include "composite_comp_spv.hpp"
@@ -19,6 +20,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -222,6 +224,7 @@ struct VulkanBackend::Impl {
     // frame batch is still recording commands that reference its image. Keep
     // the Vulkan binding alive until the batch has been submitted.
     std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases;
+    std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles;
     std::size_t next_slot{0};
     // Last access kind per PHYSICAL SLOT within the current frame's
     // plan-driven batch, consumed by emit_plan_pass_barriers() to derive the
@@ -806,6 +809,23 @@ struct VulkanBackend::Impl {
         if (frame_batch.sync_plan) {
             emit_plan_pass_barriers(command, *frame_batch.sync_plan,
                                     frame_batch.pass_count);
+            for (const Image* image : images) {
+                bool unplanned = false;
+                for (const auto handle : unplanned_surface_handles) {
+                    const auto binding = surface_bindings.find(handle);
+                    if (binding == surface_bindings.end()) continue;
+                    const auto physical = physical_surfaces.find(binding->second);
+                    if (physical != physical_surfaces.end() &&
+                        &physical->second.image == image) {
+                        unplanned = true;
+                        break;
+                    }
+                }
+                if (unplanned) {
+                    emit_conservative_pass_sync(command, images);
+                    break;
+                }
+            }
         } else {
             emit_conservative_pass_sync(command, images);
         }
@@ -1309,6 +1329,7 @@ struct VulkanBackend::Impl {
                 physical_surfaces.erase(physical_it);
             }
         }
+        unplanned_surface_handles.erase(handle);
         ++stats.surface_releases;
     }
 
@@ -2135,8 +2156,12 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("software_fallback_nodes", m_impl->stats.software_fallback_nodes);
     out.emplace_back("software_fallback_us", m_impl->stats.software_fallback_us);
     out.emplace_back("fallback_draw_node", m_impl->stats.fallback_draw_node);
+    out.emplace_back("fallback_draw_image", m_impl->stats.fallback_draw_image);
+    out.emplace_back("fallback_draw_other", m_impl->stats.fallback_draw_other);
     out.emplace_back("fallback_text_run", m_impl->stats.fallback_text_run);
     out.emplace_back("fallback_composite", m_impl->stats.fallback_composite);
+    out.emplace_back("fallback_composite_dimensions", m_impl->stats.fallback_composite_dimensions);
+    out.emplace_back("fallback_composite_mode", m_impl->stats.fallback_composite_mode);
     out.emplace_back("fallback_effect", m_impl->stats.fallback_effect);
     out.emplace_back("fallback_blur", m_impl->stats.fallback_blur);
     out.emplace_back("fallback_dof", m_impl->stats.fallback_dof);
@@ -2315,6 +2340,9 @@ graph::RenderOpResult VulkanBackend::create_surface(
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
         (void)m_impl->ensure_surface(handle, desc);
+        if (m_impl->frame_batch.active || m_impl->command_batch_active) {
+            m_impl->unplanned_surface_handles.insert(handle);
+        }
         ++m_impl->stats.surface_creations;
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -2690,6 +2718,13 @@ void VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
     if (m_draw_node_fallback) {
         const auto started = std::chrono::steady_clock::now();
         m_draw_node_fallback->draw_node(framebuffer, node, state, camera, width, height);
+        if (m_impl) {
+            if (node.shape.type() == ShapeType::Image) {
+                ++m_impl->stats.fallback_draw_image;
+            } else {
+                ++m_impl->stats.fallback_draw_other;
+            }
+        }
         record_software_fallback("draw_node", started);
         return;
     }
@@ -2713,6 +2748,7 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
         if (m_draw_node_fallback) {
             const auto started = std::chrono::steady_clock::now();
             m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            if (m_impl) ++m_impl->stats.fallback_composite_mode;
             record_software_fallback("composite", started);
             return;
         }
@@ -2722,6 +2758,7 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
         if (m_draw_node_fallback) {
             const auto started = std::chrono::steady_clock::now();
             m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            if (m_impl) ++m_impl->stats.fallback_composite_dimensions;
             record_software_fallback("composite", started);
             return;
         }
