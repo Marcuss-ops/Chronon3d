@@ -235,7 +235,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
                    const std::string& build_command = "",
-                   const std::string& socket_path = "");
+                   const std::string& socket_path = "",
+                   const std::string& backend = "auto");
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry,
                    const DoctorOptions& options);

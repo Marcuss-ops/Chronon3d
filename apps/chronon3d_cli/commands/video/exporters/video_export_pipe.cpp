@@ -65,6 +65,23 @@ struct EncoderMetrics {
     std::optional<double> pipe_backpressure_wait_ms;
 };
 
+// Job-level GPU counters exported by the GPU backend (Vulkan). Fields stay
+// nullopt on software backends and emit JSON null — never a misleading 0.
+// gpu_execute_ms is GPU-elapsed time from Vulkan timestamp queries;
+// gpu_readback_ms is the CPU-side map/memcpy/unmap cost of the surface
+// download (the vkCmdCopyImageToBuffer GPU transfer itself is captured in
+// gpu_execute_ms / gpu_wait_cpu_ms).
+struct GpuMetrics {
+    std::optional<double> gpu_execute_ms;
+    std::optional<double> gpu_readback_ms;
+    std::optional<double> gpu_submit_cpu_ms;
+    std::optional<double> gpu_wait_cpu_ms;
+    std::optional<uint64_t> gpu_readback_bytes;
+    std::optional<uint64_t> gpu_upload_bytes;
+    std::optional<uint64_t> gpu_submissions;
+    std::optional<uint64_t> passes_executed;
+};
+
 // Job-level timings written to the `job` object of the frame-timing sidecar.
 // Fields not measurable inside the pipe-export path (process startup, plan
 // read/parse/validate/compile, graph compile) stay nullopt and emit as JSON
@@ -98,6 +115,7 @@ struct JobTimings {
     CacheMetrics cache;
     TextMetrics text;
     EncoderMetrics encoder;
+    GpuMetrics gpu;
     chronon3d::runtime::RenderPreparationTimings prepare;
     // Target output frame rate, used to derive the per-frame budget and the
     // over-budget count in the summary.
@@ -402,6 +420,24 @@ void write_frame_timing_sidecar(
     put_ms("ffprobe_ms", timings.ffprobe_ms);
     put_ms("sha256_ms", timings.sha256_ms);
 
+    // Job-level GPU counters: measured only by a GPU backend (Vulkan). The
+    // software path emits null — never a misleading 0.
+    auto& gpu = job["gpu"];
+    const auto put_gpu = [&gpu](const char* key, const std::optional<double>& value) {
+        if (value) gpu[key] = *value; else gpu[key] = nullptr;
+    };
+    const auto put_gpu_u64 = [&gpu](const char* key, const std::optional<uint64_t>& value) {
+        if (value) gpu[key] = *value; else gpu[key] = nullptr;
+    };
+    put_gpu("gpu_execute_ms", timings.gpu.gpu_execute_ms);
+    put_gpu("gpu_readback_ms", timings.gpu.gpu_readback_ms);
+    put_gpu("gpu_submit_cpu_ms", timings.gpu.gpu_submit_cpu_ms);
+    put_gpu("gpu_wait_cpu_ms", timings.gpu.gpu_wait_cpu_ms);
+    put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
+    put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
+    put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
+    put_gpu_u64("passes_executed", timings.gpu.passes_executed);
+
     auto& prepare = job["prepare"];
     const auto put_prepare = [&prepare](const char* key, const std::optional<double>& value) {
         if (value) prepare[key] = *value; else prepare[key] = nullptr;
@@ -667,6 +703,33 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;
     timings.cache.font_cache_hits = session->prepare_timings.font_cache_hits;
     timings.cache.font_cache_misses = session->prepare_timings.font_cache_misses;
+
+    // GPU backend counters (Vulkan) flow into the sidecar's job.gpu object so
+    // gpu_execute / gpu_readback are measured next to the encoder phases in a
+    // single artifact.  Software backends export nothing → fields stay null.
+    if (session->renderer->runtime().backend_attached()) {
+        std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
+        session->renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+        for (const auto& [name, value] : gpu_counters) {
+            if (name == "gpu_execute_us") {
+                timings.gpu.gpu_execute_ms = static_cast<double>(value) / 1000.0;
+            } else if (name == "readback_us") {
+                timings.gpu.gpu_readback_ms = static_cast<double>(value) / 1000.0;
+            } else if (name == "gpu_submit_cpu_us") {
+                timings.gpu.gpu_submit_cpu_ms = static_cast<double>(value) / 1000.0;
+            } else if (name == "gpu_wait_cpu_us") {
+                timings.gpu.gpu_wait_cpu_ms = static_cast<double>(value) / 1000.0;
+            } else if (name == "gpu_readback_bytes") {
+                timings.gpu.gpu_readback_bytes = value;
+            } else if (name == "gpu_upload_bytes") {
+                timings.gpu.gpu_upload_bytes = value;
+            } else if (name == "gpu_submissions") {
+                timings.gpu.gpu_submissions = value;
+            } else if (name == "passes_executed") {
+                timings.gpu.passes_executed = value;
+            }
+        }
+    }
 
     write_frame_timing_sidecar(session->original_output_path,
                                loop_output.telemetry_frames,

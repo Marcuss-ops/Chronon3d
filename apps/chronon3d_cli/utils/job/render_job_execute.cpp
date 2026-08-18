@@ -63,15 +63,32 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             install_signal_cancellation(cancel_token);
             opts.cancellation_token = &cancel_token;
 
-            rc = render_and_encode_ffmpeg(
-                *job.registry,
-                *job.compiled,
-                job.comp_id,
-                job.settings,
-                job.first_frame,
-                job.last_frame + Frame{1},
-                opts,
-                job.execution.cpu_budget);
+            // The video exporter runs the render loop in-process.  A backend
+            // that cannot execute the node contract (e.g. Vulkan before
+            // RenderSurface execution is wired) throws from the render loop;
+            // convert that into a structured RenderJobError instead of letting
+            // the exception terminate the CLI (core dump).
+            try {
+                rc = render_and_encode_ffmpeg(
+                    *job.registry,
+                    *job.compiled,
+                    job.comp_id,
+                    job.settings,
+                    job.first_frame,
+                    job.last_frame + Frame{1},
+                    opts,
+                    job.execution.cpu_budget);
+            } catch (const std::exception& error) {
+                return RenderJobError{
+                    RenderJobErrorCode::RenderFailed,
+                    "BackendFailed: video export for composition '" +
+                        job.comp_id + "' threw: " + error.what()};
+            } catch (...) {
+                return RenderJobError{
+                    RenderJobErrorCode::RenderFailed,
+                    "BackendFailed: video export for composition '" +
+                        job.comp_id + "' threw an unknown exception"};
+            }
         }
 
         if (rc != 0) {

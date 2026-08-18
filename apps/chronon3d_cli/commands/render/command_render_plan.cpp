@@ -209,13 +209,19 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         const std::string plan_path = request.value("plan_path", "");
         const std::string assets_root = request.value("assets_root", "");
         const std::string output = request.value("output", "");
+        const std::string backend = request.value("backend", "auto");
+        const bool report = request.value("report", false);
         if (plan_path.empty()) {
             return ipc::Reply{ipc::Status::BadRequest,
                               "RENDER_JOB requires a plan_path"};
         }
+        if (backend != "auto" && backend != "software" && backend != "vulkan") {
+            return ipc::Reply{ipc::Status::BadRequest,
+                              "RENDER_JOB backend must be auto, software, or vulkan"};
+        }
 
         const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
-                                            false, std::move(warm_renderer));
+                                            report, std::move(warm_renderer));
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};

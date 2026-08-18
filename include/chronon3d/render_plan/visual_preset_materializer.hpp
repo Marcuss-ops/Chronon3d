@@ -39,7 +39,8 @@
 #include <vector>
 
 namespace chronon3d::render_plan {
-struct LayerPlan;  // fwd — render_plan.hpp.
+struct LayerPlan;                // fwd — render_plan.hpp.
+enum class FitMode : std::uint8_t;  // fwd — render_plan.hpp.
 }
 
 namespace chronon3d::registry {
@@ -78,6 +79,12 @@ struct ResolvedImageLayer {
     std::string preset_id;
     ResolvedLayoutIntent layout;
     ResolvedAnimation animation;
+    // Resolved image box + fit (preset defaults merged with plan overrides).
+    // The scene builder consumes these resolved values; it no longer reads
+    // the raw plan box_width/box_height/fit for preset-driven images.
+    float box_width{0.0f};
+    float box_height{0.0f};
+    FitMode fit{FitMode::Cover};
 };
 
 /// Real content bounds in canvas pixels, measured BEFORE layout resolution.

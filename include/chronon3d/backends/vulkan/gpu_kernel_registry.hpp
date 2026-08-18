@@ -17,6 +17,7 @@ enum class GpuKernelId : std::uint8_t {
     ColorAdjust,
     Matte,
     TextRun,
+    FillRect,
 };
 
 class GpuKernelRegistry {

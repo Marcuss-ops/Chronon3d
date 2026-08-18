@@ -87,6 +87,7 @@ struct FfmpegPipeOptions {
     int crf{18};
     std::string preset{"medium"};
     std::string codec{"libx264"};
+    std::string hardware_encoder{"none"};
     std::string output_path;
     PipePixelFormat input_format{PipePixelFormat::RGBA};
     std::string output_pix_fmt{"yuv420p"};

@@ -72,6 +72,12 @@ VisualPresetDescriptor make_simple_2d_preset(
     } else {
         preset.fallback_anchors = {"image_left", "image_right", "top_right", "top_left"};
         preset.capabilities.push_back("image_transform");
+        // Image presets own their canonical box + fit (the former PipelineGen
+        // IMAGE_OVERLAY transport shape): 260×260 contain, matched across the
+        // 2D image showcase family (ADR-029 — geometry lives in Chronon).
+        preset.box_width = 260.0f;
+        preset.box_height = 260.0f;
+        preset.fit = "contain";
     }
     return preset;
 }
@@ -258,6 +264,11 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
                                    .enter_duration_frames = 8, .exit_duration_frames = 6},
         .fallback_anchors = {"image_left", "top_right", "top_left"},
         .capabilities = {"2d", "collision_avoid"},
+        // Canonical image box the plan no longer transports: 260×260 contain
+        // (the former PipelineGen IMAGE_OVERLAY transport shape, ADR-029).
+        .box_width = 260.0f,
+        .box_height = 260.0f,
+        .fit = "contain",
     });
 
     // ── 2D showcase presets ────────────────────────────────────────────

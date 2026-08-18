@@ -352,6 +352,22 @@ public:
             "RenderBackend::composite_surfaces: native surfaces are not supported"});
     }
 
+    /// Solid-color axis-aligned rectangle fill into a native surface.  The
+    /// rectangle is half-open destination pixel space; pixels outside it are
+    /// left untouched.  `color` must be PREMULTIPLIED RGBA (rgb already
+    /// scaled by alpha), matching the surface storage convention the software
+    /// compositor produces.  This is the first primitive of the GPU shape
+    /// rasterizer (rect backgrounds / solid boxes).
+    virtual RenderOpResult fill_rect_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        std::int32_t /*x0*/, std::int32_t /*y0*/,
+        std::int32_t /*x1*/, std::int32_t /*y1*/,
+        const Color& /*color*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::fill_rect_surface: native surfaces are not supported"});
+    }
+
     virtual RenderOpResult transform_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,

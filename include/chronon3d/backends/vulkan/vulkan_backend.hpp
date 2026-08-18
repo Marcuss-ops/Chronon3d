@@ -61,6 +61,9 @@ public:
     VulkanBackend& operator=(VulkanBackend&&) noexcept;
 
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override;
+    [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
+    processor_snapshot() const noexcept override;
+    [[nodiscard]] bool requires_processor_snapshot() const noexcept override;
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
 
@@ -113,11 +116,18 @@ public:
         const LensModel&, const std::optional<raster::BBox>&) override;
     void draw_node(Framebuffer&, const RenderNode&, const RenderState&,
                    const Camera&, int, int) override;
+    /// Compatibility bridge for RenderNode shapes that have not yet migrated
+    /// to the native RenderSurface API. The selected backend remains Vulkan;
+    /// only the legacy node rasterisation is delegated to the canonical
+    /// software backend.
+    void set_draw_node_fallback(std::unique_ptr<graph::RenderBackend> fallback);
     void apply_effect_stack(Framebuffer&, const EffectStack&,
                             const effects::EffectExecutionContext&) override;
     void composite_layer(Framebuffer&, const Framebuffer&, BlendMode,
                          const std::optional<raster::BBox>&,
                          CompositeOperator) override;
+    graph::RenderOpResult draw_text_run(
+        Framebuffer&, const TextRunShape&, const glm::mat4&, float) override;
     void apply_blur(Framebuffer&, float,
                     const std::optional<raster::BBox>&) override;
 
@@ -137,6 +147,9 @@ public:
     graph::RenderOpResult composite_surfaces(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         BlendMode, CompositeOperator) override;
+    graph::RenderOpResult fill_rect_surface(
+        runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
+        std::int32_t, std::int32_t, const Color&) override;
     graph::RenderOpResult transform_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         int, int, float) override;
@@ -171,6 +184,7 @@ public:
 #endif
 
 private:
+    std::unique_ptr<graph::RenderBackend> m_draw_node_fallback;
     [[noreturn]] static void unsupported(const char* operation);
 
 #ifdef CHRONON3D_ENABLE_VULKAN

@@ -34,6 +34,18 @@ namespace chronon3d::cli {
 // Use chronon3d::cli::to_string() to convert VideoSinkType to string.
 
 bool ffmpeg_in_path();
+
+/// True when the selected encoder backend runs as an external `ffmpeg`
+/// subprocess (the "pipe" encoder) and therefore requires the `ffmpeg` binary
+/// on PATH.
+///
+/// The in-process `native` libavcodec encoder must NOT depend on the external
+/// ffmpeg executable — only the separate output-verification capability
+/// (ffprobe / full-decode) may.  When native support is disabled at build
+/// time, the "native" backend silently falls back to the pipe encoder
+/// (see create_video_encoder), so ffmpeg is still required in that case.
+bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend);
+
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt);
 color::ColorSpace parse_color_output(const std::string& cs);
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder);
@@ -50,6 +62,12 @@ struct FfmpegExportOptions {
 
     // Optional daemon-owned renderer reused across jobs.
     std::shared_ptr<SoftwareRenderer> warm_renderer;
+
+    // Rendering backend preference carried from the canonical RenderJob's
+    // Config (--backend auto|software|vulkan).  Auto resolves to Software on
+    // the video pipe path; GPU strictly resolves the Vulkan backend.
+    chronon3d::graph::BackendPreference backend_preference{
+        chronon3d::graph::BackendPreference::Auto};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

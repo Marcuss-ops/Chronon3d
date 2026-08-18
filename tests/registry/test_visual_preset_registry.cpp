@@ -145,6 +145,13 @@ TEST_CASE("VisualPresetRegistry: image_focus_in targets the image layer (C1)") {
     const auto& d = r.get("image_focus_in");
     CHECK(d.supported_layer == chronon3d::registry::VisualLayerKind::Image);
     CHECK(d.anchor.type == "image_right");
+    // Image presets own their canonical box + fit (ADR-029: the former
+    // PipelineGen IMAGE_OVERLAY transport shape lives here, not in Go).
+    REQUIRE(d.box_width.has_value());
+    CHECK(d.box_width.value() == doctest::Approx(260.0f));
+    REQUIRE(d.box_height.has_value());
+    CHECK(d.box_height.value() == doctest::Approx(260.0f));
+    CHECK(d.fit == "contain");
 }
 
 TEST_CASE("VisualPresetRegistry: style profiles resolve in Chronon only") {
