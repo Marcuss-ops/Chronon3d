@@ -208,7 +208,7 @@ graph::RenderOpResult draw_packed_text_run(
     std::span<const GpuTextGlyph> glyphs) {
     if (!ensure_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
+            graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_packed_text_run: destination has no native surface support"});
     }
     auto result = draw_packed_text_run_surface(
@@ -254,6 +254,9 @@ graph::RenderOpResult draw_cached_text_run(
         // They have no bitmap atlas entry and must not invalidate an
         // otherwise fully resident run.
         if (state.glyph_id == 0) continue;
+        const auto& placed = layout.placed.glyphs[i];
+        if (placed.bbox_x1 <= placed.bbox_x0 ||
+            placed.bbox_y1 <= placed.bbox_y0) continue;
         if (std::abs(state.scale.x - 1.0f) > 1e-4f ||
             std::abs(state.scale.y - 1.0f) > 1e-4f ||
             std::abs(state.rotation.x) > 1e-4f ||
@@ -293,7 +296,6 @@ graph::RenderOpResult draw_cached_text_run(
                 rgba[off + 3] = px[3] / 255.0f;
             }
         }
-        const auto& placed = layout.placed.glyphs[i];
         glyphs.push_back(GpuTextGlyph{
             static_cast<std::uint32_t>(data.size.w),
             static_cast<std::uint32_t>(data.size.h),
@@ -304,72 +306,19 @@ graph::RenderOpResult draw_cached_text_run(
                 placed.y + state.position.y + entry->y_offset)),
             state.opacity * opacity});
     }
-    if (!ensure_native_surface(ctx, destination)) {
+    // The native glow path is not release-safe yet (it can invalidate the
+    // device on older Vulkan drivers). Keep shadowed runs on the reference
+    // renderer until the glow pass has an isolated conformance test.
+    if (!shape.shadows.empty()) {
         return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
-            "draw_cached_text_run: destination has no native surface"});
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_cached_text_run: shadowed native text pending glow validation"});
     }
 
-    // caption_card uses one soft shadow. Render the alpha mask into a
-    // transient device-local surface and let the canonical Vulkan glow pass
-    // blur/composite it; no framebuffer download is needed. More complex
-    // shadow stacks remain on the reference path.
-    if (!shape.shadows.empty()) {
-        if (shape.shadows.size() != 1 || shape.dissolve_layout) {
-            release_native_surface(ctx, destination);
-            return graph::RenderOpResult(graph::RenderBackendError{
-                graph::RenderBackendErrorCode::UnsupportedCapability,
-                "draw_cached_text_run: unsupported native shadow stack"});
-        }
-        const auto& shadow = shape.shadows.front();
-        std::vector<GpuTextGlyph> shadow_glyphs = glyphs;
-        for (auto& glyph : shadow_glyphs) {
-            for (std::size_t i = 0; i + 3 < glyph.rgba.size(); i += 4) {
-                const float alpha = glyph.rgba[i + 3];
-                glyph.rgba[i + 0] = 0.0f;
-                glyph.rgba[i + 1] = 0.0f;
-                glyph.rgba[i + 2] = 0.0f;
-                glyph.rgba[i + 3] = alpha;
-            }
-            glyph.dst_x += static_cast<std::int32_t>(std::lround(shadow.offset.x));
-            glyph.dst_y += static_cast<std::int32_t>(std::lround(shadow.offset.y));
-            glyph.opacity *= shadow.opacity;
-        }
-
-        const runtime::SurfaceDesc desc = native_surface_desc(
-            destination.width(), destination.height());
-        std::vector<float> clear(static_cast<std::size_t>(destination.width()) *
-                                 destination.height() * 4, 0.0f);
-        std::array<runtime::RenderSurfaceHandle, 3> scratch{};
-        bool ready = true;
-        for (auto& handle : scratch) {
-            handle = ctx.services.surface_registry->create(desc);
-            if (handle == runtime::kInvalidRenderSurfaceHandle ||
-                !ctx.services.backend->create_surface(handle, desc).ok() ||
-                !ctx.services.backend->upload_surface(handle, desc, clear).ok()) {
-                ready = false;
-                break;
-            }
-        }
-        auto cleanup = [&]() {
-            for (auto handle : scratch) {
-                if (handle != runtime::kInvalidRenderSurfaceHandle) {
-                    (void)ctx.services.backend->release_surface(handle);
-                    ctx.services.surface_registry->release(handle);
-                }
-            }
-        };
-        if (!ready || !draw_packed_text_run_surface(ctx, scratch[0], shadow_glyphs).ok() ||
-            !ctx.services.backend->glow_surfaces(
-                destination.surface_handle(), scratch[0], scratch[1], scratch[2],
-                shadow.blur, shadow.opacity, shadow.color).ok()) {
-            cleanup();
-            release_native_surface(ctx, destination);
-            return graph::RenderOpResult(graph::RenderBackendError{
-                graph::RenderBackendErrorCode::UnsupportedCapability,
-                "draw_cached_text_run: native shadow execution failed"});
-        }
-        cleanup();
+    if (!ensure_native_surface(ctx, destination)) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_cached_text_run: destination has no native surface"});
     }
 
     auto result = draw_packed_text_run_surface(
