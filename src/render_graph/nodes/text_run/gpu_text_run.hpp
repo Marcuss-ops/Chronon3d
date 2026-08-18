@@ -19,6 +19,8 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/math/glm_types.hpp>
 
 #include <cstdint>
 #include <span>
@@ -61,5 +63,16 @@ struct GpuTextGlyph {
     RenderGraphContext& ctx,
     Framebuffer& destination,
     std::span<const GpuTextGlyph> glyphs);
+
+/// Use the renderer-owned CPU glyph atlas as the bitmap source and keep the
+/// packed GPU atlas in the runtime GpuAssetCache. This is the graph bridge for
+/// already-shaped text: shaping stays CPU-side, glyph placement is updated per
+/// frame, while the atlas upload is reused across frames/jobs.
+[[nodiscard]] graph::RenderOpResult draw_cached_text_run(
+    RenderGraphContext& ctx,
+    Framebuffer& destination,
+    const TextRunShape& shape,
+    const glm::mat4& model_matrix,
+    float opacity);
 
 } // namespace chronon3d::graph::text_run
