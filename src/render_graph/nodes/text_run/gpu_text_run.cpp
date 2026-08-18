@@ -15,6 +15,7 @@
 #include <blend2d.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cmath>
 #include <string_view>
@@ -70,9 +71,9 @@ std::pair<std::vector<PackedGlyph>, AtlasDims> pack_glyphs(
 
 } // namespace
 
-graph::RenderOpResult draw_packed_text_run(
+graph::RenderOpResult draw_packed_text_run_surface(
     RenderGraphContext& ctx,
-    Framebuffer& destination,
+    runtime::RenderSurfaceHandle destination,
     std::span<const GpuTextGlyph> glyphs) {
     if (glyphs.empty()) {
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
@@ -184,17 +185,8 @@ graph::RenderOpResult draw_packed_text_run(
         }
     }
 
-    // Ensure the destination carries a native surface, then dispatch.
-    if (!ensure_native_surface(ctx, destination)) {
-        (void)ctx.services.backend->release_surface(atlas_handle);
-        ctx.services.surface_registry->release(atlas_handle);
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure,
-            "draw_packed_text_run: destination has no native surface support"});
-    }
-
     auto drawn = ctx.services.backend->draw_text_run_surface(
-        destination.surface_handle(), atlas_handle, instances);
+        destination, atlas_handle, instances);
 
     // Cached atlases belong to the runtime. Only the compatibility atlas is
     // released here.
@@ -204,11 +196,25 @@ graph::RenderOpResult draw_packed_text_run(
     }
 
     if (!drawn.ok()) {
-        release_native_surface(ctx, destination);
         return graph::RenderOpResult(graph::RenderBackendError{
             drawn.error().code, drawn.error().message});
     }
     return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
+}
+
+graph::RenderOpResult draw_packed_text_run(
+    RenderGraphContext& ctx,
+    Framebuffer& destination,
+    std::span<const GpuTextGlyph> glyphs) {
+    if (!ensure_native_surface(ctx, destination)) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "draw_packed_text_run: destination has no native surface support"});
+    }
+    auto result = draw_packed_text_run_surface(
+        ctx, destination.surface_handle(), glyphs);
+    if (!result.ok()) release_native_surface(ctx, destination);
+    return result;
 }
 
 graph::RenderOpResult draw_cached_text_run(
@@ -294,7 +300,76 @@ graph::RenderOpResult draw_cached_text_run(
                 placed.y + state.position.y + entry->y_offset)),
             state.opacity * opacity});
     }
-    return draw_packed_text_run(ctx, destination, glyphs);
+    if (!ensure_native_surface(ctx, destination)) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "draw_cached_text_run: destination has no native surface"});
+    }
+
+    // caption_card uses one soft shadow. Render the alpha mask into a
+    // transient device-local surface and let the canonical Vulkan glow pass
+    // blur/composite it; no framebuffer download is needed. More complex
+    // shadow stacks remain on the reference path.
+    if (!shape.shadows.empty()) {
+        if (shape.shadows.size() != 1 || shape.dissolve_layout) {
+            release_native_surface(ctx, destination);
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "draw_cached_text_run: unsupported native shadow stack"});
+        }
+        const auto& shadow = shape.shadows.front();
+        std::vector<GpuTextGlyph> shadow_glyphs = glyphs;
+        for (auto& glyph : shadow_glyphs) {
+            for (std::size_t i = 0; i + 3 < glyph.rgba.size(); i += 4) {
+                const float alpha = glyph.rgba[i + 3];
+                glyph.rgba[i + 0] = 0.0f;
+                glyph.rgba[i + 1] = 0.0f;
+                glyph.rgba[i + 2] = 0.0f;
+                glyph.rgba[i + 3] = alpha;
+            }
+            glyph.dst_x += static_cast<std::int32_t>(std::lround(shadow.offset.x));
+            glyph.dst_y += static_cast<std::int32_t>(std::lround(shadow.offset.y));
+            glyph.opacity *= shadow.opacity;
+        }
+
+        const runtime::SurfaceDesc desc = native_surface_desc(
+            destination.width(), destination.height());
+        std::vector<float> clear(static_cast<std::size_t>(destination.width()) *
+                                 destination.height() * 4, 0.0f);
+        std::array<runtime::RenderSurfaceHandle, 3> scratch{};
+        bool ready = true;
+        for (auto& handle : scratch) {
+            handle = ctx.services.surface_registry->create(desc);
+            if (handle == runtime::kInvalidRenderSurfaceHandle ||
+                !ctx.services.backend->create_surface(handle, desc).ok() ||
+                !ctx.services.backend->upload_surface(handle, desc, clear).ok()) {
+                ready = false;
+                break;
+            }
+        }
+        auto cleanup = [&]() {
+            for (auto handle : scratch) {
+                if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                    (void)ctx.services.backend->release_surface(handle);
+                    ctx.services.surface_registry->release(handle);
+                }
+            }
+        };
+        if (!ready || !draw_packed_text_run_surface(ctx, scratch[0], shadow_glyphs).ok() ||
+            !ctx.services.backend->glow_surfaces(
+                destination.surface_handle(), scratch[0], scratch[1], scratch[2],
+                shadow.blur, shadow.opacity, shadow.color).ok()) {
+            cleanup();
+            release_native_surface(ctx, destination);
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "draw_cached_text_run: native shadow execution failed"});
+        }
+        cleanup();
+    }
+
+    return draw_packed_text_run_surface(
+        ctx, destination.surface_handle(), glyphs);
 }
 
 } // namespace chronon3d::graph::text_run
