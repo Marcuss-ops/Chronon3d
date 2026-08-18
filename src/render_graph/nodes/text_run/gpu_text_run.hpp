@@ -42,6 +42,8 @@ struct GpuTextGlyph {
     std::vector<float> rgba;
     std::int32_t dst_x{0};
     std::int32_t dst_y{0};
+    float scale_x{1.0f};
+    float scale_y{1.0f};
     float opacity{1.0f};
 };
 
