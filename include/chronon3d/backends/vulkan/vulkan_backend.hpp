@@ -9,6 +9,8 @@
 #endif
 
 #include <memory>
+#include <chrono>
+#include <cstdint>
 #include <span>
 #include <string>
 #include <utility>
@@ -45,6 +47,16 @@ struct VulkanBackendStats {
     // the device exposes no timestamp support). This is the GPU execution
     // time, distinct from the CPU-side submit/wait metrics above.
     std::uint64_t gpu_execute_us{0};
+    // Compatibility bridge telemetry. These counters make the hybrid path
+    // explicit instead of silently presenting CPU work as Vulkan work.
+    std::uint64_t software_fallback_nodes{0};
+    std::uint64_t software_fallback_us{0};
+    std::uint64_t fallback_draw_node{0};
+    std::uint64_t fallback_text_run{0};
+    std::uint64_t fallback_composite{0};
+    std::uint64_t fallback_effect{0};
+    std::uint64_t fallback_blur{0};
+    std::uint64_t fallback_dof{0};
 };
 
 /// Persistent headless Vulkan backend foundation. It owns the device and
@@ -185,6 +197,9 @@ public:
 
 private:
     std::unique_ptr<graph::RenderBackend> m_draw_node_fallback;
+    void record_software_fallback(
+        const char* reason,
+        std::chrono::steady_clock::time_point started) noexcept;
     [[noreturn]] static void unsupported(const char* operation);
 
 #ifdef CHRONON3D_ENABLE_VULKAN

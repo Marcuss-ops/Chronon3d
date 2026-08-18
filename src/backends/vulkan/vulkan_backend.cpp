@@ -14,6 +14,7 @@
 
 #include <array>
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -2091,6 +2092,15 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("readback_us", m_impl->stats.readback_us);
     out.emplace_back("cpu_gpu_sync_us", m_impl->stats.gpu_wait_cpu_us + m_impl->stats.readback_us);
     out.emplace_back("gpu_execute_us", m_impl->stats.gpu_execute_us);
+    out.emplace_back("gpu_nodes", m_impl->stats.passes_executed);
+    out.emplace_back("software_fallback_nodes", m_impl->stats.software_fallback_nodes);
+    out.emplace_back("software_fallback_us", m_impl->stats.software_fallback_us);
+    out.emplace_back("fallback_draw_node", m_impl->stats.fallback_draw_node);
+    out.emplace_back("fallback_text_run", m_impl->stats.fallback_text_run);
+    out.emplace_back("fallback_composite", m_impl->stats.fallback_composite);
+    out.emplace_back("fallback_effect", m_impl->stats.fallback_effect);
+    out.emplace_back("fallback_blur", m_impl->stats.fallback_blur);
+    out.emplace_back("fallback_dof", m_impl->stats.fallback_dof);
 #else
     (void)out;
 #endif
@@ -2602,6 +2612,28 @@ void VulkanBackend::unsupported(const char* operation) {
                              ": RenderSurface execution is not wired yet");
 }
 
+void VulkanBackend::record_software_fallback(
+    const char* reason,
+    std::chrono::steady_clock::time_point started) noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!m_impl) return;
+    ++m_impl->stats.software_fallback_nodes;
+    if (std::strcmp(reason, "draw_node") == 0) ++m_impl->stats.fallback_draw_node;
+    else if (std::strcmp(reason, "text_run") == 0) ++m_impl->stats.fallback_text_run;
+    else if (std::strcmp(reason, "composite") == 0) ++m_impl->stats.fallback_composite;
+    else if (std::strcmp(reason, "effect") == 0) ++m_impl->stats.fallback_effect;
+    else if (std::strcmp(reason, "blur") == 0) ++m_impl->stats.fallback_blur;
+    else if (std::strcmp(reason, "dof") == 0) ++m_impl->stats.fallback_dof;
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    m_impl->stats.software_fallback_us += static_cast<std::uint64_t>(
+        std::max<std::int64_t>(0, elapsed));
+#else
+    (void)reason;
+    (void)started;
+#endif
+}
+
 void VulkanBackend::apply_per_pixel_dof(
     Framebuffer& framebuffer, std::span<const float> depth,
     const DepthOfFieldSettings& dof, const LensModel& lens,
@@ -2610,8 +2642,10 @@ void VulkanBackend::apply_per_pixel_dof(
     // runtime Vulkan-backed while delegating this unsupported operation to
     // the canonical software backend until a surface-native DOF pass exists.
     if (m_draw_node_fallback) {
+        const auto started = std::chrono::steady_clock::now();
         m_draw_node_fallback->apply_per_pixel_dof(
             framebuffer, depth, dof, lens, clip);
+        record_software_fallback("dof", started);
         return;
     }
     unsupported("apply_per_pixel_dof");
@@ -2625,7 +2659,9 @@ void VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
                               const RenderState& state, const Camera& camera,
                               int width, int height) {
     if (m_draw_node_fallback) {
+        const auto started = std::chrono::steady_clock::now();
         m_draw_node_fallback->draw_node(framebuffer, node, state, camera, width, height);
+        record_software_fallback("draw_node", started);
         return;
     }
     unsupported("draw_node: no legacy-node fallback attached");
@@ -2634,7 +2670,9 @@ void VulkanBackend::apply_effect_stack(
     Framebuffer& framebuffer, const EffectStack& stack,
     const effects::EffectExecutionContext& context) {
     if (m_draw_node_fallback) {
+        const auto started = std::chrono::steady_clock::now();
         m_draw_node_fallback->apply_effect_stack(framebuffer, stack, context);
+        record_software_fallback("effect", started);
         return;
     }
     unsupported("apply_effect_stack");
@@ -2644,21 +2682,27 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
                                     CompositeOperator op) {
     if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
         if (m_draw_node_fallback) {
+            const auto started = std::chrono::steady_clock::now();
             m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            record_software_fallback("composite", started);
             return;
         }
         throw std::runtime_error("VulkanBackend::composite_layer: only Normal/SourceOver is implemented");
     }
     if (clip) {
         if (m_draw_node_fallback) {
+            const auto started = std::chrono::steady_clock::now();
             m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            record_software_fallback("composite", started);
             return;
         }
         throw std::runtime_error("VulkanBackend::composite_layer: clipped surfaces are not implemented");
     }
     if (destination.width() != source.width() || destination.height() != source.height()) {
         if (m_draw_node_fallback) {
+            const auto started = std::chrono::steady_clock::now();
             m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
+            record_software_fallback("composite", started);
             return;
         }
         throw std::runtime_error("VulkanBackend::composite_layer: surface dimensions differ");
@@ -2674,8 +2718,11 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
     Framebuffer& framebuffer, const TextRunShape& shape,
     const glm::mat4& model_matrix, float opacity) {
     if (m_draw_node_fallback) {
-        return m_draw_node_fallback->draw_text_run(
+        const auto started = std::chrono::steady_clock::now();
+        auto result = m_draw_node_fallback->draw_text_run(
             framebuffer, shape, model_matrix, opacity);
+        record_software_fallback("text_run", started);
+        return result;
     }
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -2685,7 +2732,9 @@ void VulkanBackend::apply_blur(
     Framebuffer& framebuffer, float radius,
     const std::optional<raster::BBox>& clip) {
     if (m_draw_node_fallback) {
+        const auto started = std::chrono::steady_clock::now();
         m_draw_node_fallback->apply_blur(framebuffer, radius, clip);
+        record_software_fallback("blur", started);
         return;
     }
     unsupported("apply_blur");
