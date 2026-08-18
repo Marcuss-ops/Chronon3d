@@ -11,6 +11,7 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/media/media_placement.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -34,8 +35,7 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     const auto& image = node.shape.image();
     if (!ctx.services.image_cache || !ctx.services.gpu_asset_cache ||
         !ctx.services.backend || !ctx.services.surface_registry ||
-        image.path.empty() || image.fit != FitMode::Stretch ||
-        image.crop.enabled || image.radius > 0.0f || state.clip_rect ||
+        image.path.empty() || image.radius > 0.0f || state.clip_rect ||
         (state.mask && state.mask->enabled()) ||
         std::abs(state.matrix[0][1]) > 1e-4f ||
         std::abs(state.matrix[1][0]) > 1e-4f ||
@@ -81,12 +81,32 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     if (!acquired.ok()) return false;
 
     if (!ensure_native_surface(ctx, fb)) return false;
-    // SourceNode's state matrix maps ImageShape local units. Stretch maps
-    // the decoded image dimensions to image.size before that matrix.
-    const float sx = state.matrix[0][0] * image.size.x /
-                     static_cast<float>(source.width());
-    const float sy = state.matrix[1][1] * image.size.y /
-                     static_cast<float>(source.height());
+    const Vec2 original_source_size{
+        static_cast<float>(source.width()), static_cast<float>(source.height())};
+    Vec2 effective_source_size = original_source_size;
+    Vec2 effective_source_origin{0.0f, 0.0f};
+    if (image.crop.enabled) {
+        effective_source_size = image.crop.size * original_source_size;
+        effective_source_origin = image.crop.origin * original_source_size;
+    }
+    const auto placement = compute_media_placement(
+        effective_source_size, image.size, image.fit, image.focal_point);
+    const Vec2 source_origin = effective_source_origin + placement.src_rect.origin;
+    const Vec2 source_size = placement.src_rect.size;
+    if (source_size.x <= 0.0f || source_size.y <= 0.0f ||
+        placement.dst_rect.size.x <= 0.0f || placement.dst_rect.size.y <= 0.0f) {
+        release_native_surface(ctx, fb);
+        return false;
+    }
+
+    // SourceNode's state matrix maps ImageShape local units. The placement
+    // maps the selected source rectangle into the authored image box first.
+    const float sx = state.matrix[0][0] * placement.dst_rect.size.x / source_size.x;
+    const float sy = state.matrix[1][1] * placement.dst_rect.size.y / source_size.y;
+    const float tx = state.matrix[3][0] +
+                     state.matrix[0][0] * placement.dst_rect.origin.x;
+    const float ty = state.matrix[3][1] +
+                     state.matrix[1][1] * placement.dst_rect.origin.y;
     if (std::abs(sx) < 1e-6f || std::abs(sy) < 1e-6f) {
         release_native_surface(ctx, fb);
         return false;
@@ -94,11 +114,11 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
 
     runtime::SurfaceAffineTransform transform{};
     transform.source_x[0] = 1.0f / sx;
-    transform.source_x[2] = -state.matrix[3][0] / sx;
+    transform.source_x[2] = source_origin.x - tx / sx;
     transform.source_y[1] = 1.0f / sy;
-    transform.source_y[2] = -state.matrix[3][1] / sy;
-    transform.max_x = static_cast<float>(source.width());
-    transform.max_y = static_cast<float>(source.height());
+    transform.source_y[2] = source_origin.y - ty / sy;
+    transform.max_x = source_origin.x + source_size.x;
+    transform.max_y = source_origin.y + source_size.y;
     transform.opacity = image.opacity * state.opacity;
     transform.bilinear = 1u;
 
