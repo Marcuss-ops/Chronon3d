@@ -52,8 +52,12 @@ struct VulkanBackendStats {
     std::uint64_t software_fallback_nodes{0};
     std::uint64_t software_fallback_us{0};
     std::uint64_t fallback_draw_node{0};
+    std::uint64_t fallback_draw_image{0};
+    std::uint64_t fallback_draw_other{0};
     std::uint64_t fallback_text_run{0};
     std::uint64_t fallback_composite{0};
+    std::uint64_t fallback_composite_dimensions{0};
+    std::uint64_t fallback_composite_mode{0};
     std::uint64_t fallback_effect{0};
     std::uint64_t fallback_blur{0};
     std::uint64_t fallback_dof{0};
