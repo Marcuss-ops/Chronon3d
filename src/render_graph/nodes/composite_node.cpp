@@ -20,6 +20,125 @@ namespace chronon3d::graph {
 
 namespace {
 
+bool try_native_dimension_normal(
+    RenderGraphContext& ctx, Framebuffer& destination,
+    const Framebuffer& source) {
+    if (!ctx.services.backend || !ctx.services.surface_registry ||
+        source.width() == destination.width() &&
+            source.height() == destination.height()) {
+        return false;
+    }
+    const auto original_destination = destination.surface_handle();
+    if (!ensure_native_surface(ctx, destination)) return false;
+
+    OwnedFB source_copy;
+    runtime::RenderSurfaceHandle source_handle = source.surface_handle();
+    if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
+        source_copy = ctx.acquire_owned_fb(source);
+        if (!ensure_native_surface(ctx, *source_copy)) {
+            if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+                release_native_surface(ctx, destination);
+            }
+            return false;
+        }
+        source_handle = source_copy->surface_handle();
+    }
+
+    const auto transformed = ctx.services.backend->transform_surface(
+        destination.surface_handle(), source_handle,
+        source.origin_x() - destination.origin_x(),
+        source.origin_y() - destination.origin_y(), 1.0f);
+    if (source_copy) {
+        release_native_surface(ctx, *source_copy);
+    }
+    if (!transformed.ok()) {
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool try_native_dimension_composite(
+    RenderGraphContext& ctx, Framebuffer& destination,
+    const Framebuffer& source, const std::optional<raster::BBox>& clip) {
+    if (!ctx.services.backend || !ctx.services.surface_registry ||
+        source.width() == destination.width() &&
+            source.height() == destination.height()) {
+        return false;
+    }
+    const auto original_destination = destination.surface_handle();
+    if (!ensure_native_surface(ctx, destination)) return false;
+
+    OwnedFB source_copy;
+    runtime::RenderSurfaceHandle source_handle = source.surface_handle();
+    if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
+        source_copy = ctx.acquire_owned_fb(source);
+        if (!ensure_native_surface(ctx, *source_copy)) {
+            if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+                release_native_surface(ctx, destination);
+            }
+            return false;
+        }
+        source_handle = source_copy->surface_handle();
+    }
+
+    const auto desc = native_surface_desc(destination.width(), destination.height());
+    const auto expanded = ctx.services.surface_registry->create(desc);
+    if (expanded == runtime::kInvalidRenderSurfaceHandle) {
+        if (source_copy) release_native_surface(ctx, *source_copy);
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
+        return false;
+    }
+    const auto created = ctx.services.backend->create_surface(expanded, desc);
+    if (!created.ok()) {
+        ctx.services.surface_registry->release(expanded);
+        if (source_copy) release_native_surface(ctx, *source_copy);
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
+        return false;
+    }
+    const auto transformed = ctx.services.backend->transform_surface(
+        expanded, source_handle,
+        source.origin_x() - destination.origin_x(),
+        source.origin_y() - destination.origin_y(), 1.0f);
+    if (!transformed.ok()) {
+        (void)ctx.services.backend->release_surface(expanded);
+        ctx.services.surface_registry->release(expanded);
+        if (source_copy) release_native_surface(ctx, *source_copy);
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
+        return false;
+    }
+
+    std::optional<raster::BBox> local_clip = clip;
+    if (local_clip) {
+        local_clip = raster::BBox{
+            local_clip->x0 - destination.origin_x(),
+            local_clip->y0 - destination.origin_y(),
+            local_clip->x1 - destination.origin_x(),
+            local_clip->y1 - destination.origin_y()};
+    }
+    const auto composited = ctx.services.backend->composite_surfaces(
+        destination.surface_handle(), expanded,
+        BlendMode::Normal, CompositeOperator::SourceOver, local_clip);
+    (void)ctx.services.backend->release_surface(expanded);
+    ctx.services.surface_registry->release(expanded);
+    if (source_copy) release_native_surface(ctx, *source_copy);
+    if (!composited.ok()) {
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
+        return false;
+    }
+    return true;
+}
+
 bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
                           Framebuffer& source, BlendMode mode,
                           CompositeOperator op,
@@ -175,7 +294,9 @@ NodeExecResult CompositeNode::execute(
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
-            ctx.services.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+            if (!try_native_dimension_normal(ctx, *result, *bottom)) {
+                ctx.services.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+            }
         }
         // F3.2 — size mismatch forces a full-canvas composite_layer
         // (every pixel touched). Surface as a full-frame pass. The byte
@@ -239,7 +360,11 @@ NodeExecResult CompositeNode::execute(
         // composite operator field instead of a blend mode when applicable.
         const bool native_composite = try_native_composite(
             ctx, *result, *top, m_mode, m_operator, clip);
-        if (native_composite) {
+        const bool native_dimension_composite = !native_composite &&
+            m_mode == BlendMode::Normal &&
+            m_operator == CompositeOperator::SourceOver &&
+            try_native_dimension_composite(ctx, *result, *top, clip);
+        if (native_composite || native_dimension_composite) {
             // The native path has already composed the logical surfaces. The
             // CPU pixels remain a reference snapshot for any legacy consumer;
             // the handle is the authoritative value for subsequent native
