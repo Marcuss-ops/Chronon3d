@@ -4,7 +4,9 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/media/video/output_contract.hpp>
 
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
@@ -127,22 +129,54 @@ PipeExportResult make_pipe_export_result(
             }
         }
     } else {
-        // P1-B: ffprobe validation before rename
-        // Verify the .partial file is a valid video with correct stream,
-        // resolution, fps, and non-zero file size.
+        // P1-B: OutputContract verification before rename.
+        // The canonical production contract (h264/yuv420p/30fps) is resolved
+        // once; runtime geometry/fps/frame count override it. The pipe export
+        // is video-only (audio is muxed by the external mux boundary later),
+        // so audio is not required at this stage.
         const auto validation_t0 = profiling::now();
-        const bool valid = validate_video_output(
-            session.opts.output.output,
-            session.canvas_width, session.canvas_height,
-            session.opts.output.fps, session.total_frames);
-        result.validation_ms = profiling::duration_ms(validation_t0, profiling::now());
-        if (!valid) {
-            spdlog::error("[video] ffprobe validation failed — output may be corrupt");
+        auto contract_result =
+            media::video::resolve_output_contract("youtube_overlay_v1");
+        if (!contract_result) {
+            spdlog::error("[video] output contract unavailable: {}",
+                          std::move(contract_result).error());
             result.success = false;
             result.return_code = 1;
             std::error_code ec;
             std::filesystem::remove(partial_path, ec);
             return result;
+        }
+        auto contract = std::move(contract_result).value();
+        contract.width = session.canvas_width;
+        contract.height = session.canvas_height;
+        contract.fps = FrameRate{session.opts.output.fps, 1};
+        contract.frame_count = session.total_frames;
+        contract.audio_required = false;
+        contract.audio_streams = 0;
+
+        // The encoder writes the temporary `.partial.mp4` path. Verify that
+        // durable bytes before the atomic rename to the final output path;
+        // the final path intentionally does not exist yet at this point.
+        const auto verification = media::video::verify_output_contract(
+            partial_path, contract);
+        result.validation_ms = profiling::duration_ms(validation_t0, profiling::now());
+        result.sha256 = verification.sha256;
+        result.copy_eligible = verification.copy_eligible;
+
+        if (!verification.passed) {
+            spdlog::error("[video] output verification failed — {}",
+                          verification.failure);
+            result.success = false;
+            result.return_code = 1;
+            std::error_code ec;
+            std::filesystem::remove(partial_path, ec);
+            return result;
+        }
+        if (!verification.copy_eligible) {
+            spdlog::warn("[video] artifact decodable but not copy-eligible — {}",
+                         verification.failure);
+        } else {
+            spdlog::info("[video] copy_eligible=true sha256={}", result.sha256);
         }
 
         // Atomic rename: .partial → final path

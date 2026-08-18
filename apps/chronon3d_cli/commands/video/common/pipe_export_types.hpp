@@ -25,6 +25,11 @@ struct PipeExportResult {
     bool exception_error{false};
     bool encoder_close_failed{false};
     bool output_published{false};
+    /// True ONLY after the full OutputContract verification passed (incl.
+    /// SHA-256). Set by make_pipe_export_result, never before.
+    bool copy_eligible{false};
+    /// SHA-256 hex digest of the published artifact (empty = not computed).
+    std::string sha256;
     int frames_rendered{0};
     int frames_enqueued{0};
     int frames_encoded{0};

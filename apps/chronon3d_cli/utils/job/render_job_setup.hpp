@@ -35,6 +35,7 @@ struct RenderJobSetupResult {
 /// inspectable after execution.
 void setup_render_job(const CompositionRegistry& registry,
                       const RenderJob& job,
-                      RenderJobSetupResult& out);
+                      RenderJobSetupResult& out,
+                      std::shared_ptr<SoftwareRenderer> warm_renderer = {});
 
 } // namespace chronon3d::cli

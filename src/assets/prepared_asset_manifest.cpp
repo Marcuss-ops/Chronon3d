@@ -216,6 +216,8 @@ struct RequestedAsset {
         if (!path.empty()) result.push_back({std::string(path), kind});
     };
     for (const auto& layer : plan.layers) {
+        if (layer.background)
+            add(layer.background->asset, PreparedAssetKind::Image);
         if (layer.type == render_plan::LayerType::Image)
             add(layer.asset, PreparedAssetKind::Image);
         else if (layer.type == render_plan::LayerType::Video)
@@ -308,6 +310,21 @@ std::string ContentDigest::hex() const {
 ContentDigest sha256_string(std::string_view value) {
     Sha256 sha;
     sha.update(value.data(), value.size());
+    return sha.finish();
+}
+
+std::optional<ContentDigest> sha256_file(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return std::nullopt;
+    Sha256 sha;
+    std::array<char, 64U * 1024U> buffer{};
+    while (input) {
+        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        const auto count = input.gcount();
+        if (count <= 0) break;
+        sha.update(buffer.data(), static_cast<std::size_t>(count));
+    }
+    if (input.bad()) return std::nullopt;
     return sha.finish();
 }
 
