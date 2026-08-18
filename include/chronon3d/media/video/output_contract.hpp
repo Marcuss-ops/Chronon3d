@@ -80,6 +80,13 @@ struct OutputVerificationResult {
     /// Observed SHA-256 hex digest; empty = not computed.
     std::string sha256;
 
+    /// Wall time of the ffprobe subprocess (launch + wait), in ms. Measured
+    /// with steady_clock so it stays monotonic; 0.0 = ffprobe did not run.
+    double ffprobe_ms{0.0};
+
+    /// Wall time of the SHA-256 digest computation, in ms. 0.0 = not computed.
+    double sha256_ms{0.0};
+
     /// Human-readable reason when !passed.
     std::string failure;
 };

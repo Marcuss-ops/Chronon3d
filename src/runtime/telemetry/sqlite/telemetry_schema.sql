@@ -135,7 +135,11 @@ CREATE TABLE IF NOT EXISTS render_runs (
     alias_saved_bytes INTEGER DEFAULT 0,
     alias_reuse_count INTEGER DEFAULT 0,
     new_resource_slot_count INTEGER DEFAULT 0,
-    arena_peak_bytes INTEGER DEFAULT 0
+    arena_peak_bytes INTEGER DEFAULT 0,
+    ffprobe_wall_ms REAL DEFAULT 0,
+    sha256_wall_ms REAL DEFAULT 0,
+    process_startup_ms REAL DEFAULT 0,
+    framebuffer_allocations_per_frame REAL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS render_frames (

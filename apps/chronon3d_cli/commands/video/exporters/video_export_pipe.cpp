@@ -1,5 +1,6 @@
 #include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
+#include "../../../utils/process_start.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
@@ -84,8 +85,14 @@ struct JobTimings {
     std::optional<double> mux_finalize_ms;
     std::optional<double> output_finalize_ms;
     std::optional<double> validation_ms;
-    // Render-loop image draw aggregates (resolve/io/decode/convert live in
-    // `prepare`; draw is the only per-frame measurable image phase).
+    // Output-contract verification split: the ffprobe subprocess and the
+    // SHA-256 digest are timed separately so neither cost is hidden behind
+    // the combined validation_ms.
+    std::optional<double> ffprobe_ms;
+    std::optional<double> sha256_ms;
+    // Framebuffer allocation events across the render loop (post-warmup),
+    // used to derive the per-frame allocation rate in the sidecar.
+    std::optional<uint64_t> framebuffer_allocations;
     std::optional<double> image_draw_ms;
     std::optional<uint64_t> image_draw_count;
     CacheMetrics cache;
@@ -392,6 +399,8 @@ void write_frame_timing_sidecar(
     put_ms("mux_finalize_ms", timings.mux_finalize_ms);
     put_ms("output_finalize_ms", timings.output_finalize_ms);
     put_ms("validation_ms", timings.validation_ms);
+    put_ms("ffprobe_ms", timings.ffprobe_ms);
+    put_ms("sha256_ms", timings.sha256_ms);
 
     auto& prepare = job["prepare"];
     const auto put_prepare = [&prepare](const char* key, const std::optional<double>& value) {
@@ -488,6 +497,20 @@ void write_frame_timing_sidecar(
         ? (static_cast<double>(glyph_hits) / static_cast<double>(glyph_hits + glyph_misses))
         : 0.0;
 
+    // Framebuffer allocation rate (the only per-frame allocation event rate
+    // the engine measures). Emitted as null when the counter is unavailable
+    // rather than inventing a heap-allocator estimate.
+    auto& memory = out["memory"];
+    if (timings.framebuffer_allocations) {
+        memory["framebuffer_allocations"] = *timings.framebuffer_allocations;
+        memory["framebuffer_allocations_per_frame"] = count > 0
+            ? (static_cast<double>(*timings.framebuffer_allocations) / static_cast<double>(count))
+            : 0.0;
+    } else {
+        memory["framebuffer_allocations"] = nullptr;
+        memory["framebuffer_allocations_per_frame"] = nullptr;
+    }
+
     const auto sidecar = std::filesystem::path(video_path).string() + ".timing.json";
     std::ofstream file(sidecar);
     if (!file) {
@@ -560,19 +583,22 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", loop_output.loop_result.queue_wait_ms);
 
+    // Phase 8 — Result (validation + atomic output finalize)
+    // Runs before telemetry so the render artifact record can persist the
+    // verified SHA-256 digest + published path instead of an empty placeholder.
+    auto result = make_pipe_export_result(*session, loop_output.loop_result, close_result,
+                                          loop_output.render_ms, encode_ms, wall_time_ms);
+
     // Phase 7 — Telemetry (SQLite + counters)
     record_pipe_telemetry(composition_id, *session, loop_output.loop_result,
                           close_result, loop_output.telemetry_frames,
-                          wall_time_ms, loop_output.render_ms, encode_ms);
-
-    // Phase 8 — Result (validation + atomic output finalize)
-    auto result = make_pipe_export_result(*session, loop_output.loop_result, close_result,
-                                          loop_output.render_ms, encode_ms, wall_time_ms);
+                          wall_time_ms, loop_output.render_ms, encode_ms, result);
 
     // Phase 9 — Frame-timing sidecar (job timings now include validation + finalize)
     const bool is_native = (session->opts.encoder.encoder_backend == "native");
     JobTimings timings;
     timings.job_wall_ms = wall_time_ms;
+    timings.process_wall_ms = profiling::duration_ms(process_start_time(), wall_t0);
     timings.prepare_ms = profiling::duration_ms(setup_t0, warmup_t1);
     timings.engine_init_ms = session->engine_init_ms;
     timings.backend_init_ms = session->backend_init_ms;
@@ -600,6 +626,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
     timings.output_finalize_ms = result.output_finalize_ms;
     timings.validation_ms = result.validation_ms;
+    timings.ffprobe_ms = result.ffprobe_ms;
+    timings.sha256_ms = result.sha256_ms;
     timings.target_fps = session->opts.output.fps;
     timings.prepare = session->prepare_timings;
     if (session->renderer->counters()) {
@@ -632,6 +660,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cache.glyph_cache_misses = c->glyph_cache_misses.load(std::memory_order_relaxed);
         timings.cache.gpu_asset_cache_hits = c->gpu_asset_cache_hits.load(std::memory_order_relaxed);
         timings.cache.gpu_asset_cache_misses = c->gpu_asset_cache_misses.load(std::memory_order_relaxed);
+        timings.framebuffer_allocations =
+            c->framebuffer_allocations.load(std::memory_order_relaxed);
     }
     timings.cache.image_cache_hits = session->prepare_timings.image_cache_hits;
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;

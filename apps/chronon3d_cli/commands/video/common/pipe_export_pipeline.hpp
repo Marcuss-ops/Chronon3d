@@ -32,6 +32,9 @@ void warmup_pipe_pool(PipeExportSession& session);
 [[nodiscard]] EncoderCloseResult close_pipe_encoder(PipeExportSession& session);
 
 /// Phase 8-9: Collect and record telemetry.
+/// `result` carries the post-verification output facts (sha256, published
+/// path) so the render artifact record is persisted with its digest instead
+/// of an empty placeholder.
 void record_pipe_telemetry(
     const std::string& composition_id,
     PipeExportSession& session,
@@ -40,7 +43,8 @@ void record_pipe_telemetry(
     const std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
     double wall_time_ms,
     double render_ms,
-    double encode_ms);
+    double encode_ms,
+    const PipeExportResult& result);
 
 /// Phase 5: Run the render loop and join the writer thread.
 [[nodiscard]] RenderLoopOutput run_pipe_export_loop(

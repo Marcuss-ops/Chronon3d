@@ -13,8 +13,11 @@
 #include "cli_context.hpp"
 #include "cli_init.hpp"
 #include "commands/cli_groups.hpp"
+#include "utils/process_start.hpp"
 
 int main(int argc, char** argv) {
+    chronon3d::cli::record_process_start();
+
     // ── Single concurrency budget ───────────────────────────────────────
     //
     // Architecture (certified by tests/core/test_concurrency_budget.cpp):

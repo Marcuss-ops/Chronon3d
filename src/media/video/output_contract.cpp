@@ -1,6 +1,7 @@
 #include <chronon3d/media/video/output_contract.hpp>
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include "process_runner.hpp"
 
@@ -148,13 +149,16 @@ OutputVerificationResult verify_output_contract(
         "exec ffprobe -v error -show_streams -show_format -of json " +
         shell_quote(artifact.string()) + " > " + shell_quote(json_path);
     Args command{"/bin/sh", "-c", command_line};
+    const auto ffprobe_t0 = profiling::now();
     if (!probe.launch(command.front(), command)) {
+        result.ffprobe_ms = profiling::elapsed_ms(ffprobe_t0);
         std::filesystem::remove(json_path, ignored);
         result.ffprobe_missing = true;
         result.failure = "ffprobe not available on PATH";
         return result;
     }
     const int exit_code = probe.wait_for(std::chrono::seconds(30));
+    result.ffprobe_ms = profiling::elapsed_ms(ffprobe_t0);
     if (exit_code != 0) {
         const auto probe_stderr = probe.consume_stderr();
         std::filesystem::remove(json_path, ignored);
@@ -269,7 +273,9 @@ OutputVerificationResult verify_output_contract(
     }
 
     // ── SHA-256 (required for copy eligibility) ───────────────────────────
+    const auto sha256_t0 = profiling::now();
     const auto digest = chronon3d::assets::sha256_file(artifact);
+    result.sha256_ms = profiling::elapsed_ms(sha256_t0);
     if (!digest) {
         result.passed = false;
         result.failure = "cannot compute SHA-256 for artifact";
