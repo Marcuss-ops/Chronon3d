@@ -18,6 +18,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 using json = nlohmann::json;
@@ -31,6 +32,11 @@ struct chronon_engine {
     chronon3d::sdk::RenderEngine engine;
     chronon3d::assets::AssetResolver resolver;
     std::string last_error;
+    chronon_status last_status{CHRONON_OK};
+    std::string last_code;
+    std::string last_component;
+    std::string last_node_id;
+    std::string last_asset;
     std::uint8_t* buffer{nullptr};
     std::size_t buffer_size{0};
     std::atomic_flag in_use = ATOMIC_FLAG_INIT;
@@ -59,7 +65,13 @@ private:
 namespace {
 
 void clear_error(chronon_engine* engine) {
-    if (engine) engine->last_error.clear();
+    if (!engine) return;
+    engine->last_error.clear();
+    engine->last_status = CHRONON_OK;
+    engine->last_code.clear();
+    engine->last_component.clear();
+    engine->last_node_id.clear();
+    engine->last_asset.clear();
 }
 
 void write_error_info(chronon_error_info* info, chronon_status status,
@@ -118,10 +130,27 @@ std::optional<std::size_t> rendered_byte_size(const Rendered& rendered) {
     return row_bytes * static_cast<std::size_t>(rendered.height);
 }
 
+// Plan decode/compile failures carry the PlanDecodeError path so the C ABI can
+// expose the offending asset / layer field through the structured last-error
+// surface instead of flattening everything into the message string.
+struct PlanCompileError : std::runtime_error {
+    std::string path;
+    std::string code;
+    std::string component;
+    PlanCompileError(std::string error_path, std::string message,
+                     std::string error_code, std::string error_component)
+        : std::runtime_error(std::move(message)),
+          path(std::move(error_path)),
+          code(std::move(error_code)),
+          component(std::move(error_component)) {}
+};
+
 chronon3d::render_plan::PreparedRenderPlan compile_plan(
     const json& root, chronon3d::assets::AssetResolver& resolver) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
-    if (!decoded) throw std::runtime_error(decoded.error().message);
+    if (!decoded)
+        throw PlanCompileError(decoded.error().path, decoded.error().message,
+                               decoded.error().code, decoded.error().component);
     chronon3d::render_plan::RenderPlanFingerprintOptions fingerprint_options;
     fingerprint_options.render_settings.width = decoded->canvas.width;
     fingerprint_options.render_settings.height = decoded->canvas.height;
@@ -129,17 +158,32 @@ chronon3d::render_plan::PreparedRenderPlan compile_plan(
     fingerprint_options.render_settings.force_scalar_normal_blend = false;
     const auto compiled = chronon3d::render_plan::compile_render_plan(
         decoded.value(), resolver, fingerprint_options);
-    if (!compiled) throw std::runtime_error(compiled.error().message);
+    if (!compiled)
+        throw PlanCompileError(compiled.error().path, compiled.error().message,
+                               compiled.error().code, compiled.error().component);
     return compiled.value();
 }
 
-chronon_status set_error(chronon_engine* engine, chronon_status status,
-                         std::string message);
+chronon_status render_error_status(const chronon3d::sdk::RenderError& error);
+
+chronon_status store_error(chronon_engine* engine, chronon_status status,
+                           std::string message, std::string code,
+                           std::string component, std::string node_id,
+                           std::string asset) {
+    if (!engine) return status;
+    engine->last_error = std::move(message);
+    engine->last_status = status;
+    engine->last_code = std::move(code);
+    engine->last_component = std::move(component);
+    engine->last_node_id = std::move(node_id);
+    engine->last_asset = std::move(asset);
+    return status;
+}
 
 chronon_status set_error(chronon_engine* engine, chronon_status status,
-                          std::string message) {
-    if (engine) engine->last_error = std::move(message);
-    return status;
+                         std::string message) {
+    return store_error(engine, status, std::move(message),
+                       chronon_status_name(status), "c_api", {}, {});
 }
 
 chronon_status render_error_status(const chronon3d::sdk::RenderError& error) {
@@ -166,6 +210,41 @@ chronon_status render_error_status(const chronon3d::sdk::RenderError& error) {
             break;
     }
     return CHRONON_ERROR_RENDER_FAILED;
+}
+
+chronon_status set_render_error(chronon_engine* engine,
+                                const chronon3d::sdk::RenderError& error) {
+    const chronon_status status = render_error_status(error);
+    return store_error(engine, status, error.message,
+                       chronon_status_name(status),
+                       error.component, error.node_id, error.asset);
+}
+
+// Plan decode/compile failures: map the PlanDecodeError code to a
+// chronon_status and its path to the structured fields.  Asset-preflight
+// failures use the "assets.<logical_path>" prefix; other non-empty paths are
+// field-level diagnostics (e.g. "layers[].asset").
+chronon_status plan_error_status(std::string_view code) {
+    if (code == "MissingAsset") return CHRONON_ERROR_ASSET_NOT_FOUND;
+    return CHRONON_ERROR_PARSE_FAILED;
+}
+
+chronon_status set_plan_error(chronon_engine* engine, std::string message,
+                              std::string path, std::string code,
+                              std::string component) {
+    const chronon_status status = plan_error_status(code);
+    if (component.empty()) component = "render_plan";
+    std::string asset;
+    std::string node_id;
+    constexpr std::string_view kAssetsPrefix = "assets.";
+    if (std::string_view(path).substr(0, kAssetsPrefix.size()) == kAssetsPrefix) {
+        asset = path.substr(kAssetsPrefix.size());
+    } else if (!path.empty()) {
+        node_id = std::move(path);
+    }
+    return store_error(engine, status, std::move(message),
+                       chronon_status_name(status),
+                       std::move(component), std::move(node_id), std::move(asset));
 }
 
 } // namespace
@@ -268,6 +347,23 @@ const char* chronon_engine_last_error(chronon_engine* engine) {
     return engine ? engine->last_error.c_str() : "invalid engine";
 }
 
+chronon_status chronon_engine_last_error_info(chronon_engine* engine,
+                                              chronon_error_info* out) {
+    constexpr std::size_t base_size =
+        offsetof(chronon_error_info, message) + sizeof(chronon_error_info::message);
+    if (!engine || !out || out->struct_size < base_size)
+        return CHRONON_ERROR_INVALID_ARGUMENT;
+    out->status = engine->last_status;
+    out->message = engine->last_error.empty() ? nullptr : engine->last_error.c_str();
+    if (out->struct_size >= sizeof(chronon_error_info)) {
+        out->code = engine->last_code.empty() ? nullptr : engine->last_code.c_str();
+        out->component = engine->last_component.empty() ? nullptr : engine->last_component.c_str();
+        out->node_id = engine->last_node_id.empty() ? nullptr : engine->last_node_id.c_str();
+        out->asset = engine->last_asset.empty() ? nullptr : engine->last_asset.c_str();
+    }
+    return CHRONON_OK;
+}
+
 chronon_status chronon_engine_set_log_callback(
     chronon_engine* engine, chronon_log_callback callback, void* user) {
     if (!engine) return CHRONON_ERROR_INVALID_ARGUMENT;
@@ -304,6 +400,9 @@ chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* s
         *out_plan = plan.release();
         clear_error(engine);
         return CHRONON_OK;
+    } catch (const PlanCompileError& error) {
+        return set_plan_error(engine, error.what(), error.path, error.code,
+                              error.component);
     } catch (const std::exception& error) {
         return set_error(engine, CHRONON_ERROR_PARSE_FAILED, error.what());
     }
@@ -330,8 +429,7 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
     auto result = engine->engine.render_compiled(
         plan->prepared.compiled_composition,
         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
-    if (!result) return set_error(engine, render_error_status(result.error()),
-                                  result.error().message);
+    if (!result) return set_render_error(engine, result.error());
     const auto& rendered = result.value();
     const auto size = rendered_byte_size(rendered);
     if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
@@ -368,8 +466,7 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
         plan->prepared.compiled_composition,
         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
     if (!result)
-        return set_error(engine, render_error_status(result.error()),
-                         result.error().message);
+        return set_render_error(engine, result.error());
     const auto& rendered = result.value();
     const auto size = rendered_byte_size(rendered);
     if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
@@ -412,9 +509,7 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
     if (cb && cb->is_cancelled) callbacks.is_cancelled = [cb] { return cb->is_cancelled(cb->user) != 0; };
     auto result = engine->engine.render_to_file(request, callbacks);
     if (!result) {
-        return set_error(engine,
-            render_error_status(result.error()),
-            result.error().message);
+        return set_render_error(engine, result.error());
     }
     clear_error(engine);
     return CHRONON_OK;

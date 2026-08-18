@@ -25,6 +25,7 @@
 #include "../../commands.hpp"
 #include "../../utils/common/props_file.hpp"
 #include "../../utils/common/props_inline.hpp"
+#include "../render/render_plan_preparation.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
@@ -55,6 +56,16 @@ inline int emit_validate_fail(const std::string& error_code,
 
 int command_validate(const CompositionRegistry& registry,
                      const ValidateArgs& args) {
+    // RenderPlan-first mode: `chronon validate --plan plan.json`.  Routes
+    // through the SAME canonical prepare_render_plan() pipeline used by
+    // `chronon render --plan` and `chronon render --plan --dry-run`.
+    if (!args.plan_file.empty()) {
+        RenderPlanPreparationOptions options;
+        options.input = args.plan_file;
+        options.assets_root = args.assets_root;
+        return validate_render_plan(options);
+    }
+
     CompositionInput input;
     const auto loaded = load_props_input(args.props_file, args.props_json);
     if (!loaded.ok) {
