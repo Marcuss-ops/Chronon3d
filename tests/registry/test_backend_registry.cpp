@@ -13,6 +13,9 @@
 #include <chronon3d/render_graph/backend_registry.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
@@ -28,6 +31,8 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
+
+#include "../../src/render_graph/nodes/text_run/gpu_text_run.hpp"
 
 namespace {
 
@@ -127,7 +132,7 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     const auto device_stats = vulkan->stats();
     CHECK(device_stats.discrete_gpu);
     CHECK(device_stats.device_name.find("RTX A4000") != std::string::npos);
-    CHECK(vulkan->kernel_registry().size() == 7);
+    CHECK(vulkan->kernel_registry().size() == 8);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::Composite));
     CHECK(vulkan->kernel_registry().contains(
@@ -142,6 +147,8 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
         chronon3d::backends::vulkan::GpuKernelId::Matte));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::TextRun));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::FillRect));
 }
 
 TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
@@ -230,6 +237,110 @@ TEST_CASE("Vulkan text-run kernel samples a packed glyph atlas into the canvas")
     CHECK(pixel(2, 1)[3] == doctest::Approx(0.0f));
 }
 
+TEST_CASE("packed text-run builder reports UnsupportedCapability without a backend") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    RenderGraphContext ctx;  // no backend, no surface registry
+    Framebuffer canvas(4, 2);
+    text_run::GpuTextGlyph g;
+    g.width = 1;
+    g.height = 1;
+    g.rgba = {1.0f, 0.0f, 0.0f, 1.0f};
+    std::vector<text_run::GpuTextGlyph> glyphs;
+    glyphs.push_back(std::move(g));
+    const auto r = text_run::draw_packed_text_run(ctx, canvas, glyphs);
+    REQUIRE(!r.ok());
+    CHECK(r.error().code == RenderBackendErrorCode::UnsupportedCapability);
+}
+
+TEST_CASE("packed text-run builder validates input before touching the device") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    RenderGraphContext ctx;
+    StubBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    ctx.services.backend = &backend;
+    ctx.services.surface_registry = &surfaces;
+    Framebuffer canvas(4, 2);
+
+    // Empty input is a valid no-op success (outcome 0).
+    {
+        const auto r = text_run::draw_packed_text_run(ctx, canvas, {});
+        REQUIRE(r.ok());
+        CHECK(r.value().items_drawn == 0);
+    }
+    // A glyph whose rgba buffer does not match width*height*4 is rejected
+    // before any surface is created (so no device call is attempted).
+    {
+        text_run::GpuTextGlyph bad;
+        bad.width = 1;
+        bad.height = 1;
+        bad.rgba = {1.0f};  // too short
+        std::vector<text_run::GpuTextGlyph> glyphs;
+        glyphs.push_back(std::move(bad));
+        const auto r = text_run::draw_packed_text_run(ctx, canvas, glyphs);
+        REQUIRE(!r.ok());
+        CHECK(r.error().code == RenderBackendErrorCode::InvalidInput);
+    }
+}
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+TEST_CASE("packed text-run builder packs glyphs and composites via Vulkan") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    ctx.services.surface_registry = &surfaces;
+
+    Framebuffer canvas(4, 2);  // transparent
+    std::vector<text_run::GpuTextGlyph> glyphs;
+    {
+        text_run::GpuTextGlyph red;
+        red.width = 1;
+        red.height = 1;
+        red.rgba = {1.0f, 0.0f, 0.0f, 1.0f};  // premultiplied red
+        red.dst_x = 1;
+        red.dst_y = 0;
+        red.opacity = 1.0f;
+        glyphs.push_back(std::move(red));
+    }
+    {
+        text_run::GpuTextGlyph green;
+        green.width = 1;
+        green.height = 1;
+        green.rgba = {0.0f, 1.0f, 0.0f, 1.0f};  // premultiplied green
+        green.dst_x = 3;
+        green.dst_y = 1;
+        green.opacity = 0.5f;
+        glyphs.push_back(std::move(green));
+    }
+
+    const auto r = text_run::draw_packed_text_run(ctx, canvas, glyphs);
+    REQUIRE(r.ok());
+    CHECK(r.value().items_drawn == 2);
+
+    const auto handle = canvas.surface_handle();
+    REQUIRE(handle != runtime::kInvalidRenderSurfaceHandle);
+    std::vector<float> output(4 * 2 * 4, 0.0f);
+    REQUIRE(backend.download_surface(handle, output).ok());
+    const auto pixel = [&](int x, int y) -> const float* {
+        return &output[static_cast<std::size_t>(y * 4 + x) * 4];
+    };
+
+    // Red glyph (full opacity) landed at (1,0).
+    CHECK(pixel(1, 0)[0] == doctest::Approx(1.0f));
+    CHECK(pixel(1, 0)[3] == doctest::Approx(1.0f));
+    // Green glyph (half opacity) landed at (3,1) premultiplied.
+    CHECK(pixel(3, 1)[1] == doctest::Approx(0.5f));
+    CHECK(pixel(3, 1)[3] == doctest::Approx(0.5f));
+    // No bleed outside the glyph quads.
+    CHECK(pixel(0, 0)[3] == doctest::Approx(0.0f));
+    CHECK(pixel(2, 1)[3] == doctest::Approx(0.0f));
+}
+#endif
+
 TEST_CASE("TrackMatteNode dispatches aligned full-frame matte to Vulkan") {
     using namespace chronon3d;
     using namespace chronon3d::graph;
@@ -270,6 +381,133 @@ TEST_CASE("TrackMatteNode dispatches aligned full-frame matte to Vulkan") {
     CHECK(output[8] == doctest::Approx(0.0f));
     REQUIRE(backend.release_surface(handle).ok());
     CHECK(surfaces.release(handle));
+}
+
+TEST_CASE("SourceNode dispatches a solid rect through Vulkan fill_rect_surface") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 4;
+    ctx.frame_input.height = 4;
+    ctx.services.backend = &backend;
+    ctx.services.surface_registry = &surfaces;
+
+    RenderNode node;
+    node.shape = Shape(RectShape{{2.0f, 2.0f}, {}});
+    node.color = Color{1.0f, 0.0f, 0.0f, 0.5f};
+    node.world_transform = Transform{};
+
+    SourceNode source("rect", node, cache::NodeCacheKey{},
+                      std::optional<Mat4>(Mat4(1.0f)),
+                      std::optional<f32>(1.0f),
+                      static_memory_cache("source"),
+                      /*apply_camera_projection=*/false);
+
+    const std::span<const FramebufferRef> no_inputs;
+    const std::span<const std::optional<raster::BBox>> no_bboxes;
+    const auto result = source.execute(ctx, no_inputs, no_bboxes);
+    REQUIRE(result.ok());
+    REQUIRE(result.value() != nullptr);
+
+    const auto handle = result.value()->surface_handle();
+    REQUIRE(handle != runtime::kInvalidRenderSurfaceHandle);
+
+    std::vector<float> output(4 * 4 * 4, 0.0f);
+    REQUIRE(backend.download_surface(handle, output).ok());
+
+    const auto px = [&](int x, int y) -> const float* {
+        return &output[static_cast<std::size_t>(y * 4 + x) * 4];
+    };
+    // Premultiplied red at 0.5 alpha covers [0,2) x [0,2): rgb is scaled by
+    // alpha (0.5), matching the software compositor's premultiplied storage.
+    CHECK(px(0, 0)[0] == doctest::Approx(0.5f));
+    CHECK(px(0, 0)[1] == doctest::Approx(0.0f));
+    CHECK(px(0, 0)[3] == doctest::Approx(0.5f));
+    CHECK(px(1, 1)[0] == doctest::Approx(0.5f));
+    // Pixels outside the rect stay transparent (no safety-padding over-fill).
+    CHECK(px(2, 0)[3] == doctest::Approx(0.0f));
+    CHECK(px(3, 3)[3] == doctest::Approx(0.0f));
+
+    REQUIRE(backend.release_surface(handle).ok());
+    CHECK(surfaces.release(handle));
+}
+
+TEST_CASE("Vulkan fill_rect_surface matches the CPU oracle pixel-for-pixel") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    backends::vulkan::VulkanBackend backend;
+
+    constexpr std::uint32_t width = 6;
+    constexpr std::uint32_t height = 5;
+    const runtime::SurfaceDesc desc{
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+
+    // Non-trivial initial background so the "pixels outside the rect are left
+    // untouched" half of the contract is verifiable (not conflated with a
+    // transparent clear, as the SourceNode test above necessarily is).
+    std::vector<float> background(static_cast<std::size_t>(width) * height * 4, 0.0f);
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            const auto i = (static_cast<std::size_t>(y) * width + x) * 4;
+            background[i + 0] = static_cast<float>(x) / 10.0f;
+            background[i + 1] = static_cast<float>(y) / 10.0f;
+            background[i + 2] = 0.125f;
+            background[i + 3] = 0.375f;
+        }
+    }
+
+    // The fill rect is half-open [x0,x1) x [y0,y1), deliberately not touching
+    // the edges so the untouched border is exercised on all four sides.
+    const std::int32_t x0 = 1, y0 = 1, x1 = 5, y1 = 4;
+    // Premultiplied solid color (the surface storage convention).
+    const float cr = 0.25f, cg = 0.5f, cb = 0.75f, ca = 0.5f;
+    const Color premul{cr * ca, cg * ca, cb * ca, ca};
+
+    // CPU oracle: fill the half-open rect with the premultiplied color,
+    // leaving every other pixel exactly as the uploaded background.
+    std::vector<float> oracle = background;
+    for (std::int32_t y = y0; y < y1; ++y) {
+        for (std::int32_t x = x0; x < x1; ++x) {
+            const auto i = (static_cast<std::size_t>(y) * width + x) * 4;
+            oracle[i + 0] = premul.r;
+            oracle[i + 1] = premul.g;
+            oracle[i + 2] = premul.b;
+            oracle[i + 3] = premul.a;
+        }
+    }
+
+    const runtime::RenderSurfaceHandle handle = 551;
+    REQUIRE(backend.create_surface(handle, desc).ok());
+    REQUIRE(backend.upload_surface(handle, desc, background).ok());
+    REQUIRE(backend.fill_rect_surface(handle, x0, y0, x1, y1, premul).ok());
+
+    std::vector<float> actual(static_cast<std::size_t>(width) * height * 4, 0.0f);
+    REQUIRE(backend.download_surface(handle, actual).ok());
+
+    // Full-buffer parity against the CPU oracle.
+    const auto comparison = graph::compare_pixels(oracle, actual);
+    INFO("fill_rect_surface parity max_delta=" << comparison.max_delta
+         << " mean_delta=" << comparison.mean_delta
+         << " mismatched_pixels=" << comparison.mismatched_pixels);
+    CHECK(comparison.matched);
+
+    // Spot-check the half-open boundary: inside the rect, outside the rect,
+    // and the exclusive right/bottom edges.
+    const auto px = [&](std::int32_t x, std::int32_t y) -> const float* {
+        return &actual[static_cast<std::size_t>(y * width + x) * 4];
+    };
+    CHECK(px(x0, y0)[0] == doctest::Approx(premul.r));  // inside
+    CHECK(px(x1 - 1, y1 - 1)[3] == doctest::Approx(premul.a));  // inside corner
+    CHECK(px(x1, y0)[3] == doctest::Approx(0.375f));  // right edge excluded
+    CHECK(px(x0, y1)[3] == doctest::Approx(0.375f));  // bottom edge excluded
+    CHECK(px(0, 0)[3] == doctest::Approx(0.375f));    // untouched background
+
+    REQUIRE(backend.release_surface(handle).ok());
 }
 
 TEST_CASE("Vulkan color adjust matches the CPU scalar oracle") {

@@ -245,6 +245,20 @@ OutputVerificationResult verify_output_contract(
     // ── Media contract (`copy_eligible`) ──────────────────────────────────
     result.passed = true;
 
+    // Compute the SHA-256 digest for every decodable artifact (the durable
+    // content fingerprint used for reporting and copy eligibility).  It runs
+    // before the media-contract verdict so a contract mismatch still reports
+    // the digest instead of an empty placeholder.
+    const auto sha256_t0 = profiling::now();
+    const auto digest = chronon3d::assets::sha256_file(artifact);
+    result.sha256_ms = profiling::elapsed_ms(sha256_t0);
+    if (!digest) {
+        result.passed = false;
+        result.failure = "cannot compute SHA-256 for artifact";
+        return result;
+    }
+    result.sha256 = digest->hex();
+
     bool contract_ok = true;
     if (result.video_codec != contract.video_codec) {
         contract_ok = false;
@@ -266,27 +280,15 @@ OutputVerificationResult verify_output_contract(
         result.failure = "frame count mismatch: got " +
                          std::to_string(result.frame_count) + ", expected " +
                          std::to_string(contract.frame_count);
+    } else if (!contract.expected_sha256.empty() &&
+               result.sha256 != contract.expected_sha256) {
+        contract_ok = false;
+        result.failure = "SHA-256 mismatch: got " + result.sha256 +
+                         ", expected " + contract.expected_sha256;
     }
 
     if (!contract_ok) {
-        return result;  // passed=true, copy_eligible=false
-    }
-
-    // ── SHA-256 (required for copy eligibility) ───────────────────────────
-    const auto sha256_t0 = profiling::now();
-    const auto digest = chronon3d::assets::sha256_file(artifact);
-    result.sha256_ms = profiling::elapsed_ms(sha256_t0);
-    if (!digest) {
-        result.passed = false;
-        result.failure = "cannot compute SHA-256 for artifact";
-        return result;
-    }
-    result.sha256 = digest->hex();
-    if (!contract.expected_sha256.empty() &&
-        result.sha256 != contract.expected_sha256) {
-        result.failure = "SHA-256 mismatch: got " + result.sha256 +
-                         ", expected " + contract.expected_sha256;
-        return result;  // passed=true, copy_eligible=false
+        return result;  // passed=true, copy_eligible=false, sha256 populated
     }
 
     result.copy_eligible = true;

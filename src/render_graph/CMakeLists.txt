@@ -57,6 +57,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/text_run/text_run_execution.cpp
     nodes/text_run/text_run_transform.cpp
     nodes/text_run/text_run_diagnostics.cpp
+    nodes/text_run/gpu_text_run.cpp
 )
 set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_nodes

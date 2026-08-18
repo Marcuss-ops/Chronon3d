@@ -46,6 +46,15 @@ bool ffmpeg_in_path() {
     return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
 }
 
+bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend) {
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    return encoder_backend != "native";
+#else
+    (void)encoder_backend;
+    return true;
+#endif
+}
+
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt) {
     if (fmt == "yuv420p") return PipePixelFormat::YUV420P;
     if (fmt == "nv12")    return PipePixelFormat::NV12;

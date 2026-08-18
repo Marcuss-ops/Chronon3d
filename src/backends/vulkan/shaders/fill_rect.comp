@@ -1,0 +1,23 @@
+#version 450
+
+// fill_rect.comp — solid-color axis-aligned rectangle fill.
+//
+// First primitive of the GPU shape rasterizer.  Writes a constant RGBA color
+// into a half-open pixel rectangle of the destination storage image; pixels
+// outside the rect are left untouched.  Dispatch covers the full destination
+// and each invocation early-outs, matching the transform/composite pattern.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D dst_image;
+
+layout(push_constant) uniform FillRectParams {
+    ivec4 rect;   // x0, y0, x1, y1 (half-open, destination pixel space)
+    vec4 color;   // premultiplied RGBA to store
+} params;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x < params.rect.x || pixel.x >= params.rect.z ||
+        pixel.y < params.rect.y || pixel.y >= params.rect.w) return;
+    imageStore(dst_image, pixel, params.color);
+}

@@ -7,12 +7,26 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace chronon3d::media::video {
 namespace {
 
 using Args = std::vector<std::string>;
+
+// Quote a path for the POSIX shell wrapper used to redirect ffprobe's stdout.
+// Single-quote every byte and escape embedded single quotes so a job-supplied
+// path cannot alter the command.
+std::string shell_quote(std::string_view value) {
+    std::string quoted{"'"};
+    for (const char ch : value) {
+        if (ch == '\'') quoted += "'\\''";
+        else quoted += ch;
+    }
+    quoted += '\'';
+    return quoted;
+}
 
 MuxError make_error(MuxErrorCode code, std::string message, int exit_code = -1) {
     return MuxError{code, std::move(message), exit_code};
@@ -156,9 +170,13 @@ Result<double, MuxError> verify_muxed_artifact(
     CancellationToken* cancellation) {
     const auto stream_probe_output = path.string() + ".probe.streams.txt";
     ProcessRunner probe;
-    Args command{"ffprobe", "-v", "error", "-show_entries",
-                 "stream=codec_type,duration", "-of", "csv=p=0", "-o",
-                 stream_probe_output, path.string()};
+    // ffprobe 4.4 (still present on supported worker images) has no `-o`
+    // option. Use stdout redirection instead of depending on a newer ffprobe.
+    const std::string command_line =
+        "exec ffprobe -v error -show_entries stream=codec_type,duration "
+        "-of csv=p=0 " +
+        shell_quote(path.string()) + " > " + shell_quote(stream_probe_output);
+    Args command{"/bin/sh", "-c", command_line};
     if (!probe.launch(command.front(), command)) {
         return make_error(MuxErrorCode::FfprobeNotFound,
                           "failed to launch ffprobe — is ffprobe on PATH?");

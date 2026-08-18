@@ -4,16 +4,27 @@
 #include "src/media/video/mux_plan.hpp"
 
 #include <atomic>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 
 namespace {
 
 using chronon3d::media::video::MuxAudioTrack;
+using chronon3d::media::video::MuxError;
 using chronon3d::media::video::MuxErrorCode;
 using chronon3d::media::video::MuxPlan;
+
+std::string describe_mux_error(const MuxError& error) {
+    std::ostringstream out;
+    out << "code=" << static_cast<int>(error.code)
+        << " exit=" << error.process_exit_code
+        << " message=\"" << error.message << "\"";
+    return out.str();
+}
 
 std::string temp_path(const char* suffix) {
     static std::atomic<unsigned> counter{0};
@@ -77,6 +88,9 @@ TEST_CASE("MuxPlan rejects missing inputs before launching FFmpeg") {
     plan.tracks.push_back(MuxAudioTrack{.source = "/tmp/missing_audio.wav"});
 
     const auto result = chronon3d::media::video::ExternalAudioMuxer{}.run(plan);
+    if (!result) {
+        INFO("mux error: " << describe_mux_error(result.error()));
+    }
     REQUIRE_FALSE(result);
     CHECK(result.error().code == MuxErrorCode::InputMissing);
 }
@@ -93,6 +107,9 @@ TEST_CASE("MuxPlan rejects an existing output when overwrite is disabled") {
     plan.tracks.push_back(MuxAudioTrack{.source = video});
 
     const auto result = chronon3d::media::video::ExternalAudioMuxer{}.run(plan);
+    if (!result) {
+        INFO("mux error: " << describe_mux_error(result.error()));
+    }
     REQUIRE_FALSE(result);
     CHECK(result.error().code == MuxErrorCode::OutputExists);
 
@@ -109,6 +126,9 @@ TEST_CASE("MuxPlan rejects an empty track list") {
     plan.output = temp_path("empty_tracks_output.mp4");
 
     const auto result = chronon3d::media::video::ExternalAudioMuxer{}.run(plan);
+    if (!result) {
+        INFO("mux error: " << describe_mux_error(result.error()));
+    }
     REQUIRE_FALSE(result);
     CHECK(result.error().code == MuxErrorCode::InvalidPlan);
 
@@ -127,6 +147,9 @@ TEST_CASE("ExternalAudioMuxer produces and verifies one mixed audio stream") {
 
     const auto result = chronon3d::media::video::ExternalAudioMuxer{}.run(
         plan_for(fixture));
+    if (!result) {
+        INFO("mux error: " << describe_mux_error(result.error()));
+    }
     REQUIRE(result);
     CHECK(result->output == fixture.output);
     CHECK(result->audio_track_count == 1);
@@ -137,6 +160,29 @@ TEST_CASE("ExternalAudioMuxer produces and verifies one mixed audio stream") {
         "ffprobe -v error -select_streams a -show_entries stream=codec_type "
         "-of default=nw=1:nk=1 " + fixture.output;
     CHECK(std::system((probe + " | grep -qx audio").c_str()) == 0);
+}
+
+TEST_CASE("ExternalAudioMuxer parses ffprobe stream facts (ffprobe 4.4 -o regression)") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg and ffprobe are required");
+        return;
+    }
+    Fixture fixture;
+    REQUIRE(fixture.make());
+
+    const auto result = chronon3d::media::video::ExternalAudioMuxer{}.run(
+        plan_for(fixture));
+    if (!result) {
+        INFO("mux error: " << describe_mux_error(result.error()));
+    }
+    REQUIRE(result);
+
+    // verify_muxed_artifact returns the parsed video duration on success.
+    // On ffprobe 4.4 the removed `-o` option made the probe write nothing,
+    // so verification failed with VerificationFailed (empty stream facts)
+    // instead of producing a positive, matching duration.
+    CHECK(result->duration_seconds > 0.0);
+    CHECK(std::abs(result->duration_seconds - 0.4) < 0.2);
 }
 
 TEST_CASE("ExternalAudioMuxer honours cancellation and leaves no partial artifact") {
@@ -152,6 +198,9 @@ TEST_CASE("ExternalAudioMuxer honours cancellation and leaves no partial artifac
 
     const auto result = chronon3d::media::video::ExternalAudioMuxer{}.run(
         plan, &cancellation);
+    if (!result) {
+        INFO("mux error: " << describe_mux_error(result.error()));
+    }
     REQUIRE_FALSE(result);
     CHECK(result.error().code == MuxErrorCode::Cancelled);
     CHECK_FALSE(std::filesystem::exists(fixture.output));
