@@ -1705,6 +1705,7 @@ struct VulkanBackend::Impl {
         vkCmdUpdateBuffer(command_buffer, glyph_instance_buffer, 0, bytes, glyphs.data());
         record_text_run(command_buffer, descriptor_set, dst_image, glyph_count);
         dst_image.initialized = true;
+        ++stats.passes_executed;
         submit();
     }
 
