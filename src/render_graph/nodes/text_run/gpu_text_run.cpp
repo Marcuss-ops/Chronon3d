@@ -291,10 +291,16 @@ graph::RenderOpResult draw_cached_text_run(
             for (int x = 0; x < data.size.w; ++x) {
                 const auto* px = row + static_cast<std::size_t>(x) * 4;
                 const std::size_t off = (static_cast<std::size_t>(y) * data.size.w + x) * 4;
-                rgba[off + 0] = px[2] / 255.0f;
-                rgba[off + 1] = px[1] / 255.0f;
-                rgba[off + 2] = px[0] / 255.0f;
-                rgba[off + 3] = px[3] / 255.0f;
+                const float mask = px[3] / 255.0f;
+                const float alpha = mask * std::clamp(state.fill.a, 0.0f, 1.0f);
+                // The atlas is a coverage mask in practice. Bake the
+                // resolved per-glyph fill into premultiplied RGBA so the
+                // Vulkan kernel can composite it without a CPU framebuffer
+                // round-trip or a second style-specific shader variant.
+                rgba[off + 0] = std::clamp(state.fill.r, 0.0f, 1.0f) * alpha;
+                rgba[off + 1] = std::clamp(state.fill.g, 0.0f, 1.0f) * alpha;
+                rgba[off + 2] = std::clamp(state.fill.b, 0.0f, 1.0f) * alpha;
+                rgba[off + 3] = alpha;
             }
         }
         glyphs.push_back(GpuTextGlyph{
