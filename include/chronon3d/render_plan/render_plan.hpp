@@ -184,6 +184,14 @@ struct RenderPlan {
 struct PlanDecodeError {
     std::string path;
     std::string message;
+    // Stable machine code for the failure category (e.g. "MissingAsset").
+    // Empty for generic decode/compile errors.  The C ABI maps it to a
+    // chronon_status (e.g. MissingAsset -> CHRONON_ERROR_ASSET_NOT_FOUND).
+    std::string code;
+    // Originating subsystem for the structured C ABI error surface.  Asset
+    // preflight failures carry "asset_resolver"; empty means the C ABI falls
+    // back to "render_plan" (decode / budget / composition failures).
+    std::string component;
 };
 
 /// Explicit fail-loud budget phase executed before render-plan compilation.

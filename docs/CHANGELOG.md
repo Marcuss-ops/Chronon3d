@@ -1,3 +1,13 @@
+## 2026-08-18
+### `feat(verification): canonical render receipt (M6) + release gate`
+  ([TICKET-RENDER-RECEIPT-M6](tickets/TICKET-RENDER-RECEIPT-M6.md))
+
+Receipt canonico promosso al layer SDK (`src/verification/` +
+`include/chronon3d/verification/render_receipt.hpp`, header pubblico): verifier
+granulare (ffprobe/decode/frame_count/codec/pix_fmt/resolution/fps/audio) +
+`assets::sha256_file` + `copy_eligible`, riusando content/request digest.
+Release gate NOT RUN — blocked sul broker terminal. Cronaca in ticket-home.
+
 ## 2026-08-10
 ### `perf(render): eliminate per-frame depth buffer allocations (DepthBufferPool)`
 

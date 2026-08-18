@@ -39,13 +39,18 @@ add_chronon_consumer(check_full main_full.cpp)
 # syntax for both images and fonts without any umbrella include.
 add_chronon_consumer(check_assets main_assets.cpp)
 
+# CABI_11 exercises the same-engine BUSY contract with real concurrent
+# render calls.  Threads is a system library (not an internal Chronon3D
+# target), so the public-target gate is unaffected.
+find_package(Threads REQUIRED)
+
 add_executable(check_c_api main_c.c)
 set_target_properties(check_c_api PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS OFF
 )
-target_link_libraries(check_c_api PRIVATE Chronon3D::C)
+target_link_libraries(check_c_api PRIVATE Chronon3D::C Threads::Threads)
 
 # Synthetic image fixture for the existing full-surface consumer.
 add_custom_command(TARGET check_full POST_BUILD

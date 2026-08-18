@@ -5,7 +5,7 @@
 #
 # Builds the standalone consumer project at
 # `tests/install_consumer/` against the previously-installed SDK
-# prefix; runs two consumer binaries:
+# prefix; builds and runs the install-boundary consumer binaries:
 #   1. `check_install` — grid-only boundary check (P3-H):
 #      (a) stdout contains [BOUNDARY-OK] marker
 #      (b) sdk_consumer_output.png non-empty
@@ -14,6 +14,9 @@
 #      (a) stdout/stderr contains [TEXT-OK] marker
 #      (b) sdk_text_consumer_output.png non-empty
 #      (c) text shaped and rendered via SceneBuilder + l.text() API
+#   3. `check_c_api` — C ABI release gate (CABI_01..CABI_13) against the
+#      installed Chronon3D::C shared library (libchronon3d_c.so.2);
+#      emits C_ABI_CONSUMER_PASS only when every non-skipped test passed.
 #
 # Font assets are symlinked from $REPO_ROOT/assets into the consumer
 # build dir so the text consumer can resolve fonts at CWD-relative paths.
@@ -173,6 +176,12 @@ cmake --build "$CONS_BUILD" --target check_camera 1>&2 \
     || fail "consumer cmake --build check_camera failed"
 cmake --build "$CONS_BUILD" --target check_full 1>&2 \
     || fail "consumer cmake --build check_full failed"
+
+# CABI_01..CABI_13 C ABI release gate.  Links the installed Chronon3D::C
+# SHARED library (libchronon3d_c.so.2), unlike the other consumers which link
+# the static SDK archive — so runtime resolution needs the installed lib dir.
+cmake --build "$CONS_BUILD" --target check_c_api 1>&2 \
+    || fail "consumer cmake --build check_c_api failed"
 
 consumer_bin="$CONS_BUILD/check_install"
 [[ -x "$consumer_bin" ]] || fail "consumer binary not found at $consumer_bin"
@@ -348,12 +357,34 @@ else
     log "Full consumer FAILED (rc=$full_rc, no [FULL-OK] marker)"
 fi
 
+# ── Run C ABI consumer (CABI_01..CABI_13 release gate) ───────────────
+# Emits C_ABI_CONSUMER_PASS (exit 0) only when every non-skipped test passed.
+capi_bin="$CONS_BUILD/check_c_api"
+[[ -x "$capi_bin" ]] || fail "C ABI consumer binary not found at $capi_bin"
+log "running C ABI consumer: $capi_bin (CWD=$CONS_BUILD)"
+set +e
+capi_output="$(cd "$CONS_BUILD" && \
+    LD_LIBRARY_PATH="$SDK_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    "$capi_bin" 2>&1)"
+capi_rc=$?
+set -e
+capi_pass=0
+if [[ "$capi_output" == *"C_ABI_CONSUMER_PASS"* ]]; then
+    capi_pass=1
+    log "C ABI consumer: $capi_output"
+else
+    log "C ABI consumer stdout/stderr:"
+    printf "%s\n" "$capi_output" >&2
+    log "C ABI consumer FAILED (rc=$capi_rc, no C_ABI_CONSUMER_PASS marker)"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 log "=== Phase 4 summary ==="
 log "  Text Export V1 (check_text): $([[ $text_pass -eq 1 ]] && echo PASS || echo FAIL)"
 log "  Grid boundary  (check_install): $([[ $grid_pass -eq 1 ]] && echo PASS || echo FAIL)"
 log "  Camera facade  (check_camera): $([[ $camera_pass -eq 1 ]] && echo PASS || echo FAIL)"
 log "  Full surface   (check_full): $([[ $full_pass -eq 1 ]] && echo PASS || echo FAIL)"
+log "  C ABI          (check_c_api): $([[ $capi_pass -eq 1 ]] && echo PASS || echo FAIL)"
 
 if [[ "$text_pass" -ne 1 ]]; then
     fail "Text Export V1 gate FAILED — [TEXT-OK] not reached"
@@ -373,6 +404,10 @@ fi
 
 if [[ "$full_pass" -ne 1 ]]; then
     fail "Full install consumer FAILED — [FULL-OK] not reached"
+fi
+
+if [[ "$capi_pass" -ne 1 ]]; then
+    fail "C ABI install consumer FAILED — C_ABI_CONSUMER_PASS not reached"
 fi
 
 exit 0

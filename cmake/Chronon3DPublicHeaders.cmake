@@ -18,6 +18,9 @@ set(CHRONON3D_SDK_API_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_request.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_settings.hpp"
 
+    # ── Verification (canonical render receipt) ───────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/verification/render_receipt.hpp"
+
     # ── Composition type ─────────────────────────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/compile_evaluate.hpp"

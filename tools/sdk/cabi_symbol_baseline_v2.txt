@@ -1,0 +1,38 @@
+# tools/sdk/cabi_symbol_baseline_v2.txt — C ABI v2 exported-symbol baseline
+#
+# Single source of truth for the symbols that MUST remain exported from
+# libchronon3d_c.so for the life of ABI 2.  Consumed by
+# tools/sdk/check_cabi_abi_gate.sh (nm -D --defined-only vs this list).
+#
+# CONTRACT: any program compiled against chronon3d.h ABI 2 must keep working
+# with every future libchronon3d_c.so.2.x.  Therefore:
+#   * removing a symbol below            -> ABI break (FAIL)
+#   * changing a symbol's type (T -> D/W) -> signature break (FAIL)
+#   * adding a NEW chronon_* symbol       -> additive, OK
+#
+# A breaking ABI change must bump BOTH the ABI major AND this baseline in a
+# single commit, together with:
+#   * chronon_abi_version()  in src/c_api/chronon3d_c_api.cpp
+#   * SOVERSION              in cmake/Chronon3DSdkTargets.cmake
+# (baseline renamed cabi_symbol_baseline_v<N>.txt; SONAME becomes
+# libchronon3d_c.so.<N>).  See also the ABI gate script header.
+#
+# Symbols are listed in declaration order of include/chronon3d/c_api/chronon3d.h
+# for easy cross-reference.  Blank lines and '#' comments are ignored.
+
+chronon_version_string
+chronon_status_name
+chronon_abi_version
+chronon_engine_create
+chronon_engine_create_v2
+chronon_engine_destroy
+chronon_engine_last_error
+chronon_engine_last_error_info
+chronon_engine_set_log_callback
+chronon_plan_compile_json
+chronon_plan_compile_json_n
+chronon_plan_destroy
+chronon_render_frame
+chronon_render_frame_into
+chronon_render_file
+chronon_buffer_free

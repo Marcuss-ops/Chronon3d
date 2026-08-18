@@ -116,6 +116,16 @@ CHRONON3D_API chronon_status chronon_engine_create_v2(
     chronon_error_info* out_error);
 CHRONON3D_API void chronon_engine_destroy(chronon_engine* engine);
 CHRONON3D_API const char* chronon_engine_last_error(chronon_engine* engine);
+// V2 additive: expose the engine's last structured error (status, message,
+// code, component, node_id, asset) so bindings (Go/Python/Rust) receive the
+// fields directly instead of parsing the message string. The returned string
+// pointers are implementation-owned (engine storage) and remain valid until
+// the next error is recorded on the same engine; callers must serialize
+// access to the engine handle. Requires out->struct_size to cover at least
+// the status + message prefix; code/component/node_id/asset are populated
+// only when the full struct is supplied.
+CHRONON3D_API chronon_status chronon_engine_last_error_info(
+    chronon_engine* engine, chronon_error_info* out);
 CHRONON3D_API chronon_status chronon_engine_set_log_callback(
     chronon_engine* engine, chronon_log_callback callback, void* user);
 
