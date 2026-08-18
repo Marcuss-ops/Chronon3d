@@ -8,6 +8,9 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -20,6 +23,93 @@ namespace chronon3d::graph {
 namespace {
 
 constexpr f32 kSeedFrameEpsilon = 1e-3f;
+
+// Strict native ImageShape subset. Decode remains owned by ImageCache; only
+// the immutable decoded pixels are promoted once into GpuAssetCache. Crop,
+// rounded corners, masks and projective transforms intentionally stay on the
+// reference path until equivalent native kernels exist.
+[[nodiscard]] bool try_native_image(
+    RenderGraphContext& ctx, Framebuffer& fb,
+    const RenderNode& node, const RenderState& state) {
+    const auto& image = node.shape.image();
+    if (!ctx.services.image_cache || !ctx.services.gpu_asset_cache ||
+        !ctx.services.backend || !ctx.services.surface_registry ||
+        image.path.empty() || image.fit != FitMode::Stretch ||
+        image.crop.enabled || image.radius > 0.0f || state.clip_rect ||
+        (state.mask && state.mask->enabled()) ||
+        std::abs(state.matrix[0][1]) > 1e-4f ||
+        std::abs(state.matrix[1][0]) > 1e-4f ||
+        std::abs(state.matrix[0][3]) > 1e-4f ||
+        std::abs(state.matrix[1][3]) > 1e-4f ||
+        std::abs(state.matrix[3][3] - 1.0f) > 1e-4f) {
+        return false;
+    }
+
+    const auto cached = ctx.services.image_cache->find(
+        image.path, image.decode_options);
+    if (!cached || !cached->fb_img || !cached->valid()) return false;
+
+    const auto& source = *cached->fb_img;
+    std::vector<float> rgba(static_cast<std::size_t>(source.width()) *
+                            static_cast<std::size_t>(source.height()) * 4);
+    std::size_t out = 0;
+    for (int y = 0; y < source.height(); ++y) {
+        for (int x = 0; x < source.width(); ++x) {
+            const auto pixel = source.get_pixel(x, y);
+            rgba[out++] = pixel.r;
+            rgba[out++] = pixel.g;
+            rgba[out++] = pixel.b;
+            rgba[out++] = pixel.a;
+        }
+    }
+
+    const std::string_view bytes(
+        reinterpret_cast<const char*>(rgba.data()),
+        rgba.size() * sizeof(float));
+    const runtime::GpuAssetKey key{
+        assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
+        static_cast<std::uint32_t>(source.width()),
+        static_cast<std::uint32_t>(source.height())};
+    const runtime::SurfaceDesc desc{
+        static_cast<std::uint32_t>(source.width()),
+        static_cast<std::uint32_t>(source.height()),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent,
+        rgba.size() * sizeof(float)};
+    const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, rgba);
+    if (!acquired.ok()) return false;
+
+    if (!ensure_native_surface(ctx, fb)) return false;
+    // SourceNode's state matrix maps ImageShape local units. Stretch maps
+    // the decoded image dimensions to image.size before that matrix.
+    const float sx = state.matrix[0][0] * image.size.x /
+                     static_cast<float>(source.width());
+    const float sy = state.matrix[1][1] * image.size.y /
+                     static_cast<float>(source.height());
+    if (std::abs(sx) < 1e-6f || std::abs(sy) < 1e-6f) {
+        release_native_surface(ctx, fb);
+        return false;
+    }
+
+    runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 1.0f / sx;
+    transform.source_x[2] = -state.matrix[3][0] / sx;
+    transform.source_y[1] = 1.0f / sy;
+    transform.source_y[2] = -state.matrix[3][1] / sy;
+    transform.max_x = static_cast<float>(source.width());
+    transform.max_y = static_cast<float>(source.height());
+    transform.opacity = image.opacity * state.opacity;
+    transform.bilinear = 1u;
+
+    const auto result = ctx.services.backend->transform_surface_affine(
+        fb.surface_handle(), acquired.handle, transform);
+    if (!result.ok()) {
+        release_native_surface(ctx, fb);
+        return false;
+    }
+    return true;
+}
 
 [[nodiscard]] bool nearly_equal(f32 a, f32 b, f32 eps = kSeedFrameEpsilon) {
     return std::abs(a - b) <= eps;
@@ -407,7 +497,10 @@ NodeExecResult SourceNode::execute(
         // rasterizing on CPU.  Software backends (no surface support) fail
         // the predicate and keep the legacy draw_node() path.
         const bool native_filled = try_native_rect_fill(ctx, *fb, m_node, state);
-        if (!native_filled) {
+        const bool native_image = !native_filled &&
+            m_node.shape.type() == ShapeType::Image &&
+            try_native_image(ctx, *fb, m_node, state);
+        if (!native_filled && !native_image) {
             // P0-1: draw_node() returns void — backend failures (e.g. missing
             // processor-context, unsupported shape) are logged but cannot propagate
             // to the executor.  Tracked for Phase C post-freeze.
@@ -418,7 +511,7 @@ NodeExecResult SourceNode::execute(
         // cannot take the opaque fast path and replace the background.
         fb->set_opaque(full_frame_seed && state.opacity >= 1.0f);
 
-        if (ctx.policy.diagnostics_enabled && !native_filled) {
+        if (ctx.policy.diagnostics_enabled && !native_filled && !native_image) {
             int nonzero_pixels = 0;
             for (i32 y = 0; y < fb->height(); ++y) {
                 const Color* row = fb->pixels_row(y);

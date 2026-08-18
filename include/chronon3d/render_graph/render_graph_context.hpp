@@ -91,6 +91,7 @@ namespace chronon3d {
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
     struct RenderSession;  // PR-5 — session ptr on RenderServices for PrecompNode inner exec
     class TextRenderResources;
+    class ImageCache;
 }
 
 namespace chronon3d::runtime {
@@ -253,6 +254,7 @@ struct RenderServices {
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     runtime::GpuAssetCache* gpu_asset_cache{nullptr};
     runtime::GpuGlyphAtlas* gpu_glyph_atlas{nullptr};
+    ImageCache* image_cache{nullptr};
     TextRenderResources* text_render_resources{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
