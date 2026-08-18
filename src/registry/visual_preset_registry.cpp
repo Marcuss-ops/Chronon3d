@@ -291,6 +291,28 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
     r.register_preset(make_simple_2d_preset(
         "image_scale_in", "image", VisualLayerKind::Image, "",
         "scale_drop", "line", "center", "center", 0.0f, 0));
+    // Important phrases: restrained, line-safe motion variants. They all
+    // share the caption-safe-area materializer and differ only in their
+    // lightweight entrance motion, so callers can select a treatment without
+    // reimplementing typography, placement or collision rules.
+    r.register_preset(make_simple_2d_preset(
+        "phrase_fade_in", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "fade_in", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "phrase_scale_in", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "scale_drop", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "phrase_slide_up", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "reveal_from_bottom", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "phrase_soft_pop", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "soft_pop", "line", "safe_area", "center", 64.0f, 700));
+    // Word-scoped fade keeps the phrase readable while revealing emphasis one
+    // word at a time; the layer motion itself remains the canonical fade_in.
+    r.register_preset(make_simple_2d_preset(
+        "phrase_word_reveal", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "fade_in", "word", "safe_area", "center", 64.0f, 700));
+
     // Names / entity cards: restrained lower-third motion, all 2D. They
     // lower onto the canonical `lower_third` text materializer.
     r.register_preset(make_simple_2d_preset(
