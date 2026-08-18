@@ -455,6 +455,16 @@ void write_frame_timing_sidecar(
     put_gpu_u64("fallback_effect", timings.gpu.fallback_effect);
     put_gpu_u64("fallback_blur", timings.gpu.fallback_blur);
     put_gpu_u64("fallback_dof", timings.gpu.fallback_dof);
+    std::string effective_backend = "unknown";
+    if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
+        effective_backend = timings.gpu.software_fallback_nodes &&
+                *timings.gpu.software_fallback_nodes > 0
+            ? "hybrid" : "vulkan";
+    } else if (timings.gpu.software_fallback_nodes &&
+               *timings.gpu.software_fallback_nodes > 0) {
+        effective_backend = "software-fallback";
+    }
+    gpu["effective_backend"] = effective_backend;
 
     auto& prepare = job["prepare"];
     const auto put_prepare = [&prepare](const char* key, const std::optional<double>& value) {
