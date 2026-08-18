@@ -8,12 +8,14 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 
 namespace chronon3d::cli {
 
 void setup_render_job(const CompositionRegistry& registry,
                       const RenderJob& job,
-                      RenderJobSetupResult& out) {
+                      RenderJobSetupResult& out,
+                      std::shared_ptr<SoftwareRenderer> warm_renderer) {
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
@@ -21,8 +23,16 @@ void setup_render_job(const CompositionRegistry& registry,
     out.wall_t0 = profiling::now();
 
     out.setup_t0 = profiling::now();
-    out.renderer = create_renderer(
-        registry, job.settings, job.execution.config, job.execution.assets_root);
+    out.renderer = std::move(warm_renderer);
+    if (out.renderer) {
+        out.renderer->set_settings(job.settings);
+        if (job.execution.assets_root) {
+            out.renderer->runtime().resolver().mount(*job.execution.assets_root);
+        }
+    } else {
+        out.renderer = create_renderer(
+            registry, job.settings, job.execution.config, job.execution.assets_root);
+    }
     const auto renderer_t1 = profiling::now();
 
     if (!out.renderer) {

@@ -37,6 +37,8 @@ struct RenderPlanState {
     // (production balance: crf 20, preset medium — see render_job.hpp).
     int         crf{-1};
     std::string encode_preset;
+    bool report{false};
+    std::shared_ptr<SoftwareRenderer> warm_renderer;
 };
 
 std::string read_file(const std::string& path) {
@@ -131,6 +133,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             ? std::nullopt
             : std::optional<std::filesystem::path>{effective_assets_root};
         request.settings = effective_settings;
+        request.execution.report = args.report;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? decoded->canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(decoded->output.codec);
@@ -164,7 +167,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             spdlog::error("Render plan job failed: {}", job.error().message);
             return 1;
         }
-        auto result = execute_render_job(*job);
+        auto result = execute_render_job(*job, std::move(args.warm_renderer));
         if (!result) {
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
@@ -196,16 +199,26 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
 int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& input,
                          const std::string& output,
-                         const std::string& assets_root) {
+                         const std::string& assets_root,
+                         bool report,
+                         std::shared_ptr<SoftwareRenderer> warm_renderer) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
     state.assets_root = assets_root;
+    state.report = report;
+    state.warm_renderer = std::move(warm_renderer);
     return execute_render_plan(registry, state);
 }
 
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const std::string& payload) {
+    return ipc_render_job(registry, payload, {});
+}
+
+ipc::Reply ipc_render_job(const CompositionRegistry& registry,
+                          const std::string& payload,
+                          std::shared_ptr<SoftwareRenderer> warm_renderer) {
     try {
         const auto request = nlohmann::json::parse(payload);
         const std::string plan_path = request.value("plan_path", "");
@@ -216,7 +229,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                               "RENDER_JOB requires a plan_path"};
         }
 
-        const int rc = run_render_plan_file(registry, plan_path, output, assets_root);
+        const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
+                                            false, std::move(warm_renderer));
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};

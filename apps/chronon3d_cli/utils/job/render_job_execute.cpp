@@ -20,6 +20,11 @@
 namespace chronon3d::cli {
 
 Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job) {
+    return execute_render_job(job, {});
+}
+
+Result<RenderJobOutput, RenderJobError> execute_render_job(
+    const RenderJob& job, std::shared_ptr<SoftwareRenderer> warm_renderer) {
     if (!job.registry) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
@@ -53,6 +58,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
             rc = dry_run_video_job(job);
         } else {
             auto opts = make_ffmpeg_export_options(job);
+            opts.warm_renderer = warm_renderer;
             chronon3d::CancellationToken cancel_token;
             install_signal_cancellation(cancel_token);
             opts.cancellation_token = &cancel_token;
@@ -93,7 +99,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
 
     try {
         RenderJobSetupResult setup;
-        setup_render_job(*job.registry, job, setup);
+        setup_render_job(*job.registry, job, setup, std::move(warm_renderer));
         if (!setup.renderer) {
             return RenderJobError{
                 RenderJobErrorCode::SetupFailed,

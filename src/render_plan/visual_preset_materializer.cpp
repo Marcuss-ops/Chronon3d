@@ -15,6 +15,7 @@
 #include <chronon3d/text/text_placement.hpp>      // TextPlacementKind
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
@@ -143,6 +144,72 @@ void apply_text_animation_intent(
         resolved.enter_duration,
         resolved.exit_duration > Frame{0}
             ? std::optional<Frame>{resolved.exit_duration} : std::nullopt));
+}
+
+VisualBounds measure_visual_bounds(const ResolvedVisualLayer& layer,
+                                  chronon3d::FontEngine& engine) {
+    const auto& def = layer.text;
+    const chronon3d::FontSpec& font = def.style.font;
+    const float font_size = font.font_size > 0.0f ? font.font_size : 48.0f;
+
+    // 1) Split on explicit line breaks and shape each line with the REAL
+    //    font at the REAL size (HarfBuzz advance width, not a canvas fraction).
+    std::vector<std::string_view> lines;
+    {
+        const std::string_view text = def.content.value;
+        std::size_t start = 0;
+        while (start <= text.size()) {
+            const std::size_t nl = text.find('\n', start);
+            if (nl == std::string_view::npos) {
+                lines.push_back(text.substr(start));
+                break;
+            }
+            lines.push_back(text.substr(start, nl - start));
+            start = nl + 1;
+        }
+        if (lines.empty()) lines.push_back({});
+    }
+    float text_width = 0.0f;
+    for (const auto line : lines) {
+        if (line.empty()) continue;
+        text_width = std::max(
+            text_width, engine.measure_text(line, font, font_size));
+    }
+
+    // 2) Real vertical metrics from the font face, with the preset's
+    //    authored line-height multiplier applied (frame.line_height).
+    const auto metrics = engine.get_font_metrics(font, font_size);
+    const float natural_line = metrics.line_height > 0.0f
+        ? metrics.line_height : font_size * 1.2f;
+    const float text_height =
+        natural_line * def.frame.line_height * static_cast<float>(lines.size());
+
+    // 3) Layout extents: card padding, centered stroke, shadow blur/offset.
+    const float pad_x =
+        def.style.box_style.enabled ? def.style.box_style.padding.x : 0.0f;
+    const float pad_y =
+        def.style.box_style.enabled ? def.style.box_style.padding.y : 0.0f;
+    const float stroke =
+        def.style.paint.stroke_enabled ? def.style.paint.stroke_width : 0.0f;
+    float shadow_x = 0.0f;
+    float shadow_y = 0.0f;
+    for (const auto& shadow : def.style.shadows) {
+        if (!shadow.enabled) continue;
+        shadow_x = std::max(shadow_x, shadow.blur + std::abs(shadow.offset.x));
+        shadow_y = std::max(shadow_y, shadow.blur + std::abs(shadow.offset.y));
+    }
+
+    VisualBounds bounds;
+    if (text_width <= 0.0f) {
+        // Font unavailable (or empty text): keep the preset's authored box so
+        // the resolver still receives a sane, non-zero footprint.
+        bounds.width = def.frame.size.x;
+        bounds.height = def.frame.size.y;
+        return bounds;
+    }
+    bounds.width = text_width + 2.0f * pad_x + stroke + 2.0f * shadow_x;
+    bounds.height = text_height + 2.0f * pad_y + stroke + 2.0f * shadow_y;
+    return bounds;
 }
 
 ResolvedImageLayer VisualPresetMaterializer::materialize_image(

@@ -80,6 +80,26 @@ struct ResolvedImageLayer {
     ResolvedAnimation animation;
 };
 
+/// Real content bounds in canvas pixels, measured BEFORE layout resolution.
+/// The `OverlayLayoutResolver` places overlays by their actual footprint —
+/// shaped text width + font metrics + card padding + stroke/shadow — not by
+/// a canvas-fraction layout box (a lower-third "Tim Cook" is ~410×92, not
+/// the full 1640×100 caption box).
+struct VisualBounds {
+    float width{0.0f};
+    float height{0.0f};
+};
+
+/// Measure the real content bounds of a resolved TEXT overlay: per-line
+/// HarfBuzz shaping (width) + font vertical metrics (height, with the
+/// preset's line-height multiplier) + card padding + centered stroke +
+/// shadow blur/offset extent.  Falls back to the preset's authored layout
+/// box when the font cannot be loaded or the text is empty, so the resolver
+/// always receives a non-zero footprint.
+[[nodiscard]] VisualBounds measure_visual_bounds(
+    const ResolvedVisualLayer& layer,
+    chronon3d::FontEngine& engine);
+
 /// SINGLE canonical visual preset materializer.
 ///
 /// `style_profile` selects the registry profile (discovery/young/crime);

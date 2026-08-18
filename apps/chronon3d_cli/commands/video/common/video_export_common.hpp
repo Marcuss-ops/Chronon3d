@@ -48,6 +48,9 @@ struct FfmpegExportOptions {
     // Explicit per-render asset mount; never inferred from the process CWD.
     std::optional<std::filesystem::path> assets_root;
 
+    // Optional daemon-owned renderer reused across jobs.
+    std::shared_ptr<SoftwareRenderer> warm_renderer;
+
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};
 };

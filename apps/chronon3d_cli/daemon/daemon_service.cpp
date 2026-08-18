@@ -5,6 +5,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include "../utils/job/cli_render_utils.hpp"
 
 #include "utils/common/render_error_formatter.hpp"
 
@@ -69,6 +70,16 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     }
 
     m_engine->set_composition_registry(&m_registry);
+
+    // The legacy RenderEngine remains the owner of PREPARE_PLAN/overlay IPC.
+    // RENDER_JOB uses this CLI-side renderer because the video exporter works
+    // directly with SoftwareRenderer and can now reuse it across jobs.
+    RenderSettings warm_settings;
+    m_warm_renderer = create_renderer(
+        m_registry, warm_settings, Config::from_environment(),
+        m_options.assets_root.empty()
+            ? std::optional<std::filesystem::path>{}
+            : std::optional<std::filesystem::path>{m_options.assets_root});
 
     spdlog::info("🔥 Engine initialised. FB pool warm, font engines loaded.");
     spdlog::info("   {} compositions registered.", m_registry.available().size());
@@ -289,6 +300,11 @@ RenderJobDispatcher& render_job_dispatcher() {
     return dispatcher;
 }
 
+WarmRenderJobDispatcher& warm_render_job_dispatcher() {
+    static WarmRenderJobDispatcher dispatcher;
+    return dispatcher;
+}
+
 void DaemonService::run_socket(const std::string& path) {
     ipc::UnixSocketServer server;
     try {
@@ -322,6 +338,10 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
         case ipc::Command::RenderOverlay:
             return ipc_render_overlay(req.payload);
         case ipc::Command::RenderJob: {
+            auto& warm_dispatcher = warm_render_job_dispatcher();
+            if (warm_dispatcher) {
+                return warm_dispatcher(req.payload, m_warm_renderer);
+            }
             auto& dispatcher = render_job_dispatcher();
             if (dispatcher) {
                 return dispatcher(req.payload);

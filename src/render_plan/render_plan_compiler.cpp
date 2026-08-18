@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_plan/animation_intent.hpp>
 #include <chronon3d/render_plan/visual_preset_materializer.hpp>
+#include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
@@ -70,19 +71,22 @@ chronon3d::FitMode fit_mode(FitMode value) {
 MaterializedText materialize_text(const LayerPlan& layer,
                                   const chronon3d::CanvasInfo& canvas,
                                   std::string_view style_profile,
-                                  std::int64_t composition_frames) {
+                                  std::int64_t composition_frames,
+                                  chronon3d::FontEngine& font_engine) {
     MaterializedText out;
     std::string base_preset = layer.preset;
     if (!layer.preset.empty()) {
         const auto& visual_registry = chronon3d::registry::builtin_visual_preset_registry();
-        if (visual_registry.contains(layer.preset)) {
-            // Single materializer consumes the existing registry and resolves
+        if (!visual_registry.contains(layer.preset)) {
+            throw std::runtime_error("unknown visual preset '" + layer.preset +
+                                     "' for text layer '" + layer.id + "'");
+        }
+        // Single materializer consumes the existing registry and resolves
             // style, font, animation and layout intent — the compiler no
             // longer re-maps preset ids or knows profile/role specifics.
             auto resolved = VisualPresetMaterializer{}.materialize(
                 layer, canvas, style_profile, visual_registry,
                 Frame{composition_frames});
-            out.definition = std::move(resolved.text);
             // The canonical text presets already own their safe-area box and
             // anchor. Replacing that pin with an absolute top-left coordinate
             // loses the preset's box anchor at large canvases and can clip
@@ -90,10 +94,17 @@ MaterializedText materialize_text(const LayerPlan& layer,
             // anchors; preserve the native caption/word layout otherwise.
             if (layer.anchor || (layer.preset != "caption_card" &&
                                  layer.preset != "active_word_pop")) {
+                // Real content bounds (shaped width + font metrics + padding
+                // + stroke/shadow) drive the resolver, NOT the canvas-fraction
+                // layout box.  Falls back to the preset box when the font is
+                // unavailable (measure_visual_bounds handles that case).
+                const auto bounds = measure_visual_bounds(resolved, font_engine);
+                resolved.layout.width = bounds.width;
+                resolved.layout.height = bounds.height;
                 out.layout = std::move(resolved.layout);
             }
+            out.definition = std::move(resolved.text);
             return out;
-        }
     }
     if (base_preset == "title_centered")
         out.definition = chronon3d::presets::text::title_centered(layer.text, canvas);
@@ -194,17 +205,19 @@ RenderJobFingerprint render_job_fingerprint(
 
 void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer,
                         std::string_view style_profile,
-                        Frame composition_frames) {
+                        Frame composition_frames,
+                        bool position_already_resolved = false) {
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
-    if (layer.position_dimensions >= 2)
+    // A visual preset has already gone through the scene-wide layout pass.
+    // Re-applying the legacy plan position here would overwrite the resolved
+    // placement and reintroduce the old coordinate-system bug.
+    if (!position_already_resolved && layer.position_dimensions >= 2)
         builder.position({layer.position[0], layer.position[1], layer.position[2]});
     if (layer.blend_mode) builder.blend(*layer.blend_mode);
     if (layer.opacity) builder.opacity(*layer.opacity);
     if (layer.animation) {
         if (layer.animation->start_frame) builder.from(*layer.animation->start_frame);
-        if (layer.animation->duration_frames)
-            builder.duration(*layer.animation->duration_frames);
     }
 
     // Resolve the layer-level animation intent ONCE (registry defaults +
@@ -319,6 +332,11 @@ compile_render_plan(
         spec.frame_rate = {plan.canvas.fps, 1};
         spec.duration = plan.canvas.duration;
 
+        // Real text bounds require a shaping engine.  Construct one against
+        // the job's resolver so per-line HarfBuzz measurement uses the same
+        // asset mount as font materialization.
+        chronon3d::FontEngine font_engine(resolver);
+
         // COLLECT — materialize every text/image overlay first, deferring
         // placement.  Layout requests accumulate here so a SINGLE resolver
         // pass can see all overlays (and the regions they occupy) at once,
@@ -338,7 +356,7 @@ compile_render_plan(
             if (layer.type == LayerType::Text) {
                 auto materialized = materialize_text(
                     layer, canvas, plan.style_profile,
-                    plan.canvas.duration.value);
+                    plan.canvas.duration.value, font_engine);
                 if (materialized.layout) {
                     layout_requests.push_back(layout_request(
                         layer, *materialized.layout, plan.canvas.duration.value));
@@ -348,18 +366,26 @@ compile_render_plan(
             } else if (layer.type == LayerType::Image && !layer.preset.empty()) {
                 const auto& visual_registry =
                     chronon3d::registry::builtin_visual_preset_registry();
-                if (visual_registry.contains(layer.preset)) {
-                    // Image presets flow through the SAME materializer —
-                    // they resolve anchor + animation instead of staying
-                    // purely descriptive registry entries.
-                    const auto resolved =
-                        VisualPresetMaterializer{}.materialize_image(
-                            layer, canvas, plan.style_profile, visual_registry,
-                            Frame{plan.canvas.duration.value});
-                    layout_requests.push_back(layout_request(
-                        layer, resolved.layout, plan.canvas.duration.value));
-                    layout_targets.push_back({index, true});
+                if (!visual_registry.contains(layer.preset)) {
+                    throw std::runtime_error("unknown visual preset '" + layer.preset +
+                                             "' for image layer '" + layer.id + "'");
                 }
+                if (visual_registry.get(layer.preset).supported_layer !=
+                    chronon3d::registry::VisualLayerKind::Image) {
+                    throw std::runtime_error("visual preset '" + layer.preset +
+                                             "' is not valid for image layer '" +
+                                             layer.id + "'");
+                }
+                // Image presets flow through the SAME materializer —
+                // they resolve anchor + animation instead of staying
+                // purely descriptive registry entries.
+                const auto resolved =
+                    VisualPresetMaterializer{}.materialize_image(
+                        layer, canvas, plan.style_profile, visual_registry,
+                        Frame{plan.canvas.duration.value});
+                layout_requests.push_back(layout_request(
+                    layer, resolved.layout, plan.canvas.duration.value));
+                layout_targets.push_back({index, true});
             }
         }
 
@@ -378,17 +404,34 @@ compile_render_plan(
             }
             const auto& target = layout_targets[i];
             if (target.is_image) {
+                // OverlayLayoutResolver returns a top-left pixel position.
+                // LayerBuilder's 2D transform is a world-space CENTER and
+                // the graph later adds the canvas half-size to unpinned 2D
+                // layers. Convert exactly once at this boundary:
+                //   top-left + half box - half canvas = centered world pos.
+                const auto& image_layer = plan.layers[target.layer_index];
+                const float box_width = image_layer.box_width.value_or(
+                    static_cast<float>(plan.canvas.width));
+                const float box_height = image_layer.box_height.value_or(
+                    static_cast<float>(plan.canvas.height));
+                const float world_x = placement.x + box_width * 0.5f -
+                                      static_cast<float>(plan.canvas.width) * 0.5f;
+                const float world_y = placement.y + box_height * 0.5f -
+                                      static_cast<float>(plan.canvas.height) * 0.5f;
                 prepared_image_positions[target.layer_index] =
-                    chronon3d::Vec2{placement.x, placement.y};
+                    chronon3d::Vec2{world_x + image_layer.offset[0],
+                                    world_y + image_layer.offset[1]};
             } else {
                 // The layout resolver owns the top-left box coordinate.  Use
                 // an absolute top-left text anchor so the renderer cannot
                 // apply a second implicit center/lower-third offset.
                 auto& definition = *prepared_texts[target.layer_index];
                 definition.frame.anchor = chronon3d::TextAnchor::TopLeft;
+                definition.frame.align = chronon3d::TextAlign::Left;
                 definition.frame.placement = chronon3d::TextPlacement{
                     chronon3d::TextPlacementKind::Absolute,
-                    {placement.x, placement.y}};
+                    {placement.x + plan.layers[target.layer_index].offset[0],
+                     placement.y + plan.layers[target.layer_index].offset[1]}};
             }
         }
 
@@ -398,6 +441,26 @@ compile_render_plan(
                             prepared_texts, prepared_image_positions](
                                const FrameContext& ctx) {
                 SceneBuilder scene(ctx);
+
+                // User-provided backgrounds are emitted first, so they sit
+                // behind every overlay regardless of the owning layer's
+                // position in the input plan. Each visual layer may carry a
+                // different background asset.
+                for (const auto& layer : plan.layers) {
+                    if (!layer.background || layer.background->asset.empty()) continue;
+                    scene.layer(layer.id + "__background", [&](LayerBuilder& builder) {
+                        ImageParams params;
+                        params.asset_path = layer.background->asset;
+                        params.size = {static_cast<float>(plan.canvas.width),
+                                       static_cast<float>(plan.canvas.height)};
+                        params.fit = fit_mode(layer.background->fit.value_or(FitMode::Cover));
+                        builder.image("background", std::move(params));
+                        if (layer.background->opacity)
+                            builder.opacity(*layer.background->opacity);
+                        builder.from(layer.start_frame.value_or(Frame{0}));
+                        builder.duration(layer.duration_frames.value_or(plan.canvas.duration));
+                    });
+                }
                 for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                     const auto& layer = plan.layers[index];
                     scene.layer(layer.id, [&](LayerBuilder& builder) {
@@ -455,8 +518,11 @@ compile_render_plan(
                                 break;
                             }
                         }
-                        apply_layer_timing(builder, layer, plan.style_profile,
-                                           plan.canvas.duration);
+                        apply_layer_timing(
+                            builder, layer, plan.style_profile,
+                            plan.canvas.duration,
+                            layer.type == LayerType::Image &&
+                                prepared_image_positions[index].has_value());
                     });
                 }
                 return scene.build();
