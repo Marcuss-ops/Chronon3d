@@ -691,7 +691,8 @@ void TextRenderResources::store_glyph_atlas_from_placed_run(
 ) {
     ensure_glyph_atlas_materialized();
     BLImageData img_data;
-    if (rendered_text.getData(&img_data) != BL_SUCCESS) return;
+    const auto data_status = rendered_text.getData(&img_data);
+    if (data_status != BL_SUCCESS) return;
     if (!img_data.pixelData || img_data.size.w <= 0 || img_data.size.h <= 0) return;
 
     const int img_w = img_data.size.w;
@@ -708,12 +709,21 @@ void TextRenderResources::store_glyph_atlas_from_placed_run(
 
         BLBoxI bbox_i;
         const u32 gid = pg.glyph_id;
-        if (font.getGlyphBounds(&gid, intptr_t{0}, &bbox_i, 1) != 1) continue;
+        const auto bounds_status = font.getGlyphBounds(&gid, intptr_t{0}, &bbox_i, 1);
+        if (bounds_status != BL_SUCCESS) {
+            continue;
+        }
 
-        const int gx = static_cast<int>(std::floor(origin_x + pg.x + bbox_i.x0));
-        const int gy = static_cast<int>(std::floor(origin_y + pg.y + bbox_i.y0));
-        const int gw = static_cast<int>(std::ceil(bbox_i.x1 - bbox_i.x0));
-        const int gh = static_cast<int>(std::ceil(bbox_i.y1 - bbox_i.y0));
+        // Blend2D returns glyph bounds in 26.6 fixed-point units.
+        constexpr float kGlyphUnit = 1.0f / 64.0f;
+        const float bx0 = static_cast<float>(bbox_i.x0) * kGlyphUnit;
+        const float by0 = static_cast<float>(bbox_i.y0) * kGlyphUnit;
+        const float bx1 = static_cast<float>(bbox_i.x1) * kGlyphUnit;
+        const float by1 = static_cast<float>(bbox_i.y1) * kGlyphUnit;
+        const int gx = static_cast<int>(std::floor(origin_x + pg.x + bx0));
+        const int gy = static_cast<int>(std::floor(origin_y + pg.y + by0));
+        const int gw = static_cast<int>(std::ceil(bx1 - bx0));
+        const int gh = static_cast<int>(std::ceil(by1 - by0));
         if (gw <= 0 || gh <= 0) continue;
         if (gx < 0 || gy < 0 || gx + gw > img_w || gy + gh > img_h) continue;
 
@@ -730,8 +740,8 @@ void TextRenderResources::store_glyph_atlas_from_placed_run(
 
         GlyphAtlasEntry entry;
         entry.image            = glyph_img;
-        entry.x_offset         = static_cast<int>(bbox_i.x0);
-        entry.y_offset         = static_cast<int>(bbox_i.y0);
+        entry.x_offset         = static_cast<int>(std::lround(bx0));
+        entry.y_offset         = static_cast<int>(std::lround(by0));
         entry.advance_x        = pg.advance_x;
         entry.fill_color_rgba  = fill_color_rgba;
         store_glyph_atlas(font_path, pg.glyph_id, fs, entry);
