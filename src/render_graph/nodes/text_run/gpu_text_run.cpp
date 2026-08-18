@@ -286,7 +286,14 @@ graph::RenderOpResult draw_cached_text_run(
         const int stroke_radius = state.stroke.a > 1e-4f
             ? static_cast<int>(std::ceil(std::max(0.0f, state.stroke_width))) : 0;
         const int background_padding = state.background.a > 1e-4f ? 8 : 0;
-        const int pad = std::max(stroke_radius, background_padding);
+        int shadow_padding = 0;
+        for (const auto& shadow : shape.shadows) {
+            if (!shadow.enabled || shadow.opacity <= 1e-4f) continue;
+            shadow_padding = std::max(shadow_padding, static_cast<int>(std::ceil(
+                std::max(std::abs(shadow.offset.x), std::abs(shadow.offset.y)) +
+                std::max(0.0f, shadow.blur) + 1.0f)));
+        }
+        const int pad = std::max({stroke_radius, background_padding, shadow_padding});
         const int output_width = data.size.w + pad * 2;
         const int output_height = data.size.h + pad * 2;
         std::vector<float> rgba(static_cast<std::size_t>(output_width) * output_height * 4, 0.0f);
@@ -302,6 +309,21 @@ graph::RenderOpResult draw_cached_text_run(
             dg = sg + dg * (1.0f - sa);
             db = sb + db * (1.0f - sa);
             da = sa + da * (1.0f - sa);
+        };
+        auto shadow_alpha = [&](const TextShadow& shadow, int x, int y) {
+            const int sx = x - static_cast<int>(std::lround(shadow.offset.x));
+            const int sy = y - static_cast<int>(std::lround(shadow.offset.y));
+            const int radius = static_cast<int>(std::ceil(std::max(0.0f, shadow.blur)));
+            if (radius <= 0) return source_alpha(sx, sy);
+            float sum = 0.0f;
+            int samples = 0;
+            for (int oy = -1; oy <= 1; ++oy) {
+                for (int ox = -1; ox <= 1; ++ox) {
+                    sum += source_alpha(sx + ox * radius, sy + oy * radius);
+                    ++samples;
+                }
+            }
+            return sum / static_cast<float>(samples);
         };
         for (int y = 0; y < output_height; ++y) {
             const int source_y = y - pad;
@@ -325,6 +347,13 @@ graph::RenderOpResult draw_cached_text_run(
                     const float ba = std::clamp(state.background.a, 0.0f, 1.0f);
                     over(r, g, b, a, state.background.r * ba,
                          state.background.g * ba, state.background.b * ba, ba);
+                }
+                for (const auto& shadow : shape.shadows) {
+                    if (!shadow.enabled || shadow.opacity <= 1e-4f) continue;
+                    const float sa = shadow_alpha(shadow, source_x, source_y) *
+                        std::clamp(shadow.opacity, 0.0f, 1.0f);
+                    over(r, g, b, a, shadow.color.r * sa,
+                         shadow.color.g * sa, shadow.color.b * sa, sa);
                 }
                 if (stroke_mask > 1e-4f && state.stroke.a > 1e-4f) {
                     const float sa = stroke_mask * std::clamp(state.stroke.a, 0.0f, 1.0f);
@@ -354,15 +383,6 @@ graph::RenderOpResult draw_cached_text_run(
             state.scale.y,
             state.opacity * opacity});
     }
-    // The native glow path is not release-safe yet (it can invalidate the
-    // device on older Vulkan drivers). Keep shadowed runs on the reference
-    // renderer until the glow pass has an isolated conformance test.
-    if (!shape.shadows.empty()) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_cached_text_run: shadowed native text pending glow validation"});
-    }
-
     if (!ensure_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,
