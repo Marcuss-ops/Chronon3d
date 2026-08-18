@@ -11,12 +11,14 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D dst_image;
 layout(binding = 1, rgba32f) uniform readonly image2D atlas_image;
 
-// Byte layout must match chronon3d::runtime::GlyphInstance (32 bytes).
+// Byte layout must match chronon3d::runtime::GlyphInstance (40 bytes).
 struct GlyphInstance {
     ivec2 dst_origin;
     ivec2 atlas_origin;
     ivec2 glyph_size;
     float opacity;
+    float scale_x;
+    float scale_y;
     float pad;
 };
 
@@ -37,9 +39,14 @@ void main() {
     for (int i = 0; i < params.glyph_count; ++i) {
         GlyphInstance glyph = glyphs[i];
         ivec2 local = pixel - glyph.dst_origin;
+        ivec2 scaled_size = ivec2(ceil(vec2(glyph.glyph_size) *
+                                       vec2(glyph.scale_x, glyph.scale_y)));
         if (local.x >= 0 && local.y >= 0 &&
-            local.x < glyph.glyph_size.x && local.y < glyph.glyph_size.y) {
-            vec4 src = imageLoad(atlas_image, glyph.atlas_origin + local) * glyph.opacity;
+            local.x < scaled_size.x && local.y < scaled_size.y) {
+            ivec2 sample_offset = ivec2(floor(vec2(local) /
+                                              vec2(glyph.scale_x, glyph.scale_y)));
+            sample_offset = clamp(sample_offset, ivec2(0), glyph.glyph_size - ivec2(1));
+            vec4 src = imageLoad(atlas_image, glyph.atlas_origin + sample_offset) * glyph.opacity;
             accum = src + accum * (1.0 - src.a);
         }
     }

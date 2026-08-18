@@ -125,6 +125,8 @@ graph::RenderOpResult draw_packed_text_run_surface(
             static_cast<std::int32_t>(glyph.width),
             static_cast<std::int32_t>(glyph.height),
             glyph.opacity,
+            glyph.scale_x,
+            glyph.scale_y,
             0.0f});
     }
 
@@ -257,8 +259,7 @@ graph::RenderOpResult draw_cached_text_run(
         const auto& placed = layout.placed.glyphs[i];
         if (placed.bbox_x1 <= placed.bbox_x0 ||
             placed.bbox_y1 <= placed.bbox_y0) continue;
-        if (std::abs(state.scale.x - 1.0f) > 1e-4f ||
-            std::abs(state.scale.y - 1.0f) > 1e-4f ||
+        if (!(state.scale.x > 0.0f) || !(state.scale.y > 0.0f) ||
             std::abs(state.rotation.x) > 1e-4f ||
             std::abs(state.rotation.y) > 1e-4f ||
             std::abs(state.rotation.z) > 1e-4f ||
@@ -304,6 +305,8 @@ graph::RenderOpResult draw_cached_text_run(
                 placed.x + state.position.x + entry->x_offset)),
             static_cast<std::int32_t>(std::lround(model_matrix[3][1] +
                 placed.y + state.position.y + entry->y_offset)),
+            state.scale.x,
+            state.scale.y,
             state.opacity * opacity});
     }
     // The native glow path is not release-safe yet (it can invalidate the
