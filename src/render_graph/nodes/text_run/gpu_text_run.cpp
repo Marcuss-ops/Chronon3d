@@ -250,6 +250,10 @@ graph::RenderOpResult draw_cached_text_run(
     glyphs.reserve(layout.placed.glyphs.size());
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
         const auto& state = shape.glyphs[i];
+        // HarfBuzz uses glyph id 0 for whitespace/missing-glyph entries.
+        // They have no bitmap atlas entry and must not invalidate an
+        // otherwise fully resident run.
+        if (state.glyph_id == 0) continue;
         if (std::abs(state.scale.x - 1.0f) > 1e-4f ||
             std::abs(state.scale.y - 1.0f) > 1e-4f ||
             std::abs(state.rotation.x) > 1e-4f ||
@@ -368,8 +372,9 @@ graph::RenderOpResult draw_cached_text_run(
         cleanup();
     }
 
-    return draw_packed_text_run_surface(
+    auto result = draw_packed_text_run_surface(
         ctx, destination.surface_handle(), glyphs);
+    return result;
 }
 
 } // namespace chronon3d::graph::text_run
