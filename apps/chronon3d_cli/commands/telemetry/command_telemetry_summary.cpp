@@ -140,6 +140,11 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.ffmpeg_flush_close_ms = get_double("ffmpeg_flush_close_ms");
         run.e2e_wall_ms = get_double("e2e_wall_ms");
 
+        run.ffprobe_wall_ms = get_double("ffprobe_wall_ms");
+        run.sha256_wall_ms = get_double("sha256_wall_ms");
+        run.process_startup_ms = get_double("process_startup_ms");
+        run.framebuffer_allocations_per_frame = get_double("framebuffer_allocations_per_frame");
+
         run.started_at_iso = get_str("started_at_iso");
         run.finished_at_iso = get_str("finished_at_iso");
         run.git_commit_short = get_str("git_commit_short");

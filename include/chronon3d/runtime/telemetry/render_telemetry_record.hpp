@@ -164,12 +164,33 @@ struct RenderTelemetryRecord {
     double phase_encode_ms{0.0};       // codec encode of the readback frames
     double phase_disk_io_ms{0.0};      // pipe/mux + flush/close writes to disk
 
+    // ── Output verification & startup cost ──
+    // Measured on the video-export path; 0.0 on still/frame renders where no
+    // output contract verification runs. Never estimated from wall time.
+    double ffprobe_wall_ms{0.0};   // ffprobe subprocess during output verification
+    double sha256_wall_ms{0.0};    // SHA-256 digest during output verification
+    double process_startup_ms{0.0};// process start → job start wall time
+    // Framebuffer allocation events per rendered frame (post-warmup). This is
+    // the only per-frame allocation event rate the engine measures; there is
+    // no general heap-allocator counter, so it is never estimated.
+    double framebuffer_allocations_per_frame{0.0};
+
     // ── GPU overlay-factory counters (queried from render_counters) ──
     // Fed by the GPU backend when it records telemetry; 0 on software runs.
     // `gpu_submissions` is the vkQueueSubmit count (1 per command batch);
     // `passes_executed` is the number of GPU command-plan passes executed.
     uint64_t gpu_submissions{0};
     uint64_t passes_executed{0};
+    uint64_t gpu_submit_cpu_us{0};
+    uint64_t gpu_wait_cpu_us{0};
+    uint64_t gpu_readback_bytes{0};
+    uint64_t gpu_upload_bytes{0};
+    uint64_t physical_surfaces_peak{0};
+    uint64_t barrier_count{0};
+    double gpu_execute_ms{0.0};
+    double gpu_readback_ms{0.0};
+    double gpu_submit_cpu_ms{0.0};
+    double gpu_wait_cpu_ms{0.0};
 
     // ── Cache efficiency derived metrics ──
     double cache_hit_rate{0.0};

@@ -250,10 +250,10 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
     return result;
 }
 
-/// Appends backend-exported GPU counters (gpu_submissions, passes_executed)
-/// to the counter list and mirrors the two canonical fields onto the run
-/// record.  Software backends leave the list untouched (their export is the
-/// default no-op), so a software run reports 0 for both, as intended.
+/// Appends backend-exported GPU counters (submit/wait/readback/upload)
+/// to the counter list and mirrors the values onto the canonical run record.
+/// Software backends leave the list untouched (their export is the default
+/// no-op), so a software run reports zero for GPU-only metrics, as intended.
 inline void capture_backend_gpu_counters(
     const chronon3d::graph::RenderBackend& backend,
     std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters,
@@ -266,6 +266,22 @@ inline void capture_backend_gpu_counters(
             run.gpu_submissions = value;
         } else if (name == "passes_executed") {
             run.passes_executed = value;
+        } else if (name == "gpu_submit_cpu_us") {
+            run.gpu_submit_cpu_us = value;
+            run.gpu_submit_cpu_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "gpu_wait_cpu_us") {
+            run.gpu_wait_cpu_us = value;
+            run.gpu_wait_cpu_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "gpu_execute_us") {
+            run.gpu_execute_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "readback_us") {
+            run.gpu_readback_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "gpu_upload_bytes") {
+            run.gpu_upload_bytes = value;
+        } else if (name == "gpu_readback_bytes") {
+            run.gpu_readback_bytes = value;
+        } else if (name == "physical_surfaces_peak") {
+            run.physical_surfaces_peak = value;
         }
     }
 }
