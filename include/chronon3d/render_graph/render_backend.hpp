@@ -346,7 +346,8 @@ public:
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         BlendMode /*mode*/ = BlendMode::Normal,
-        CompositeOperator /*op*/ = CompositeOperator::SourceOver) {
+        CompositeOperator /*op*/ = CompositeOperator::SourceOver,
+        const std::optional<raster::BBox>& /*clip*/ = std::nullopt) {
         return RenderOpResult(RenderBackendError{
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::composite_surfaces: native surfaces are not supported"});

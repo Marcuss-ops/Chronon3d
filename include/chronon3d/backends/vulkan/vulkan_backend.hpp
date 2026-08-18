@@ -158,7 +158,8 @@ public:
         runtime::RenderSurfaceHandle, std::span<float>) override;
     graph::RenderOpResult composite_surfaces(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
-        BlendMode, CompositeOperator) override;
+        BlendMode, CompositeOperator,
+        const std::optional<raster::BBox>& = std::nullopt) override;
     graph::RenderOpResult fill_rect_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, const Color&) override;
