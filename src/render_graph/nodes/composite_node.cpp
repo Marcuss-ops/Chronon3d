@@ -24,22 +24,29 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
                           Framebuffer& source, BlendMode mode,
                           CompositeOperator op,
                           const std::optional<raster::BBox>& clip) {
-    if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver || clip) {
+    if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
         return false;
     }
     const auto original_handle = destination.surface_handle();
+    const auto original_source_handle = source.surface_handle();
     if (!ensure_native_surface(ctx, destination) ||
         !ensure_native_surface(ctx, source)) {
         if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
             release_native_surface(ctx, destination);
         }
+        if (original_source_handle == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, source);
+        }
         return false;
     }
     const auto result = ctx.services.backend->composite_surfaces(
-        destination.surface_handle(), source.surface_handle(), mode, op);
+        destination.surface_handle(), source.surface_handle(), mode, op, clip);
     if (result.ok()) return true;
     if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
         release_native_surface(ctx, destination);
+    }
+    if (original_source_handle == runtime::kInvalidRenderSurfaceHandle) {
+        release_native_surface(ctx, source);
     }
     return false;
 }

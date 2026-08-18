@@ -888,7 +888,8 @@ struct VulkanBackend::Impl {
     void record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           std::int32_t blend_mode, float source_scale,
-                          const float tint[4]) {
+                          const float tint[4],
+                          const std::optional<raster::BBox>& clip = std::nullopt) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -897,7 +898,16 @@ struct VulkanBackend::Impl {
             std::int32_t blend_mode;
             float source_scale;
             float tint[4];
-        } params{blend_mode, source_scale, {tint[0], tint[1], tint[2], tint[3]}};
+            std::int32_t clip_rect[4];
+        } params{blend_mode, source_scale, {tint[0], tint[1], tint[2], tint[3]},
+                 {0, 0, static_cast<std::int32_t>(destination.width),
+                  static_cast<std::int32_t>(destination.height)}};
+        if (clip) {
+            params.clip_rect[0] = std::max(0, clip->x0);
+            params.clip_rect[1] = std::max(0, clip->y0);
+            params.clip_rect[2] = std::min(static_cast<std::int32_t>(destination.width), clip->x1);
+            params.clip_rect[3] = std::min(static_cast<std::int32_t>(destination.height), clip->y1);
+        }
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
@@ -1378,7 +1388,8 @@ struct VulkanBackend::Impl {
     }
 
     void composite(runtime::RenderSurfaceHandle destination,
-                   runtime::RenderSurfaceHandle source, BlendMode mode) {
+                   runtime::RenderSurfaceHandle source, BlendMode mode,
+                   const std::optional<raster::BBox>& clip = std::nullopt) {
         auto& dst_image = resolve_image(destination);
         auto& src_image = resolve_image(source);
         if (!src_image.initialized ||
@@ -1393,7 +1404,7 @@ struct VulkanBackend::Impl {
             const auto cmd = active_command_buffer();
             emit_pass_sync(cmd, {&dst_image, &src_image});
             record_composite(cmd, descriptors, dst_image, src_image,
-                             blend_mode, 1.0f, kIdentityTint);
+                             blend_mode, 1.0f, kIdentityTint, clip);
             ++frame_batch.pass_count;
             ++stats.passes_executed;
             return;
@@ -1402,7 +1413,7 @@ struct VulkanBackend::Impl {
         begin_command_buffer();
         emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_composite(command_buffer, descriptor_set, dst_image, src_image,
-                         blend_mode, 1.0f, kIdentityTint);
+                         blend_mode, 1.0f, kIdentityTint, clip);
         submit();
     }
 
@@ -2419,7 +2430,8 @@ graph::RenderOpResult VulkanBackend::download_surface(
 
 graph::RenderOpResult VulkanBackend::composite_surfaces(
     runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
-    BlendMode mode, CompositeOperator op) {
+    BlendMode mode, CompositeOperator op,
+    const std::optional<raster::BBox>& clip) {
     if ((mode != BlendMode::Normal && mode != BlendMode::Add) ||
         op != CompositeOperator::SourceOver) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -2428,7 +2440,7 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        m_impl->composite(destination, source, mode);
+        m_impl->composite(destination, source, mode, clip);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -2690,15 +2702,6 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
         }
         throw std::runtime_error("VulkanBackend::composite_layer: only Normal/SourceOver is implemented");
     }
-    if (clip) {
-        if (m_draw_node_fallback) {
-            const auto started = std::chrono::steady_clock::now();
-            m_draw_node_fallback->composite_layer(destination, source, mode, clip, op);
-            record_software_fallback("composite", started);
-            return;
-        }
-        throw std::runtime_error("VulkanBackend::composite_layer: clipped surfaces are not implemented");
-    }
     if (destination.width() != source.width() || destination.height() != source.height()) {
         if (m_draw_node_fallback) {
             const auto started = std::chrono::steady_clock::now();
@@ -2709,7 +2712,7 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
         throw std::runtime_error("VulkanBackend::composite_layer: surface dimensions differ");
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
-    m_impl->composite(destination, source);
+    m_impl->composite(destination.surface_handle(), source.surface_handle(), mode, clip);
 #else
     unsupported("composite_layer");
 #endif
