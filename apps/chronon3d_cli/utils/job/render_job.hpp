@@ -32,5 +32,7 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
 
 /// Sole immutable executor for still, sequence, video, and selected-frame jobs.
 Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job);
+Result<RenderJobOutput, RenderJobError> execute_render_job(
+    const RenderJob& job, std::shared_ptr<SoftwareRenderer> warm_renderer);
 
 } // namespace chronon3d::cli

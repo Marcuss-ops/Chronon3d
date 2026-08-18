@@ -107,11 +107,20 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     // ── Create renderer ──────────────────────────────────────────────────
     const auto renderer_t0 = profiling::now();
-    // Inject the single CLI CpuBudget so the runtime does not recompute it.
-    Config renderer_cfg = Config::from_environment(cpu_budget);
-    session->renderer = create_renderer(
-        registry, settings, std::move(renderer_cfg), session->opts.assets_root,
-        &session->engine_init_ms, &session->backend_init_ms);
+    if (opts.warm_renderer) {
+        session->renderer = opts.warm_renderer;
+        session->renderer->set_settings(settings);
+        if (session->opts.assets_root) {
+            session->renderer->runtime().resolver().mount(*session->opts.assets_root);
+        }
+        spdlog::info("[video] Reusing daemon-owned warm renderer");
+    } else {
+        // Inject the single CLI CpuBudget so the runtime does not recompute it.
+        Config renderer_cfg = Config::from_environment(cpu_budget);
+        session->renderer = create_renderer(
+            registry, settings, std::move(renderer_cfg), session->opts.assets_root,
+            &session->engine_init_ms, &session->backend_init_ms);
+    }
     const auto renderer_t1 = profiling::now();
 
     if (session->renderer->counters()) {

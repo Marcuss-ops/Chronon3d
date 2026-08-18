@@ -2,6 +2,7 @@
 #include "../common/pipe_export_helpers.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -278,50 +279,11 @@ void write_frame_timing_sidecar(
         });
     }
 
-    const double first_frame_ms = durations.front();
-    const std::size_t count = durations.size();
-    // Steady-state definition: the first frames of a job warm caches,
-    // allocator pools and lazy resources, so steady-state statistics exclude
-    // a warmup window.  Very short renders (< 10 frames) disable the window
-    // entirely: warmup_frames = 0 and the steady stats cover every frame.
-    const std::size_t warmup_frames = count >= 10 ? 5 : 0;
-    double warmup_avg_ms = 0.0;
-    if (warmup_frames > 0 && count >= warmup_frames) {
-        double wsum = 0.0;
-        for (std::size_t i = 0; i < warmup_frames; ++i) wsum += durations[i];
-        warmup_avg_ms = wsum / static_cast<double>(warmup_frames);
-    }
-    std::sort(durations.begin(), durations.end());
-    const auto percentile = [&durations](double p) {
-        if (durations.empty()) return 0.0;
-        const auto index = static_cast<std::size_t>(p * static_cast<double>(durations.size() - 1));
-        return durations[index];
-    };
-    // Steady-state slice (sorted): frames [warmup_frames, count).
-    const std::size_t steady_count = count - warmup_frames;
-    double steady_avg_ms = 0.0;
-    if (steady_count > 0) {
-        double ssum = 0.0;
-        for (std::size_t i = warmup_frames; i < count; ++i) ssum += durations[i];
-        steady_avg_ms = ssum / static_cast<double>(steady_count);
-    }
-    const auto steady_percentile = [&durations, warmup_frames, steady_count](double p) {
-        if (steady_count == 0) return 0.0;
-        const auto index = warmup_frames
-            + static_cast<std::size_t>(p * static_cast<double>(steady_count - 1));
-        return durations[index];
-    };
-    double sum = 0.0;
-    for (double value : durations) sum += value;
-    const double mean_ms = count > 0 ? sum / static_cast<double>(count) : 0.0;
-    double sq_sum = 0.0;
-    for (double value : durations) {
-        const double d = value - mean_ms;
-        sq_sum += d * d;
-    }
-    const double stddev_ms = count > 0 ? std::sqrt(sq_sum / static_cast<double>(count)) : 0.0;
-    const double min_ms = count > 0 ? durations.front() : 0.0;
-    const double max_ms = count > 0 ? durations.back() : 0.0;
+    // Canonical per-frame timing summary (first/mean/p95/p99 + warmup /
+    // steady-state), computed once from the frame records — NOT re-derived
+    // inline.  The preset certification harness shares this exact summary.
+    const auto stats = chronon3d::telemetry::summarize_frame_timings(frames);
+    const std::size_t count = frames.size();
 
     // Frame budget: end-to-end frame wall duration vs the target frame
     // interval.  A frame over budget is a throughput/stutter signal (cache
@@ -378,22 +340,22 @@ void write_frame_timing_sidecar(
     };
 
     nlohmann::json summary{
-        {"first_frame_ms", first_frame_ms},
-        {"min_frame_ms", min_ms},
-        {"max_frame_ms", max_ms},
-        {"mean_frame_ms", mean_ms},
-        {"avg_frame_ms", mean_ms},
-        {"stddev_frame_ms", stddev_ms},
-        {"p50_frame_ms", percentile(0.50)},
-        {"p90_frame_ms", percentile(0.90)},
-        {"p95_frame_ms", percentile(0.95)},
-        {"p99_frame_ms", percentile(0.99)},
-        {"warmup_frames", warmup_frames},
-        {"warmup_avg_ms", warmup_frames > 0 ? nlohmann::json(warmup_avg_ms) : nlohmann::json(nullptr)},
-        {"steady_avg_ms", steady_avg_ms},
-        {"steady_p50_ms", steady_percentile(0.50)},
-        {"steady_p95_ms", steady_percentile(0.95)},
-        {"steady_p99_ms", steady_percentile(0.99)},
+        {"first_frame_ms", stats.first_frame_ms},
+        {"min_frame_ms", stats.min_frame_ms},
+        {"max_frame_ms", stats.max_frame_ms},
+        {"mean_frame_ms", stats.mean_frame_ms},
+        {"avg_frame_ms", stats.mean_frame_ms},
+        {"stddev_frame_ms", stats.stddev_frame_ms},
+        {"p50_frame_ms", stats.p50_frame_ms},
+        {"p90_frame_ms", stats.p90_frame_ms},
+        {"p95_frame_ms", stats.p95_frame_ms},
+        {"p99_frame_ms", stats.p99_frame_ms},
+        {"warmup_frames", stats.warmup_frames},
+        {"warmup_avg_ms", stats.warmup_frames > 0 ? nlohmann::json(stats.warmup_avg_ms) : nlohmann::json(nullptr)},
+        {"steady_avg_ms", stats.steady_avg_ms},
+        {"steady_p50_ms", stats.steady_p50_ms},
+        {"steady_p95_ms", stats.steady_p95_ms},
+        {"steady_p99_ms", stats.steady_p99_ms},
         {"render_only_fps", render_only_fps},
         {"render_loop_fps", render_loop_fps},
         {"end_to_end_fps", end_to_end_fps},

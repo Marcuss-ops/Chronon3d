@@ -141,3 +141,52 @@ TEST_CASE("TelemetrySession: movable so a job can hand it to the sink") {
     CHECK(moved.frames().size() == 2);
     CHECK(moved.frame(1).encoder_ms == doctest::Approx(3.5));
 }
+
+TEST_CASE("TelemetrySession: frame_timing_summary computes first/mean/p95/p99 deterministically") {
+    TelemetrySession session;
+    session.begin_job("comp_s", "/tmp/s.mp4", 10);
+    for (int i = 0; i < 10; ++i) {
+        session.frame(i).duration_ms = static_cast<double>(i + 1);  // 1..10 ms
+    }
+
+    const auto s = session.frame_timing_summary();
+
+    CHECK(s.first_frame_ms == doctest::Approx(1.0));
+    CHECK(s.mean_frame_ms == doctest::Approx(5.5));
+    CHECK(s.min_frame_ms == doctest::Approx(1.0));
+    CHECK(s.max_frame_ms == doctest::Approx(10.0));
+    CHECK(s.p50_frame_ms == doctest::Approx(5.0));
+    CHECK(s.p95_frame_ms == doctest::Approx(9.0));
+    CHECK(s.p99_frame_ms == doctest::Approx(9.0));
+    // 10 frames → 5-frame warmup window; steady state covers the rest.
+    CHECK(s.warmup_frames == 5);
+    CHECK(s.warmup_avg_ms == doctest::Approx(3.0));
+    CHECK(s.steady_avg_ms == doctest::Approx(8.0));
+    CHECK(s.steady_p95_ms == doctest::Approx(9.0));
+}
+
+TEST_CASE("TelemetrySession: summarize_frame_timings disables the warmup window for short renders") {
+    std::vector<FrameTelemetry> frames;
+    for (int i = 0; i < 4; ++i) {
+        FrameTelemetry f;
+        f.frame_number = i;
+        f.duration_ms = static_cast<double>(10 * (i + 1));  // 10,20,30,40
+        frames.push_back(f);
+    }
+
+    const auto s = summarize_frame_timings(frames);
+
+    CHECK(s.warmup_frames == 0);
+    CHECK(s.first_frame_ms == doctest::Approx(10.0));
+    CHECK(s.mean_frame_ms == doctest::Approx(25.0));
+    CHECK(s.p95_frame_ms == doctest::Approx(30.0));
+    // With no warmup window the steady stats cover every frame.
+    CHECK(s.steady_avg_ms == doctest::Approx(25.0));
+}
+
+TEST_CASE("TelemetrySession: summarize_frame_timings returns zeros for empty input") {
+    const auto s = summarize_frame_timings({});
+    CHECK(s.first_frame_ms == 0.0);
+    CHECK(s.mean_frame_ms == 0.0);
+    CHECK(s.warmup_frames == 0);
+}

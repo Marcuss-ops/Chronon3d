@@ -176,6 +176,11 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     render_job_dispatcher() = [registry = &ctx.registry](const std::string& payload) -> ipc::Reply {
         return ipc_render_job(*registry, payload);
     };
+    warm_render_job_dispatcher() = [registry = &ctx.registry](
+        const std::string& payload,
+        std::shared_ptr<SoftwareRenderer> renderer) -> ipc::Reply {
+        return ipc_render_job(*registry, payload, std::move(renderer));
+    };
 
     auto* cmd = app.add_subcommand("render", "Render a composition");
     cmd->add_option("input", args.comp_id, "Composition name");
@@ -300,7 +305,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         }
         if (!state->plan_file.empty()) {
             ctx.exit_code = run_render_plan_file(
-                ctx.registry, state->plan_file, render_args.output, render_args.assets_root);
+                ctx.registry, state->plan_file, render_args.output, render_args.assets_root,
+                render_args.report);
             return;
         }
         if (render_args.comp_id.empty()) {

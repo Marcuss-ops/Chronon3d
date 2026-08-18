@@ -126,6 +126,16 @@
               }
             }
           },
+          "background": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["asset"],
+            "properties": {
+              "asset": { "type": "string", "minLength": 1 },
+              "fit": { "enum": ["cover", "contain", "stretch", "none"] },
+              "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
           "animation": {
             "type": "object",
             "additionalProperties": false,

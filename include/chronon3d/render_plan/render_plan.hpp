@@ -94,6 +94,15 @@ struct FontAssetPlan {
     std::optional<int> weight;          // 700
 };
 
+// Optional user-provided image background attached to one visual layer.
+// This is plan data (asset routing), not a second preset system. The compiler
+// materializes it behind the owning layer before the scene is rendered.
+struct LayerBackgroundPlan {
+    std::string asset;
+    std::optional<FitMode> fit;
+    std::optional<float> opacity;
+};
+
 struct LayerPlan {
     std::string id;
     LayerType type{LayerType::Color};
@@ -121,6 +130,7 @@ struct LayerPlan {
     std::optional<AnimationTiming> animation;
     std::optional<AnchorPlan> anchor;
     std::optional<LayerStylePlan> style;
+    std::optional<LayerBackgroundPlan> background;
     // Compositing hints exposed by the render-plan contract for effect
     // layers (e.g. a light leak blended with BlendMode::Screen). Absent
     // fields keep the renderer defaults (Normal blend, full opacity, no loop).

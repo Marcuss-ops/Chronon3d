@@ -21,6 +21,7 @@
 
 #include <chronon3d/core/profiling/counters.hpp>   // RenderCounters, RenderCountersRaw + X-macros
 #include <chronon3d/core/profiling/profiling.hpp>  // profiling::Clock (wall timing source)
+#include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
 #include <cstddef>
@@ -92,6 +93,12 @@ public:
 
     const std::vector<FrameTelemetry>& frames() const noexcept;
     const RenderCountersRaw& counters_snapshot() const noexcept;
+
+    // Canonical per-frame timing summary (first/mean/p95/p99 + warmup/
+    // steady-state).  Computed at finalize time over `frames()` — never
+    // incrementally during render.  This is the single summary the preset
+    // harness and the export sidecar both use; do not re-derive percentiles.
+    FrameTimingSummary frame_timing_summary() const noexcept;
 
     const std::vector<NodeTelemetryRecord>& node_events() const noexcept;
     const std::vector<LayerTelemetryRecord>& layer_events() const noexcept;
@@ -211,6 +218,10 @@ inline const std::vector<FrameTelemetry>& TelemetrySession::frames() const noexc
 
 inline const RenderCountersRaw& TelemetrySession::counters_snapshot() const noexcept {
     return m_counters;
+}
+
+inline FrameTimingSummary TelemetrySession::frame_timing_summary() const noexcept {
+    return summarize_frame_timings(m_frames);
 }
 
 inline const std::vector<NodeTelemetryRecord>& TelemetrySession::node_events() const noexcept {

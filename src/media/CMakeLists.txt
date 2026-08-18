@@ -43,6 +43,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         video/process_runner.cpp
         video/process_runner_posix.cpp
         video/mux_plan.cpp
+        video/output_contract.cpp
         video/video_sink_factory.cpp
         video/video_config_validator.cpp
     )
