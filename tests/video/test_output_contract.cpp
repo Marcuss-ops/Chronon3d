@@ -96,6 +96,8 @@ TEST_CASE("verify_output_contract fails structural checks on a missing file") {
     REQUIRE_FALSE(result.passed);
     CHECK_FALSE(result.copy_eligible);
     CHECK(result.sha256.empty());  // no digest computed
+    CHECK(result.ffprobe_ms == 0.0);  // nothing ran
+    CHECK(result.sha256_ms == 0.0);   // nothing computed
 }
 
 TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
@@ -128,6 +130,8 @@ TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
     CHECK(result.video_codec == "h264");
     CHECK(result.pixel_format == "yuv420p");
     CHECK(result.sha256.size() == 64);
+    CHECK(result.ffprobe_ms > 0.0);   // ffprobe subprocess actually ran
+    CHECK(result.sha256_ms > 0.0);    // digest actually computed
 
     std::error_code ec;
     std::filesystem::remove(artifact, ec);

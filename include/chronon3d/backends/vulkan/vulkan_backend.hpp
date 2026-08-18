@@ -26,6 +26,7 @@ struct VulkanBackendStats {
     std::uint64_t upload_bytes{0};
     std::uint64_t readback_calls{0};
     std::uint64_t readback_bytes{0};
+    std::uint64_t physical_surfaces_peak{0};
     std::uint64_t submissions{0};
     /// Cumulative number of GPU command-plan passes executed. Incremented
     /// per recorded pass (not per vkQueueSubmit), so it stays correct even
@@ -66,6 +67,7 @@ public:
     /// Feeds the backend's GPU counters into the telemetry run record as
     /// name/value pairs (`gpu_submissions`, `passes_executed`,
     /// `gpu_submit_cpu_us`, `gpu_wait_cpu_us`, `readback_us`,
+    /// `gpu_upload_bytes`, `gpu_readback_bytes`, `physical_surfaces_peak`,
     /// `cpu_gpu_sync_us`, `gpu_execute_us`).
     void export_gpu_telemetry_counters(
         std::vector<std::pair<std::string, std::uint64_t>>& out) const override;

@@ -161,6 +161,8 @@ PipeExportResult make_pipe_export_result(
             partial_path, contract);
         result.validation_ms = profiling::duration_ms(validation_t0, profiling::now());
         result.sha256 = verification.sha256;
+        result.ffprobe_ms = verification.ffprobe_ms;
+        result.sha256_ms = verification.sha256_ms;
         result.copy_eligible = verification.copy_eligible;
 
         if (!verification.passed) {
@@ -208,7 +210,8 @@ void record_pipe_telemetry(
     const std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
     double wall_time_ms,
     double render_ms,
-    double encode_ms)
+    double encode_ms,
+    const PipeExportResult& result)
 {
     const bool is_native = (session.opts.encoder.encoder_backend == "native");
     const double conv_copy_ms = session.renderer && session.renderer->counters()
@@ -377,14 +380,20 @@ void record_pipe_telemetry(
     }
 
     // ── Compute render artifact (P0 video/text — Fase 1) ────────────────────
+    // `make_pipe_export_result` already ran (it precedes this call), so the
+    // artifact is described from the *published* final path and carries the
+    // SHA-256 digest instead of an empty placeholder.
     std::vector<chronon3d::telemetry::RenderArtifactRecord> artifacts;
     {
         namespace fs = std::filesystem;
-        const std::string out_path = session.opts.output.output;
+        const std::string out_path = result.output_published
+            ? session.original_output_path
+            : session.opts.output.output;
         chronon3d::telemetry::RenderArtifactRecord artifact;
         artifact.run_id = "";  // filled by record_output_run
         artifact.type = "video";
         artifact.path = out_path;
+        artifact.sha256 = result.sha256;
         std::error_code ec;
         artifact.file_exists = fs::exists(out_path, ec);
         if (artifact.file_exists) {
@@ -400,7 +409,9 @@ void record_pipe_telemetry(
 
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     cli::telemetry::record_output_run(
-        composition_id, session.opts.output.output, loop_result.status.success,
+        composition_id,
+        result.output_published ? session.original_output_path : session.opts.output.output,
+        result.success,
         static_cast<int>(session.total_frames), encoded_frames,
         wall_time_ms, render_ms, close_result.write_blocked_ms,
         session.started_at_iso, phases, resolved_counters,

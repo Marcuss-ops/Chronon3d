@@ -29,7 +29,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    // Named-column INSERT: column order matches telemetry_schema.sql exactly (120 columns)
+    // Named-column INSERT: column order matches telemetry_schema.sql exactly (132 columns)
     const char* sql =
         "INSERT OR REPLACE INTO render_runs ("
         "run_id, composition_id, output_path, success, error_code, error_message, "
@@ -74,7 +74,9 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "compiler_info, os, cpu_model, cores, "
         "logical_resource_count, physical_resource_slot_count, logical_resource_bytes, "
         "physical_resource_bytes, alias_saved_bytes, alias_reuse_count, "
-        "new_resource_slot_count, arena_peak_bytes"
+        "new_resource_slot_count, arena_peak_bytes, "
+        "ffprobe_wall_ms, sha256_wall_ms, process_startup_ms, "
+        "framebuffer_allocations_per_frame"
 
         ") VALUES ("
         "?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, "
@@ -90,7 +92,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108, "
         "?109, ?110, ?111, ?112, ?113, ?114, "
         "?115, ?116, ?117, ?118, ?119, ?120, ?121, ?122, ?123, ?124, "
-        "?125, ?126, ?127, ?128"
+        "?125, ?126, ?127, ?128, "
+        "?129, ?130, ?131, ?132"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -227,7 +230,11 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.alias_saved_bytes,
         run.alias_reuse_count,
         run.new_resource_slot_count,
-        run.arena_peak_bytes
+        run.arena_peak_bytes,
+        run.ffprobe_wall_ms,
+        run.sha256_wall_ms,
+        run.process_startup_ms,
+        run.framebuffer_allocations_per_frame
     ) && stmt.step_done();
 }
 

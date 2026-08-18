@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/runtime/telemetry/bottleneck_analyzer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 
@@ -147,4 +148,47 @@ TEST_CASE("Telemetry Report: Sections are mutually exclusive (no field in >1 sec
     CHECK(dup == all.end());  // No field appears in more than one section
 }
 
+TEST_CASE("Telemetry Report: verification + startup fields exist and stick") {
+    RenderTelemetryRecord r{};
+    r.ffprobe_wall_ms = 1.5;
+    r.sha256_wall_ms = 2.5;
+    r.process_startup_ms = 3.5;
+    r.framebuffer_allocations_per_frame = 4.5;
+
+    CHECK(r.ffprobe_wall_ms == doctest::Approx(1.5));
+    CHECK(r.sha256_wall_ms == doctest::Approx(2.5));
+    CHECK(r.process_startup_ms == doctest::Approx(3.5));
+    CHECK(r.framebuffer_allocations_per_frame == doctest::Approx(4.5));
+}
+
+TEST_CASE("Bottleneck analyzer ranks measured phases and reports shares") {
+    RenderTelemetryRecord run{};
+    run.wall_time_ms = 100.0;
+    run.phase_gpu_readback_ms = 38.0;
+    run.phase_gpu_render_ms = 22.0;
+    run.phase_encode_ms = 17.0;
+    run.ffmpeg_pipe_write_wall_ms = 11.0;
+    run.phase_scene_eval_ms = 4.0;
+
+    const auto findings = analyze_bottlenecks(run);
+    REQUIRE(findings.size() == 5);
+    CHECK(findings[0].name == "GPU readback");
+    CHECK(findings[0].value_ms == doctest::Approx(38.0));
+    CHECK(findings[0].critical_path_share == doctest::Approx(0.38));
+    CHECK(findings[1].name == "GPU execution");
+    CHECK(findings[4].name == "Scene/graph evaluation");
+}
+
+TEST_CASE("Bottleneck analyzer uses backend fallbacks and omits absent phases") {
+    RenderTelemetryRecord run{};
+    run.wall_time_ms = 50.0;
+    run.frame_conversion_copy_wall_ms = 8;
+    run.node_execute_actual_wall_ms = 6;
+
+    const auto findings = analyze_bottlenecks(run, 10);
+    REQUIRE(findings.size() == 2);
+    CHECK(findings[0].name == "GPU readback");
+    CHECK(findings[0].value_ms == doctest::Approx(8.0));
+    CHECK(findings[1].name == "GPU execution");
+}
 

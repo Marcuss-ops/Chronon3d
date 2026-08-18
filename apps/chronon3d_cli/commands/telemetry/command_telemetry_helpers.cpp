@@ -90,6 +90,11 @@ void generate_telemetry_report(std::stringstream& out, const RunSummary& run) {
     out << "- encode: " << format_ms(run.phase_encode_ms) << "\n";
     out << "- disk_io: " << format_ms(run.phase_disk_io_ms) << "\n\n";
 
+    out << "## Output verification & startup\n";
+    out << "- Process startup: " << format_ms(run.process_startup_ms) << "\n";
+    out << "- ffprobe: " << format_ms(run.ffprobe_wall_ms) << "\n";
+    out << "- SHA-256: " << format_ms(run.sha256_wall_ms) << "\n\n";
+
     out << "## Per-phase metric breakdown (overlay factory)\n";
     out << "- Graph compile: " << format_ms(static_cast<double>(run.compiled_graph_refresh_wall_ms)) << "\n";
     out << "- Asset upload: " << format_ms(static_cast<double>(run.setup_asset_io_load_wall_ms)) << "\n";
@@ -127,6 +132,7 @@ void generate_telemetry_report(std::stringstream& out, const RunSummary& run) {
     out << "## Memory\n";
     out << "- Framebuffer allocations: " << run.framebuffer_allocations
         << " (reuses: " << run.framebuffer_reuses << ")\n";
+    out << "- Framebuffer allocations per frame: " << run.framebuffer_allocations_per_frame << "\n";
     out << "- Framebuffer bytes allocated / peak: "
         << run.framebuffer_bytes_allocated << " / " << run.framebuffer_bytes_peak << "\n";
     out << "- Tiles hit / miss / partial: " << run.tiles_hit << " / " << run.tiles_miss << " / " << run.tiles_partial << "\n";

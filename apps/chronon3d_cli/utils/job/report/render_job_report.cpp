@@ -1,6 +1,7 @@
 #include "render_job_report.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/runtime/telemetry/bottleneck_analyzer.hpp>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -387,6 +388,54 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
 
     // ── Section: ClearNode Copy Diagnostics ───────────────────────────────
     write_cleardiag_section(out, get_counter);
+
+    // ── Section: Detailed Pipeline Timeline ───────────────────────────────
+    const auto top_bottlenecks = chronon3d::telemetry::analyze_bottlenecks(run);
+    out << "\n--- TOP BOTTLENECKS ---\n";
+    if (top_bottlenecks.empty()) {
+        out << "No measured critical-path phase available.\n";
+    } else {
+        for (std::size_t i = 0; i < top_bottlenecks.size(); ++i) {
+            const auto& finding = top_bottlenecks[i];
+            out << (i + 1) << ". " << finding.name << ": "
+                << fmt::format("{:.2f} ms", finding.value_ms);
+            if (finding.critical_path_share > 0.0) {
+                out << fmt::format(" ({:.1f}% of wall)",
+                                   finding.critical_path_share * 100.0);
+            }
+            out << "\n   Next investigation: " << finding.recommendation << "\n";
+        }
+    }
+
+    // ── Section: Bottleneck Diagnosis ─────────────────────────────────────
+    out << "\n--- DETAILED PIPELINE TIMELINE ---\n";
+    auto timeline_line = [&](const char* label, double value_ms) {
+        out << std::left << std::setw(28) << label << ": "
+            << fmt::format("{:.3f} ms", value_ms) << "\n";
+    };
+    timeline_line("scene_eval", run.phase_scene_eval_ms);
+    timeline_line("gpu_execute", run.gpu_execute_ms);
+    timeline_line("gpu_submit_cpu", run.gpu_submit_cpu_ms);
+    timeline_line("gpu_wait_cpu", run.gpu_wait_cpu_ms);
+    timeline_line("gpu_readback", run.gpu_readback_ms > 0.0
+                                      ? run.gpu_readback_ms
+                                      : run.phase_gpu_readback_ms);
+    timeline_line("conversion", run.video_conversion_wall_ms);
+    timeline_line("encode", run.phase_encode_ms > 0.0
+                               ? run.phase_encode_ms
+                               : run.ffmpeg_encode_total_ms);
+    timeline_line("disk_io", run.phase_disk_io_ms);
+    timeline_line("process_startup", run.process_startup_ms);
+    timeline_line("ffprobe", run.ffprobe_wall_ms);
+    timeline_line("sha256", run.sha256_wall_ms);
+    out << "bytes_uploaded: " << run.gpu_upload_bytes
+        << " | bytes_readback: " << run.gpu_readback_bytes << "\n";
+    out << "submissions: " << run.gpu_submissions
+        << " | passes: " << run.passes_executed
+        << " | physical_surfaces_peak: " << run.physical_surfaces_peak
+        << " | barriers: " << run.barrier_count << "\n";
+    out << "framebuffer_allocations_per_frame: "
+        << run.framebuffer_allocations_per_frame << "\n";
 
     // ── Section: Bottleneck Diagnosis ─────────────────────────────────────
     write_bottleneck_diagnosis(out, get_counter, run);
