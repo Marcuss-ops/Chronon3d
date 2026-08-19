@@ -160,9 +160,8 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    if (!clip_covers_result(clip, result) || !ctx.services.backend || !ctx.services.surface_registry ||
-        effect_stack.size() != 1 ||
-        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+    if (!ctx.services.backend || !ctx.services.surface_registry ||
+        effect_stack.size() != 1) {
         return false;
     }
     const auto& instance = effect_stack[0];
@@ -172,53 +171,80 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         params->radius < 0.0f || params->radius > 32.0f) {
         return false;
     }
-
     const auto desc = native_surface_desc(result.width(), result.height());
-    const auto rgba = pack_framebuffer_rgba(result);
-    const auto source = ctx.services.surface_registry->create(desc);
+    const bool source_is_existing =
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
+    const auto source = source_is_existing
+        ? result.surface_handle()
+        : ctx.services.surface_registry->create(desc);
     const auto horizontal = ctx.services.surface_registry->create(desc);
     const auto output = ctx.services.surface_registry->create(desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
         output == runtime::kInvalidRenderSurfaceHandle) {
-        if (source != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(source);
+        if (!source_is_existing && source != runtime::kInvalidRenderSurfaceHandle)
+            ctx.services.surface_registry->release(source);
         if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(horizontal);
         if (output != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(output);
         return false;
     }
     const auto cleanup = [&] {
-        (void)ctx.services.backend->release_surface(source);
+        if (!source_is_existing) {
+            (void)ctx.services.backend->release_surface(source);
+            ctx.services.surface_registry->release(source);
+        }
         (void)ctx.services.backend->release_surface(horizontal);
         (void)ctx.services.backend->release_surface(output);
-        ctx.services.surface_registry->release(source);
         ctx.services.surface_registry->release(horizontal);
         ctx.services.surface_registry->release(output);
     };
-    const auto created_source = ctx.services.backend->create_surface(source, desc);
-    const auto uploaded = created_source.ok()
-        ? ctx.services.backend->upload_surface(source, desc, rgba)
-        : created_source;
+    const auto source_ready = source_is_existing
+        ? RenderOpResult(RenderOpOutcome{})
+        : ctx.services.backend->create_surface(source, desc);
+    const auto uploaded = source_ready.ok()
+        ? (source_is_existing
+            ? RenderOpResult(RenderOpOutcome{})
+            : ctx.services.backend->upload_surface(source, desc,
+                                                   pack_framebuffer_rgba(result)))
+        : source_ready;
     const auto created_horizontal = uploaded.ok()
         ? ctx.services.backend->create_surface(horizontal, desc)
         : uploaded;
     const auto created_output = created_horizontal.ok()
         ? ctx.services.backend->create_surface(output, desc)
         : created_horizontal;
+    const bool partial_clip = clip && !clip_covers_result(clip, result);
+    std::optional<raster::BBox> local_clip;
+    if (partial_clip) {
+        local_clip = raster::BBox{
+            clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
+            clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};
+        local_clip->clip_to(result.width(), result.height());
+    }
     const auto blurred_horizontal = created_output.ok()
         ? ctx.services.backend->blur_surface(horizontal, source, params->radius, /*horizontal=*/true)
         : created_output;
     const auto blurred_vertical = blurred_horizontal.ok()
         ? ctx.services.backend->blur_surface(output, horizontal, params->radius, /*horizontal=*/false)
         : blurred_horizontal;
-    if (!blurred_vertical.ok()) {
+    const auto clipped_result = blurred_vertical.ok() && partial_clip
+        ? ctx.services.backend->copy_surface(source, output, local_clip)
+        : blurred_vertical;
+    if (!clipped_result.ok()) {
         cleanup();
         return false;
     }
-    (void)ctx.services.backend->release_surface(source);
     (void)ctx.services.backend->release_surface(horizontal);
-    ctx.services.surface_registry->release(source);
     ctx.services.surface_registry->release(horizontal);
-    result.set_surface_handle(output);
+    if (partial_clip) {
+        (void)ctx.services.backend->release_surface(output);
+        ctx.services.surface_registry->release(output);
+        result.set_surface_handle(source);
+    } else {
+        (void)ctx.services.backend->release_surface(source);
+        ctx.services.surface_registry->release(source);
+        result.set_surface_handle(output);
+    }
     return true;
 }
 
