@@ -148,7 +148,13 @@ int main() {
     CUdevice cuda_device = 0;
     cu_check(cuDeviceGet(&cuda_device, 0), "cuDeviceGet");
     CUcontext context = nullptr;
+#if defined(CUDA_VERSION) && CUDA_VERSION >= 13000
+    // CUDA 13 replaced the legacy flags/device overload with the v4
+    // parameterized context creation entry point.
+    cu_check(cuCtxCreate(&context, nullptr, 0, cuda_device), "cuCtxCreate");
+#else
     cu_check(cuCtxCreate(&context, 0, cuda_device), "cuCtxCreate");
+#endif
     CUexternalMemory external_memory = nullptr;
     CUDA_EXTERNAL_MEMORY_HANDLE_DESC handle_desc{};
     handle_desc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
