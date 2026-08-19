@@ -605,7 +605,6 @@ compile_render_plan(
         prepared.job_id = plan.job_id;
         prepared.canvas = plan.canvas;
         prepared.output = plan.output;
-        prepared.audio_tracks = plan.audio_tracks;
         prepared.render_budget = plan.budget;
         return prepared;
     } catch (const std::exception& error) {

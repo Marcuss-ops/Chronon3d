@@ -13,6 +13,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <array>
 
 namespace chronon3d::cli {
 
@@ -47,6 +48,9 @@ struct PipeExportSession {
 
     // Queue + async writer
     RenderFrameQueue<RenderFramePackage> queue;
+    FrameInteropRing interop_ring;
+    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
+        native_encode_surfaces{};
     std::atomic<bool> writer_failed{false};
     std::unique_ptr<TripleBufferArena> triple_arena;
     std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
@@ -64,7 +68,9 @@ struct PipeExportSession {
     // Transitively: PipeExportSession's implicit copy/move ops are deleted (the
     // queue's mutex/cv forbid them), tolerated by unique_ptr-holding + reference-only call sites.
     explicit PipeExportSession(size_t queue_capacity)
-        : queue(queue_capacity) {}
+        : queue(queue_capacity), interop_ring(FrameInteropRing::kSlotCount) {
+        native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+    }
 
     // ── P1-B safety: never destroy a joinable writer thread ─────────────
     // The warmup/render phases run after the writer thread is started.  If
@@ -77,6 +83,7 @@ struct PipeExportSession {
     // path (run_pipe_export_loop already closes + joins).
     ~PipeExportSession() {
         queue.close();
+        interop_ring.close();
         if (writer_thread.joinable()) {
             writer_thread.join();
         }

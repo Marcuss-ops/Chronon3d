@@ -243,9 +243,6 @@ struct RequestedAsset {
             }
         }
     }
-    for (const auto& track : plan.audio_tracks)
-        add(track.source, PreparedAssetKind::Audio);
-
     std::sort(result.begin(), result.end(), [](const auto& left, const auto& right) {
         if (left.logical_path != right.logical_path)
             return left.logical_path < right.logical_path;
