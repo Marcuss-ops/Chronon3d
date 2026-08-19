@@ -25,6 +25,13 @@ void setup_render_job(const CompositionRegistry& registry,
     out.setup_t0 = profiling::now();
     out.renderer = std::move(warm_renderer);
     if (out.renderer) {
+        // A daemon reuses the renderer object, but every RenderJob is a new
+        // temporal session.  Drop evaluated node values and temporal history
+        // before preparing the next plan; keep image/GPU/font/pipeline caches
+        // warm so persistence remains useful without leaking state from the
+        // previous job into frame zero.
+        out.renderer->reset_frame_value_cache();
+        out.renderer->reset_temporal_history();
         out.renderer->set_settings(job.settings);
         if (job.execution.assets_root) {
             out.renderer->runtime().resolver().mount(*job.execution.assets_root);
