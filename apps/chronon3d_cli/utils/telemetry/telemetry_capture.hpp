@@ -34,6 +34,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"gpu_text_atlas_upload_bytes", counters.gpu_text_atlas_upload_bytes.load(std::memory_order_relaxed)},
         {"gpu_text_instance_upload_count", counters.gpu_text_instance_upload_count.load(std::memory_order_relaxed)},
         {"gpu_text_instance_upload_bytes", counters.gpu_text_instance_upload_bytes.load(std::memory_order_relaxed)},
+        {"interop_ring_wait_count", counters.interop_ring_wait_count.load(std::memory_order_relaxed)},
+        {"interop_ring_wait_us", counters.interop_ring_wait_us.load(std::memory_order_relaxed)},
         {"nodes_executed", counters.nodes_executed.load(std::memory_order_relaxed)},
         {"layers_rendered", counters.layers_rendered.load(std::memory_order_relaxed)},
         {"text_glyphs_rasterized", counters.text_glyphs_rasterized.load(std::memory_order_relaxed)},

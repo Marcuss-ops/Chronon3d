@@ -299,7 +299,9 @@ namespace chronon3d {
     X(video_pipe_fallback_frames) \
     X(video_native_fallback_frames) \
     X(gpu_surface_create_failures) \
-    X(gpu_encode_failures)
+    X(gpu_encode_failures) \
+    X(interop_ring_wait_count) \
+    X(interop_ring_wait_us)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 
