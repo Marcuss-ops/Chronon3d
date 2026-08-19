@@ -59,6 +59,12 @@ struct IVideoEncoder {
         (void)backend; (void)source; (void)destination;
         return false;
     }
+    virtual bool write_prepared_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination) {
+        return write_native_surface(backend, source, destination);
+    }
     virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
         return write_frame(fb);
     }
