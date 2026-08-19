@@ -255,6 +255,12 @@ RenderLoopOutput run_pipe_export_loop(
     if (session.writer_thread.joinable()) {
         session.writer_thread.join();
     }
+    if (session.renderer && session.renderer->counters()) {
+        session.renderer->counters()->interop_ring_wait_count.fetch_add(
+            session.interop_ring.wait_count(), std::memory_order_relaxed);
+        session.renderer->counters()->interop_ring_wait_us.fetch_add(
+            session.interop_ring.wait_us(), std::memory_order_relaxed);
+    }
 
     if (session.writer_failed.load()) {
         loop_result.status.success = false;
