@@ -30,7 +30,7 @@
 ## Recently Closed
 
 - Render layer timing removed from the global job in `ecf183f5`; typed plan decoding and pre-frame preparation landed in `27dc34d6` and `67f7f00b`.
-- Canonical CLI plan execution and shared audio mux landed in `fee74549`; plan state no longer mutates the engine and ABI validation landed in `0ef3b517`.
+- Canonical CLI plan execution landed in `fee74549`; plan state no longer mutates the engine and ABI validation landed in `0ef3b517`.
 - The direct base/animation CMake cycle was removed in `c61a1a3a`; the selectable non-modular path was retired in `6fc72940`.
 - Legacy C API/context adapters were removed in `8f43d29d`; architecture failures became blocking in `20a102f3`.
 - Transition cleanup master tracker closed as DONE/ARCHIVED on 2026-08-01; TRN-03–TRN-07 remain the detailed evidence sheets.

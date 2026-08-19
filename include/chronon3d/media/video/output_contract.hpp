@@ -44,7 +44,8 @@ struct OutputContract {
     std::string pixel_format{"yuv420p"};
 
     /// Audio policy: must the artifact carry exactly `audio_streams` audio
-    /// streams? Video-only exports (audio muxed later) set this to false.
+    /// streams? Video-only exports consumed by the canonical external audio
+    /// assembler set this to false.
     bool audio_required{true};
     std::size_t audio_streams{1};
 

@@ -22,7 +22,7 @@ mismatch).
 
 Lo schema canonico `schemas/chronon.render-plan.v1.schema.json` (Draft
 2020-12 con `additionalProperties: false`, required/const/enum/integer+minimum,
-nested objects per canvas/layers[].animation/audio_tracks[].items/output) NON
+nested objects per canvas/layers[].animation/output) NON
 veniva MAI consultato dal codice di compilazione — solo il commento
 implicito "fidati di quello che ti arriva".
 

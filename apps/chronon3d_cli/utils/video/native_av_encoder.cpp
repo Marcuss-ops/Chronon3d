@@ -168,7 +168,9 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     {
         char crf_str[16];
         snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
-        if (!set_codec_option_checked(codec_, "crf", crf_str)) return false;
+        // NVENC does not expose x264's CRF option; its quality control is
+        // resolved through the NVENC-specific options below/defaults.
+        if (!gpu_nvenc_ && !set_codec_option_checked(codec_, "crf", crf_str)) return false;
     }
     // Apply the unified CPU budget to x264.  encode_threads == 0 keeps the
     // legacy "auto" behaviour for backwards compatibility.
@@ -185,7 +187,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
     // tune: default empty for batch export (faster), use "zerolatency" only for streaming
     const std::string tune = options_.tune.empty() ? "" : options_.tune;
-    if (!tune.empty()) {
+        if (!tune.empty() && !gpu_nvenc_) {
         if (!set_codec_option_checked(codec_, "tune", tune)) return false;
     }
 

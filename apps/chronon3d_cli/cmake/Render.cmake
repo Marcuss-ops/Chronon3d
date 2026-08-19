@@ -14,7 +14,6 @@ add_library(chronon3d_cli_render STATIC
     commands/render/render_plan_inspection.cpp
     commands/render/command_inspect_plan.cpp
     commands/render/command_script.cpp
-    commands/render/audio_muxer.cpp
     utils/job/render_job.cpp
     utils/job/render_job_setup.cpp
     utils/job/render_job_finalize.cpp

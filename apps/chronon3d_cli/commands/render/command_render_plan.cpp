@@ -1,7 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../cli_context.hpp"
 #include "../../utils/job/render_job.hpp"
-#include "audio_muxer.hpp"
 #include "command_render_plan.hpp"
 #include "render_plan_preparation.hpp"
 
@@ -15,8 +14,6 @@
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
-
-#include <chronon3d/core/cancellation_token.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -80,7 +77,6 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
 
         auto context = std::move(preparation).value();
         const auto& prepared = context.prepared;
-        auto& resolver = context.resolver;
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
 
@@ -158,22 +154,6 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
-        chronon3d::CancellationToken mux_cancellation;
-        chronon3d::install_signal_cancellation(mux_cancellation);
-        bool mux_ok = true;
-        try {
-            mux_ok = video_output(output)
-                ? AudioMuxer{}.mux(output, prepared.audio_tracks, resolver,
-                                   &mux_cancellation)
-                : true;
-        } catch (...) {
-            chronon3d::restore_default_signal_handlers();
-            throw;
-        }
-        chronon3d::restore_default_signal_handlers();
-        if (!mux_ok)
-            return 1;
-
         // M6 — canonical render receipt, emitted after a successful render so
         // downstream tooling can verify content identity + copy_eligible.
         try {
@@ -198,7 +178,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             receipt_input.fps_den = 1;
             receipt_input.frames = prepared.canvas.duration.integral();
             receipt_input.requested_codec = codec_name(prepared.output.codec);
-            receipt_input.has_audio_tracks = !prepared.audio_tracks.empty();
+            receipt_input.has_audio_tracks = false;
 
             const auto receipt = verification::build_render_receipt(
                 receipt_input, output, video_output(output));

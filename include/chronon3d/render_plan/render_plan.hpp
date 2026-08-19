@@ -139,22 +139,6 @@ struct LayerPlan {
     bool loop{false};
 };
 
-struct AudioTrackPlan {
-    std::string source;
-    double volume{1.0};
-    double start_time_offset{0.0};
-    double duration_seconds{0.0};
-    std::string role;
-
-    // Rendering hints set by the hybrid.v1 compiler for background_music.
-    // The audio muxer reads these to generate the corresponding FFmpeg
-    // filter chain (-stream_loop, afade, sidechain compression).
-    bool loop{false};
-    double fade_in_seconds{0.0};
-    double fade_out_seconds{0.0};
-    bool ducking_enabled{false};
-};
-
 struct OutputSpec {
     std::string path;
     OutputFormat format{OutputFormat::Png};
@@ -174,7 +158,6 @@ struct RenderPlan {
     std::uint64_t content_fingerprint{0};
     CanvasSpec canvas;
     std::vector<LayerPlan> layers;
-    std::vector<AudioTrackPlan> audio_tracks;
     OutputSpec output;
     /// Canonical job-level resource policy. Runtime renderers resolve the
     /// temporal portion through TemporalBudgetResolver.
