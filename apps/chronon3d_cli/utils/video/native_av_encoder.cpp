@@ -325,7 +325,12 @@ bool NativeAvEncoder::write_native_surface(
 #else
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         source == runtime::kInvalidRenderSurfaceHandle ||
-        destination == runtime::kInvalidRenderSurfaceHandle) return false;
+        destination == runtime::kInvalidRenderSurfaceHandle) {
+        spdlog::error("[native_av] invalid GPU frame contract source={} destination={} gpu_nvenc={} cuda_context={} frames_ctx={}",
+                      source, destination, gpu_nvenc_, cuda_context_ != nullptr,
+                      cuda_frames_ref_ != nullptr);
+        return false;
+    }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;
     const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination);
@@ -346,6 +351,7 @@ bool NativeAvEncoder::write_native_surface(
         gpu_frame->height = options_.height;
         gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
         if (av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0) < 0) {
+            spdlog::error("[native_av] av_hwframe_get_buffer failed for GPU frame {}", frames_written_);
             av_frame_free(&gpu_frame);
             return false;
         }
@@ -359,6 +365,17 @@ bool NativeAvEncoder::write_native_surface(
         copy.WidthInBytes = static_cast<std::size_t>(options_.width) * 4;
         copy.Height = options_.height;
         if (cuMemcpy2D(&copy) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] cuMemcpy2D failed for GPU frame {}", frames_written_);
+            av_frame_free(&gpu_frame);
+            return false;
+        }
+        // The external semaphore wait and the array copy are submitted on the
+        // CUDA default stream.  Drain that stream before destroying the
+        // per-frame imported bridge; otherwise the next Vulkan frame can hit
+        // the driver's external-semaphore allocation limit while the prior
+        // import is still referenced by an asynchronous operation.
+        if (cuCtxSynchronize() != CUDA_SUCCESS) {
+            spdlog::error("[native_av] CUDA synchronization failed for GPU frame {}", frames_written_);
             av_frame_free(&gpu_frame);
             return false;
         }
@@ -367,7 +384,15 @@ bool NativeAvEncoder::write_native_surface(
         const int send_ret = avcodec_send_frame(codec_, gpu_frame);
         native_send_frame_ms_ += elapsed_ms(send_t0);
         av_frame_free(&gpu_frame);
-        if (send_ret < 0 || !drain_packets()) return false;
+        if (send_ret < 0) {
+            spdlog::error("[native_av] avcodec_send_frame(GPU) failed ret={} frame={}",
+                          send_ret, frames_written_);
+            return false;
+        }
+        if (!drain_packets()) {
+            spdlog::error("[native_av] drain_packets failed after GPU frame {}", frames_written_);
+            return false;
+        }
         ++frames_written_;
         return true;
     } catch (const std::exception& error) {
