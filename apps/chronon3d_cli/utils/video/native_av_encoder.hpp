@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ffmpeg_pipe_encoder.hpp"
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -38,6 +39,9 @@ public:
     NativeAvEncoder& operator=(NativeAvEncoder&&) = delete;
 
     bool open(const FfmpegPipeOptions& options) override;
+    void set_counters(chronon3d::RenderCounters* counters) override {
+        counters_ = counters;
+    }
     bool write_frame(const Framebuffer& fb) override;
     bool write_native_surface(
         graph::RenderBackend& backend,
@@ -58,6 +62,7 @@ public:
     [[nodiscard]] double native_trailer_ms()          const override { return native_trailer_ms_; }
 
 private:
+    chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};
     uint64_t frames_written_{0};
 
@@ -71,6 +76,13 @@ private:
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     using CudaSurfaceBridge = backends::vulkan::CudaVulkanSurfaceBridge;
     std::unordered_map<std::uint64_t, std::unique_ptr<CudaSurfaceBridge>> cuda_surface_bridges_;
+    struct PendingCudaFrame {
+        AVFrame* frame{nullptr};
+        CUevent ready{nullptr};
+    };
+    std::deque<PendingCudaFrame> pending_cuda_frames_;
+    CUstream cuda_stream_{nullptr};
+    uint64_t frames_submitted_{0};
     void* cuda_context_{nullptr};
     AVBufferRef* cuda_device_ref_{nullptr};
     AVBufferRef* cuda_frames_ref_{nullptr};
@@ -89,6 +101,7 @@ private:
 
     /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();
+    bool drain_ready_cuda_frames(bool wait_for_one);
 
     // ── Single-entry YUV conversion cache ──
     // When consecutive frames have the same digest (static scenes), skip the

@@ -1,6 +1,7 @@
 #include "native_av_encoder.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -66,6 +67,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 
     options_ = options;
     frames_written_ = 0;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = 0;
+    pending_cuda_frames_.clear();
+#endif
 
     // Reset conversion cache so a stale digest from a prior export won't
     // produce a false hit if the same object is reopened.
@@ -142,6 +147,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (cuCtxCreate(&context, 0, cuda_device) != CUDA_SUCCESS) return false;
         cuda_context_ = context;
 #endif
+        if (cuStreamCreate(&cuda_stream_, CU_STREAM_NON_BLOCKING) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] CUDA stream creation failed");
+            return false;
+        }
         if (av_hwdevice_ctx_create(&cuda_device_ref_, AV_HWDEVICE_TYPE_CUDA,
                                    "0", nullptr, 0) < 0) return false;
         cuda_frames_ref_ = av_hwframe_ctx_alloc(cuda_device_ref_);
@@ -265,6 +274,14 @@ bool NativeAvEncoder::close() {
         return true;
     }
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    // Complete the bounded CUDA->NVENC queue before flushing the codec. In
+    // steady state this is polled asynchronously; only the final tail waits.
+    if (gpu_nvenc_ && !drain_ready_cuda_frames(true)) {
+        spdlog::error("[native_av] failed to drain pending CUDA frames");
+    }
+#endif
+
     // 1. Drain encoder: send NULL to flush internal buffers (encoder flush).
     const auto t_flush0 = Clock::now();
     avcodec_send_frame(codec_, nullptr);
@@ -308,6 +325,10 @@ bool NativeAvEncoder::close() {
     // of each persistent encode surface. Do not destroy them frame-by-frame:
     // that path causes driver object churn and defeats the interop ring.
     cuda_surface_bridges_.clear();
+    if (cuda_stream_) {
+        cuStreamDestroy(cuda_stream_);
+        cuda_stream_ = nullptr;
+    }
     av_buffer_unref(&cuda_frames_ref_);
     av_buffer_unref(&cuda_device_ref_);
     if (cuda_context_) {
@@ -334,6 +355,33 @@ NativeAvEncoder::~NativeAvEncoder() {
     }
 }
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
+    while (!pending_cuda_frames_.empty()) {
+        auto& pending = pending_cuda_frames_.front();
+        const CUresult ready = cuEventQuery(pending.ready);
+        if (ready == CUDA_ERROR_NOT_READY) {
+            if (!wait_for_one) return true;
+            if (cuEventSynchronize(pending.ready) != CUDA_SUCCESS) return false;
+        } else if (ready != CUDA_SUCCESS) {
+            return false;
+        }
+
+        const auto send_t0 = Clock::now();
+        const int send_ret = avcodec_send_frame(codec_, pending.frame);
+        native_send_frame_ms_ += elapsed_ms(send_t0);
+        av_frame_free(&pending.frame);
+        cuEventDestroy(pending.ready);
+        pending.ready = nullptr;
+        pending_cuda_frames_.pop_front();
+        if (send_ret < 0 || !drain_packets()) return false;
+        ++frames_written_;
+        wait_for_one = false;
+    }
+    return true;
+}
+#endif
+
 bool NativeAvEncoder::write_native_surface(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
@@ -358,6 +406,12 @@ bool NativeAvEncoder::write_native_surface(
         return false;
     }
     try {
+        if (!drain_ready_cuda_frames(false)) return false;
+        if (pending_cuda_frames_.size() >= 3 &&
+            !drain_ready_cuda_frames(true)) {
+            spdlog::error("[native_av] CUDA encoder queue backpressure failed");
+            return false;
+        }
         const auto key = static_cast<std::uint64_t>(destination);
         auto bridge_it = cuda_surface_bridges_.find(key);
         if (bridge_it == cuda_surface_bridges_.end()) {
@@ -367,7 +421,7 @@ bool NativeAvEncoder::write_native_surface(
             bridge_it = cuda_surface_bridges_.emplace(key, std::move(bridge)).first;
         }
         auto& bridge = *bridge_it->second;
-        bridge.wait_for_vulkan();
+        bridge.wait_for_vulkan(cuda_stream_);
 
         AVFrame* gpu_frame = av_frame_alloc();
         if (!gpu_frame) return false;
@@ -389,36 +443,31 @@ bool NativeAvEncoder::write_native_surface(
         copy.dstPitch = gpu_frame->linesize[0];
         copy.WidthInBytes = static_cast<std::size_t>(options_.width) * 4;
         copy.Height = options_.height;
-        if (cuMemcpy2D(&copy) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] cuMemcpy2D failed for GPU frame {}", frames_written_);
+        if (cuMemcpy2DAsync(&copy, cuda_stream_) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] cuMemcpy2DAsync failed for GPU frame {}", frames_submitted_);
             av_frame_free(&gpu_frame);
             return false;
         }
-        // The external semaphore wait and the array copy are submitted on the
-        // CUDA default stream.  Drain that stream before destroying the
-        // per-frame imported bridge; otherwise the next Vulkan frame can hit
-        // the driver's external-semaphore allocation limit while the prior
-        // import is still referenced by an asynchronous operation.
-        if (cuCtxSynchronize() != CUDA_SUCCESS) {
-            spdlog::error("[native_av] CUDA synchronization failed for GPU frame {}", frames_written_);
+        CUevent ready = nullptr;
+        if (cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING) != CUDA_SUCCESS ||
+            cuEventRecord(ready, cuda_stream_) != CUDA_SUCCESS) {
+            if (ready) cuEventDestroy(ready);
+            spdlog::error("[native_av] CUDA completion event failed for GPU frame {}",
+                          frames_submitted_);
             av_frame_free(&gpu_frame);
             return false;
         }
-        gpu_frame->pts = static_cast<int64_t>(frames_written_);
-        const auto send_t0 = Clock::now();
-        const int send_ret = avcodec_send_frame(codec_, gpu_frame);
-        native_send_frame_ms_ += elapsed_ms(send_t0);
-        av_frame_free(&gpu_frame);
-        if (send_ret < 0) {
-            spdlog::error("[native_av] avcodec_send_frame(GPU) failed ret={} frame={}",
-                          send_ret, frames_written_);
-            return false;
+        gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
+        pending_cuda_frames_.push_back(PendingCudaFrame{gpu_frame, ready});
+        if (counters_) {
+            counters_->gpu_surface_copy_frames.fetch_add(1, std::memory_order_relaxed);
+            counters_->encoder_staging_copy_bytes.fetch_add(
+                static_cast<std::uint64_t>(options_.width) * options_.height * 4,
+                std::memory_order_relaxed);
         }
-        if (!drain_packets()) {
-            spdlog::error("[native_av] drain_packets failed after GPU frame {}", frames_written_);
-            return false;
-        }
-        ++frames_written_;
+        // Poll only; the bounded queue applies backpressure on the oldest
+        // event when it reaches three frames in flight.
+        if (!drain_ready_cuda_frames(false)) return false;
         return true;
     } catch (const std::exception& error) {
         spdlog::error("[native_av] CUDA/Vulkan frame handoff failed: {}", error.what());
