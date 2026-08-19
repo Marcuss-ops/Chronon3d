@@ -2464,6 +2464,8 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("physical_surfaces_peak", m_impl->stats.physical_surfaces_peak);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
+    out.emplace_back("frame_slot_wait_count", m_impl->stats.frame_slot_wait_count);
+    out.emplace_back("frame_slot_wait_us", m_impl->stats.frame_slot_wait_us);
     out.emplace_back("readback_us", m_impl->stats.readback_us);
     out.emplace_back("cpu_gpu_sync_us", m_impl->stats.gpu_wait_cpu_us + m_impl->stats.readback_us);
     out.emplace_back("gpu_execute_us", m_impl->stats.gpu_execute_us);
@@ -2530,8 +2532,12 @@ void VulkanBackend::begin_frame_batch() {
     // still be in flight; this is what bounds CPU-GPU overlap to the ring
     // size instead of stalling the whole device every frame.
     if (batch.in_flight[slot]) {
+        const auto wait_start = profiling::now();
         check(vkWaitForFences(m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX),
               "vkWaitForFences(frame batch slot)");
+        ++m_impl->stats.frame_slot_wait_count;
+        m_impl->stats.frame_slot_wait_us +=
+            static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
         check(vkResetFences(m_impl->device, 1, &batch.fences[slot]),
               "vkResetFences(frame batch slot)");
         batch.in_flight[slot] = false;

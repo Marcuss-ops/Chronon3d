@@ -90,6 +90,12 @@ namespace chronon3d {
     X(glyph_atlas_hits) \
     X(glyph_atlas_misses) \
     X(glyph_atlas_stored) \
+    X(gpu_text_atlas_repack_count) \
+    X(gpu_text_atlas_upload_count) \
+    X(gpu_text_atlas_repack_bytes) \
+    X(gpu_text_atlas_upload_bytes) \
+    X(gpu_text_instance_upload_count) \
+    X(gpu_text_instance_upload_bytes) \
     X(text_bbox_contract_violations)  /**< TICKET-TEXT-CLIP-PREDICTED-BBOX: incremented when predicted_bbox() returns empty or non-finite */
 
 #define CHRONON_COUNTERS_TILE(X) \
