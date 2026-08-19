@@ -64,7 +64,6 @@ struct PreparedRenderPlan {
     std::string job_id;
     CanvasSpec canvas;
     OutputSpec output;
-    std::vector<AudioTrackPlan> audio_tracks;
     RenderBudget render_budget{};
 };
 

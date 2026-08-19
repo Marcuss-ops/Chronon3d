@@ -331,16 +331,6 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
     if (plan.output.bitrate != 0) root["output"]["bitrate"] = plan.output.bitrate;
     if (plan.output.crf != 0) root["output"]["crf"] = plan.output.crf;
 
-    if (!plan.audio_tracks.empty()) {
-        root["audio_tracks"] = nlohmann::json::array();
-        for (const auto& track : plan.audio_tracks) {
-            nlohmann::json value{{"source", track.source}};
-            if (track.volume != 1.0) value["volume"] = track.volume;
-            if (!track.role.empty()) value["role"] = track.role;
-            root["audio_tracks"].push_back(std::move(value));
-        }
-    }
-
     return root;
 }
 

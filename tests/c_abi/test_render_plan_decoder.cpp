@@ -15,7 +15,6 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
                      {"duration_frames", 60}}},
         {"layers", {{{"id", "title"}, {"type", "text"},
                       {"text", "Hello"}, {"start_frame", 3}}}},
-        {"audio_tracks", {{{"source", "music.wav"}, {"volume", 0.5}}}},
         {"output", {{"path", "out.mp4"}, {"format", "mp4"},
                      {"codec", "h264"}}},
         {"budget", {{"max_temporal_pixels", 4096}}}};
@@ -26,7 +25,6 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
     CHECK(decoded->layers.size() == 1);
     CHECK(decoded->layers[0].type == chronon3d::render_plan::LayerType::Text);
     CHECK(decoded->layers[0].start_frame->integral() == 3);
-    CHECK(decoded->audio_tracks[0].volume == doctest::Approx(0.5));
     CHECK(decoded->output.codec == chronon3d::render_plan::VideoCodec::H264);
     CHECK(decoded->budget.max_temporal_pixels == 4096);
 }
@@ -219,37 +217,6 @@ TEST_CASE("validate_render_budget rejects text, asset references, and audio limi
     CHECK(error->path == "layers[]");
 
     plan = budget_plan();
-    chronon3d::render_plan::AudioTrackPlan audio;
-    audio.source = "music.wav";
-    audio.duration_seconds = 0.5;
-    plan.audio_tracks.push_back(audio);
-    plan.audio_tracks.push_back(audio);
-    budget = {};
-    budget.max_audio_tracks = 1;
-    budget.max_audio_duration_seconds = 10.0;
-    error = chronon3d::render_plan::validate_render_budget(plan, budget);
-    REQUIRE(error);
-    CHECK(error->path == "audio_tracks");
-
-    plan = budget_plan();
-    audio.duration_seconds = 0.5;
-    plan.audio_tracks.clear();
-    plan.audio_tracks.push_back(audio);
-    budget = {};
-    budget.max_audio_duration_seconds = 0.1;
-    error = chronon3d::render_plan::validate_render_budget(plan, budget);
-    REQUIRE(error);
-    CHECK(error->path == "audio_tracks[].duration_seconds");
-
-    plan = budget_plan();
-    audio.duration_seconds = 2.0;
-    plan.audio_tracks.clear();
-    plan.audio_tracks.push_back(audio);
-    budget = {};
-    budget.max_audio_duration_seconds = 10.0;
-    error = chronon3d::render_plan::validate_render_budget(plan, budget);
-    REQUIRE(error);
-    CHECK(error->path == "audio_tracks[0]");
 }
 
 TEST_CASE("validate_render_budget rejects layer timing, output estimate, and non-finite values") {
