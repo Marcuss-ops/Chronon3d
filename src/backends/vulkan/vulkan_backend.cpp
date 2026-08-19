@@ -2035,10 +2035,6 @@ struct VulkanBackend::Impl {
         const bool instance_updated =
             glyph_instance_sizes[instance_slot] != bytes ||
             glyph_instance_hashes[instance_slot] != instance_hash;
-        if (instance_updated) {
-            glyph_instance_hashes[instance_slot] = instance_hash;
-            glyph_instance_sizes[instance_slot] = bytes;
-        }
 
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
@@ -2047,6 +2043,8 @@ struct VulkanBackend::Impl {
             emit_pass_sync(cmd, {&dst_image, &atlas_image});
             if (instance_updated) {
                 vkCmdUpdateBuffer(cmd, instance_buffer, 0, bytes, glyphs.data());
+                glyph_instance_hashes[instance_slot] = instance_hash;
+                glyph_instance_sizes[instance_slot] = bytes;
             }
             record_text_run(cmd, descriptors, dst_image, glyph_count,
                             instance_buffer, instance_updated);
@@ -2061,6 +2059,8 @@ struct VulkanBackend::Impl {
         emit_conservative_pass_sync(command_buffer, {&dst_image, &atlas_image});
         if (instance_updated) {
             vkCmdUpdateBuffer(command_buffer, instance_buffer, 0, bytes, glyphs.data());
+            glyph_instance_hashes[instance_slot] = instance_hash;
+            glyph_instance_sizes[instance_slot] = bytes;
         }
         record_text_run(command_buffer, descriptor_set, dst_image, glyph_count,
                         instance_buffer, instance_updated);
