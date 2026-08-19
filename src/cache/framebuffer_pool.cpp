@@ -303,6 +303,10 @@ void FramebufferPool::release(Framebuffer* fb) {
     CHRONON_ZONE_C("framebuffer_release", trace_category::kPipeline);
     if (!fb) return;
 
+    if (m_native_surface_releaser) {
+        m_native_surface_releaser(*fb);
+    }
+
     m_total_returns.fetch_add(1, std::memory_order_relaxed);
 
     std::unique_ptr<Framebuffer> owned(fb);
@@ -355,6 +359,12 @@ void FramebufferPool::release(Framebuffer* fb) {
     if (profiling::g_current_counters) {
         profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
     }
+}
+
+void FramebufferPool::set_native_surface_releaser(
+    std::function<void(Framebuffer&)> releaser) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_native_surface_releaser = std::move(releaser);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

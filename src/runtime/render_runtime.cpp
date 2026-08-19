@@ -252,6 +252,14 @@ void RenderRuntime::attach_backend(
             "RenderRuntime::attach_backend(): backend already attached");
     }
     m_backend = std::move(backend);
+    m_owned_framebuffer_pool->set_native_surface_releaser(
+        [this](chronon3d::Framebuffer& framebuffer) {
+            const auto handle = framebuffer.surface_handle();
+            if (handle == runtime::kInvalidRenderSurfaceHandle) return;
+            (void)m_backend->release_surface(handle);
+            (void)m_surface_registry.release(handle);
+            framebuffer.clear_surface_handle();
+        });
     m_gpu_asset_cache.attach(m_surface_registry, *m_backend);
     m_gpu_glyph_atlas.attach(m_surface_registry, *m_backend);
 }

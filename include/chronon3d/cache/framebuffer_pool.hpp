@@ -3,6 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -258,6 +259,11 @@ public:
 
     void release(Framebuffer* fb);
 
+    /// Install the runtime-owned cleanup for device-local surfaces attached to
+    /// a framebuffer. It is invoked before a framebuffer is retained or
+    /// destroyed, so pooled objects never keep stale backend handles.
+    void set_native_surface_releaser(std::function<void(Framebuffer&)> releaser);
+
     /// Create a shared_ptr-managed pool.  Use this instead of raw construction
     /// to enable weak_from_this() in OwnedFB deleter.
     [[nodiscard]] static std::shared_ptr<FramebufferPool> create_shared(
@@ -376,6 +382,7 @@ private:
         std::vector<PoolEntry>,
         FramebufferPoolKeyHash
     > m_free;
+    std::function<void(Framebuffer&)> m_native_surface_releaser;
 
 public:
     // NOTE: alive_token() removed. PoolFbDeleter now uses weak_ptr<FramebufferPool>
