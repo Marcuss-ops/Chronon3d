@@ -47,6 +47,10 @@ public:
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle destination) override;
+    bool write_prepared_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination) override;
     bool close() override;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
@@ -120,6 +124,11 @@ private:
     bool drain_packets();
     bool drain_ready_cuda_frames(bool wait_for_one);
     void abort_open() noexcept;
+    bool write_native_surface_impl(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination,
+        bool surface_already_prepared);
 
     // ── Single-entry YUV conversion cache ──
     // When consecutive frames have the same digest (static scenes), skip the
