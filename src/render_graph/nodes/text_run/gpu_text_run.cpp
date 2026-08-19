@@ -406,8 +406,11 @@ graph::RenderOpResult draw_cached_text_run(
         // otherwise fully resident run.
         if (state.glyph_id == 0) continue;
         const auto& placed = layout.placed.glyphs[i];
-        if (placed.bbox_x1 <= placed.bbox_x0 ||
-            placed.bbox_y1 <= placed.bbox_y0) continue;
+        // FreeType's vertical metrics are positive-up: bbox_y1 is normally
+        // smaller than bbox_y0 in screen coordinates.  The bitmap dimensions
+        // below, not the signed metric ordering, determine whether there is
+        // drawable ink.
+        if (placed.bbox_x1 <= placed.bbox_x0) continue;
         if (!(state.scale.x > 0.0f) || !(state.scale.y > 0.0f) ||
             std::abs(state.rotation.x) > 1e-4f ||
             std::abs(state.rotation.y) > 1e-4f ||
