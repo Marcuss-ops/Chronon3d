@@ -9,9 +9,11 @@
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <blend2d.h>
 
 #include <algorithm>
@@ -97,60 +99,115 @@ graph::RenderOpResult draw_packed_text_run_surface(
         }
     }
 
-    const auto [packed, dims] = pack_glyphs(glyphs);
+    std::vector<runtime::PackedGlyphBitmap> bitmap_views;
+    bitmap_views.reserve(glyphs.size());
+    for (const auto& glyph : glyphs) {
+        bitmap_views.push_back(runtime::PackedGlyphBitmap{
+            glyph.width, glyph.height,
+            std::span<const float>{glyph.rgba.data(), glyph.rgba.size()}});
+    }
 
-    // Build the packed atlas buffer and the per-glyph instances in one pass.
-    std::vector<float> atlas_buffer(
-        static_cast<std::size_t>(dims.width) * dims.height * 4, 0.0f);
+    runtime::PackedTextAtlas persistent_atlas;
+    const bool persistent_available = ctx.services.gpu_text_atlas_cache &&
+        ctx.services.gpu_text_atlas_cache->acquire(bitmap_views, persistent_atlas);
+
+    std::vector<float> atlas_buffer;
     std::vector<runtime::GlyphInstance> instances;
     instances.reserve(glyphs.size());
-    for (std::size_t i = 0; i < glyphs.size(); ++i) {
-        const auto& glyph = glyphs[i];
-        const auto& place = packed[i];
-        for (std::uint32_t row = 0; row < glyph.height; ++row) {
-            const std::size_t src_off =
-                static_cast<std::size_t>(row) * glyph.width * 4;
-            const std::size_t dst_off =
-                (static_cast<std::size_t>(place.atlas_y + row) * dims.width +
-                 place.atlas_x) * 4;
-            std::copy_n(glyph.rgba.data() + src_off,
-                        static_cast<std::size_t>(glyph.width) * 4,
-                        atlas_buffer.data() + dst_off);
+    runtime::SurfaceDesc atlas_desc{};
+    runtime::RenderSurfaceHandle atlas_handle = runtime::kInvalidRenderSurfaceHandle;
+    bool cached_atlas = false;
+
+    if (persistent_available) {
+        // The runtime-owned cache has already done the shelf packing and owns
+        // the device-local image through GpuAssetCache. Only the small
+        // per-frame instance records are rebuilt here.
+        atlas_handle = persistent_atlas.handle;
+        cached_atlas = true;
+        atlas_desc = runtime::SurfaceDesc{
+            persistent_atlas.width, persistent_atlas.height,
+            runtime::PixelFormat::Rgba32Float, runtime::ResourceUsage::Storage,
+            runtime::LifetimeClass::JobPersistent, 0};
+        for (std::size_t i = 0; i < glyphs.size(); ++i) {
+            const auto& glyph = glyphs[i];
+            instances.push_back(runtime::GlyphInstance{
+                glyph.dst_x, glyph.dst_y,
+                static_cast<std::int32_t>(persistent_atlas.origin_x[i]),
+                static_cast<std::int32_t>(persistent_atlas.origin_y[i]),
+                static_cast<std::int32_t>(glyph.width),
+                static_cast<std::int32_t>(glyph.height),
+                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f});
         }
-        instances.push_back(runtime::GlyphInstance{
-            glyph.dst_x,
-            glyph.dst_y,
-            static_cast<std::int32_t>(place.atlas_x),
-            static_cast<std::int32_t>(place.atlas_y),
-            static_cast<std::int32_t>(glyph.width),
-            static_cast<std::int32_t>(glyph.height),
-            glyph.opacity,
-            glyph.scale_x,
-            glyph.scale_y,
-            0.0f});
+    } else {
+        const auto [packed, dims] = pack_glyphs(glyphs);
+
+        // Build the packed atlas buffer and per-glyph instances in one pass.
+        atlas_buffer.assign(
+            static_cast<std::size_t>(dims.width) * dims.height * 4, 0.0f);
+        atlas_desc = runtime::SurfaceDesc{
+            dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Storage,
+            ctx.services.gpu_asset_cache
+                ? runtime::LifetimeClass::JobPersistent
+                : runtime::LifetimeClass::FrameTransient,
+            0};
+        for (std::size_t i = 0; i < glyphs.size(); ++i) {
+            const auto& glyph = glyphs[i];
+            const auto& place = packed[i];
+            for (std::uint32_t row = 0; row < glyph.height; ++row) {
+                const std::size_t src_off =
+                    static_cast<std::size_t>(row) * glyph.width * 4;
+                const std::size_t dst_off =
+                    (static_cast<std::size_t>(place.atlas_y + row) * dims.width +
+                     place.atlas_x) * 4;
+                std::copy_n(glyph.rgba.data() + src_off,
+                            static_cast<std::size_t>(glyph.width) * 4,
+                            atlas_buffer.data() + dst_off);
+            }
+            instances.push_back(runtime::GlyphInstance{
+                glyph.dst_x, glyph.dst_y,
+                static_cast<std::int32_t>(place.atlas_x),
+                static_cast<std::int32_t>(place.atlas_y),
+                static_cast<std::int32_t>(glyph.width),
+                static_cast<std::int32_t>(glyph.height),
+                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f});
+        }
+    }
+
+    // Keep cache-hit and fallback costs separate. A persistent-atlas hit must
+    // not appear as a CPU repack or an atlas upload in telemetry.
+    if (profiling::g_current_counters &&
+        (!persistent_available || !persistent_atlas.cache_hit)) {
+        const auto repack_bytes = atlas_buffer.empty()
+            ? static_cast<std::uint64_t>(atlas_desc.width) * atlas_desc.height * sizeof(float) * 4
+            : static_cast<std::uint64_t>(atlas_buffer.size() * sizeof(float));
+        profiling::g_current_counters->gpu_text_atlas_repack_count.fetch_add(
+            1, std::memory_order_relaxed);
+        profiling::g_current_counters->gpu_text_atlas_repack_bytes.fetch_add(
+            repack_bytes,
+            std::memory_order_relaxed);
+    }
+    if (profiling::g_current_counters && persistent_available &&
+        persistent_atlas.uploaded) {
+        profiling::g_current_counters->gpu_text_atlas_upload_count.fetch_add(
+            1, std::memory_order_relaxed);
+        profiling::g_current_counters->gpu_text_atlas_upload_bytes.fetch_add(
+            static_cast<std::uint64_t>(atlas_desc.width) * atlas_desc.height * sizeof(float) * 4,
+            std::memory_order_relaxed);
     }
 
     // Keep the packed atlas in the runtime-owned asset cache when available.
     // The bitmap bytes are the canonical identity: equal glyph pixels share
     // one device-local surface across frames and warm daemon jobs.
-    const runtime::SurfaceDesc atlas_desc{
-        dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        ctx.services.gpu_asset_cache
-            ? runtime::LifetimeClass::JobPersistent
-            : runtime::LifetimeClass::FrameTransient,
-        0};
-    runtime::RenderSurfaceHandle atlas_handle = runtime::kInvalidRenderSurfaceHandle;
-    bool cached_atlas = false;
-    if (ctx.services.gpu_asset_cache) {
+    if (!cached_atlas && ctx.services.gpu_asset_cache) {
         const std::string_view bytes(
             reinterpret_cast<const char*>(atlas_buffer.data()),
             atlas_buffer.size() * sizeof(float));
         runtime::GpuAssetKey key{
             assets::sha256_string(bytes),
             runtime::PixelFormat::Rgba32Float,
-            dims.width,
-            dims.height};
+            atlas_desc.width,
+            atlas_desc.height};
         const auto acquired = ctx.services.gpu_asset_cache->acquire(
             key, atlas_desc, atlas_buffer);
         atlas_handle = acquired.handle;
@@ -160,7 +217,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "draw_packed_text_run: GPU atlas cache: " + acquired.error});
         }
-    } else {
+    } else if (!cached_atlas) {
         atlas_handle = ctx.services.surface_registry->create(atlas_desc);
     }
     if (atlas_handle == runtime::kInvalidRenderSurfaceHandle) {
@@ -185,10 +242,25 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "draw_packed_text_run: upload_surface: " + uploaded.error().message});
         }
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_atlas_upload_count.fetch_add(
+                1, std::memory_order_relaxed);
+            profiling::g_current_counters->gpu_text_atlas_upload_bytes.fetch_add(
+                static_cast<std::uint64_t>(atlas_buffer.size() * sizeof(float)),
+                std::memory_order_relaxed);
+        }
     }
 
     auto drawn = ctx.services.backend->draw_text_run_surface(
         destination, atlas_handle, instances);
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_text_instance_upload_count.fetch_add(
+            1, std::memory_order_relaxed);
+        profiling::g_current_counters->gpu_text_instance_upload_bytes.fetch_add(
+            static_cast<std::uint64_t>(instances.size() * sizeof(runtime::GlyphInstance)),
+            std::memory_order_relaxed);
+    }
 
     // Cached atlases belong to the runtime. Only the compatibility atlas is
     // released here.
