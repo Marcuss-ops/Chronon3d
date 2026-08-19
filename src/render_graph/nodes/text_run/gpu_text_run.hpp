@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace chronon3d::graph::text_run {
@@ -49,6 +50,9 @@ struct GpuTextGlyph {
     std::shared_ptr<const std::vector<float>> shared_rgba;
     float highlight_start_frame{-1.0f};
     float highlight_end_frame{-1.0f};
+    // Stable font/glyph/style identity used to avoid hashing the full bitmap
+    // on every frame once the styled glyph cache is warm.
+    std::string atlas_key;
 
     [[nodiscard]] std::span<const float> pixels() const noexcept {
         if (shared_rgba) return *shared_rgba;

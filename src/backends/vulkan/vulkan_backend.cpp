@@ -1104,16 +1104,22 @@ struct VulkanBackend::Impl {
         struct PushConstants {
             std::int32_t blend_mode;
             float source_scale;
+            // GLSL std140 push-constant alignment places the vec4 tint at
+            // byte 16 and the clip rectangle at byte 32.
+            float padding[2];
             float tint[4];
-            std::int32_t clip_rect[4];
-        } params{blend_mode, source_scale, {tint[0], tint[1], tint[2], tint[3]},
-                 {0, 0, static_cast<std::int32_t>(destination.width),
-                  static_cast<std::int32_t>(destination.height)}};
+            float clip_rect[4];
+        } params{blend_mode, source_scale, {0.0f, 0.0f},
+                 {tint[0], tint[1], tint[2], tint[3]},
+                 {0.0f, 0.0f, static_cast<float>(destination.width),
+                  static_cast<float>(destination.height)}};
         if (clip) {
-            params.clip_rect[0] = std::max(0, clip->x0);
-            params.clip_rect[1] = std::max(0, clip->y0);
-            params.clip_rect[2] = std::min(static_cast<std::int32_t>(destination.width), clip->x1);
-            params.clip_rect[3] = std::min(static_cast<std::int32_t>(destination.height), clip->y1);
+            params.clip_rect[0] = static_cast<float>(std::max(0, clip->x0));
+            params.clip_rect[1] = static_cast<float>(std::max(0, clip->y0));
+            params.clip_rect[2] = static_cast<float>(std::min(
+                static_cast<std::int32_t>(destination.width), clip->x1));
+            params.clip_rect[3] = static_cast<float>(std::min(
+                static_cast<std::int32_t>(destination.height), clip->y1));
         }
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);

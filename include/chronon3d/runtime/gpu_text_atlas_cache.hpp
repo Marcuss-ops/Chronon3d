@@ -41,6 +41,17 @@ struct PackedTextAtlas {
 /// supplies the device-local image and its LRU ownership.
 class GpuTextAtlasCache {
 public:
+    struct Stats {
+        std::uint64_t acquire_calls{0};
+        std::uint64_t cache_hits{0};
+        std::uint64_t cache_misses{0};
+        std::uint64_t key_bytes_hashed{0};
+        std::uint64_t repack_count{0};
+        std::uint64_t repack_bytes{0};
+        std::uint64_t asset_upload_count{0};
+        std::uint64_t asset_upload_bytes{0};
+    };
+
     struct StyledGlyphBitmap {
         std::uint32_t width{0};
         std::uint32_t height{0};
@@ -51,7 +62,8 @@ public:
 
     [[nodiscard]] bool acquire(
         std::span<const PackedGlyphBitmap> glyphs,
-        PackedTextAtlas& out);
+        PackedTextAtlas& out,
+        std::string_view stable_identity = {});
 
     /// Returns a previously rasterized/styled glyph bitmap. The returned
     /// pixel storage is immutable and shared by all frames using the key.
@@ -65,6 +77,7 @@ public:
 
     void clear() noexcept;
     [[nodiscard]] std::size_t size() const noexcept;
+    [[nodiscard]] Stats stats() const noexcept;
 
 private:
     struct Key {
@@ -100,6 +113,7 @@ private:
     mutable std::mutex m_mutex;
     std::unordered_map<Key, Entry, KeyHash> m_entries;
     std::unordered_map<Key, StyledEntry, KeyHash> m_styled_entries;
+    Stats m_stats{};
 };
 
 } // namespace chronon3d::runtime
