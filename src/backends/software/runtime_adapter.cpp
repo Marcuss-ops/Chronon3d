@@ -154,17 +154,6 @@ void attach_software_backend(
 #pragma GCC diagnostic pop
 #endif
 
-#ifdef CHRONON3D_ENABLE_VULKAN
-    // The Vulkan backend owns the persistent device and all native surface
-    // operations. Legacy RenderNode shapes still enter through the historical
-    // CPU draw_node contract; delegate only that narrow compatibility boundary
-    // to the canonical SoftwareBackend built from the same renderer services.
-    // Native rect/text/effect paths remain on Vulkan and never use this bridge.
-    if (auto* vulkan = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(
-            &renderer->runtime().backend())) {
-        vulkan->set_draw_node_fallback(make_software_backend_instance(renderer));
-    }
-#endif
 }
 
 } // namespace chronon3d::backends::software

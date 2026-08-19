@@ -316,7 +316,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             }
             ctx.exit_code = run_render_plan_file(
                 ctx.registry, state->plan_file, render_args.output, render_args.assets_root,
-                render_args.report);
+                render_args.report, {}, render_args.backend);
             return;
         }
         if (render_args.comp_id.empty()) {
