@@ -94,6 +94,9 @@ namespace chronon3d {
     X(gpu_text_atlas_upload_count) \
     X(gpu_text_atlas_repack_bytes) \
     X(gpu_text_atlas_upload_bytes) \
+    X(gpu_text_atlas_cache_hits) \
+    X(gpu_text_atlas_cache_misses) \
+    X(gpu_text_atlas_key_bytes_hashed) \
     X(gpu_text_styled_cache_hits) \
     X(gpu_text_styled_cache_misses) \
     X(gpu_text_instance_upload_count) \

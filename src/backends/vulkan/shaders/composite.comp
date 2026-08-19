@@ -8,15 +8,17 @@ layout(push_constant) uniform CompositeParams {
     int blend_mode;
     float source_scale;
     vec4 tint;
-    ivec4 clip_rect;
+    // Keep this as float data to match the explicit std140-compatible
+    // offsets used by VulkanBackend::record_composite.
+    vec4 clip_rect;
 } params;
 
 void main() {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(dst_image);
     if (pixel.x >= size.x || pixel.y >= size.y) return;
-    if (pixel.x < params.clip_rect.x || pixel.y < params.clip_rect.y ||
-        pixel.x >= params.clip_rect.z || pixel.y >= params.clip_rect.w) return;
+    if (float(pixel.x) < params.clip_rect.x || float(pixel.y) < params.clip_rect.y ||
+        float(pixel.x) >= params.clip_rect.z || float(pixel.y) >= params.clip_rect.w) return;
     vec4 src = imageLoad(src_image, pixel);
     vec4 dst = imageLoad(dst_image, pixel);
     imageStore(dst_image, pixel, params.blend_mode == 2

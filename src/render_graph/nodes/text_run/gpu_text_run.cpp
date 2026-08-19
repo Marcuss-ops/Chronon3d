@@ -58,9 +58,9 @@ std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
     }
     BLBoxI bounds{};
     if (font.getGlyphBounds(&glyph_id, 0, &bounds, 1) != BL_SUCCESS) return std::nullopt;
-    // BLBoxI glyph metrics are 26.6 fixed-point values.  Treating them as
-    // pixels creates ~64x glyph bitmaps and places the whole run off-canvas.
-    constexpr double kGlyphUnit = 1.0 / 64.0;
+    const double units_per_em = static_cast<double>(handle.bl_face->unitsPerEm());
+    if (units_per_em <= 0.0) return std::nullopt;
+    const double kGlyphUnit = static_cast<double>(font_size) / units_per_em;
     const int x0 = static_cast<int>(std::floor(bounds.x0 * kGlyphUnit));
     const int y0 = static_cast<int>(std::floor(bounds.y0 * kGlyphUnit));
     const int x1 = static_cast<int>(std::ceil(bounds.x1 * kGlyphUnit));
@@ -239,8 +239,20 @@ graph::RenderOpResult draw_packed_text_run_surface(
     }
 
     runtime::PackedTextAtlas persistent_atlas;
+    std::string atlas_identity;
+    bool stable_identity_valid = true;
+    for (const auto& glyph : glyphs) {
+        if (glyph.atlas_key.empty()) stable_identity_valid = false;
+        const auto key_size = static_cast<std::uint32_t>(glyph.atlas_key.size());
+        atlas_identity.append(reinterpret_cast<const char*>(&key_size), sizeof(key_size));
+        atlas_identity.append(glyph.atlas_key);
+        atlas_identity.append(reinterpret_cast<const char*>(&glyph.width), sizeof(glyph.width));
+        atlas_identity.append(reinterpret_cast<const char*>(&glyph.height), sizeof(glyph.height));
+    }
+    if (!stable_identity_valid) atlas_identity.clear();
     const bool persistent_available = ctx.services.gpu_text_atlas_cache &&
-        ctx.services.gpu_text_atlas_cache->acquire(bitmap_views, persistent_atlas);
+        ctx.services.gpu_text_atlas_cache->acquire(
+            bitmap_views, persistent_atlas, atlas_identity);
 
     std::vector<float> atlas_buffer;
     std::vector<runtime::GlyphInstance> instances;
@@ -662,6 +674,7 @@ graph::RenderOpResult draw_cached_text_run(
             styled->rgba,
             highlight_plan.enabled ? highlight_plan.glyph_ranges[i].first : -1.0f,
             highlight_plan.enabled ? highlight_plan.glyph_ranges[i].second : -1.0f});
+        glyphs.back().atlas_key = std::move(style_key);
     }
     if (!ensure_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
