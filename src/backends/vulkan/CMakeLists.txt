@@ -159,9 +159,9 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
                         "${CHRONON3D_CUDA_DRIVER_LIBRARY}"
                         "${CHRONON3D_NVRTC_LIBRARY}")
 
-            find_path(CHRONON3D_NV_CODEC_INCLUDE_DIR nvEncodeAPI.h
+            find_path(CHRONON3D_NV_CODEC_INCLUDE_DIR ffnvcodec/nvEncodeAPI.h
                 HINTS "$ENV{NV_CODEC_HEADERS}" "$ENV{NV_CODEC_INCLUDE_DIR}"
-                PATH_SUFFIXES include/ffnvcodec
+                PATH_SUFFIXES include
                 PATHS /usr /usr/local /tmp/nv-codec-prefix-n130-velox)
             find_library(CHRONON3D_NVENCODE_LIBRARY nvidia-encode
                 PATHS /usr/lib/x86_64-linux-gnu /usr/lib64)
