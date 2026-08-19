@@ -120,4 +120,14 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
     target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
         PRIVATE Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+
+    if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+        add_executable(chronon3d_cuda_vulkan_nvenc_probe
+            "${CMAKE_SOURCE_DIR}/tools/cuda_vulkan_nvenc_probe.cpp")
+        target_include_directories(chronon3d_cuda_vulkan_nvenc_probe
+            PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
+        target_link_libraries(chronon3d_cuda_vulkan_nvenc_probe
+            PRIVATE chronon3d_ffmpeg_full Vulkan::Vulkan
+                    "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+    endif()
 endif()
