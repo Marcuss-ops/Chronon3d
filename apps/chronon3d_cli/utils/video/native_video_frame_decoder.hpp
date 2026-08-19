@@ -20,6 +20,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 extern "C" {
@@ -54,8 +55,10 @@ private:
     struct Session {
         AVFormatContext* fmt{nullptr};
         AVCodecContext* codec{nullptr};
+        SwsContext* sws{nullptr};
         int stream_index{-1};
         int64_t last_target{-1};
+        std::vector<uint8_t> rgba;
         // Bounded decoded-frame cache keyed by source frame index (map is
         // ordered, so eviction drops the oldest entry first).
         std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
