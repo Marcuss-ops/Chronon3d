@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CLI=${CHRONON_CLI:-"$ROOT/.tmp/chronon-builds/native-verify/apps/chronon3d_cli/chronon3d_cli"}
 PLAN=${CHRONON_GOLDEN_PLAN:-"$ROOT/examples/render_plan_text_smoke.json"}
-ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT"}
+ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT/test_renders/test1-hello-chronon"}
 CERT_DIR=${CHRONON_CERT_DIR:-"$(mktemp -d /tmp/chronon-gpu-cert.XXXXXX)"}
 STRESS_COUNT=${CHRONON_STRESS_COUNT:-100}
 mkdir -p "$CERT_DIR/matrix" "$CERT_DIR/stress"
