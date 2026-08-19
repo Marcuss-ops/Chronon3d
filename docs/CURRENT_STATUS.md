@@ -23,6 +23,11 @@ NVDEC→Vulkan→compositing→NVENC: `hwmap=derive_device=vulkan` non riesce a
 creare il device derivato in questa build, quindi il prodotto non dichiara
 ancora zero-copy end-to-end.
 
+Il probe integrato `chronon3d_cuda_vulkan_nvenc_probe` chiude intanto il
+passaggio device-only `Vulkan image → CUDA AVFrame → h264_nvenc`, con un
+pacchetto H.264 prodotto e nessun buffer pixel CPU. L’integrazione del probe
+con il framebuffer finale del render job resta il gate successivo.
+
 Riproduzione del gate nativo con gli header CUDA 13 disponibili localmente:
 
 ```text
