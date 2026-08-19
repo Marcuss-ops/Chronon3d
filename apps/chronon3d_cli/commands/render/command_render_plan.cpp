@@ -6,6 +6,8 @@
 #include "render_plan_preparation.hpp"
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/verification/render_receipt.hpp>
@@ -36,8 +38,15 @@ struct RenderPlanState {
     int         crf{-1};
     std::string encode_preset;
     bool report{false};
+    std::string backend{"auto"};
     std::shared_ptr<SoftwareRenderer> warm_renderer;
 };
+
+graph::BackendPreference backend_preference_from_name(const std::string& value) {
+    if (value == "software") return graph::BackendPreference::Software;
+    if (value == "vulkan") return graph::BackendPreference::GPU;
+    return graph::BackendPreference::Auto;
+}
 
 std::string codec_name(render_plan::VideoCodec codec) {
     switch (codec) {
@@ -88,6 +97,10 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             ? std::nullopt
             : std::optional<std::filesystem::path>{effective_assets_root};
         request.settings = effective_settings;
+        Config renderer_config = Config::from_environment();
+        renderer_config.set_backend_preference(
+            backend_preference_from_name(args.backend));
+        request.execution.config = std::move(renderer_config);
         request.execution.report = args.report;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? prepared.canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
@@ -186,12 +199,14 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& output,
                          const std::string& assets_root,
                          bool report,
-                         std::shared_ptr<SoftwareRenderer> warm_renderer) {
+                         std::shared_ptr<SoftwareRenderer> warm_renderer,
+                         const std::string& backend) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
     state.assets_root = assets_root;
     state.report = report;
+    state.backend = backend;
     state.warm_renderer = std::move(warm_renderer);
     return execute_render_plan(registry, state);
 }
@@ -221,7 +236,7 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         }
 
         const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
-                                            report, std::move(warm_renderer));
+                                            report, std::move(warm_renderer), backend);
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};
@@ -245,6 +260,9 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--input", state->input, "Render plan JSON")->required();
     command->add_option("--output", state->output, "Output file (overrides plan output.path)");
     command->add_option("--assets-root", state->assets_root, "Instance asset root");
+    command->add_option("--backend", state->backend,
+                        "Render backend: auto, software, or vulkan")
+        ->check(CLI::IsMember({"auto", "software", "vulkan"}));
     command->add_option("--start-frame", state->start_frame, "First frame");
     command->add_option("--end-frame", state->end_frame, "Last frame, inclusive");
     command->add_option("--fps-num", state->fps_num, "Frame-rate numerator");
