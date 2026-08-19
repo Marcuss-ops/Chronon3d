@@ -1,5 +1,29 @@
 # Chronon3D — Current Status
 
+## GPU text/video optimization — validated checkpoint 2026-08-19
+
+La roadmap di ottimizzazione del percorso GPU è implementata e verificata sui
+commit `f940a9b9` e precedenti dedicati:
+
+- cache per-run di layout, bitmap glyph e atlas persistente;
+- istanze glyph statiche con karaoke/highlight pilotato da uniform GPU;
+- `FrameInteropRing` bounded a tre slot per render Vulkan e handoff CUDA;
+- encoder NVENC asincrono con eventi CUDA e backpressure bounded;
+- metriche per fallback, readback, attese, upload atlas e copia verso encoder.
+
+Sul benchmark 1920×1080, 960 frame, watermark e sottotitoli, il percorso
+GPU-native ha chiuso in 4,11 s (baseline NVDEC→NVENC: 2,53 s), con CPU al 29%,
+zero readback CPU e output visivamente verificato. Il percorso native smoke
+riporta `effective_backend=vulkan`, `fallback_text_run=0`,
+`software_fallback_nodes=0` e `gpu_readback_bytes=0`.
+
+La copia residua è device-to-device: il compositing Vulkan viene blittato nella
+superficie CUDA/NVENC e poi copiato nella superficie YUV allocata da FFmpeg.
+È misurata come `gpu_surface_copy_frames` e
+`encoder_staging_copy_bytes`; non è un round-trip PCIe, ma il requisito di
+zero-copy end-to-end NVDEC→NVENC resta ancora da chiudere con una superficie
+encoder direttamente importabile/consumabile da NVENC.
+
 ## GPU Production V1 — checkpoint 2026-08-19
 
 `main@8cd6f33d` collega la selezione backend al percorso CLI/IPC, serializza le
