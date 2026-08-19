@@ -49,8 +49,8 @@ render_one "$PLAN" "$CERT_DIR/golden.mp4" "$CERT_DIR/golden.log"
 python3 - "$ROOT/examples/render_plan_text_smoke.json" "$CERT_DIR/matrix" <<'PY'
 import json, pathlib, sys
 base=json.load(open(sys.argv[1])); out=pathlib.Path(sys.argv[2])
-ids='caption_card active_word_pop subtitle_card lower_third_safe organization_card location_card image_focus_in image_fade_in image_slide_left image_slide_right image_scale_in phrase_fade_in phrase_scale_in phrase_slide_up phrase_soft_pop phrase_word_reveal name_fade_in name_slide_up name_pop_in name_slide_left name_scale_in'.split()
-image_ids={'image_focus_in','image_fade_in','image_slide_left','image_slide_right','image_scale_in'}
+ids='name_glow_typewriter name_glow_slide name_glow_pop image_fast_fade image_slide_left image_slide_right modern_rounded_pop bottom_card_rise fast_fade_through clean_slide_up slide_lateral phrase_word_reveal undertext_pop snap_scale'.split()
+image_ids={'image_fast_fade','image_slide_left','image_slide_right','modern_rounded_pop','bottom_card_rise'}
 for p in ids:
     plan=json.loads(json.dumps(base)); plan['job_id']='gpu-v1-'+p
     layer=plan['layers'][1]; layer['preset']=p; layer['animation']={'preset':'fade_in'}; layer['font']='assets/fonts/Poppins-Bold.ttf'
