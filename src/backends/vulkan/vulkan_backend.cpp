@@ -1320,6 +1320,10 @@ struct VulkanBackend::Impl {
             signal_values.push_back(0);
         }
         for (const auto physical_slot : cuda_export_ready_surfaces) {
+            // A reused surface is already waiting on CUDA completion above;
+            // that path also emits the single Vulkan->CUDA release signal.
+            // Do not signal the same binary semaphore twice in one submit.
+            if (cuda_ready_surfaces.contains(physical_slot)) continue;
             const auto it = physical_surfaces.find(physical_slot);
             if (it == physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
@@ -2243,6 +2247,7 @@ struct VulkanBackend::Impl {
             signal_values.push_back(0);
         }
         for (const auto physical_slot : cuda_export_ready_surfaces) {
+            if (cuda_ready_surfaces.contains(physical_slot)) continue;
             const auto it = physical_surfaces.find(physical_slot);
             if (it == physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
