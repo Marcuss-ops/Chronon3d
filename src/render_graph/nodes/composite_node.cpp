@@ -298,6 +298,10 @@ NodeExecResult CompositeNode::execute(
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
             if (!try_native_dimension_normal(ctx, *result, *bottom)) {
+                if (ctx.services.surface_registry) {
+                    (void)ensure_native_surface(ctx, *result);
+                    (void)ensure_native_surface(ctx, const_cast<Framebuffer&>(*bottom));
+                }
                 ctx.services.backend->composite_layer(*result, *bottom, BlendMode::Normal);
             }
         }
@@ -377,10 +381,29 @@ NodeExecResult CompositeNode::execute(
             // apply the operator via the backend (which handles the masking).
             // The operator is passed along so the backend can apply the
             // appropriate matte-style coverage to the backdrop.
+            if (ctx.services.backend && ctx.services.surface_registry) {
+                (void)ensure_native_surface(ctx, *result);
+                (void)ensure_native_surface(ctx, const_cast<Framebuffer&>(*top));
+            }
             ctx.services.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
-        } else {
-            ctx.services.backend->composite_layer(*result, *top, m_mode, clip);
+    } else {
+        // VulkanBackend::composite_layer is a native primitive even when the
+        // fast-path probe above declined the optimized SourceOver route
+        // (for example Add/stencil operators).  Materialize both handles
+        // before dispatching that fallback; otherwise the backend receives
+        // the framebuffer sentinel 0 and fails later in resolve_image().
+        if (ctx.services.backend && ctx.services.surface_registry) {
+            const bool destination_ready = ensure_native_surface(ctx, *result);
+            auto& mutable_top = const_cast<Framebuffer&>(*top);
+            const bool source_ready = ensure_native_surface(ctx, mutable_top);
+            if (!destination_ready || !source_ready) {
+                spdlog::error("[composite] native fallback could not materialize surfaces "
+                              "destination={} source={}",
+                              result->surface_handle(), mutable_top.surface_handle());
+            }
         }
+        ctx.services.backend->composite_layer(*result, *top, m_mode, clip);
+    }
 
         // ── Post-blend overhead ────────────────────────────────────────
         _os = profiling::now();
