@@ -63,6 +63,8 @@ option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overl
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
 option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
+option(CHRONON3D_ENABLE_CUDA_INTEROP
+       "Build the CUDA/Vulkan external-memory interop probe and bridge prerequisites" OFF)
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
 # Blend2D is the only USE_ option because it is independent of its ENABLE_
@@ -72,6 +74,9 @@ option(CHRONON3D_USE_BLEND2D "Enable Blend2D software rendering backend" ON)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     add_compile_definitions(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+endif()
+if(CHRONON3D_ENABLE_CUDA_INTEROP)
+    add_compile_definitions(CHRONON3D_ENABLE_CUDA_INTEROP)
 endif()
 
 # ── Propagate optional-dependency defines so code can guard #includes ──
