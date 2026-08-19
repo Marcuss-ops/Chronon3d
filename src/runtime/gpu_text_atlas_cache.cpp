@@ -112,4 +112,9 @@ void GpuTextAtlasCache::clear() noexcept {
     m_entries.clear();
 }
 
+std::size_t GpuTextAtlasCache::size() const noexcept {
+    std::lock_guard lock(m_mutex);
+    return m_entries.size();
+}
+
 } // namespace chronon3d::runtime
