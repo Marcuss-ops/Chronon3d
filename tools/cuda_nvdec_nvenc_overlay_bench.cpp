@@ -4,7 +4,7 @@
 #include <cuda.h>
 #include <nvrtc.h>
 #ifdef CHRONON3D_ENABLE_RAW_NVENC
-#include <ffnvcodec/nvEncodeAPI.h>
+#include <nvEncodeAPI.h>
 #endif
 
 extern "C" {
@@ -108,19 +108,31 @@ class RawNvenc {
     NV_ENC_INITIALIZE_PARAMS init{}; init.version = NV_ENC_INITIALIZE_PARAMS_VER; init.encodeGUID = NV_ENC_CODEC_H264_GUID; init.presetGUID = NV_ENC_PRESET_P1_GUID; init.encodeWidth = width_; init.encodeHeight = height_; init.darWidth = width_; init.darHeight = height_; init.frameRateNum = 24; init.frameRateDen = 1; init.enablePTD = 1; init.enableEncodeAsync = 0;
     enc_ok(api_.nvEncGetEncodePresetConfigEx(encoder_, init.encodeGUID, init.presetGUID, NV_ENC_TUNING_INFO_LOW_LATENCY, &preset), "nvEncGetEncodePresetConfigEx");
     init.tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY; init.encodeConfig = &preset.presetCfg; enc_ok(api_.nvEncInitializeEncoder(encoder_, &init), "nvEncInitializeEncoder");
-    uint8_t sequence[4096]{}; NV_ENC_SEQUENCE_PARAM_PAYLOAD sequence_params{}; sequence_params.version = NV_ENC_SEQUENCE_PARAM_PAYLOAD_VER; sequence_params.inBufferSize = sizeof(sequence); sequence_params.spsppsBuffer = sequence; enc_ok(api_.nvEncGetSequenceParams(encoder_, &sequence_params), "nvEncGetSequenceParams");
-    AVStream* stream = avformat_new_stream(output_, nullptr); if (!stream) fail("raw output stream alloc"); stream_ = stream; stream_->time_base = {1,24}; stream_->codecpar->codec_type = AVMEDIA_TYPE_VIDEO; stream_->codecpar->codec_id = AV_CODEC_ID_H264; stream_->codecpar->width = width_; stream_->codecpar->height = height_; stream_->codecpar->format = AV_PIX_FMT_YUV420P; stream_->codecpar->extradata = static_cast<uint8_t*>(av_mallocz(sequence_params.outSpsPpsPayloadSize + AV_INPUT_BUFFER_PADDING_SIZE)); if (!stream_->codecpar->extradata) fail("raw extradata alloc"); std::memcpy(stream_->codecpar->extradata, sequence, sequence_params.outSpsPpsPayloadSize); stream_->codecpar->extradata_size = sequence_params.outSpsPpsPayloadSize;
+    uint8_t sequence[4096]{}; uint32_t sequence_size{}; NV_ENC_SEQUENCE_PARAM_PAYLOAD sequence_params{}; sequence_params.version = NV_ENC_SEQUENCE_PARAM_PAYLOAD_VER; sequence_params.inBufferSize = sizeof(sequence); sequence_params.spsppsBuffer = sequence; sequence_params.outSPSPPSPayloadSize = &sequence_size; enc_ok(api_.nvEncGetSequenceParams(encoder_, &sequence_params), "nvEncGetSequenceParams");
+    AVStream* stream = avformat_new_stream(output_, nullptr); if (!stream) fail("raw output stream alloc"); stream_ = stream; stream_->time_base = {1,24}; stream_->codecpar->codec_type = AVMEDIA_TYPE_VIDEO; stream_->codecpar->codec_id = AV_CODEC_ID_H264; stream_->codecpar->width = width_; stream_->codecpar->height = height_; stream_->codecpar->format = AV_PIX_FMT_YUV420P; stream_->codecpar->extradata = static_cast<uint8_t*>(av_mallocz(sequence_size + AV_INPUT_BUFFER_PADDING_SIZE)); if (!stream_->codecpar->extradata) fail("raw extradata alloc"); std::memcpy(stream_->codecpar->extradata, sequence, sequence_size); stream_->codecpar->extradata_size = sequence_size;
     NV_ENC_CREATE_BITSTREAM_BUFFER create_bs{}; create_bs.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER; enc_ok(api_.nvEncCreateBitstreamBuffer(encoder_, &create_bs), "nvEncCreateBitstreamBuffer"); bitstream_ = create_bs.bitstreamBuffer;
   }
   void register_buffer(CUdeviceptr ptr, uint32_t pitch) {
-    NV_ENC_REGISTER_RESOURCE resource{}; resource.version = NV_ENC_REGISTER_RESOURCE_VER; resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR; resource.width = width_; resource.height = height_; resource.pitch = pitch; resource.resourceToRegister = reinterpret_cast<void*>(ptr); resource.bufferFormat = NV_ENC_BUFFER_FORMAT_NV12; resource.bufferUsage = NV_ENC_INPUT_IMAGE; enc_ok(api_.nvEncRegisterResource(encoder_, &resource), "nvEncRegisterResource"); registered_ = resource.registeredResource;
-    NV_ENC_MAP_INPUT_RESOURCE map{}; map.version = NV_ENC_MAP_INPUT_RESOURCE_VER; map.registeredResource = registered_; enc_ok(api_.nvEncMapInputResource(encoder_, &map), "nvEncMapInputResource"); mapped_ = map.mappedResource;
+    NV_ENC_REGISTER_RESOURCE resource{}; resource.version = NV_ENC_REGISTER_RESOURCE_VER; resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR; resource.width = width_; resource.height = height_; resource.pitch = pitch; resource.resourceToRegister = reinterpret_cast<void*>(ptr); resource.bufferFormat = NV_ENC_BUFFER_FORMAT_NV12; resource.bufferUsage = NV_ENC_INPUT_IMAGE; resource.chromaOffsetIn[0] = pitch * height_; enc_ok(api_.nvEncRegisterResource(encoder_, &resource), "nvEncRegisterResource"); registered_ = resource.registeredResource;
   }
+  void set_stream(CUstream stream) { enc_ok(api_.nvEncSetIOCudaStreams(encoder_, &stream, &stream), "nvEncSetIOCudaStreams"); }
   void encode(int64_t pts, uint32_t pitch) {
+    NV_ENC_MAP_INPUT_RESOURCE map{}; map.version = NV_ENC_MAP_INPUT_RESOURCE_VER; map.registeredResource = registered_; enc_ok(api_.nvEncMapInputResource(encoder_, &map), "nvEncMapInputResource"); mapped_ = map.mappedResource;
     NV_ENC_PIC_PARAMS pic{}; pic.version = NV_ENC_PIC_PARAMS_VER; pic.inputWidth = width_; pic.inputHeight = height_; pic.inputPitch = pitch; pic.inputBuffer = mapped_; pic.outputBitstream = bitstream_; pic.bufferFmt = NV_ENC_BUFFER_FORMAT_NV12; pic.pictureStruct = NV_ENC_PIC_STRUCT_FRAME; pic.inputTimeStamp = pts; enc_ok(api_.nvEncEncodePicture(encoder_, &pic), "nvEncEncodePicture");
-    NV_ENC_LOCK_BITSTREAM lock{}; lock.version = NV_ENC_LOCK_BITSTREAM_VER; lock.outputBitstream = bitstream_; enc_ok(api_.nvEncLockBitstream(encoder_, &lock), "nvEncLockBitstream"); AVPacket* packet = av_packet_alloc(); if (!packet) fail("raw packet alloc"); av_new_packet(packet, static_cast<int>(lock.bitstreamSizeInBytes)); std::memcpy(packet->data, lock.bitstreamBufferPtr, lock.bitstreamSizeInBytes); packet->pts = packet->dts = pts; packet->duration = 1; packet->stream_index = stream_->index; av_packet_rescale_ts(packet, {1,24}, stream_->time_base); av_interleaved_write_frame(output_, packet); av_packet_free(&packet); enc_ok(api_.nvEncUnlockBitstream(encoder_, bitstream_), "nvEncUnlockBitstream");
+    NV_ENC_LOCK_BITSTREAM lock{}; lock.version = NV_ENC_LOCK_BITSTREAM_VER; lock.outputBitstream = bitstream_; enc_ok(api_.nvEncLockBitstream(encoder_, &lock), "nvEncLockBitstream"); AVPacket* packet = av_packet_alloc(); if (!packet) fail("raw packet alloc"); av_new_packet(packet, static_cast<int>(lock.bitstreamSizeInBytes)); std::memcpy(packet->data, lock.bitstreamBufferPtr, lock.bitstreamSizeInBytes); packet->pts = packet->dts = pts; packet->duration = 1; packet->stream_index = stream_->index; av_packet_rescale_ts(packet, {1,24}, stream_->time_base); av_interleaved_write_frame(output_, packet); av_packet_free(&packet); enc_ok(api_.nvEncUnlockBitstream(encoder_, bitstream_), "nvEncUnlockBitstream"); enc_ok(api_.nvEncUnmapInputResource(encoder_, mapped_), "nvEncUnmapInputResource"); mapped_ = nullptr;
   }
-  ~RawNvenc() { if (encoder_) { if (mapped_) api_.nvEncUnmapInputResource(encoder_, mapped_); if (registered_) api_.nvEncUnregisterResource(encoder_, registered_); if (bitstream_) api_.nvEncDestroyBitstreamBuffer(encoder_, bitstream_); api_.nvEncDestroyEncoder(encoder_); } }
+  void shutdown() {
+    if (!encoder_) return;
+    if (mapped_) api_.nvEncUnmapInputResource(encoder_, mapped_);
+    if (registered_) api_.nvEncUnregisterResource(encoder_, registered_);
+    if (bitstream_) api_.nvEncDestroyBitstreamBuffer(encoder_, bitstream_);
+    api_.nvEncDestroyEncoder(encoder_);
+    encoder_ = nullptr;
+    mapped_ = nullptr;
+    registered_ = nullptr;
+    bitstream_ = nullptr;
+  }
+  ~RawNvenc() { shutdown(); }
  private:
   uint32_t width_, height_; AVFormatContext* output_{}; AVStream* stream_{}; NV_ENCODE_API_FUNCTION_LIST api_{}; void* encoder_{}; NV_ENC_REGISTERED_PTR registered_{}; NV_ENC_INPUT_PTR mapped_{}; NV_ENC_OUTPUT_PTR bitstream_{};
 };
@@ -219,10 +231,14 @@ int main(int argc, char** argv) {
       if(!(raw_out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&raw_out->pb,output,AVIO_FLAG_WRITE),"raw avio_open"); av_ok(avformat_write_header(raw_out,nullptr),"raw avformat_write_header");
       CUdeviceptr raw_frame{}; size_t raw_pitch{}; cu_ok(cuMemAllocPitch(&raw_frame,&raw_pitch,W,H+H/2,16),"cuMemAllocPitch(raw frame)"); raw.register_buffer(raw_frame,static_cast<uint32_t>(raw_pitch));
       AVPacket* raw_pkt=av_packet_alloc(); AVFrame* raw_decoded=av_frame_alloc(); if(!raw_pkt || !raw_decoded) fail("raw frame/packet alloc"); int64_t raw_count=0;
-      auto raw_process=[&](AVFrame* src){ CUdeviceptr raw_y=raw_frame, raw_uv=raw_frame+raw_pitch*H; copy_plane(raw_y,static_cast<int>(raw_pitch),src->data[0],src->linesize[0],W,H,stream); copy_plane(raw_uv,static_cast<int>(raw_pitch),src->data[1],src->linesize[1],W,(H+1)/2,stream); float wop=0.75f; int kernel_w=W,kernel_h=H; void* args[]={&raw_y,&raw_uv,&raw_pitch,&raw_pitch,&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h}; cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"raw cuLaunchKernel"); cu_ok(cuStreamSynchronize(stream),"raw cuStreamSynchronize"); raw.encode(raw_count++,static_cast<uint32_t>(raw_pitch)); };
+      raw.set_stream(stream);
+      auto raw_process=[&](AVFrame* src){ CUdeviceptr raw_y=raw_frame, raw_uv=raw_frame+raw_pitch*H; copy_plane(raw_y,static_cast<int>(raw_pitch),src->data[0],src->linesize[0],W,H,stream); copy_plane(raw_uv,static_cast<int>(raw_pitch),src->data[1],src->linesize[1],W,(H+1)/2,stream); float wop=0.75f; int kernel_w=W,kernel_h=H; void* args[]={&raw_y,&raw_uv,&raw_pitch,&raw_pitch,&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h}; cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"raw cuLaunchKernel"); raw.encode(raw_count++,static_cast<uint32_t>(raw_pitch)); cu_ok(cuStreamSynchronize(stream),"raw post-encode sync"); };
       while(av_read_frame(in,raw_pkt)>=0){ if(raw_pkt->stream_index==si){ av_ok(avcodec_send_packet(dc,raw_pkt),"raw avcodec_send_packet"); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); } av_packet_unref(raw_pkt); }
-      avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); av_write_trailer(raw_out); if(!(raw_out->oformat->flags&AVFMT_NOFILE)) avio_closep(&raw_out->pb); av_frame_free(&raw_decoded); av_packet_free(&raw_pkt); avformat_close_input(&in); avformat_free_context(raw_out); cuMemFree(raw_frame); avcodec_free_context(&dc); av_buffer_unref(&hwdev); cuMemFree(wm.ptr); cuMemFree(sub.ptr); cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev); std::cout << "CUDA_NVDEC_RAW_NVENC_OVERLAY_PASS decoder=" << dec->name << " output=" << output << " frames=" << raw_count << "\n"; return 0;
+      avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); av_write_trailer(raw_out); raw.shutdown(); if(!(raw_out->oformat->flags&AVFMT_NOFILE)) avio_closep(&raw_out->pb); av_frame_free(&raw_decoded); av_packet_free(&raw_pkt); avformat_close_input(&in); avformat_free_context(raw_out); cuMemFree(raw_frame); avcodec_free_context(&dc); av_buffer_unref(&hwdev); cuMemFree(wm.ptr); cuMemFree(sub.ptr); cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev); std::cout << "CUDA_NVDEC_RAW_NVENC_OVERLAY_PASS decoder=" << dec->name << " output=" << output << " frames=" << raw_count << "\n"; return 0;
     }
+#endif
+#ifndef CHRONON3D_ENABLE_RAW_NVENC
+    if (std::getenv("CHRONON_NVENC_RAW")) fail("raw NVENC requested but this binary was built without nvEncodeAPI");
 #endif
     AVFormatContext* out{}; avformat_alloc_output_context2(&out,nullptr,nullptr,output); if(!out) fail("output alloc");
     const AVCodec* enc_codec=avcodec_find_encoder_by_name("h264_nvenc"); if(!enc_codec) fail("h264_nvenc missing"); AVStream* st=avformat_new_stream(out,enc_codec); if(!st) fail("stream alloc");

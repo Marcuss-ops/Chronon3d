@@ -119,10 +119,15 @@ if [[ -x "${CUDA_OVERLAY_BIN}" ]]; then
     else
         echo "native CUDA decoder=automatic CUDA hw decoder"
     fi
-    echo "native CUDA compositor=${CUDA_OVERLAY_BIN}"
+    RAW_NVENC="${CHRONON_NVENC_RAW:-1}"
+    if [[ "${RAW_NVENC}" == "1" ]]; then
+        echo "native CUDA compositor=${CUDA_OVERLAY_BIN} (raw nvEncodeAPI)"
+    else
+        echo "native CUDA compositor=${CUDA_OVERLAY_BIN} (libavcodec NVENC)"
+    fi
     CHRONON_CUDA_PTX_CACHE="${CUDA_PTX_CACHE}" \
     LD_LIBRARY_PATH="${CUDA_LIB_PATH}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
-    env "${CUDA_DECODER_ARGS[@]}" /usr/bin/time -f 'wall=%e cpu=%P maxrss=%M' \
+    env "${CUDA_DECODER_ARGS[@]}" CHRONON_NVENC_RAW="${RAW_NVENC}" /usr/bin/time -f 'wall=%e cpu=%P maxrss=%M' \
         "${CUDA_OVERLAY_BIN}" "${INPUT}" "${GPU_ALPHA_OUTPUT}" \
         "${RAW_WATERMARK}" "${WM_W}" "${WM_H}" 40 40 \
         "${RAW_SUBTITLE}" "${SUB_W}" "${SUB_H}" "${SUB_X}" "${SUB_Y}"

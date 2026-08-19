@@ -29,6 +29,11 @@ assert r['media']['frame_count']==r['render']['frames']
 g=t['job']['gpu']
 assert g['effective_backend']=='vulkan' and g['software_fallback_nodes']==0
 assert g['gpu_readback_bytes']==0 and g['gpu_readback_ms']==0.0
+assert g['cpu_pixel_readback_count']==0 and g['cpu_pixel_readback_bytes']==0
+assert g['gpu_native_encode_frames']==r['render']['frames']
+assert g['video_pipe_fallback_frames']==0 and g['video_native_fallback_frames']==0
+s=t.get('job',{}).get('gpu',{})
+assert s.get('gpu_encode_failures',0)==0 and s.get('gpu_surface_create_failures',0)==0
 s=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','stream=codec_name,nb_frames,pix_fmt','-of','json',out],text=True))['streams'][0]
 assert s['codec_name']=='h264' and s['pix_fmt']=='yuv420p' and int(s['nb_frames'])==r['render']['frames']
 PY
@@ -59,14 +64,20 @@ for n in $(seq 1 "$STRESS_COUNT"); do
   render_one "$PLAN" "$CERT_DIR/stress/$n.mp4" "$CERT_DIR/stress/$n.log"
 done
 
-python3 - "$CERT_DIR" "$SHA" "$STRESS_COUNT" <<'PY'
+CERT_OUT="$ROOT/output/gpu-certification/$SHA"
+mkdir -p "$CERT_OUT"
+python3 - "$CERT_DIR" "$CERT_OUT" "$SHA" "$STRESS_COUNT" <<'PY'
 import json, pathlib, sys
-root=pathlib.Path(sys.argv[1]); sha=sys.argv[2]; count=int(sys.argv[3])
+root=pathlib.Path(sys.argv[1]); out=pathlib.Path(sys.argv[2]); sha=sys.argv[3]; count=int(sys.argv[4])
 gold=json.load(open(root/'golden.mp4.receipt.json'))
 rs=[json.load(open(p)) for p in sorted((root/'stress').glob('*.mp4.receipt.json'))]
 assert len(rs)==count and all(r['copy_eligible'] and r['render']['backend']=='vulkan' for r in rs)
 assert len({r['output']['sha256'] for r in rs})==1
-manifest={'schema':'chronon.gpu-production-v1-cert.v1','git_sha':sha,'golden_sha256':gold['output']['sha256'],'stress_jobs':count,'stress_sha256':rs[0]['output']['sha256'],'matrix_jobs':len(list((root/'matrix').glob('*.mp4.receipt.json'))),'same_sha':all(r['identity']['git_sha']==gold['identity']['git_sha'] for r in rs)}
-assert manifest['same_sha']; (root/'CERTIFICATION.json').write_text(json.dumps(manifest,indent=2)+'\n'); print(json.dumps(manifest,indent=2))
+import subprocess
+def command(*args):
+    try: return subprocess.check_output(args,text=True,stderr=subprocess.DEVNULL).strip()
+    except Exception: return 'unavailable'
+manifest={'schema':'chronon.gpu-production-v1-cert.v1','git_sha':sha,'gpu_name':command('nvidia-smi','--query-gpu=name','--format=csv,noheader'),'gpu_driver':command('nvidia-smi','--query-gpu=driver_version','--format=csv,noheader'),'ffmpeg_version':command('ffmpeg','-version').splitlines()[0],'golden_sha256':gold['output']['sha256'],'stress_jobs':count,'stress_sha256':rs[0]['output']['sha256'],'matrix_jobs':len(list((root/'matrix').glob('*.mp4.receipt.json'))),'same_sha':all(r['identity']['git_sha']==gold['identity']['git_sha'] for r in rs)}
+assert manifest['same_sha']; (root/'CERTIFICATION.json').write_text(json.dumps(manifest,indent=2)+'\n'); (out/'certification.json').write_text(json.dumps(manifest,indent=2)+'\n'); print(json.dumps(manifest,indent=2))
 PY
 echo "GPU Production V1 certification passed: $CERT_DIR"

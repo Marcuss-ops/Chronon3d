@@ -15,6 +15,19 @@ using Clock = std::chrono::steady_clock;
 inline double elapsed_ms(const Clock::time_point& start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
 }
+
+bool set_codec_option_checked(AVCodecContext* codec, const char* key,
+                              const std::string& value) {
+    const int rc = av_opt_set(codec->priv_data, key, value.c_str(), 0);
+    if (rc < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE]{};
+        av_strerror(rc, error, sizeof(error));
+        spdlog::error("[native_av] unsupported encoder option {}='{}': {}",
+                      key, value, error);
+        return false;
+    }
+    return true;
+}
 }
 
 namespace chronon3d::cli {
@@ -150,12 +163,12 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 
     // Set encoder options (preset, crf, tune, threads)
     if (!options_.preset.empty()) {
-        av_opt_set(codec_->priv_data, "preset", options_.preset.c_str(), 0);
+        if (!set_codec_option_checked(codec_, "preset", options_.preset)) return false;
     }
     {
         char crf_str[16];
         snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
-        av_opt_set(codec_->priv_data, "crf", crf_str, 0);
+        if (!set_codec_option_checked(codec_, "crf", crf_str)) return false;
     }
     // Apply the unified CPU budget to x264.  encode_threads == 0 keeps the
     // legacy "auto" behaviour for backwards compatibility.
@@ -164,16 +177,16 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (options_.encode_threads > 0) {
             char threads_str[16];
             snprintf(threads_str, sizeof(threads_str), "%d", options_.encode_threads);
-            av_opt_set(codec_->priv_data, "threads", threads_str, 0);
+            if (!set_codec_option_checked(codec_, "threads", threads_str)) return false;
         } else {
-            av_opt_set(codec_->priv_data, "threads", "auto", 0);
+            if (!set_codec_option_checked(codec_, "threads", "auto")) return false;
         }
-        av_opt_set(codec_->priv_data, "thread_type", "frame", 0);
+        if (!set_codec_option_checked(codec_, "thread_type", "frame")) return false;
     }
     // tune: default empty for batch export (faster), use "zerolatency" only for streaming
     const std::string tune = options_.tune.empty() ? "" : options_.tune;
     if (!tune.empty()) {
-        av_opt_set(codec_->priv_data, "tune", tune.c_str(), 0);
+        if (!set_codec_option_checked(codec_, "tune", tune)) return false;
     }
 
     // Global header if the container format requires it

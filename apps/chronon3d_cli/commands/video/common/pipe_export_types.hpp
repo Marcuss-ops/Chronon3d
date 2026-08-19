@@ -70,6 +70,7 @@ struct WriterThreadContext {
     SoftwareRenderer & renderer;
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
+    bool require_native_gpu{false};
     std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
 };
 
