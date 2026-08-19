@@ -1437,7 +1437,8 @@ struct VulkanBackend::Impl {
 
     void composite(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source, BlendMode mode,
-                   const std::optional<raster::BBox>& clip = std::nullopt) {
+                   const std::optional<raster::BBox>& clip = std::nullopt,
+                   bool replace = false) {
         auto& dst_image = resolve_image(destination);
         auto& src_image = resolve_image(source);
         if (!src_image.initialized ||
@@ -1445,7 +1446,7 @@ struct VulkanBackend::Impl {
             dst_image.height != src_image.height) {
             throw std::invalid_argument("Vulkan composite references incompatible surfaces");
         }
-        const std::int32_t blend_mode = mode == BlendMode::Add ? 1 : 0;
+        const std::int32_t blend_mode = replace ? 2 : (mode == BlendMode::Add ? 1 : 0);
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_descriptors(descriptors, dst_image, src_image);
@@ -1453,6 +1454,7 @@ struct VulkanBackend::Impl {
             emit_pass_sync(cmd, {&dst_image, &src_image});
             record_composite(cmd, descriptors, dst_image, src_image,
                              blend_mode, 1.0f, kIdentityTint, clip);
+            dst_image.initialized = true;
             ++frame_batch.pass_count;
             ++stats.passes_executed;
             return;
@@ -1462,6 +1464,7 @@ struct VulkanBackend::Impl {
         emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
         record_composite(command_buffer, descriptor_set, dst_image, src_image,
                          blend_mode, 1.0f, kIdentityTint, clip);
+        dst_image.initialized = true;
         submit();
     }
 
@@ -2495,6 +2498,26 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::composite_surfaces: Vulkan support is disabled"});
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::copy_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const std::optional<raster::BBox>& clip) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        m_impl->composite(destination, source, BlendMode::Normal, clip, true);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)destination; (void)source; (void)clip;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::copy_surface: Vulkan support is disabled"});
 #endif
 }
 

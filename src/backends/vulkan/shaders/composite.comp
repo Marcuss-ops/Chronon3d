@@ -19,7 +19,9 @@ void main() {
         pixel.x >= params.clip_rect.z || pixel.y >= params.clip_rect.w) return;
     vec4 src = imageLoad(src_image, pixel);
     vec4 dst = imageLoad(dst_image, pixel);
-    imageStore(dst_image, pixel, params.blend_mode == 1
-        ? src * params.tint * params.source_scale + dst
-        : src + dst * (1.0 - src.a));
+    imageStore(dst_image, pixel, params.blend_mode == 2
+        ? src
+        : (params.blend_mode == 1
+            ? src * params.tint * params.source_scale + dst
+            : src + dst * (1.0 - src.a)));
 }

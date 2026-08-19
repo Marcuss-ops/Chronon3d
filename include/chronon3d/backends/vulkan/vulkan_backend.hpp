@@ -164,6 +164,9 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         BlendMode, CompositeOperator,
         const std::optional<raster::BBox>& = std::nullopt) override;
+    graph::RenderOpResult copy_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const std::optional<raster::BBox>& = std::nullopt) override;
     graph::RenderOpResult fill_rect_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, const Color&) override;
