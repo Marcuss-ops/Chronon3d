@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
+#include <vector>
 
 namespace chronon3d::runtime {
 
@@ -110,6 +111,19 @@ public:
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return m_surfaces.size(); }
+
+    /// Snapshot transient identities after a frame has completed. Backends
+    /// release the physical resources first; callers then erase these logical
+    /// records. Persistent asset/glyph surfaces are intentionally excluded.
+    [[nodiscard]] std::vector<RenderSurfaceHandle> handles_for_lifetime(
+        LifetimeClass lifetime) const {
+        std::vector<RenderSurfaceHandle> handles;
+        handles.reserve(m_surfaces.size());
+        for (const auto& [handle, record] : m_surfaces) {
+            if (record.desc.lifetime == lifetime) handles.push_back(handle);
+        }
+        return handles;
+    }
 
 private:
     RenderSurfaceHandle m_next_handle{1};
