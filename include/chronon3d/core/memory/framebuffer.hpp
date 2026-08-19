@@ -91,7 +91,9 @@ public:
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
-          m_surface_handle(other.m_surface_handle) {
+          // Native surfaces are unique ownership attached to one framebuffer;
+          // a CPU copy must never duplicate the Vulkan handle.
+          m_surface_handle(runtime::kInvalidRenderSurfaceHandle) {
         copy_pixels_from(other);
     }
 
@@ -117,6 +119,9 @@ public:
         if (this != &other) {
             release_owned_pixels();
             copy_metadata_from(other);
+            // Move transfers the unique native-surface ownership after the
+            // CPU-copy metadata path deliberately cleared it.
+            m_surface_handle = other.m_surface_handle;
             move_pixels_from(std::move(other));
         }
         return *this;
@@ -328,7 +333,9 @@ private:
         m_owns_pixels = other.m_owns_pixels;
         m_content_cleared = other.m_content_cleared;
         m_key_digest = other.m_key_digest;
-        m_surface_handle = other.m_surface_handle;
+        // Copying pixels does not copy native-surface ownership. A copied
+        // framebuffer must acquire/upload its own surface when needed.
+        m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
     }
 
     void copy_pixels_from(const Framebuffer& other) {
