@@ -284,7 +284,16 @@ namespace chronon3d {
     X(pipe_write_cpu_ms) \
     X(pipe_write_wall_ms) \
     X(pipe_write_cpu_wall_us) \
-    X(pipe_backpressure_wait_wall_us)
+    X(pipe_backpressure_wait_wall_us) \
+    X(gpu_native_surface_frames) \
+    X(gpu_native_encode_frames) \
+    X(gpu_surface_copy_frames) \
+    X(cpu_pixel_readback_count) \
+    X(cpu_pixel_readback_bytes) \
+    X(video_pipe_fallback_frames) \
+    X(video_native_fallback_frames) \
+    X(gpu_surface_create_failures) \
+    X(gpu_encode_failures)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 
