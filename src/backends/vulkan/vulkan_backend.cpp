@@ -200,6 +200,8 @@ struct VulkanBackend::Impl {
     std::array<VkBuffer, kGlyphInstanceRingSize> glyph_instance_buffers{};
     std::array<VkDeviceMemory, kGlyphInstanceRingSize> glyph_instance_memories{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_capacities{};
+    std::array<std::uint64_t, kGlyphInstanceRingSize> glyph_instance_hashes{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_sizes{};
     struct UploadSlot {
         VkBuffer buffer{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
@@ -1228,17 +1230,19 @@ struct VulkanBackend::Impl {
 
     void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, std::int32_t glyph_count,
-                         VkBuffer instance_buffer) {
+                         VkBuffer instance_buffer, bool instance_updated) {
         // The glyph instances were written by a preceding vkCmdUpdateBuffer
         // (transfer stage); publish them to the compute shader before dispatch.
-        const VkBufferMemoryBarrier barrier{
-            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-            VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-            instance_buffer, 0, VK_WHOLE_SIZE};
-        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-                             0, nullptr, 1, &barrier, 0, nullptr);
+        if (instance_updated) {
+            const VkBufferMemoryBarrier barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                instance_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                 0, nullptr, 1, &barrier, 0, nullptr);
+        }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::TextRun)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -2020,14 +2024,32 @@ struct VulkanBackend::Impl {
         ensure_glyph_instance_buffer(bytes, instance_slot);
         const VkBuffer instance_buffer = glyph_instance_buffers[instance_slot];
         const std::int32_t glyph_count = static_cast<std::int32_t>(glyphs.size());
+        // FNV-1a is sufficient here: this is only a same-process change
+        // detector, not an identity/security hash. It lets static text runs
+        // reuse the device-local instance buffer across frames.
+        std::uint64_t instance_hash = 1469598103934665603ull;
+        for (const auto byte : std::as_bytes(glyphs)) {
+            instance_hash ^= std::to_integer<std::uint8_t>(byte);
+            instance_hash *= 1099511628211ull;
+        }
+        const bool instance_updated =
+            glyph_instance_sizes[instance_slot] != bytes ||
+            glyph_instance_hashes[instance_slot] != instance_hash;
+        if (instance_updated) {
+            glyph_instance_hashes[instance_slot] = instance_hash;
+            glyph_instance_sizes[instance_slot] = bytes;
+        }
 
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_text_run_descriptors(descriptors, dst_image, atlas_image, instance_buffer);
             const auto cmd = active_command_buffer();
             emit_pass_sync(cmd, {&dst_image, &atlas_image});
-            vkCmdUpdateBuffer(cmd, instance_buffer, 0, bytes, glyphs.data());
-            record_text_run(cmd, descriptors, dst_image, glyph_count, instance_buffer);
+            if (instance_updated) {
+                vkCmdUpdateBuffer(cmd, instance_buffer, 0, bytes, glyphs.data());
+            }
+            record_text_run(cmd, descriptors, dst_image, glyph_count,
+                            instance_buffer, instance_updated);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
             ++stats.passes_executed;
@@ -2037,8 +2059,11 @@ struct VulkanBackend::Impl {
         write_text_run_descriptors(descriptor_set, dst_image, atlas_image, instance_buffer);
         begin_command_buffer();
         emit_conservative_pass_sync(command_buffer, {&dst_image, &atlas_image});
-        vkCmdUpdateBuffer(command_buffer, instance_buffer, 0, bytes, glyphs.data());
-        record_text_run(command_buffer, descriptor_set, dst_image, glyph_count, instance_buffer);
+        if (instance_updated) {
+            vkCmdUpdateBuffer(command_buffer, instance_buffer, 0, bytes, glyphs.data());
+        }
+        record_text_run(command_buffer, descriptor_set, dst_image, glyph_count,
+                        instance_buffer, instance_updated);
         dst_image.initialized = true;
         ++stats.passes_executed;
         submit();
@@ -2106,6 +2131,8 @@ struct VulkanBackend::Impl {
         check(vkBindBufferMemory(device, glyph_instance_buffers[index], glyph_instance_memories[index], 0),
               "vkBindBufferMemory(glyph instances)");
         glyph_instance_capacities[index] = bytes;
+        glyph_instance_hashes[index] = 0;
+        glyph_instance_sizes[index] = 0;
     }
 
     static void transition(VkCommandBuffer command, VkImage image,
