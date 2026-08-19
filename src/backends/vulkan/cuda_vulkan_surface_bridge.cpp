@@ -30,9 +30,10 @@ CUexternalSemaphore import_semaphore(int fd, const char* operation) {
     desc.handle.fd = fd;
     CUexternalSemaphore semaphore = nullptr;
     const CUresult result = cuImportExternalSemaphore(&semaphore, &desc);
-    // Import consumes the opaque FD on success.  Close it on failure as well
-    // so constructor errors do not leak descriptors.
-    close(fd);
+    // CUDA consumes the opaque FD on success. Close it only on failure; doing
+    // so after a successful import can close an unrelated descriptor that was
+    // allocated after the Vulkan export, corrupting filesystem/IPC state.
+    if (result != CUDA_SUCCESS) close(fd);
     check_cuda(result, operation);
     return semaphore;
 }
@@ -55,7 +56,8 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     memory_desc.handle.fd = info.fd;
     memory_desc.size = info.allocation_size;
     CUresult result = cuImportExternalMemory(&m_memory, &memory_desc);
-    close(info.fd);
+    // Ownership of the opaque FD transfers to CUDA on success.
+    if (result != CUDA_SUCCESS) close(info.fd);
     check_cuda(result, "cuImportExternalMemory(surface)");
 
     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC array_desc{};
