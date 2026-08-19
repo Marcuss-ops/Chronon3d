@@ -288,8 +288,11 @@ NodeExecResult CompositeNode::execute(
     // (8) to reduce pool thrashing + eviction pressure — the root cause
     // of the 70.9K ms compositenode_acquire_wall_ms bottleneck.
     const auto t_acquire0 = profiling::now();
+    const bool bottom_matches_canvas =
+        bottom->width() == ctx.frame_input.width &&
+        bottom->height() == ctx.frame_input.height;
     OwnedFB result;
-    if (bottom->width() == ctx.frame_input.width && bottom->height() == ctx.frame_input.height) {
+    if (bottom_matches_canvas) {
         result = ctx.acquire_owned_fb(*bottom);
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
