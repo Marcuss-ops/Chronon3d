@@ -59,11 +59,12 @@ if ! "${FFMPEG_BIN}" -hide_banner -h filter=scale_cuda 2>&1 | grep -q 'format'; 
     echo "scale_cuda:format unavailable; continuing with native CUDA compositor" >&2
 fi
 
-SUBTITLE_LAYER="$(mktemp --suffix=.png chronon-gpu-subtitles.XXXXXX)"
+SUBTITLE_SOURCE="$(mktemp --suffix=.png chronon-gpu-subtitles.XXXXXX)"
+SUBTITLE_LAYER="${SUBTITLE_SOURCE}"
 SUBTITLE_CROP="${SUBTITLE_LAYER%.png}-crop.png"
 RAW_WATERMARK="${SUBTITLE_LAYER%.png}-watermark.rgba"
 RAW_SUBTITLE="${SUBTITLE_LAYER%.png}-subtitle.rgba"
-trap 'rm -f "${SUBTITLE_LAYER}" "${SUBTITLE_CROP}" "${RAW_WATERMARK}" "${RAW_SUBTITLE}"' EXIT
+trap 'rm -f "${SUBTITLE_SOURCE}" "${SUBTITLE_LAYER}" "${SUBTITLE_CROP}" "${RAW_WATERMARK}" "${RAW_SUBTITLE}"' EXIT
 
 # Rasterize only the subtitle layer on the CPU. The video never leaves CUDA;
 # the resulting small alpha texture is uploaded once and composited by CUDA.
