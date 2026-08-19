@@ -13,8 +13,8 @@ dirty=$(git -C "$ROOT" status --porcelain | grep -vE '^[ M?]{1,3}tools/cuda_nvde
 test -z "$dirty" || { echo "working tree must be clean outside the CUDA benchmark" >&2; exit 2; }
 
 render_one() {
-  local plan=$1 out=$2 log=$3
-  "$CLI" render --plan "$plan" --assets-root "$ASSETS" --output "$out" \
+  local plan=$1 out=$2 log=$3 assets=${4:-$ASSETS}
+  "$CLI" render --plan "$plan" --assets-root "$assets" --output "$out" \
     --backend vulkan --codec h264 --hardware nvenc --encoder-backend native \
     --ffmpeg-mode pipe --profile production --log-level error >"$log" 2>&1
   python3 - "$out" <<'PY'
@@ -44,14 +44,14 @@ ids='caption_card active_word_pop subtitle_card lower_third_safe organization_ca
 image_ids={'image_focus_in','image_fade_in','image_slide_left','image_slide_right','image_scale_in'}
 for p in ids:
     plan=json.loads(json.dumps(base)); plan['job_id']='gpu-v1-'+p
-    layer=plan['layers'][1]; layer['preset']=p; layer['animation']={'preset':'fade_in'}
+    layer=plan['layers'][1]; layer['preset']=p; layer['animation']={'preset':'fade_in'}; layer['font']='assets/fonts/Poppins-Bold.ttf'
     if p in image_ids:
         layer.clear(); layer.update({'id':'image-'+p,'type':'image','preset':p,'asset':'assets/test_image.png','position':[320,180],'box_width':260,'box_height':260,'start_frame':0,'duration_frames':90})
     (out/(p+'.json')).write_text(json.dumps(plan))
 PY
 while IFS= read -r plan; do
   n=$(basename "$plan" .json)
-  render_one "$plan" "$CERT_DIR/matrix/$n.mp4" "$CERT_DIR/matrix/$n.log"
+  render_one "$plan" "$CERT_DIR/matrix/$n.mp4" "$CERT_DIR/matrix/$n.log" "$ROOT"
 done < <(find "$CERT_DIR/matrix" -name '*.json' -print | sort)
 
 for n in $(seq 1 "$STRESS_COUNT"); do
