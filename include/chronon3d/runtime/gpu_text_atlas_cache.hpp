@@ -3,8 +3,10 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <span>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -39,11 +41,27 @@ struct PackedTextAtlas {
 /// supplies the device-local image and its LRU ownership.
 class GpuTextAtlasCache {
 public:
+    struct StyledGlyphBitmap {
+        std::uint32_t width{0};
+        std::uint32_t height{0};
+        std::shared_ptr<const std::vector<float>> rgba;
+    };
+
     void attach(GpuAssetCache& assets) noexcept { m_assets = &assets; }
 
     [[nodiscard]] bool acquire(
         std::span<const PackedGlyphBitmap> glyphs,
         PackedTextAtlas& out);
+
+    /// Returns a previously rasterized/styled glyph bitmap. The returned
+    /// pixel storage is immutable and shared by all frames using the key.
+    [[nodiscard]] std::shared_ptr<const StyledGlyphBitmap> find_styled(
+        std::string_view key) const;
+
+    /// Stores one CPU-rasterized/styled glyph for reuse by later frames.
+    void store_styled(std::string_view key, std::uint32_t width,
+                      std::uint32_t height,
+                      std::shared_ptr<const std::vector<float>> rgba);
 
     void clear() noexcept;
     [[nodiscard]] std::size_t size() const noexcept;
@@ -73,9 +91,15 @@ private:
         PackedTextAtlas placement{};
     };
 
+    struct StyledEntry {
+        assets::ContentDigest digest{};
+        StyledGlyphBitmap bitmap{};
+    };
+
     GpuAssetCache* m_assets{nullptr};
     mutable std::mutex m_mutex;
     std::unordered_map<Key, Entry, KeyHash> m_entries;
+    std::unordered_map<Key, StyledEntry, KeyHash> m_styled_entries;
 };
 
 } // namespace chronon3d::runtime

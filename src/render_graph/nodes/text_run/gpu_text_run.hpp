@@ -23,6 +23,7 @@
 #include <chronon3d/math/glm_types.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -45,6 +46,12 @@ struct GpuTextGlyph {
     float scale_x{1.0f};
     float scale_y{1.0f};
     float opacity{1.0f};
+    std::shared_ptr<const std::vector<float>> shared_rgba;
+
+    [[nodiscard]] std::span<const float> pixels() const noexcept {
+        if (shared_rgba) return *shared_rgba;
+        return rgba;
+    }
 };
 
 /// Pack `glyphs` into one packed atlas surface and composite them into

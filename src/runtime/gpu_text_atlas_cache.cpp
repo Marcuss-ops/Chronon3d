@@ -107,9 +107,30 @@ bool GpuTextAtlasCache::acquire(
     return true;
 }
 
+std::shared_ptr<const GpuTextAtlasCache::StyledGlyphBitmap>
+GpuTextAtlasCache::find_styled(std::string_view key_bytes) const {
+    const Key key{assets::sha256_string(key_bytes)};
+    std::lock_guard lock(m_mutex);
+    const auto it = m_styled_entries.find(key);
+    if (it == m_styled_entries.end()) return {};
+    return std::make_shared<const StyledGlyphBitmap>(it->second.bitmap);
+}
+
+void GpuTextAtlasCache::store_styled(
+    std::string_view key_bytes, std::uint32_t width, std::uint32_t height,
+    std::shared_ptr<const std::vector<float>> rgba) {
+    if (!rgba || width == 0 || height == 0) return;
+    const Key key{assets::sha256_string(key_bytes)};
+    std::lock_guard lock(m_mutex);
+    if (m_styled_entries.find(key) != m_styled_entries.end()) return;
+    m_styled_entries.emplace(key, StyledEntry{
+        key.digest, StyledGlyphBitmap{width, height, std::move(rgba)}});
+}
+
 void GpuTextAtlasCache::clear() noexcept {
     std::lock_guard lock(m_mutex);
     m_entries.clear();
+    m_styled_entries.clear();
 }
 
 std::size_t GpuTextAtlasCache::size() const noexcept {
