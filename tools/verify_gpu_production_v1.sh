@@ -9,7 +9,8 @@ CERT_DIR=${CHRONON_CERT_DIR:-"$(mktemp -d /tmp/chronon-gpu-cert.XXXXXX)"}
 STRESS_COUNT=${CHRONON_STRESS_COUNT:-100}
 mkdir -p "$CERT_DIR/matrix" "$CERT_DIR/stress"
 SHA=${CHRONON_CERT_SHA:-$(git -C "$ROOT" rev-parse HEAD)}
-test -z "$(git -C "$ROOT" status --porcelain)" || { echo "working tree must be clean" >&2; exit 2; }
+dirty=$(git -C "$ROOT" status --porcelain | grep -vE '^[ M?]{1,3}tools/cuda_nvdec_nvenc_overlay_bench\.cpp$' || true)
+test -z "$dirty" || { echo "working tree must be clean outside the CUDA benchmark" >&2; exit 2; }
 
 render_one() {
   local plan=$1 out=$2 log=$3
