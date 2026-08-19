@@ -158,6 +158,18 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
                 PRIVATE chronon3d_ffmpeg_full
                         "${CHRONON3D_CUDA_DRIVER_LIBRARY}"
                         "${CHRONON3D_NVRTC_LIBRARY}")
+
+            find_path(CHRONON3D_NV_CODEC_INCLUDE_DIR nvEncodeAPI.h
+                HINTS "$ENV{NV_CODEC_HEADERS}" "$ENV{NV_CODEC_INCLUDE_DIR}"
+                PATH_SUFFIXES include/ffnvcodec
+                PATHS /usr /usr/local /tmp/nv-codec-prefix-n130-velox)
+            find_library(CHRONON3D_NVENCODE_LIBRARY nvidia-encode
+                PATHS /usr/lib/x86_64-linux-gnu /usr/lib64)
+            if(CHRONON3D_NV_CODEC_INCLUDE_DIR AND CHRONON3D_NVENCODE_LIBRARY)
+                target_compile_definitions(chronon3d_cuda_nvdec_nvenc_overlay_bench PRIVATE CHRONON3D_ENABLE_RAW_NVENC)
+                target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench PRIVATE "${CHRONON3D_NV_CODEC_INCLUDE_DIR}")
+                target_link_libraries(chronon3d_cuda_nvdec_nvenc_overlay_bench PRIVATE "${CHRONON3D_NVENCODE_LIBRARY}" dl)
+            endif()
         endif()
     endif()
 endif()
