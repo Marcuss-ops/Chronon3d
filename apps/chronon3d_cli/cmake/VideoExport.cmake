@@ -53,6 +53,11 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
         PATHS /usr/lib/x86_64-linux-gnu)
     target_include_directories(chronon3d_cli_video_export PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
+    # NativeAvEncoder's public header is included by render_job_execute.cpp,
+    # which belongs to chronon3d_cli_render. The CUDA interop type must be
+    # visible on that compile target as well, not only on the video library.
+    target_include_directories(chronon3d_cli_render PRIVATE
+        "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
     target_link_libraries(chronon3d_cli_video_export PRIVATE
         chronon3d_backend_vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}")
 endif()
