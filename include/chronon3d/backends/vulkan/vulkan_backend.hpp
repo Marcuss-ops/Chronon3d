@@ -223,6 +223,9 @@ public:
     graph::RenderOpResult draw_text_run_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         std::span<const runtime::GlyphInstance>) override;
+    graph::RenderOpResult draw_text_run_surface_timed(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        std::span<const runtime::GlyphInstance>, float, const Color&, bool) override;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(

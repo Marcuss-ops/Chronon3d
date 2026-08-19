@@ -71,9 +71,13 @@ struct GlyphInstance {
     float scale_x{1.0f};
     float scale_y{1.0f};
     float pad{0.0f};
+    // Optional GPU-driven highlight interval in composition frames.
+    // Negative values mean that this glyph has no timed highlight.
+    float highlight_start_frame{-1.0f};
+    float highlight_end_frame{-1.0f};
 };
-static_assert(sizeof(GlyphInstance) == 40,
-              "GlyphInstance must stay 32 bytes to match text_run.comp");
+static_assert(sizeof(GlyphInstance) == 48,
+              "GlyphInstance must stay 48 bytes to match text_run.comp");
 
 struct SurfaceRecord {
     RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
