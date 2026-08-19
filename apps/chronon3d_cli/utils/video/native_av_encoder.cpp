@@ -502,6 +502,18 @@ bool NativeAvEncoder::write_native_surface(
             av_frame_free(&gpu_frame);
             return false;
         }
+        // The encode destination is reused by a later Vulkan submission. The
+        // CUDA copy and this release signal are ordered on the same stream;
+        // Vulkan consumes the matching CUDA->Vulkan semaphore before writing
+        // the surface again.
+        bridge.signal_for_vulkan(cuda_stream_);
+        const auto prepared = vulkan->prepare_cuda_surface_for_vulkan(destination);
+        if (!prepared.ok()) {
+            spdlog::error("[native_av] failed to publish CUDA completion for surface {}: {}",
+                          destination, prepared.error().message);
+            av_frame_free(&gpu_frame);
+            return false;
+        }
         CUevent ready = nullptr;
         if (cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING) != CUDA_SUCCESS ||
             cuEventRecord(ready, cuda_stream_) != CUDA_SUCCESS) {
