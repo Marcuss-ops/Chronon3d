@@ -42,6 +42,10 @@ struct VulkanBackendStats {
     // metrics and are deliberately distinct from GPU-elapsed timestamps.
     std::uint64_t gpu_submit_cpu_us{0};
     std::uint64_t gpu_wait_cpu_us{0};
+    std::uint64_t standalone_wait_count{0};
+    std::uint64_t standalone_wait_us{0};
+    std::uint64_t frame_batch_drain_wait_count{0};
+    std::uint64_t frame_batch_drain_wait_us{0};
     std::uint64_t frame_slot_wait_count{0};
     std::uint64_t frame_slot_wait_us{0};
     std::uint64_t readback_us{0};

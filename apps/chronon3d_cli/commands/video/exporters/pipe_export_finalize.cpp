@@ -57,6 +57,9 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.native_convert_ms      = session.encoder->native_convert_ms();
     result.native_send_ms         = session.encoder->native_send_frame_ms();
     result.native_backpressure_ms = session.encoder->native_backpressure_ms();
+    result.native_cuda_pending_peak = session.encoder->native_cuda_pending_peak();
+    result.native_cuda_backpressure_wait_count =
+        session.encoder->native_cuda_backpressure_wait_count();
     result.native_flush_ms        = session.encoder->native_flush_ms();
     result.native_receive_ms      = session.encoder->native_receive_packet_ms();
     result.native_mux_ms          = session.encoder->native_mux_write_ms();

@@ -56,6 +56,20 @@ public:
     [[nodiscard]] double native_convert_ms()          const override { return native_convert_ms_; }
     [[nodiscard]] double native_send_frame_ms()       const override { return native_send_frame_ms_; }
     [[nodiscard]] double native_backpressure_ms()     const override { return native_backpressure_ms_; }
+    [[nodiscard]] std::uint64_t native_cuda_pending_peak() const override {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        return cuda_pending_peak_;
+#else
+        return 0;
+#endif
+    }
+    [[nodiscard]] std::uint64_t native_cuda_backpressure_wait_count() const override {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        return cuda_backpressure_wait_count_;
+#else
+        return 0;
+#endif
+    }
     [[nodiscard]] double native_flush_ms()            const override { return native_flush_ms_; }
     [[nodiscard]] double native_receive_packet_ms()   const override { return native_receive_packet_ms_; }
     [[nodiscard]] double native_mux_write_ms()        const override { return native_mux_write_ms_; }
@@ -83,6 +97,8 @@ private:
     std::deque<PendingCudaFrame> pending_cuda_frames_;
     CUstream cuda_stream_{nullptr};
     uint64_t frames_submitted_{0};
+    uint64_t cuda_pending_peak_{0};
+    uint64_t cuda_backpressure_wait_count_{0};
     void* cuda_context_{nullptr};
     AVBufferRef* cuda_device_ref_{nullptr};
     AVBufferRef* cuda_frames_ref_{nullptr};

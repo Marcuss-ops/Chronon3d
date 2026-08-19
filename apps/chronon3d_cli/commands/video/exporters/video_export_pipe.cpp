@@ -65,6 +65,8 @@ struct TextMetrics {
 struct EncoderMetrics {
     std::optional<double> submit_cpu_ms;
     std::optional<double> backpressure_wait_ms;
+    std::optional<uint64_t> cuda_pending_peak;
+    std::optional<uint64_t> cuda_backpressure_wait_count;
     std::optional<double> flush_ms;
     std::optional<double> packet_receive_ms;
     std::optional<double> mux_packet_ms;
@@ -85,6 +87,12 @@ struct GpuMetrics {
     std::optional<double> gpu_readback_ms;
     std::optional<double> gpu_submit_cpu_ms;
     std::optional<double> gpu_wait_cpu_ms;
+    std::optional<uint64_t> standalone_wait_count;
+    std::optional<uint64_t> standalone_wait_us;
+    std::optional<uint64_t> frame_batch_drain_wait_count;
+    std::optional<uint64_t> frame_batch_drain_wait_us;
+    std::optional<uint64_t> frame_slot_wait_count;
+    std::optional<uint64_t> frame_slot_wait_us;
     std::optional<uint64_t> gpu_readback_bytes;
     std::optional<uint64_t> gpu_upload_bytes;
     std::optional<uint64_t> gpu_submissions;
@@ -464,6 +472,12 @@ void write_frame_timing_sidecar(
     put_gpu("gpu_readback_ms", timings.gpu.gpu_readback_ms);
     put_gpu("gpu_submit_cpu_ms", timings.gpu.gpu_submit_cpu_ms);
     put_gpu("gpu_wait_cpu_ms", timings.gpu.gpu_wait_cpu_ms);
+    put_gpu_u64("standalone_wait_count", timings.gpu.standalone_wait_count);
+    put_gpu_u64("standalone_wait_us", timings.gpu.standalone_wait_us);
+    put_gpu_u64("frame_batch_drain_wait_count", timings.gpu.frame_batch_drain_wait_count);
+    put_gpu_u64("frame_batch_drain_wait_us", timings.gpu.frame_batch_drain_wait_us);
+    put_gpu_u64("frame_slot_wait_count", timings.gpu.frame_slot_wait_count);
+    put_gpu_u64("frame_slot_wait_us", timings.gpu.frame_slot_wait_us);
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
     put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
@@ -573,8 +587,14 @@ void write_frame_timing_sidecar(
     const auto put_encoder = [&encoder](const char* key, const std::optional<double>& value) {
         if (value) encoder[key] = *value; else encoder[key] = nullptr;
     };
+    const auto put_encoder_u64 = [&encoder](const char* key,
+                                            const std::optional<uint64_t>& value) {
+        if (value) encoder[key] = *value; else encoder[key] = nullptr;
+    };
     put_encoder("submit_cpu_ms", timings.encoder.submit_cpu_ms);
     put_encoder("backpressure_wait_ms", timings.encoder.backpressure_wait_ms);
+    put_encoder_u64("cuda_pending_peak", timings.encoder.cuda_pending_peak);
+    put_encoder_u64("cuda_backpressure_wait_count", timings.encoder.cuda_backpressure_wait_count);
     put_encoder("flush_ms", timings.encoder.flush_ms);
     put_encoder("packet_receive_ms", timings.encoder.packet_receive_ms);
     put_encoder("mux_packet_ms", timings.encoder.mux_packet_ms);
@@ -719,6 +739,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     if (is_native) {
         timings.encoder.submit_cpu_ms = close_result.native_send_ms;
         timings.encoder.backpressure_wait_ms = close_result.native_backpressure_ms;
+        timings.encoder.cuda_pending_peak = close_result.native_cuda_pending_peak;
+        timings.encoder.cuda_backpressure_wait_count =
+            close_result.native_cuda_backpressure_wait_count;
         timings.encoder.flush_ms = close_result.native_flush_ms;
         timings.encoder.packet_receive_ms = close_result.native_receive_ms;
         timings.encoder.mux_packet_ms = close_result.native_mux_ms;
@@ -823,6 +846,18 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.gpu_submit_cpu_ms = static_cast<double>(value) / 1000.0;
             } else if (name == "gpu_wait_cpu_us") {
                 timings.gpu.gpu_wait_cpu_ms = static_cast<double>(value) / 1000.0;
+            } else if (name == "standalone_wait_count") {
+                timings.gpu.standalone_wait_count = value;
+            } else if (name == "standalone_wait_us") {
+                timings.gpu.standalone_wait_us = value;
+            } else if (name == "frame_batch_drain_wait_count") {
+                timings.gpu.frame_batch_drain_wait_count = value;
+            } else if (name == "frame_batch_drain_wait_us") {
+                timings.gpu.frame_batch_drain_wait_us = value;
+            } else if (name == "frame_slot_wait_count") {
+                timings.gpu.frame_slot_wait_count = value;
+            } else if (name == "frame_slot_wait_us") {
+                timings.gpu.frame_slot_wait_us = value;
             } else if (name == "gpu_readback_bytes") {
                 timings.gpu.gpu_readback_bytes = value;
             } else if (name == "gpu_upload_bytes") {
