@@ -15,10 +15,22 @@ Golden strict e benchmark CLI/daemon passano con
 IPC ha passato 100 job consecutivi, 150/150 frame per job, digest stabile,
 `effective_backend=vulkan`, fallback zero e receipt valida in
 `1059.71 s`. RenderingGen `main@c18949e` passa i test config/processor/chronon/media.
-La matrice visuale completa di tutti i preset, la prova CUDA/NVENC zero-copy e
-la baseline prestazionale ufficiale restano gate separati: la probe CUDA/Vulkan
-locale è risultata `INTEROP_UNAVAILABLE` su FFmpeg 4.4.2 (`hwmap` non riesce a
-creare il device derivato), quindi non viene dichiarato zero-copy.
+La matrice visuale completa di tutti i preset e la baseline prestazionale
+ufficiale restano gate separati. Il probe nativo CUDA/Vulkan ora passa sulla
+RTX A4000, importando memoria immagine e semafori esterni; anche il percorso
+diretto NVDEC→NVENC passa con FFmpeg 4.4.2. Resta separato il bridge completo
+NVDEC→Vulkan→compositing→NVENC: `hwmap=derive_device=vulkan` non riesce a
+creare il device derivato in questa build, quindi il prodotto non dichiara
+ancora zero-copy end-to-end.
+
+Riproduzione del gate nativo con gli header CUDA 13 disponibili localmente:
+
+```text
+CUDA_INCLUDE=/usr/local/lib/python3.10/dist-packages/nvidia/cu13/include \
+CUDA_LIB_DIR=/usr/lib/x86_64-linux-gnu \
+tools/run_cuda_vulkan_external_memory_probe.sh
+→ CUDA_VULKAN_INTEROP_PASS
+```
 
 > Ultima revisione semantica: 2026-08-09.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
