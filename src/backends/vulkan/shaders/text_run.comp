@@ -20,6 +20,8 @@ struct GlyphInstance {
     float scale_x;
     float scale_y;
     float pad;
+    float highlight_start_frame;
+    float highlight_end_frame;
 };
 
 layout(binding = 3, std430) buffer GlyphInstances {
@@ -28,6 +30,10 @@ layout(binding = 3, std430) buffer GlyphInstances {
 
 layout(push_constant) uniform TextRunParams {
     int glyph_count;
+    float current_frame;
+    int highlight_enabled;
+    int padding;
+    vec4 highlight_color;
 } params;
 
 void main() {
@@ -47,6 +53,14 @@ void main() {
                                               vec2(glyph.scale_x, glyph.scale_y)));
             sample_offset = clamp(sample_offset, ivec2(0), glyph.glyph_size - ivec2(1));
             vec4 src = imageLoad(atlas_image, glyph.atlas_origin + sample_offset) * glyph.opacity;
+            if (params.highlight_enabled != 0 &&
+                glyph.highlight_start_frame >= 0.0 &&
+                glyph.highlight_end_frame >= glyph.highlight_start_frame) {
+                float highlight_active = step(glyph.highlight_start_frame, params.current_frame) *
+                               step(params.current_frame, glyph.highlight_end_frame);
+                vec3 highlight_rgb = params.highlight_color.rgb * src.a;
+                src.rgb = mix(src.rgb, highlight_rgb, highlight_active * params.highlight_color.a);
+            }
             accum = src + accum * (1.0 - src.a);
         }
     }
