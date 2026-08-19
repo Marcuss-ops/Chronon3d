@@ -6,6 +6,8 @@
 // =============================================================================
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/color/output_transform.hpp>
 #include <cstdint>
 #include <memory>
@@ -50,6 +52,13 @@ struct IVideoEncoder {
     virtual ~IVideoEncoder() = default;
     virtual bool open(const struct FfmpegPipeOptions& options) = 0;
     virtual bool write_frame(const Framebuffer& fb) = 0;
+    virtual bool write_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination) {
+        (void)backend; (void)source; (void)destination;
+        return false;
+    }
     virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
         return write_frame(fb);
     }

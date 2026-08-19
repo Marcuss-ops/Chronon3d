@@ -161,6 +161,30 @@ public:
     virtual void export_gpu_telemetry_counters(
         std::vector<std::pair<std::string, std::uint64_t>>& /*out*/) const {}
 
+    /// Video exporters may retain the final device surface and consume it on
+    /// the writer thread.  The default keeps the historical CPU readback
+    /// contract; native GPU backends override this only when the surface can
+    /// be handed off without exposing backend types to the graph.
+    [[nodiscard]] virtual bool supports_native_video_surface() const noexcept {
+        return false;
+    }
+
+    virtual RenderOpResult create_video_encode_surface(
+        runtime::RenderSurfaceHandle /*handle*/,
+        const runtime::SurfaceDesc& /*desc*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::create_video_encode_surface: unsupported"});
+    }
+
+    virtual RenderOpResult copy_surface_to_video_encode(
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*destination*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::copy_surface_to_video_encode: unsupported"});
+    }
+
 
     /// Frame-batching lifecycle.  Backends that record many passes into a
     /// single submission override these; the default is a no-op so
