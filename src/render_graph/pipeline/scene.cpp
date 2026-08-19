@@ -190,6 +190,86 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         }
     }
 
+    // Keep the native encode destination in the same Vulkan submission as the
+    // graph work. This also covers the early framebuffer-reuse exits below:
+    // they start a minimal batch containing only the final device-to-device
+    // blit instead of falling back to a writer-side Vulkan submit.
+    bool native_encode_batch_active =
+        ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle;
+    if (native_encode_batch_active) {
+        backend.begin_frame_batch();
+    }
+    const auto ensure_native_source =
+        [&](const std::shared_ptr<Framebuffer>& framebuffer) {
+            if (!framebuffer) return runtime::kInvalidRenderSurfaceHandle;
+            auto handle = framebuffer->surface_handle();
+            if (handle != runtime::kInvalidRenderSurfaceHandle &&
+                backend.is_native_surface_valid(handle)) {
+                return handle;
+            }
+            if (!ctx.services.surface_registry) {
+                return runtime::kInvalidRenderSurfaceHandle;
+            }
+            if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                (void)ctx.services.surface_registry->release(handle);
+                framebuffer->clear_surface_handle();
+            }
+            const runtime::SurfaceDesc desc{
+                static_cast<std::uint32_t>(framebuffer->width()),
+                static_cast<std::uint32_t>(framebuffer->height()),
+                runtime::PixelFormat::Rgba32Float,
+                runtime::ResourceUsage::Storage,
+                runtime::LifetimeClass::FrameTransient,
+                static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() *
+                    sizeof(float) * 4};
+            handle = ctx.services.surface_registry->create(desc);
+            if (!backend.create_surface(handle, desc).ok()) {
+                (void)ctx.services.surface_registry->release(handle);
+                return runtime::kInvalidRenderSurfaceHandle;
+            }
+            std::vector<float> rgba(
+                static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() * 4);
+            std::size_t index = 0;
+            for (int y = 0; y < framebuffer->height(); ++y) {
+                for (int x = 0; x < framebuffer->width(); ++x) {
+                    const auto pixel = framebuffer->get_pixel(x, y);
+                    rgba[index++] = pixel.r;
+                    rgba[index++] = pixel.g;
+                    rgba[index++] = pixel.b;
+                    rgba[index++] = pixel.a;
+                }
+            }
+            if (!backend.upload_surface(handle, desc, rgba).ok()) {
+                (void)backend.release_surface(handle);
+                (void)ctx.services.surface_registry->release(handle);
+                return runtime::kInvalidRenderSurfaceHandle;
+            }
+            framebuffer->set_surface_handle(handle);
+            return handle;
+        };
+    const auto finish_reused_native_frame =
+        [&](const std::shared_ptr<Framebuffer>& framebuffer) {
+            if (!native_encode_batch_active) return framebuffer;
+            const auto source = ensure_native_source(framebuffer);
+            if (source == runtime::kInvalidRenderSurfaceHandle) {
+                backend.end_frame_batch();
+                native_encode_batch_active = false;
+                return std::shared_ptr<Framebuffer>{};
+            }
+            const auto copy = backend.copy_surface_to_video_encode(
+                source, ctx.policy.native_video_encode_surface);
+            if (!copy.ok()) {
+                spdlog::error("[backend] native encode copy failed on reused frame {}: {}",
+                              static_cast<int>(frame), copy.error().message);
+                backend.end_frame_batch();
+                native_encode_batch_active = false;
+                return std::shared_ptr<Framebuffer>{};
+            }
+            backend.end_frame_batch();
+            native_encode_batch_active = false;
+            return framebuffer;
+        };
+
     // ── 1-3. Resolved-scene reuse + Fingerprints + Static-scene fast-path ──
     detail::ReuseEvaluation reuse_eval;
     if (!isolated_temporal_sample) {
@@ -197,7 +277,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
         if (reuse_eval.fast_path_reuse_fb) {
-            return reuse_eval.fast_path_reuse_fb;
+            return finish_reused_native_frame(reuse_eval.fast_path_reuse_fb);
         }
     }
 
@@ -326,7 +406,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 reuse.current_combined_fp, reuse.current_static_fp,
                 reuse.current_structure_fp, reuse.current_active_at_fp,
                 std::move(dirty_out.layer_bboxes));
-            return reuse.framebuffer;
+            return finish_reused_native_frame(reuse.framebuffer);
         }
     }
 
@@ -410,13 +490,42 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // Frame-batching boundary: a batching backend records every graph pass
     // between these calls and performs a single submission in
     // end_frame_batch().  No-op for backends without batching support.
-    backend.begin_frame_batch();
+    if (!native_encode_batch_active) {
+        backend.begin_frame_batch();
+        native_encode_batch_active = true;
+    }
     auto exec_result = execute_tile_or_fallback(
         ctx, graph_result.compiled,        resolved, effective_settings, dirty_out,
 
         dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
         frame, width, height, root_scope);
-    backend.end_frame_batch();
+    if (native_encode_batch_active) {
+        if (ctx.policy.native_video_encode_surface !=
+                runtime::kInvalidRenderSurfaceHandle &&
+            exec_result.fb) {
+            const auto source = ensure_native_source(exec_result.fb);
+            if (source == runtime::kInvalidRenderSurfaceHandle) {
+                spdlog::error("[backend] native encode copy has no valid source surface for frame {}",
+                              static_cast<int>(frame));
+                exec_result.fb.reset();
+            } else {
+            const auto copy = backend.copy_surface_to_video_encode(
+                source, ctx.policy.native_video_encode_surface);
+            if (!copy.ok()) {
+                spdlog::error("[backend] native encode copy failed for frame {}: {}",
+                              static_cast<int>(frame), copy.error().message);
+                exec_result.fb.reset();
+            }
+            }
+        } else if (ctx.policy.native_video_encode_surface !=
+                   runtime::kInvalidRenderSurfaceHandle) {
+            spdlog::error("[backend] native encode copy has no source surface for frame {}",
+                          static_cast<int>(frame));
+            exec_result.fb.reset();
+        }
+        backend.end_frame_batch();
+        native_encode_batch_active = false;
+    }
     // Native surfaces remain authoritative across composite nodes. The public
     // render API still returns a CPU Framebuffer, so perform exactly one
     // terminal synchronization here rather than between every graph pass.

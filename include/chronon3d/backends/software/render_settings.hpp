@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
+#include <chronon3d/runtime/render_surface_handle.hpp>
 #include <string>
 #include <optional>
 #include <chronon3d/math/raster_utils.hpp>
@@ -119,6 +120,8 @@ struct DiagnosticSettings {
 // tile / bitmask knobs are under `dirty`; see DirtyRenderSettings.
 struct RenderSettings {
     bool retain_native_surface_for_video{false};
+    runtime::RenderSurfaceHandle native_video_encode_surface{
+        runtime::kInvalidRenderSurfaceHandle};
     /// Canonical resource budget applied by the render-plan/runtime boundary.
     /// Temporal accumulation consumes `render_budget.max_temporal_pixels`;
     /// zero is not used here because the default RenderBudget is finite.

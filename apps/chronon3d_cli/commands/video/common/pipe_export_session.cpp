@@ -70,9 +70,11 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 return;
             }
             const bool encoded = gpu_frame
-                ? ctx.encoder.write_native_surface(*package.backend,
-                                                    package.source_surface,
-                                                    package.native_surface)
+                ? (package.native_surface_ready
+                    ? ctx.encoder.write_prepared_native_surface(
+                        *package.backend, package.source_surface, package.native_surface)
+                    : ctx.encoder.write_native_surface(
+                        *package.backend, package.source_surface, package.native_surface))
                 : ctx.encoder.write_frame_async(fb_ref, std::move(package.framebuffer));
             // Source and encode surfaces are job-owned for the duration of
             // the queue. The encode surface is intentionally persistent: a
@@ -251,6 +253,43 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 ctx.opts.encoder.encoder_backend == "native" &&
                 ctx.opts.encoder.hardware_encoder == "nvenc" &&
                 ctx.backend.supports_native_video_surface();
+            auto native_surface = runtime::kInvalidRenderSurfaceHandle;
+            auto interop_slot = FrameInteropRing::kInvalidSlot;
+            auto* surface_registry = ctx.sw_renderer
+                ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
+            if (surface_registry && video_settings.retain_native_surface_for_video) {
+                interop_slot = ctx.interop_ring.acquire(ctx.opts.cancellation_token);
+                if (interop_slot != FrameInteropRing::kInvalidSlot) {
+                    auto& persistent_native_surface =
+                        ctx.native_encode_surfaces[interop_slot];
+                    if (persistent_native_surface == runtime::kInvalidRenderSurfaceHandle) {
+                        const runtime::SurfaceDesc encode_desc{
+                            static_cast<std::uint32_t>(ctx.compiled.definition->composition.width),
+                            static_cast<std::uint32_t>(ctx.compiled.definition->composition.height),
+                            runtime::PixelFormat::Rgba8Unorm,
+                            runtime::ResourceUsage::Storage,
+                            runtime::LifetimeClass::FrameTransient,
+                            static_cast<std::size_t>(ctx.compiled.definition->composition.width) *
+                                ctx.compiled.definition->composition.height * 4};
+                        persistent_native_surface = surface_registry->create(encode_desc);
+                        const auto created = ctx.backend.create_video_encode_surface(
+                            persistent_native_surface, encode_desc);
+                        if (!created.ok()) {
+                            spdlog::error("[video] failed to create CUDA encode surface slot {}: {}",
+                                          interop_slot, created.error().message);
+                            (void)surface_registry->release(persistent_native_surface);
+                            persistent_native_surface = runtime::kInvalidRenderSurfaceHandle;
+                        }
+                    }
+                    if (persistent_native_surface != runtime::kInvalidRenderSurfaceHandle) {
+                        native_surface = persistent_native_surface;
+                        video_settings.native_video_encode_surface = native_surface;
+                    } else {
+                        ctx.interop_ring.release(interop_slot);
+                        interop_slot = FrameInteropRing::kInvalidSlot;
+                    }
+                }
+            }
             auto fb = graph::render_compiled_composition_frame_temporal(
                 ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
                 ctx.video_decoder, ctx.compiled, current_frame,
@@ -374,10 +413,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             auto source_surface = fb
                 ? fb->surface_handle()
                 : runtime::kInvalidRenderSurfaceHandle;
-            auto native_surface = runtime::kInvalidRenderSurfaceHandle;
-            auto interop_slot = FrameInteropRing::kInvalidSlot;
-            auto* surface_registry = ctx.sw_renderer
-                ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
             if (surface_registry && video_settings.retain_native_surface_for_video) {
                 if (source_surface != runtime::kInvalidRenderSurfaceHandle &&
                     !ctx.backend.is_native_surface_valid(source_surface)) {
@@ -423,43 +458,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     }
                 }
             }
-            if (source_surface != runtime::kInvalidRenderSurfaceHandle && surface_registry &&
-                video_settings.retain_native_surface_for_video) {
-                interop_slot = ctx.interop_ring.acquire(ctx.opts.cancellation_token);
-                if (interop_slot != FrameInteropRing::kInvalidSlot) {
-                    auto& persistent_native_surface =
-                        ctx.native_encode_surfaces[interop_slot];
-                    if (persistent_native_surface == runtime::kInvalidRenderSurfaceHandle) {
-                        persistent_native_surface = surface_registry->create(runtime::SurfaceDesc{
-                            static_cast<std::uint32_t>(fb->width()),
-                            static_cast<std::uint32_t>(fb->height()),
-                            runtime::PixelFormat::Rgba8Unorm,
-                            runtime::ResourceUsage::Storage,
-                            runtime::LifetimeClass::FrameTransient,
-                            static_cast<std::size_t>(fb->width()) * fb->height() * 4});
-                        const auto created = ctx.backend.create_video_encode_surface(
-                            persistent_native_surface, runtime::SurfaceDesc{
-                                static_cast<std::uint32_t>(fb->width()),
-                                static_cast<std::uint32_t>(fb->height()),
-                                runtime::PixelFormat::Rgba8Unorm,
-                                runtime::ResourceUsage::Storage,
-                                runtime::LifetimeClass::FrameTransient,
-                                static_cast<std::size_t>(fb->width()) * fb->height() * 4});
-                        if (!created.ok()) {
-                            spdlog::error("[video] failed to create CUDA encode surface slot {}: {}",
-                                          interop_slot, created.error().message);
-                            (void)surface_registry->release(persistent_native_surface);
-                            persistent_native_surface = runtime::kInvalidRenderSurfaceHandle;
-                        }
-                    }
-                    if (persistent_native_surface != runtime::kInvalidRenderSurfaceHandle) {
-                        native_surface = persistent_native_surface;
-                    } else {
-                        ctx.interop_ring.release(interop_slot);
-                        interop_slot = FrameInteropRing::kInvalidSlot;
-                    }
-                }
-            }
             RenderFramePackage package{
                 .frame_number = current_frame,
                 .framebuffer = std::move(fb),
@@ -469,7 +467,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     ? &ctx.sw_renderer->runtime().surface_registry() : nullptr,
                 .source_surface = source_surface,
                 .native_surface = native_surface,
-                .interop_slot = interop_slot};
+                .interop_slot = interop_slot,
+                .native_surface_ready = native_surface != runtime::kInvalidRenderSurfaceHandle};
             ++status.frames_rendered;
 
             bool pushed = ctx.queue.push(package, ctx.opts.cancellation_token);
