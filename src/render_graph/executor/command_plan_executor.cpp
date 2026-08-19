@@ -1,5 +1,7 @@
 #include <chronon3d/render_graph/executor/command_plan_executor.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include <type_traits>
 #include <variant>
 
@@ -66,7 +68,26 @@ bool execute_command_plan(graph::RenderBackend& backend,
     bind_plan_slots(plan.resources, registry);
     backend.begin_plan_batch(plan);
     bool success = true;
-    for (const auto& pass : plan.passes.passes) {
+    for (std::size_t pass_index = 0; pass_index < plan.passes.passes.size(); ++pass_index) {
+        const auto& pass = plan.passes.passes[pass_index];
+        // Invalid handles are sentinels, not backend resources.  Passing one
+        // through used to make Vulkan fail later in bound_slot(), where the
+        // actual offending pass was impossible to identify.  Reject the plan
+        // at its single dispatch boundary so callers can take their normal
+        // CPU fallback and the diagnostic points at the producer.
+        const auto handles = detail::referenced_handles(pass);
+        for (const auto handle : handles) {
+            if (handle == kInvalidRenderSurfaceHandle) {
+                spdlog::error(
+                    "[render-graph] refusing pass {} with invalid surface handle 0 "
+                    "(kind={}, resources={}, allocations={})",
+                    pass_index, static_cast<int>(pass.kind),
+                    plan.resources.slots.size(), plan.resources.allocations.size());
+                success = false;
+                break;
+            }
+        }
+        if (!success) break;
         if (!execute_pass(backend, pass)) {
             success = false;
             break;

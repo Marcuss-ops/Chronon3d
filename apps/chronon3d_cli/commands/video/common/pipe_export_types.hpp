@@ -90,6 +90,7 @@ struct RenderLoopContext {
     SoftwareRenderer* sw_renderer;
     RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
+    std::atomic<int>& frames_encoded;
     FrameInteropRing& interop_ring;
     std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
         native_encode_surfaces;

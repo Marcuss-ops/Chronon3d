@@ -99,9 +99,14 @@ graph::RenderOpResult render_text_run_item(
     auto& mutable_ctx = const_cast<RenderGraphContext&>(ctx);
     auto native = draw_cached_text_run(
         mutable_ctx, fb, local_shape, world_matrix, opacity);
-    if (native.ok() || native.error().code != RenderBackendErrorCode::UnsupportedCapability) {
+    if (native.ok()) {
         return native;
     }
+    // The GPU atlas path is an optimization, not a correctness boundary.
+    // Stale atlas/surface state must fall back to Chronon's canonical text
+    // renderer instead of aborting the complete video frame.  The backend
+    // still owns the final native surface and the caller keeps the failure
+    // visible in its telemetry/logs.
     auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
     if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         if (!ensure_native_surface(mutable_ctx, fb)) {

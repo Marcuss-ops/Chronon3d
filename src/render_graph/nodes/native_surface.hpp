@@ -23,6 +23,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <spdlog/spdlog.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -69,26 +70,45 @@ inline std::vector<float> pack_framebuffer_rgba(const Framebuffer& framebuffer) 
 inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
     if (!ctx.services.backend || !ctx.services.surface_registry) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        if (ctx.services.surface_registry->lookup(framebuffer.surface_handle())) {
+        const auto handle = framebuffer.surface_handle();
+        // The registry owns logical identity, while Vulkan owns the physical
+        // binding.  They can briefly diverge when a pooled framebuffer is
+        // returned while a transient backend surface is reclaimed.  Checking
+        // only the registry made a stale handle look valid and the next GPU
+        // operation failed with "surface handle is not bound to a physical
+        // slot".  Treat either side being stale as a cache miss and rebuild
+        // the native surface before issuing a command.
+        if (ctx.services.surface_registry->lookup(handle) &&
+            ctx.services.backend->is_native_surface_valid(handle)) {
             return true;
         }
-        // A previous job may have reclaimed a transient backend surface while
+        if (ctx.services.surface_registry->lookup(handle)) {
+            (void)ctx.services.surface_registry->release(handle);
+        }
+        // A previous job or frame may have reclaimed the backend surface while
         // a pooled CPU framebuffer still carried its old logical handle.
         framebuffer.clear_surface_handle();
     }
 
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
     const auto handle = ctx.services.surface_registry->create(desc);
-    if (handle == runtime::kInvalidRenderSurfaceHandle) return false;
+    if (handle == runtime::kInvalidRenderSurfaceHandle) {
+        spdlog::error("[native-surface] registry rejected {}x{} surface", framebuffer.width(), framebuffer.height());
+        return false;
+    }
 
     const auto created = ctx.services.backend->create_surface(handle, desc);
     if (!created.ok()) {
+        spdlog::error("[native-surface] create failed for {}x{}: {}",
+                      framebuffer.width(), framebuffer.height(), created.error().message);
         ctx.services.surface_registry->release(handle);
         return false;
     }
     const auto uploaded = ctx.services.backend->upload_surface(
         handle, desc, pack_framebuffer_rgba(framebuffer));
     if (!uploaded.ok()) {
+        spdlog::error("[native-surface] upload failed for {}x{}: {}",
+                      framebuffer.width(), framebuffer.height(), uploaded.error().message);
         // The backend surface was already allocated by create_surface();
         // release it symmetrically before dropping the registry entry so the
         // native path stays leak-free on the upload-failure branch.
@@ -108,16 +128,26 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                                         Framebuffer& framebuffer) {
     if (!ctx.services.backend || !ctx.services.surface_registry) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        if (ctx.services.surface_registry->lookup(framebuffer.surface_handle())) {
+        const auto handle = framebuffer.surface_handle();
+        if (ctx.services.surface_registry->lookup(handle) &&
+            ctx.services.backend->is_native_surface_valid(handle)) {
             return true;
+        }
+        if (ctx.services.surface_registry->lookup(handle)) {
+            (void)ctx.services.surface_registry->release(handle);
         }
         framebuffer.clear_surface_handle();
     }
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
     const auto handle = ctx.services.surface_registry->create(desc);
-    if (handle == runtime::kInvalidRenderSurfaceHandle) return false;
+    if (handle == runtime::kInvalidRenderSurfaceHandle) {
+        spdlog::error("[native-surface] registry rejected empty {}x{} surface", framebuffer.width(), framebuffer.height());
+        return false;
+    }
     const auto created = ctx.services.backend->create_surface(handle, desc);
     if (!created.ok()) {
+        spdlog::error("[native-surface] empty create failed for {}x{}: {}",
+                      framebuffer.width(), framebuffer.height(), created.error().message);
         ctx.services.surface_registry->release(handle);
         return false;
     }
