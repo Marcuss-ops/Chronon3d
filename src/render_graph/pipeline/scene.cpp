@@ -235,7 +235,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 const Color* row = src + y * static_cast<std::size_t>(framebuffer->stride());
                 std::memcpy(rgba.data() + y * width * 4, row, width * sizeof(Color));
             }
-            if (!backend.upload_surface(handle, desc, rgba).ok()) {
+            runtime::UploadTicket upload_ticket;
+            if (!backend.upload_surface_async(handle, desc, rgba, upload_ticket).ok()) {
                 (void)backend.release_surface(handle);
                 (void)ctx.services.surface_registry->release(handle);
                 return runtime::kInvalidRenderSurfaceHandle;
