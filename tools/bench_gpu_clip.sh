@@ -63,4 +63,4 @@ echo "== Current correctness fallback (watermark alpha + libass) =="
 [base][wm]overlay=x=40:y=40:format=auto[v1];\
 [v1]subtitles=filename='${ASS_FILE//:/\\:}'[v]" \
     -map '[v]' -an -c:v h264_nvenc -preset p1 -rc vbr -cq 23 \
-    -pix_fmt yuv420p -f null -
+    -pix_fmt yuv420p -vsync 0 -t "${DURATION}" -f null -

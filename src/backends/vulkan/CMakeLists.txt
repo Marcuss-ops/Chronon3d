@@ -101,3 +101,23 @@ target_include_directories(chronon3d_backend_vulkan
            $<BUILD_INTERFACE:${CHRONON3D_VULKAN_GENERATED_DIR}>
     PRIVATE ${CMAKE_SOURCE_DIR}
 )
+
+if(CHRONON3D_ENABLE_CUDA_INTEROP)
+    find_path(CHRONON3D_CUDA_INCLUDE_DIR cuda.h
+        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+        PATH_SUFFIXES include)
+    find_library(CHRONON3D_CUDA_DRIVER_LIBRARY cuda
+        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+        PATH_SUFFIXES lib64 lib/x64 lib)
+    if(NOT CHRONON3D_CUDA_INCLUDE_DIR OR NOT CHRONON3D_CUDA_DRIVER_LIBRARY)
+        message(FATAL_ERROR
+            "CHRONON3D_ENABLE_CUDA_INTEROP requires cuda.h and libcuda")
+    endif()
+
+    add_executable(chronon3d_cuda_vulkan_external_memory_probe
+        "${CMAKE_SOURCE_DIR}/tools/cuda_vulkan_external_memory_probe.cpp")
+    target_include_directories(chronon3d_cuda_vulkan_external_memory_probe
+        PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
+    target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
+        PRIVATE Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+endif()
