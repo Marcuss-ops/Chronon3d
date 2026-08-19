@@ -1349,6 +1349,51 @@ struct VulkanBackend::Impl {
         for (const auto handle : pending) release_surface_now(handle);
     }
 
+    void release_frame_transient_surfaces() noexcept {
+        try {
+            // This is invoked only after a complete job. Drain the device
+            // once before destroying orphaned images; per-image destruction
+            // while submissions are in flight can serialize inside the
+            // driver and make daemon recovery appear hung.
+            check(vkDeviceWaitIdle(device), "vkDeviceWaitIdle(transient cleanup)");
+            std::vector<runtime::RenderSurfaceHandle> handles;
+            handles.reserve(surface_bindings.size());
+            for (const auto& [handle, slot] : surface_bindings) {
+                const auto it = physical_surfaces.find(slot);
+                if (it != physical_surfaces.end() &&
+                    it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient) {
+                    handles.push_back(handle);
+                }
+            }
+            for (const auto handle : handles) {
+                const auto binding = surface_bindings.find(handle);
+                if (binding == surface_bindings.end()) continue;
+                const auto slot = binding->second;
+                surface_bindings.erase(binding);
+                unplanned_surface_handles.erase(handle);
+                if (!slot_in_use(slot)) {
+                    const auto it = physical_surfaces.find(slot);
+                    if (it != physical_surfaces.end()) {
+                        destroy_image(it->second.image);
+                        physical_surfaces.erase(it);
+                    }
+                }
+                ++stats.surface_releases;
+            }
+            for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
+                if (it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
+                    !slot_in_use(it->first)) {
+                    destroy_image(it->second.image);
+                    it = physical_surfaces.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        } catch (...) {
+            // Cleanup is best-effort and must not terminate the daemon.
+        }
+    }
+
     std::uint64_t submit_upload(UploadSlot& slot, bool wait_for_completion) {
         check(vkEndCommandBuffer(slot.command_buffer), "vkEndCommandBuffer(upload slot)");
         const auto signal_value = ++next_timeline_value;
@@ -2397,6 +2442,12 @@ graph::RenderOpResult VulkanBackend::release_surface(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::release_surface: Vulkan support is disabled"});
+#endif
+}
+
+void VulkanBackend::release_frame_transient_surfaces() noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (m_impl) m_impl->release_frame_transient_surfaces();
 #endif
 }
 

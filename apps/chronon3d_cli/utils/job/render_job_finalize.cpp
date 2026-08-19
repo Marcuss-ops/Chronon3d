@@ -302,6 +302,12 @@ bool finalize_render_job(
         generate_execution_report(ctx);
     }
 
+    auto& rt = setup.renderer->runtime();
+    rt.backend().release_frame_transient_surfaces();
+    for (const auto handle : rt.surface_registry().handles_with_lifetime(
+             runtime::LifetimeClass::FrameTransient)) {
+        (void)rt.surface_registry().release(handle);
+    }
     return ok;
 }
 

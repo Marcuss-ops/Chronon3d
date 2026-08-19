@@ -66,9 +66,18 @@ double run_node(
         //    released to the pool.  Also skip caching — caching the scratch
         //    would allow stale content to survive past the frame boundary.
         const bool is_scratch = std::holds_alternative<ReturnToScratch>(owned.get_deleter().policy);
+        // Planned physical-slot results are non-owning RendererOwned views.
+        // Their backing slot dies with this ExecutionState, so retaining the
+        // view in NodeCache would leave a dangling framebuffer/native handle
+        // that fails on a later warm job. Only cache independently-owned FBs.
+        const bool is_renderer_owned = std::holds_alternative<RendererOwned>(
+            owned.get_deleter().policy);
         result = promote_to_cached(std::move(owned));
+        const bool has_native_surface = result &&
+            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
 
-        if (use_cache && ctx.services.node_cache && !is_scratch) {
+        if (use_cache && ctx.services.node_cache && !is_scratch &&
+            !is_renderer_owned && !has_native_surface) {
             ctx.services.node_cache->store(key, result);
         }
     }
