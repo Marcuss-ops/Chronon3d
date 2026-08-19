@@ -191,6 +191,7 @@ struct FrameInput {
 // Replaces RenderOptimizationContext + the `tile_size`/`tile_execution_enabled`
 // pair from RenderTileContext.
 struct RenderPolicy {
+    bool retain_native_surface_for_video{false};
     /// TICKET-007 — per-instance DebugConfig pointer forwarded from the
     /// owning SoftwareRenderer (populated in
     /// src/render_graph/pipeline/scene.cpp).  Replaces the removed

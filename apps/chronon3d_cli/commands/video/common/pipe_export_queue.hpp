@@ -4,6 +4,9 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 
 #include <condition_variable>
 #include <cstddef>
@@ -104,6 +107,10 @@ struct RenderFramePackage {
     Frame frame_number{0};
     std::shared_ptr<Framebuffer> framebuffer;
     std::shared_ptr<FramebufferArena> arena;
+    graph::RenderBackend* backend{nullptr};
+    runtime::RenderSurfaceRegistry* surface_registry{nullptr};
+    runtime::RenderSurfaceHandle source_surface{runtime::kInvalidRenderSurfaceHandle};
+    runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
 };
 
 } // namespace chronon3d::cli

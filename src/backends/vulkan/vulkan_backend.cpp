@@ -53,6 +53,7 @@ struct VulkanBackend::Impl {
         VkImage image{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
         VkImageView view{VK_NULL_HANDLE};
+        VkFormat format{VK_FORMAT_R32G32B32A32_SFLOAT};
         std::uint32_t width{0};
         std::uint32_t height{0};
         bool initialized{false};
@@ -231,6 +232,7 @@ struct VulkanBackend::Impl {
     std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     std::unordered_set<std::size_t> cuda_ready_surfaces;
+    std::unordered_set<std::size_t> cuda_export_ready_surfaces;
 #endif
     // Temporary native passes may release a logical handle while the active
     // frame batch is still recording commands that reference its image. Keep
@@ -649,13 +651,14 @@ struct VulkanBackend::Impl {
     }
 
     void make_image(Image& target, std::uint32_t width, std::uint32_t height,
-                    bool exportable = false) {
+                    bool exportable = false,
+                    VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT) {
         VkExternalMemoryImageCreateInfo external_image{
             VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
         external_image.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
         VkImageCreateInfo info{
             VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, nullptr, 0, VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R32G32B32A32_SFLOAT, {width, height, 1}, 1, 1,
+            format, {width, height, 1}, 1, 1,
             VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr, VK_IMAGE_LAYOUT_UNDEFINED};
@@ -674,11 +677,12 @@ struct VulkanBackend::Impl {
         check(vkBindImageMemory(device, target.image, target.memory, 0), "vkBindImageMemory");
         const VkImageViewCreateInfo view{
             VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, nullptr, 0, target.image,
-            VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT, {},
+            VK_IMAGE_VIEW_TYPE_2D, format, {},
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
         check(vkCreateImageView(device, &view, nullptr, &target.view), "vkCreateImageView");
         target.width = width;
         target.height = height;
+        target.format = format;
         target.exportable = exportable;
     }
 
@@ -699,16 +703,20 @@ struct VulkanBackend::Impl {
                                       const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             desc.width == 0 || desc.height == 0 ||
-            desc.format != runtime::PixelFormat::Rgba32Float) {
+            (desc.format != runtime::PixelFormat::Rgba32Float &&
+             desc.format != runtime::PixelFormat::Rgba8Unorm)) {
             throw std::invalid_argument(
-                "CUDA external surface requires non-empty Rgba32Float description");
+                "CUDA external surface requires non-empty RGBA description");
         }
         if (surface_bindings.contains(handle)) {
             throw std::invalid_argument("CUDA external surface handle already exists");
         }
         const auto slot = next_slot++;
         auto& physical = physical_surfaces[slot];
-        make_image(physical.image, desc.width, desc.height, true);
+        make_image(physical.image, desc.width, desc.height, true,
+                   desc.format == runtime::PixelFormat::Rgba8Unorm
+                       ? VK_FORMAT_B8G8R8A8_UNORM
+                       : VK_FORMAT_R32G32B32A32_SFLOAT);
         physical.image.cuda_to_vulkan = make_external_binary_semaphore();
         physical.image.vulkan_to_cuda = make_external_binary_semaphore();
         physical.desc = desc;
@@ -766,7 +774,8 @@ struct VulkanBackend::Impl {
                                      &requirements);
         return CudaExternalMemoryInfo{
             fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
-            image_it->second.image.width, image_it->second.image.height};
+            image_it->second.image.width, image_it->second.image.height,
+            image_it->second.image.format == VK_FORMAT_B8G8R8A8_UNORM ? 2u : 1u};
     }
 
     void prepare_cuda_surface_for_vulkan(runtime::RenderSurfaceHandle handle) {
@@ -781,6 +790,40 @@ struct VulkanBackend::Impl {
         // next Vulkan submit consumes that signal and signals vulkan_to_cuda
         // after its compositing work completes.
         cuda_ready_surfaces.insert(slot);
+    }
+
+    void copy_surface_to_cuda_encoder(runtime::RenderSurfaceHandle source,
+                                      runtime::RenderSurfaceHandle destination) {
+        const auto source_slot = bound_slot(source);
+        const auto destination_slot = bound_slot(destination);
+        auto& src = physical_surfaces.at(source_slot).image;
+        auto& dst = physical_surfaces.at(destination_slot).image;
+        if (!dst.exportable || dst.format != VK_FORMAT_B8G8R8A8_UNORM) {
+            throw std::invalid_argument("CUDA encoder destination must be exportable B8G8R8A8");
+        }
+        begin_command_buffer();
+        transition(command_buffer, src.image,
+                   src.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        transition(command_buffer, dst.image,
+                   dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkImageBlit region{};
+        region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.srcOffsets[1] = {static_cast<int>(src.width), static_cast<int>(src.height), 1};
+        region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.dstOffsets[1] = {static_cast<int>(dst.width), static_cast<int>(dst.height), 1};
+        vkCmdBlitImage(command_buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                       VK_FILTER_NEAREST);
+        transition(command_buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        src.initialized = true;
+        dst.initialized = true;
+        cuda_export_ready_surfaces.insert(destination_slot);
+        submit();
     }
 #endif
 
@@ -1248,6 +1291,12 @@ struct VulkanBackend::Impl {
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
         }
+        for (const auto physical_slot : cuda_export_ready_surfaces) {
+            const auto it = physical_surfaces.find(physical_slot);
+            if (it == physical_surfaces.end()) continue;
+            signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
+            signal_values.push_back(0);
+        }
 #endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
             VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
@@ -1268,6 +1317,7 @@ struct VulkanBackend::Impl {
         frame_batch.in_flight[slot] = true;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         cuda_ready_surfaces.clear();
+        cuda_export_ready_surfaces.clear();
 #endif
         frame_batch.pass_count = 0;
         frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;
@@ -1362,7 +1412,13 @@ struct VulkanBackend::Impl {
             physical.image.width != desc.width ||
             physical.image.height != desc.height) {
             if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
-            make_image(physical.image, desc.width, desc.height);
+        make_image(physical.image, desc.width, desc.height,
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+                   true
+#else
+                   false
+#endif
+        );
             physical.image.initialized = false;
         }
         physical.desc = desc;
@@ -2108,6 +2164,12 @@ struct VulkanBackend::Impl {
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
         }
+        for (const auto physical_slot : cuda_export_ready_surfaces) {
+            const auto it = physical_surfaces.find(physical_slot);
+            if (it == physical_surfaces.end()) continue;
+            signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
+            signal_values.push_back(0);
+        }
 #endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
             VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
@@ -2126,6 +2188,7 @@ struct VulkanBackend::Impl {
         pending_timeline_value = signal_value;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         cuda_ready_surfaces.clear();
+        cuda_export_ready_surfaces.clear();
 #endif
         if (wait_for_completion) wait_for_pending();
         return signal_value;
@@ -2616,6 +2679,29 @@ graph::RenderOpResult VulkanBackend::create_cuda_external_surface(
     try {
         std::lock_guard lock(m_impl->api_mutex);
         m_impl->create_cuda_external_surface(handle, desc);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+}
+
+graph::RenderOpResult VulkanBackend::create_video_encode_surface(
+    runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc) {
+    return create_cuda_external_surface(handle, desc);
+}
+
+graph::RenderOpResult VulkanBackend::copy_surface_to_video_encode(
+    runtime::RenderSurfaceHandle source, runtime::RenderSurfaceHandle destination) {
+    return copy_surface_to_cuda_encoder(source, destination);
+}
+
+graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle destination) {
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->copy_surface_to_cuda_encoder(source, destination);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::RenderBackendError{
