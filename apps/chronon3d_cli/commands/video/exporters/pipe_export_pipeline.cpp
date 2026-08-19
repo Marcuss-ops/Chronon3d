@@ -181,6 +181,10 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             .renderer = *sw_renderer,
             .writer_encode_us_total = session->writer_encode_us_total,
             .frames_encoded = session->frames_encoded,
+            .require_native_gpu =
+                opts.backend_preference == graph::BackendPreference::Vulkan &&
+                opts.encoder.encoder_backend == "native" &&
+                opts.encoder.hardware_encoder == "nvenc",
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
         });
     session->writer_thread = std::thread(run_writer_thread, std::ref(*writer_ctx));

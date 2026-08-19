@@ -93,6 +93,15 @@ struct GpuMetrics {
     std::optional<uint64_t> fallback_effect;
     std::optional<uint64_t> fallback_blur;
     std::optional<uint64_t> fallback_dof;
+    std::optional<uint64_t> gpu_native_surface_frames;
+    std::optional<uint64_t> gpu_native_encode_frames;
+    std::optional<uint64_t> gpu_surface_copy_frames;
+    std::optional<uint64_t> cpu_pixel_readback_count;
+    std::optional<uint64_t> cpu_pixel_readback_bytes;
+    std::optional<uint64_t> video_pipe_fallback_frames;
+    std::optional<uint64_t> video_native_fallback_frames;
+    std::optional<uint64_t> gpu_surface_create_failures;
+    std::optional<uint64_t> gpu_encode_failures;
 };
 
 // Job-level timings written to the `job` object of the frame-timing sidecar.
@@ -463,6 +472,15 @@ void write_frame_timing_sidecar(
     put_gpu_u64("fallback_effect", timings.gpu.fallback_effect);
     put_gpu_u64("fallback_blur", timings.gpu.fallback_blur);
     put_gpu_u64("fallback_dof", timings.gpu.fallback_dof);
+    put_gpu_u64("gpu_native_surface_frames", timings.gpu.gpu_native_surface_frames);
+    put_gpu_u64("gpu_native_encode_frames", timings.gpu.gpu_native_encode_frames);
+    put_gpu_u64("gpu_surface_copy_frames", timings.gpu.gpu_surface_copy_frames);
+    put_gpu_u64("cpu_pixel_readback_count", timings.gpu.cpu_pixel_readback_count);
+    put_gpu_u64("cpu_pixel_readback_bytes", timings.gpu.cpu_pixel_readback_bytes);
+    put_gpu_u64("video_pipe_fallback_frames", timings.gpu.video_pipe_fallback_frames);
+    put_gpu_u64("video_native_fallback_frames", timings.gpu.video_native_fallback_frames);
+    put_gpu_u64("gpu_surface_create_failures", timings.gpu.gpu_surface_create_failures);
+    put_gpu_u64("gpu_encode_failures", timings.gpu.gpu_encode_failures);
     std::string effective_backend = "unknown";
     if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
         effective_backend = timings.gpu.software_fallback_nodes &&
@@ -702,6 +720,18 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.sha256_ms = result.sha256_ms;
     timings.target_fps = session->opts.output.fps;
     timings.prepare = session->prepare_timings;
+    if (session->renderer->counters()) {
+        const auto* c = session->renderer->counters();
+        timings.gpu.gpu_native_surface_frames = c->gpu_native_surface_frames.load(std::memory_order_relaxed);
+        timings.gpu.gpu_native_encode_frames = c->gpu_native_encode_frames.load(std::memory_order_relaxed);
+        timings.gpu.gpu_surface_copy_frames = c->gpu_surface_copy_frames.load(std::memory_order_relaxed);
+        timings.gpu.cpu_pixel_readback_count = c->cpu_pixel_readback_count.load(std::memory_order_relaxed);
+        timings.gpu.cpu_pixel_readback_bytes = c->cpu_pixel_readback_bytes.load(std::memory_order_relaxed);
+        timings.gpu.video_pipe_fallback_frames = c->video_pipe_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_native_fallback_frames = c->video_native_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.gpu_surface_create_failures = c->gpu_surface_create_failures.load(std::memory_order_relaxed);
+        timings.gpu.gpu_encode_failures = c->gpu_encode_failures.load(std::memory_order_relaxed);
+    }
     if (session->renderer->counters()) {
         auto* c = session->renderer->counters();
         timings.image_draw_ms = static_cast<double>(
