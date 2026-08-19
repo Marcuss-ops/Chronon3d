@@ -49,9 +49,14 @@ echo "input=${INPUT}"
 echo "video=${WIDTH}x${HEIGHT} fps=${FPS} duration=${DURATION}s"
 echo
 
+CUDA_OVERLAY_BIN="${CHRONON_CUDA_OVERLAY_BIN:-${ROOT_DIR}/.tmp/chronon-builds/native-verify/src/backends/vulkan/chronon3d_cuda_nvdec_nvenc_overlay_bench}"
+NATIVE_REQUIRED="${CHRONON_REQUIRE_NATIVE_CUDA_OVERLAY:-1}"
 if ! "${FFMPEG_BIN}" -hide_banner -h filter=scale_cuda 2>&1 | grep -q 'format'; then
-    echo "GPU FFmpeg must provide scale_cuda:format (required for YUVA420P alpha)" >&2
-    exit 3
+    if [[ ! -x "${CUDA_OVERLAY_BIN}" || "${NATIVE_REQUIRED}" != "1" ]]; then
+        echo "GPU FFmpeg must provide scale_cuda:format (required for YUVA420P alpha fallback)" >&2
+        exit 3
+    fi
+    echo "scale_cuda:format unavailable; continuing with native CUDA compositor" >&2
 fi
 
 SUBTITLE_LAYER="$(mktemp --suffix=.png chronon-gpu-subtitles.XXXXXX)"
@@ -98,8 +103,6 @@ echo "== GPU-native decode/encode (no CPU video filter) =="
 
 echo
 echo "== GPU alpha path (watermark + subtitle texture, no hwdownload) =="
-CUDA_OVERLAY_BIN="${CHRONON_CUDA_OVERLAY_BIN:-${ROOT_DIR}/.tmp/chronon-builds/native-verify/src/backends/vulkan/chronon3d_cuda_nvdec_nvenc_overlay_bench}"
-NATIVE_REQUIRED="${CHRONON_REQUIRE_NATIVE_CUDA_OVERLAY:-1}"
 if [[ -x "${CUDA_OVERLAY_BIN}" ]]; then
     read -r WM_W WM_H < <(identify -format '%w %h\n' "${WATERMARK}")
     convert "${WATERMARK}" -background none -alpha on -colorspace sRGB -depth 8 rgba:"${RAW_WATERMARK}" || {
