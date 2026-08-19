@@ -1,5 +1,20 @@
 # Chronon3D — Current Status
 
+## GPU Production V1 — checkpoint 2026-08-19
+
+`main@77ebb934` chiude il lifecycle delle superfici Vulkan transient ai confini
+di job, preservando le superfici `JobPersistent` (asset/font) nel daemon caldo.
+Il percorso IPC Vulkan + native encoder è stato verificato con recovery da piano
+invalido e 100 job consecutivi nello stesso processo: `PASS`, 150/150 frame per
+job, `effective_backend=vulkan`, `software_fallback_nodes=0`, receipt valida,
+`copy_eligible=true` e digest frame stabile
+`6900dd2be44a68b4ee248f6835eba8b5ba59deb6a45e0eaded946473b4816e88`.
+
+Build native e 47 test preset/core passano; `RenderingGen/main@50a8525` è pulito
+e `go test ./...` passa. La certificazione completa della matrice visuale di
+tutti i preset e la baseline prestazionale globale restano da eseguire prima
+del tag Production V1 definitivo.
+
 > Ultima revisione semantica: 2026-08-09.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
