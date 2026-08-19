@@ -8,7 +8,7 @@ ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT/test_renders/test1-hello-chronon"}
 CERT_DIR=${CHRONON_CERT_DIR:-"$(mktemp -d /tmp/chronon-gpu-cert.XXXXXX)"}
 STRESS_COUNT=${CHRONON_STRESS_COUNT:-100}
 mkdir -p "$CERT_DIR/matrix" "$CERT_DIR/stress"
-SHA=$(git -C "$ROOT" rev-parse HEAD)
+SHA=${CHRONON_CERT_SHA:-$(git -C "$ROOT" rev-parse HEAD)}
 test -z "$(git -C "$ROOT" status --porcelain)" || { echo "working tree must be clean" >&2; exit 2; }
 
 render_one() {
