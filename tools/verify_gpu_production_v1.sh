@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+CLI=${CHRONON_CLI:-"$ROOT/.tmp/chronon-builds/native-verify/apps/chronon3d_cli/chronon3d_cli"}
+PLAN=${CHRONON_GOLDEN_PLAN:-"$ROOT/examples/render_plan_text_smoke.json"}
+ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT/test_renders/test1-hello-chronon"}
+CERT_DIR=${CHRONON_CERT_DIR:-"$(mktemp -d /tmp/chronon-gpu-cert.XXXXXX)"}
+STRESS_COUNT=${CHRONON_STRESS_COUNT:-100}
+mkdir -p "$CERT_DIR/matrix" "$CERT_DIR/stress"
+SHA=$(git -C "$ROOT" rev-parse HEAD)
+test -z "$(git -C "$ROOT" status --porcelain)" || { echo "working tree must be clean" >&2; exit 2; }
+
+render_one() {
+  local plan=$1 out=$2 log=$3
+  "$CLI" render --plan "$plan" --assets-root "$ASSETS" --output "$out" \
+    --backend vulkan --codec h264 --hardware nvenc --encoder-backend native \
+    --ffmpeg-mode pipe --profile production --log-level error >"$log" 2>&1
+  python3 - "$out" <<'PY'
+import json, subprocess, sys
+out=sys.argv[1]
+r=json.load(open(out+'.receipt.json')); t=json.load(open(out+'.timing.json'))
+assert r['copy_eligible'] is True
+assert r['render']['backend']=='vulkan'
+assert r['media']['codec']=='h264' and r['media']['pixel_format']=='yuv420p'
+assert r['media']['frame_count']==r['frames']
+g=t['job']['gpu']
+assert g['effective_backend']=='vulkan' and g['software_fallback_nodes']==0
+assert g['gpu_readback_bytes']==0 and g['gpu_readback_ms']==0.0
+s=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','stream=codec_name,nb_frames,pix_fmt','-of','json',out],text=True))['streams'][0]
+assert s['codec_name']=='h264' and s['pix_fmt']=='yuv420p' and int(s['nb_frames'])==r['frames']
+PY
+}
+
+render_one "$PLAN" "$CERT_DIR/golden.mp4" "$CERT_DIR/golden.log"
+
+python3 - "$ROOT/examples/render_plan_text_smoke.json" "$CERT_DIR/matrix" <<'PY'
+import json, pathlib, sys
+base=json.load(open(sys.argv[1])); out=pathlib.Path(sys.argv[2])
+ids='text_animations fade_in blur_in slide_up slide_down scale_in zoom_in slide_left tracking_close masked_line_reveal word_cascade character_cascade cinematic_text_camera cinematic_title_reveal tilt_sweep_title_v2 word_pop scale_punch color_accent gradient_fill minimal_white yellow_keyword glow_pulse caption_box karaoke_fill active_word_pop subtitle_card lower_third_safe'.split()
+for p in ids:
+    plan=json.loads(json.dumps(base)); plan['job_id']='gpu-v1-'+p
+    plan['layers'][1]['preset']=p; plan['layers'][1]['animation']={'preset':'fade_in'}
+    (out/(p+'.json')).write_text(json.dumps(plan))
+PY
+while IFS= read -r plan; do
+  n=$(basename "$plan" .json)
+  render_one "$plan" "$CERT_DIR/matrix/$n.mp4" "$CERT_DIR/matrix/$n.log"
+done < <(find "$CERT_DIR/matrix" -name '*.json' -print | sort)
+
+for n in $(seq 1 "$STRESS_COUNT"); do
+  render_one "$PLAN" "$CERT_DIR/stress/$n.mp4" "$CERT_DIR/stress/$n.log"
+done
+
+python3 - "$CERT_DIR" "$SHA" "$STRESS_COUNT" <<'PY'
+import json, pathlib, sys
+root=pathlib.Path(sys.argv[1]); sha=sys.argv[2]; count=int(sys.argv[3])
+gold=json.load(open(root/'golden.mp4.receipt.json'))
+rs=[json.load(open(p)) for p in sorted((root/'stress').glob('*.mp4.receipt.json'))]
+assert len(rs)==count and all(r['copy_eligible'] and r['render']['backend']=='vulkan' for r in rs)
+assert len({r['output']['sha256'] for r in rs})==1
+manifest={'schema':'chronon.gpu-production-v1-cert.v1','git_sha':sha,'golden_sha256':gold['output']['sha256'],'stress_jobs':count,'stress_sha256':rs[0]['output']['sha256'],'matrix_jobs':len(list((root/'matrix').glob('*.mp4.receipt.json'))),'same_sha':all(r['identity']['git_sha']==gold['identity']['git_sha'] for r in rs)}
+assert manifest['same_sha']; (root/'CERTIFICATION.json').write_text(json.dumps(manifest,indent=2)+'\n'); print(json.dumps(manifest,indent=2))
+PY
+echo "GPU Production V1 certification passed: $CERT_DIR"

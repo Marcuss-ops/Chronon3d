@@ -12,13 +12,23 @@ namespace CLI { class App; }
 
 namespace chronon3d::cli {
 
+struct RenderPlanVideoOverrides {
+    std::string codec;
+    std::string hardware_encoder;
+    std::string encoder_backend;
+    std::string ffmpeg_mode;
+    std::string encode_preset;
+    int crf{-1};
+};
+
 int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& input,
                          const std::string& output = {},
                          const std::string& assets_root = {},
                          bool report = false,
                          std::shared_ptr<SoftwareRenderer> warm_renderer = {},
-                         const std::string& backend = "auto");
+                         const std::string& backend = "auto",
+                         RenderPlanVideoOverrides video = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload

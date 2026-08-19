@@ -56,16 +56,11 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                                                     package.source_surface,
                                                     package.native_surface)
                 : ctx.encoder.write_frame_async(fb_ref, std::move(package.framebuffer));
-            if (gpu_frame && package.surface_registry) {
-                (void)package.backend->release_surface(package.native_surface);
-                (void)package.surface_registry->release(package.native_surface);
-                package.native_surface = runtime::kInvalidRenderSurfaceHandle;
-                if (package.source_surface != runtime::kInvalidRenderSurfaceHandle) {
-                    (void)package.backend->release_surface(package.source_surface);
-                    (void)package.surface_registry->release(package.source_surface);
-                    package.source_surface = runtime::kInvalidRenderSurfaceHandle;
-                }
-            }
+            // Source and encode surfaces are job-owned for the duration of
+            // the queue. The encode surface is intentionally persistent: a
+            // per-frame CUDA/Vulkan external semaphore pair exhausts the
+            // driver's external-object budget. Final transient cleanup runs
+            // after the writer joins.
             if (!encoded) {
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
@@ -189,6 +184,9 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
         s.draw_us = load(ctx.counters->text_draw_wall_us);
         return s;
     };
+
+    runtime::RenderSurfaceHandle persistent_native_surface =
+        runtime::kInvalidRenderSurfaceHandle;
 
     try {
         for (; current_frame < ctx.end; ++current_frame) {
@@ -346,33 +344,83 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 }
             }
 
-            const auto source_surface = fb
+            auto source_surface = fb
                 ? fb->surface_handle()
                 : runtime::kInvalidRenderSurfaceHandle;
             auto native_surface = runtime::kInvalidRenderSurfaceHandle;
             auto* surface_registry = ctx.sw_renderer
                 ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
-            if (source_surface != runtime::kInvalidRenderSurfaceHandle && surface_registry &&
-                video_settings.retain_native_surface_for_video) {
-                native_surface = surface_registry->create(runtime::SurfaceDesc{
+            if (surface_registry && video_settings.retain_native_surface_for_video) {
+                if (source_surface != runtime::kInvalidRenderSurfaceHandle &&
+                    !ctx.backend.is_native_surface_valid(source_surface)) {
+                    // The registry entry may survive after a transient GPU
+                    // binding was reclaimed by a copied/cached framebuffer.
+                    // Rebuild the source from the current CPU owner; this is
+                    // host→GPU upload only and never a GPU readback.
+                    (void)surface_registry->release(source_surface);
+                    fb->clear_surface_handle();
+                    source_surface = runtime::kInvalidRenderSurfaceHandle;
+                }
+                const runtime::SurfaceDesc source_desc{
                     static_cast<std::uint32_t>(fb->width()),
                     static_cast<std::uint32_t>(fb->height()),
-                    runtime::PixelFormat::Rgba8Unorm,
+                    runtime::PixelFormat::Rgba32Float,
                     runtime::ResourceUsage::Storage,
                     runtime::LifetimeClass::FrameTransient,
-                    static_cast<std::size_t>(fb->width()) * fb->height() * 4});
-                const auto created = ctx.backend.create_video_encode_surface(
-                    native_surface, runtime::SurfaceDesc{
+                    static_cast<std::size_t>(fb->width()) * fb->height() * sizeof(float) * 4};
+                if (source_surface == runtime::kInvalidRenderSurfaceHandle) {
+                    source_surface = surface_registry->create(source_desc);
+                    const auto created = ctx.backend.create_surface(source_surface, source_desc);
+                    if (created.ok()) {
+                        std::vector<float> rgba(
+                            static_cast<std::size_t>(fb->width()) * fb->height() * 4);
+                        std::size_t index = 0;
+                        for (int y = 0; y < fb->height(); ++y) {
+                            for (int x = 0; x < fb->width(); ++x) {
+                                const auto pixel = fb->get_pixel(x, y);
+                                rgba[index++] = pixel.r;
+                                rgba[index++] = pixel.g;
+                                rgba[index++] = pixel.b;
+                                rgba[index++] = pixel.a;
+                            }
+                        }
+                        if (!ctx.backend.upload_surface(source_surface, source_desc, rgba).ok()) {
+                            (void)ctx.backend.release_surface(source_surface);
+                            (void)surface_registry->release(source_surface);
+                            source_surface = runtime::kInvalidRenderSurfaceHandle;
+                        }
+                    } else {
+                        (void)surface_registry->release(source_surface);
+                        source_surface = runtime::kInvalidRenderSurfaceHandle;
+                    }
+                }
+            }
+            if (source_surface != runtime::kInvalidRenderSurfaceHandle && surface_registry &&
+                video_settings.retain_native_surface_for_video) {
+                if (persistent_native_surface == runtime::kInvalidRenderSurfaceHandle) {
+                    persistent_native_surface = surface_registry->create(runtime::SurfaceDesc{
                         static_cast<std::uint32_t>(fb->width()),
                         static_cast<std::uint32_t>(fb->height()),
                         runtime::PixelFormat::Rgba8Unorm,
                         runtime::ResourceUsage::Storage,
                         runtime::LifetimeClass::FrameTransient,
                         static_cast<std::size_t>(fb->width()) * fb->height() * 4});
-                if (!created.ok()) {
-                    (void)surface_registry->release(native_surface);
-                    native_surface = runtime::kInvalidRenderSurfaceHandle;
+                    const auto created = ctx.backend.create_video_encode_surface(
+                        persistent_native_surface, runtime::SurfaceDesc{
+                            static_cast<std::uint32_t>(fb->width()),
+                            static_cast<std::uint32_t>(fb->height()),
+                            runtime::PixelFormat::Rgba8Unorm,
+                            runtime::ResourceUsage::Storage,
+                            runtime::LifetimeClass::FrameTransient,
+                            static_cast<std::size_t>(fb->width()) * fb->height() * 4});
+                    if (!created.ok()) {
+                        spdlog::error("[video] failed to create persistent CUDA encode surface: {}",
+                                      created.error().message);
+                        (void)surface_registry->release(persistent_native_surface);
+                        persistent_native_surface = runtime::kInvalidRenderSurfaceHandle;
+                    }
                 }
+                native_surface = persistent_native_surface;
             }
             RenderFramePackage package{
                 .frame_number = current_frame,
@@ -398,18 +446,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             if (!pushed) {
-                if (package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
-                    package.backend && package.surface_registry) {
-                    (void)package.backend->release_surface(package.native_surface);
-                    (void)package.surface_registry->release(package.native_surface);
-                    package.native_surface = runtime::kInvalidRenderSurfaceHandle;
-                }
-                if (package.source_surface != runtime::kInvalidRenderSurfaceHandle &&
-                    package.backend && package.surface_registry) {
-                    (void)package.backend->release_surface(package.source_surface);
-                    (void)package.surface_registry->release(package.source_surface);
-                    package.source_surface = runtime::kInvalidRenderSurfaceHandle;
-                }
+                // Frame-transient source/encode surfaces are reclaimed by the
+                // caller after the writer has joined.
                 // Recover the arena so it can be released back to the pool.
                 auto arena = std::move(package.arena);
                 if (ctx.writer_failed.load()) {

@@ -40,6 +40,7 @@ struct RenderPlanState {
     bool report{false};
     std::string backend{"auto"};
     std::shared_ptr<SoftwareRenderer> warm_renderer;
+    RenderPlanVideoOverrides video;
 };
 
 graph::BackendPreference backend_preference_from_name(const std::string& value) {
@@ -105,22 +106,39 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? prepared.canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(prepared.output.codec);
+        if (!args.video.codec.empty()) request.video_settings.codec = args.video.codec;
+        if (!args.video.hardware_encoder.empty())
+            request.video_settings.hardware_encoder = args.video.hardware_encoder;
+        if (!args.video.encoder_backend.empty())
+            request.video_settings.encoder_backend = args.video.encoder_backend;
+        if (!args.video.ffmpeg_mode.empty())
+            request.video_settings.ffmpeg_mode = args.video.ffmpeg_mode;
         // Encoder overrides: CLI flags win, then the plan's explicit crf,
         // then the engine default.
-        if (args.crf >= 0) {
+        if (args.video.crf >= 0) {
+            request.video_settings.crf = args.video.crf;
+        } else if (args.crf >= 0) {
             request.video_settings.crf = args.crf;
         } else if (prepared.output.crf > 0 && prepared.output.crf <= 51) {
             request.video_settings.crf = prepared.output.crf;
         }
-        if (!args.encode_preset.empty()) {
+        if (!args.video.encode_preset.empty()) {
+            request.video_settings.encode_preset = args.video.encode_preset;
+        } else if (!args.encode_preset.empty()) {
             request.video_settings.encode_preset = args.encode_preset;
         }
         if (video_output(output)) {
             request.mode = RenderMode::Video;
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};
-            request.execution.warmup_renderer = true;
-            request.execution.warmup_dummy_frame = true;
+            // A CPU warmup frame must not populate the graph/framebuffer cache
+            // before the Vulkan+NVENC video loop requests native surfaces.
+            const bool gpu_native =
+                request.video_settings.hardware_encoder == "nvenc" &&
+                request.video_settings.encoder_backend == "native" &&
+                args.backend == "vulkan";
+            request.execution.warmup_renderer = !gpu_native;
+            request.execution.warmup_dummy_frame = !gpu_native;
         } else if (first == last) {
             request.mode = RenderMode::Still;
             request.still_frame = Frame{first};
@@ -169,6 +187,11 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             receipt_input.chronon_version = CHRONON3D_CLI_PROJECT_VERSION;
 #endif
             receipt_input.git_sha = telemetry::TelemetryManager::get_git_commit();
+            // Preserve the backend selected for this render in the canonical
+            // receipt.  The previous default (software) made a successful
+            // Vulkan/NVENC artifact look like a CPU render to downstream
+            // certification tools.
+            receipt_input.backend = args.backend;
             receipt_input.width = prepared.canvas.width;
             receipt_input.height = prepared.canvas.height;
             receipt_input.fps_num = prepared.canvas.fps;
@@ -200,7 +223,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& assets_root,
                          bool report,
                          std::shared_ptr<SoftwareRenderer> warm_renderer,
-                         const std::string& backend) {
+                         const std::string& backend,
+                         RenderPlanVideoOverrides video) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
@@ -208,6 +232,7 @@ int run_render_plan_file(const CompositionRegistry& registry,
     state.report = report;
     state.backend = backend;
     state.warm_renderer = std::move(warm_renderer);
+    state.video = std::move(video);
     return execute_render_plan(registry, state);
 }
 
@@ -226,6 +251,13 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         const std::string output = request.value("output", "");
         const std::string backend = request.value("backend", "auto");
         const bool report = request.value("report", false);
+        RenderPlanVideoOverrides video;
+        video.codec = request.value("codec", "");
+        video.hardware_encoder = request.value("hardware_encoder", "");
+        video.encoder_backend = request.value("encoder_backend", "");
+        video.ffmpeg_mode = request.value("ffmpeg_mode", "");
+        video.encode_preset = request.value("encode_preset", "");
+        video.crf = request.value("crf", -1);
         if (plan_path.empty()) {
             return ipc::Reply{ipc::Status::BadRequest,
                               "RENDER_JOB requires a plan_path"};
@@ -236,7 +268,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         }
 
         const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
-                                            report, std::move(warm_renderer), backend);
+                                            report, std::move(warm_renderer), backend,
+                                            std::move(video));
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};

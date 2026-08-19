@@ -333,6 +333,12 @@ public:
             "RenderBackend::release_surface: native surfaces are not supported"});
     }
 
+    /// Returns whether a logical native surface still has a live backend
+    /// binding. This is distinct from RenderSurfaceRegistry::lookup(): a
+    /// cached framebuffer can outlive the physical GPU binding it referenced.
+    [[nodiscard]] virtual bool is_native_surface_valid(
+        runtime::RenderSurfaceHandle /*handle*/) const noexcept { return false; }
+
     /// Reclaim all backend-owned frame-transient surfaces at a job boundary.
     /// JobPersistent asset/font surfaces are intentionally retained.
     virtual void release_frame_transient_surfaces() noexcept {}

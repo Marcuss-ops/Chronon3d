@@ -138,5 +138,26 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         target_link_libraries(chronon3d_cuda_vulkan_nvenc_probe
             PRIVATE chronon3d_ffmpeg_full Vulkan::Vulkan
                     "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+
+        find_path(CHRONON3D_NVRTC_INCLUDE_DIR nvrtc.h
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+            PATH_SUFFIXES include
+            PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/include)
+        find_file(CHRONON3D_NVRTC_LIBRARY
+            NAMES libnvrtc.so.13 libnvrtc.so
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+            PATH_SUFFIXES lib64 lib
+            PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib)
+        if(CHRONON3D_NVRTC_INCLUDE_DIR AND CHRONON3D_NVRTC_LIBRARY)
+            add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                "${CMAKE_SOURCE_DIR}/tools/cuda_nvdec_nvenc_overlay_bench.cpp")
+            target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}"
+                        "${CHRONON3D_NVRTC_INCLUDE_DIR}")
+            target_link_libraries(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                PRIVATE chronon3d_ffmpeg_full
+                        "${CHRONON3D_CUDA_DRIVER_LIBRARY}"
+                        "${CHRONON3D_NVRTC_LIBRARY}")
+        endif()
     endif()
 endif()

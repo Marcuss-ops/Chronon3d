@@ -55,8 +55,10 @@ if ! "${FFMPEG_BIN}" -hide_banner -h filter=scale_cuda 2>&1 | grep -q 'format'; 
 fi
 
 SUBTITLE_LAYER="$(mktemp --suffix=.png chronon-gpu-subtitles.XXXXXX)"
-trap 'rm -f "${SUBTITLE_LAYER}" "${SUBTITLE_CROP}"' EXIT
 SUBTITLE_CROP="${SUBTITLE_LAYER%.png}-crop.png"
+RAW_WATERMARK="${SUBTITLE_LAYER%.png}-watermark.rgba"
+RAW_SUBTITLE="${SUBTITLE_LAYER%.png}-subtitle.rgba"
+trap 'rm -f "${SUBTITLE_LAYER}" "${SUBTITLE_CROP}" "${RAW_WATERMARK}" "${RAW_SUBTITLE}"' EXIT
 
 # Rasterize only the subtitle layer on the CPU. The video never leaves CUDA;
 # the resulting small alpha texture is uploaded once and composited by CUDA.
@@ -69,7 +71,7 @@ if command -v identify >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; th
     SUBTITLE_GEOMETRY="$(identify -format '%@' "${SUBTITLE_LAYER}" 2>/dev/null || true)"
     if [[ -n "${SUBTITLE_GEOMETRY}" ]]; then
         convert "${SUBTITLE_LAYER}" -crop "${SUBTITLE_GEOMETRY}" +repage "${SUBTITLE_CROP}"
-        read -r SUB_W SUB_H SUB_X SUB_Y < <(sed -E 's/x/ /; s/\\+//g' <<<"${SUBTITLE_GEOMETRY}")
+        read -r SUB_W SUB_H SUB_X SUB_Y < <(sed -E 's/x/ /; s/\+/ /g' <<<"${SUBTITLE_GEOMETRY}")
         SUBTITLE_LAYER="${SUBTITLE_CROP}"
     fi
 else
@@ -96,21 +98,56 @@ echo "== GPU-native decode/encode (no CPU video filter) =="
 
 echo
 echo "== GPU alpha path (watermark + subtitle texture, no hwdownload) =="
-/usr/bin/time -f 'wall=%e cpu=%P maxrss=%M' \
-    "${FFMPEG_BIN}" -hide_banner -loglevel error -y -benchmark \
-    -threads "${FFMPEG_THREADS}" -filter_threads "${FFMPEG_FILTER_THREADS}" -filter_complex_threads "${FFMPEG_FILTER_COMPLEX_THREADS}" \
-    -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 8 -i "${INPUT}" \
-    -framerate 1 -loop 1 -i "${WATERMARK}" \
-    -framerate 1 -loop 1 -i "${SUBTITLE_LAYER}" \
-    -filter_complex \
-    "[0:v]scale_cuda=${WIDTH}:${HEIGHT}:format=yuv420p[base];\
+CUDA_OVERLAY_BIN="${CHRONON_CUDA_OVERLAY_BIN:-${ROOT_DIR}/.tmp/chronon-builds/native-verify/src/backends/vulkan/chronon3d_cuda_nvdec_nvenc_overlay_bench}"
+NATIVE_REQUIRED="${CHRONON_REQUIRE_NATIVE_CUDA_OVERLAY:-1}"
+if [[ -x "${CUDA_OVERLAY_BIN}" ]]; then
+    read -r WM_W WM_H < <(identify -format '%w %h\n' "${WATERMARK}")
+    convert "${WATERMARK}" -background none -alpha on -colorspace sRGB -depth 8 rgba:"${RAW_WATERMARK}" || {
+        echo "failed to rasterize watermark layer" >&2
+        exit 3
+    }
+    convert "${SUBTITLE_LAYER}" -background none -alpha on -colorspace sRGB -depth 8 rgba:"${RAW_SUBTITLE}" || {
+        echo "failed to rasterize subtitle layer" >&2
+        exit 3
+    }
+    CUDA_LIB_PATH="${CHRONON_CUDA_LIBRARY_PATH:-/usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib}"
+    CUDA_PTX_CACHE="${CHRONON_CUDA_PTX_CACHE:-${OUTPUT_DIR}/chronon_cuda_overlay.ptx}"
+    CUDA_DECODER_ARGS=()
+    if [[ -n "${CHRONON_CUDA_DECODER:-}" ]]; then
+        CUDA_DECODER_ARGS=(CHRONON_CUDA_DECODER="${CHRONON_CUDA_DECODER}")
+        echo "native CUDA decoder=${CHRONON_CUDA_DECODER}"
+    else
+        echo "native CUDA decoder=automatic CUDA hw decoder"
+    fi
+    echo "native CUDA compositor=${CUDA_OVERLAY_BIN}"
+    CHRONON_CUDA_PTX_CACHE="${CUDA_PTX_CACHE}" \
+    LD_LIBRARY_PATH="${CUDA_LIB_PATH}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+    env "${CUDA_DECODER_ARGS[@]}" /usr/bin/time -f 'wall=%e cpu=%P maxrss=%M' \
+        "${CUDA_OVERLAY_BIN}" "${INPUT}" "${GPU_ALPHA_OUTPUT}" \
+        "${RAW_WATERMARK}" "${WM_W}" "${WM_H}" 40 40 \
+        "${RAW_SUBTITLE}" "${SUB_W}" "${SUB_H}" "${SUB_X}" "${SUB_Y}"
+else
+    if [[ "${NATIVE_REQUIRED}" == "1" ]]; then
+        echo "native CUDA compositor not found: build chronon3d_cuda_nvdec_nvenc_overlay_bench or set CHRONON_CUDA_OVERLAY_BIN" >&2
+        exit 3
+    fi
+    echo "native CUDA compositor unavailable; using explicitly labelled FFmpeg CUDA path" >&2
+    /usr/bin/time -f 'wall=%e cpu=%P maxrss=%M' \
+        "${FFMPEG_BIN}" -hide_banner -loglevel error -y -benchmark \
+        -threads "${FFMPEG_THREADS}" -filter_threads "${FFMPEG_FILTER_THREADS}" -filter_complex_threads "${FFMPEG_FILTER_COMPLEX_THREADS}" \
+        -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 8 -i "${INPUT}" \
+        -framerate 1 -loop 1 -i "${WATERMARK}" \
+        -framerate 1 -loop 1 -i "${SUBTITLE_LAYER}" \
+        -filter_complex \
+        "[0:v]scale_cuda=${WIDTH}:${HEIGHT}:format=yuv420p[base];\
 [1:v]format=rgba,colorchannelmixer=aa=0.75,format=yuva420p,hwupload_cuda[wm];\
 [base][wm]overlay_cuda=x=40:y=40[wmv];\
 [2:v]format=yuva420p,hwupload_cuda[subs];\
 [wmv][subs]overlay_cuda=x=${SUB_X}:y=${SUB_Y}:shortest=0,\
 scale_cuda=${WIDTH}:${HEIGHT}:format=yuv420p:passthrough=0[v]" \
-    -map '[v]' -an -c:v h264_nvenc -preset p1 -rc vbr -cq 23 \
-    -pix_fmt cuda -t "${DURATION}" -f mp4 "${GPU_ALPHA_OUTPUT}"
+        -map '[v]' -an -c:v h264_nvenc -preset p1 -rc vbr -cq 23 \
+        -pix_fmt cuda -t "${DURATION}" -f mp4 "${GPU_ALPHA_OUTPUT}"
+fi
 
 read -r OUT_W OUT_H < <(
     "${FFPROBE_BIN}" -v error -select_streams v:0 \

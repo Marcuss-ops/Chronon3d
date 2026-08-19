@@ -68,6 +68,17 @@ RenderLoopOutput run_pipe_export_loop(
         session.writer_thread.join();
     }
 
+    // The NVENC path keeps one CUDA-exportable encode surface alive for the
+    // whole job. Reclaim it only after the writer has stopped consuming it.
+    if (session.renderer) {
+        auto& rt = session.renderer->runtime();
+        rt.backend().release_frame_transient_surfaces();
+        for (const auto handle : rt.surface_registry().handles_with_lifetime(
+                 runtime::LifetimeClass::FrameTransient)) {
+            (void)rt.surface_registry().release(handle);
+        }
+    }
+
     if (session.writer_failed.load()) {
         loop_result.status.success = false;
         loop_result.status.writer_error = true;

@@ -316,7 +316,14 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             }
             ctx.exit_code = run_render_plan_file(
                 ctx.registry, state->plan_file, render_args.output, render_args.assets_root,
-                render_args.report, {}, render_args.backend);
+                render_args.report, {}, render_args.backend,
+                RenderPlanVideoOverrides{
+                    .codec = render_args.video_settings.codec,
+                    .hardware_encoder = render_args.video_settings.hardware_encoder,
+                    .encoder_backend = render_args.video_settings.encoder_backend,
+                    .ffmpeg_mode = render_args.video_settings.ffmpeg_mode,
+                    .encode_preset = render_args.video_settings.encode_preset,
+                    .crf = render_args.video_settings.crf});
             return;
         }
         if (render_args.comp_id.empty()) {
