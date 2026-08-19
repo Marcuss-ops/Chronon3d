@@ -6,6 +6,7 @@
 #include "text_run_execution.hpp"
 #include "text_run_transform.hpp"
 #include "gpu_text_run.hpp"
+#include "../native_surface.hpp"
 
 #include <chronon3d/text/text_run_driver.hpp>   // update_text_run_shape_per_frame
 #include <glm/gtc/matrix_transform.hpp>
@@ -95,16 +96,21 @@ graph::RenderOpResult render_text_run_item(
                       -placement.surface_origin.y,
                       0.0f));
     }
-    // Try the persistent GPU atlas bridge first. It is intentionally
-    // capability-based: a cache miss or unsupported animated style returns
-    // UnsupportedCapability and preserves the canonical software fallback.
     auto& mutable_ctx = const_cast<RenderGraphContext&>(ctx);
     auto native = draw_cached_text_run(
         mutable_ctx, fb, local_shape, world_matrix, opacity);
     if (native.ok() || native.error().code != RenderBackendErrorCode::UnsupportedCapability) {
         return native;
     }
-    return backend.draw_text_run(fb, local_shape, world_matrix, opacity);
+    auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
+    if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+        if (!ensure_native_surface(mutable_ctx, fb)) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "TextRun fallback rendered but could not be uploaded to the native surface"});
+        }
+    }
+    return fallback;
 }
 
 #endif // CHRONON3D_ENABLE_TEXT
