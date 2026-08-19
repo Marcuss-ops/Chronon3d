@@ -47,6 +47,15 @@ struct TextMetrics {
     std::optional<double> raster_ms;
     std::optional<double> atlas_upload_ms;
     std::optional<double> draw_ms;
+    std::optional<uint64_t> atlas_cache_hits;
+    std::optional<uint64_t> atlas_cache_misses;
+    std::optional<uint64_t> atlas_key_bytes_hashed;
+    std::optional<uint64_t> atlas_repack_count;
+    std::optional<uint64_t> atlas_repack_bytes;
+    std::optional<uint64_t> atlas_upload_count;
+    std::optional<uint64_t> atlas_upload_bytes;
+    std::optional<uint64_t> instance_upload_count;
+    std::optional<uint64_t> instance_upload_bytes;
 };
 
 // Job-level encoder breakdown.  submit_cpu_ms + backpressure_wait_ms are
@@ -545,6 +554,18 @@ void write_frame_timing_sidecar(
     put_text("raster_ms", timings.text.raster_ms);
     put_text("atlas_upload_ms", timings.text.atlas_upload_ms);
     put_text("draw_ms", timings.text.draw_ms);
+    const auto put_text_u64 = [&text](const char* key, const std::optional<uint64_t>& value) {
+        if (value) text[key] = *value; else text[key] = nullptr;
+    };
+    put_text_u64("atlas_cache_hits", timings.text.atlas_cache_hits);
+    put_text_u64("atlas_cache_misses", timings.text.atlas_cache_misses);
+    put_text_u64("atlas_key_bytes_hashed", timings.text.atlas_key_bytes_hashed);
+    put_text_u64("atlas_repack_count", timings.text.atlas_repack_count);
+    put_text_u64("atlas_repack_bytes", timings.text.atlas_repack_bytes);
+    put_text_u64("atlas_upload_count", timings.text.atlas_upload_count);
+    put_text_u64("atlas_upload_bytes", timings.text.atlas_upload_bytes);
+    put_text_u64("instance_upload_count", timings.text.instance_upload_count);
+    put_text_u64("instance_upload_bytes", timings.text.instance_upload_bytes);
 
     // Job-level encoder breakdown: per-frame submit/back-pressure totals +
     // global flush/receive/mux tails.  device_ms is hardware-only (null).
@@ -754,6 +775,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
             c->glyph_atlas_upload_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.text.draw_ms = static_cast<double>(
             c->text_draw_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_cache_hits = c->gpu_text_atlas_cache_hits.load(std::memory_order_relaxed);
+        timings.text.atlas_cache_misses = c->gpu_text_atlas_cache_misses.load(std::memory_order_relaxed);
+        timings.text.atlas_key_bytes_hashed = c->gpu_text_atlas_key_bytes_hashed.load(std::memory_order_relaxed);
+        timings.text.atlas_repack_count = c->gpu_text_atlas_repack_count.load(std::memory_order_relaxed);
+        timings.text.atlas_repack_bytes = c->gpu_text_atlas_repack_bytes.load(std::memory_order_relaxed);
+        timings.text.atlas_upload_count = c->gpu_text_atlas_upload_count.load(std::memory_order_relaxed);
+        timings.text.atlas_upload_bytes = c->gpu_text_atlas_upload_bytes.load(std::memory_order_relaxed);
+        timings.text.instance_upload_count = c->gpu_text_instance_upload_count.load(std::memory_order_relaxed);
+        timings.text.instance_upload_bytes = c->gpu_text_instance_upload_bytes.load(std::memory_order_relaxed);
         timings.cache.node_lookup_ms = static_cast<double>(
             c->node_cache_lookup_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.cache.node_cache_hits = c->node_cache_hits.load(std::memory_order_relaxed);
@@ -765,6 +795,14 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.framebuffer_allocations =
             c->framebuffer_allocations.load(std::memory_order_relaxed);
     }
+    const auto atlas_stats = session->renderer->runtime().gpu_text_atlas_cache().stats();
+    timings.text.atlas_cache_hits = atlas_stats.cache_hits;
+    timings.text.atlas_cache_misses = atlas_stats.cache_misses;
+    timings.text.atlas_key_bytes_hashed = atlas_stats.key_bytes_hashed;
+    timings.text.atlas_repack_count = atlas_stats.repack_count;
+    timings.text.atlas_repack_bytes = atlas_stats.repack_bytes;
+    timings.text.atlas_upload_count = atlas_stats.asset_upload_count;
+    timings.text.atlas_upload_bytes = atlas_stats.asset_upload_bytes;
     timings.cache.image_cache_hits = session->prepare_timings.image_cache_hits;
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;
     timings.cache.font_cache_hits = session->prepare_timings.font_cache_hits;
