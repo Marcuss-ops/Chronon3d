@@ -89,10 +89,11 @@ graph::RenderOpResult draw_packed_text_run_surface(
     // Reject malformed glyph buffers before touching the device so the
     // caller can fall back to draw_text_run without leaking a surface.
     for (const auto& glyph : glyphs) {
+        const auto pixels = glyph.pixels();
         const std::size_t expected =
             static_cast<std::size_t>(glyph.width) * glyph.height * 4;
         if (glyph.width == 0 || glyph.height == 0 ||
-            glyph.rgba.size() != expected) {
+            pixels.size() != expected) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::InvalidInput,
                 "draw_packed_text_run: glyph rgba size mismatch"});
@@ -102,9 +103,10 @@ graph::RenderOpResult draw_packed_text_run_surface(
     std::vector<runtime::PackedGlyphBitmap> bitmap_views;
     bitmap_views.reserve(glyphs.size());
     for (const auto& glyph : glyphs) {
+        const auto pixels = glyph.pixels();
         bitmap_views.push_back(runtime::PackedGlyphBitmap{
             glyph.width, glyph.height,
-            std::span<const float>{glyph.rgba.data(), glyph.rgba.size()}});
+            pixels});
     }
 
     runtime::PackedTextAtlas persistent_atlas;
@@ -160,7 +162,8 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 const std::size_t dst_off =
                     (static_cast<std::size_t>(place.atlas_y + row) * dims.width +
                      place.atlas_x) * 4;
-                std::copy_n(glyph.rgba.data() + src_off,
+                const auto pixels = glyph.pixels();
+                std::copy_n(pixels.data() + src_off,
                             static_cast<std::size_t>(glyph.width) * 4,
                             atlas_buffer.data() + dst_off);
             }
@@ -368,6 +371,37 @@ graph::RenderOpResult draw_cached_text_run(
         const int pad = std::max({stroke_radius, background_padding, shadow_padding});
         const int output_width = data.size.w + pad * 2;
         const int output_height = data.size.h + pad * 2;
+        std::string style_key;
+        style_key.reserve(layout.font.font_path.size() + 128);
+        style_key.append(layout.font.font_path);
+        const auto append_key = [&](const auto& value) {
+            style_key.append(reinterpret_cast<const char*>(&value), sizeof(value));
+        };
+        append_key(state.glyph_id);
+        append_key(font_size);
+        append_key(stroke_radius);
+        append_key(background_padding);
+        append_key(state.fill);
+        append_key(state.background);
+        append_key(state.stroke);
+        append_key(state.stroke_width);
+        for (const auto& shadow : shape.shadows) {
+            append_key(shadow.enabled);
+            append_key(shadow.offset);
+            append_key(shadow.blur);
+            append_key(shadow.opacity);
+            append_key(shadow.color);
+        }
+        auto styled = ctx.services.gpu_text_atlas_cache
+            ? ctx.services.gpu_text_atlas_cache->find_styled(style_key)
+            : std::shared_ptr<const runtime::GpuTextAtlasCache::StyledGlyphBitmap>{};
+        if (profiling::g_current_counters) {
+            auto& counter = styled
+                ? profiling::g_current_counters->gpu_text_styled_cache_hits
+                : profiling::g_current_counters->gpu_text_styled_cache_misses;
+            counter.fetch_add(1, std::memory_order_relaxed);
+        }
+        if (!styled) {
         std::vector<float> rgba(static_cast<std::size_t>(output_width) * output_height * 4, 0.0f);
         auto source_alpha = [&](int x, int y) {
             if (x < 0 || y < 0 || x >= data.size.w || y >= data.size.h) return 0.0f;
@@ -443,17 +477,34 @@ graph::RenderOpResult draw_cached_text_run(
                 rgba[off + 3] = a;
             }
         }
+        auto pixels = std::make_shared<const std::vector<float>>(std::move(rgba));
+        if (ctx.services.gpu_text_atlas_cache) {
+            ctx.services.gpu_text_atlas_cache->store_styled(
+                style_key, static_cast<std::uint32_t>(output_width),
+                static_cast<std::uint32_t>(output_height), pixels);
+        }
+        styled = std::make_shared<const runtime::GpuTextAtlasCache::StyledGlyphBitmap>(
+            runtime::GpuTextAtlasCache::StyledGlyphBitmap{
+                static_cast<std::uint32_t>(output_width),
+                static_cast<std::uint32_t>(output_height), std::move(pixels)});
+        }
+        if (!styled || !styled->rgba) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::ExecutionFailure,
+                "draw_cached_text_run: styled glyph cache returned no pixels"});
+        }
         glyphs.push_back(GpuTextGlyph{
-            static_cast<std::uint32_t>(output_width),
-            static_cast<std::uint32_t>(output_height),
-            std::move(rgba),
+            styled->width,
+            styled->height,
+            {},
             static_cast<std::int32_t>(std::lround(model_matrix[3][0] +
                 placed.x + state.position.x + entry->x_offset - pad)),
             static_cast<std::int32_t>(std::lround(model_matrix[3][1] +
                 placed.y + state.position.y + entry->y_offset - pad)),
             state.scale.x,
             state.scale.y,
-            state.opacity * opacity});
+            state.opacity * opacity,
+            styled->rgba});
     }
     if (!ensure_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
