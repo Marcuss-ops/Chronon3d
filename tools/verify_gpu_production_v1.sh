@@ -23,12 +23,12 @@ r=json.load(open(out+'.receipt.json')); t=json.load(open(out+'.timing.json'))
 assert r['copy_eligible'] is True
 assert r['render']['backend']=='vulkan'
 assert r['media']['codec']=='h264' and r['media']['pixel_format']=='yuv420p'
-assert r['media']['frame_count']==r['frames']
+assert r['media']['frame_count']==r['render']['frames']
 g=t['job']['gpu']
 assert g['effective_backend']=='vulkan' and g['software_fallback_nodes']==0
 assert g['gpu_readback_bytes']==0 and g['gpu_readback_ms']==0.0
 s=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','stream=codec_name,nb_frames,pix_fmt','-of','json',out],text=True))['streams'][0]
-assert s['codec_name']=='h264' and s['pix_fmt']=='yuv420p' and int(s['nb_frames'])==r['frames']
+assert s['codec_name']=='h264' and s['pix_fmt']=='yuv420p' and int(s['nb_frames'])==r['render']['frames']
 PY
 }
 
