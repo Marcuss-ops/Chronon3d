@@ -8,7 +8,11 @@ ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT/test_renders/test1-hello-chronon"}
 CERT_DIR=${CHRONON_CERT_DIR:-"$(mktemp -d /tmp/chronon-gpu-cert.XXXXXX)"}
 STRESS_COUNT=${CHRONON_STRESS_COUNT:-100}
 mkdir -p "$CERT_DIR/matrix" "$CERT_DIR/stress"
-SHA=${CHRONON_CERT_SHA:-$(git -C "$ROOT" rev-parse HEAD)}
+# Runtime receipts intentionally carry the short commit identity exposed by
+# TelemetryManager. Keep the certification artifact and its assertion in the
+# same identity domain; a full SHA here would reject an otherwise matching
+# binary on every clean build.
+SHA=${CHRONON_CERT_SHA:-$(git -C "$ROOT" rev-parse --short HEAD)}
 dirty=$(git -C "$ROOT" status --porcelain | grep -vE '^[ M?]{1,3}tools/cuda_nvdec_nvenc_overlay_bench\.cpp$' || true)
 test -z "$dirty" || { echo "working tree must be clean outside the CUDA benchmark" >&2; exit 2; }
 
