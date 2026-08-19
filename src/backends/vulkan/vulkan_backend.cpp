@@ -299,7 +299,7 @@ struct VulkanBackend::Impl {
               "vkCreateDescriptorPool");
 
         const VkPushConstantRange push_constants{
-            VK_SHADER_STAGE_COMPUTE_BIT, 0, 64};
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, 96};
         const VkPipelineLayoutCreateInfo pipeline_layout_info{
             VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1, &descriptor_layout,
             1, &push_constants};

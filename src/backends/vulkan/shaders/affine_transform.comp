@@ -9,6 +9,11 @@ layout(push_constant) uniform AffineParams {
     vec4 source_y;
     vec4 limits; // max x, max y, opacity, bilinear flag
     ivec2 destination_origin;
+    ivec4 clip_rect;
+    uint clip_enabled;
+    uint padding0;
+    uint padding1;
+    uint padding2;
 } params;
 
 vec4 sample_nearest(vec2 source, ivec2 size) {
@@ -35,6 +40,9 @@ void main() {
     if (destination.x >= destination_size.x || destination.y >= destination_size.y) return;
 
     vec2 canvas = vec2(destination + params.destination_origin) + vec2(0.5);
+    if (params.clip_enabled != 0u &&
+        (canvas.x < float(params.clip_rect.x) || canvas.y < float(params.clip_rect.y) ||
+         canvas.x >= float(params.clip_rect.z) || canvas.y >= float(params.clip_rect.w))) return;
     vec2 source = vec2(dot(params.source_x.xyz, vec3(canvas, 1.0)),
                        dot(params.source_y.xyz, vec3(canvas, 1.0)));
     vec4 value = vec4(0.0);
