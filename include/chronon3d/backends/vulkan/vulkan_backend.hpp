@@ -42,6 +42,8 @@ struct VulkanBackendStats {
     // metrics and are deliberately distinct from GPU-elapsed timestamps.
     std::uint64_t gpu_submit_cpu_us{0};
     std::uint64_t gpu_wait_cpu_us{0};
+    std::uint64_t frame_slot_wait_count{0};
+    std::uint64_t frame_slot_wait_us{0};
     std::uint64_t readback_us{0};
     // GPU-elapsed duration measured with Vulkan timestamp queries (0 when
     // the device exposes no timestamp support). This is the GPU execution
@@ -110,7 +112,8 @@ public:
 
     /// Feeds the backend's GPU counters into the telemetry run record as
     /// name/value pairs (`gpu_submissions`, `passes_executed`,
-    /// `gpu_submit_cpu_us`, `gpu_wait_cpu_us`, `readback_us`,
+    /// `gpu_submit_cpu_us`, `gpu_wait_cpu_us`, `frame_slot_wait_count`,
+    /// `frame_slot_wait_us`, `readback_us`,
     /// `gpu_upload_bytes`, `gpu_readback_bytes`, `physical_surfaces_peak`,
     /// `cpu_gpu_sync_us`, `gpu_execute_us`).
     void export_gpu_telemetry_counters(

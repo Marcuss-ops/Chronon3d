@@ -18,6 +18,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     render_runtime.cpp
     gpu_asset_cache.cpp
     gpu_glyph_atlas.cpp
+    gpu_text_atlas_cache.cpp
     overlay_template.cpp
     # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
     #    graph::render_scene_via_graph / graph::render_composition_frame.
