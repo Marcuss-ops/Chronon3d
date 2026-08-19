@@ -59,6 +59,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
+    open_complete_ = false;
+
     if (options.width <= 0 || options.height <= 0 ||
         options.fps <= 0 || options.output_path.empty()) {
         spdlog::error("[native_av] Invalid encoder options (w={}, h={}, fps={}, path='{}')",
@@ -264,6 +266,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     spdlog::info("[native_av] Opened native encoder: {}x{} @ {}fps, codec={}, preset={}, crf={}, output='{}'",
                  options_.width, options_.height, options_.fps,
                  resolve_encoder_name(options_), options_.preset, options_.crf, filename);
+    open_complete_ = true;
     return true;
 }
 
@@ -274,8 +277,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 bool NativeAvEncoder::close() {
     if (!codec_) {
         // Already closed or never opened — not an error.
+        if (!open_complete_) abort_open();
         return true;
     }
+    open_complete_ = false;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     // Complete the bounded CUDA->NVENC queue before flushing the codec. In
@@ -353,9 +358,52 @@ bool NativeAvEncoder::close() {
 }
 
 NativeAvEncoder::~NativeAvEncoder() {
-    if (codec_) {
+    if (open_complete_) {
         close();
+    } else {
+        abort_open();
     }
+}
+
+void NativeAvEncoder::abort_open() noexcept {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    for (auto& pending : pending_cuda_frames_) {
+        if (pending.frame) av_frame_free(&pending.frame);
+        if (pending.ready) {
+            (void)cuEventDestroy(pending.ready);
+            pending.ready = nullptr;
+        }
+    }
+    pending_cuda_frames_.clear();
+    if (cuda_context_) (void)cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_));
+    cuda_surface_bridges_.clear();
+    if (cuda_stream_) {
+        (void)cuStreamDestroy(cuda_stream_);
+        cuda_stream_ = nullptr;
+    }
+#endif
+    av_packet_free(&packet_);
+    av_frame_free(&frame_);
+    avcodec_free_context(&codec_);
+    if (fmt_ && fmt_->pb && fmt_->oformat &&
+        !(fmt_->oformat->flags & AVFMT_NOFILE)) {
+        avio_closep(&fmt_->pb);
+    }
+    avformat_free_context(fmt_);
+    fmt_ = nullptr;
+    stream_ = nullptr;
+    packet_ = nullptr;
+    frame_ = nullptr;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    av_buffer_unref(&cuda_frames_ref_);
+    av_buffer_unref(&cuda_device_ref_);
+    if (cuda_context_) {
+        (void)cuCtxDestroy(reinterpret_cast<CUcontext>(cuda_context_));
+        cuda_context_ = nullptr;
+    }
+    gpu_nvenc_ = false;
+#endif
+    open_complete_ = false;
 }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
