@@ -47,6 +47,8 @@ struct GpuTextGlyph {
     float scale_y{1.0f};
     float opacity{1.0f};
     std::shared_ptr<const std::vector<float>> shared_rgba;
+    float highlight_start_frame{-1.0f};
+    float highlight_end_frame{-1.0f};
 
     [[nodiscard]] std::span<const float> pixels() const noexcept {
         if (shared_rgba) return *shared_rgba;
@@ -71,7 +73,10 @@ struct GpuTextGlyph {
 [[nodiscard]] graph::RenderOpResult draw_packed_text_run(
     RenderGraphContext& ctx,
     Framebuffer& destination,
-    std::span<const GpuTextGlyph> glyphs);
+    std::span<const GpuTextGlyph> glyphs,
+    float current_frame = 0.0f,
+    const Color& highlight_color = Color{},
+    bool highlight_enabled = false);
 
 /// Use the renderer-owned CPU glyph atlas as the bitmap source and keep the
 /// packed GPU atlas in the runtime GpuAssetCache. This is the graph bridge for

@@ -515,6 +515,21 @@ public:
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::draw_text_run_surface: not supported by this backend"});
     }
+
+    /// Timed text variant. Backends without GPU timed highlighting fall back
+    /// to the regular batched text path, preserving visual compatibility.
+    virtual RenderOpResult draw_text_run_surface_timed(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle atlas,
+        std::span<const runtime::GlyphInstance> glyphs,
+        float current_frame,
+        const Color& highlight_color,
+        bool highlight_enabled) {
+        (void)current_frame;
+        (void)highlight_color;
+        (void)highlight_enabled;
+        return draw_text_run_surface(destination, atlas, glyphs);
+    }
 };
 
 } // namespace chronon3d::graph

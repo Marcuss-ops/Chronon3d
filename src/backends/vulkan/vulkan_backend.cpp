@@ -1230,7 +1230,9 @@ struct VulkanBackend::Impl {
 
     void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, std::int32_t glyph_count,
-                         VkBuffer instance_buffer, bool instance_updated) {
+                         VkBuffer instance_buffer, bool instance_updated,
+                         float current_frame, const Color& highlight_color,
+                         bool highlight_enabled) {
         // The glyph instances were written by a preceding vkCmdUpdateBuffer
         // (transfer stage); publish them to the compute shader before dispatch.
         if (instance_updated) {
@@ -1249,7 +1251,13 @@ struct VulkanBackend::Impl {
                                 pipeline_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t glyph_count;
-        } params{glyph_count};
+            float current_frame;
+            std::int32_t highlight_enabled;
+            std::int32_t padding;
+            float highlight_color[4];
+        } params{glyph_count, current_frame, highlight_enabled ? 1 : 0, 0,
+                 {highlight_color.r, highlight_color.g,
+                  highlight_color.b, highlight_color.a}};
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
@@ -2003,7 +2011,10 @@ struct VulkanBackend::Impl {
     // packed atlas texture into the destination in ONE kernel dispatch.
     void text_run_surface(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle atlas,
-                          std::span<const runtime::GlyphInstance> glyphs) {
+                          std::span<const runtime::GlyphInstance> glyphs,
+                          float current_frame = 0.0f,
+                          const Color& highlight_color = Color{},
+                          bool highlight_enabled = false) {
         if (glyphs.empty()) {
             throw std::invalid_argument("Vulkan text run requires at least one glyph");
         }
@@ -2047,7 +2058,8 @@ struct VulkanBackend::Impl {
                 glyph_instance_sizes[instance_slot] = bytes;
             }
             record_text_run(cmd, descriptors, dst_image, glyph_count,
-                            instance_buffer, instance_updated);
+                            instance_buffer, instance_updated, current_frame,
+                            highlight_color, highlight_enabled);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
             ++stats.passes_executed;
@@ -2063,7 +2075,8 @@ struct VulkanBackend::Impl {
             glyph_instance_sizes[instance_slot] = bytes;
         }
         record_text_run(command_buffer, descriptor_set, dst_image, glyph_count,
-                        instance_buffer, instance_updated);
+                        instance_buffer, instance_updated, current_frame,
+                        highlight_color, highlight_enabled);
         dst_image.initialized = true;
         ++stats.passes_executed;
         submit();
@@ -3137,6 +3150,32 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::draw_text_run_surface: Vulkan support is disabled"});
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle atlas,
+    std::span<const runtime::GlyphInstance> glyphs,
+    float current_frame,
+    const Color& highlight_color,
+    bool highlight_enabled) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->text_run_surface(destination, atlas, glyphs, current_frame,
+                                 highlight_color, highlight_enabled);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)destination; (void)atlas; (void)glyphs; (void)current_frame;
+    (void)highlight_color; (void)highlight_enabled;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::draw_text_run_surface_timed: Vulkan support is disabled"});
 #endif
 }
 

@@ -42,6 +42,69 @@ struct AtlasDims {
     std::uint32_t height{0};
 };
 
+struct TimedHighlightPlan {
+    Color color{Color::yellow()};
+    std::vector<std::pair<float, float>> glyph_ranges;
+    bool enabled{false};
+};
+
+TimedHighlightPlan build_timed_highlight_plan(const TextRunShape& shape) {
+    TimedHighlightPlan plan;
+    if (!shape.layout || shape.layout->units.word_count == 0) return plan;
+    plan.glyph_ranges.assign(shape.layout->placed.glyphs.size(), {-1.0f, -1.0f});
+    const auto word_count = static_cast<float>(shape.layout->units.word_count);
+
+    for (const auto& animator : shape.animators) {
+        std::optional<Color> animator_color;
+        for (const auto& property : animator.properties) {
+            if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
+                animator_color = fill->color;
+                break;
+            }
+        }
+        const bool karaoke_named = animator.id.find("karaoke") != std::string::npos;
+        // The GPU timed path is intentionally limited to karaoke animators.
+        // Other word animators (for example active_word_pop) may also carry a
+        // fill property but additionally change scale/background/stroke and
+        // must keep the legacy per-glyph evaluation semantics.
+        if (!karaoke_named) continue;
+
+        for (const auto& selector : animator.selectors) {
+            if (selector.unit != TextSelectorUnit::Word) continue;
+            const auto& keyframes = selector.amount.keyframes();
+            float start_frame = -1.0f;
+            float end_frame = -1.0f;
+            for (const auto& keyframe : keyframes) {
+                if (start_frame < 0.0f && keyframe.value >= 99.0f) {
+                    start_frame = static_cast<float>(keyframe.frame.integral());
+                } else if (start_frame >= 0.0f && keyframe.value <= 1.0f) {
+                    end_frame = static_cast<float>(keyframe.frame.integral());
+                    break;
+                }
+            }
+            if (start_frame < 0.0f || end_frame < start_frame) continue;
+
+            const float first_word = std::clamp(
+                selector.start.evaluate(0.0) * word_count / 100.0f,
+                0.0f, word_count);
+            const float last_word = std::clamp(
+                selector.end.evaluate(0.0) * word_count / 100.0f,
+                0.0f, word_count);
+            for (std::size_t glyph = 0; glyph < plan.glyph_ranges.size(); ++glyph) {
+                const auto word = static_cast<float>(
+                    shape.layout->units.glyph_to_word[glyph]);
+                if (word >= first_word && word < last_word &&
+                    plan.glyph_ranges[glyph].first < 0.0f) {
+                    plan.glyph_ranges[glyph] = {start_frame, end_frame};
+                    plan.enabled = true;
+                }
+            }
+        }
+        if (animator_color) plan.color = *animator_color;
+    }
+    return plan;
+}
+
 /// Shelf-pack the glyph quads.  Returns the per-glyph atlas origins (in the
 /// same order as `glyphs`) plus the resulting atlas dimensions (at least 1x1).
 std::pair<std::vector<PackedGlyph>, AtlasDims> pack_glyphs(
@@ -76,7 +139,10 @@ std::pair<std::vector<PackedGlyph>, AtlasDims> pack_glyphs(
 graph::RenderOpResult draw_packed_text_run_surface(
     RenderGraphContext& ctx,
     runtime::RenderSurfaceHandle destination,
-    std::span<const GpuTextGlyph> glyphs) {
+    std::span<const GpuTextGlyph> glyphs,
+    float current_frame,
+    const Color& highlight_color,
+    bool highlight_enabled) {
     if (glyphs.empty()) {
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
     }
@@ -138,7 +204,8 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 static_cast<std::int32_t>(persistent_atlas.origin_y[i]),
                 static_cast<std::int32_t>(glyph.width),
                 static_cast<std::int32_t>(glyph.height),
-                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f});
+                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f,
+                glyph.highlight_start_frame, glyph.highlight_end_frame});
         }
     } else {
         const auto [packed, dims] = pack_glyphs(glyphs);
@@ -254,8 +321,9 @@ graph::RenderOpResult draw_packed_text_run_surface(
         }
     }
 
-    auto drawn = ctx.services.backend->draw_text_run_surface(
-        destination, atlas_handle, instances);
+    auto drawn = ctx.services.backend->draw_text_run_surface_timed(
+        destination, atlas_handle, instances, current_frame,
+        highlight_color, highlight_enabled);
 
     if (profiling::g_current_counters) {
         profiling::g_current_counters->gpu_text_instance_upload_count.fetch_add(
@@ -282,14 +350,18 @@ graph::RenderOpResult draw_packed_text_run_surface(
 graph::RenderOpResult draw_packed_text_run(
     RenderGraphContext& ctx,
     Framebuffer& destination,
-    std::span<const GpuTextGlyph> glyphs) {
+    std::span<const GpuTextGlyph> glyphs,
+    float current_frame,
+    const Color& highlight_color,
+    bool highlight_enabled) {
     if (!ensure_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_packed_text_run: destination has no native surface support"});
     }
     auto result = draw_packed_text_run_surface(
-        ctx, destination.surface_handle(), glyphs);
+        ctx, destination.surface_handle(), glyphs, current_frame,
+        highlight_color, highlight_enabled);
     if (!result.ok()) release_native_surface(ctx, destination);
     return result;
 }
@@ -323,6 +395,8 @@ graph::RenderOpResult draw_cached_text_run(
 
     const auto& layout = *shape.layout;
     const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
+    const auto highlight_plan = build_timed_highlight_plan(shape);
+    const float current_frame = static_cast<float>(ctx.frame_input.sample_time.frame);
     std::vector<GpuTextGlyph> glyphs;
     glyphs.reserve(layout.placed.glyphs.size());
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
@@ -371,6 +445,7 @@ graph::RenderOpResult draw_cached_text_run(
         const int pad = std::max({stroke_radius, background_padding, shadow_padding});
         const int output_width = data.size.w + pad * 2;
         const int output_height = data.size.h + pad * 2;
+        const Color raster_fill = highlight_plan.enabled ? shape.paint.fill : state.fill;
         std::string style_key;
         style_key.reserve(layout.font.font_path.size() + 128);
         style_key.append(layout.font.font_path);
@@ -381,7 +456,7 @@ graph::RenderOpResult draw_cached_text_run(
         append_key(font_size);
         append_key(stroke_radius);
         append_key(background_padding);
-        append_key(state.fill);
+        append_key(raster_fill);
         append_key(state.background);
         append_key(state.stroke);
         append_key(state.stroke_width);
@@ -467,9 +542,9 @@ graph::RenderOpResult draw_cached_text_run(
                          state.stroke.g * sa, state.stroke.b * sa, sa);
                 }
                 if (mask > 1e-4f) {
-                    const float fa = mask * std::clamp(state.fill.a, 0.0f, 1.0f);
-                    over(r, g, b, a, state.fill.r * fa,
-                         state.fill.g * fa, state.fill.b * fa, fa);
+                    const float fa = mask * std::clamp(raster_fill.a, 0.0f, 1.0f);
+                    over(r, g, b, a, raster_fill.r * fa,
+                         raster_fill.g * fa, raster_fill.b * fa, fa);
                 }
                 rgba[off + 0] = r;
                 rgba[off + 1] = g;
@@ -504,7 +579,9 @@ graph::RenderOpResult draw_cached_text_run(
             state.scale.x,
             state.scale.y,
             state.opacity * opacity,
-            styled->rgba});
+            styled->rgba,
+            highlight_plan.enabled ? highlight_plan.glyph_ranges[i].first : -1.0f,
+            highlight_plan.enabled ? highlight_plan.glyph_ranges[i].second : -1.0f});
     }
     if (!ensure_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -513,7 +590,8 @@ graph::RenderOpResult draw_cached_text_run(
     }
 
     auto result = draw_packed_text_run_surface(
-        ctx, destination.surface_handle(), glyphs);
+        ctx, destination.surface_handle(), glyphs, current_frame,
+        highlight_plan.color, highlight_plan.enabled);
     return result;
 }
 
