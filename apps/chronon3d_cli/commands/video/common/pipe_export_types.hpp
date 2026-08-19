@@ -71,6 +71,7 @@ struct WriterThreadContext {
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
     bool require_native_gpu{false};
+    FrameInteropRing& interop_ring;
     std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
 };
 
@@ -89,6 +90,9 @@ struct RenderLoopContext {
     SoftwareRenderer* sw_renderer;
     RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
+    FrameInteropRing& interop_ring;
+    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
+        native_encode_surfaces;
     TripleBufferArena& triple_arena;
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;

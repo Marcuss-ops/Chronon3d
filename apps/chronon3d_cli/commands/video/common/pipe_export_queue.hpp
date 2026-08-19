@@ -56,7 +56,10 @@ public:
                 }
             }
             wait_count_.fetch_add(1, std::memory_order_relaxed);
-            condition_.wait(lock);
+            // Poll cancellation while the writer is still consuming the
+            // bounded ring. A plain wait() could strand the render thread if
+            // cancellation happens without a slot release notification.
+            condition_.wait_for(lock, std::chrono::milliseconds(1));
         }
     }
 
