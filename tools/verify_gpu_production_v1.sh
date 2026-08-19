@@ -49,10 +49,11 @@ for p in ids:
         layer.clear(); layer.update({'id':'image-'+p,'type':'image','preset':p,'asset':'assets/test_image.png','position':[320,180],'box_width':260,'box_height':260,'start_frame':0,'duration_frames':90})
     (out/(p+'.json')).write_text(json.dumps(plan))
 PY
-while IFS= read -r plan; do
+mapfile -t matrix_plans < <(find "$CERT_DIR/matrix" -name '*.json' -print | sort)
+for plan in "${matrix_plans[@]}"; do
   n=$(basename "$plan" .json)
   render_one "$plan" "$CERT_DIR/matrix/$n.mp4" "$CERT_DIR/matrix/$n.log" "$ROOT"
-done < <(find "$CERT_DIR/matrix" -name '*.json' -print | sort)
+done
 
 for n in $(seq 1 "$STRESS_COUNT"); do
   render_one "$PLAN" "$CERT_DIR/stress/$n.mp4" "$CERT_DIR/stress/$n.log"
