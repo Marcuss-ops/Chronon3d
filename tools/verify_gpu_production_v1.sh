@@ -22,6 +22,7 @@ out=sys.argv[1]
 r=json.load(open(out+'.receipt.json')); t=json.load(open(out+'.timing.json'))
 assert r['copy_eligible'] is True
 assert r['render']['backend']=='vulkan'
+assert r['identity']['git_sha'] == open('/tmp/chronon-gpu-cert-head-sha').read().strip()
 assert r['media']['codec']=='h264' and r['media']['pixel_format']=='yuv420p'
 assert r['media']['frame_count']==r['render']['frames']
 g=t['job']['gpu']
@@ -32,6 +33,7 @@ assert s['codec_name']=='h264' and s['pix_fmt']=='yuv420p' and int(s['nb_frames'
 PY
 }
 
+printf '%s\n' "$SHA" >/tmp/chronon-gpu-cert-head-sha
 render_one "$PLAN" "$CERT_DIR/golden.mp4" "$CERT_DIR/golden.log"
 
 python3 - "$ROOT/examples/render_plan_text_smoke.json" "$CERT_DIR/matrix" <<'PY'
