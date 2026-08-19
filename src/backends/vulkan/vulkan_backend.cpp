@@ -20,6 +20,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -56,6 +57,8 @@ struct VulkanBackend::Impl {
         std::uint32_t height{0};
         bool initialized{false};
         bool exportable{false};
+        VkSemaphore cuda_to_vulkan{VK_NULL_HANDLE};
+        VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
     };
 
     /// Per-frame descriptor set allocator, one per frame-batch ring slot.
@@ -226,6 +229,9 @@ struct VulkanBackend::Impl {
     std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces;
     // handle → slot (identity only; no ownership)
     std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    std::unordered_set<std::size_t> cuda_ready_surfaces;
+#endif
     // Temporary native passes may release a logical handle while the active
     // frame batch is still recording commands that reference its image. Keep
     // the Vulkan binding alive until the batch has been submitted.
@@ -620,6 +626,12 @@ struct VulkanBackend::Impl {
     }
 
     void destroy_image(Image& target) {
+        if (target.cuda_to_vulkan != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, target.cuda_to_vulkan, nullptr);
+        }
+        if (target.vulkan_to_cuda != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, target.vulkan_to_cuda, nullptr);
+        }
         if (target.view != VK_NULL_HANDLE) vkDestroyImageView(device, target.view, nullptr);
         if (target.image != VK_NULL_HANDLE) vkDestroyImage(device, target.image, nullptr);
         if (target.memory != VK_NULL_HANDLE) vkFreeMemory(device, target.memory, nullptr);
@@ -671,6 +683,18 @@ struct VulkanBackend::Impl {
     }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    VkSemaphore make_external_binary_semaphore() {
+        VkExportSemaphoreCreateInfo export_info{
+            VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
+        export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+        const VkSemaphoreCreateInfo info{
+            VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &export_info, 0};
+        VkSemaphore semaphore = VK_NULL_HANDLE;
+        check(vkCreateSemaphore(device, &info, nullptr, &semaphore),
+              "vkCreateSemaphore(external CUDA interop)");
+        return semaphore;
+    }
+
     void create_cuda_external_surface(runtime::RenderSurfaceHandle handle,
                                       const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
@@ -685,6 +709,8 @@ struct VulkanBackend::Impl {
         const auto slot = next_slot++;
         auto& physical = physical_surfaces[slot];
         make_image(physical.image, desc.width, desc.height, true);
+        physical.image.cuda_to_vulkan = make_external_binary_semaphore();
+        physical.image.vulkan_to_cuda = make_external_binary_semaphore();
         physical.desc = desc;
         surface_bindings.emplace(handle, slot);
         ++stats.surface_creations;
@@ -709,12 +735,52 @@ struct VulkanBackend::Impl {
         info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
         int fd = -1;
         check(get_fd(device, &info, &fd), "vkGetMemoryFdKHR");
+        auto get_semaphore_fd = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
+            vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
+        if (!get_semaphore_fd) {
+            close(fd);
+            throw std::runtime_error("vkGetSemaphoreFdKHR is unavailable");
+        }
+        const auto& image = image_it->second.image;
+        VkSemaphoreGetFdInfoKHR cuda_to_vulkan_info{
+            VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR, nullptr,
+            image.cuda_to_vulkan,
+            VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT};
+        VkSemaphoreGetFdInfoKHR vulkan_to_cuda_info{
+            VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR, nullptr,
+            image.vulkan_to_cuda,
+            VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT};
+        int cuda_to_vulkan_fd = -1;
+        int vulkan_to_cuda_fd = -1;
+        check(get_semaphore_fd(device, &cuda_to_vulkan_info, &cuda_to_vulkan_fd),
+              "vkGetSemaphoreFdKHR(cuda to Vulkan)");
+        const auto second_semaphore_result = get_semaphore_fd(
+            device, &vulkan_to_cuda_info, &vulkan_to_cuda_fd);
+        if (second_semaphore_result != VK_SUCCESS) {
+            close(fd);
+            close(cuda_to_vulkan_fd);
+            check(second_semaphore_result, "vkGetSemaphoreFdKHR(Vulkan to CUDA)");
+        }
         VkMemoryRequirements requirements{};
         vkGetImageMemoryRequirements(device, image_it->second.image.image,
                                      &requirements);
         return CudaExternalMemoryInfo{
-            fd, requirements.size, image_it->second.image.width,
-            image_it->second.image.height};
+            fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
+            image_it->second.image.width, image_it->second.image.height};
+    }
+
+    void prepare_cuda_surface_for_vulkan(runtime::RenderSurfaceHandle handle) {
+        const auto slot = bound_slot(handle);
+        const auto it = physical_surfaces.find(slot);
+        if (it == physical_surfaces.end() || !it->second.image.exportable ||
+            it->second.image.cuda_to_vulkan == VK_NULL_HANDLE ||
+            it->second.image.vulkan_to_cuda == VK_NULL_HANDLE) {
+            throw std::invalid_argument("surface is not a CUDA external surface");
+        }
+        // CUDA signals cuda_to_vulkan after writing the imported image. The
+        // next Vulkan submit consumes that signal and signals vulkan_to_cuda
+        // after its compositing work completes.
+        cuda_ready_surfaces.insert(slot);
     }
 #endif
 
@@ -1169,19 +1235,40 @@ struct VulkanBackend::Impl {
         check(vkEndCommandBuffer(frame_batch.command_buffers[slot]),
               "vkEndCommandBuffer(frame batch)");
         const auto signal_value = ++next_timeline_value;
+        std::vector<VkSemaphore> wait_semaphores;
+        std::vector<VkPipelineStageFlags> wait_stages;
+        std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
+        std::vector<std::uint64_t> signal_values{signal_value};
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        for (const auto physical_slot : cuda_ready_surfaces) {
+            const auto it = physical_surfaces.find(physical_slot);
+            if (it == physical_surfaces.end()) continue;
+            wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
+            wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
+            signal_values.push_back(0);
+        }
+#endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
             VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
-            0, nullptr, 1, &signal_value};
-        const VkSemaphore signal_semaphores[] = {timeline_semaphore};
+            0, nullptr, static_cast<std::uint32_t>(signal_values.size()),
+            signal_values.data()};
         const VkSubmitInfo submit_info{
-            VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit, 0, nullptr, nullptr,
-            1, &frame_batch.command_buffers[slot], 1, signal_semaphores};
+            VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit,
+            static_cast<std::uint32_t>(wait_semaphores.size()),
+            wait_semaphores.data(), wait_stages.data(),
+            1, &frame_batch.command_buffers[slot],
+            static_cast<std::uint32_t>(signal_semaphores.size()),
+            signal_semaphores.data()};
         const auto submit_start = profiling::now();
         check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
         stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
         frame_batch.in_flight[slot] = true;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        cuda_ready_surfaces.clear();
+#endif
         frame_batch.pass_count = 0;
         frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;
     }
@@ -2008,18 +2095,38 @@ struct VulkanBackend::Impl {
     std::uint64_t submit(bool wait_for_completion = true) {
         check(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer");
         const auto signal_value = ++next_timeline_value;
+        std::vector<VkSemaphore> wait_semaphores;
+        std::vector<VkPipelineStageFlags> wait_stages;
+        std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
+        std::vector<std::uint64_t> signal_values{signal_value};
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        for (const auto physical_slot : cuda_ready_surfaces) {
+            const auto it = physical_surfaces.find(physical_slot);
+            if (it == physical_surfaces.end()) continue;
+            wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
+            wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
+            signal_values.push_back(0);
+        }
+#endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
             VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
-            0, nullptr, 1, &signal_value};
-        const VkSemaphore signal_semaphores[] = {timeline_semaphore};
+            0, nullptr, static_cast<std::uint32_t>(signal_values.size()),
+            signal_values.data()};
         const VkSubmitInfo submit_info{
-            VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit, 0, nullptr, nullptr,
-            1, &command_buffer, 1, signal_semaphores};
+            VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit,
+            static_cast<std::uint32_t>(wait_semaphores.size()),
+            wait_semaphores.data(), wait_stages.data(), 1, &command_buffer,
+            static_cast<std::uint32_t>(signal_semaphores.size()),
+            signal_semaphores.data()};
         const auto submit_start = profiling::now();
         check(vkQueueSubmit(queue, 1, &submit_info, fence), "vkQueueSubmit");
         stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
         pending_timeline_value = signal_value;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        cuda_ready_surfaces.clear();
+#endif
         if (wait_for_completion) wait_for_pending();
         return signal_value;
     }
@@ -2175,7 +2282,9 @@ VulkanBackend::VulkanBackend() {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     const char* external_memory_extensions[] = {
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME};
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
 #endif
     const VkDeviceCreateInfo device_info{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -2187,7 +2296,7 @@ VulkanBackend::VulkanBackend() {
         .ppEnabledLayerNames = nullptr,
         .enabledExtensionCount =
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-            2,
+            4,
 #else
             0,
 #endif
@@ -2507,6 +2616,18 @@ graph::RenderOpResult VulkanBackend::create_cuda_external_surface(
     try {
         std::lock_guard lock(m_impl->api_mutex);
         m_impl->create_cuda_external_surface(handle, desc);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+}
+
+graph::RenderOpResult VulkanBackend::prepare_cuda_surface_for_vulkan(
+    runtime::RenderSurfaceHandle handle) {
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->prepare_cuda_surface_for_vulkan(handle);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::RenderBackendError{
