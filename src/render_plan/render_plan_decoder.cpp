@@ -124,14 +124,6 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
         }
     }
 
-    hash.add(plan.audio_tracks.size());
-    for (const auto& track : plan.audio_tracks) {
-        hash.add(track.source).add(track.volume).add(track.start_time_offset)
-            .add(track.duration_seconds).add(track.role).add(track.loop)
-            .add(track.fade_in_seconds).add(track.fade_out_seconds)
-            .add(track.ducking_enabled);
-    }
-
     // Output paths are always excluded because they identify a machine-local
     // destination. Request identity may retain the deterministic output
     // encoding settings; content identity must not.
@@ -407,9 +399,6 @@ std::optional<PlanDecodeError> validate_render_budget(
         return fail("output.crf", "CRF must be between 0 and 63");
     if (plan.layers.size() > budget.max_layers)
         return fail("layers", "render budget max_layers exceeded");
-    if (plan.audio_tracks.size() > budget.max_audio_tracks)
-        return fail("audio_tracks", "render budget max_audio_tracks exceeded");
-
     const auto duration_value = plan.canvas.duration.integral();
     if (duration_value <= 0)
         return fail("canvas.duration_frames", "duration must be positive");
@@ -490,28 +479,6 @@ std::optional<PlanDecodeError> validate_render_budget(
             }
         }
     }
-    for (std::size_t index = 0; index < plan.audio_tracks.size(); ++index) {
-        const auto& track = plan.audio_tracks[index];
-        for (const auto* value : {&track.volume, &track.start_time_offset,
-                                  &track.duration_seconds, &track.fade_in_seconds,
-                                  &track.fade_out_seconds}) {
-            if (const auto invalid = fail_if_non_finite(*value, "audio_tracks[].numeric"))
-                return invalid;
-        }
-        if (track.start_time_offset < 0.0 || track.duration_seconds < 0.0 ||
-            track.start_time_offset + track.duration_seconds >
-                static_cast<double>(duration_value) / plan.canvas.fps)
-            return fail("audio_tracks[" + std::to_string(index) + "]",
-                        "audio timing exceeds composition duration");
-        if (track.duration_seconds > budget.max_audio_duration_seconds)
-            return fail("audio_tracks[].duration_seconds",
-                        "render budget max_audio_duration_seconds exceeded");
-        if (!add_bytes(asset_reference_bytes, track.source.size(),
-                       budget.max_asset_reference_bytes))
-            return fail("audio_tracks[].source",
-                        "render budget max_asset_reference_bytes exceeded");
-    }
-
     if (total_pixels > budget.max_peak_memory_bytes / 16)
         return fail("canvas", "render budget max_peak_memory_bytes exceeded");
     if (total_pixels > std::numeric_limits<std::uint64_t>::max() / 4 / frames)
@@ -570,23 +537,6 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                     "font references must be relative logical paths"};
             }
             plan.layers.push_back(std::move(decoded_layer));
-        }
-        for (const auto& value : root.value("audio_tracks", nlohmann::json::array())) {
-            const auto source = value.at("source").get<std::string>();
-            if (invalid_logical_path(source)) {
-                return PlanDecodeError{"audio_tracks[].source",
-                    "audio references must be relative logical paths"};
-            }
-            plan.audio_tracks.push_back(AudioTrackPlan{
-                source,
-                value.value("volume", 1.0),
-                value.value("start_time_offset", 0.0),
-                value.value("duration_seconds", 0.0),
-                value.value("role", std::string{}),
-                value.value("loop", false),
-                value.value("fade_in_seconds", 0.0),
-                value.value("fade_out_seconds", 0.0),
-                value.value("ducking_enabled", false)});
         }
         const auto& output = root.at("output");
         plan.output.path = output.at("path").get<std::string>();

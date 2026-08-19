@@ -10,11 +10,90 @@
 
 #include <condition_variable>
 #include <cstddef>
+#include <chrono>
+#include <cstdint>
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <queue>
 
 namespace chronon3d::cli {
+
+/// Bounded ownership ring for GPU encode surfaces. A slot is acquired by the
+/// render thread before a frame package is published and released by the
+/// writer after the encoder has consumed that surface.
+class FrameInteropRing {
+public:
+    static constexpr std::size_t kSlotCount = 3;
+    static constexpr std::size_t kInvalidSlot = kSlotCount;
+
+    explicit FrameInteropRing(std::size_t slots = kSlotCount)
+        : slot_count_(std::min(slots, kSlotCount)) {}
+
+    FrameInteropRing(const FrameInteropRing&) = delete;
+    FrameInteropRing& operator=(const FrameInteropRing&) = delete;
+
+    [[nodiscard]] std::size_t acquire(const CancellationToken* token = nullptr) {
+        std::unique_lock lock(mutex_);
+        const auto wait_start = std::chrono::steady_clock::now();
+        for (;;) {
+            if (closed_ || (token && token->is_cancelled())) return kInvalidSlot;
+            for (std::size_t i = 0; i < slot_count_; ++i) {
+                const auto slot = (next_slot_ + i) % slot_count_;
+                if (!busy_[slot]) {
+                    busy_[slot] = true;
+                    next_slot_ = (slot + 1) % slot_count_;
+                    if (i != 0) {
+                        wait_count_.fetch_add(1, std::memory_order_relaxed);
+                        wait_us_.fetch_add(static_cast<std::uint64_t>(
+                            std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - wait_start).count()),
+                            std::memory_order_relaxed);
+                    }
+                    return slot;
+                }
+            }
+            wait_count_.fetch_add(1, std::memory_order_relaxed);
+            condition_.wait(lock);
+        }
+    }
+
+    void release(std::size_t slot) noexcept {
+        if (slot >= slot_count_) return;
+        {
+            std::lock_guard lock(mutex_);
+            busy_[slot] = false;
+        }
+        condition_.notify_one();
+    }
+
+    void close() noexcept {
+        {
+            std::lock_guard lock(mutex_);
+            closed_ = true;
+        }
+        condition_.notify_all();
+    }
+
+    [[nodiscard]] std::uint64_t wait_count() const noexcept {
+        return wait_count_.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] std::uint64_t wait_us() const noexcept {
+        return wait_us_.load(std::memory_order_relaxed);
+    }
+
+private:
+    const std::size_t slot_count_;
+    std::array<bool, kSlotCount> busy_{};
+    std::size_t next_slot_{0};
+    mutable std::mutex mutex_;
+    std::condition_variable condition_;
+    bool closed_{false};
+    std::atomic<std::uint64_t> wait_count_{0};
+    std::atomic<std::uint64_t> wait_us_{0};
+};
 
 // ── RenderFrameQueue — bounded blocking queue replacing moodycamel::ConcurrentQueue ─
 // Wraps std::queue + std::mutex + condition_variables.  Exposes blocking
@@ -111,6 +190,7 @@ struct RenderFramePackage {
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     runtime::RenderSurfaceHandle source_surface{runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
+    std::size_t interop_slot{FrameInteropRing::kInvalidSlot};
 };
 
 } // namespace chronon3d::cli
