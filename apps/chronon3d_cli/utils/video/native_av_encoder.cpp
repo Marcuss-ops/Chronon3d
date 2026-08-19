@@ -3,6 +3,11 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
+#include <cuda.h>
+#endif
 
 // Convenience: steady clock helpers
 namespace {
@@ -104,8 +109,44 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     codec_->gop_size  = options_.fps;  // was fps * 2
     codec_->max_b_frames = 0;              // no B-frames for lowest latency
 
-    // Pixel format: always YUV420P for H.264 (the converter handles it)
-    codec_->pix_fmt = AV_PIX_FMT_YUV420P;
+    // NVENC consumes CUDA frames. The GPU path is enabled only for the
+    // native NVENC profile; all other encoders retain the CPU YUV contract.
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    gpu_nvenc_ = options_.hardware_encoder == "nvenc";
+    if (gpu_nvenc_) {
+        if (cuInit(0) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] CUDA driver initialization failed");
+            return false;
+        }
+        CUdevice cuda_device{};
+        if (cuDeviceGet(&cuda_device, 0) != CUDA_SUCCESS) return false;
+#if defined(CUDA_VERSION) && CUDA_VERSION >= 13000
+        CUcontext context = nullptr;
+        if (cuCtxCreate(&context, nullptr, 0, cuda_device) != CUDA_SUCCESS) return false;
+        cuda_context_ = context;
+#else
+        CUcontext context = nullptr;
+        if (cuCtxCreate(&context, 0, cuda_device) != CUDA_SUCCESS) return false;
+        cuda_context_ = context;
+#endif
+        if (av_hwdevice_ctx_create(&cuda_device_ref_, AV_HWDEVICE_TYPE_CUDA,
+                                   "0", nullptr, 0) < 0) return false;
+        cuda_frames_ref_ = av_hwframe_ctx_alloc(cuda_device_ref_);
+        if (!cuda_frames_ref_) return false;
+        auto* frames = reinterpret_cast<AVHWFramesContext*>(cuda_frames_ref_->data);
+        frames->format = AV_PIX_FMT_CUDA;
+        frames->sw_format = AV_PIX_FMT_BGR0;
+        frames->width = options_.width;
+        frames->height = options_.height;
+        frames->initial_pool_size = 4;
+        if (av_hwframe_ctx_init(cuda_frames_ref_) < 0) return false;
+        codec_->pix_fmt = AV_PIX_FMT_CUDA;
+        codec_->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
+    } else
+#endif
+    {
+        codec_->pix_fmt = AV_PIX_FMT_YUV420P;
+    }
 
     // Set encoder options (preset, crf, tune, threads)
     if (!options_.preset.empty()) {
@@ -188,7 +229,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     frame_->width  = codec_->width;
     frame_->height = codec_->height;
 
-    if (av_frame_get_buffer(frame_, 32) < 0) {
+    if (!gpu_nvenc_ && av_frame_get_buffer(frame_, 32) < 0) {
         spdlog::error("[native_av] av_frame_get_buffer failed");
         return false;
     }
@@ -247,6 +288,16 @@ bool NativeAvEncoder::close() {
     avcodec_free_context(&codec_);
     avformat_free_context(fmt_);
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    av_buffer_unref(&cuda_frames_ref_);
+    av_buffer_unref(&cuda_device_ref_);
+    if (cuda_context_) {
+        cuCtxDestroy(reinterpret_cast<CUcontext>(cuda_context_));
+        cuda_context_ = nullptr;
+    }
+    gpu_nvenc_ = false;
+#endif
+
     fmt_    = nullptr;
     codec_  = nullptr;
     stream_ = nullptr;
@@ -262,6 +313,68 @@ NativeAvEncoder::~NativeAvEncoder() {
     if (codec_) {
         close();
     }
+}
+
+bool NativeAvEncoder::write_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle destination) {
+#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+    (void)backend; (void)source; (void)destination;
+    return false;
+#else
+    if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
+        source == runtime::kInvalidRenderSurfaceHandle ||
+        destination == runtime::kInvalidRenderSurfaceHandle) return false;
+    auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
+    if (!vulkan) return false;
+    const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination);
+    if (!copy_result.ok()) {
+        spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
+        return false;
+    }
+    try {
+        const auto info = vulkan->export_cuda_external_memory(destination);
+        backends::vulkan::CudaVulkanSurfaceBridge bridge(
+            info, reinterpret_cast<CUcontext>(cuda_context_));
+        bridge.wait_for_vulkan();
+
+        AVFrame* gpu_frame = av_frame_alloc();
+        if (!gpu_frame) return false;
+        gpu_frame->format = AV_PIX_FMT_CUDA;
+        gpu_frame->width = options_.width;
+        gpu_frame->height = options_.height;
+        gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
+        if (av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0) < 0) {
+            av_frame_free(&gpu_frame);
+            return false;
+        }
+        CUDA_MEMCPY2D copy{};
+        copy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+        copy.srcArray = bridge.array();
+        copy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+        copy.dstDevice = reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]);
+        copy.srcPitch = static_cast<std::size_t>(options_.width) * 4;
+        copy.dstPitch = gpu_frame->linesize[0];
+        copy.WidthInBytes = static_cast<std::size_t>(options_.width) * 4;
+        copy.Height = options_.height;
+        if (cuMemcpy2D(&copy) != CUDA_SUCCESS) {
+            av_frame_free(&gpu_frame);
+            return false;
+        }
+        gpu_frame->pts = static_cast<int64_t>(frames_written_);
+        const auto send_t0 = Clock::now();
+        const int send_ret = avcodec_send_frame(codec_, gpu_frame);
+        native_send_frame_ms_ += elapsed_ms(send_t0);
+        av_frame_free(&gpu_frame);
+        if (send_ret < 0 || !drain_packets()) return false;
+        ++frames_written_;
+        return true;
+    } catch (const std::exception& error) {
+        spdlog::error("[native_av] CUDA/Vulkan frame handoff failed: {}", error.what());
+        return false;
+    }
+#endif
 }
 
 // ---------------------------------------------------------------------------
