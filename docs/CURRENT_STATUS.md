@@ -2,19 +2,23 @@
 
 ## GPU Production V1 — checkpoint 2026-08-19
 
-`main@bbeba006` collega la selezione backend al percorso CLI/IPC, serializza le
+`main@8cd6f33d` collega la selezione backend al percorso CLI/IPC, serializza le
 operazioni stateful del backend Vulkan e rimuove il bridge software silenzioso.
 Il percorso nativo text/image usa quindi GlyphAtlas e GpuAssetCache; il solo
-readback ammesso è quello finale verso l'encoder.
+readback ammesso dal graph è quello finale verso l'encoder. Sono inoltre
+disponibili gli handle Vulkan di memoria/semafori per il futuro bridge CUDA.
 
 Golden strict e benchmark CLI/daemon passano con
 `effective_backend=vulkan`, `software_fallback_nodes=0`, receipt valida e
 `copy_eligible=true`; il daemon caldo è risultato più rapido del CLI caldo
-(10.095 s contro 13.176 s nel workload benchmark). RenderingGen
-`main@50a8525` passa i test config/processor/chronon/media e la recovery IPC
-Vulkan. La matrice visuale completa di tutti i preset, la prova CUDA/NVENC
-zero-copy e la baseline prestazionale ufficiale restano gate separati: non sono
-ancora dichiarati certificati.
+(10.095 s contro 13.176 s nel workload benchmark). Il gate recovery/stabilità
+IPC ha passato 100 job consecutivi, 150/150 frame per job, digest stabile,
+`effective_backend=vulkan`, fallback zero e receipt valida in
+`1059.71 s`. RenderingGen `main@c18949e` passa i test config/processor/chronon/media.
+La matrice visuale completa di tutti i preset, la prova CUDA/NVENC zero-copy e
+la baseline prestazionale ufficiale restano gate separati: la probe CUDA/Vulkan
+locale è risultata `INTEROP_UNAVAILABLE` su FFmpeg 4.4.2 (`hwmap` non riesce a
+creare il device derivato), quindi non viene dichiarato zero-copy.
 
 > Ultima revisione semantica: 2026-08-09.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
