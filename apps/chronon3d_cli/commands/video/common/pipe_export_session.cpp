@@ -51,6 +51,20 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             const Framebuffer& fb_ref = *package.framebuffer;
             const bool gpu_frame = package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
                 package.backend != nullptr;
+            if (gpu_frame && ctx.renderer.counters()) {
+                ctx.renderer.counters()->gpu_native_surface_frames.fetch_add(1, std::memory_order_relaxed);
+            }
+            if (!gpu_frame && ctx.require_native_gpu) {
+                if (ctx.renderer.counters()) {
+                    ctx.renderer.counters()->video_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(1, std::memory_order_relaxed);
+                }
+                spdlog::error("[video] Native GPU profile lost its Vulkan surface at frame {}; refusing CPU fallback",
+                              package.frame_number);
+                ctx.writer_failed.store(true);
+                ctx.queue.close();
+                return;
+            }
             const bool encoded = gpu_frame
                 ? ctx.encoder.write_native_surface(*package.backend,
                                                     package.source_surface,
@@ -62,9 +76,19 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             // driver's external-object budget. Final transient cleanup runs
             // after the writer joins.
             if (!encoded) {
+                if (ctx.renderer.counters()) {
+                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(1, std::memory_order_relaxed);
+                }
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
+            }
+            if (ctx.renderer.counters()) {
+                if (gpu_frame) {
+                    ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    ctx.renderer.counters()->video_pipe_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+                }
             }
             ++ctx.frames_encoded;
             const auto enc_t1 = profiling::now();
