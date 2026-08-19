@@ -4,12 +4,14 @@
 #include <string>
 #include <vector>
 
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/opt.h>
+#include <libavutil/hwcontext.h>
 }
 
 namespace chronon3d::cli {
@@ -31,6 +33,10 @@ public:
 
     bool open(const FfmpegPipeOptions& options) override;
     bool write_frame(const Framebuffer& fb) override;
+    bool write_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination) override;
     bool close() override;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
@@ -55,6 +61,13 @@ private:
     AVStream*        stream_{nullptr};
     AVFrame*         frame_{nullptr};
     AVPacket*        packet_{nullptr};
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    void* cuda_context_{nullptr};
+    AVBufferRef* cuda_device_ref_{nullptr};
+    AVBufferRef* cuda_frames_ref_{nullptr};
+#endif
+    bool gpu_nvenc_{false};
 
     // ── Telemetry accumulators (ms) ──
     double native_convert_ms_{0.0};

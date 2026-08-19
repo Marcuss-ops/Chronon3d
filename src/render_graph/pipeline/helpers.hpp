@@ -139,6 +139,7 @@ namespace chronon3d::graph {
             .camera       = camera,
         },
         .policy = RenderPolicy{
+            .retain_native_surface_for_video = settings.retain_native_surface_for_video,
             // Keep node clipping in sync with framebuffer reuse.
             .diagnostics_enabled = settings.diagnostics.enabled,
             .ssaa_factor         = settings.ssaa_factor,

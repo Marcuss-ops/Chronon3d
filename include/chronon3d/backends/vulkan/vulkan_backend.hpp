@@ -71,6 +71,8 @@ struct CudaExternalMemoryInfo {
     std::uint64_t allocation_size{0};
     std::uint32_t width{0};
     std::uint32_t height{0};
+    // 1 = float4 (Chronon render surface), 2 = uchar4 (NVENC BGR0 surface).
+    std::uint32_t cuda_array_format{1};
 };
 #endif
 
@@ -81,6 +83,18 @@ class VulkanBackend final : public graph::RenderBackend {
 public:
     VulkanBackend();
     ~VulkanBackend() override;
+
+    [[nodiscard]] bool supports_native_video_surface() const noexcept override {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        return true;
+#else
+        return false;
+#endif
+    }
+    graph::RenderOpResult create_video_encode_surface(
+        runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&) override;
+    graph::RenderOpResult copy_surface_to_video_encode(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle) override;
 
     VulkanBackend(const VulkanBackend&) = delete;
     VulkanBackend& operator=(const VulkanBackend&) = delete;
@@ -208,6 +222,9 @@ public:
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&);
+    graph::RenderOpResult copy_surface_to_cuda_encoder(
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination);
     graph::RenderOpResult prepare_cuda_surface_for_vulkan(
         runtime::RenderSurfaceHandle);
     [[nodiscard]] CudaExternalMemoryInfo export_cuda_external_memory(

@@ -49,8 +49,24 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             // Capture the reference BEFORE moving the shared_ptr —
             // C++ argument evaluation order is unspecified.
             const Framebuffer& fb_ref = *package.framebuffer;
-            if (!ctx.encoder.write_frame_async(fb_ref,
-                                                std::move(package.framebuffer))) {
+            const bool gpu_frame = package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
+                package.backend != nullptr;
+            const bool encoded = gpu_frame
+                ? ctx.encoder.write_native_surface(*package.backend,
+                                                    package.source_surface,
+                                                    package.native_surface)
+                : ctx.encoder.write_frame_async(fb_ref, std::move(package.framebuffer));
+            if (gpu_frame && package.surface_registry) {
+                (void)package.backend->release_surface(package.native_surface);
+                (void)package.surface_registry->release(package.native_surface);
+                package.native_surface = runtime::kInvalidRenderSurfaceHandle;
+                if (package.source_surface != runtime::kInvalidRenderSurfaceHandle) {
+                    (void)package.backend->release_surface(package.source_surface);
+                    (void)package.surface_registry->release(package.source_surface);
+                    package.source_surface = runtime::kInvalidRenderSurfaceHandle;
+                }
+            }
+            if (!encoded) {
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
@@ -205,8 +221,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             const uint64_t node_lookup_before = ctx.counters
                 ? ctx.counters->node_cache_lookup_wall_us.load(std::memory_order_relaxed) : 0;
             const auto frame_t0 = profiling::now();
+            RenderSettings video_settings = ctx.settings;
+            video_settings.retain_native_surface_for_video =
+                ctx.opts.encoder.encoder_backend == "native" &&
+                ctx.opts.encoder.hardware_encoder == "nvenc" &&
+                ctx.backend.supports_native_video_surface();
             auto fb = graph::render_compiled_composition_frame_temporal(
-                ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
+                ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
                 ctx.video_decoder, ctx.compiled, current_frame,
                 ctx.sw_renderer, ctx.opts.cancellation_token);
             const auto frame_t1 = profiling::now();
@@ -325,10 +346,43 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 }
             }
 
+            const auto source_surface = fb
+                ? fb->surface_handle()
+                : runtime::kInvalidRenderSurfaceHandle;
+            auto native_surface = runtime::kInvalidRenderSurfaceHandle;
+            auto* surface_registry = ctx.sw_renderer
+                ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
+            if (source_surface != runtime::kInvalidRenderSurfaceHandle && surface_registry &&
+                video_settings.retain_native_surface_for_video) {
+                native_surface = surface_registry->create(runtime::SurfaceDesc{
+                    static_cast<std::uint32_t>(fb->width()),
+                    static_cast<std::uint32_t>(fb->height()),
+                    runtime::PixelFormat::Rgba8Unorm,
+                    runtime::ResourceUsage::Storage,
+                    runtime::LifetimeClass::FrameTransient,
+                    static_cast<std::size_t>(fb->width()) * fb->height() * 4});
+                const auto created = ctx.backend.create_video_encode_surface(
+                    native_surface, runtime::SurfaceDesc{
+                        static_cast<std::uint32_t>(fb->width()),
+                        static_cast<std::uint32_t>(fb->height()),
+                        runtime::PixelFormat::Rgba8Unorm,
+                        runtime::ResourceUsage::Storage,
+                        runtime::LifetimeClass::FrameTransient,
+                        static_cast<std::size_t>(fb->width()) * fb->height() * 4});
+                if (!created.ok()) {
+                    (void)surface_registry->release(native_surface);
+                    native_surface = runtime::kInvalidRenderSurfaceHandle;
+                }
+            }
             RenderFramePackage package{
                 .frame_number = current_frame,
                 .framebuffer = std::move(fb),
-                .arena = std::move(current_arena)};
+                .arena = std::move(current_arena),
+                .backend = &ctx.backend,
+                .surface_registry = ctx.sw_renderer
+                    ? &ctx.sw_renderer->runtime().surface_registry() : nullptr,
+                .source_surface = source_surface,
+                .native_surface = native_surface};
             ++status.frames_rendered;
 
             bool pushed = ctx.queue.push(package, ctx.opts.cancellation_token);
@@ -344,6 +398,18 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             if (!pushed) {
+                if (package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
+                    package.backend && package.surface_registry) {
+                    (void)package.backend->release_surface(package.native_surface);
+                    (void)package.surface_registry->release(package.native_surface);
+                    package.native_surface = runtime::kInvalidRenderSurfaceHandle;
+                }
+                if (package.source_surface != runtime::kInvalidRenderSurfaceHandle &&
+                    package.backend && package.surface_registry) {
+                    (void)package.backend->release_surface(package.source_surface);
+                    (void)package.surface_registry->release(package.source_surface);
+                    package.source_surface = runtime::kInvalidRenderSurfaceHandle;
+                }
                 // Recover the arena so it can be released back to the pool.
                 auto arena = std::move(package.arena);
                 if (ctx.writer_failed.load()) {

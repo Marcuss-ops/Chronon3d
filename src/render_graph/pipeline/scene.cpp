@@ -59,6 +59,10 @@ void synchronize_native_output(RenderGraphContext& ctx,
         framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return;
     }
+    if (ctx.services.backend->supports_native_video_surface() &&
+        ctx.policy.retain_native_surface_for_video) {
+        return;
+    }
     std::vector<float> rgba(static_cast<std::size_t>(framebuffer->width()) *
                             framebuffer->height() * 4);
     const auto result = ctx.services.backend->download_surface(

@@ -118,6 +118,7 @@ struct DiagnosticSettings {
 // related flags live next to each other.  In particular, all dirty-rect /
 // tile / bitmask knobs are under `dirty`; see DirtyRenderSettings.
 struct RenderSettings {
+    bool retain_native_surface_for_video{false};
     /// Canonical resource budget applied by the render-plan/runtime boundary.
     /// Temporal accumulation consumes `render_budget.max_temporal_pixels`;
     /// zero is not used here because the default RenderBudget is finite.
