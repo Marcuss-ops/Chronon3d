@@ -228,9 +228,11 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
                           const RenderNode& node, const RenderState& state) {
     if (node.shape.type() != ShapeType::Rect) return false;
     if (node.shape.rect().stroke.enabled) return false;
-    if (node.fill.type != FillType::Solid) return false;
+    // Render-plan color layers carry their canonical color in RenderNode::color;
+    // the builder's Fill metadata may remain at its default while the shape
+    // is still an ordinary solid rectangle.  Stroke/radius/mask checks below
+    // keep this native route limited to the equivalent solid operation.
     if (node.corner_radius > 0.0f) return false;
-    if (ctx.node_exec.clip_rect) return false;
     if (state.mask && state.mask->enabled()) return false;
     if (!ctx.services.backend || !ctx.services.surface_registry) return false;
     // Axis-aligned affine placement only.  A 2D rotation/shear shows up in
@@ -259,10 +261,16 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
     const f32 min_y = std::min({c00.y, c10.y, c01.y, c11.y});
     const f32 max_x = std::max({c00.x, c10.x, c01.x, c11.x});
     const f32 max_y = std::max({c00.y, c10.y, c01.y, c11.y});
-    const i32 x0 = std::max(0, static_cast<i32>(std::ceil(min_x - 0.5f)));
-    const i32 y0 = std::max(0, static_cast<i32>(std::ceil(min_y - 0.5f)));
-    const i32 x1 = std::min(fb.width(), static_cast<i32>(std::ceil(max_x - 0.5f)));
-    const i32 y1 = std::min(fb.height(), static_cast<i32>(std::ceil(max_y - 0.5f)));
+    i32 x0 = std::max(0, static_cast<i32>(std::ceil(min_x - 0.5f)));
+    i32 y0 = std::max(0, static_cast<i32>(std::ceil(min_y - 0.5f)));
+    i32 x1 = std::min(fb.width(), static_cast<i32>(std::ceil(max_x - 0.5f)));
+    i32 y1 = std::min(fb.height(), static_cast<i32>(std::ceil(max_y - 0.5f)));
+    if (ctx.node_exec.clip_rect) {
+        x0 = std::max(x0, ctx.node_exec.clip_rect->x0);
+        y0 = std::max(y0, ctx.node_exec.clip_rect->y0);
+        x1 = std::min(x1, ctx.node_exec.clip_rect->x1);
+        y1 = std::min(y1, ctx.node_exec.clip_rect->y1);
+    }
 
     if (!ensure_native_surface(ctx, fb)) return false;
 
@@ -474,7 +482,12 @@ NodeExecResult SourceNode::execute(
         ctx.frame_input.height,
         !skip_clear && !direct_full_frame_fill);
 
-    if (direct_full_frame_fill) {
+    // Keep the CPU clear only for the software backend.  A Vulkan video job
+    // must materialize even a full-frame color layer as a native surface so
+    // the final framebuffer can stay device-local all the way to NVENC.
+    const bool native_surface_backend =
+        ctx.services.backend && ctx.services.backend->supports_native_video_surface();
+    if (direct_full_frame_fill && !native_surface_backend) {
         Color fill_color = m_node.color.to_linear();
         fill_color.a *= opacity;
         fb->clear(fill_color);

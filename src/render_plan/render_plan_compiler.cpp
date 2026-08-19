@@ -3,6 +3,7 @@
 #include <chronon3d/render_plan/animation_intent.hpp>
 #include <chronon3d/render_plan/visual_preset_materializer.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
@@ -530,7 +531,14 @@ compile_render_plan(
                                 builder.kind(LayerKind::Text);
                                 if (!prepared_texts[index])
                                     throw std::runtime_error("text layer was not prepared");
-                                builder.text("text", *prepared_texts[index]);
+                                // Render-plan text uses the canonical lowered
+                                // payload so the graph emits TextRunNode and
+                                // can use the existing Vulkan GlyphAtlas
+                                // path.  The older TextDefinition builder
+                                // emits a legacy SourceNode and would force a
+                                // CPU draw_node fallback in strict Vulkan.
+                                builder.text_run(
+                                    "text", chronon3d::prepare_text(*prepared_texts[index]));
                                 break;
                             case LayerType::SubtitleTrack: {
                                 if (!subtitles[index])
