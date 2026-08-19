@@ -721,6 +721,11 @@ struct VulkanBackend::Impl {
         physical.image.vulkan_to_cuda = make_external_binary_semaphore();
         physical.desc = desc;
         surface_bindings.emplace(handle, slot);
+        // Encode surfaces are created outside the render graph and are fully
+        // consumed by copy_surface_to_cuda_encoder before their release.
+        // Mark them unplanned so the writer can reclaim them immediately even
+        // while the render thread records the next frame batch.
+        unplanned_surface_handles.insert(handle);
         ++stats.surface_creations;
     }
 
@@ -2656,7 +2661,8 @@ graph::RenderOpResult VulkanBackend::create_surface(
     try {
         std::lock_guard lock(m_impl->api_mutex);
         (void)m_impl->ensure_surface(handle, desc);
-        if (m_impl->frame_batch.active || m_impl->command_batch_active) {
+        if ((m_impl->frame_batch.active || m_impl->command_batch_active) &&
+            !m_impl->unplanned_surface_handles.contains(handle)) {
             m_impl->unplanned_surface_handles.insert(handle);
         }
         ++m_impl->stats.surface_creations;
@@ -2738,7 +2744,8 @@ graph::RenderOpResult VulkanBackend::release_surface(
                 graph::RenderBackendErrorCode::InvalidInput,
                 "VulkanBackend::release_surface: invalid handle"});
         }
-        if (m_impl->frame_batch.active || m_impl->command_batch_active) {
+        if ((m_impl->frame_batch.active || m_impl->command_batch_active) &&
+            !m_impl->unplanned_surface_handles.contains(handle)) {
             if (std::find(m_impl->deferred_surface_releases.begin(),
                           m_impl->deferred_surface_releases.end(), handle) ==
                 m_impl->deferred_surface_releases.end()) {
@@ -2757,6 +2764,18 @@ graph::RenderOpResult VulkanBackend::release_surface(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::release_surface: Vulkan support is disabled"});
+#endif
+}
+
+bool VulkanBackend::is_native_surface_valid(
+    runtime::RenderSurfaceHandle handle) const noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!m_impl || handle == runtime::kInvalidRenderSurfaceHandle) return false;
+    std::lock_guard lock(m_impl->api_mutex);
+    return m_impl->surface_bindings.contains(handle);
+#else
+    (void)handle;
+    return false;
 #endif
 }
 
@@ -3143,7 +3162,10 @@ void VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
         record_software_fallback("draw_node", started);
         return;
     }
-    unsupported("draw_node: no legacy-node fallback attached");
+    throw std::runtime_error(
+        "VulkanBackend::draw_node: no legacy-node fallback attached; node='" +
+        std::string(node.name) + "' shape_type=" +
+        std::to_string(static_cast<int>(node.shape.type())));
 }
 void VulkanBackend::apply_effect_stack(
     Framebuffer& framebuffer, const EffectStack& stack,

@@ -176,6 +176,8 @@ public:
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&) override;
     graph::RenderOpResult release_surface(
         runtime::RenderSurfaceHandle) override;
+    [[nodiscard]] bool is_native_surface_valid(
+        runtime::RenderSurfaceHandle) const noexcept override;
     void release_frame_transient_surfaces() noexcept override;
     graph::RenderOpResult upload_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
