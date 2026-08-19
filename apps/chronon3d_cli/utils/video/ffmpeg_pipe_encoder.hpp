@@ -71,6 +71,8 @@ struct IVideoEncoder {
     [[nodiscard]] virtual double native_convert_ms()     const { return 0.0; }
     [[nodiscard]] virtual double native_send_frame_ms()  const { return 0.0; }
     [[nodiscard]] virtual double native_backpressure_ms() const { return 0.0; }
+    [[nodiscard]] virtual std::uint64_t native_cuda_pending_peak() const { return 0; }
+    [[nodiscard]] virtual std::uint64_t native_cuda_backpressure_wait_count() const { return 0; }
     [[nodiscard]] virtual double native_flush_ms()       const { return 0.0; }
     [[nodiscard]] virtual double native_receive_packet_ms() const { return 0.0; }
     [[nodiscard]] virtual double native_mux_write_ms()   const { return 0.0; }

@@ -1368,7 +1368,11 @@ struct VulkanBackend::Impl {
         const auto it = surface_bindings.find(handle);
         if (it == surface_bindings.end()) {
             throw std::invalid_argument(
-                "Vulkan surface handle is not bound to a physical slot");
+                "Vulkan surface handle " + std::to_string(handle) +
+                " is not bound to a physical slot (bindings=" +
+                std::to_string(surface_bindings.size()) +
+                ", physical_surfaces=" +
+                std::to_string(physical_surfaces.size()) + ")");
         }
         return it->second;
     }
@@ -2179,7 +2183,10 @@ struct VulkanBackend::Impl {
         if (pending_timeline_value != 0) {
             const auto wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
-            stats.gpu_wait_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
+            const auto wait_us = static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
+            stats.gpu_wait_cpu_us += wait_us;
+            ++stats.standalone_wait_count;
+            stats.standalone_wait_us += wait_us;
             check(vkResetFences(device, 1, &fence), "vkResetFences");
             pending_timeline_value = 0;
         }
@@ -2191,7 +2198,10 @@ struct VulkanBackend::Impl {
             const auto wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &frame_batch.fences[i], VK_TRUE, UINT64_MAX),
                   "vkWaitForFences(frame batch slot)");
-            stats.gpu_wait_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
+            const auto wait_us = static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
+            stats.gpu_wait_cpu_us += wait_us;
+            ++stats.frame_batch_drain_wait_count;
+            stats.frame_batch_drain_wait_us += wait_us;
             check(vkResetFences(device, 1, &frame_batch.fences[i]),
                   "vkResetFences(frame batch slot)");
             frame_batch.in_flight[i] = false;
@@ -2518,6 +2528,10 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("physical_surfaces_peak", m_impl->stats.physical_surfaces_peak);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
+    out.emplace_back("standalone_wait_count", m_impl->stats.standalone_wait_count);
+    out.emplace_back("standalone_wait_us", m_impl->stats.standalone_wait_us);
+    out.emplace_back("frame_batch_drain_wait_count", m_impl->stats.frame_batch_drain_wait_count);
+    out.emplace_back("frame_batch_drain_wait_us", m_impl->stats.frame_batch_drain_wait_us);
     out.emplace_back("frame_slot_wait_count", m_impl->stats.frame_slot_wait_count);
     out.emplace_back("frame_slot_wait_us", m_impl->stats.frame_slot_wait_us);
     out.emplace_back("readback_us", m_impl->stats.readback_us);

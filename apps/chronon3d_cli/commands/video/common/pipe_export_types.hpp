@@ -126,6 +126,8 @@ struct EncoderCloseResult {
     double native_convert_ms{0.0};
     double native_send_ms{0.0};
     double native_backpressure_ms{0.0};
+    std::uint64_t native_cuda_pending_peak{0};
+    std::uint64_t native_cuda_backpressure_wait_count{0};
     double native_flush_ms{0.0};
     double native_receive_ms{0.0};
     double native_mux_ms{0.0};
