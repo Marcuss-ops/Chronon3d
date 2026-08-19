@@ -3,6 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <chrono>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
@@ -69,6 +70,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     frames_written_ = 0;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     frames_submitted_ = 0;
+    cuda_pending_peak_ = 0;
+    cuda_backpressure_wait_count_ = 0;
     pending_cuda_frames_.clear();
 #endif
 
@@ -362,7 +365,10 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         const CUresult ready = cuEventQuery(pending.ready);
         if (ready == CUDA_ERROR_NOT_READY) {
             if (!wait_for_one) return true;
+            const auto wait_t0 = Clock::now();
             if (cuEventSynchronize(pending.ready) != CUDA_SUCCESS) return false;
+            native_backpressure_ms_ += elapsed_ms(wait_t0);
+            ++cuda_backpressure_wait_count_;
         } else if (ready != CUDA_SUCCESS) {
             return false;
         }
@@ -459,6 +465,8 @@ bool NativeAvEncoder::write_native_surface(
         }
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
         pending_cuda_frames_.push_back(PendingCudaFrame{gpu_frame, ready});
+        cuda_pending_peak_ = std::max<std::uint64_t>(
+            cuda_pending_peak_, pending_cuda_frames_.size());
         if (counters_) {
             counters_->gpu_surface_copy_frames.fetch_add(1, std::memory_order_relaxed);
             counters_->encoder_staging_copy_bytes.fetch_add(
