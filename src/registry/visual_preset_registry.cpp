@@ -317,6 +317,34 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
         "phrase_word_reveal", "important_phrase", VisualLayerKind::Text,
         "caption_safe_area", "fade_in", "word", "safe_area", "center", 64.0f, 700));
 
+    // ── Modern fast overlay aliases ────────────────────────────────────
+    // Small, production-oriented names used by short-form overlay plans.
+    r.register_preset(make_simple_2d_preset(
+        "fast_fade_through", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "fade_in", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "snap_scale", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "scale_drop", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "clean_slide_up", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "reveal_from_bottom", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "slide_lateral", "important_phrase", VisualLayerKind::Text,
+        "caption_safe_area", "slide_in", "line", "safe_area", "center", 64.0f, 700));
+    r.register_preset(make_simple_2d_preset(
+        "undertext_pop", "subtitle", VisualLayerKind::Text,
+        "subtitle_bottom", "fade_in", "line", "lower_third", "center", 48.0f, 700));
+
+    r.register_preset(make_simple_2d_preset(
+        "modern_rounded_pop", "image", VisualLayerKind::Image,
+        "", "scale_drop", "line", "center", "center", 0.0f, 0));
+    r.register_preset(make_simple_2d_preset(
+        "bottom_card_rise", "image", VisualLayerKind::Image,
+        "", "reveal_from_bottom", "line", "center", "center", 0.0f, 0));
+    r.register_preset(make_simple_2d_preset(
+        "image_fast_fade", "image", VisualLayerKind::Image,
+        "", "fade_in", "line", "center", "center", 0.0f, 0));
+
     // Names / entity cards: restrained lower-third motion, all 2D. They
     // lower onto the canonical `lower_third` text materializer.
     r.register_preset(make_simple_2d_preset(
