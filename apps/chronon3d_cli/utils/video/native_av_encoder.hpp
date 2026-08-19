@@ -104,6 +104,7 @@ private:
     AVBufferRef* cuda_frames_ref_{nullptr};
 #endif
     bool gpu_nvenc_{false};
+    bool open_complete_{false};
 
     // ── Telemetry accumulators (ms) ──
     double native_convert_ms_{0.0};
@@ -118,6 +119,7 @@ private:
     /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();
     bool drain_ready_cuda_frames(bool wait_for_one);
+    void abort_open() noexcept;
 
     // ── Single-entry YUV conversion cache ──
     // When consecutive frames have the same digest (static scenes), skip the
