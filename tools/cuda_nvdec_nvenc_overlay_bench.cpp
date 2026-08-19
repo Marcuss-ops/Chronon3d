@@ -110,23 +110,6 @@ void copy_plane(CUdeviceptr dst, int dp, const uint8_t* src, int sp, int w, int 
   c.dstPitch = dp; c.WidthInBytes = w; c.Height = h; cu_ok(cuMemcpy2DAsync(&c, stream), "cuMemcpy2DAsync");
 }
 
-bool copy_nv12(CUdeviceptr dst_y, int dst_pitch, CUdeviceptr dst_uv,
-               const uint8_t* src_y, int src_pitch, const uint8_t* src_uv,
-               int width, int height, CUstream stream) {
-  const auto* expected_src_uv = reinterpret_cast<const uint8_t*>(src_y) + static_cast<std::size_t>(src_pitch) * height;
-  const auto expected_dst_uv = dst_y + static_cast<std::size_t>(dst_pitch) * height;
-  if (dst_pitch == src_pitch && dst_pitch >= width && src_uv == expected_src_uv &&
-      reinterpret_cast<CUdeviceptr>(dst_uv) == expected_dst_uv) {
-    cu_ok(cuMemcpyDtoDAsync(dst_y, reinterpret_cast<CUdeviceptr>(src_y),
-                            static_cast<std::size_t>(dst_pitch) * (height + height / 2), stream),
-          "cuMemcpyDtoDAsync(NV12)");
-    return true;
-  }
-  copy_plane(dst_y, dst_pitch, src_y, src_pitch, width, height, stream);
-  copy_plane(dst_uv, dst_pitch, src_uv, src_pitch, width, height / 2, stream);
-  return false;
-}
-
 void write_packets(AVCodecContext* enc, AVFormatContext* out, AVPacket* pkt, AVFrame* frame, int64_t& count) {
   av_ok(avcodec_send_frame(enc, frame), "avcodec_send_frame");
   for (;;) {
@@ -203,7 +186,7 @@ int main(int argc, char** argv) {
     AVPacket* pkt=av_packet_alloc(); AVFrame* decoded=av_frame_alloc(); if(!pkt || !decoded) fail("frame/packet alloc"); int64_t out_count=0;
     auto process=[&](AVFrame* src){
       AVFrame* dst=av_frame_alloc(); if(!dst) fail("frame alloc"); dst->format=AV_PIX_FMT_CUDA; dst->width=W; dst->height=H; dst->hw_frames_ctx=av_buffer_ref(frames); av_ok(av_hwframe_get_buffer(frames,dst,0),"av_hwframe_get_buffer");
-      copy_nv12((CUdeviceptr)dst->data[0],dst->linesize[0],(CUdeviceptr)dst->data[1],src->data[0],src->linesize[0],src->data[1],W,H,stream);
+      copy_plane((CUdeviceptr)dst->data[0],dst->linesize[0],src->data[0],src->linesize[0],W,H,stream); copy_plane((CUdeviceptr)dst->data[1],dst->linesize[1],src->data[1],src->linesize[1],W,(H+1)/2,stream);
       float wop = 0.75f; int kernel_w = W, kernel_h = H;
       void* args[]={&dst->data[0],&dst->data[1],&dst->linesize[0],&dst->linesize[1],&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h};
       cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"cuLaunchKernel"); cu_ok(cuStreamSynchronize(stream),"cuStreamSynchronize"); dst->pts=out_count; write_packets(ec,out,pkt,dst,out_count); av_frame_free(&dst);
