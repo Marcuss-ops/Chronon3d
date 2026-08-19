@@ -80,7 +80,7 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, rgba);
     if (!acquired.ok()) return false;
 
-    if (!ensure_native_surface(ctx, fb)) return false;
+    if (!ensure_empty_native_surface(ctx, fb)) return false;
     const Vec2 original_source_size{
         static_cast<float>(source.width()), static_cast<float>(source.height())};
     Vec2 effective_source_size = original_source_size;
