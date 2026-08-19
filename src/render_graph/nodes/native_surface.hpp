@@ -69,7 +69,12 @@ inline std::vector<float> pack_framebuffer_rgba(const Framebuffer& framebuffer) 
 inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
     if (!ctx.services.backend || !ctx.services.surface_registry) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        return true;
+        if (ctx.services.surface_registry->lookup(framebuffer.surface_handle())) {
+            return true;
+        }
+        // A previous job may have reclaimed a transient backend surface while
+        // a pooled CPU framebuffer still carried its old logical handle.
+        framebuffer.clear_surface_handle();
     }
 
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
@@ -103,7 +108,10 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                                         Framebuffer& framebuffer) {
     if (!ctx.services.backend || !ctx.services.surface_registry) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        return true;
+        if (ctx.services.surface_registry->lookup(framebuffer.surface_handle())) {
+            return true;
+        }
+        framebuffer.clear_surface_handle();
     }
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
     const auto handle = ctx.services.surface_registry->create(desc);

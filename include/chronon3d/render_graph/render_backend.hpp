@@ -309,6 +309,10 @@ public:
             "RenderBackend::release_surface: native surfaces are not supported"});
     }
 
+    /// Reclaim all backend-owned frame-transient surfaces at a job boundary.
+    /// JobPersistent asset/font surfaces are intentionally retained.
+    virtual void release_frame_transient_surfaces() noexcept {}
+
     virtual RenderOpResult upload_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,

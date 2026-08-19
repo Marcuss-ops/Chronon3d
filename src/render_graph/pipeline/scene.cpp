@@ -66,6 +66,10 @@ void synchronize_native_output(RenderGraphContext& ctx,
     if (!result.ok()) {
         spdlog::error("[backend] native output synchronization failed: {}",
                       result.error().message);
+        if (ctx.services.surface_registry) {
+            (void)ctx.services.backend->release_surface(framebuffer->surface_handle());
+            (void)ctx.services.surface_registry->release(framebuffer->surface_handle());
+        }
         framebuffer->clear_surface_handle();
         return;
     }
