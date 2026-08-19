@@ -193,13 +193,13 @@ struct VulkanBackend::Impl {
     VkBuffer staging{VK_NULL_HANDLE};
     VkDeviceMemory staging_memory{VK_NULL_HANDLE};
     VkDeviceSize staging_capacity{0};
-    // Device-local storage buffer for the text-run kernel's glyph instances.
-    // Updated in-band via vkCmdUpdateBuffer so each recorded dispatch reads
-    // its own instance data even when several text runs accumulate in one
-    // command batch (a host-visible reuse would clobber earlier overlays).
-    VkBuffer glyph_instance_buffer{VK_NULL_HANDLE};
-    VkDeviceMemory glyph_instance_memory{VK_NULL_HANDLE};
-    VkDeviceSize glyph_instance_capacity{0};
+    // Device-local storage buffers for glyph instances. One buffer per frame
+    // batch slot prevents a CPU update for frame N from clobbering data still
+    // consumed by the GPU for frame N-2.
+    static constexpr std::size_t kGlyphInstanceRingSize = 3;
+    std::array<VkBuffer, kGlyphInstanceRingSize> glyph_instance_buffers{};
+    std::array<VkDeviceMemory, kGlyphInstanceRingSize> glyph_instance_memories{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_capacities{};
     struct UploadSlot {
         VkBuffer buffer{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
@@ -581,11 +581,13 @@ struct VulkanBackend::Impl {
         destroy_image(src);
         if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
         if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
-        if (glyph_instance_buffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, glyph_instance_buffer, nullptr);
-        }
-        if (glyph_instance_memory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, glyph_instance_memory, nullptr);
+        for (std::size_t i = 0; i < kGlyphInstanceRingSize; ++i) {
+            if (glyph_instance_buffers[i] != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, glyph_instance_buffers[i], nullptr);
+            }
+            if (glyph_instance_memories[i] != VK_NULL_HANDLE) {
+                vkFreeMemory(device, glyph_instance_memories[i], nullptr);
+            }
         }
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
         for (auto& allocator : frame_batch.descriptor_allocators) {
@@ -1224,14 +1226,15 @@ struct VulkanBackend::Impl {
     }
 
     void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
-                         const Image& destination, std::int32_t glyph_count) {
+                         const Image& destination, std::int32_t glyph_count,
+                         VkBuffer instance_buffer) {
         // The glyph instances were written by a preceding vkCmdUpdateBuffer
         // (transfer stage); publish them to the compute shader before dispatch.
         const VkBufferMemoryBarrier barrier{
             VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
             VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-            glyph_instance_buffer, 0, VK_WHOLE_SIZE};
+            instance_buffer, 0, VK_WHOLE_SIZE};
         vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
                              0, nullptr, 1, &barrier, 0, nullptr);
@@ -2011,27 +2014,30 @@ struct VulkanBackend::Impl {
             dst_image.width == 0 || dst_image.height == 0) {
             throw std::invalid_argument("Vulkan text run references incompatible surfaces");
         }
-        ensure_glyph_instance_buffer(bytes);
+        const std::size_t instance_slot = frame_batch.active
+            ? frame_batch.next_slot : 0;
+        ensure_glyph_instance_buffer(bytes, instance_slot);
+        const VkBuffer instance_buffer = glyph_instance_buffers[instance_slot];
         const std::int32_t glyph_count = static_cast<std::int32_t>(glyphs.size());
 
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
-            write_text_run_descriptors(descriptors, dst_image, atlas_image, glyph_instance_buffer);
+            write_text_run_descriptors(descriptors, dst_image, atlas_image, instance_buffer);
             const auto cmd = active_command_buffer();
             emit_pass_sync(cmd, {&dst_image, &atlas_image});
-            vkCmdUpdateBuffer(cmd, glyph_instance_buffer, 0, bytes, glyphs.data());
-            record_text_run(cmd, descriptors, dst_image, glyph_count);
+            vkCmdUpdateBuffer(cmd, instance_buffer, 0, bytes, glyphs.data());
+            record_text_run(cmd, descriptors, dst_image, glyph_count, instance_buffer);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
             ++stats.passes_executed;
             return;
         }
         ensure_descriptor_set();
-        write_text_run_descriptors(descriptor_set, dst_image, atlas_image, glyph_instance_buffer);
+        write_text_run_descriptors(descriptor_set, dst_image, atlas_image, instance_buffer);
         begin_command_buffer();
         emit_conservative_pass_sync(command_buffer, {&dst_image, &atlas_image});
-        vkCmdUpdateBuffer(command_buffer, glyph_instance_buffer, 0, bytes, glyphs.data());
-        record_text_run(command_buffer, descriptor_set, dst_image, glyph_count);
+        vkCmdUpdateBuffer(command_buffer, instance_buffer, 0, bytes, glyphs.data());
+        record_text_run(command_buffer, descriptor_set, dst_image, glyph_count, instance_buffer);
         dst_image.initialized = true;
         ++stats.passes_executed;
         submit();
@@ -2074,30 +2080,31 @@ struct VulkanBackend::Impl {
     // buffer is updated in-band with vkCmdUpdateBuffer and read by the
     // text-run compute kernel, so it needs both transfer-dst and storage
     // usage; device-local memory keeps the GPU read path on-card.
-    void ensure_glyph_instance_buffer(VkDeviceSize bytes) {
-        if (glyph_instance_capacity >= bytes) return;
-        if (glyph_instance_buffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, glyph_instance_buffer, nullptr);
+    void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index) {
+        if (index >= kGlyphInstanceRingSize) index = 0;
+        if (glyph_instance_capacities[index] >= bytes) return;
+        if (glyph_instance_buffers[index] != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, glyph_instance_buffers[index], nullptr);
         }
-        if (glyph_instance_memory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, glyph_instance_memory, nullptr);
+        if (glyph_instance_memories[index] != VK_NULL_HANDLE) {
+            vkFreeMemory(device, glyph_instance_memories[index], nullptr);
         }
         const VkBufferCreateInfo info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &info, nullptr, &glyph_instance_buffer),
+        check(vkCreateBuffer(device, &info, nullptr, &glyph_instance_buffers[index]),
               "vkCreateBuffer(glyph instances)");
         VkMemoryRequirements requirements{};
-        vkGetBufferMemoryRequirements(device, glyph_instance_buffer, &requirements);
+        vkGetBufferMemoryRequirements(device, glyph_instance_buffers[index], &requirements);
         const VkMemoryAllocateInfo allocation{
             VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
             memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-        check(vkAllocateMemory(device, &allocation, nullptr, &glyph_instance_memory),
+        check(vkAllocateMemory(device, &allocation, nullptr, &glyph_instance_memories[index]),
               "vkAllocateMemory(glyph instances)");
-        check(vkBindBufferMemory(device, glyph_instance_buffer, glyph_instance_memory, 0),
+        check(vkBindBufferMemory(device, glyph_instance_buffers[index], glyph_instance_memories[index], 0),
               "vkBindBufferMemory(glyph instances)");
-        glyph_instance_capacity = bytes;
+        glyph_instance_capacities[index] = bytes;
     }
 
     static void transition(VkCommandBuffer command, VkImage image,
