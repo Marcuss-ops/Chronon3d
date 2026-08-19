@@ -35,7 +35,7 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     const auto& image = node.shape.image();
     if (!ctx.services.image_cache || !ctx.services.gpu_asset_cache ||
         !ctx.services.backend || !ctx.services.surface_registry ||
-        image.path.empty() || image.radius > 0.0f || state.clip_rect ||
+        image.path.empty() || image.radius > 0.0f ||
         (state.mask && state.mask->enabled()) ||
         std::abs(state.matrix[0][1]) > 1e-4f ||
         std::abs(state.matrix[1][0]) > 1e-4f ||
@@ -121,6 +121,15 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     transform.max_y = source_origin.y + source_size.y;
     transform.opacity = image.opacity * state.opacity;
     transform.bilinear = 1u;
+    transform.destination_origin_x = fb.origin_x();
+    transform.destination_origin_y = fb.origin_y();
+    if (state.clip_rect) {
+        transform.clip_enabled = 1u;
+        transform.clip_rect[0] = state.clip_rect->x0;
+        transform.clip_rect[1] = state.clip_rect->y0;
+        transform.clip_rect[2] = state.clip_rect->x1;
+        transform.clip_rect[3] = state.clip_rect->y1;
+    }
 
     const auto result = ctx.services.backend->transform_surface_affine(
         fb.surface_handle(), acquired.handle, transform);

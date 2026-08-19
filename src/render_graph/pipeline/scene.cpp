@@ -84,16 +84,6 @@ void synchronize_native_output(RenderGraphContext& ctx,
     framebuffer->clear_surface_handle();
 }
 
-void release_frame_transient_surfaces(RenderGraphContext& ctx) {
-    if (!ctx.services.surface_registry || !ctx.services.backend) return;
-    const auto handles = ctx.services.surface_registry->handles_for_lifetime(
-        runtime::LifetimeClass::FrameTransient);
-    for (const auto handle : handles) {
-        (void)ctx.services.backend->release_surface(handle);
-        (void)ctx.services.surface_registry->release(handle);
-    }
-}
-
 } // namespace
 
 std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
@@ -423,7 +413,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // render API still returns a CPU Framebuffer, so perform exactly one
     // terminal synchronization here rather than between every graph pass.
     synchronize_native_output(ctx, exec_result.fb);
-    release_frame_transient_surfaces(ctx);
     const auto t_exec1 = profiling::now();
 
     if (sw_renderer && !isolated_temporal_sample) {

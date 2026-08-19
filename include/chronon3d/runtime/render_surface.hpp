@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
-#include <vector>
 
 namespace chronon3d::runtime {
 
@@ -47,7 +46,13 @@ struct SurfaceAffineTransform {
     std::uint32_t bilinear{1};
     std::int32_t destination_origin_x{0};
     std::int32_t destination_origin_y{0};
+    std::uint32_t destination_padding[2]{};
+    std::int32_t clip_rect[4]{};
+    std::uint32_t clip_enabled{0};
+    std::uint32_t padding[3]{};
 };
+static_assert(sizeof(SurfaceAffineTransform) == 96,
+              "SurfaceAffineTransform must match affine_transform.comp push constants");
 
 /// Per-glyph instance for the GPU text-run kernel.  It locates one glyph
 /// quad inside a packed atlas texture and places it in the destination
@@ -111,19 +116,6 @@ public:
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return m_surfaces.size(); }
-
-    /// Snapshot transient identities after a frame has completed. Backends
-    /// release the physical resources first; callers then erase these logical
-    /// records. Persistent asset/glyph surfaces are intentionally excluded.
-    [[nodiscard]] std::vector<RenderSurfaceHandle> handles_for_lifetime(
-        LifetimeClass lifetime) const {
-        std::vector<RenderSurfaceHandle> handles;
-        handles.reserve(m_surfaces.size());
-        for (const auto& [handle, record] : m_surfaces) {
-            if (record.desc.lifetime == lifetime) handles.push_back(handle);
-        }
-        return handles;
-    }
 
 private:
     RenderSurfaceHandle m_next_handle{1};
