@@ -46,7 +46,7 @@ public:
         PackedTextAtlas& out);
 
     void clear() noexcept;
-    [[nodiscard]] std::size_t size() const noexcept { return m_entries.size(); }
+    [[nodiscard]] std::size_t size() const noexcept;
 
 private:
     struct Key {
