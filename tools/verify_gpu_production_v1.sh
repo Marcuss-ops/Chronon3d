@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CLI=${CHRONON_CLI:-"$ROOT/.tmp/chronon-builds/native-verify/apps/chronon3d_cli/chronon3d_cli"}
 PLAN=${CHRONON_GOLDEN_PLAN:-"$ROOT/examples/render_plan_text_smoke.json"}
-ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT/test_renders/test1-hello-chronon"}
+ASSETS=${CHRONON_ASSETS_ROOT:-"$ROOT"}
 CERT_DIR=${CHRONON_CERT_DIR:-"$(mktemp -d /tmp/chronon-gpu-cert.XXXXXX)"}
 STRESS_COUNT=${CHRONON_STRESS_COUNT:-100}
 mkdir -p "$CERT_DIR/matrix" "$CERT_DIR/stress"
@@ -39,10 +39,13 @@ render_one "$PLAN" "$CERT_DIR/golden.mp4" "$CERT_DIR/golden.log"
 python3 - "$ROOT/examples/render_plan_text_smoke.json" "$CERT_DIR/matrix" <<'PY'
 import json, pathlib, sys
 base=json.load(open(sys.argv[1])); out=pathlib.Path(sys.argv[2])
-ids='text_animations fade_in blur_in slide_up slide_down scale_in zoom_in slide_left tracking_close masked_line_reveal word_cascade character_cascade cinematic_text_camera cinematic_title_reveal tilt_sweep_title_v2 word_pop scale_punch color_accent gradient_fill minimal_white yellow_keyword glow_pulse caption_box karaoke_fill active_word_pop subtitle_card lower_third_safe'.split()
+ids='caption_card active_word_pop subtitle_card lower_third_safe organization_card location_card image_focus_in image_fade_in image_slide_left image_slide_right image_scale_in phrase_fade_in phrase_scale_in phrase_slide_up phrase_soft_pop phrase_word_reveal name_fade_in name_slide_up name_pop_in name_slide_left name_scale_in'.split()
+image_ids={'image_focus_in','image_fade_in','image_slide_left','image_slide_right','image_scale_in'}
 for p in ids:
     plan=json.loads(json.dumps(base)); plan['job_id']='gpu-v1-'+p
-    plan['layers'][1]['preset']=p; plan['layers'][1]['animation']={'preset':'fade_in'}
+    layer=plan['layers'][1]; layer['preset']=p; layer['animation']={'preset':'fade_in'}
+    if p in image_ids:
+        layer.clear(); layer.update({'id':'image-'+p,'type':'image','preset':p,'asset':'assets/test_image.png','position':[320,180],'box_width':260,'box_height':260,'start_frame':0,'duration_frames':90})
     (out/(p+'.json')).write_text(json.dumps(plan))
 PY
 while IFS= read -r plan; do
