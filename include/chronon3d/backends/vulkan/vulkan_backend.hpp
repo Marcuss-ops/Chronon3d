@@ -229,7 +229,8 @@ public:
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&);
     graph::RenderOpResult copy_surface_to_cuda_encoder(
         runtime::RenderSurfaceHandle source,
-        runtime::RenderSurfaceHandle destination);
+        runtime::RenderSurfaceHandle destination,
+        bool wait_for_completion = true);
     graph::RenderOpResult prepare_cuda_surface_for_vulkan(
         runtime::RenderSurfaceHandle);
     [[nodiscard]] CudaExternalMemoryInfo export_cuda_external_memory(
