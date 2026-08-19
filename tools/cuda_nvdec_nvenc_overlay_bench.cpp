@@ -3,6 +3,9 @@
 // frame never enters host memory after decode.
 #include <cuda.h>
 #include <nvrtc.h>
+#ifdef CHRONON3D_ENABLE_RAW_NVENC
+#include <ffnvcodec/nvEncodeAPI.h>
+#endif
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -24,6 +27,7 @@ extern "C" {
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace {
 
@@ -89,6 +93,38 @@ struct Layer { CUdeviceptr ptr{}; int w{}, h{}, x{}, y{}; };
 void cu_ok(CUresult r, const char* what) { if (r != CUDA_SUCCESS) fail(std::string(what) + " CUDA error " + std::to_string((int)r)); }
 void av_ok(int r, const char* what) { if (r < 0) { char b[AV_ERROR_MAX_STRING_SIZE]{}; av_strerror(r,b,sizeof(b)); fail(std::string(what)+": "+b); } }
 void nv_ok(nvrtcResult r, const char* what) { if (r != NVRTC_SUCCESS) fail(std::string(what)+": "+nvrtcGetErrorString(r)); }
+
+#ifdef CHRONON3D_ENABLE_RAW_NVENC
+void enc_ok(NVENCSTATUS r, const char* what) { if (r != NV_ENC_SUCCESS && r != NV_ENC_ERR_NEED_MORE_INPUT) fail(std::string(what)+": status="+std::to_string(static_cast<int>(r))); }
+
+class RawNvenc {
+ public:
+  RawNvenc(CUcontext context, uint32_t width, uint32_t height, AVFormatContext* output)
+      : width_(width), height_(height), output_(output) {
+    api_.version = NV_ENCODE_API_FUNCTION_LIST_VER; enc_ok(NvEncodeAPICreateInstance(&api_), "NvEncodeAPICreateInstance");
+    NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS open{}; open.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER; open.deviceType = NV_ENC_DEVICE_TYPE_CUDA; open.device = context; open.apiVersion = NVENCAPI_VERSION;
+    enc_ok(api_.nvEncOpenEncodeSessionEx(&open, &encoder_), "nvEncOpenEncodeSessionEx");
+    NV_ENC_PRESET_CONFIG preset{}; preset.version = NV_ENC_PRESET_CONFIG_VER; preset.presetCfg.version = NV_ENC_CONFIG_VER;
+    NV_ENC_INITIALIZE_PARAMS init{}; init.version = NV_ENC_INITIALIZE_PARAMS_VER; init.encodeGUID = NV_ENC_CODEC_H264_GUID; init.presetGUID = NV_ENC_PRESET_P1_GUID; init.encodeWidth = width_; init.encodeHeight = height_; init.darWidth = width_; init.darHeight = height_; init.frameRateNum = 24; init.frameRateDen = 1; init.enablePTD = 1; init.enableEncodeAsync = 0;
+    enc_ok(api_.nvEncGetEncodePresetConfigEx(encoder_, init.encodeGUID, init.presetGUID, NV_ENC_TUNING_INFO_LOW_LATENCY, &preset), "nvEncGetEncodePresetConfigEx");
+    init.tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY; init.encodeConfig = &preset.presetCfg; enc_ok(api_.nvEncInitializeEncoder(encoder_, &init), "nvEncInitializeEncoder");
+    uint8_t sequence[4096]{}; NV_ENC_SEQUENCE_PARAM_PAYLOAD sequence_params{}; sequence_params.version = NV_ENC_SEQUENCE_PARAM_PAYLOAD_VER; sequence_params.inBufferSize = sizeof(sequence); sequence_params.spsppsBuffer = sequence; enc_ok(api_.nvEncGetSequenceParams(encoder_, &sequence_params), "nvEncGetSequenceParams");
+    AVStream* stream = avformat_new_stream(output_, nullptr); if (!stream) fail("raw output stream alloc"); stream_ = stream; stream_->time_base = {1,24}; stream_->codecpar->codec_type = AVMEDIA_TYPE_VIDEO; stream_->codecpar->codec_id = AV_CODEC_ID_H264; stream_->codecpar->width = width_; stream_->codecpar->height = height_; stream_->codecpar->format = AV_PIX_FMT_YUV420P; stream_->codecpar->extradata = static_cast<uint8_t*>(av_mallocz(sequence_params.outSpsPpsPayloadSize + AV_INPUT_BUFFER_PADDING_SIZE)); if (!stream_->codecpar->extradata) fail("raw extradata alloc"); std::memcpy(stream_->codecpar->extradata, sequence, sequence_params.outSpsPpsPayloadSize); stream_->codecpar->extradata_size = sequence_params.outSpsPpsPayloadSize;
+    NV_ENC_CREATE_BITSTREAM_BUFFER create_bs{}; create_bs.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER; enc_ok(api_.nvEncCreateBitstreamBuffer(encoder_, &create_bs), "nvEncCreateBitstreamBuffer"); bitstream_ = create_bs.bitstreamBuffer;
+  }
+  void register_buffer(CUdeviceptr ptr, uint32_t pitch) {
+    NV_ENC_REGISTER_RESOURCE resource{}; resource.version = NV_ENC_REGISTER_RESOURCE_VER; resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR; resource.width = width_; resource.height = height_; resource.pitch = pitch; resource.resourceToRegister = reinterpret_cast<void*>(ptr); resource.bufferFormat = NV_ENC_BUFFER_FORMAT_NV12; resource.bufferUsage = NV_ENC_INPUT_IMAGE; enc_ok(api_.nvEncRegisterResource(encoder_, &resource), "nvEncRegisterResource"); registered_ = resource.registeredResource;
+    NV_ENC_MAP_INPUT_RESOURCE map{}; map.version = NV_ENC_MAP_INPUT_RESOURCE_VER; map.registeredResource = registered_; enc_ok(api_.nvEncMapInputResource(encoder_, &map), "nvEncMapInputResource"); mapped_ = map.mappedResource;
+  }
+  void encode(int64_t pts, uint32_t pitch) {
+    NV_ENC_PIC_PARAMS pic{}; pic.version = NV_ENC_PIC_PARAMS_VER; pic.inputWidth = width_; pic.inputHeight = height_; pic.inputPitch = pitch; pic.inputBuffer = mapped_; pic.outputBitstream = bitstream_; pic.bufferFmt = NV_ENC_BUFFER_FORMAT_NV12; pic.pictureStruct = NV_ENC_PIC_STRUCT_FRAME; pic.inputTimeStamp = pts; enc_ok(api_.nvEncEncodePicture(encoder_, &pic), "nvEncEncodePicture");
+    NV_ENC_LOCK_BITSTREAM lock{}; lock.version = NV_ENC_LOCK_BITSTREAM_VER; lock.outputBitstream = bitstream_; enc_ok(api_.nvEncLockBitstream(encoder_, &lock), "nvEncLockBitstream"); AVPacket* packet = av_packet_alloc(); if (!packet) fail("raw packet alloc"); av_new_packet(packet, static_cast<int>(lock.bitstreamSizeInBytes)); std::memcpy(packet->data, lock.bitstreamBufferPtr, lock.bitstreamSizeInBytes); packet->pts = packet->dts = pts; packet->duration = 1; packet->stream_index = stream_->index; av_packet_rescale_ts(packet, {1,24}, stream_->time_base); av_interleaved_write_frame(output_, packet); av_packet_free(&packet); enc_ok(api_.nvEncUnlockBitstream(encoder_, bitstream_), "nvEncUnlockBitstream");
+  }
+  ~RawNvenc() { if (encoder_) { if (mapped_) api_.nvEncUnmapInputResource(encoder_, mapped_); if (registered_) api_.nvEncUnregisterResource(encoder_, registered_); if (bitstream_) api_.nvEncDestroyBitstreamBuffer(encoder_, bitstream_); api_.nvEncDestroyEncoder(encoder_); } }
+ private:
+  uint32_t width_, height_; AVFormatContext* output_{}; AVStream* stream_{}; NV_ENCODE_API_FUNCTION_LIST api_{}; void* encoder_{}; NV_ENC_REGISTERED_PTR registered_{}; NV_ENC_INPUT_PTR mapped_{}; NV_ENC_OUTPUT_PTR bitstream_{};
+};
+#endif
 
 std::vector<unsigned char> read_rgba(const char* path, int w, int h) {
   std::ifstream f(path, std::ios::binary);
@@ -177,6 +213,17 @@ int main(int argc, char** argv) {
     AVCodecContext* dc = avcodec_alloc_context3(dec); if(!dc) fail("decoder alloc"); av_ok(avcodec_parameters_to_context(dc,in->streams[si]->codecpar),"decoder parameters"); dc->thread_count = 1; dc->thread_type = 0;
     dc->get_format = hw_format; AVBufferRef* hwdev{}; av_ok(av_hwdevice_ctx_create(&hwdev,AV_HWDEVICE_TYPE_CUDA,"0",nullptr,AV_CUDA_USE_PRIMARY_CONTEXT),"av_hwdevice_ctx_create"); dc->hw_device_ctx=av_buffer_ref(hwdev); av_ok(avcodec_open2(dc,dec,nullptr),"avcodec_open2");
     const int W=dc->width, H=dc->height; if(W<=0||H<=0) fail("invalid dimensions");
+#ifdef CHRONON3D_ENABLE_RAW_NVENC
+    if (std::getenv("CHRONON_NVENC_RAW")) {
+      AVFormatContext* raw_out{}; avformat_alloc_output_context2(&raw_out,nullptr,nullptr,output); if(!raw_out) fail("raw output alloc"); RawNvenc raw(ctx,W,H,raw_out);
+      if(!(raw_out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&raw_out->pb,output,AVIO_FLAG_WRITE),"raw avio_open"); av_ok(avformat_write_header(raw_out,nullptr),"raw avformat_write_header");
+      CUdeviceptr raw_frame{}; size_t raw_pitch{}; cu_ok(cuMemAllocPitch(&raw_frame,&raw_pitch,W,H+H/2,16),"cuMemAllocPitch(raw frame)"); raw.register_buffer(raw_frame,static_cast<uint32_t>(raw_pitch));
+      AVPacket* raw_pkt=av_packet_alloc(); AVFrame* raw_decoded=av_frame_alloc(); if(!raw_pkt || !raw_decoded) fail("raw frame/packet alloc"); int64_t raw_count=0;
+      auto raw_process=[&](AVFrame* src){ CUdeviceptr raw_y=raw_frame, raw_uv=raw_frame+raw_pitch*H; copy_plane(raw_y,static_cast<int>(raw_pitch),src->data[0],src->linesize[0],W,H,stream); copy_plane(raw_uv,static_cast<int>(raw_pitch),src->data[1],src->linesize[1],W,(H+1)/2,stream); float wop=0.75f; int kernel_w=W,kernel_h=H; void* args[]={&raw_y,&raw_uv,&raw_pitch,&raw_pitch,&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h}; cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"raw cuLaunchKernel"); cu_ok(cuStreamSynchronize(stream),"raw cuStreamSynchronize"); raw.encode(raw_count++,static_cast<uint32_t>(raw_pitch)); };
+      while(av_read_frame(in,raw_pkt)>=0){ if(raw_pkt->stream_index==si){ av_ok(avcodec_send_packet(dc,raw_pkt),"raw avcodec_send_packet"); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); } av_packet_unref(raw_pkt); }
+      avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); av_write_trailer(raw_out); if(!(raw_out->oformat->flags&AVFMT_NOFILE)) avio_closep(&raw_out->pb); av_frame_free(&raw_decoded); av_packet_free(&raw_pkt); avformat_close_input(&in); avformat_free_context(raw_out); cuMemFree(raw_frame); avcodec_free_context(&dc); av_buffer_unref(&hwdev); cuMemFree(wm.ptr); cuMemFree(sub.ptr); cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev); std::cout << "CUDA_NVDEC_RAW_NVENC_OVERLAY_PASS decoder=" << dec->name << " output=" << output << " frames=" << raw_count << "\n"; return 0;
+    }
+#endif
     AVFormatContext* out{}; avformat_alloc_output_context2(&out,nullptr,nullptr,output); if(!out) fail("output alloc");
     const AVCodec* enc_codec=avcodec_find_encoder_by_name("h264_nvenc"); if(!enc_codec) fail("h264_nvenc missing"); AVStream* st=avformat_new_stream(out,enc_codec); if(!st) fail("stream alloc");
     const int nvenc_surfaces = std::max(1, std::atoi(std::getenv("CHRONON_NVENC_SURFACES") ?: "2"));
