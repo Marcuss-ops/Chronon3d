@@ -440,6 +440,21 @@ bool NativeAvEncoder::write_native_surface(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle destination) {
+    return write_native_surface_impl(backend, source, destination, false);
+}
+
+bool NativeAvEncoder::write_prepared_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle destination) {
+    return write_native_surface_impl(backend, source, destination, true);
+}
+
+bool NativeAvEncoder::write_native_surface_impl(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle destination,
+    bool surface_already_prepared) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
     (void)backend; (void)source; (void)destination;
     return false;
@@ -454,10 +469,12 @@ bool NativeAvEncoder::write_native_surface(
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;
-    const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
-    if (!copy_result.ok()) {
-        spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
-        return false;
+    if (!surface_already_prepared) {
+        const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
+        if (!copy_result.ok()) {
+            spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
+            return false;
+        }
     }
     try {
         if (!drain_ready_cuda_frames(false)) return false;

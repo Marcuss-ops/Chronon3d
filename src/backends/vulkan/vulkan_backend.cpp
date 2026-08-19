@@ -812,11 +812,14 @@ struct VulkanBackend::Impl {
         if (!dst.exportable || dst.format != VK_FORMAT_B8G8R8A8_UNORM) {
             throw std::invalid_argument("CUDA encoder destination must be exportable B8G8R8A8");
         }
-        begin_command_buffer();
-        transition(command_buffer, src.image,
+        const bool record_in_frame_batch = frame_batch.active;
+        if (!record_in_frame_batch) begin_command_buffer();
+        const VkCommandBuffer command = record_in_frame_batch
+            ? active_command_buffer() : command_buffer;
+        transition(command, src.image,
                    src.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        transition(command_buffer, dst.image,
+        transition(command, dst.image,
                    dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         VkImageBlit region{};
@@ -824,17 +827,17 @@ struct VulkanBackend::Impl {
         region.srcOffsets[1] = {static_cast<int>(src.width), static_cast<int>(src.height), 1};
         region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
         region.dstOffsets[1] = {static_cast<int>(dst.width), static_cast<int>(dst.height), 1};
-        vkCmdBlitImage(command_buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        vkCmdBlitImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                        dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
                        VK_FILTER_NEAREST);
-        transition(command_buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        transition(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
-        transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        transition(command, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
         src.initialized = true;
         dst.initialized = true;
         cuda_export_ready_surfaces.insert(destination_slot);
-        submit(wait_for_completion);
+        if (!record_in_frame_batch) submit(wait_for_completion);
     }
 #endif
 

@@ -195,6 +195,7 @@ struct RenderFramePackage {
     runtime::RenderSurfaceHandle source_surface{runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
     std::size_t interop_slot{FrameInteropRing::kInvalidSlot};
+    bool native_surface_ready{false};
 };
 
 } // namespace chronon3d::cli
