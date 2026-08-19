@@ -35,7 +35,7 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     const auto& image = node.shape.image();
     if (!ctx.services.image_cache || !ctx.services.gpu_asset_cache ||
         !ctx.services.backend || !ctx.services.surface_registry ||
-        image.path.empty() || image.radius > 0.0f || state.clip_rect ||
+        image.path.empty() || image.radius > 0.0f ||
         (state.mask && state.mask->enabled()) ||
         std::abs(state.matrix[0][1]) > 1e-4f ||
         std::abs(state.matrix[1][0]) > 1e-4f ||
