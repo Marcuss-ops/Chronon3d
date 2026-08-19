@@ -63,6 +63,15 @@ struct VulkanBackendStats {
     std::uint64_t fallback_dof{0};
 };
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+struct CudaExternalMemoryInfo {
+    int fd{-1};
+    std::uint64_t allocation_size{0};
+    std::uint32_t width{0};
+    std::uint32_t height{0};
+};
+#endif
+
 /// Persistent headless Vulkan backend foundation. It owns the device and
 /// queue for the runtime lifetime; graph surface execution is added on top of
 /// this boundary and never exposes Vulkan handles to graph nodes.
@@ -193,6 +202,13 @@ public:
     graph::RenderOpResult draw_text_run_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         std::span<const runtime::GlyphInstance>) override;
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    graph::RenderOpResult create_cuda_external_surface(
+        runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&);
+    [[nodiscard]] CudaExternalMemoryInfo export_cuda_external_memory(
+        runtime::RenderSurfaceHandle) const;
+#endif
 
 #ifdef CHRONON3D_ENABLE_VULKAN
     struct Impl;

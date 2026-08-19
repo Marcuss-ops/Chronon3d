@@ -2,18 +2,19 @@
 
 ## GPU Production V1 — checkpoint 2026-08-19
 
-`main@77ebb934` chiude il lifecycle delle superfici Vulkan transient ai confini
-di job, preservando le superfici `JobPersistent` (asset/font) nel daemon caldo.
-Il percorso IPC Vulkan + native encoder è stato verificato con recovery da piano
-invalido e 100 job consecutivi nello stesso processo: `PASS`, 150/150 frame per
-job, `effective_backend=vulkan`, `software_fallback_nodes=0`, receipt valida,
-`copy_eligible=true` e digest frame stabile
-`6900dd2be44a68b4ee248f6835eba8b5ba59deb6a45e0eaded946473b4816e88`.
+`main@bbeba006` collega la selezione backend al percorso CLI/IPC, serializza le
+operazioni stateful del backend Vulkan e rimuove il bridge software silenzioso.
+Il percorso nativo text/image usa quindi GlyphAtlas e GpuAssetCache; il solo
+readback ammesso è quello finale verso l'encoder.
 
-Build native e 47 test preset/core passano; `RenderingGen/main@50a8525` è pulito
-e `go test ./...` passa. La certificazione completa della matrice visuale di
-tutti i preset e la baseline prestazionale globale restano da eseguire prima
-del tag Production V1 definitivo.
+Golden strict e benchmark CLI/daemon passano con
+`effective_backend=vulkan`, `software_fallback_nodes=0`, receipt valida e
+`copy_eligible=true`; il daemon caldo è risultato più rapido del CLI caldo
+(10.095 s contro 13.176 s nel workload benchmark). RenderingGen
+`main@50a8525` passa i test config/processor/chronon/media e la recovery IPC
+Vulkan. La matrice visuale completa di tutti i preset, la prova CUDA/NVENC
+zero-copy e la baseline prestazionale ufficiale restano gate separati: non sono
+ancora dichiarati certificati.
 
 > Ultima revisione semantica: 2026-08-09.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.

@@ -55,6 +55,7 @@ struct VulkanBackend::Impl {
         std::uint32_t width{0};
         std::uint32_t height{0};
         bool initialized{false};
+        bool exportable{false};
     };
 
     /// Per-frame descriptor set allocator, one per frame-batch ring slot.
@@ -635,19 +636,28 @@ struct VulkanBackend::Impl {
         slot = {};
     }
 
-    void make_image(Image& target, std::uint32_t width, std::uint32_t height) {
-        const VkImageCreateInfo info{
+    void make_image(Image& target, std::uint32_t width, std::uint32_t height,
+                    bool exportable = false) {
+        VkExternalMemoryImageCreateInfo external_image{
+            VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+        external_image.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+        VkImageCreateInfo info{
             VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, nullptr, 0, VK_IMAGE_TYPE_2D,
             VK_FORMAT_R32G32B32A32_SFLOAT, {width, height, 1}, 1, 1,
             VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr, VK_IMAGE_LAYOUT_UNDEFINED};
+        info.pNext = exportable ? &external_image : nullptr;
         check(vkCreateImage(device, &info, nullptr, &target.image), "vkCreateImage");
         VkMemoryRequirements requirements{};
         vkGetImageMemoryRequirements(device, target.image, &requirements);
-        const VkMemoryAllocateInfo allocation{
+        VkExportMemoryAllocateInfo export_info{
+            VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO};
+        export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+        VkMemoryAllocateInfo allocation{
             VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
             memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+        allocation.pNext = exportable ? &export_info : nullptr;
         check(vkAllocateMemory(device, &allocation, nullptr, &target.memory), "vkAllocateMemory(image)");
         check(vkBindImageMemory(device, target.image, target.memory, 0), "vkBindImageMemory");
         const VkImageViewCreateInfo view{
@@ -657,7 +667,56 @@ struct VulkanBackend::Impl {
         check(vkCreateImageView(device, &view, nullptr, &target.view), "vkCreateImageView");
         target.width = width;
         target.height = height;
+        target.exportable = exportable;
     }
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    void create_cuda_external_surface(runtime::RenderSurfaceHandle handle,
+                                      const runtime::SurfaceDesc& desc) {
+        if (handle == runtime::kInvalidRenderSurfaceHandle ||
+            desc.width == 0 || desc.height == 0 ||
+            desc.format != runtime::PixelFormat::Rgba32Float) {
+            throw std::invalid_argument(
+                "CUDA external surface requires non-empty Rgba32Float description");
+        }
+        if (surface_bindings.contains(handle)) {
+            throw std::invalid_argument("CUDA external surface handle already exists");
+        }
+        const auto slot = next_slot++;
+        auto& physical = physical_surfaces[slot];
+        make_image(physical.image, desc.width, desc.height, true);
+        physical.desc = desc;
+        surface_bindings.emplace(handle, slot);
+        ++stats.surface_creations;
+    }
+
+    CudaExternalMemoryInfo export_cuda_external_memory(
+        runtime::RenderSurfaceHandle handle) const {
+        const auto binding = surface_bindings.find(handle);
+        if (binding == surface_bindings.end()) {
+            throw std::invalid_argument("CUDA external surface handle is not bound");
+        }
+        const auto image_it = physical_surfaces.find(binding->second);
+        if (image_it == physical_surfaces.end() ||
+            !image_it->second.image.exportable) {
+            throw std::invalid_argument("surface is not exportable to CUDA");
+        }
+        auto get_fd = reinterpret_cast<PFN_vkGetMemoryFdKHR>(
+            vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
+        if (!get_fd) throw std::runtime_error("vkGetMemoryFdKHR is unavailable");
+        VkMemoryGetFdInfoKHR info{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
+        info.memory = image_it->second.image.memory;
+        info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+        int fd = -1;
+        check(get_fd(device, &info, &fd), "vkGetMemoryFdKHR");
+        VkMemoryRequirements requirements{};
+        vkGetImageMemoryRequirements(device, image_it->second.image.image,
+                                     &requirements);
+        return CudaExternalMemoryInfo{
+            fd, requirements.size, image_it->second.image.width,
+            image_it->second.image.height};
+    }
+#endif
 
     void ensure_descriptor_set() {
         if (descriptor_set != VK_NULL_HANDLE) return;
@@ -2113,6 +2172,11 @@ VulkanBackend::VulkanBackend() {
     const VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
         nullptr, VK_TRUE};
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    const char* external_memory_extensions[] = {
+        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME};
+#endif
     const VkDeviceCreateInfo device_info{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = &timeline_features,
@@ -2121,8 +2185,18 @@ VulkanBackend::VulkanBackend() {
         .pQueueCreateInfos = &queue_info,
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
-        .enabledExtensionCount = 0,
-        .ppEnabledExtensionNames = nullptr,
+        .enabledExtensionCount =
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+            2,
+#else
+            0,
+#endif
+        .ppEnabledExtensionNames =
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+            external_memory_extensions,
+#else
+            nullptr,
+#endif
         .pEnabledFeatures = &features};
     check(vkCreateDevice(m_physical_device, &device_info, nullptr, &m_device),
           "vkCreateDevice");
@@ -2179,8 +2253,10 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
 
 graph::RenderCapabilities VulkanBackend::capabilities() const noexcept {
     return graph::RenderCapabilities{
-        .text_run = m_draw_node_fallback != nullptr &&
-                    m_draw_node_fallback->capabilities().text_run};
+        // TextRunNode first attempts the native GlyphAtlas/RenderSurface
+        // path. Capability must describe that native entry point, not the
+        // removed software compatibility bridge.
+        .text_run = true};
 }
 
 std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
@@ -2424,6 +2500,26 @@ graph::RenderOpResult VulkanBackend::create_surface(
         "VulkanBackend::create_surface: Vulkan support is disabled"});
 #endif
 }
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+graph::RenderOpResult VulkanBackend::create_cuda_external_surface(
+    runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc) {
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->create_cuda_external_surface(handle, desc);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+}
+
+CudaExternalMemoryInfo VulkanBackend::export_cuda_external_memory(
+    runtime::RenderSurfaceHandle handle) const {
+    std::lock_guard lock(m_impl->api_mutex);
+    return m_impl->export_cuda_external_memory(handle);
+}
+#endif
 
 graph::RenderOpResult VulkanBackend::release_surface(
     runtime::RenderSurfaceHandle handle) {
