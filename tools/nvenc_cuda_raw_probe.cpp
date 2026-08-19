@@ -40,8 +40,9 @@ int main() {
     nv_ok(api.nvEncOpenEncodeSessionEx(&open, &encoder), "nvEncOpenEncodeSessionEx");
 
     NV_ENC_PRESET_CONFIG preset{}; preset.version = NV_ENC_PRESET_CONFIG_VER; preset.presetCfg.version = NV_ENC_CONFIG_VER;
-    nv_ok(api.nvEncGetEncodePresetConfigEx(encoder, NV_ENC_CODEC_H264_GUID, NV_ENC_PRESET_P1_GUID, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY, &preset), "nvEncGetEncodePresetConfigEx");
-    NV_ENC_INITIALIZE_PARAMS init{}; init.version = NV_ENC_INITIALIZE_PARAMS_VER; init.encodeGUID = NV_ENC_CODEC_H264_GUID; init.presetGUID = NV_ENC_PRESET_P1_GUID; init.encodeWidth = width; init.encodeHeight = height; init.darWidth = width; init.darHeight = height; init.frameRateNum = 24; init.frameRateDen = 1; init.enablePTD = 1; init.enableEncodeAsync = 0; init.encodeConfig = &preset.presetCfg;
+    NV_ENC_INITIALIZE_PARAMS init{}; init.version = NV_ENC_INITIALIZE_PARAMS_VER; init.encodeGUID = NV_ENC_CODEC_H264_GUID; init.presetGUID = NV_ENC_PRESET_P1_GUID; init.encodeWidth = width; init.encodeHeight = height; init.darWidth = width; init.darHeight = height; init.frameRateNum = 24; init.frameRateDen = 1; init.enablePTD = 1; init.enableEncodeAsync = 0; init.tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
+    nv_ok(api.nvEncGetEncodePresetConfigEx(encoder, init.encodeGUID, init.presetGUID, init.tuningInfo, &preset), "nvEncGetEncodePresetConfigEx");
+    init.encodeConfig = &preset.presetCfg;
     nv_ok(api.nvEncInitializeEncoder(encoder, &init), "nvEncInitializeEncoder");
 
     NV_ENC_REGISTER_RESOURCE resource{}; resource.version = NV_ENC_REGISTER_RESOURCE_VER; resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR; resource.width = width; resource.height = height; resource.pitch = static_cast<uint32_t>(pitch); resource.resourceToRegister = reinterpret_cast<void*>(frame); resource.bufferFormat = NV_ENC_BUFFER_FORMAT_NV12; resource.bufferUsage = NV_ENC_INPUT_IMAGE;
