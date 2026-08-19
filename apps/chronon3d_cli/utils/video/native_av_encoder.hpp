@@ -1,8 +1,14 @@
 #pragma once
 
 #include "ffmpeg_pipe_encoder.hpp"
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
+#endif
 
 
 extern "C" {
@@ -63,6 +69,8 @@ private:
     AVPacket*        packet_{nullptr};
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    using CudaSurfaceBridge = backends::vulkan::CudaVulkanSurfaceBridge;
+    std::unordered_map<std::uint64_t, std::unique_ptr<CudaSurfaceBridge>> cuda_surface_bridges_;
     void* cuda_context_{nullptr};
     AVBufferRef* cuda_device_ref_{nullptr};
     AVBufferRef* cuda_frames_ref_{nullptr};
