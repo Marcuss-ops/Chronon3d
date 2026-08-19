@@ -353,6 +353,18 @@ public:
             "RenderBackend::composite_surfaces: native surfaces are not supported"});
     }
 
+    /// Replace-copy a native surface, optionally limited to a canvas clip.
+    /// Unlike SourceOver this preserves exact source pixels and is used by
+    /// native effects to merge a clipped result without a CPU round trip.
+    virtual RenderOpResult copy_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const std::optional<raster::BBox>& /*clip*/ = std::nullopt) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::copy_surface: native surfaces are not supported"});
+    }
+
     /// Solid-color axis-aligned rectangle fill into a native surface.  The
     /// rectangle is half-open destination pixel space; pixels outside it are
     /// left untouched.  `color` must be PREMULTIPLIED RGBA (rgb already
