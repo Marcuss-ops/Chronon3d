@@ -128,7 +128,21 @@ void attach_software_backend(
             chronon3d::graph::BackendType::Vulkan,
             chronon3d::graph::BackendCapabilities{
                 .graphics = true, .compute = true},
-            [] { return chronon3d::backends::vulkan::make_vulkan_backend(); });
+            [renderer] {
+                auto backend = chronon3d::backends::vulkan::make_vulkan_backend();
+                auto* vulkan = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(
+                    backend.get());
+                if (!vulkan) {
+                    throw std::runtime_error(
+                        "attach_software_backend: Vulkan factory returned an unexpected backend");
+                }
+                // The sidecar is used only when a native surface operation
+                // cannot yet be served (notably the first glyph-atlas miss).
+                // It keeps the frame valid and lets the canonical text
+                // resources warm up for subsequent native GPU frames.
+                vulkan->set_draw_node_fallback(make_software_backend_instance(renderer));
+                return backend;
+            });
     }
 #endif
 

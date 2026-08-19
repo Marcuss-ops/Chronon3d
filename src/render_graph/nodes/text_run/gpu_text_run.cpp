@@ -42,6 +42,69 @@ struct AtlasDims {
     std::uint32_t height{0};
 };
 
+std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
+    TextRenderResources& resources,
+    const assets::AssetResolver& resolver,
+    const std::string& font_path,
+    std::uint32_t glyph_id,
+    std::uint32_t font_size,
+    const Color& color) {
+    const auto handle = resources.resolve_handle(font_path,
+        static_cast<float>(font_size), resolver);
+    if (!handle.valid()) return std::nullopt;
+    BLFont font;
+    if (font.createFromFace(*handle.bl_face, static_cast<float>(font_size)) != BL_SUCCESS) {
+        return std::nullopt;
+    }
+    BLBoxI bounds{};
+    if (font.getGlyphBounds(&glyph_id, 0, &bounds, 1) != BL_SUCCESS) return std::nullopt;
+    // BLBoxI glyph metrics are 26.6 fixed-point values.  Treating them as
+    // pixels creates ~64x glyph bitmaps and places the whole run off-canvas.
+    constexpr double kGlyphUnit = 1.0 / 64.0;
+    const int x0 = static_cast<int>(std::floor(bounds.x0 * kGlyphUnit));
+    const int y0 = static_cast<int>(std::floor(bounds.y0 * kGlyphUnit));
+    const int x1 = static_cast<int>(std::ceil(bounds.x1 * kGlyphUnit));
+    const int y1 = static_cast<int>(std::ceil(bounds.y1 * kGlyphUnit));
+    const int width = x1 - x0;
+    const int height = y1 - y0;
+    if (width <= 0 || height <= 0) return std::nullopt;
+
+    auto image = std::make_shared<BLImage>(width, height, BL_FORMAT_PRGB32);
+    BLContext context(*image);
+    context.setCompOp(BL_COMP_OP_SRC_COPY);
+    context.setFillStyle(BLRgba32(0, 0, 0, 0));
+    context.fillAll();
+    context.setCompOp(BL_COMP_OP_SRC_OVER);
+    context.setFillStyle(BLRgba32(
+        static_cast<std::uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f),
+        static_cast<std::uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f),
+        static_cast<std::uint32_t>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f),
+        static_cast<std::uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f)));
+    BLGlyphPlacement placement{};
+    placement.placement.reset(0.0, 0.0);
+    placement.advance.reset(0.0, 0.0);
+    BLGlyphRun run{};
+    run.glyphData = &glyph_id;
+    run.glyphAdvance = static_cast<int8_t>(sizeof(glyph_id));
+    run.placementData = &placement;
+    run.placementAdvance = static_cast<int8_t>(sizeof(placement));
+    run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
+    run.size = 1;
+    context.fillGlyphRun(BLPoint(-x0, -y0), font, run);
+    context.end();
+
+    GlyphAtlasEntry entry;
+    entry.image = std::move(image);
+    entry.x_offset = x0;
+    entry.y_offset = y0;
+    entry.fill_color_rgba =
+        (static_cast<std::uint32_t>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f) << 24u) |
+        (static_cast<std::uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f) << 16u) |
+        (static_cast<std::uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f) << 8u) |
+        static_cast<std::uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f);
+    return entry;
+}
+
 struct TimedHighlightPlan {
     Color color{Color::yellow()};
     std::vector<std::pair<float, float>> glyph_ranges;
@@ -325,6 +388,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
         destination, atlas_handle, instances, current_frame,
         highlight_color, highlight_enabled);
 
+
     if (profiling::g_current_counters) {
         profiling::g_current_counters->gpu_text_instance_upload_count.fetch_add(
             1, std::memory_order_relaxed);
@@ -420,9 +484,22 @@ graph::RenderOpResult draw_cached_text_run(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "draw_cached_text_run: animated/style feature requires legacy text path"});
         }
-        const auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
+        auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
             layout.font.font_path, state.glyph_id,
             static_cast<u32>(font_size));
+        if ((!entry || !entry->image || entry->image->empty()) &&
+            ctx.services.asset_resolver) {
+            auto warmed = rasterize_missing_glyph(
+                *ctx.services.text_render_resources, *ctx.services.asset_resolver,
+                layout.font.font_path, state.glyph_id,
+                static_cast<u32>(font_size), state.fill);
+            if (warmed) {
+                ctx.services.text_render_resources->store_glyph_atlas(
+                    layout.font.font_path, state.glyph_id,
+                    static_cast<u32>(font_size), *warmed);
+                entry = std::move(warmed);
+            }
+        }
         if (!entry || !entry->image || entry->image->empty()) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::UnsupportedCapability,

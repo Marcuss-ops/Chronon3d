@@ -2799,8 +2799,10 @@ graph::RenderOpResult VulkanBackend::release_surface(
                 graph::RenderBackendErrorCode::InvalidInput,
                 "VulkanBackend::release_surface: invalid handle"});
         }
-        if ((m_impl->frame_batch.active || m_impl->command_batch_active) &&
-            !m_impl->unplanned_surface_handles.contains(handle)) {
+        // A command buffer may still reference any surface created during the
+        // active batch.  "Unplanned" only means that the barrier planner does
+        // not know the handle; it must never shorten the Vulkan lifetime.
+        if (m_impl->frame_batch.active || m_impl->command_batch_active) {
             if (std::find(m_impl->deferred_surface_releases.begin(),
                           m_impl->deferred_surface_releases.end(), handle) ==
                 m_impl->deferred_surface_releases.end()) {
