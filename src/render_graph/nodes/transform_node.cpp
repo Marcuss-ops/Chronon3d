@@ -281,6 +281,7 @@ NodeExecResult TransformNode::execute(
                     }
                 }
                 if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                    (void)ctx.services.backend->release_surface(handle);
                     ctx.services.surface_registry->release(handle);
                 }
             }
@@ -355,6 +356,7 @@ NodeExecResult TransformNode::execute(
             }
         }
         if (handle != runtime::kInvalidRenderSurfaceHandle) {
+            (void)ctx.services.backend->release_surface(handle);
             ctx.services.surface_registry->release(handle);
         }
     }

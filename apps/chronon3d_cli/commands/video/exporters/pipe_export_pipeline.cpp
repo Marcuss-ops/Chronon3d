@@ -262,6 +262,19 @@ RenderLoopOutput run_pipe_export_loop(
         spdlog::info("[video] Released framebuffer pool — memory trimmed");
     }
 
+    // The video IPC path does not pass through finalize_render_job(). Reclaim
+    // orphaned FrameTransient Vulkan images here, after the writer has joined
+    // and the final output readback is complete, while preserving warm
+    // JobPersistent asset/font surfaces for the next daemon job.
+    if (session.renderer) {
+        auto& rt = session.renderer->runtime();
+        rt.backend().release_frame_transient_surfaces();
+        for (const auto handle : rt.surface_registry().handles_with_lifetime(
+                 runtime::LifetimeClass::FrameTransient)) {
+            (void)rt.surface_registry().release(handle);
+        }
+    }
+
     RenderLoopOutput output;
     output.loop_result = std::move(loop_result);
     output.telemetry_frames = std::move(telemetry_frames);

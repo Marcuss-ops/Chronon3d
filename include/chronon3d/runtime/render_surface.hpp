@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
+#include <vector>
 
 namespace chronon3d::runtime {
 
@@ -116,6 +117,16 @@ public:
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return m_surfaces.size(); }
+
+    [[nodiscard]] std::vector<RenderSurfaceHandle> handles_with_lifetime(
+        LifetimeClass lifetime) const {
+        std::vector<RenderSurfaceHandle> handles;
+        handles.reserve(m_surfaces.size());
+        for (const auto& [handle, record] : m_surfaces) {
+            if (record.desc.lifetime == lifetime) handles.push_back(handle);
+        }
+        return handles;
+    }
 
 private:
     RenderSurfaceHandle m_next_handle{1};
