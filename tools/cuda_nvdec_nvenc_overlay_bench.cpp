@@ -23,6 +23,8 @@ extern "C" {
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <chrono>
 #include <vector>
 
 namespace {
@@ -184,12 +186,13 @@ int main(int argc, char** argv) {
     AVBufferRef* frames=av_hwframe_ctx_alloc(hwdev); if(!frames) fail("frames alloc"); auto* fctx=(AVHWFramesContext*)frames->data; fctx->format=AV_PIX_FMT_CUDA; fctx->sw_format=AV_PIX_FMT_NV12; fctx->width=W; fctx->height=H; fctx->initial_pool_size=8; av_ok(av_hwframe_ctx_init(frames),"av_hwframe_ctx_init"); ec->hw_frames_ctx=av_buffer_ref(frames); av_ok(avcodec_open2(ec,enc_codec,nullptr),"encoder open"); av_ok(avcodec_parameters_from_context(st->codecpar,ec),"codec parameters"); st->time_base=ec->time_base;
     if(!(out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&out->pb,output,AVIO_FLAG_WRITE),"avio_open"); av_ok(avformat_write_header(out,nullptr),"avformat_write_header");
     AVPacket* pkt=av_packet_alloc(); AVFrame* decoded=av_frame_alloc(); if(!pkt || !decoded) fail("frame/packet alloc"); int64_t out_count=0;
+    const int pacing_us = std::max(0, std::atoi(std::getenv("CHRONON_FRAME_PACING_US") ?: "0"));
     auto process=[&](AVFrame* src){
       AVFrame* dst=av_frame_alloc(); if(!dst) fail("frame alloc"); dst->format=AV_PIX_FMT_CUDA; dst->width=W; dst->height=H; dst->hw_frames_ctx=av_buffer_ref(frames); av_ok(av_hwframe_get_buffer(frames,dst,0),"av_hwframe_get_buffer");
       copy_plane((CUdeviceptr)dst->data[0],dst->linesize[0],src->data[0],src->linesize[0],W,H,stream); copy_plane((CUdeviceptr)dst->data[1],dst->linesize[1],src->data[1],src->linesize[1],W,(H+1)/2,stream);
       float wop = 0.75f; int kernel_w = W, kernel_h = H;
       void* args[]={&dst->data[0],&dst->data[1],&dst->linesize[0],&dst->linesize[1],&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h};
-      cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"cuLaunchKernel"); cu_ok(cuStreamSynchronize(stream),"cuStreamSynchronize"); dst->pts=out_count; write_packets(ec,out,pkt,dst,out_count); av_frame_free(&dst);
+      cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"cuLaunchKernel"); cu_ok(cuStreamSynchronize(stream),"cuStreamSynchronize"); dst->pts=out_count; write_packets(ec,out,pkt,dst,out_count); av_frame_free(&dst); if (pacing_us > 0) std::this_thread::sleep_for(std::chrono::microseconds(pacing_us));
     };
     while(av_read_frame(in,pkt)>=0){ if(pkt->stream_index==si){ av_ok(avcodec_send_packet(dc,pkt),"avcodec_send_packet"); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded); } av_packet_unref(pkt); }
     avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded); write_packets(ec,out,pkt,nullptr,out_count); av_write_trailer(out);
