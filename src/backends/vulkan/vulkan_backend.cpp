@@ -16,6 +16,7 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <spdlog/spdlog.h>
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
@@ -1599,7 +1600,8 @@ struct VulkanBackend::Impl {
             for (const auto& [handle, slot] : surface_bindings) {
                 const auto it = physical_surfaces.find(slot);
                 if (it != physical_surfaces.end() &&
-                    it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient) {
+                    it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
+                    !unplanned_surface_handles.contains(handle)) {
                     handles.push_back(handle);
                 }
             }
@@ -1627,6 +1629,13 @@ struct VulkanBackend::Impl {
                     ++it;
                 }
             }
+            if (physical_surfaces.size() > 32) {
+                spdlog::warn("[vulkan] transient cleanup retained bindings={} physical_surfaces={} unplanned={}",
+                             surface_bindings.size(), physical_surfaces.size(),
+                             unplanned_surface_handles.size());
+            }
+        } catch (const std::exception& error) {
+            spdlog::error("[vulkan] transient cleanup failed: {}", error.what());
         } catch (...) {
             // Cleanup is best-effort and must not terminate the daemon.
         }
@@ -2677,6 +2686,19 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         if (allocation.surface == runtime::kInvalidRenderSurfaceHandle) continue;
         if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) continue;
         if (allocation.physical_slot >= plan.resources.slots.size()) continue;
+        // Job-persistent surfaces (GPU asset/glyph atlases) are owned by the
+        // asset cache and must never be rebound to a frame-transient planner
+        // slot.  The old unconditional binding changed their lifetime to
+        // FrameTransient, so end-of-job cleanup destroyed the Vulkan image
+        // while the registry/cache still returned the logical handle.
+        const auto existing = m_impl->surface_bindings.find(allocation.surface);
+        if (existing != m_impl->surface_bindings.end()) {
+            const auto physical = m_impl->physical_surfaces.find(existing->second);
+            if (physical != m_impl->physical_surfaces.end() &&
+                physical->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
+                continue;
+            }
+        }
         const auto& planned = plan.resources.slots[allocation.physical_slot];
         const runtime::SurfaceDesc desc{
             planned.width, planned.height, planned.format,
@@ -2735,10 +2757,9 @@ graph::RenderOpResult VulkanBackend::create_surface(
     try {
         std::lock_guard lock(m_impl->api_mutex);
         (void)m_impl->ensure_surface(handle, desc);
-        if ((m_impl->frame_batch.active || m_impl->command_batch_active) &&
-            !m_impl->unplanned_surface_handles.contains(handle)) {
-            m_impl->unplanned_surface_handles.insert(handle);
-        }
+        // Generic graph surfaces are transient even when created while a
+        // batch is recording. Only CUDA/NVENC external surfaces are unplanned;
+        // marking every in-batch surface unplanned prevents reclamation.
         ++m_impl->stats.surface_creations;
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
