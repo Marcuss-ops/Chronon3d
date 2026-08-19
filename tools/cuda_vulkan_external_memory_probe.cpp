@@ -3,6 +3,7 @@
 // not claim NVDEC interop unless this probe succeeds.
 
 #include <cuda.h>
+#include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
 #include <vulkan/vulkan.h>
 
 #include <cstdio>
@@ -99,7 +100,7 @@ int main() {
     VkImageCreateInfo image_info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     image_info.flags = 0;
     image_info.imageType = VK_IMAGE_TYPE_2D;
-    image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+    image_info.format = VK_FORMAT_B8G8R8A8_UNORM;
     image_info.extent = VkExtent3D{64, 64, 1};
     image_info.mipLevels = 1;
     image_info.arrayLayers = 1;
@@ -155,59 +156,52 @@ int main() {
 #else
     cu_check(cuCtxCreate(&context, 0, cuda_device), "cuCtxCreate");
 #endif
-    CUexternalMemory external_memory = nullptr;
-    CUDA_EXTERNAL_MEMORY_HANDLE_DESC handle_desc{};
-    handle_desc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
-    handle_desc.handle.fd = fd;
-    handle_desc.size = requirements.size;
-    cu_check(cuImportExternalMemory(&external_memory, &handle_desc),
-             "cuImportExternalMemory");
-
-    CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC array_desc{};
-    array_desc.offset = 0;
-    array_desc.arrayDesc.Width = 64;
-    array_desc.arrayDesc.Height = 64;
-    array_desc.arrayDesc.Depth = 0;
-    array_desc.arrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
-    array_desc.arrayDesc.NumChannels = 4;
-    array_desc.numLevels = 1;
-    CUmipmappedArray mapped = nullptr;
-    cu_check(cuExternalMemoryGetMappedMipmappedArray(&mapped, external_memory, &array_desc),
-             "cuExternalMemoryGetMappedMipmappedArray");
-
     VkExportSemaphoreCreateInfo semaphore_export{
         VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
     semaphore_export.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
     VkSemaphoreCreateInfo semaphore_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
     semaphore_info.pNext = &semaphore_export;
-    VkSemaphore semaphore = VK_NULL_HANDLE;
-    vk_check(vkCreateSemaphore(device, &semaphore_info, nullptr, &semaphore),
-             "vkCreateSemaphore(external)");
+    VkSemaphore cuda_to_vulkan_semaphore = VK_NULL_HANDLE;
+    vk_check(vkCreateSemaphore(device, &semaphore_info, nullptr,
+                               &cuda_to_vulkan_semaphore),
+             "vkCreateSemaphore(cuda to vulkan)");
+    VkSemaphore vulkan_to_cuda_semaphore = VK_NULL_HANDLE;
+    vk_check(vkCreateSemaphore(device, &semaphore_info, nullptr,
+                               &vulkan_to_cuda_semaphore),
+             "vkCreateSemaphore(vulkan to cuda)");
     auto get_semaphore_fd = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
         vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
     if (!get_semaphore_fd) fail("vkGetSemaphoreFdKHR is unavailable");
     VkSemaphoreGetFdInfoKHR semaphore_fd_info{
         VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR};
-    semaphore_fd_info.semaphore = semaphore;
+    semaphore_fd_info.semaphore = cuda_to_vulkan_semaphore;
     semaphore_fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-    int semaphore_fd = -1;
-    vk_check(get_semaphore_fd(device, &semaphore_fd_info, &semaphore_fd),
-             "vkGetSemaphoreFdKHR");
-    CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC semaphore_desc{};
-    semaphore_desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
-    semaphore_desc.handle.fd = semaphore_fd;
-    CUexternalSemaphore external_semaphore = nullptr;
-    cu_check(cuImportExternalSemaphore(&external_semaphore, &semaphore_desc),
-             "cuImportExternalSemaphore");
+    int cuda_to_vulkan_fd = -1;
+    vk_check(get_semaphore_fd(device, &semaphore_fd_info, &cuda_to_vulkan_fd),
+             "vkGetSemaphoreFdKHR(cuda to vulkan)");
+    semaphore_fd_info.semaphore = vulkan_to_cuda_semaphore;
+    int vulkan_to_cuda_fd = -1;
+    vk_check(get_semaphore_fd(device, &semaphore_fd_info, &vulkan_to_cuda_fd),
+             "vkGetSemaphoreFdKHR(vulkan to cuda)");
 
-    std::puts("CUDA_VULKAN_INTEROP_PASS: exported Vulkan image and semaphore imported by CUDA");
-    cuDestroyExternalSemaphore(external_semaphore);
-    cuMipmappedArrayDestroy(mapped);
-    cuDestroyExternalMemory(external_memory);
+    {
+        chronon3d::backends::vulkan::CudaExternalMemoryInfo handles{
+            fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size, 64, 64, 2};
+        chronon3d::backends::vulkan::CudaVulkanSurfaceBridge bridge(
+            handles, context);
+        if (!bridge.array() || !bridge.surface_object()) {
+            fail("CUDA bridge did not create a writable surface object");
+        }
+        // Exercise the actual CUDA→Vulkan release operation. The next Vulkan
+        // submit would consume this binary semaphore.
+        bridge.signal_for_vulkan();
+        cu_check(cuStreamSynchronize(nullptr), "cuStreamSynchronize(signal)");
+    }
+
+    std::puts("CUDA_VULKAN_INTEROP_PASS: Chronon bridge mapped Vulkan image and signaled external semaphore");
     cuCtxDestroy(context);
-    close(fd);
-    close(semaphore_fd);
-    vkDestroySemaphore(device, semaphore, nullptr);
+    vkDestroySemaphore(device, cuda_to_vulkan_semaphore, nullptr);
+    vkDestroySemaphore(device, vulkan_to_cuda_semaphore, nullptr);
     vkDestroyImage(device, image, nullptr);
     vkFreeMemory(device, memory, nullptr);
     vkDestroyDevice(device, nullptr);

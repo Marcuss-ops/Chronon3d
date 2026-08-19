@@ -15,9 +15,12 @@ if [[ ! -f "${CUDA_INCLUDE}/cuda.h" ]]; then
     exit 2
 fi
 
-g++ -std=c++20 -O2 \
+g++ -std=c++20 -O2 -DCHRONON3D_ENABLE_CUDA_INTEROP \
     -I"${CUDA_INCLUDE}" \
+    -I"${ROOT_DIR}/include" \
+    -I"${ROOT_DIR}/vcpkg_installed/linux-fast-dev/x64-linux/include" \
     "${ROOT_DIR}/tools/cuda_vulkan_external_memory_probe.cpp" \
+    "${ROOT_DIR}/src/backends/vulkan/cuda_vulkan_surface_bridge.cpp" \
     -o "${OUT}" -lvulkan -L"${CUDA_LIB_DIR}" -lcuda
 
 exec "${OUT}"
