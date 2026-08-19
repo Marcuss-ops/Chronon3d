@@ -47,17 +47,13 @@ inline runtime::SurfaceDesc native_surface_desc(i32 width, i32 height) {
 /// Pack a framebuffer's pixels into a tightly-packed RGBA float buffer in
 /// the layout the native `upload_surface()` contract expects.
 inline std::vector<float> pack_framebuffer_rgba(const Framebuffer& framebuffer) {
-    std::vector<float> rgba(static_cast<std::size_t>(framebuffer.width()) *
-                            static_cast<std::size_t>(framebuffer.height()) * 4);
-    std::size_t index = 0;
-    for (i32 y = 0; y < framebuffer.height(); ++y) {
-        for (i32 x = 0; x < framebuffer.width(); ++x) {
-            const auto pixel = framebuffer.get_pixel(x, y);
-            rgba[index++] = pixel.r;
-            rgba[index++] = pixel.g;
-            rgba[index++] = pixel.b;
-            rgba[index++] = pixel.a;
-        }
+    const auto width = static_cast<std::size_t>(framebuffer.width());
+    const auto height = static_cast<std::size_t>(framebuffer.height());
+    std::vector<float> rgba(width * height * 4);
+    const Color* src = framebuffer.data();
+    for (std::size_t y = 0; y < height; ++y) {
+        const Color* row = src + y * static_cast<std::size_t>(framebuffer.stride());
+        std::memcpy(rgba.data() + y * width * 4, row, width * sizeof(Color));
     }
     return rgba;
 }

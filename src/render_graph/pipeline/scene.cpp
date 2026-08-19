@@ -227,17 +227,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 (void)ctx.services.surface_registry->release(handle);
                 return runtime::kInvalidRenderSurfaceHandle;
             }
-            std::vector<float> rgba(
-                static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() * 4);
-            std::size_t index = 0;
-            for (int y = 0; y < framebuffer->height(); ++y) {
-                for (int x = 0; x < framebuffer->width(); ++x) {
-                    const auto pixel = framebuffer->get_pixel(x, y);
-                    rgba[index++] = pixel.r;
-                    rgba[index++] = pixel.g;
-                    rgba[index++] = pixel.b;
-                    rgba[index++] = pixel.a;
-                }
+            const auto width = static_cast<std::size_t>(framebuffer->width());
+            const auto height = static_cast<std::size_t>(framebuffer->height());
+            std::vector<float> rgba(width * height * 4);
+            const Color* src = framebuffer->data();
+            for (std::size_t y = 0; y < height; ++y) {
+                const Color* row = src + y * static_cast<std::size_t>(framebuffer->stride());
+                std::memcpy(rgba.data() + y * width * 4, row, width * sizeof(Color));
             }
             if (!backend.upload_surface(handle, desc, rgba).ok()) {
                 (void)backend.release_surface(handle);

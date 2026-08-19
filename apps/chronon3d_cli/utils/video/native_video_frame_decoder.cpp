@@ -29,13 +29,15 @@ namespace {
 // decoder's own hot range).
 constexpr std::size_t kMaxCachedFrames = 64;
 
-std::shared_ptr<Framebuffer> frame_to_framebuffer(const AVFrame* frame) {
+std::shared_ptr<Framebuffer> frame_to_framebuffer(
+    const AVFrame* frame, SwsContext*& sws, std::vector<uint8_t>& rgba) {
     if (!frame || frame->width <= 0 || frame->height <= 0) {
         return nullptr;
     }
     // Convert YUV → RGBA8 via swscale (source and output share the native
     // resolution; only the pixel format changes).
-    SwsContext* sws = sws_getContext(
+    sws = sws_getCachedContext(
+        sws,
         frame->width, frame->height,
         static_cast<AVPixelFormat>(frame->format),
         frame->width, frame->height,
@@ -46,13 +48,12 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(const AVFrame* frame) {
         return nullptr;
     }
 
-    std::vector<uint8_t> rgba(static_cast<size_t>(frame->width) * frame->height * 4);
+    rgba.resize(static_cast<size_t>(frame->width) * frame->height * 4);
     uint8_t* dst_data[4] = {rgba.data(), nullptr, nullptr, nullptr};
     int dst_stride[4] = {frame->width * 4, 0, 0, 0};
     const int ret = sws_scale(sws,
         frame->data, frame->linesize, 0, frame->height,
         dst_data, dst_stride);
-    sws_freeContext(sws);
     if (ret != frame->height) {
         spdlog::warn("[video-decoder] sws_scale returned {} (expected {})", ret, frame->height);
         return nullptr;
@@ -82,6 +83,9 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(const AVFrame* frame) {
 NativeVideoFrameDecoder::~NativeVideoFrameDecoder() = default;
 
 NativeVideoFrameDecoder::Session::~Session() {
+    if (sws) {
+        sws_freeContext(sws);
+    }
     if (codec) {
         avcodec_free_context(&codec);
     }
@@ -134,7 +138,10 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         avcodec_free_context(&cc);
         return nullptr;
     }
-    cc->thread_count = 1;  // deterministic, sequential decode
+    // Let libavcodec select the decoder thread count. The render loop remains
+    // sequential, but frame decoding itself benefits substantially from slice
+    // threading on 1080p sources.
+    cc->thread_count = 0;
     if (avcodec_open2(cc, codec, nullptr) < 0) {
         spdlog::warn("[video-decoder] cannot open codec for '{}'", path);
         avcodec_free_context(&cc);
@@ -222,14 +229,14 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
             const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE
                 ? decoded->best_effort_timestamp : decoded->pts;
             if (pts == target_pts) {
-                result = frame_to_framebuffer(decoded);
+                result = frame_to_framebuffer(decoded, session->sws, session->rgba);
                 break;
             }
             if (pts != AV_NOPTS_VALUE) {
                 const int64_t delta = std::llabs(pts - target_pts);
                 if (delta < closest_delta) {
                     closest_delta = delta;
-                    closest = frame_to_framebuffer(decoded);
+                    closest = frame_to_framebuffer(decoded, session->sws, session->rgba);
                 }
                 // Bounded scan past the target: B-frames after the first
                 // overshooting reference frame may still hit the exact pts,
