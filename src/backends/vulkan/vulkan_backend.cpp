@@ -800,7 +800,8 @@ struct VulkanBackend::Impl {
     }
 
     void copy_surface_to_cuda_encoder(runtime::RenderSurfaceHandle source,
-                                      runtime::RenderSurfaceHandle destination) {
+                                      runtime::RenderSurfaceHandle destination,
+                                      bool wait_for_completion) {
         const auto source_slot = bound_slot(source);
         const auto destination_slot = bound_slot(destination);
         auto& src = physical_surfaces.at(source_slot).image;
@@ -830,7 +831,7 @@ struct VulkanBackend::Impl {
         src.initialized = true;
         dst.initialized = true;
         cuda_export_ready_surfaces.insert(destination_slot);
-        submit();
+        submit(wait_for_completion);
     }
 #endif
 
@@ -2717,10 +2718,11 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_video_encode(
 
 graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
     runtime::RenderSurfaceHandle source,
-    runtime::RenderSurfaceHandle destination) {
+    runtime::RenderSurfaceHandle destination,
+    bool wait_for_completion) {
     try {
         std::lock_guard lock(m_impl->api_mutex);
-        m_impl->copy_surface_to_cuda_encoder(source, destination);
+        m_impl->copy_surface_to_cuda_encoder(source, destination, wait_for_completion);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::RenderBackendError{

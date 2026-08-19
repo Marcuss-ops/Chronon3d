@@ -304,6 +304,10 @@ bool NativeAvEncoder::close() {
     avformat_free_context(fmt_);
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    // Imported external memory and semaphores are reusable for the lifetime
+    // of each persistent encode surface. Do not destroy them frame-by-frame:
+    // that path causes driver object churn and defeats the interop ring.
+    cuda_surface_bridges_.clear();
     av_buffer_unref(&cuda_frames_ref_);
     av_buffer_unref(&cuda_device_ref_);
     if (cuda_context_) {
@@ -348,15 +352,21 @@ bool NativeAvEncoder::write_native_surface(
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;
-    const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination);
+    const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
     if (!copy_result.ok()) {
         spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
         return false;
     }
     try {
-        const auto info = vulkan->export_cuda_external_memory(destination);
-        backends::vulkan::CudaVulkanSurfaceBridge bridge(
-            info, reinterpret_cast<CUcontext>(cuda_context_));
+        const auto key = static_cast<std::uint64_t>(destination);
+        auto bridge_it = cuda_surface_bridges_.find(key);
+        if (bridge_it == cuda_surface_bridges_.end()) {
+            const auto info = vulkan->export_cuda_external_memory(destination);
+            auto bridge = std::make_unique<backends::vulkan::CudaVulkanSurfaceBridge>(
+                info, reinterpret_cast<CUcontext>(cuda_context_));
+            bridge_it = cuda_surface_bridges_.emplace(key, std::move(bridge)).first;
+        }
+        auto& bridge = *bridge_it->second;
         bridge.wait_for_vulkan();
 
         AVFrame* gpu_frame = av_frame_alloc();
