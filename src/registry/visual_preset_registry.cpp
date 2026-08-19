@@ -390,7 +390,7 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
     r.register_preset(make_name_glow_preset(
         "name_glow_slide", "reveal_from_bottom", "line"));
     r.register_preset(make_name_glow_preset(
-        "name_glow_pop", "soft_pop", "line"));
+        "name_glow_pop", "scale_drop", "line"));
 
 }
 
