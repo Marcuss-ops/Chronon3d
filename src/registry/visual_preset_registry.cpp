@@ -82,6 +82,25 @@ VisualPresetDescriptor make_simple_2d_preset(
     return preset;
 }
 
+VisualPresetDescriptor make_name_glow_preset(
+    std::string id,
+    std::string motion,
+    std::string unit) {
+    const bool typewriter = unit == "glyph";
+    auto preset = make_simple_2d_preset(
+        std::move(id), "name", VisualLayerKind::Text, "lower_third",
+        std::move(motion), std::move(unit), "lower_third", "left", 58.0f, 700);
+    // The glow is local to the name card, keeping the treatment readable
+    // without a global veil or a full-frame effect.
+    preset.style.shadow_color = "#38BDF8";
+    preset.style.shadow_opacity = 0.82f;
+    preset.style.shadow_blur = 14.0f;
+    preset.style.shadow_offset = std::array<float, 2>{0.0f, 2.0f};
+    preset.capabilities.push_back("glow");
+    if (typewriter) preset.capabilities.push_back("typewriter");
+    return preset;
+}
+
 // register_builtin_visual_presets seeds the canonical catalog.  Order is
 // editorial: the caption/word treatments first, then the entity cards, then
 // the image treatment.
@@ -362,6 +381,16 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
     r.register_preset(make_simple_2d_preset(
         "name_scale_in", "name", VisualLayerKind::Text, "lower_third",
         "scale_drop", "line", "lower_third", "left", 58.0f, 700));
+
+    // Special-name treatments used by PipelineGen for detected entities.
+    // `glyph` is Chronon's lightweight typewriter reveal; the other two keep
+    // the same local glow while using restrained layer motion.
+    r.register_preset(make_name_glow_preset(
+        "name_glow_typewriter", "fade_in", "glyph"));
+    r.register_preset(make_name_glow_preset(
+        "name_glow_slide", "reveal_from_bottom", "line"));
+    r.register_preset(make_name_glow_preset(
+        "name_glow_pop", "soft_pop", "line"));
 
 }
 
