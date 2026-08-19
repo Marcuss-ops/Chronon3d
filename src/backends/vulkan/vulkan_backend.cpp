@@ -1238,12 +1238,21 @@ struct VulkanBackend::Impl {
             ensure_descriptor_set();
             return physical.image;
         }
-        // Unbound: alias a compatible, currently-unused physical slot
-        // (lifetime-disjoint reuse) before allocating a fresh one.
-        for (auto& [slot, physical] : physical_surfaces) {
-            if (!slot_in_use(slot) && surface_compatible(physical.desc, desc)) {
-                ensure_descriptor_set();
-                return bind_handle_to_slot(handle, slot, desc);
+        // Job-persistent assets (decoded images, packed text atlases, etc.)
+        // must never alias a transient graph slot.  Their logical handle
+        // survives frame boundaries and is sampled by later jobs; reusing a
+        // free-looking physical slot here can race with deferred releases or
+        // let a later transient writer mutate the cached asset.  Allocate a
+        // dedicated physical image for the whole job/daemon lifetime.
+        if (desc.lifetime != runtime::LifetimeClass::JobPersistent) {
+            // Unbound transient: alias a compatible, currently-unused
+            // physical slot (lifetime-disjoint reuse) before allocating a
+            // fresh one.
+            for (auto& [slot, physical] : physical_surfaces) {
+                if (!slot_in_use(slot) && surface_compatible(physical.desc, desc)) {
+                    ensure_descriptor_set();
+                    return bind_handle_to_slot(handle, slot, desc);
+                }
             }
         }
         ensure_descriptor_set();
