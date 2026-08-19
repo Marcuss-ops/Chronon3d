@@ -66,6 +66,8 @@ struct VulkanBackendStats {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 struct CudaExternalMemoryInfo {
     int fd{-1};
+    int cuda_to_vulkan_semaphore_fd{-1};
+    int vulkan_to_cuda_semaphore_fd{-1};
     std::uint64_t allocation_size{0};
     std::uint32_t width{0};
     std::uint32_t height{0};
@@ -206,6 +208,8 @@ public:
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&);
+    graph::RenderOpResult prepare_cuda_surface_for_vulkan(
+        runtime::RenderSurfaceHandle);
     [[nodiscard]] CudaExternalMemoryInfo export_cuda_external_memory(
         runtime::RenderSurfaceHandle) const;
 #endif

@@ -80,7 +80,9 @@ int main() {
     if (physical == VK_NULL_HANDLE) fail("no compute-capable Vulkan device");
 
     const char* extensions[] = {VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-                                VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME};
+                                VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+                                VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+                                VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
     float priority = 1.0f;
     VkDeviceQueueCreateInfo queue_info{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
     queue_info.queueFamilyIndex = queue_family;
@@ -89,7 +91,7 @@ int main() {
     VkDeviceCreateInfo device_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_info.queueCreateInfoCount = 1;
     device_info.pQueueCreateInfos = &queue_info;
-    device_info.enabledExtensionCount = 2;
+    device_info.enabledExtensionCount = 4;
     device_info.ppEnabledExtensionNames = extensions;
     VkDevice device = VK_NULL_HANDLE;
     vk_check(vkCreateDevice(physical, &device_info, nullptr, &device), "vkCreateDevice");
@@ -167,11 +169,39 @@ int main() {
     cu_check(cuExternalMemoryGetMappedMipmappedArray(&mapped, external_memory, &array_desc),
              "cuExternalMemoryGetMappedMipmappedArray");
 
-    std::puts("CUDA_VULKAN_INTEROP_PASS: exported Vulkan image imported by CUDA");
+    VkExportSemaphoreCreateInfo semaphore_export{
+        VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
+    semaphore_export.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    VkSemaphoreCreateInfo semaphore_info{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    semaphore_info.pNext = &semaphore_export;
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    vk_check(vkCreateSemaphore(device, &semaphore_info, nullptr, &semaphore),
+             "vkCreateSemaphore(external)");
+    auto get_semaphore_fd = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
+        vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
+    if (!get_semaphore_fd) fail("vkGetSemaphoreFdKHR is unavailable");
+    VkSemaphoreGetFdInfoKHR semaphore_fd_info{
+        VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR};
+    semaphore_fd_info.semaphore = semaphore;
+    semaphore_fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    int semaphore_fd = -1;
+    vk_check(get_semaphore_fd(device, &semaphore_fd_info, &semaphore_fd),
+             "vkGetSemaphoreFdKHR");
+    CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC semaphore_desc{};
+    semaphore_desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+    semaphore_desc.handle.fd = semaphore_fd;
+    CUexternalSemaphore external_semaphore = nullptr;
+    cu_check(cuImportExternalSemaphore(&external_semaphore, &semaphore_desc),
+             "cuImportExternalSemaphore");
+
+    std::puts("CUDA_VULKAN_INTEROP_PASS: exported Vulkan image and semaphore imported by CUDA");
+    cuDestroyExternalSemaphore(external_semaphore);
     cuMipmappedArrayDestroy(mapped);
     cuDestroyExternalMemory(external_memory);
     cuCtxDestroy(context);
     close(fd);
+    close(semaphore_fd);
+    vkDestroySemaphore(device, semaphore, nullptr);
     vkDestroyImage(device, image, nullptr);
     vkFreeMemory(device, memory, nullptr);
     vkDestroyDevice(device, nullptr);
