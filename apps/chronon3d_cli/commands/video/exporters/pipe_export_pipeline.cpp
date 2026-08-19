@@ -185,6 +185,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                 opts.backend_preference == graph::BackendPreference::GPU &&
                 opts.encoder.encoder_backend == "native" &&
                 opts.encoder.hardware_encoder == "nvenc",
+            .interop_ring = session->interop_ring,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
         });
     session->writer_thread = std::thread(run_writer_thread, std::ref(*writer_ctx));
@@ -239,6 +240,8 @@ RenderLoopOutput run_pipe_export_loop(
         .sw_renderer = session.renderer.get(),
         .queue = session.queue,
         .writer_failed = session.writer_failed,
+        .interop_ring = session.interop_ring,
+        .native_encode_surfaces = session.native_encode_surfaces,
         .triple_arena = *session.triple_arena,
         .counters = session.renderer->counters(),
         .telemetry_frames = telemetry_frames,
