@@ -95,6 +95,28 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
     return true;
 }
 
+/// Attach a device-local destination whose contents are produced completely
+/// by the next native kernel. ImageShape uses this variant because its affine
+/// kernel writes every destination pixel; uploading the CPU framebuffer first
+/// would add a needless GPU<-CPU round trip on every image layer/frame.
+inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
+                                        Framebuffer& framebuffer) {
+    if (!ctx.services.backend || !ctx.services.surface_registry) return false;
+    if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        return true;
+    }
+    const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
+    const auto handle = ctx.services.surface_registry->create(desc);
+    if (handle == runtime::kInvalidRenderSurfaceHandle) return false;
+    const auto created = ctx.services.backend->create_surface(handle, desc);
+    if (!created.ok()) {
+        ctx.services.surface_registry->release(handle);
+        return false;
+    }
+    framebuffer.set_surface_handle(handle);
+    return true;
+}
+
 /// Release the native backing of a framebuffer's surface handle (backend
 /// resource + registry entry) and clear the handle.  This is the symmetric
 /// counterpart to ensure_native_surface() and must be used whenever a native
