@@ -500,6 +500,22 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 break;
             }
 
+            // Reclaim graph-owned FrameTransient images only after the writer
+            // has consumed this frame. GPU encode surfaces are unplanned and
+            // remain owned by FrameInteropRing.
+            while (!ctx.writer_failed.load(std::memory_order_relaxed) &&
+                   ctx.frames_encoded.load(std::memory_order_acquire) < done_count) {
+                std::this_thread::yield();
+            }
+            if (ctx.writer_failed.load(std::memory_order_relaxed)) break;
+            ctx.backend.release_frame_transient_surfaces();
+            if (surface_registry) {
+                for (const auto handle : surface_registry->handles_with_lifetime(
+                         runtime::LifetimeClass::FrameTransient)) {
+                    (void)surface_registry->release(handle);
+                }
+            }
+
             ++status.frames_enqueued;
 
             // Real cache-hit signal: fast-path reuse or at least one NodeCache hit.

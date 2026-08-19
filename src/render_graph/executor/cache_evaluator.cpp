@@ -35,6 +35,17 @@ CacheEvalResult evaluate_cache(
                    ctx.services.node_cache;
     cr.is_cacheable = is_cacheable;
 
+    // Native video backends attach device surfaces to framebuffers.  Keeping
+    // those framebuffers in the inter-frame NodeCache also keeps every
+    // FrameTransient Vulkan image alive until the whole job ends, eventually
+    // exhausting VRAM.  CPU layout/glyph caches remain active; only the
+    // framebuffer cache is disabled for this export path so ownership returns
+    // to FramebufferPool at the frame boundary.
+    if (ctx.services.backend &&
+        ctx.services.backend->supports_native_video_surface()) {
+        cr.use_cache = false;
+    }
+
     // ── CompositeNode: always bypass cache (zero-copy enablement) ─────
     // Composites are always frame-dependent in practice — the blend
     // output depends on per-frame layout (clip_rect, bbox, top/bottom

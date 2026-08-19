@@ -38,6 +38,21 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
     }
 
     if (const auto it = m_entries.find(key); it != m_entries.end()) {
+        // The registry and backend have separate ownership.  A transient
+        // cleanup or pooled framebuffer release can invalidate the physical
+        // backend surface while the logical cache entry is still present.
+        // Never return that stale handle: evict it and rebuild the asset.
+        if (!m_registry->lookup(it->second.handle) ||
+            !m_backend->is_native_surface_valid(it->second.handle)) {
+            m_lru.erase(it->second.lru_position);
+            if (m_resident_bytes >= it->second.bytes) {
+                m_resident_bytes -= it->second.bytes;
+            } else {
+                m_resident_bytes = 0;
+            }
+            m_entries.erase(it);
+            m_stats.resident_bytes = m_resident_bytes;
+        } else {
         m_lru.splice(m_lru.end(), m_lru, it->second.lru_position);
         it->second.lru_position = std::prev(m_lru.end());
         ++m_stats.hits;
@@ -45,6 +60,7 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
             profiling::g_current_counters->gpu_asset_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
         return {it->second.handle, true, {}};
+        }
     }
     ++m_stats.misses;
     if (profiling::g_current_counters) {
