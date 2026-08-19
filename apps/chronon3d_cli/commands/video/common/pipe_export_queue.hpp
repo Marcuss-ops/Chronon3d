@@ -38,6 +38,7 @@ public:
     [[nodiscard]] std::size_t acquire(const CancellationToken* token = nullptr) {
         std::unique_lock lock(mutex_);
         const auto wait_start = std::chrono::steady_clock::now();
+        bool waited = false;
         for (;;) {
             if (closed_ || (token && token->is_cancelled())) return kInvalidSlot;
             for (std::size_t i = 0; i < slot_count_; ++i) {
@@ -45,7 +46,7 @@ public:
                 if (!busy_[slot]) {
                     busy_[slot] = true;
                     next_slot_ = (slot + 1) % slot_count_;
-                    if (i != 0) {
+                    if (waited) {
                         wait_count_.fetch_add(1, std::memory_order_relaxed);
                         wait_us_.fetch_add(static_cast<std::uint64_t>(
                             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -55,7 +56,7 @@ public:
                     return slot;
                 }
             }
-            wait_count_.fetch_add(1, std::memory_order_relaxed);
+            waited = true;
             // Poll cancellation while the writer is still consuming the
             // bounded ring. A plain wait() could strand the render thread if
             // cancellation happens without a slot release notification.
