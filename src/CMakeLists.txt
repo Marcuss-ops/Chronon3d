@@ -187,7 +187,3 @@ chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
 # `cmake/Chronon3DSdkInstall.cmake` (included from the root CMakeLists.txt).
 # ==============================================================================
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkTargets.cmake)
-
-# Expressions V2 (Path-B engine) is now quarantined under
-# experimental/expressions/ and is gated by CHRONON3D_BUILD_EXPERIMENTAL.
-# See the root CMakeLists.txt and docs/EXPRESSIONS_V2_PROMOTION.md.

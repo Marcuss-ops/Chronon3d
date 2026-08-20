@@ -44,5 +44,3 @@ Il build rapido è utile per iterazione, ma non certifica da solo la baseline.
 ## Validazione
 
 Ogni lavoro deve chiudersi con build mirata, test e gate architetturale. Quando applicabile servono anche no-content build, install consumer esterno, full-validation e CI registrata.
-
-Expressions V2 resta sotto `experimental/expressions/`, OFF di default e fuori da `Chronon3D::SDK`. V3 resta pianificato e non deve partire prima della chiusura P0.

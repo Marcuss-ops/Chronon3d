@@ -12,7 +12,6 @@
       "description": "Shared hidden base for the F6.3 release-optimization presets (PGO + ThinLTO + BOLT). Forces Release buildType, disables experimental / telemetry / profiling / benchmarks / diagnostics. **EXPLICITLY DISABLES `-ffast-math`** per user spec verbatim 'NON abilitare -ffast-math globalmente finché non provato che preserva determinismo + alpha + colori + golden + cross-CPU parity'. The training corpus is the real Chronon corpus (B00-B11 documented in `examples/bench_corpus/corpus_v1.json` + per-scene YAML corpus configs), NOT a microbenchmark. Forward-point: ADR for the 5-condition determinism proof.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_BUILD_EXPERIMENTAL": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",

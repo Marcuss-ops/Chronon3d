@@ -5,7 +5,7 @@
 //
 // Bridges the graph-builder's `TextRunAuditSnapshot` vector to the
 // audit + status-mapping pair consumed by `command_inspect_text.cpp` and
-// `text_inspection_json.cpp`.
+// the JSON serialisation layer.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include "text_inspection_collector.hpp"

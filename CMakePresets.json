@@ -5,7 +5,6 @@
     "cmake/presets/development.json",
     "cmake/presets/ci.json",
     "cmake/presets/release.json",
-    "cmake/presets/experimental.json",
     "cmake/presets/profiling.json",
     "cmake/presets/linux-fast-dev.json",
     "cmake/presets/linux-video-fast-dev.json",

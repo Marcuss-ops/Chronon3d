@@ -53,15 +53,6 @@ GraphExecutor: stateless, compiled graph, scheduler/scope espliciti
 5. Riparare diagnostics/content e test fast.
 6. Solo dopo riaprire performance avanzata e V3.
 
-## Expressions V2
-
-Percorso reale: `experimental/expressions/`.
-Header: `experimental/expressions/include/chronon3d_experimental/expressions/v2/`.
-Build gate: `CHRONON3D_BUILD_EXPERIMENTAL`, default OFF.
-Non è installato, esportato o usato dal percorso produttivo.
-
-TICKET-003 e TICKET-004 sono chiusi. Il prossimo lavoro è TICKET-EXP2-G3: migrare Path A verso Path B senza due parser/VM produttivi. La promozione richiede tutti gli otto gate di [`EXPRESSIONS_V2_PROMOTION.md`](EXPRESSIONS_V2_PROMOTION.md).
-
 ## Camera & Projection Pipeline
 
 Decomposizione formale chiusa su `main@eb1ce8e5` (post C1–C7).  I tipi
