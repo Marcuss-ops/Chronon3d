@@ -237,3 +237,5 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_allocations_per_frame
     ) && stmt.step_done();
 }
+
+} // namespace chronon3d::telemetry
