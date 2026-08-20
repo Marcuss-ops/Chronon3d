@@ -170,6 +170,29 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     return false;
 }
 
+// acquire_owned_fb() deliberately copies the CPU snapshot but does not alias
+// the source's native handle.  For native video this is the normal composite
+// setup: seed the new destination with a device-to-device copy/composite from
+// the bottom surface instead of promoting the CPU snapshot to RGBA32F.
+bool seed_native_destination(
+    RenderGraphContext& ctx, Framebuffer& destination,
+    const Framebuffer& source) {
+    if (!ctx.services.backend || !ctx.services.surface_registry ||
+        source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
+        !ctx.services.backend->is_native_surface_valid(source.surface_handle())) {
+        return false;
+    }
+    if (!ensure_empty_native_surface(ctx, destination)) return false;
+    const auto seeded = ctx.services.backend->composite_surfaces(
+        destination.surface_handle(), source.surface_handle(),
+        BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt);
+    if (!seeded.ok()) {
+        release_native_surface(ctx, destination);
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 NodeExecResult CompositeNode::execute(
@@ -294,13 +317,37 @@ NodeExecResult CompositeNode::execute(
     OwnedFB result;
     if (bottom_matches_canvas) {
         result = ctx.acquire_owned_fb(*bottom);
+        const bool result_native_valid =
+            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.services.backend &&
+            ctx.services.backend->is_native_surface_valid(result->surface_handle());
+        const bool bottom_native_valid =
+            bottom->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.services.backend &&
+            ctx.services.backend->is_native_surface_valid(bottom->surface_handle());
+        if (ctx.policy.require_native_gpu && !result_native_valid && bottom_native_valid) {
+            if (!seed_native_destination(ctx, *result, *bottom)) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode",
+                    "native residency violation: failed to seed destination from bottom surface"};
+            }
+        }
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
             if (!try_native_dimension_normal(ctx, *result, *bottom)) {
                 if (ctx.services.surface_registry) {
-                    (void)ensure_native_surface(ctx, *result);
-                    (void)ensure_native_surface(ctx, const_cast<Framebuffer&>(*bottom));
+                    const bool destination_ready = ensure_native_surface(ctx, *result);
+                    auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
+                    const bool source_ready = ensure_native_surface(ctx, mutable_bottom);
+                    if (ctx.policy.require_native_gpu &&
+                        (!destination_ready || !source_ready)) {
+                        return NodeExecutionError{
+                            RenderBackendErrorCode::ExecutionFailure,
+                            "CompositeNode",
+                            "native residency violation while materializing dimension-mismatched inputs"};
+                    }
                 }
                 ctx.services.backend->composite_layer(*result, *bottom, BlendMode::Normal);
             }
@@ -371,6 +418,18 @@ NodeExecResult CompositeNode::execute(
             m_mode == BlendMode::Normal &&
             m_operator == CompositeOperator::SourceOver &&
             try_native_dimension_composite(ctx, *result, *top, clip);
+        if (ctx.policy.require_native_gpu &&
+            !native_composite && !native_dimension_composite) {
+            spdlog::error(
+                "[native-residency] CompositeNode cannot keep frame {} on GPU "
+                "(destination={} source={})",
+                static_cast<int>(ctx.frame_input.frame),
+                result->surface_handle(), top->surface_handle());
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "CompositeNode",
+                "native residency violation: composite inputs could not be materialized"};
+        }
         if (native_composite || native_dimension_composite) {
             // The native path has already composed the logical surfaces. The
             // CPU pixels remain a reference snapshot for any legacy consumer;
@@ -382,8 +441,16 @@ NodeExecResult CompositeNode::execute(
             // The operator is passed along so the backend can apply the
             // appropriate matte-style coverage to the backdrop.
             if (ctx.services.backend && ctx.services.surface_registry) {
-                (void)ensure_native_surface(ctx, *result);
-                (void)ensure_native_surface(ctx, const_cast<Framebuffer&>(*top));
+                const bool destination_ready = ensure_native_surface(ctx, *result);
+                auto& mutable_top = const_cast<Framebuffer&>(*top);
+                const bool source_ready = ensure_native_surface(ctx, mutable_top);
+                if (ctx.policy.require_native_gpu &&
+                    (!destination_ready || !source_ready)) {
+                    return NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        "CompositeNode",
+                        "native residency violation in non-SourceOver composite"};
+                }
             }
             ctx.services.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
     } else {
@@ -400,6 +467,12 @@ NodeExecResult CompositeNode::execute(
                 spdlog::error("[composite] native fallback could not materialize surfaces "
                               "destination={} source={}",
                               result->surface_handle(), mutable_top.surface_handle());
+                if (ctx.policy.require_native_gpu) {
+                    return NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        "CompositeNode",
+                        "native residency violation in composite fallback"};
+                }
             }
         }
         ctx.services.backend->composite_layer(*result, *top, m_mode, clip);

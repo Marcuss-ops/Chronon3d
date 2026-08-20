@@ -120,6 +120,9 @@ struct DiagnosticSettings {
 // tile / bitmask knobs are under `dirty`; see DirtyRenderSettings.
 struct RenderSettings {
     bool retain_native_surface_for_video{false};
+    // Native video export is fail-closed: graph nodes must not silently
+    // promote CPU framebuffer pixels to a GPU surface.
+    bool require_native_gpu{false};
     runtime::RenderSurfaceHandle native_video_encode_surface{
         runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_video_source_surface{

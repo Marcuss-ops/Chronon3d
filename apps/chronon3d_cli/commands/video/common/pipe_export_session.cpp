@@ -143,6 +143,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 ctx.opts.encoder.encoder_backend == "native" &&
                 ctx.opts.encoder.hardware_encoder == "nvenc" &&
                 ctx.backend.supports_native_video_surface();
+            video_settings.require_native_gpu = video_settings.retain_native_surface_for_video;
             auto native_surface = runtime::kInvalidRenderSurfaceHandle;
             auto interop_slot = FrameInteropRing::kInvalidSlot;
             auto* surface_registry = ctx.sw_renderer
@@ -344,6 +345,14 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     runtime::LifetimeClass::FrameTransient,
                     static_cast<std::size_t>(fb->width()) * fb->height() * sizeof(float) * 4};
                 if (source_surface == runtime::kInvalidRenderSurfaceHandle) {
+                    if (video_settings.require_native_gpu) {
+                        spdlog::error(
+                            "[native-residency] render output has no native source at frame {}",
+                            static_cast<int>(current_frame));
+                        ctx.triple_arena.release(current_arena);
+                        mark_pipe_render_failed(status, current_frame);
+                        break;
+                    }
                     source_surface = surface_registry->create(source_desc);
                     const auto created = ctx.backend.create_surface(source_surface, source_desc);
                     if (created.ok()) {

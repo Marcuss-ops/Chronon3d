@@ -11,6 +11,8 @@
 #include <array>
 #include <cstring>
 
+#include "native_surface.hpp"
+
 // Internal helpers extracted into separate compilation units
 #include "transform_internal.hpp"
 
@@ -92,6 +94,21 @@ NodeExecResult TransformNode::execute(
         // transforms and made a warm sequential render differ from a cold
         // single-frame render.
         auto result = ctx.acquire_owned_fb(out_w, out_h, false, out_bounds);
+        if (input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.services.backend && ctx.services.surface_registry &&
+            ctx.services.backend->is_native_surface_valid(input->surface_handle()) &&
+            ensure_empty_native_surface(ctx, *result)) {
+            const auto transformed = ctx.services.backend->transform_surface(
+                result->surface_handle(), input->surface_handle(),
+                input->origin_x() - result->origin_x(),
+                input->origin_y() - result->origin_y(), opacity);
+            if (transformed.ok()) {
+                result->set_opaque(input->is_opaque());
+                result->set_content_cleared(input->is_content_cleared());
+                return NodeExecResult{std::move(result)};
+            }
+            release_native_surface(ctx, *result);
+        }
         for (i32 y = 0; y < input->height(); ++y) {
             std::memcpy(result->pixels_row(y), input->pixels_row(y),
                         static_cast<std::size_t>(input->width()) * sizeof(Color));
@@ -315,7 +332,7 @@ NodeExecResult TransformNode::execute(
     // Native GPU path for the general affine (non-projective) case. The
     // inverse homography is the same mapping used by execute_affine_rows;
     // projective transforms and clipped passes remain on the CPU reference.
-    if (is_affine && !ctx.node_exec.clip_rect &&
+    if (is_affine &&
         input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.services.backend && ctx.services.surface_registry) {
         runtime::SurfaceAffineTransform transform{};
@@ -333,6 +350,13 @@ NodeExecResult TransformNode::execute(
         transform.bilinear = m_mode == SamplingMode::Bilinear ? 1u : 0u;
         transform.destination_origin_x = result->origin_x();
         transform.destination_origin_y = result->origin_y();
+        if (ctx.node_exec.clip_rect) {
+            transform.clip_enabled = 1u;
+            transform.clip_rect[0] = ctx.node_exec.clip_rect->x0;
+            transform.clip_rect[1] = ctx.node_exec.clip_rect->y0;
+            transform.clip_rect[2] = ctx.node_exec.clip_rect->x1;
+            transform.clip_rect[3] = ctx.node_exec.clip_rect->y1;
+        }
 
         const runtime::SurfaceDesc desc{
             static_cast<std::uint32_t>(result->width()),
