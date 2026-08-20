@@ -2,8 +2,10 @@
 # nightly-sanitizers.yml — P2-A sanitizer schedule
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Moved from ci.yml (every push) to nightly schedule:
-#   ASan+UBSAN → daily at 02:00 UTC
+# ASan+UBSan also runs on every push to main, so a main commit cannot be
+# treated as certified while its sanitizer baseline is stale. TSan remains
+# weekly because its runtime and platform sensitivity are substantially higher:
+#   ASan+UBSAN → every main push + daily at 02:00 UTC
 #   TSan       → weekly, Sunday at 03:00 UTC
 #
 # Rationale: sanitizers add 2-5× runtime overhead. Running on every push
@@ -15,9 +17,11 @@
 # Manual trigger: workflow_dispatch for debugging.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-name: Chronon Sanitizers (nightly)
+name: Chronon Sanitizers (main + nightly)
 
 on:
+  push:
+    branches: [ main ]
   schedule:
     # ASan+UBSAN: daily at 02:00 UTC
     - cron: '0 2 * * *'
@@ -42,14 +46,15 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
-  # ASan + UBSan — runs daily at 02:00 UTC and on manual dispatch
+  # ASan + UBSan — runs on main, daily at 02:00 UTC, and on manual dispatch
   # ─────────────────────────────────────────────────────────────────────
   asan-ubsan:
-    name: Sanitizer / ASan+UBSAN (nightly)
+    name: Sanitizer / ASan+UBSAN (main + nightly)
     if: >-
-      github.event_name == 'workflow_dispatch' &&
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' &&
       (github.event.inputs.sanitizer == 'asan' || github.event.inputs.sanitizer == 'both')
-      || github.event.schedule == '0 2 * * *'
+      ) || github.event.schedule == '0 2 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -102,3 +107,57 @@ jobs:
 
       - name: Run tests under TSan
         run: ctest --preset linux-tsan-test --output-on-failure
+
+  # A separate, unconditional verdict prevents an unselected sanitizer from
+  # being mistaken for a PASS.  The required lane is derived from the event:
+  # ASan on main/daily-02:00, TSan on weekly-03:00, and the explicit manual
+  # selection for workflow_dispatch.
+  sanitizer-status:
+    name: Sanitizer baseline status (explicit verdict)
+    if: ${{ !cancelled() }}
+    needs: [asan-ubsan, tsan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the sanitizer lane selected by this event
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          REQUESTED: ${{ github.event.inputs.sanitizer }}
+          ASAN_RESULT: ${{ needs.asan-ubsan.result }}
+          TSAN_RESULT: ${{ needs.tsan.result }}
+        run: |
+          required=""
+          if [[ "$EVENT_NAME" == "push" || "$SCHEDULE" == "0 2 * * *" ]]; then
+            required="asan"
+          elif [[ "$SCHEDULE" == "0 3 * * 0" ]]; then
+            required="tsan"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            required="$REQUESTED"
+          fi
+
+          case "$required" in
+            asan)
+              [[ "$ASAN_RESULT" == "success" ]] || {
+                echo "GATE_FAIL: ASan/UBSan baseline result=$ASAN_RESULT (not PASS)" >&2
+                exit 1
+              }
+              ;;
+            tsan)
+              [[ "$TSAN_RESULT" == "success" ]] || {
+                echo "GATE_FAIL: TSan baseline result=$TSAN_RESULT (not PASS)" >&2
+                exit 1
+              }
+              ;;
+            both)
+              [[ "$ASAN_RESULT" == "success" && "$TSAN_RESULT" == "success" ]] || {
+                echo "GATE_FAIL: requested both sanitizer lanes: asan=$ASAN_RESULT tsan=$TSAN_RESULT" >&2
+                exit 1
+              }
+              ;;
+            *)
+              echo "GATE_FAIL: no sanitizer lane selected for event=$EVENT_NAME schedule=$SCHEDULE" >&2
+              exit 1
+              ;;
+          esac
+          echo "GATE_PASS: sanitizer baseline=$required (asan=$ASAN_RESULT tsan=$TSAN_RESULT)"

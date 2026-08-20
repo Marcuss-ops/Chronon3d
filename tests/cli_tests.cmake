@@ -36,6 +36,7 @@ if(TARGET chronon3d_cli_video_export)
     )
     list(APPEND _cli_test_sources
         cli/test_render_loop_integration.cpp
+        ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/video_export_common.cpp
         cli/test_frame_chunks.cpp
         cli/test_pipe_export_helpers.cpp
         cli/test_video_end_semantics.cpp

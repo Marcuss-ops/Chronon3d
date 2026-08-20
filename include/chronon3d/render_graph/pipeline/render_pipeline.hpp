@@ -27,7 +27,6 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
-#include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -38,6 +37,7 @@
 
 namespace chronon3d {
 class SoftwareRenderer;  // sw_sidecar parameter for render_composition_frame
+struct RenderSettings;
 }
 
 namespace chronon3d::graph {

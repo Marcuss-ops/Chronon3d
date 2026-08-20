@@ -1,0 +1,47 @@
+{
+  "version": 6,
+  "include": ["base.json"],
+  "configurePresets": [
+    {
+      "name": "linux-build-profile",
+      "inherits": "base-linux",
+      "displayName": "Linux Build Profile",
+      "description": "Compile-time profiling preset for Clang -ftime-trace.",
+      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CHRONON3D_ENABLE_VULKAN": "ON",
+        "CHRONON3D_ENABLE_CUDA_INTEROP": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_BUILD_TIME_TRACE": "ON",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "VCPKG_MANIFEST_FEATURES": "cli;text;vulkan"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-build-profile",
+      "configurePreset": "linux-build-profile",
+      "targets": ["chronon3d_cli"],
+      "jobs": 4
+    }
+  ]
+}

@@ -7,9 +7,10 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/internal/runtime/render_session.hpp>
-#include <chronon3d/backends/software/scratch_buffer.hpp>
 
 #include <memory>
+
+namespace chronon3d { class TransformScratchBuffer; }
 
 namespace chronon3d::graph {
 

@@ -141,22 +141,6 @@ std::filesystem::path PersistentFramebufferStore::file_path(
 // its default `cache_dir` resolves identically to the previous
 // hard-coded `output/cache/framebuffers`.
 
-void PersistentFramebufferStore::set_cache_dir(const std::filesystem::path& path) {
-    m_cache_dir = path;
-}
-
-std::filesystem::path PersistentFramebufferStore::cache_dir() const {
-    return m_cache_dir;
-}
-
-void PersistentFramebufferStore::set_disabled(bool disabled) {
-    m_disabled = disabled;
-}
-
-bool PersistentFramebufferStore::is_enabled() const noexcept {
-    return !m_disabled;
-}
-
 // ── Read helpers (extracted from the legacy monolithic load()) ────────────
 //
 // `load_via_ifstream` is the cross-platform default (used unconditionally

@@ -15,6 +15,24 @@ inline void framebuffer_increment_allocations(size_t bytes) {
         profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
         profiling::g_current_counters->framebuffer_bytes_allocated.fetch_add(
             bytes, std::memory_order_relaxed);
+
+        auto& counters = *profiling::g_current_counters;
+        switch (profiling::g_framebuffer_allocation_category) {
+        case profiling::FramebufferAllocationCategory::Text:
+            counters.framebuffer_alloc_text.fetch_add(1, std::memory_order_relaxed); break;
+        case profiling::FramebufferAllocationCategory::Effect:
+            counters.framebuffer_alloc_effect.fetch_add(1, std::memory_order_relaxed); break;
+        case profiling::FramebufferAllocationCategory::Glow:
+            counters.framebuffer_alloc_glow.fetch_add(1, std::memory_order_relaxed); break;
+        case profiling::FramebufferAllocationCategory::Video:
+            counters.framebuffer_alloc_video.fetch_add(1, std::memory_order_relaxed); break;
+        case profiling::FramebufferAllocationCategory::Graph:
+            counters.framebuffer_alloc_graph.fetch_add(1, std::memory_order_relaxed); break;
+        case profiling::FramebufferAllocationCategory::Scratch:
+            counters.framebuffer_alloc_scratch.fetch_add(1, std::memory_order_relaxed); break;
+        case profiling::FramebufferAllocationCategory::Unknown:
+            counters.framebuffer_alloc_unknown.fetch_add(1, std::memory_order_relaxed); break;
+        }
     }
 }
 

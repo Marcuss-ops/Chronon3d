@@ -94,6 +94,8 @@ struct RenderLoopContext {
     FrameInteropRing& interop_ring;
     std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
         native_encode_surfaces;
+    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
+        native_source_surfaces;
     TripleBufferArena& triple_arena;
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;

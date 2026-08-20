@@ -48,6 +48,8 @@ inline std::shared_ptr<Framebuffer> acquire_temp_framebuffer(int w, int h) {
             true
         );
     }
+    profiling::FramebufferAllocationScope allocation_scope(
+        profiling::FramebufferAllocationCategory::Effect);
     auto fb = std::make_shared<Framebuffer>(w, h);
     fb->clear(Color::transparent());
     return fb;

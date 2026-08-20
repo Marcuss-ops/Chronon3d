@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace chronon3d::cli {
+namespace chronon3d::backends::vulkan {
 
 /// Converts an NV12 AVHWFramesContext surface into an imported Vulkan RGBA
 /// surface without staging through host memory. The bridge owns the external
@@ -17,7 +17,7 @@ namespace chronon3d::cli {
 class CudaNv12SurfaceCompositor final {
 public:
     CudaNv12SurfaceCompositor(
-        const backends::vulkan::CudaExternalMemoryInfo& target,
+        const CudaExternalMemoryInfo& target,
         CUcontext context);
     ~CudaNv12SurfaceCompositor();
 
@@ -33,9 +33,9 @@ private:
     CUfunction kernel_{nullptr};
     CUstream stream_{nullptr};
     bool first_write_{true};
-    std::unique_ptr<backends::vulkan::CudaVulkanSurfaceBridge> bridge_;
+    std::unique_ptr<CudaVulkanSurfaceBridge> bridge_;
 };
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::backends::vulkan
 
 #endif
