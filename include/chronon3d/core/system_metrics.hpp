@@ -114,7 +114,7 @@ public:
     // (this template) reads with acquire (delegated via ffmpeg_cpu_split,
     // process_metrics, etc.) and republishes into the destination Counters
     // with release so subsequent consumers (RenderFrame counters reader,
-    // dashboard scraper, etc.) see all 12 fields coherently at one release
+    // telemetry consumers, etc.) see all 12 fields coherently at one release
     // point.  This avoids the "new RSS with stale fault-counters" hazard
     // that purely-relaxed orderings admit when reading N independent fields.
     template <typename Counters>

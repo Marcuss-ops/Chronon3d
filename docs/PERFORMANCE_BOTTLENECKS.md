@@ -656,12 +656,11 @@ Per user spec verbatim _"training corpus = corpus Chronon reale (B00-B11), non m
 | `content/common/text_helpers.hpp`                                          | modified | Helper `centered_text::make_centered_text` + `glow::apply_ae_glow` referenziati dalle 5 comps. |
 | `content/register_content_modules.cpp`                                     | modified | Registrazione moduli. |
 | `apps/chronon3d_cli/commands/telemetry/command_telemetry_helpers.cpp`     | modified | Stub `generate_telemetry_report` aggiunto in sessione precedente per risolvere linker error dopo `-DCHRONON3D_ENABLE_SQLITE_TELEMETRY=ON`. |
-| `tools/start_dashboard_shim.py`                                            | untracked | Helper di avvio dashboard. |
 
 **Azione raccomandata (utente, prossimo commit):** `git add -A` di tutti i
 path sopra (tutti relativi a contenuti / tooling / telemetry, **nessuna
 collisione** con `05887865`), con messaggio tipo `feat(content): add
-cinematic text-camera compositions + telemetry stub + dashboard shim`.
+cinematic text-camera compositions + telemetry stub`.
 Pushare insieme al branch locale, poi procedere con il populate step
 (#11 step 2) come ulteriore commit separato.
 
