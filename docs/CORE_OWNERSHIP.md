@@ -144,7 +144,6 @@ tests/visual_tests.cmake
 tests/gradient_visual_tests.cmake
 tests/breathing_golden_tests.cmake
 tests/deterministic_tests.cmake
-tools/telemetry_dashboard/*
 tools/perf/*
 tools/compare_benchmarks.py
 tools/compare_pngs.py

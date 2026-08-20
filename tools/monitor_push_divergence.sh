@@ -68,8 +68,7 @@
 # Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate"):
 #   (a) HOT-persistent reminder (nappa HOT state once every 12h via separate ticker)
 #   (b) Multi-branch support (BRANCH=feature/* forward then check per-branch state)
-#   (c) Wire-in to start_dashboard_shim.py OR equivalent dashboard aggregator
-#   (d) Webhook sink (Slack/Discord) come terzo canale accanto a JSONL + marker
+#   (c) Webhook sink (Slack/Discord) come terzo canale accanto a JSONL + marker
 # ═══════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
