@@ -1,4 +1,4 @@
-// utils/video/native_video_frame_decoder.cpp — see the header for the
+// media/video/native_video_frame_decoder.cpp — see the header for the
 // contract. Decoding is sequential-friendly: the render loop walks frames in
 // order, so after a keyframe-aligned seek the decoder counts output frames to
 // the target index and caches the result (bounded). Backward or large forward
@@ -6,7 +6,7 @@
 // (correct for B-frame-free CFR content like the golden fixtures; content
 // with B-frames may map to the nearest decoded frame — documented v1
 // limitation).
-#include "native_video_frame_decoder.hpp"
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
@@ -29,7 +29,7 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 
-namespace chronon3d::cli {
+namespace chronon3d::media {
 
 namespace {
 
@@ -129,6 +129,15 @@ NativeVideoFrameDecoder::Session::~Session() {
     // unreferenced, which makes cuStreamSynchronize/interop teardown enter
     // the driver with a dead context.
     native_compositor.reset();
+    if (native_surface != runtime::kInvalidRenderSurfaceHandle) {
+        if (native_backend) {
+            (void)native_backend->release_surface(native_surface);
+        }
+        if (native_surface_registry) {
+            (void)native_surface_registry->release(native_surface);
+        }
+        native_surface = runtime::kInvalidRenderSurfaceHandle;
+    }
 #endif
     if (hw_transfer_frame) {
         av_frame_free(&hw_transfer_frame);
@@ -157,6 +166,20 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(m_backend);
     if (!vulkan) return nullptr;
+    session->native_backend = m_backend;
+    session->native_surface_registry = m_surface_registry;
+    // A graph/pool may reclaim a Framebuffer's raw handle independently of
+    // the decoder session. Never submit into a compositor whose imported
+    // image has already been reclaimed; discard the stale bridge and create a
+    // fresh surface below.
+    if (session->native_surface != runtime::kInvalidRenderSurfaceHandle &&
+        (!m_surface_registry->lookup(session->native_surface) ||
+         !vulkan->is_native_surface_valid(session->native_surface))) {
+        session->native_compositor.reset();
+        (void)vulkan->release_surface(session->native_surface);
+        (void)m_surface_registry->release(session->native_surface);
+        session->native_surface = runtime::kInvalidRenderSurfaceHandle;
+    }
     auto* frames = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
     if (!frames || !frames->device_ref) return nullptr;
     auto* device = reinterpret_cast<AVHWDeviceContext*>(frames->device_ref->data);
@@ -180,7 +203,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
             return nullptr;
         }
         try {
-            session->native_compositor = std::make_unique<CudaNv12SurfaceCompositor>(
+            session->native_compositor = std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
                 vulkan->export_cuda_external_memory(session->native_surface), cuda->cuda_ctx);
         } catch (const std::exception& error) {
             spdlog::warn("[video-decoder] native CUDA surface unavailable: {}", error.what());
@@ -478,6 +501,6 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
     return result;
 }
 
-}  // namespace chronon3d::cli
+}  // namespace chronon3d::media
 
 #endif  // CHRONON3D_ENABLE_NATIVE_FFMPEG

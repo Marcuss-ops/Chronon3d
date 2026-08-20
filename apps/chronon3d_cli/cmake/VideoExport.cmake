@@ -5,10 +5,21 @@ endif()
 add_library(chronon3d_cli_video_export STATIC
     commands/video/common/pipe_export_helpers.cpp
     commands/video/exporters/pipe_export_pipeline.cpp
+    commands/video/exporters/pipe_timing_sidecar.cpp
     commands/video/exporters/pipe_export_finalize.cpp
     commands/video/common/pipe_export_session.cpp
+    commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
     utils/video/video_sink_adapter.cpp
+)
+# Keep each exporter/encoder translation unit independent.  This is
+# intentional: these files are large and include optional FFmpeg/CUDA APIs;
+# Unity builds otherwise make a small edit fan out to the whole video
+# pipeline and can create very long or cyclic rebuilds.
+set_target_properties(chronon3d_cli_video_export PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    utils/video/native_av_encoder.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 target_include_directories(chronon3d_cli_video_export PRIVATE
     ${CMAKE_SOURCE_DIR}
@@ -31,11 +42,10 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE
         utils/video/native_av_encoder.cpp
         utils/video/native_av_encoder_write.cpp
-        utils/video/native_video_frame_decoder.cpp
-        utils/video/cuda_nv12_surface_compositor.cpp
+        utils/video/native_av_encoder_packets.cpp
     )
     target_link_libraries(chronon3d_cli_video_export PRIVATE
-        chronon3d_ffmpeg_full
+        chronon3d_ffmpeg_full chronon3d_media_native
     )
     target_compile_definitions(chronon3d_cli_video_export PRIVATE
         CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -43,33 +53,32 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 
 if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    # Prefer CMake's canonical CUDA package.  The fallback is intentionally
-    # environment-driven; no host-specific Python wheel or temporary build
-    # directory belongs in the source tree.
-    find_package(CUDAToolkit QUIET)
-    if(CUDAToolkit_FOUND)
-        set(CHRONON3D_CUDA_INCLUDE_DIR_CLI "${CUDAToolkit_INCLUDE_DIRS}")
-        set(CHRONON3D_NVRTC_INCLUDE_DIR_CLI "${CUDAToolkit_INCLUDE_DIRS}")
-        set(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI CUDA::cuda_driver)
-        set(CHRONON3D_NVRTC_LIBRARY_CLI CUDA::nvrtc)
-    else()
-        find_path(CHRONON3D_CUDA_INCLUDE_DIR_CLI cuda.h
-            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
-                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
-            PATH_SUFFIXES include include/cuda)
-        find_library(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI cuda
-            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
-                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
-            PATH_SUFFIXES lib64 lib lib/x64)
-        find_path(CHRONON3D_NVRTC_INCLUDE_DIR_CLI nvrtc.h
-            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
-                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
-            PATH_SUFFIXES include include/cuda)
-        find_library(CHRONON3D_NVRTC_LIBRARY_CLI
-            NAMES nvrtc libnvrtc.so
-            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
-                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
-            PATH_SUFFIXES lib64 lib lib/x64)
+    set(CHRONON3D_NVRTC_ARCHITECTURE "compute_75" CACHE STRING
+        "NVRTC virtual architecture for the CUDA video compositor (for example compute_86)")
+    if(NOT CHRONON3D_NVRTC_ARCHITECTURE MATCHES "^compute_[0-9]+$")
+        message(FATAL_ERROR
+            "CHRONON3D_NVRTC_ARCHITECTURE must be compute_<capability>, got: "
+            "${CHRONON3D_NVRTC_ARCHITECTURE}")
+    endif()
+    # Vulkan owns the single CUDA/NVRTC discovery layer. Reuse its resolved
+    # paths here so the CLI cannot silently select a different toolkit.
+    if(NOT TARGET chronon3d_backend_vulkan)
+        message(FATAL_ERROR
+            "CUDA interop requires CHRONON3D_ENABLE_VULKAN so the Vulkan "
+            "backend can provide the canonical CUDA discovery")
+    endif()
+    set(CHRONON3D_CUDA_INCLUDE_DIR_CLI "${CHRONON3D_CUDA_INCLUDE_DIR}")
+    set(CHRONON3D_NVRTC_INCLUDE_DIR_CLI "${CHRONON3D_NVRTC_INCLUDE_DIR}")
+    set(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+    set(CHRONON3D_NVRTC_LIBRARY_CLI "${CHRONON3D_NVRTC_LIBRARY}")
+    if(NOT CHRONON3D_CUDA_INCLUDE_DIR_CLI OR
+       NOT CHRONON3D_CUDA_DRIVER_LIBRARY_CLI OR
+       NOT CHRONON3D_NVRTC_INCLUDE_DIR_CLI OR
+       NOT CHRONON3D_NVRTC_LIBRARY_CLI)
+        message(FATAL_ERROR
+            "CUDA interop was requested but CUDA driver/NVRTC headers or libraries "
+            "were not found. Set CUDA_HOME/CUDAToolkit_ROOT or disable "
+            "CHRONON3D_ENABLE_CUDA_INTEROP.")
     endif()
     target_include_directories(chronon3d_cli_video_export PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}"
@@ -82,6 +91,8 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_cli_video_export PRIVATE
         chronon3d_backend_vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}"
         "${CHRONON3D_NVRTC_LIBRARY_CLI}")
+    target_compile_definitions(chronon3d_cli_video_export PRIVATE
+        CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
 endif()
 
 target_sources(chronon3d_cli_render PRIVATE
@@ -91,6 +102,11 @@ target_sources(chronon3d_cli_render PRIVATE
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp
     utils/video/video_job_execute.cpp
+)
+set_target_properties(chronon3d_cli_render PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    commands/video/exporters/video_export_pipe.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 target_link_libraries(chronon3d_cli_render PRIVATE
     chronon3d_cli_video_export

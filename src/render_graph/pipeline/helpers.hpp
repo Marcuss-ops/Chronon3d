@@ -22,13 +22,13 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/memory_utils.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <xxhash.h>
 #include <algorithm>
 #include <cmath>
@@ -40,23 +40,26 @@ namespace chronon3d::graph {
 // Hashes the visible scene state at a given frame into a 64-bit digest.
 // Used by the dirty-rect fast path to skip full re-renders when nothing changed.
 [[nodiscard]] inline uint64_t compute_scene_fingerprint(const Scene& scene, Frame frame) {
-    XXH3_state_t state;
-    XXH3_64bits_reset(&state);
+    XXH3_state_t* state = XXH3_createState();
+    if (!state) return 0;
+    XXH3_64bits_reset(state);
 
     for (const auto& layer : scene.layers()) {
         if (!layer.active_at(frame)) continue;
 
         const u64 static_hash = layer.get_static_hash();
-        XXH3_64bits_update(&state, &static_hash, sizeof(static_hash));
+        XXH3_64bits_update(state, &static_hash, sizeof(static_hash));
 
         const u64 transform_hash = hash_transform(layer.transform);
-        XXH3_64bits_update(&state, &transform_hash, sizeof(transform_hash));
+        XXH3_64bits_update(state, &transform_hash, sizeof(transform_hash));
     }
     for (const auto& node : scene.nodes()) {
         const u64 node_hash = hash_render_node(node);
-        XXH3_64bits_update(&state, &node_hash, sizeof(node_hash));
+        XXH3_64bits_update(state, &node_hash, sizeof(node_hash));
     }
-    return XXH3_64bits_digest(&state);
+    const auto result = XXH3_64bits_digest(state);
+    XXH3_freeState(state);
+    return result;
 }
 
 
@@ -67,6 +70,8 @@ namespace chronon3d::graph {
 [[nodiscard]] inline std::unique_ptr<Framebuffer> downsample_fb(
     const Framebuffer& src, i32 dst_w, i32 dst_h
 ) {
+    profiling::FramebufferAllocationScope allocation_scope(
+        profiling::FramebufferAllocationCategory::Graph);
     auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
     const float sx = static_cast<float>(src.width())  / static_cast<float>(dst_w);
     const float sy = static_cast<float>(src.height()) / static_cast<float>(dst_h);
@@ -141,6 +146,7 @@ namespace chronon3d::graph {
         .policy = RenderPolicy{
             .retain_native_surface_for_video = settings.retain_native_surface_for_video,
             .native_video_encode_surface = settings.native_video_encode_surface,
+            .native_video_source_surface = settings.native_video_source_surface,
             // Keep node clipping in sync with framebuffer reuse.
             .diagnostics_enabled = settings.diagnostics.enabled,
             .ssaa_factor         = settings.ssaa_factor,

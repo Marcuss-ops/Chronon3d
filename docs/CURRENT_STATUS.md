@@ -1,5 +1,19 @@
 # Chronon3D — Current Status
 
+## Review remediation checkpoint — 2026-08-20
+
+La correzione della review statica è presente nel worktree corrente e ha gate
+dedicati per metadata `ResourcePreparation`, cache native GPU, boundary
+`render_graph`, discovery CUDA/NVRTC, separazione media/CLI e fan-out della
+build. I target `chronon3d_media_native` e
+`chronon3d_cli_video_export` compilano in configurazione native FFmpeg.
+
+La regression test del decoder native apre due sorgenti Y4M indipendenti in
+parallelo; la suite completa richiede il link della pipeline video. A/B/A GPU
+reale e sanitizer restano `NOT RUN` su questo host perché CUDA/Vulkan e la
+baseline ASan/TSan non sono disponibili/certificabili localmente. Nessun
+`PASS` runtime viene dichiarato per queste due verifiche.
+
 ## GPU text/video optimization — validated checkpoint 2026-08-19
 
 La roadmap di ottimizzazione del percorso GPU è implementata e verificata sui
@@ -55,8 +69,8 @@ con il framebuffer finale del render job resta il gate successivo.
 Riproduzione del gate nativo con gli header CUDA 13 disponibili localmente:
 
 ```text
-CUDA_INCLUDE=/usr/local/lib/python3.10/dist-packages/nvidia/cu13/include \
-CUDA_LIB_DIR=/usr/lib/x86_64-linux-gnu \
+CUDA_INCLUDE="$CUDA_HOME/include" \
+CUDA_LIB_DIR="$CUDA_HOME/lib64" \
 tools/run_cuda_vulkan_external_memory_probe.sh
 → CUDA_VULKAN_INTEROP_PASS
 ```

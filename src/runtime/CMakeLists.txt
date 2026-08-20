@@ -36,11 +36,13 @@ set(CHRONON3D_RUNTIME_SOURCES
     #    chronon3d::runtime::PreparationError fail-loud BEFORE the
     #    encoder if any required asset cannot be resolved.
     resource_preparation.cpp
+    resource_preparation_media.cpp
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)
     list(APPEND CHRONON3D_RUNTIME_SOURCES
         telemetry/sqlite/sqlite_telemetry_store.cpp
+        telemetry/sqlite/sqlite_telemetry_store_events.cpp
         telemetry/sqlite/sqlite_telemetry_store_schema.cpp
     )
 else()
@@ -50,6 +52,11 @@ else()
 endif()
 
 add_library(chronon3d_runtime OBJECT ${CHRONON3D_RUNTIME_SOURCES})
+set_target_properties(chronon3d_runtime PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    telemetry/sqlite/sqlite_telemetry_store.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
+)
 target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d
     chronon3d_graph

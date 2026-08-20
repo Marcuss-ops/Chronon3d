@@ -13,13 +13,14 @@
 //   3. Empty dirty-rect reuse — dirty rect is empty (nothing changed)
 // ===========================================================================
 
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include "scene_fingerprint.hpp"
 #include "scene_internal.hpp"
 #include <memory>
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::graph {
 

@@ -54,3 +54,17 @@ endif()
 if(CHRONON3D_USE_BLEND2D AND TARGET blend2d::blend2d)
     target_link_libraries(chronon3d_media_video_tests PRIVATE blend2d::blend2d)
 endif()
+
+# Native decoder regression coverage is deliberately kept out of the generic
+# video suite when FFmpeg support is disabled.  The test uses two independent
+# Y4M sources concurrently, exercising the per-session lock rather than the
+# decoder-wide session-map lock.
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
+    chronon3d_add_test_suite(
+        NAME chronon3d_native_decoder_tests
+        TIER INTEGRATION
+        NO_PIPELINE
+        LINK_TARGETS chronon3d_media_native chronon3d_core_impl
+        SOURCES video/test_native_video_frame_decoder.cpp
+    )
+endif()

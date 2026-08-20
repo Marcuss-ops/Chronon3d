@@ -1,9 +1,13 @@
 #pragma once
 
 #include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 
 #include <cstdint>
+#include <map>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace chronon3d::cli::pipe_timing {
 
@@ -69,6 +73,8 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_upload_bytes;
     std::optional<std::uint64_t> gpu_upload_full_surface_bytes;
     std::optional<std::uint64_t> gpu_upload_region_bytes;
+    // Common backend upload accounting, keyed by gpu_upload_<producer>_<metric>.
+    std::map<std::string, std::uint64_t> upload_breakdown;
     std::optional<std::uint64_t> gpu_submissions;
     std::optional<std::uint64_t> passes_executed;
     std::optional<std::uint64_t> gpu_nodes;
@@ -144,3 +150,15 @@ struct JobTimings {
 };
 
 } // namespace chronon3d::cli::pipe_timing
+
+namespace chronon3d::cli {
+void write_frame_timing_sidecar(
+    const std::string& video_path,
+    const std::vector<chronon3d::telemetry::FrameTelemetry>& render_frames,
+    const std::vector<chronon3d::telemetry::FrameTelemetry>& encoder_frames,
+    double wall_time_ms,
+    double render_ms,
+    double encode_ms,
+    const pipe_timing::JobTimings& timings,
+    bool is_native);
+} // namespace chronon3d::cli

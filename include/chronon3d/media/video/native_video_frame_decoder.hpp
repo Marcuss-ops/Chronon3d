@@ -1,4 +1,4 @@
-// utils/video/native_video_frame_decoder.hpp — Production video-frame
+// media/video/native_video_frame_decoder.hpp — Production video-frame
 // decoder for video source layers.
 //
 // The render graph's VideoNode consumes media::MediaFrameProvider to fetch a
@@ -20,7 +20,7 @@
 #include <chronon3d/runtime/render_surface.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-#include "cuda_nv12_surface_compositor.hpp"
+#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
 #endif
 
 #include <map>
@@ -38,11 +38,11 @@ extern "C" {
 }
 #endif
 
-namespace chronon3d::cli {
+namespace chronon3d::media {
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
-class NativeVideoFrameDecoder final : public media::MediaFrameProvider {
+class NativeVideoFrameDecoder final : public MediaFrameProvider {
     struct Session;
 public:
     NativeVideoFrameDecoder() = default;
@@ -88,7 +88,12 @@ private:
         std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
-        std::unique_ptr<CudaNv12SurfaceCompositor> native_compositor;
+        std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor> native_compositor;
+        // The decoder owns the persistent native surface independently from
+        // any Framebuffer wrapper returned to the graph.  Keep the release
+        // endpoints on the session so teardown is symmetric with creation.
+        graph::RenderBackend* native_backend{nullptr};
+        runtime::RenderSurfaceRegistry* native_surface_registry{nullptr};
 #endif
 
         ~Session();
@@ -107,7 +112,7 @@ private:
 
 // Native FFmpeg disabled: video source layers stay unavailable (compile-time
 // safety net; the CLI links this TU only when the flag is on).
-class NativeVideoFrameDecoder final : public media::MediaFrameProvider {
+class NativeVideoFrameDecoder final : public MediaFrameProvider {
 public:
     std::shared_ptr<Framebuffer> decode_frame(
         const std::string&, Frame, int, int, float) override {
@@ -117,4 +122,4 @@ public:
 
 #endif  // CHRONON3D_ENABLE_NATIVE_FFMPEG
 
-}  // namespace chronon3d::cli
+}  // namespace chronon3d::media

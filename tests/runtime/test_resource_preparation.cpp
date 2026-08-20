@@ -37,6 +37,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
@@ -70,6 +71,59 @@ void append_u32(std::vector<std::byte>& bytes, std::uint32_t value) {
     bytes.push_back(static_cast<std::byte>((value >> 8U) & 0xffU));
     bytes.push_back(static_cast<std::byte>((value >> 16U) & 0xffU));
     bytes.push_back(static_cast<std::byte>((value >> 24U) & 0xffU));
+}
+
+void append_u16(std::vector<std::byte>& bytes, std::uint16_t value) {
+    bytes.push_back(static_cast<std::byte>(value & 0xffU));
+    bytes.push_back(static_cast<std::byte>((value >> 8U) & 0xffU));
+}
+
+std::filesystem::path write_media_fixture(
+    std::string_view extension, const std::vector<std::byte>& bytes) {
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto path = std::filesystem::temp_directory_path() /
+        ("chronon3d-preparation-media-" + std::to_string(unique) +
+         std::string(extension));
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output.good()) throw std::runtime_error("could not create media fixture");
+    output.write(reinterpret_cast<const char*>(bytes.data()),
+                 static_cast<std::streamsize>(bytes.size()));
+    if (!output.good()) throw std::runtime_error("could not write media fixture");
+    return path;
+}
+
+std::filesystem::path write_probe_video_fixture() {
+    const std::string header =
+        "YUV4MPEG2 W2 H2 F30:1 Ip A0:0 C420jpeg\nFRAME\n";
+    std::vector<std::byte> bytes(
+        reinterpret_cast<const std::byte*>(header.data()),
+        reinterpret_cast<const std::byte*>(header.data() + header.size()));
+    // One 2×2 YUV420 frame: 4 luma samples followed by one U and one V.
+    bytes.insert(bytes.end(), {
+        std::byte{16}, std::byte{16}, std::byte{16}, std::byte{16},
+        std::byte{128}, std::byte{128}});
+    return write_media_fixture(".y4m", bytes);
+}
+
+std::filesystem::path write_probe_audio_fixture() {
+    constexpr std::uint16_t channels = 1;
+    constexpr std::uint32_t sample_rate = 8000;
+    constexpr std::uint16_t bits_per_sample = 16;
+    constexpr std::uint32_t data_size = sample_rate * channels * bits_per_sample / 8;
+    constexpr std::uint32_t riff_size = 36 + data_size;
+    std::vector<std::byte> bytes;
+    const auto append_tag = [&bytes](std::string_view tag) {
+        bytes.insert(bytes.end(), reinterpret_cast<const std::byte*>(tag.data()),
+                     reinterpret_cast<const std::byte*>(tag.data() + tag.size()));
+    };
+    append_tag("RIFF"); append_u32(bytes, riff_size); append_tag("WAVE");
+    append_tag("fmt "); append_u32(bytes, 16); append_u16(bytes, 1);
+    append_u16(bytes, channels); append_u32(bytes, sample_rate);
+    append_u32(bytes, sample_rate * channels * bits_per_sample / 8);
+    append_u16(bytes, channels * bits_per_sample / 8); append_u16(bytes, bits_per_sample);
+    append_tag("data"); append_u32(bytes, data_size);
+    bytes.resize(bytes.size() + data_size, std::byte{0});
+    return write_media_fixture(".wav", bytes);
 }
 
 void append_f32(std::vector<std::byte>& bytes, float value) {
@@ -443,6 +497,43 @@ TEST_CASE("ResourcePreparation::prepare — all assets present → success, 4 ke
     CHECK(result.value().diagnostics.layouts_prepared       == 0);
 #endif
 }
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+TEST_CASE("ResourcePreparation::prepare propagates probed video/audio metadata") {
+    const auto video_path = write_probe_video_fixture();
+    const auto audio_path = write_probe_audio_fixture();
+
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_video(video_path.filename().string(), "owner/video-real");
+    manifest.add_audio(audio_path.filename().string(), "owner/audio-real");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(video_path.parent_path());
+
+    chronon3d::runtime::PreparationOptions options;
+    options.prepare_fonts = false;
+    options.prepare_images = false;
+    options.prepare_layouts = false;
+    options.prepare_meshes = false;
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare(
+        manifest, resolver, options);
+    REQUIRE(result.has_value());
+
+    const auto video = result.value().video_metadata.at("owner/video-real");
+    CHECK(video.width == 2);
+    CHECK(video.height == 2);
+    CHECK(video.fps == doctest::Approx(30.0f));
+    CHECK(video.frame_count >= 1);
+
+    const auto audio = result.value().audio_index.at("owner/audio-real");
+    CHECK(audio.duration_seconds == doctest::Approx(1.0f));
+    CHECK(audio.sample_rate == 8000);
+
+    std::error_code ignored;
+    std::filesystem::remove(video_path, ignored);
+    std::filesystem::remove(audio_path, ignored);
+}
+#endif
 
 TEST_CASE("ResourcePreparation::prepare — WarnAndSkip policy → diagnostics.warnings populated, no abort") {
     chronon3d::assets::AssetManifest manifest;

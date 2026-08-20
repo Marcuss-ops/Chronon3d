@@ -65,6 +65,21 @@ option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
 option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
 option(CHRONON3D_ENABLE_CUDA_INTEROP
        "Build the CUDA/Vulkan external-memory interop probe and bridge prerequisites" OFF)
+option(CHRONON3D_DEV_SPLIT_DWARF
+       "Use split DWARF debug information in developer builds" OFF)
+option(CHRONON3D_BUILD_TIME_TRACE
+       "Emit Clang -ftime-trace JSON files for compile-time profiling" OFF)
+
+if(CHRONON3D_DEV_SPLIT_DWARF AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:C,CXX>:$<$<CONFIG:Debug>:-gsplit-dwarf>>
+        $<$<COMPILE_LANGUAGE:C,CXX>:$<$<CONFIG:RelWithDebInfo>:-gsplit-dwarf>>
+    )
+endif()
+
+if(CHRONON3D_BUILD_TIME_TRACE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-ftime-trace>)
+endif()
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
 # Blend2D is the only USE_ option because it is independent of its ENABLE_

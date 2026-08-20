@@ -1,6 +1,10 @@
-#include "cuda_nv12_surface_compositor.hpp"
+#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+
+#ifndef CHRONON3D_NVRTC_ARCHITECTURE
+#define CHRONON3D_NVRTC_ARCHITECTURE "compute_75"
+#endif
 
 #include <nvrtc.h>
 
@@ -13,7 +17,7 @@
 #include <filesystem>
 #include <system_error>
 
-namespace chronon3d::cli {
+namespace chronon3d::backends::vulkan {
 namespace {
 
 constexpr const char* kNv12Kernel = R"CUDA(
@@ -76,7 +80,7 @@ void ensure_nvrtc_builtins_loaded() {
 } // namespace
 
 CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
-    const backends::vulkan::CudaExternalMemoryInfo& target, CUcontext context)
+    const CudaExternalMemoryInfo& target, CUcontext context)
     : context_(context) {
     if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
@@ -86,7 +90,8 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
     nvrtcProgram program{};
     check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
                                    0, nullptr, nullptr), "nvrtcCreateProgram");
-    const char* options[] = {"--gpu-architecture=compute_75"};
+    const char* options[] = {
+        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
     const nvrtcResult compile = nvrtcCompileProgram(program, 1, options);
     if (compile != NVRTC_SUCCESS) {
         size_t log_size = 0;
@@ -104,7 +109,7 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
     check_cuda(cuModuleLoadData(&module_, ptx.data()), "cuModuleLoadData");
     check_cuda(cuModuleGetFunction(&kernel_, module_, "nv12_to_rgba"),
                "cuModuleGetFunction");
-    bridge_ = std::make_unique<backends::vulkan::CudaVulkanSurfaceBridge>(
+    bridge_ = std::make_unique<CudaVulkanSurfaceBridge>(
         target, context_, stream_);
 }
 
@@ -148,6 +153,6 @@ bool CudaNv12SurfaceCompositor::composite(
     return true;
 }
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::backends::vulkan
 
 #endif

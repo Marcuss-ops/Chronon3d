@@ -15,6 +15,24 @@ target_include_directories(chronon3d_media_interface INTERFACE
 target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
 
 if(CHRONON3D_ENABLE_VIDEO)
+    # Native decoding belongs to the media subsystem. The CLI consumes the
+    # MediaFrameProvider contract and must not own decoder/interop sources.
+    if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+        add_library(chronon3d_media_native STATIC
+            video/native_video_frame_decoder.cpp
+            ${CMAKE_SOURCE_DIR}/src/backends/vulkan/cuda_nv12_surface_compositor.cpp
+        )
+        target_include_directories(chronon3d_media_native PRIVATE
+            ${CMAKE_SOURCE_DIR}
+            ${CMAKE_SOURCE_DIR}/include
+        )
+        target_link_libraries(chronon3d_media_native PUBLIC
+            chronon3d_media_interface
+            chronon3d_ffmpeg_full
+        )
+        set_target_properties(chronon3d_media_native PROPERTIES UNITY_BUILD OFF)
+    endif()
+
     # TICKET-011 cmake-boundary (OBJECT lift) — see chronon3d_backend_software comment.
     add_library(chronon3d_backend_video OBJECT
         frame_conversion/frame_converter.cpp

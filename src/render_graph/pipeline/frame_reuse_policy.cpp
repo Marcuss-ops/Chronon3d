@@ -1,5 +1,6 @@
 #include "frame_reuse_policy.hpp"
 
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
