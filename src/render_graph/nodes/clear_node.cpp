@@ -15,6 +15,8 @@
 #include <cstring>
 #include <memory>
 
+#include "native_surface.hpp"
+
 namespace chronon3d::graph {
 
 NodeExecResult ClearNode::execute(
@@ -22,6 +24,34 @@ NodeExecResult ClearNode::execute(
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
 ) {
+    // Native video export must start the graph with a device-local transparent
+    // target.  The legacy clear path owns only CPU pixels; letting that
+    // framebuffer reach CompositeNode would force a full RGBA32F promotion
+    // (or, in strict mode, fail after the composite has already been built).
+    if (ctx.policy.require_native_gpu && ctx.services.backend &&
+        ctx.services.surface_registry) {
+        auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
+        if (!ensure_empty_native_surface(ctx, *fb)) {
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "ClearNode",
+                "native residency violation: could not allocate clear target"};
+        }
+        const auto cleared = ctx.services.backend->fill_rect_surface(
+            fb->surface_handle(), 0, 0, fb->width(), fb->height(),
+            Color::transparent());
+        if (!cleared.ok()) {
+            release_native_surface(ctx, *fb);
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "ClearNode",
+                "native clear dispatch failed: " + cleared.error().message};
+        }
+        fb->clear(Color::transparent());
+        fb->set_opaque(false);
+        return NodeExecResult{std::move(fb)};
+    }
+
     auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.services.backend);
     auto* sw_renderer = static_cast<SoftwareRenderer*>(ctx.services.sw_renderer_sidecar);
     bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer &&

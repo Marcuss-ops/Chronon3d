@@ -265,6 +265,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 framebuffer->set_surface_handle(handle);
                 return handle;
             }
+            if (ctx.policy.require_native_gpu) {
+                spdlog::error(
+                    "[native-residency] missing native source surface at frame {}",
+                    static_cast<int>(frame));
+                return runtime::kInvalidRenderSurfaceHandle;
+            }
             if (!ctx.services.surface_registry) {
                 return runtime::kInvalidRenderSurfaceHandle;
             }
