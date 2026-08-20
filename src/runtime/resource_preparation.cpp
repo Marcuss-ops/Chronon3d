@@ -22,7 +22,9 @@
 #include <chronon3d/runtime/resource_preparation.hpp>
 
 #include <chrono>
+#include <optional>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -119,6 +121,35 @@ bool run_phase(Policy                                policy,
     return false;
 }
 
+// Value-preserving variant for phases whose result is part of the prepared
+// SSOT.  The boolean helper is intentionally kept for validation-only phases;
+// metadata phases must not discard the successful payload and recreate it
+// with placeholder values.
+template <typename RefT, typename PhaseFn>
+auto run_phase_value(Policy                                policy,
+                     PreparationOptions::FailureMode      mode,
+                     const RefT&                          ref,
+                     const char*                          phase_name,
+                     PhaseFn&&                            fn,
+                     ResourceDiagnostics*                 /*diags*/,
+                     std::vector<ResourceDiagnostics::Warning>* warnings_out)
+    -> std::optional<std::decay_t<decltype(fn(ref).value())>> {
+    auto result = fn(ref);
+    if (result.has_value()) return std::move(result.value());
+    if (policy == Policy::EmitError
+        || mode == PreparationOptions::FailureMode::FailLoud) {
+        throw result.error();
+    }
+    if (warnings_out) {
+        warnings_out->push_back({
+            result.error().code,
+            result.error().message,
+            phase_name
+        });
+    }
+    return std::nullopt;
+}
+
 // Template variant for frames in the layout phase.
 template <typename RefT, typename PhaseFn>
 bool run_phase_with_frame(Policy                                policy,
@@ -198,19 +229,14 @@ ResourcePreparation::prepare(
         // Phase 3 — video-metadata probe
         if (options.prepare_video_metadata) {
             for (const auto& ref : manifest.filter(assets::AssetKind::Video)) {
-                const bool prepared_ok = run_phase(Policy::AppendWarning, options.failure_mode, ref, "video",
+                auto metadata = run_phase_value(Policy::AppendWarning, options.failure_mode,
+                          ref, "video",
                           [&](const assets::InternalAssetRef& r) {
                               return probe_video_metadata(r, resolver);
                           }, &prepared.diagnostics, &prepared.diagnostics.warnings);
-                if (!prepared_ok) continue;  // WarnAndSkip: missing asset — skip keyed map
-                const auto [it, inserted] = prepared.video_metadata.emplace(ref.owner, PreparedVideoMetadata{
-                    .path        = ref.path,
-                    .owner       = ref.owner,
-                    .width       = 0,
-                    .height      = 0,
-                    .fps         = 0.0f,
-                    .frame_count = 0
-                });
+                if (!metadata) continue;  // WarnAndSkip: missing asset — skip keyed map
+                const auto [it, inserted] = prepared.video_metadata.emplace(
+                    ref.owner, std::move(*metadata));
                 if (inserted) ++prepared.diagnostics.video_metadata_probed;
             }
         }
@@ -218,17 +244,14 @@ ResourcePreparation::prepare(
         // Phase 4 — audio-index build
         if (options.prepare_audio_index) {
             for (const auto& ref : manifest.filter(assets::AssetKind::Audio)) {
-                const bool prepared_ok = run_phase(Policy::AppendWarning, options.failure_mode, ref, "audio",
+                auto metadata = run_phase_value(Policy::AppendWarning, options.failure_mode,
+                          ref, "audio",
                           [&](const assets::InternalAssetRef& r) {
                               return build_audio_index(r, resolver);
                           }, &prepared.diagnostics, &prepared.diagnostics.warnings);
-                if (!prepared_ok) continue;  // WarnAndSkip: missing asset — skip keyed map
-                const auto [it, inserted] = prepared.audio_index.emplace(ref.owner, PreparedAudioIndex{
-                    .path             = ref.path,
-                    .owner            = ref.owner,
-                    .duration_seconds = 0.0f,
-                    .sample_rate      = 0
-                });
+                if (!metadata) continue;  // WarnAndSkip: missing asset — skip keyed map
+                const auto [it, inserted] = prepared.audio_index.emplace(
+                    ref.owner, std::move(*metadata));
                 if (inserted) ++prepared.diagnostics.audio_indexes_built;
             }
         }

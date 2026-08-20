@@ -87,6 +87,8 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
     }
 
     const auto convert_start = profiling::now();
+    profiling::FramebufferAllocationScope allocation_scope(
+        profiling::FramebufferAllocationCategory::Video);
     auto fb = std::make_shared<Framebuffer>(frame->width, frame->height, false);
     const i32 stride = fb->allocated_width();
     Color* pixels = fb->data();
@@ -198,7 +200,14 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     // The next Vulkan submission waits on cuda_to_vulkan and releases the
     // opposite semaphore for the next NVDEC frame.
     if (!vulkan->prepare_cuda_surface_for_vulkan(session->native_surface).ok()) return nullptr;
-    auto result = std::make_shared<Framebuffer>(frame->width, frame->height, false);
+    // The native path only needs a logical framebuffer carrying dimensions
+    // and the imported GPU surface handle.  Allocating a CPU pixel array here
+    // created one framebuffer allocation per decoded frame even though no
+    // CPU pixel was ever read.  The external-pixels constructor intentionally
+    // keeps this wrapper storage-free; native_surface consumers must use the
+    // attached GPU handle.
+    auto result = std::make_shared<Framebuffer>(
+        frame->width, frame->height, static_cast<Color*>(nullptr));
     result->set_surface_handle(session->native_surface);
     if (m_counters) m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
     return result;
@@ -302,11 +311,15 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
     const int64_t target = frame.integral();
     const auto decode_start = profiling::now();
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto session = open_session_locked(path);
+    std::shared_ptr<Session> session;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        session = open_session_locked(path);
+    }
     if (!session) {
         return nullptr;
     }
+    std::lock_guard<std::mutex> session_lock(session->mutex);
 
     // Cache hit.
     auto cached = session->cache.find(target);
@@ -448,11 +461,19 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
                 std::memory_order_relaxed);
         }
         session->last_target = target;
+    // A native frame points at session->native_surface, which is reused by
+    // the next decode. Caching that Framebuffer would make A→B→A return an A
+    // key with B pixels. Until native surfaces are backed by an immutable
+    // ring, cache only CPU-owned framebuffers.
+    const bool native_surface = result->surface_handle() !=
+        runtime::kInvalidRenderSurfaceHandle;
+    if (!native_surface) {
         session->cache[target] = result;
         // Bounded cache: evict the oldest entry beyond the cap.
         while (session->cache.size() > kMaxCachedFrames) {
             session->cache.erase(session->cache.begin());
         }
+    }
     }
     return result;
 }

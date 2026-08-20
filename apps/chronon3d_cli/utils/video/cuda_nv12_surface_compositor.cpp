@@ -11,6 +11,7 @@
 #include <chrono>
 #include <dlfcn.h>
 #include <filesystem>
+#include <system_error>
 
 namespace chronon3d::cli {
 namespace {
@@ -62,9 +63,13 @@ void ensure_nvrtc_builtins_loaded() {
     if (dladdr(reinterpret_cast<void*>(&nvrtcCompileProgram), &info) == 0 ||
         !info.dli_fname) return;
     const auto directory = std::filesystem::path(info.dli_fname).parent_path();
-    const auto candidate = directory / "libnvrtc-builtins.so.13.0";
-    if (std::filesystem::exists(candidate)) {
-        (void)dlopen(candidate.c_str(), RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
+    std::error_code error;
+    for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+        if (error || !entry.is_regular_file(error)) continue;
+        const auto filename = entry.path().filename().string();
+        if (filename.rfind("libnvrtc-builtins.so", 0) != 0) continue;
+        (void)dlopen(entry.path().c_str(), RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
+        break;
     }
 }
 
