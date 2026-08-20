@@ -318,6 +318,29 @@
             dst_image.width == 0 || dst_image.height == 0) {
             throw std::invalid_argument("Vulkan text run references incompatible surfaces");
         }
+        // Restrict the compute dispatch to the union of the actual glyph
+        // quads. The shader still checks every glyph for correctness, but it
+        // no longer launches work for the entire 1080p canvas.
+        std::int32_t dispatch_x0 = static_cast<std::int32_t>(dst_image.width);
+        std::int32_t dispatch_y0 = static_cast<std::int32_t>(dst_image.height);
+        std::int32_t dispatch_x1 = 0;
+        std::int32_t dispatch_y1 = 0;
+        for (const auto& glyph : glyphs) {
+            const auto scaled_w = static_cast<std::int32_t>(std::ceil(
+                static_cast<float>(glyph.width) * glyph.scale_x));
+            const auto scaled_h = static_cast<std::int32_t>(std::ceil(
+                static_cast<float>(glyph.height) * glyph.scale_y));
+            dispatch_x0 = std::min(dispatch_x0, glyph.dst_x);
+            dispatch_y0 = std::min(dispatch_y0, glyph.dst_y);
+            dispatch_x1 = std::max(dispatch_x1, glyph.dst_x + scaled_w);
+            dispatch_y1 = std::max(dispatch_y1, glyph.dst_y + scaled_h);
+        }
+        if (dispatch_x0 >= dispatch_x1 || dispatch_y0 >= dispatch_y1) {
+            dispatch_x0 = 0;
+            dispatch_y0 = 0;
+            dispatch_x1 = static_cast<std::int32_t>(dst_image.width);
+            dispatch_y1 = static_cast<std::int32_t>(dst_image.height);
+        }
         const std::size_t instance_slot = frame_batch.active
             ? frame_batch.next_slot * kGlyphInstancePassesPerSlot +
                 (frame_batch.pass_count % kGlyphInstancePassesPerSlot)
@@ -349,7 +372,8 @@
             }
             record_text_run(cmd, descriptors, dst_image, glyph_count,
                             instance_buffer, instance_updated, current_frame,
-                            highlight_color, highlight_enabled);
+                            highlight_color, highlight_enabled,
+                            dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
             dst_image.initialized = true;
             ++frame_batch.pass_count;
             ++stats.passes_executed;
@@ -366,7 +390,8 @@
         }
         record_text_run(command_buffer, descriptor_set, dst_image, glyph_count,
                         instance_buffer, instance_updated, current_frame,
-                        highlight_color, highlight_enabled);
+                        highlight_color, highlight_enabled,
+                        dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
         dst_image.initialized = true;
         ++stats.passes_executed;
         submit();
