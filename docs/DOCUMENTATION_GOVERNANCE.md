@@ -332,16 +332,6 @@ Una decisione accettata non deve essere riscritta dentro `CURRENT_STATUS.md` o `
 
 ---
 
-### `docs/ARCHIVE/`
-
-Tutto ciò che si trova in `docs/ARCHIVE/` è storico e non operativo.
-
-I documenti attivi:
-
-* non devono richiedere l'aggiornamento di file archiviati;
-* non devono usare file archiviati come fonte canonica;
-* possono collegarli soltanto per ricostruzioni storiche esplicite.
-
 ---
 
 ## Politica degli snapshot
@@ -447,7 +437,6 @@ Sono vietati:
 * ticket aperti descritti nel changelog;
 * cronologie dei commit dentro `CURRENT_STATUS.md`;
 * snapshot correnti dentro documenti permanenti;
-* riferimenti operativi a `docs/ARCHIVE/`;
 * creazione di nuovi file status con nomi simili;
 * copia integrale dello stesso blocker in status, roadmap, gate e ticket.
 

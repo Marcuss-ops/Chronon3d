@@ -33,9 +33,7 @@ Qualsiasi stato osservabile del repository deve risiedere in uno (e solo uno) di
 | [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md)     | requisiti permanenti di release (Text V1, Camera V1, SDK V1)                 |
 | [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) | indice one-line dei blocker attivi (max ~10 righe)                        |
 
-I documenti storici (vecchi `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/stabilization-plan/**`,    // drift-allow: archived-doc-pattern
-plan agente legacy `docs/agent-tasks/`) vivono in `docs/ARCHIVE/` e **non** sono operativi.
-Nessun riferimento operativo a path in `docs/ARCHIVE/` è consentito.
+I documenti storici (vecchi `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/stabilization-plan/**`, plan agente legacy `docs/agent-tasks/`) sono stati rimossi. La cronologia è preservata nella git history.
 
 ### Pattern di filename vietati
 
@@ -54,9 +52,7 @@ Per qualsiasi nuova informazione operativa: aggiungere il contenuto al **canonic
 ### Regola del gate doc-sync
 
 `tools/check_doc_sync.sh` deve accettare aggiornamenti **SOLO** ai 4 file canonical sopra elencati.
-Qualsiasi check o validazione che richieda aggiornamenti a file diversi (es. `docs/STATUS.md`,    // drift-allow: archived-doc-pattern
-`docs/NEXT_STEPS.md`, `docs/stabilization-plan/...`) è vietato e deve essere rimosso — // drift-allow: archived-doc-pattern
-quei file sono storici, vivono in `docs/ARCHIVE/` e non possono essere modificati operativamente.
+Qualsiasi check o validazione che richieda aggiornamenti a file diversi (es. `docs/STATUS.md`, `docs/NEXT_STEPS.md`, `docs/stabilization-plan/...`) è vietato — quei file storici sono stati rimossi e la cronologia è nella git history.
 
 ### Documenti di supporto (NON fonti canoniche di stato)
 
@@ -75,7 +71,6 @@ Per il contratto completo di ciascun ruolo, vedi [`docs/DOCUMENTATION_GOVERNANCE
 | Baseline macchina-verificata       | `docs/baselines/main-<sha>-baseline.md`             |
 | Scheda ticket specifico            | `docs/tickets/TICKET-NNN.md`                       |    // drift-allow: ticket-template-pattern
 | Decisione architetturale           | `docs/adr/ADR-NNN-<titolo>.md`                     |
-| Materiale storico (non operativo)  | `docs/ARCHIVE/`                                     |
 
 
 ### Disciplina di aggiornamento dei canonici

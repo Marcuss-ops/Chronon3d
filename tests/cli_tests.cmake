@@ -60,3 +60,12 @@ chronon3d_add_test_suite(
 target_include_directories(chronon3d_cli_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
 )
+
+if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
+    # Video exporter headers expose the CUDA interop bridge when native CUDA
+    # support is enabled; propagate the SDK's CUDA include directory to the
+    # test target as well.
+    target_include_directories(chronon3d_cli_tests PRIVATE
+        "${CHRONON3D_CUDA_INCLUDE_DIR}"
+    )
+endif()
