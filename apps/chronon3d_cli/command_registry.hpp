@@ -23,11 +23,13 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx);
 void register_create_commands(CLI::App& app, CliContext& ctx);
 // TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1)
 void register_watch_commands(CLI::App& app, CliContext& ctx);
+#ifdef CHRONON3D_BUILD_BENCHMARKS
+void register_bench_commands(CLI::App& app, CliContext& ctx);
+#endif
 // TICKET-V3-CLI-UNIFICATION-PREVIEW (Blocco 4.1)
 void register_preview_commands(CLI::App& app, CliContext& ctx);
 
 #ifdef CHRONON3D_BUILD_BENCHMARKS
-void register_bench_commands(CLI::App& app, CliContext& ctx);
 #endif
 void register_telemetry_commands(CLI::App& app, CliContext& ctx);
 void register_bake_layer_commands(CLI::App& app, CliContext& ctx);
