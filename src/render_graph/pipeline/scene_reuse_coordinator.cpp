@@ -24,6 +24,7 @@
 #include "camera_change_policy.hpp"  // chronon3d::graph::detail::camera_changed
 
 #include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <algorithm>
 
 namespace chronon3d::graph::detail {

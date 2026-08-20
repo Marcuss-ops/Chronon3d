@@ -12,6 +12,7 @@
 // duplicate-fix precedent — the audit-comment block above mirrors
 // the wording exactly.
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <algorithm>

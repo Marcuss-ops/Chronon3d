@@ -1,8 +1,9 @@
 #pragma once
 
 #include <chronon3d/scene/model/layer/layer.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include "graph_builder_coordinates.hpp"
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::graph::detail {
 

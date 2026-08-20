@@ -224,6 +224,18 @@ jobs:
       - name: Run tools/check_architecture_boundaries.sh
         run: bash tools/check_architecture_boundaries.sh
 
+      - name: Reject host-specific CUDA paths
+        run: bash tools/check_environment_specific_paths.sh
+
+      - name: Enforce render-graph backend boundary
+        run: bash tools/check_render_graph_backend_boundary.sh
+
+      - name: Native decoder cache contract
+        run: bash tools/check_native_decoder_cache_contract.sh
+
+      - name: Native decoder concurrency contract
+        run: bash tools/check_native_decoder_concurrency_contract.sh
+
       # 06 R5 boundary gate — PROMOTED to blocking (P0-C, 2026-07-10).
       # All 5 invariants (I1..I5) hold green on main: 200/200 LOC, 6/6
       # non-local includes, 0 dynamic_cast, 0 SoftwareRenderer& in process

@@ -3,12 +3,14 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/backends/vulkan/gpu_kernel_registry.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <vulkan/vulkan.h>
 #endif
 
 #include <memory>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <span>
@@ -19,6 +21,8 @@
 namespace chronon3d::backends::vulkan {
 
 struct VulkanBackendStats {
+    static constexpr std::size_t kUploadProducerCount =
+        static_cast<std::size_t>(profiling::GpuUploadProducer::Count);
     std::string device_name{};
     bool discrete_gpu{false};
     std::uint64_t staging_allocations{0};
@@ -26,6 +30,11 @@ struct VulkanBackendStats {
     std::uint64_t surface_releases{0};
     std::uint64_t upload_calls{0};
     std::uint64_t upload_bytes{0};
+    std::uint64_t upload_full_surface_bytes{0};
+    std::uint64_t upload_region_bytes{0};
+    std::array<std::uint64_t, kUploadProducerCount> upload_producer_bytes{};
+    std::array<std::uint64_t, kUploadProducerCount> upload_producer_full_count{};
+    std::array<std::uint64_t, kUploadProducerCount> upload_producer_region_count{};
     std::uint64_t readback_calls{0};
     std::uint64_t readback_bytes{0};
     std::uint64_t physical_surfaces_peak{0};
@@ -188,6 +197,10 @@ public:
     void release_frame_transient_surfaces() noexcept override;
     graph::RenderOpResult upload_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
+        std::span<const float>) override;
+    graph::RenderOpResult upload_surface_region(
+        runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
+        std::int32_t, std::int32_t, std::uint32_t, std::uint32_t,
         std::span<const float>) override;
     graph::RenderOpResult upload_surface_async(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,

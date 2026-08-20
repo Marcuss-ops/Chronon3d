@@ -32,6 +32,7 @@ Commands:
   cli-test [pat]      Build + run CLI tests matching pattern
   ctest [filter]      Run ctest with filter (default: core|scene|cli)
   content             Build with linux-content-dev (CLI + content + video ON, no telemetry)
+  video-dev           Build the real Vulkan + CUDA interop + native FFmpeg video path
   dashboard           Build with linux-dashboard-dev (CLI + content + telemetry + diagnostics)
   turbo               Ultra-fast Debug build (CLI only, no tests/content)
   turbo-inc <group>   Incremental rebuild of CLI group + relink
@@ -39,7 +40,7 @@ Commands:
   release             RelWithDebInfo build (optimised + debug symbols, 2-5× faster runtime)
 
 Environment:
-  JOBS                       Parallel jobs (default: nproc)
+  JOBS                       Parallel jobs (default: 8)
   CCACHE_DIR                 ccache store (default: \${ROOT_DIR}/.ccache, max 20G)
   BUILD_DIR_OVERRIDE         Override the resolved build dir (default: .tmp/chronon-builds/linux-fast-dev)
 
@@ -95,6 +96,20 @@ CCACHE_EOF
         mkdir -p "${CCACHE_DIR}/tmp"
         echo "→ ccache config bootstrapped at $CCACHE_DIR/ccache.conf"
     fi
+}
+
+detect_cuda_home() {
+    [[ -n "${CUDA_HOME:-}" ]] && return 0
+    local cuda_header="" cuda_root=""
+    while IFS= read -r cuda_header; do
+        cuda_root="${cuda_header%/include/cuda.h}"
+        if [[ -f "$cuda_root/include/nvrtc.h" ]] &&
+           compgen -G "$cuda_root/lib/libnvrtc.so*" >/dev/null; then
+            export CUDA_HOME="$cuda_root"
+            echo "→ CUDA_HOME auto-detected at $CUDA_HOME"
+            return 0
+        fi
+    done < <(find /usr/local -type f -path '*/include/cuda.h' -print 2>/dev/null)
 }
 
 resolve_build_dir() {
@@ -223,6 +238,28 @@ case "${TARGET}" in
         cmake --build "$CONTENT_BUILD_DIR" --target chronon3d_dev_fast -j "$JOBS"
         echo "✅ Content build done."
         ;;
+    video-dev)
+        # Real GPU/video inner loop: Vulkan + CUDA interop + native FFmpeg.
+        detect_cuda_home
+        VIDEO_BUILD_DIR="${ROOT_DIR}/.tmp/chronon-builds/linux-video-fast-dev"
+        VIDEO_PRESET="linux-video-fast-dev"
+        video_symlink="$ROOT_DIR/build/chronon/linux-video-fast-dev"
+        mkdir -p "$VIDEO_BUILD_DIR"
+        mkdir -p "$(dirname "$video_symlink")"
+        if [[ ! -e "$video_symlink" ]]; then
+            ln -sfnT "$VIDEO_BUILD_DIR" "$video_symlink"
+        elif [[ ! -L "$video_symlink" ]]; then
+            VIDEO_BUILD_DIR="$video_symlink"
+        fi
+        if [[ ! -f "$VIDEO_BUILD_DIR/build.ninja" ]]; then
+            cmake --preset "$VIDEO_PRESET" -B "$video_symlink"
+        fi
+        echo "╔══════════════════════════════════════════╗"
+        echo "║  🎞️  VIDEO build: Vulkan + CUDA + FFmpeg  ║"
+        echo "╚══════════════════════════════════════════╝"
+        cmake --build "$VIDEO_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
+        echo "✅ Video GPU build done."
+        ;;
     dashboard)
         # ./build-fast.sh dashboard —  engine + content + telemetry + diagnostics
         DASH_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-dashboard-dev}"
@@ -253,7 +290,7 @@ case "${TARGET}" in
         ;;
     release|r)
         # ./build-fast.sh release  —  RelWithDebInfo (optimised + debug)
-        # Uses its own tmpfs build dir, symlinked to build/chronon/linux-fast-dev-release
+        # Uses its own persistent build dir, symlinked to build/chronon/linux-fast-dev-release
         release_symlink="$ROOT_DIR/build/chronon/linux-fast-dev-release"
         mkdir -p "$RELEASE_BUILD_DIR"
         mkdir -p "$(dirname "$release_symlink")"
@@ -285,17 +322,31 @@ case "${TARGET}" in
             echo "  core       — list, info, watch, doctor"
             exit 1
         fi
-        # Validate turbo build dir exists (must have done a full turbo build first)
-        if [[ ! -f "$TURBO_BUILD_DIR/build.ninja" ]]; then
+        INC_BUILD_DIR="$TURBO_BUILD_DIR"
+        INC_PRESET="$TURBO_PRESET"
+        if [[ "$GROUP" == "video" ]]; then
+            detect_cuda_home
+            INC_BUILD_DIR="$ROOT_DIR/.tmp/chronon-builds/linux-video-fast-dev"
+            INC_PRESET="linux-video-fast-dev"
+            INC_SYMLINK="$ROOT_DIR/build/chronon/linux-video-fast-dev"
+            mkdir -p "$INC_BUILD_DIR" "$(dirname "$INC_SYMLINK")"
+            if [[ ! -e "$INC_SYMLINK" ]]; then
+                ln -sfnT "$INC_BUILD_DIR" "$INC_SYMLINK"
+            elif [[ ! -L "$INC_SYMLINK" ]]; then
+                INC_BUILD_DIR="$INC_SYMLINK"
+            fi
+        fi
+        # Validate the selected build dir exists (full build is bootstrapped once).
+        if [[ ! -f "$INC_BUILD_DIR/build.ninja" ]]; then
             echo "⚠️  Turbo build dir not found. Running full turbo build first..."
-            cmake --preset "$TURBO_PRESET"
-            cmake --build "$TURBO_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
+            cmake --preset "$INC_PRESET" -B "${INC_SYMLINK:-$INC_BUILD_DIR}"
+            cmake --build "$INC_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
         fi
         # Map group name → CMake static library target
         case "$GROUP" in
             dev)        GROUP_TARGET="chronon3d_cli_dev" ;;
             render)     GROUP_TARGET="chronon3d_cli_render" ;;
-            video)      GROUP_TARGET="chronon3d_cli_video" ;;
+            video)       GROUP_TARGET="chronon3d_cli_video_export" ;;
             telemetry)  GROUP_TARGET="chronon3d_cli_telemetry" ;;
             bench)      GROUP_TARGET="chronon3d_cli_bench" ;;
             core)       GROUP_TARGET="chronon3d_cli_core" ;;
@@ -310,10 +361,10 @@ case "${TARGET}" in
         echo "╚══════════════════════════════════════════╝"
         T0=$(date +%s%N)
         # Step 1: Rebuild only the changed group library
-        cmake --build "$TURBO_BUILD_DIR" --target "$GROUP_TARGET" -j "$JOBS"
+        cmake --build "$INC_BUILD_DIR" --target "$GROUP_TARGET" -j "$JOBS"
         T1=$(date +%s%N)
         # Step 2: Relink CLI executable (fast — just linker step)
-        cmake --build "$TURBO_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
+        cmake --build "$INC_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
         T2=$(date +%s%N)
         GROUP_MS=$(( (T1 - T0) / 1000000 ))
         TOTAL_MS=$(( (T2 - T0) / 1000000 ))

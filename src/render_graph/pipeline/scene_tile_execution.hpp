@@ -8,11 +8,12 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>   // PR 6.2 — root scope parameter
 #include "scene_internal.hpp"
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::graph::detail {
 

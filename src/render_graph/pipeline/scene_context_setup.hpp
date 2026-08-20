@@ -15,7 +15,8 @@
 #include "scene_fingerprint.hpp"   // src-only header (Check 17 architecture-boundary)
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::graph::detail {
 

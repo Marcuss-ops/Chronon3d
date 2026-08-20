@@ -26,6 +26,9 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/backends/software/scratch_buffer.hpp>
 
 #include <chrono>
 
@@ -48,8 +51,10 @@
 
 #include <spdlog/spdlog.h>
 #include <cassert>
+#include <cstring>
 #include <vector>
 #include "temporal_render_context.hpp"
+#include "../nodes/native_surface.hpp"
 
 namespace chronon3d::graph {
 
@@ -201,12 +206,61 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     if (native_encode_batch_active) {
         backend.begin_frame_batch();
     }
+    std::optional<raster::BBox> native_source_upload_clip;
+    bool has_projected_surface = false;
     const auto ensure_native_source =
         [&](const std::shared_ptr<Framebuffer>& framebuffer) {
             if (!framebuffer) return runtime::kInvalidRenderSurfaceHandle;
             auto handle = framebuffer->surface_handle();
+            // Native graph outputs are already resident and synchronized;
+            // never copy them through the CPU-source ring a second time.
             if (handle != runtime::kInvalidRenderSurfaceHandle &&
                 backend.is_native_surface_valid(handle)) {
+                return handle;
+            }
+            const auto persistent_source = ctx.policy.native_video_source_surface;
+            if (persistent_source != runtime::kInvalidRenderSurfaceHandle) {
+                if (handle != runtime::kInvalidRenderSurfaceHandle &&
+                    handle != persistent_source && ctx.services.surface_registry) {
+                    (void)backend.release_surface(handle);
+                    (void)ctx.services.surface_registry->release(handle);
+                }
+                handle = persistent_source;
+                if (!backend.is_native_surface_valid(handle)) {
+                    return runtime::kInvalidRenderSurfaceHandle;
+                }
+                const auto desc = native_surface_desc(framebuffer->width(), framebuffer->height());
+                raster::BBox clip{0, 0, framebuffer->width(), framebuffer->height()};
+                if (native_source_upload_clip) clip = *native_source_upload_clip;
+                clip.x0 = std::clamp(clip.x0, 0, framebuffer->width());
+                clip.y0 = std::clamp(clip.y0, 0, framebuffer->height());
+                clip.x1 = std::clamp(clip.x1, clip.x0, framebuffer->width());
+                clip.y1 = std::clamp(clip.y1, clip.y0, framebuffer->height());
+                const auto rw = static_cast<std::size_t>(clip.x1 - clip.x0);
+                const auto rh = static_cast<std::size_t>(clip.y1 - clip.y0);
+                if (rw != 0 && rh != 0) {
+                    std::vector<float> rgba(rw * rh * 4);
+                    for (std::size_t y = 0; y < rh; ++y) {
+                        const auto* row = framebuffer->data() +
+                            static_cast<std::size_t>(clip.y0 + static_cast<int>(y)) *
+                                static_cast<std::size_t>(framebuffer->stride()) + clip.x0;
+                        std::memcpy(rgba.data() + y * rw * 4, row, rw * sizeof(Color));
+                    }
+                    profiling::GpuUploadProducerScope upload_scope(
+                        has_projected_surface
+                            ? profiling::GpuUploadProducer::Projection
+                            : profiling::GpuUploadProducer::Video);
+                    const auto uploaded = (clip.x0 == 0 && clip.y0 == 0 &&
+                                           clip.x1 == framebuffer->width() &&
+                                           clip.y1 == framebuffer->height())
+                        ? backend.upload_surface(handle, desc, rgba)
+                        : backend.upload_surface_region(
+                              handle, desc, clip.x0, clip.y0,
+                              static_cast<std::uint32_t>(rw),
+                              static_cast<std::uint32_t>(rh), rgba);
+                    if (!uploaded.ok()) return runtime::kInvalidRenderSurfaceHandle;
+                }
+                framebuffer->set_surface_handle(handle);
                 return handle;
             }
             if (!ctx.services.surface_registry) {
@@ -238,6 +292,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 std::memcpy(rgba.data() + y * width * 4, row, width * sizeof(Color));
             }
             const auto upload_start = std::chrono::steady_clock::now();
+            profiling::GpuUploadProducerScope upload_scope(
+                profiling::GpuUploadProducer::Video);
             if (!backend.upload_surface(handle, desc, rgba).ok()) {
                 (void)backend.release_surface(handle);
                 (void)ctx.services.surface_registry->release(handle);
@@ -379,7 +435,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // when the framebuffer itself is fully redrawn, producing intermittent
     // partial words. Keep 2.5D/native-3D scenes on the full-frame path until
     // projected polygon clipping is available end-to-end.
-    const bool has_projected_surface = std::any_of(
+    has_projected_surface = std::any_of(
         resolved.layers.begin(), resolved.layers.end(),
         [frame](const ResolvedLayer& layer) {
             return layer.layer && layer.layer->active_at(frame) &&
@@ -390,6 +446,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         ctx.policy.dirty_rects_enabled = false;
         ctx.policy.tile_execution_enabled = false;
     }
+    native_source_upload_clip = has_projected_surface
+        ? std::optional<raster::BBox>(raster::BBox{0, 0, width, height})
+        : dirty_out.dirty_rect;
 
     if (effective_settings.dirty.enabled && !effective_settings.dirty.tiles_active()) {
         ctx.policy.reuse_prev_framebuffer = false;

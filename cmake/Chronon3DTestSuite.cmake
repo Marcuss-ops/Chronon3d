@@ -58,6 +58,10 @@
 # test that needs custom third-party deps (e.g. chronon3d_backend_text
 # for Blend2D-gated text tests).  AUTHOR_WARNING is emitted on
 # override; the override path is not the default.
+# A narrowly scoped `NO_PIPELINE` opt-in is available for subsystem tests
+# whose target is intentionally independent of the aggregate render pipeline
+# (for example the native media decoder regression test).  It still requires
+# explicit LINK_TARGETS and remains tracked in the canonical test aggregates.
 #
 # Why a per-tier tracker:
 #   The §11.4 gate (tools/check_arch_test_tiers.sh) needs to know
@@ -89,7 +93,7 @@ set(_CHRONON3D_TIER_DEFAULT_LINKS_SDK        "chronon3d_sdk")
 # Register the test suite + emit the executable + link + add_test.
 # See header comment for the full contract.
 function(chronon3d_add_test_suite)
-    cmake_parse_arguments(ARG "" "NAME;TIER" "SOURCES;LINK_TARGETS;LABELS" ${ARGN})
+    cmake_parse_arguments(ARG "NO_PIPELINE" "NAME;TIER" "SOURCES;LINK_TARGETS;LABELS" ${ARGN})
 
     # Fail-fast: NAME is the add_executable target name; a call with
     # no NAME silently registers sources to a property no consumer
@@ -120,6 +124,12 @@ function(chronon3d_add_test_suite)
             "'${ARG_NAME}'.  Must be one of: UNIT  INTEGRATION  SDK")
     endif()
 
+    if(ARG_NO_PIPELINE AND NOT ARG_LINK_TARGETS)
+        message(FATAL_ERROR
+            "chronon3d_add_test_suite: NO_PIPELINE requires explicit LINK_TARGETS "
+            "for '${ARG_NAME}'")
+    endif()
+
     # Derive the default link contract from the tier (unless caller
     # explicitly overrode via LINK_TARGETS).  The override path is
     # for the rare test that needs custom third-party deps
@@ -140,7 +150,7 @@ function(chronon3d_add_test_suite)
     # link closure. A few legacy call sites still spell the old SDK targets
     # explicitly; strip those names at the canonical registration boundary
     # so the SDK archive has one supported consumer tier.
-    if(NOT ARG_TIER STREQUAL "SDK")
+    if(NOT ARG_TIER STREQUAL "SDK" AND NOT ARG_NO_PIPELINE)
         list(REMOVE_ITEM ARG_LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl)
         list(FIND ARG_LINK_TARGETS chronon3d_pipeline _pipeline_index)
         if(_pipeline_index EQUAL -1)

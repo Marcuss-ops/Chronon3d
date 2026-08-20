@@ -51,6 +51,8 @@ struct PipeExportSession {
     FrameInteropRing interop_ring;
     std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
         native_encode_surfaces{};
+    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
+        native_source_surfaces{};
     std::atomic<bool> writer_failed{false};
     std::unique_ptr<TripleBufferArena> triple_arena;
     std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
@@ -70,6 +72,7 @@ struct PipeExportSession {
     explicit PipeExportSession(size_t queue_capacity)
         : queue(queue_capacity), interop_ring(FrameInteropRing::kSlotCount) {
         native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+        native_source_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
     }
 
     // ── P1-B safety: never destroy a joinable writer thread ─────────────

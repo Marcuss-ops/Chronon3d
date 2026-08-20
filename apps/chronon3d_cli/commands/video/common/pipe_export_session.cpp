@@ -12,118 +12,6 @@
 
 namespace chronon3d::cli {
 
-// ── Writer thread ───────────────────────────────────────────────────────────
-
-void run_writer_thread(const WriterThreadContext& ctx) {
-    profiling::g_current_counters = ctx.renderer.counters();
-    profiling::g_current_framebuffer_pool = ctx.renderer.framebuffer_pool().get();
-    bool arena_notified = false;
-
-    for (;;) {
-        RenderFramePackage package;
-        const auto pop_t0 = profiling::now();
-
-        bool popped = ctx.queue.pop(package);
-
-        const auto pop_t1 = profiling::now();
-        const uint64_t dequeue_ms = static_cast<uint64_t>(
-            profiling::duration_ms(pop_t0, pop_t1));
-
-        if (!popped) {
-            // Queue closed and empty — writer exits cleanly.
-            break;
-        }
-
-        if (ctx.renderer.counters()) {
-            ctx.renderer.counters()->io_queue_pop_wait_ms.fetch_add(
-                dequeue_ms, std::memory_order_relaxed);
-        }
-
-        if (package.framebuffer) {
-            const auto release_interop_slot = [&]() noexcept {
-                ctx.interop_ring.release(package.interop_slot);
-            };
-            if (!arena_notified) {
-                spdlog::info("[video] Exporting via Arena-backed SIMD pipeline");
-                arena_notified = true;
-            }
-
-            const auto enc_t0 = profiling::now();
-            // Capture the reference BEFORE moving the shared_ptr —
-            // C++ argument evaluation order is unspecified.
-            const Framebuffer& fb_ref = *package.framebuffer;
-            const bool gpu_frame = package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
-                package.backend != nullptr;
-            if (gpu_frame && ctx.renderer.counters()) {
-                ctx.renderer.counters()->gpu_native_surface_frames.fetch_add(1, std::memory_order_relaxed);
-            }
-            if (!gpu_frame && ctx.require_native_gpu) {
-                if (ctx.renderer.counters()) {
-                    ctx.renderer.counters()->video_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
-                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(1, std::memory_order_relaxed);
-                }
-                spdlog::error("[video] Native GPU profile lost its Vulkan surface at frame {}; refusing CPU fallback",
-                              package.frame_number);
-                release_interop_slot();
-                ctx.writer_failed.store(true);
-                ctx.queue.close();
-                return;
-            }
-            const bool encoded = gpu_frame
-                ? (package.native_surface_ready
-                    ? ctx.encoder.write_prepared_native_surface(
-                        *package.backend, package.source_surface, package.native_surface)
-                    : ctx.encoder.write_native_surface(
-                        *package.backend, package.source_surface, package.native_surface))
-                : ctx.encoder.write_frame_async(fb_ref, std::move(package.framebuffer));
-            // Source and encode surfaces are job-owned for the duration of
-            // the queue. The encode surface is intentionally persistent: a
-            // per-frame CUDA/Vulkan external semaphore pair exhausts the
-            // driver's external-object budget. Final transient cleanup runs
-            // after the writer joins.
-            if (!encoded) {
-                if (ctx.renderer.counters()) {
-                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(1, std::memory_order_relaxed);
-                }
-                release_interop_slot();
-                ctx.writer_failed.store(true);
-                ctx.queue.close();
-                return;
-            }
-            release_interop_slot();
-            if (ctx.renderer.counters()) {
-                if (gpu_frame) {
-                    ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(1, std::memory_order_relaxed);
-                } else {
-                    ctx.renderer.counters()->video_pipe_fallback_frames.fetch_add(1, std::memory_order_relaxed);
-                }
-            }
-            ++ctx.frames_encoded;
-            const auto enc_t1 = profiling::now();
-            const uint64_t enc_us = static_cast<uint64_t>(
-                profiling::duration_us(enc_t0, enc_t1));
-            ctx.writer_encode_us_total.fetch_add(enc_us, std::memory_order_relaxed);
-
-            ctx.frame_encoder_telemetry.push_back({
-                .frame_number = static_cast<int>(package.frame_number),
-                .conversion_copy_ms = ctx.encoder.last_frame_telemetry().conversion_copy_ms,
-                .pixel_format_convert_ms = ctx.encoder.last_frame_telemetry().pixel_format_convert_ms,
-                .color_space_convert_ms = ctx.encoder.last_frame_telemetry().color_space_convert_ms,
-                .encoder_ms = ctx.encoder.last_frame_telemetry().encoder_ms,
-                .pipe_write_ms = ctx.encoder.last_frame_telemetry().pipe_write_ms,
-                .backpressure_wait_ms = ctx.encoder.last_frame_telemetry().backpressure_wait_ms,
-                .pipe_write_cpu_ms = ctx.encoder.last_frame_telemetry().pipe_write_cpu_ms,
-                .pipe_backpressure_wait_ms = ctx.encoder.last_frame_telemetry().pipe_backpressure_wait_ms,
-                .native_convert_ms = ctx.encoder.last_frame_telemetry().native_convert_ms,
-                .native_send_ms = ctx.encoder.last_frame_telemetry().native_send_ms,
-                .native_receive_ms = ctx.encoder.last_frame_telemetry().native_receive_ms,
-                .native_mux_ms = ctx.encoder.last_frame_telemetry().native_mux_ms,
-            });
-        }
-
-        ctx.triple_arena.release(package.arena);
-    }
-}
 
 // ── Render loop ─────────────────────────────────────────────────────────────
 
@@ -469,6 +357,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                                 rgba[index++] = pixel.a;
                             }
                         }
+                        profiling::GpuUploadProducerScope upload_scope(
+                            profiling::GpuUploadProducer::Video);
                         if (!ctx.backend.upload_surface(source_surface, source_desc, rgba).ok()) {
                             (void)ctx.backend.release_surface(source_surface);
                             (void)surface_registry->release(source_surface);
@@ -528,7 +418,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                    ctx.frames_encoded.load(std::memory_order_acquire) < done_count) {
                 std::this_thread::yield();
             }
-            if (ctx.writer_failed.load(std::memory_order_relaxed)) break;
+            if (ctx.writer_failed.load(std::memory_order_relaxed)) {
+                mark_pipe_writer_failed(status, current_frame);
+                break;
+            }
             ctx.backend.release_frame_transient_surfaces();
             if (surface_registry) {
                 for (const auto handle : surface_registry->handles_with_lifetime(

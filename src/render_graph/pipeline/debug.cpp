@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"

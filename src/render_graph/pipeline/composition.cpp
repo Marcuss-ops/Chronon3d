@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/animation/temporal/temporal_samples.hpp>     // PR1: single source of truth
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
