@@ -343,6 +343,12 @@ public:
     /// JobPersistent asset/font surfaces are intentionally retained.
     virtual void release_frame_transient_surfaces() noexcept {}
 
+    /// Retire frame-transient GPU resources without draining the whole device.
+    /// Implementations may defer destruction until the owning submission fence
+    /// has completed.  This is the per-frame path; the method above remains
+    /// the final, blocking job cleanup path.
+    virtual void retire_frame_transient_surfaces() noexcept {}
+
     virtual RenderOpResult upload_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,

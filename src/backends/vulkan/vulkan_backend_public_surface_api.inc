@@ -169,6 +169,15 @@ void VulkanBackend::release_frame_transient_surfaces() noexcept {
 #endif
 }
 
+void VulkanBackend::retire_frame_transient_surfaces() noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (m_impl) {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->retire_completed_frame_transient_surfaces();
+    }
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::upload_surface(
     runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
     std::span<const float> rgba) {
