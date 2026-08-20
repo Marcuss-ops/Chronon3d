@@ -105,231 +105,24 @@ VisualPresetDescriptor make_name_glow_preset(
 // editorial: the caption/word treatments first, then the entity cards, then
 // the image treatment.
 void register_builtin_visual_presets(VisualPresetRegistry& r) {
-    // ── caption_card — IMPORTANT_PHRASE ─────────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "caption_card",
-        .semantic_role = "important_phrase",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Text,
-        .base_preset = "caption_safe_area",
-        .style = VisualStyle{
-            .font_family = "Poppins",
-            .font_asset = "assets/fonts/Poppins-Bold.ttf",
-            .font_weight = 700,
-            .font_size = 64.0f,
-            .fill = "#FFFFFF",
-            .shadow_color = "#000000",
-            .shadow_opacity = 0.42f,
-            .shadow_blur = 10.0f,
-            .shadow_offset = std::array<float, 2>{0.0f, 4.0f},
-            .background_color = "#050509",
-            .background_opacity = 0.88f,
-            .radius = 10.0f,
-            .padding = std::array<float, 2>{20.0f, 12.0f},
-        },
-        .anchor = AnchorSpec{.type = "center", .safe_margin = 0.06f, .alignment = "center"},
-        .animation = AnimationSpec{.preset = "fade_in", .unit = "line",
-                                   .enter_duration_frames = 10, .exit_duration_frames = 8},
-        .fallback_anchors = {"center", "top"},
-        .capabilities = {"2d", "card", "local_background", "collision_avoid"},
-    });
-
-    // ── active_word_pop — IMPORTANT_WORD ───────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "active_word_pop",
-        .semantic_role = "important_word",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Text,
-        .base_preset = "kinetic_word",
-        .style = VisualStyle{
-            .font_family = "Poppins",
-            .font_asset = "assets/fonts/Poppins-Bold.ttf",
-            .font_weight = 800,
-            .font_size = 64.0f,
-            .fill = "#FFFFFF",
-            .stroke_color = "#000000",
-            .stroke_width = 2.0f,
-            .background_color = "#050509",
-            .background_opacity = 0.90f,
-            .radius = 12.0f,
-            .padding = std::array<float, 2>{16.0f, 10.0f},
-        },
-        .anchor = AnchorSpec{.type = "safe_area", .safe_margin = 0.06f, .alignment = "center"},
-        // The per-word pop is owned by the text preset `kinetic_word` /
-        // `active_word_pop`.  At layer level use the registered Chronon
-        // motion `fade_in`; passing the visual id here would make the motion
-        // catalog reject the plan because `active_word_pop` is not a layer
-        // motion preset.
-        .animation = AnimationSpec{.preset = "fade_in", .unit = "word",
-                                   .enter_duration_frames = 8, .exit_duration_frames = 6},
-        .fallback_anchors = {"center", "top", "bottom"},
-        .capabilities = {"2d", "card", "local_background", "word_selector"},
-    });
-
-    // ── subtitle_card ──────────────────────────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "subtitle_card",
-        .semantic_role = "subtitle",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Text,
-        .base_preset = "subtitle_bottom",
-        .style = VisualStyle{
-            .font_family = "Poppins",
-            .font_asset = "assets/fonts/Poppins-Regular.ttf",
-            .font_weight = 500,
-            .font_size = 40.0f,
-            .fill = "#FFFFFF",
-            .background_color = "#050509",
-            .background_opacity = 0.78f,
-            .radius = 8.0f,
-            .padding = std::array<float, 2>{16.0f, 8.0f},
-        },
-        .anchor = AnchorSpec{.type = "lower_third", .safe_margin = 0.06f, .alignment = "center"},
-        .animation = AnimationSpec{.preset = "fade_in", .unit = "line",
-                                   .enter_duration_frames = 6, .exit_duration_frames = 4},
-        .fallback_anchors = {"bottom", "safe_area"},
-        .capabilities = {"2d", "card", "local_background"},
-    });
-
-    // ── lower_third_safe — PERSON ──────────────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "lower_third_safe",
-        .semantic_role = "name",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Text,
-        .base_preset = "lower_third",
-        .style = VisualStyle{
-            .font_family = "Poppins",
-            .font_asset = "assets/fonts/Poppins-Bold.ttf",
-            .font_weight = 700,
-            .font_size = 58.0f,
-            .fill = "#FFFFFF",
-            .stroke_color = "#000000",
-            .stroke_width = 2.0f,
-            .shadow_color = "#000000",
-            .shadow_opacity = 0.65f,
-            .shadow_blur = 16.0f,
-            .shadow_offset = std::array<float, 2>{0.0f, 6.0f},
-            .background_color = "#050509",
-            .background_opacity = 0.86f,
-            .radius = 12.0f,
-            .padding = std::array<float, 2>{24.0f, 14.0f},
-        },
-        .anchor = AnchorSpec{.type = "lower_third", .safe_margin = 0.06f, .alignment = "left"},
-        .animation = AnimationSpec{.preset = "focus_in", .unit = "line",
-                                   .enter_duration_frames = 8, .exit_duration_frames = 6},
-        .fallback_anchors = {"lower_right", "top_left", "top_right"},
-        .capabilities = {"2d", "card", "local_background", "collision_avoid"},
-    });
-
-    // ── organization_card — ORG ────────────────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "organization_card",
-        .semantic_role = "organization",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Text,
-        .base_preset = "lower_third",
-        .style = VisualStyle{
-            .font_family = "Poppins",
-            .font_asset = "assets/fonts/Poppins-Bold.ttf",
-            .font_weight = 600,
-            .font_size = 52.0f,
-            .fill = "#FFFFFF",
-            .background_color = "#050509",
-            .background_opacity = 0.84f,
-            .radius = 12.0f,
-            .padding = std::array<float, 2>{22.0f, 12.0f},
-        },
-        .anchor = AnchorSpec{.type = "lower_third", .safe_margin = 0.06f, .alignment = "left"},
-        .animation = AnimationSpec{.preset = "fade_in", .unit = "line",
-                                   .enter_duration_frames = 8, .exit_duration_frames = 6},
-        .fallback_anchors = {"lower_right", "top_left", "top_right"},
-        .capabilities = {"2d", "card", "local_background", "collision_avoid"},
-    });
-
-    // ── location_card — LOCATION ───────────────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "location_card",
-        .semantic_role = "location",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Text,
-        .base_preset = "lower_third",
-        .style = VisualStyle{
-            .font_family = "Poppins",
-            .font_asset = "assets/fonts/Poppins-Bold.ttf",
-            .font_weight = 600,
-            .font_size = 52.0f,
-            .fill = "#FFFFFF",
-            .background_color = "#050509",
-            .background_opacity = 0.84f,
-            .radius = 12.0f,
-            .padding = std::array<float, 2>{22.0f, 12.0f},
-        },
-        .anchor = AnchorSpec{.type = "lower_third", .safe_margin = 0.06f, .alignment = "left"},
-        .animation = AnimationSpec{.preset = "fade_in", .unit = "line",
-                                   .enter_duration_frames = 8, .exit_duration_frames = 6},
-        .fallback_anchors = {"lower_right", "top_left", "top_right"},
-        .capabilities = {"2d", "card", "local_background", "collision_avoid"},
-    });
-
-    // ── image_focus_in — IMAGE ─────────────────────────────────────────
-    r.register_preset(VisualPresetDescriptor{
-        .id = "image_focus_in",
-        .semantic_role = "image",
-        .version = 1,
-        .supported_layer = VisualLayerKind::Image,
-        // Image treatments materialize through the image layer branch, not
-        // a text materializer.
-        .base_preset = {},
-        .style = VisualStyle{},
-        .anchor = AnchorSpec{.type = "image_right", .safe_margin = 0.06f, .alignment = "left"},
-        .animation = AnimationSpec{.preset = "focus_in", .unit = "line",
-                                   .enter_duration_frames = 8, .exit_duration_frames = 6},
-        .fallback_anchors = {"image_left", "top_right", "top_left"},
-        .capabilities = {"2d", "collision_avoid"},
-        // Canonical image box the plan no longer transports: 260×260 contain
-        // (the former PipelineGen IMAGE_OVERLAY transport shape, ADR-029).
-        .box_width = 260.0f,
-        .box_height = 260.0f,
-        .fit = "contain",
-    });
-
     // ── 2D showcase presets ────────────────────────────────────────────
     // These are deliberately small, deterministic recipes. They use only
     // existing 2D layer motions; no camera, depth, perspective or 3D motion
     // is introduced by this catalog.
 
-    // Images: fade, horizontal slides, scale and a simple focus-in. Image
+    // Images: horizontal slides plus the modern fade/rounded/card variants.
     // presets carry no text materializer — they materialize through the
     // image layer branch.
-    r.register_preset(make_simple_2d_preset(
-        "image_fade_in", "image", VisualLayerKind::Image, "",
-        "fade_in", "line", "image_right", "left", 0.0f, 0));
     r.register_preset(make_simple_2d_preset(
         "image_slide_left", "image", VisualLayerKind::Image, "",
         "slide_in", "line", "image_right", "left", 0.0f, 0));
     r.register_preset(make_simple_2d_preset(
         "image_slide_right", "image", VisualLayerKind::Image, "",
         "fade_shift_horizontal", "line", "image_left", "right", 0.0f, 0));
-    r.register_preset(make_simple_2d_preset(
-        "image_scale_in", "image", VisualLayerKind::Image, "",
-        "scale_drop", "line", "center", "center", 0.0f, 0));
     // Important phrases: restrained, line-safe motion variants. They all
     // share the caption-safe-area materializer and differ only in their
     // lightweight entrance motion, so callers can select a treatment without
     // reimplementing typography, placement or collision rules.
-    r.register_preset(make_simple_2d_preset(
-        "phrase_fade_in", "important_phrase", VisualLayerKind::Text,
-        "caption_safe_area", "fade_in", "line", "safe_area", "center", 64.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_scale_in", "important_phrase", VisualLayerKind::Text,
-        "caption_safe_area", "scale_drop", "line", "safe_area", "center", 64.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_slide_up", "important_phrase", VisualLayerKind::Text,
-        "caption_safe_area", "reveal_from_bottom", "line", "safe_area", "center", 64.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "phrase_soft_pop", "important_phrase", VisualLayerKind::Text,
-        "caption_safe_area", "soft_pop", "line", "safe_area", "center", 64.0f, 700));
     // Word-scoped fade keeps the phrase readable while revealing emphasis one
     // word at a time; the layer motion itself remains the canonical fade_in.
     r.register_preset(make_simple_2d_preset(
@@ -366,21 +159,6 @@ void register_builtin_visual_presets(VisualPresetRegistry& r) {
 
     // Names / entity cards: restrained lower-third motion, all 2D. They
     // lower onto the canonical `lower_third` text materializer.
-    r.register_preset(make_simple_2d_preset(
-        "name_fade_in", "name", VisualLayerKind::Text, "lower_third",
-        "fade_in", "line", "lower_third", "left", 58.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "name_slide_up", "name", VisualLayerKind::Text, "lower_third",
-        "reveal_from_bottom", "line", "lower_third", "left", 58.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "name_pop_in", "name", VisualLayerKind::Text, "lower_third",
-        "soft_pop", "line", "lower_third", "left", 58.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "name_slide_left", "name", VisualLayerKind::Text, "lower_third",
-        "slide_in", "line", "lower_third", "left", 58.0f, 700));
-    r.register_preset(make_simple_2d_preset(
-        "name_scale_in", "name", VisualLayerKind::Text, "lower_third",
-        "scale_drop", "line", "lower_third", "left", 58.0f, 700));
 
     // Special-name treatments used by PipelineGen for detected entities.
     // `glyph` is Chronon's lightweight typewriter reveal; the other two keep
@@ -449,7 +227,7 @@ VisualPresetDescriptor VisualPresetRegistry::get_for_profile(
             resolved.style.font_family = "Poppins";
             resolved.style.font_asset = "assets/fonts/Poppins-Bold.ttf";
             resolved.style.font_weight = 700;
-            resolved.style.font_size = resolved.id == "caption_card" ? 52.0f : 64.0f;
+            resolved.style.font_size = 64.0f;
             resolved.style.fill = "#FFFFFF";
             resolved.style.stroke_color = "#22D3EE";
             resolved.style.stroke_width = 2.0f;
@@ -463,7 +241,7 @@ VisualPresetDescriptor VisualPresetRegistry::get_for_profile(
             resolved.style.font_family = "Poppins";
             resolved.style.font_asset = "assets/fonts/Poppins-Bold.ttf";
             resolved.style.font_weight = 800;
-            resolved.style.font_size = resolved.id == "caption_card" ? 48.0f : 58.0f;
+            resolved.style.font_size = 58.0f;
             resolved.style.fill = "#F8FAFC";
             resolved.style.stroke_color = "#EF4444";
             resolved.style.stroke_width = 2.0f;
