@@ -31,7 +31,6 @@ foreach(_target IN ITEMS
     chronon3d_cli_render
     chronon3d_cli_video_export
     chronon3d_cli_dev
-    chronon3d_cli_bench
     chronon3d_cli_telemetry
 )
     if(TARGET ${_target})
@@ -53,9 +52,6 @@ if(TARGET chronon3d_cli_dev)
         CHRONON3D_HAS_CLI_DEV
         CHRONON3D_BUILD_CLI_DEV
     )
-endif()
-if(TARGET chronon3d_cli_bench)
-    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_BENCH)
 endif()
 
 if(TARGET chronon3d_backend_text)
@@ -97,7 +93,6 @@ foreach(_target IN ITEMS
     chronon3d_cli_render
     chronon3d_cli_video_export
     chronon3d_cli_dev
-    chronon3d_cli_bench
     chronon3d_cli_telemetry
 )
     if(TARGET ${_target})

@@ -1,5 +1,5 @@
-#include "../../commands.hpp"
-#include "../../utils/job/cli_render_utils.hpp"
+#include "../args.hpp"
+#include "../../chronon3d_cli/utils/job/cli_render_utils.hpp"
 
 #ifdef CHRONON3D_BUILD_BENCHMARKS
 #include <benchmark/benchmark.h>
@@ -482,7 +482,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
 #else // !CHRONON3D_BUILD_BENCHMARKS
 
-#include "../../commands.hpp"
+#include "../args.hpp"
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {

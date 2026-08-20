@@ -232,11 +232,18 @@ graph::RenderOpResult draw_cached_text_run(
             highlight_plan.enabled ? highlight_plan.glyph_ranges[i].second : -1.0f});
         glyphs.back().atlas_key = std::move(style_key);
     }
-    if (!ensure_native_surface(ctx, destination)) {
+    // A cached TextRun renders into its own transparent output surface. Do
+    // not upload the CPU framebuffer here: that would copy the full canvas
+    // once per text layer and frame even though the text kernel writes only
+    // the glyph result.
+    if (!ensure_empty_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: destination has no native surface"});
     }
+    const auto cleared = ctx.services.backend->fill_rect_surface(
+        destination.surface_handle(), 0, 0, destination.width(), destination.height(), Color{});
+    if (!cleared.ok()) return cleared;
 
     auto result = draw_packed_text_run_surface(
         ctx, destination.surface_handle(), glyphs, current_frame,

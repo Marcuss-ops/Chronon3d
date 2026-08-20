@@ -1,6 +1,13 @@
-#include "../../command_registry.hpp"
-#include "../../commands.hpp"
+#include "../registry.hpp"
+#include "../args.hpp"  // for BenchArgs
 #include <memory>
+
+// Forward declarations of the implementations living in their own TUs.
+// - command_bench:           apps/chronon3d_bench/cmd/command_bench.cpp
+// - command_bench_convert:   apps/chronon3d_bench/command_bench_convert.cpp
+namespace chronon3d::cli {
+int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
+}
 
 namespace chronon3d::cli {
 
