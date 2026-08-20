@@ -7,10 +7,9 @@ Created 2026-07-12 — Test 16 / First-Principles Product Check #16.
 Honest framing (per AGENTS.md §honesty):
     - This script is a STANDALONE helper. It has no PyYAML / pandas / numpy dependency.
     - It reads ~/.chronon3d/pilot/pilot.jsonl (path overridable via --log) and emits a
-      summary suitable for the dashboard to consume (or for human reading).
+      summary suitable for machine or human reading.
     - The companion bash driver (tools/run_pilot.sh) handles render+log+summary via the
-      same schema; this Python helper exists for the dashboard wire-up (forward-point:
-      TICKET-PILOT-IG-DASHBOARD-WIREUP) and for ad-hoc inspection.
+      same schema; this Python helper exists for ad-hoc inspection.
 
 Usage:
     python3 tools/pilot_metrics.py --log ~/.chronon3d/pilot/pilot.jsonl --json

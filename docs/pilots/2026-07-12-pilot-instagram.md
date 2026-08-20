@@ -7,8 +7,8 @@
 # (scegli YT/IG/TT). Per 7gg produci video reali. Misura:
 # video_posted/discarded/manual_corrections/time_saved/cost/bugs.")
 #
-# Status: HARNESS-COMPLETE (framework code-complete + dashboard wire-up
-# forward-pointed); 7-day execution verdict DEFERRED to human runner.
+# Status: HARNESS-COMPLETE (framework code-complete); 7-day execution
+# verdict DEFERRED to human runner.
 # Per AGENTS.md §honesty "non inventare", the 7-day metric aggregates
 # CANNOT be filled in this commit — they require ≥7 days of real pilot
 # execution by a human operator on Instagram.
@@ -117,24 +117,6 @@ After pilot completion (≥7 days), copy the aggregate from
 | `bugs_critical` | 0 | _TBD_ | _TBD_ |
 | `discarded_rate` | ≤ 50 % | _TBD_ | _TBD_ |
 
-## Dashboard wiring (forward-point — `TICKET-PILOT-IG-DASHBOARD-WIREUP`)
-
-> **Status**: dashboard endpoint `/api/pilot` (reading `~/.chronon3d/pilot/pilot.jsonl`)
-> is NOT wired in this commit. The framework IS code-complete (YAML + bash + Python helper
-> + JSONL log) but the catalog dashboard at `http://localhost:5005` (per
-> [`docs/TELEMETRY_DASHBOARD.md` §11](../TELEMETRY_DASHBOARD.md)) does NOT yet surface the
-> pilot aggregates. The forward-point ticket
-> `TICKET-PILOT-IG-DASHBOARD-WIREUP` in `docs/FOLLOWUP_TICKETS.md` §Open Blockers is the
-> canonical next-step.
->
-> **Ad-hoc dashboard access** for this commit:
-> 1. Render telemetry dashboard per `docs/TELEMETRY_DASHBOARD.md` §8:
->    `python3 tools/start_dashboard_shim.py 8000 </dev/null >/tmp/flask_backend.log 2>&1 &`
-> 2. Run the pilot helper directly:
->    `python3 tools/pilot_metrics.py --json` (~ equivalent to the future `/api/pilot` JSON response)
-> 3. Cross-reference the daily log entries against `/api/runs?since=<day_iso>` in the
->    main dashboard.
-
 ## Runbook (TL;DR for runners)
 
 > **First time? Read these before starting.** Per-pilot manuscripts in the established
@@ -155,7 +137,7 @@ bash tools/run_pilot.sh log my-shot-XXXX discarded=true   notes="Skipped because
 
 # 4. (end-of-day) print aggregate
 bash tools/run_pilot.sh summary
-python3 tools/pilot_metrics.py --json   # machine-readable, for dashboard
+python3 tools/pilot_metrics.py --json   # machine-readable
 
 # 5. (end-of-pilot) fill Metrics table above via:
 python3 tools/pilot_metrics.py --json | jq '{videos_posted: .video_posted_count, ...}'
@@ -163,22 +145,11 @@ python3 tools/pilot_metrics.py --json | jq '{videos_posted: .video_posted_count,
 
 ## Forward-points (deferred per AGENTS.md "Fare PR piccole e mirate")
 
-1. **`TICKET-PILOT-IG-DASHBOARD-WIREUP`** — add a `/api/pilot` GET endpoint to
-   `tools/telemetry_dashboard/telemetry_server/flask_app.py` (the active Flask
-   backend) that reads the JSONL pilot log + emits the same JSON shape as
-   `python3 tools/pilot_metrics.py --json`. This commit deliberately does NOT
-   modify the Flask backend to keep Cat-3 (zero new public SDK API) + minimal
-   atomic-chore scope. The helper is the canonical aggregation kernel; the
-   endpoint is a thin Flask re-export.
-2. **`TICKET-PILOT-IG-CROSS-REF-RUN-DASHBOARD`** — once the dashboard endpoint
-   exists, surface in the existing `App.jsx` runs list a per-day count of
-   pilot-aggregated videos (linking `composition_id` ↔ `slug` so a runner can
-   drill from a render_run row into the matching pilot.jsonl row).
-3. **YouTube + TikTok pilot configs** (Test 17 / Test 18) — clone the IG config
+1. **YouTube + TikTok pilot configs** (Test 17 / Test 18) — clone the IG config
    under `configs/pilot.youtube.yaml` + `configs/pilot.tiktok.yaml`. YT/TT
    each have separate OAuth + posting workflows; the test-18 closes the
    cross-platform surface.
-4. **`OAuth credential storage`** (Cat-3 ADR-gated) — if/when IG OAuth credentials
+2. **`OAuth credential storage`** (Cat-3 ADR-gated) — if/when IG OAuth credentials
    land in the repo (likely via `~/.chronon3d/credentials.json` OR a secret-store
    integration), `tools/run_pilot.sh` gets a `--auto-post` mode + the
    `video_posted` field flips from manual-record to auto-record. ADR required
@@ -190,8 +161,7 @@ python3 tools/pilot_metrics.py --json | jq '{videos_posted: .video_posted_count,
 - [`tools/run_pilot.sh`](../tools/run_pilot.sh) — driver script
 - [`tools/pilot_metrics.py`](../tools/pilot_metrics.py) — Python helper (no PyYAML/pandas dep)
 - [`docs/CHANGELOG.md`](../CHANGELOG.md) — pilot setup entry (prepended at top on this commit)
-- [`docs/FOLLOWUP_TICKETS.md`](../FOLLOWUP_TICKETS.md) — `TICKET-PILOT-IG-7D` row (this commit's Cat-5 alignment) + `TICKET-PILOT-IG-DASHBOARD-WIREUP` row (forward-point, §Open Blockers)
-- [`docs/TELEMETRY_DASHBOARD.md`](../TELEMETRY_DASHBOARD.md) — canonical dashboard guide (Flask backend port 8000 / 5005 per §11)
+- [`docs/FOLLOWUP_TICKETS.md`](../FOLLOWUP_TICKETS.md) — `TICKET-PILOT-IG-7D` row (this commit's Cat-5 alignment)
 - [`docs/CLI_REFERENCE.md`](../CLI_REFERENCE.md) — `chronon3d_cli video <id>` subcommand surface
 - [`docs/PERFORMANCE_BOTTLENECKS.md`](../PERFORMANCE_BOTTLENECKS.md) — canonical performance anchor (≈2 s/frame on-prem)
 - [`docs/product-tests/TEST-15-one-pager.md`](../product-tests/TEST-15-one-pager.md) — the comparable harness-complete pattern (Test #15 honest-disclosure language)

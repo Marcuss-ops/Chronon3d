@@ -29,7 +29,6 @@ install_manifest.txt
 /vcpkg/
 /vcpkg_bootstrap
 vcpkg_installed/
-node_modules/
 .venv/
 dist/
 
