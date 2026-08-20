@@ -11,7 +11,7 @@
 #     "CHRONON3D_ENABLE_VIDEO": "OFF"
 # to keep inner-loop dev cycles fast (video + ffmpeg + x264 chain skipped).
 #
-# However, several pieces of the codebase (and docs/TELEMETRY_DASHBOARD.md §2)
+# However, several pieces of the codebase
 # reference `chronon3d_cli video <comp>` as the canonical way to produce MP4
 # with auto-telemetry.  When developers run that on a fast-dev build they
 # hit "A subcommand is required" because the chrono3d_cli_video static
@@ -35,7 +35,6 @@
 #
 # Reference
 # ---------
-# - docs/TELEMETRY_DASHBOARD.md §2 (CLI commands for video)
 # - cmake/presets/linux-fast-dev.json :: cacheVariables.CHRONON3D_ENABLE_VIDEO
 # - apps/chronon3d_cli/commands/video/register_video_commands.cpp (source
 #   registration; requires chrono3d_cli_video static lib at link time)
