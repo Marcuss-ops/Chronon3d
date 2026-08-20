@@ -85,3 +85,19 @@ TEST_CASE("FrameInteropRing: close cancels future acquisition") {
     ring.close();
     CHECK(ring.acquire() == FrameInteropRing::kInvalidSlot);
 }
+
+TEST_CASE("FrameInteropRing: 10000 acquire release cycles preserve ownership") {
+    FrameInteropRing ring;
+
+    for (std::size_t cycle = 0; cycle < 10'000; ++cycle) {
+        const auto slot = ring.acquire();
+        REQUIRE(slot != FrameInteropRing::kInvalidSlot);
+
+        // Holding the slot through the complete cycle is the invariant the
+        // GPU writer relies on: no slot may be released twice or reused while
+        // its frame package is still owned by the encoder.
+        ring.release(slot);
+    }
+
+    CHECK(ring.wait_count() == 0);
+}

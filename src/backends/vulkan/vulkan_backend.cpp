@@ -1,4 +1,7 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 
@@ -194,10 +197,14 @@ struct VulkanBackend::Impl {
     VkBuffer staging{VK_NULL_HANDLE};
     VkDeviceMemory staging_memory{VK_NULL_HANDLE};
     VkDeviceSize staging_capacity{0};
-    // Device-local storage buffers for glyph instances. One buffer per frame
-    // batch slot prevents a CPU update for frame N from clobbering data still
-    // consumed by the GPU for frame N-2.
-    static constexpr std::size_t kGlyphInstanceRingSize = 3;
+    // Device-local storage buffers for glyph instances. A frame can contain
+    // multiple TextRun passes (watermark + subtitles); each pass gets its own
+    // buffer so one in-command-buffer update can never overwrite data read by
+    // an earlier dispatch. The pass ring is deliberately generous and is
+    // recycled only with the owning frame-batch slot.
+    static constexpr std::size_t kGlyphInstancePassesPerSlot = 64;
+    static constexpr std::size_t kGlyphInstanceRingSize =
+        FrameBatchState::kSlotCount * kGlyphInstancePassesPerSlot;
     std::array<VkBuffer, kGlyphInstanceRingSize> glyph_instance_buffers{};
     std::array<VkDeviceMemory, kGlyphInstanceRingSize> glyph_instance_memories{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_capacities{};
@@ -352,8 +359,17 @@ void VulkanBackend::begin_frame_batch() {
     // size instead of stalling the whole device every frame.
     if (batch.in_flight[slot]) {
         const auto wait_start = profiling::now();
-        check(vkWaitForFences(m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX),
-              "vkWaitForFences(frame batch slot)");
+        const VkResult wait_result = vkWaitForFences(
+            m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX);
+        if (wait_result == VK_ERROR_DEVICE_LOST) {
+            spdlog::error(
+                "[vulkan] DEVICE LOST REPORT phase=begin_frame_batch slot={} next_slot={} "
+                "in_flight_slots=[{},{},{}] pending_timeline={} command_batch_active={}",
+                slot, batch.next_slot, batch.in_flight[0], batch.in_flight[1],
+                batch.in_flight[2], m_impl->pending_timeline_value,
+                m_impl->command_batch_active);
+        }
+        check(wait_result, "vkWaitForFences(frame batch slot)");
         ++m_impl->stats.frame_slot_wait_count;
         m_impl->stats.frame_slot_wait_us +=
             static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));

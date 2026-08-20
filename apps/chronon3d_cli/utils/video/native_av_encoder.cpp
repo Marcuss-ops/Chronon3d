@@ -143,15 +143,27 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         }
         CUdevice cuda_device{};
         if (cuDeviceGet(&cuda_device, 0) != CUDA_SUCCESS) return false;
-#if defined(CUDA_VERSION) && CUDA_VERSION >= 13000
-        CUcontext context = nullptr;
-        if (cuCtxCreate(&context, nullptr, 0, cuda_device) != CUDA_SUCCESS) return false;
-        cuda_context_ = context;
-#else
-        CUcontext context = nullptr;
-        if (cuCtxCreate(&context, 0, cuda_device) != CUDA_SUCCESS) return false;
-        cuda_context_ = context;
-#endif
+        // Use the device primary context for the complete native path.  A
+        // private cuCtxCreate context can be different from the context
+        // selected by FFmpeg's CUDA hwdevice and makes Vulkan/CUDA external
+        // semaphore ownership fragile under sustained reuse of the encode
+        // surface (eventually reported as VK_ERROR_DEVICE_LOST).
+        CUcontext primary_context = nullptr;
+        // The primary context may already be active (Whisper/Ollama and
+        // other workers use the same device).  Setting its flags here would
+        // return CUDA_ERROR_PRIMARY_CONTEXT_ACTIVE and look like a stream
+        // failure; retain the existing context without changing its flags.
+        if (cuDevicePrimaryCtxRetain(&primary_context, cuda_device) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] CUDA primary context acquisition failed");
+            return false;
+        }
+        cuda_context_ = primary_context;
+        if (cuCtxSetCurrent(primary_context) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] CUDA primary context activation failed");
+            (void)cuDevicePrimaryCtxRelease(cuda_device);
+            cuda_context_ = nullptr;
+            return false;
+        }
         if (cuStreamCreate(&cuda_stream_, CU_STREAM_NON_BLOCKING) != CUDA_SUCCESS) {
             spdlog::error("[native_av] CUDA stream creation failed");
             return false;
@@ -340,7 +352,7 @@ bool NativeAvEncoder::close() {
     av_buffer_unref(&cuda_frames_ref_);
     av_buffer_unref(&cuda_device_ref_);
     if (cuda_context_) {
-        cuCtxDestroy(reinterpret_cast<CUcontext>(cuda_context_));
+        cuDevicePrimaryCtxRelease(0);
         cuda_context_ = nullptr;
     }
     gpu_nvenc_ = false;
@@ -398,7 +410,7 @@ void NativeAvEncoder::abort_open() noexcept {
     av_buffer_unref(&cuda_frames_ref_);
     av_buffer_unref(&cuda_device_ref_);
     if (cuda_context_) {
-        (void)cuCtxDestroy(reinterpret_cast<CUcontext>(cuda_context_));
+        (void)cuDevicePrimaryCtxRelease(0);
         cuda_context_ = nullptr;
     }
     gpu_nvenc_ = false;
@@ -475,6 +487,11 @@ bool NativeAvEncoder::write_native_surface_impl(
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;
+    if (!vulkan->cuda_context_matches_device(
+            reinterpret_cast<CUcontext>(cuda_context_))) {
+        spdlog::error("[native_av] Vulkan/CUDA physical-device UUID mismatch");
+        return false;
+    }
     if (!surface_already_prepared) {
         const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
         if (!copy_result.ok()) {
@@ -547,7 +564,7 @@ bool NativeAvEncoder::write_native_surface_impl(
             return false;
         }
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
-        pending_cuda_frames_.push_back(PendingCudaFrame{gpu_frame, ready});
+        pending_cuda_frames_.push_back(PendingCudaFrame{gpu_frame, ready, destination});
         cuda_pending_peak_ = std::max<std::uint64_t>(
             cuda_pending_peak_, pending_cuda_frames_.size());
         if (counters_) {
@@ -571,6 +588,48 @@ bool NativeAvEncoder::write_native_surface_impl(
         spdlog::error("[native_av] CUDA/Vulkan frame handoff failed: {}", error.what());
         return false;
     }
+#endif
+}
+
+bool NativeAvEncoder::finish_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle destination) {
+#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+    (void)backend; (void)destination;
+    return true;
+#else
+    (void)backend;
+    // Pending CUDA work is ordered on one stream. Drain in submission order
+    // until the event belonging to this surface has been consumed. This is
+    // the ownership hand-off that makes FrameInteropRing::release safe.
+    for (;;) {
+        auto it = std::find_if(
+            pending_cuda_frames_.begin(), pending_cuda_frames_.end(),
+            [destination](const PendingCudaFrame& pending) {
+                return pending.surface == destination;
+            });
+        if (it == pending_cuda_frames_.end()) return true;
+        if (!drain_ready_cuda_frames(true)) return false;
+    }
+#endif
+}
+
+bool NativeAvEncoder::poll_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle destination) {
+#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+    (void)backend; (void)destination;
+    return true;
+#else
+    (void)backend;
+    if (!drain_ready_cuda_frames(false)) return false;
+    const auto it = std::find_if(
+        pending_cuda_frames_.begin(), pending_cuda_frames_.end(),
+        [destination](const PendingCudaFrame& pending) {
+            return pending.surface == destination;
+        });
+    if (it == pending_cuda_frames_.end()) return true;
+    return cuEventQuery(it->ready) == CUDA_SUCCESS;
 #endif
 }
 

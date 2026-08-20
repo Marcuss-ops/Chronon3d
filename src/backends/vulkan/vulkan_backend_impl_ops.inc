@@ -319,7 +319,9 @@
             throw std::invalid_argument("Vulkan text run references incompatible surfaces");
         }
         const std::size_t instance_slot = frame_batch.active
-            ? frame_batch.next_slot : 0;
+            ? frame_batch.next_slot * kGlyphInstancePassesPerSlot +
+                (frame_batch.pass_count % kGlyphInstancePassesPerSlot)
+            : 0;
         ensure_glyph_instance_buffer(bytes, instance_slot);
         const VkBuffer instance_buffer = glyph_instance_buffers[instance_slot];
         const std::int32_t glyph_count = static_cast<std::int32_t>(glyphs.size());
@@ -474,8 +476,16 @@
         for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
             if (!frame_batch.in_flight[i]) continue;
             const auto wait_start = profiling::now();
-            check(vkWaitForFences(device, 1, &frame_batch.fences[i], VK_TRUE, UINT64_MAX),
-                  "vkWaitForFences(frame batch slot)");
+            const VkResult wait_result = vkWaitForFences(
+                device, 1, &frame_batch.fences[i], VK_TRUE, UINT64_MAX);
+            if (wait_result == VK_ERROR_DEVICE_LOST) {
+                spdlog::error(
+                    "[vulkan] DEVICE LOST REPORT phase=wait_for_pending slot={} "
+                    "in_flight_slots=[{},{},{}] pending_timeline={}",
+                    i, frame_batch.in_flight[0], frame_batch.in_flight[1],
+                    frame_batch.in_flight[2], pending_timeline_value);
+            }
+            check(wait_result, "vkWaitForFences(frame batch slot)");
             const auto wait_us = static_cast<std::uint64_t>(profiling::elapsed_us(wait_start));
             stats.gpu_wait_cpu_us += wait_us;
             ++stats.frame_batch_drain_wait_count;

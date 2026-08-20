@@ -8,6 +8,10 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <vulkan/vulkan.h>
 #endif
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+struct CUctx_st;
+typedef struct CUctx_st *CUcontext;
+#endif
 
 #include <memory>
 #include <array>
@@ -255,6 +259,10 @@ public:
         runtime::RenderSurfaceHandle);
     [[nodiscard]] CudaExternalMemoryInfo export_cuda_external_memory(
         runtime::RenderSurfaceHandle) const;
+    /// Returns true only when the CUDA context belongs to the same physical
+    /// device selected by this Vulkan backend. External memory/semaphores are
+    /// not portable across mismatched CUDA/Vulkan devices.
+    [[nodiscard]] bool cuda_context_matches_device(CUcontext) const noexcept;
 #endif
 
 #ifdef CHRONON3D_ENABLE_VULKAN

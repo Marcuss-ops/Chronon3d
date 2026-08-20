@@ -147,6 +147,24 @@
                          VkBuffer instance_buffer, bool instance_updated,
                          float current_frame, const Color& highlight_color,
                          bool highlight_enabled) {
+        // Multiple TextRun passes can occur in one frame (for example the
+        // watermark followed by subtitles). They intentionally share the
+        // per-frame instance buffer, but the previous dispatch may still be
+        // reading it when the next vkCmdUpdateBuffer records its write.
+        // Make that shader-read -> transfer-write dependency explicit before
+        // publishing the new instance data below. Without this barrier the
+        // combined TextRun path is subject to an undefined write-after-read
+        // hazard that can surface later as VK_ERROR_DEVICE_LOST.
+        if (instance_updated) {
+            const VkBufferMemoryBarrier reuse_barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                instance_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
+        }
         // The glyph instances were written by a preceding vkCmdUpdateBuffer
         // (transfer stage); publish them to the compute shader before dispatch.
         if (instance_updated) {
@@ -261,4 +279,3 @@
         frame_batch.pass_count = 0;
         frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;
     }
-
