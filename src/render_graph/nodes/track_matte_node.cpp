@@ -73,15 +73,23 @@ bool try_native_matte(RenderGraphContext& ctx,
         ctx.services.surface_registry->release(matte_surface);
     };
     auto created_target = ctx.services.backend->create_surface(target_surface, desc);
-    auto uploaded_target = created_target.ok()
-        ? ctx.services.backend->upload_surface(target_surface, desc, target_pixels)
-        : created_target;
+    auto uploaded_target = created_target;
+    if (created_target.ok()) {
+        profiling::GpuUploadProducerScope upload_scope(
+            profiling::GpuUploadProducer::Composition);
+        uploaded_target = ctx.services.backend->upload_surface(
+            target_surface, desc, target_pixels);
+    }
     auto created_matte = uploaded_target.ok()
         ? ctx.services.backend->create_surface(matte_surface, desc)
         : uploaded_target;
-    auto uploaded_matte = created_matte.ok()
-        ? ctx.services.backend->upload_surface(matte_surface, desc, matte_pixels)
-        : created_matte;
+    auto uploaded_matte = created_matte;
+    if (created_matte.ok()) {
+        profiling::GpuUploadProducerScope upload_scope(
+            profiling::GpuUploadProducer::Composition);
+        uploaded_matte = ctx.services.backend->upload_surface(
+            matte_surface, desc, matte_pixels);
+    }
     auto created_destination = uploaded_matte.ok()
         ? ctx.services.backend->create_surface(destination, desc)
         : uploaded_matte;

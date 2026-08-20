@@ -1,4 +1,5 @@
 #include "tile_execution_policy.hpp"
+#include <chronon3d/backends/software/software_renderer.hpp>
 
 namespace chronon3d::graph {
 

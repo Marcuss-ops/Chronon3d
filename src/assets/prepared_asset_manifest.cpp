@@ -296,35 +296,6 @@ void add_u64(Sha256& sha, std::uint64_t value) {
 
 } // namespace
 
-std::string ContentDigest::hex() const {
-    std::ostringstream output;
-    output << std::hex << std::setfill('0');
-    for (const auto byte : bytes)
-        output << std::setw(2) << static_cast<unsigned>(std::to_integer<unsigned>(byte));
-    return output.str();
-}
-
-ContentDigest sha256_string(std::string_view value) {
-    Sha256 sha;
-    sha.update(value.data(), value.size());
-    return sha.finish();
-}
-
-std::optional<ContentDigest> sha256_file(const std::filesystem::path& path) {
-    std::ifstream input(path, std::ios::binary);
-    if (!input) return std::nullopt;
-    Sha256 sha;
-    std::array<char, 64U * 1024U> buffer{};
-    while (input) {
-        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        const auto count = input.gcount();
-        if (count <= 0) break;
-        sha.update(buffer.data(), static_cast<std::size_t>(count));
-    }
-    if (input.bad()) return std::nullopt;
-    return sha.finish();
-}
-
 Result<PreparedAssetView, AssetPreflightError> PreparedAssetStore::find(
     std::string_view logical_path,
     PreparedAssetKind kind) const {

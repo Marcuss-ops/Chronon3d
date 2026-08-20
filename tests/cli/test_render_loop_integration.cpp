@@ -99,8 +99,29 @@ static RenderLoopContext make_loop_context(
     RenderFrameQueue<RenderFramePackage>& queue,
     std::atomic<bool>& writer_failed,
     TripleBufferArena& triple_arena,
-    std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames)
+    std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
+    std::atomic<int>* frames_encoded_override = nullptr)
 {
+    // The production loop context borrows these session-owned resources. The
+    // integration tests do not create a PipeExportSession, but the references
+    // must still bind to storage that outlives the returned context.
+    static thread_local FrameInteropRing interop_ring(FrameInteropRing::kSlotCount);
+    static thread_local std::atomic<int> frames_encoded{0};
+    static thread_local std::array<runtime::RenderSurfaceHandle,
+                                   FrameInteropRing::kSlotCount> native_encode_surfaces{};
+    static thread_local std::array<runtime::RenderSurfaceHandle,
+                                   FrameInteropRing::kSlotCount> native_source_surfaces{};
+    native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+    native_source_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+    // These tests exercise the render loop without starting the production
+    // encoder thread.  Mark the expected batch as already encoded so the
+    // production back-pressure handshake does not wait for a writer that the
+    // fixture intentionally does not create; the queue consumer below still
+    // owns arena reclamation.
+    frames_encoded.store(static_cast<int>(end - start), std::memory_order_relaxed);
+    std::atomic<int>& frames_encoded_storage = frames_encoded_override
+        ? *frames_encoded_override : frames_encoded;
+
     return RenderLoopContext{
         .backend = renderer.backend(),
         .node_cache = node_cache,
@@ -114,6 +135,10 @@ static RenderLoopContext make_loop_context(
         .sw_renderer = &renderer,
         .queue = queue,
         .writer_failed = writer_failed,
+        .frames_encoded = frames_encoded_storage,
+        .interop_ring = interop_ring,
+        .native_encode_surfaces = native_encode_surfaces,
+        .native_source_surfaces = native_source_surfaces,
         .triple_arena = triple_arena,
         .counters = renderer.counters(),
         .telemetry_frames = telemetry_frames,
@@ -383,6 +408,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
+    std::atomic<int> frames_encoded{0};
     std::atomic<int> consumed{0};
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
@@ -407,13 +433,15 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
                 // (unbounded queue), but the consumer must release arenas
                 // so the render loop can continue acquiring.
             }
+            frames_encoded.store(count, std::memory_order_release);
         }
     });
 
     std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, compiled,
-        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
+        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames,
+        &frames_encoded);
 
     auto result = run_render_loop(loop_ctx);
 

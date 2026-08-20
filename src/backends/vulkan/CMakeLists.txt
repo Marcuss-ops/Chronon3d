@@ -104,6 +104,18 @@ target_include_directories(chronon3d_backend_vulkan
 )
 
 if(CHRONON3D_ENABLE_CUDA_INTEROP)
+    foreach(_chronon3d_cuda_cache_var IN ITEMS
+            CHRONON3D_CUDA_INCLUDE_DIR
+            CHRONON3D_CUDA_DRIVER_LIBRARY
+            CHRONON3D_NVRTC_INCLUDE_DIR
+            CHRONON3D_NVRTC_LIBRARY)
+        if(DEFINED ${_chronon3d_cuda_cache_var} AND
+           "${${_chronon3d_cuda_cache_var}}" MATCHES
+           "(/usr/local/lib/|/tmp/)|libnvrtc(-builtins)?\\.so\\.[0-9]+")
+            unset(${_chronon3d_cuda_cache_var} CACHE)
+            unset(${_chronon3d_cuda_cache_var})
+        endif()
+    endforeach()
     find_path(CHRONON3D_CUDA_INCLUDE_DIR cuda.h
         HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
         PATH_SUFFIXES include)
@@ -114,6 +126,12 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         message(FATAL_ERROR
             "CHRONON3D_ENABLE_CUDA_INTEROP requires cuda.h and libcuda")
     endif()
+    # Publish the resolved values to sibling consumers (CLI/media) through
+    # the CMake cache; directory-scoped variables do not cross subdirectories.
+    set(CHRONON3D_CUDA_INCLUDE_DIR "${CHRONON3D_CUDA_INCLUDE_DIR}" CACHE PATH
+        "Canonical CUDA include directory" FORCE)
+    set(CHRONON3D_CUDA_DRIVER_LIBRARY "${CHRONON3D_CUDA_DRIVER_LIBRARY}" CACHE FILEPATH
+        "Canonical CUDA driver library" FORCE)
 
     target_sources(chronon3d_backend_vulkan PRIVATE
         cuda_vulkan_surface_bridge.cpp)
@@ -121,6 +139,13 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
     target_link_libraries(chronon3d_backend_vulkan
         PUBLIC "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+
+    if(TARGET chronon3d_media_native)
+        target_include_directories(chronon3d_media_native PRIVATE
+            "${CHRONON3D_CUDA_INCLUDE_DIR}")
+        target_link_libraries(chronon3d_media_native PRIVATE
+            chronon3d_backend_vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+    endif()
 
     add_executable(chronon3d_cuda_vulkan_external_memory_probe
         "${CMAKE_SOURCE_DIR}/tools/cuda_vulkan_external_memory_probe.cpp"
@@ -142,13 +167,45 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
 
         find_path(CHRONON3D_NVRTC_INCLUDE_DIR nvrtc.h
             HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-            PATH_SUFFIXES include
-            PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/include)
-        find_file(CHRONON3D_NVRTC_LIBRARY
-            NAMES libnvrtc.so.13 libnvrtc.so
+            PATH_SUFFIXES include include/cuda)
+        find_library(CHRONON3D_NVRTC_LIBRARY
+            NAMES nvrtc libnvrtc.so
             HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-            PATH_SUFFIXES lib64 lib
-            PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib)
+            PATH_SUFFIXES lib64 lib lib/x64)
+        # Some CUDA distributions (notably Python wheels) ship only a
+        # versioned NVRTC shared object and omit the development symlink.
+        if(NOT CHRONON3D_NVRTC_LIBRARY)
+            foreach(_chronon3d_cuda_root IN ITEMS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}")
+                if(_chronon3d_cuda_root)
+                    foreach(_chronon3d_cuda_libdir IN ITEMS lib64 lib lib/x64)
+                        file(GLOB _chronon3d_nvrtc_candidates
+                            "${_chronon3d_cuda_root}/${_chronon3d_cuda_libdir}/libnvrtc.so.*")
+                        if(_chronon3d_nvrtc_candidates)
+                            list(SORT _chronon3d_nvrtc_candidates COMPARE NATURAL ORDER DESCENDING)
+                            list(GET _chronon3d_nvrtc_candidates 0 CHRONON3D_NVRTC_LIBRARY)
+                            break()
+                        endif()
+                    endforeach()
+                endif()
+                if(CHRONON3D_NVRTC_LIBRARY)
+                    break()
+                endif()
+            endforeach()
+        endif()
+        set(CHRONON3D_NVRTC_INCLUDE_DIR "${CHRONON3D_NVRTC_INCLUDE_DIR}" CACHE PATH
+            "Canonical NVRTC include directory" FORCE)
+        set(CHRONON3D_NVRTC_LIBRARY "${CHRONON3D_NVRTC_LIBRARY}" CACHE FILEPATH
+            "Canonical NVRTC library" FORCE)
+        if(TARGET chronon3d_media_native)
+            if(NOT CHRONON3D_NVRTC_INCLUDE_DIR OR NOT CHRONON3D_NVRTC_LIBRARY)
+                message(FATAL_ERROR
+                    "CHRONON3D_ENABLE_CUDA_INTEROP with native FFmpeg requires NVRTC")
+            endif()
+            target_include_directories(chronon3d_media_native PRIVATE
+                "${CHRONON3D_NVRTC_INCLUDE_DIR}")
+            target_link_libraries(chronon3d_media_native PRIVATE
+                "${CHRONON3D_NVRTC_LIBRARY}")
+        endif()
         if(CHRONON3D_NVRTC_INCLUDE_DIR AND CHRONON3D_NVRTC_LIBRARY)
             add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench
                 "${CMAKE_SOURCE_DIR}/tools/cuda_nvdec_nvenc_overlay_bench.cpp")
@@ -162,10 +219,10 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
 
             find_path(CHRONON3D_NV_CODEC_INCLUDE_DIR ffnvcodec/nvEncodeAPI.h
                 HINTS "$ENV{NV_CODEC_HEADERS}" "$ENV{NV_CODEC_INCLUDE_DIR}"
-                PATH_SUFFIXES include
-                PATHS /usr /usr/local /tmp/nv-codec-prefix-n130-velox)
+                PATH_SUFFIXES include)
             find_library(CHRONON3D_NVENCODE_LIBRARY nvidia-encode
-                PATHS /usr/lib/x86_64-linux-gnu /usr/lib64)
+                HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+                PATH_SUFFIXES lib64 lib lib/x64)
             if(CHRONON3D_NV_CODEC_INCLUDE_DIR AND CHRONON3D_NVENCODE_LIBRARY)
                 target_compile_definitions(chronon3d_cuda_nvdec_nvenc_overlay_bench PRIVATE CHRONON3D_ENABLE_RAW_NVENC)
                 target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench PRIVATE "${CHRONON3D_NV_CODEC_INCLUDE_DIR}")

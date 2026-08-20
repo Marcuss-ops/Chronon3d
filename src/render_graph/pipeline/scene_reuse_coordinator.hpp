@@ -24,8 +24,9 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <memory>
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::graph::detail {
 

@@ -6,10 +6,16 @@ add_library(chronon3d_assets OBJECT
     asset_resolver.cpp
     mesh_loader.cpp
     prepared_asset_manifest.cpp
+    prepared_asset_digest.cpp
     render_preflight_req.cpp
     render_preflight_validate.cpp
     render_preflight_helpers.cpp
     svg_path_loader.cpp
+)
+set_target_properties(chronon3d_assets PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    prepared_asset_manifest.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 # TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: link chronon3d_path_cache
 # (the dedicated STATIC library defined in src/render_graph/CMakeLists.txt

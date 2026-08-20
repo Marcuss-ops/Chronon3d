@@ -223,13 +223,13 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
 }
 
 OwnedFB FramebufferPool::acquire_owned_exact(int width, int height, bool clear) {
-    // Do not take a best-fit framebuffer here: a tight cached surface must
-    // not inherit a full-frame physical allocation through resize_logical().
-    // It is deliberately not returned to the general pool because its size
-    // class is not representative of the transient full-frame workload.
-    return OwnedFB(
-        new Framebuffer(width, height, clear),
-        PoolFbDeleter(DeleteFramebuffer{}));
+    // Tight projected text used to bypass the pool entirely, causing one
+    // heap-backed framebuffer allocation per rendered frame.  The graph
+    // preallocator already predicts the tight surface bucket, so use the
+    // normal pooled path here.  The physical bucket may be slightly larger
+    // than the logical text surface, but it is reused and avoids allocator
+    // churn in the video loop.
+    return acquire_owned(width, height, clear);
 }
 
 // ── acquire_noclear — hot-miss zero-fill-cost opt-in ────────────────

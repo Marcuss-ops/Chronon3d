@@ -72,6 +72,7 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
         return {handle, false, "GPU asset surface allocation failed"};
     }
     const auto created = m_backend->create_surface(handle, desc);
+    profiling::GpuUploadProducerScope upload_scope(profiling::GpuUploadProducer::Image);
     const auto uploaded = created.ok() ? m_backend->upload_surface(handle, desc, rgba) : created;
     if (!uploaded.ok()) {
         (void)m_backend->release_surface(handle);

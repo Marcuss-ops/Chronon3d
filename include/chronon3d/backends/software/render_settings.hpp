@@ -122,6 +122,8 @@ struct RenderSettings {
     bool retain_native_surface_for_video{false};
     runtime::RenderSurfaceHandle native_video_encode_surface{
         runtime::kInvalidRenderSurfaceHandle};
+    runtime::RenderSurfaceHandle native_video_source_surface{
+        runtime::kInvalidRenderSurfaceHandle};
     /// Canonical resource budget applied by the render-plan/runtime boundary.
     /// Temporal accumulation consumes `render_budget.max_temporal_pixels`;
     /// zero is not used here because the default RenderBudget is finite.

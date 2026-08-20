@@ -115,6 +115,10 @@ add_library(chronon3d_graph_compiler OBJECT
     optimizer/graph_optimizer.cpp
 )
 set_target_properties(chronon3d_graph_compiler PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    compiler/frame_graph_builder.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
+)
 target_link_libraries(chronon3d_graph_compiler PUBLIC
     chronon3d_graph_core
     chronon3d_graph_nodes
@@ -302,26 +306,6 @@ target_sources(chronon3d_graph INTERFACE
 )
 
 
-# P1-E Pass E Commit #4 — software internal headers (software_renderer.hpp,
-# software_backend.hpp) FULL-included by:
-#   - `basic_nodes_common.hpp` (in render_graph/include_private/) →
-#     ALL .cpp files in `chronon3d_graph_nodes`
-#   - `graph_builder_layer_pipeline_pass.cpp` → `chronon3d_graph_builder`
-#   - `preflight.cpp` → `chronon3d_graph_preflight`
-# These sub-targets need explicit PRIVATE access to
-# `src/backends/software/include_private/` because
-# `chronon3d_graph_core` does NOT PUBLIC-link `chronon3d_backend_software`
-# (see graph_core's PUBLIC block); transitive INTERFACE propagation across
-# the umbrella does not auto-resolve, so we bind explicitly.  Other
-# render_graph sub-targets only fwd-decl SoftwareRenderer / consume
-# PIMPL pointers (no full include), so they do not need this wiring.
-foreach(_rg_sw_consumer
-        chronon3d_graph_nodes
-        chronon3d_graph_builder
-        chronon3d_graph_preflight)
-    target_include_directories(${_rg_sw_consumer} PRIVATE ${CMAKE_SOURCE_DIR}/src/backends/software/include_private)
-endforeach()
-
 # TICKET-AE-PARITY-FLOOR-DASHBOARD — internal-only header at
 # src/render_graph/nodes/detail/projection_helpers.hpp is FULL-included by  # drift-allow: stale-ref
 # source_node.cpp + multi_source_node.cpp via the public include path
@@ -330,9 +314,8 @@ endforeach()
 # the header to include/chronon3d/; instead, expose ONLY the
 # src/render_graph/nodes/ subtree (the minimum needed) as PRIVATE to the
 # chronon3d_graph_nodes target (the only target that contains the two
-# .cpp files referencing the detail header).  Mirrors the existing
-# `src/backends/software/include_private` pattern above (also narrow,
-# one subdir) — code-reviewer-minimax-m3 round-1 flagged the broader
+# .cpp files referencing the detail header). This keeps the internal
+# projection helper isolated without exposing the whole src tree.
 # `${CMAKE_SOURCE_DIR}/src` as over-exposed; narrowing to the
 # `src/render_graph/nodes` subtree minimizes accidental coupling while
 # keeping the same internal-header access pattern.
@@ -340,8 +323,6 @@ target_include_directories(chronon3d_graph_nodes PRIVATE ${CMAKE_SOURCE_DIR}/src
 # Tight projected-surface geometry is an internal render-graph contract.
 # Builder and node TUs include it through the same src-only boundary.
 target_include_directories(chronon3d_graph_builder PRIVATE ${CMAKE_SOURCE_DIR}/src/render_graph/nodes)
-# Backward direction — runtime headers (Commit #3) are FULL-included by
-# `software_renderer.hpp` (Compile-time dependency).  chronon3d_backend_software
-# PUBLIC-links `chronon3d_runtime` (Commit #3 pre-emptive edit) so
-# runtime's INTERFACE include_private reaches software's compilation.
-# No additional listing needed here.
+# Backend implementations own their private include paths. Render-graph
+# targets consume only the public render contracts and do not receive backend
+# private include directories transitively.

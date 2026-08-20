@@ -1,5 +1,5 @@
 #include "../common/pipe_export_session.hpp"
-#include "../../../utils/video/native_video_frame_decoder.hpp"
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -28,7 +28,7 @@ RenderLoopOutput run_pipe_export_loop(
     // consume media::MediaFrameProvider; without a live decoder every video
     // layer renders as an empty black framebuffer. The decoder is created
     // per render and lazily opens one session per source path.
-    auto decoder = std::make_shared<NativeVideoFrameDecoder>();
+    auto decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
     decoder->set_counters(session.renderer->counters());
     decoder->set_native_gpu_context(
         &session.renderer->backend(), &session.renderer->runtime().surface_registry());
@@ -60,6 +60,7 @@ RenderLoopOutput run_pipe_export_loop(
         .frames_encoded = session.frames_encoded,
         .interop_ring = session.interop_ring,
         .native_encode_surfaces = session.native_encode_surfaces,
+        .native_source_surfaces = session.native_source_surfaces,
         .triple_arena = *session.triple_arena,
         .counters = session.renderer->counters(),
         .telemetry_frames = telemetry_frames,
@@ -92,6 +93,13 @@ RenderLoopOutput run_pipe_export_loop(
         for (const auto handle : rt.surface_registry().handles_with_lifetime(
                  runtime::LifetimeClass::FrameTransient)) {
             (void)rt.surface_registry().release(handle);
+        }
+        for (auto& handle : session.native_source_surfaces) {
+            if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                (void)rt.backend().release_surface(handle);
+                (void)rt.surface_registry().release(handle);
+                handle = runtime::kInvalidRenderSurfaceHandle;
+            }
         }
     }
 

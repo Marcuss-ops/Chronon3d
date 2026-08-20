@@ -352,6 +352,19 @@ public:
             "RenderBackend::upload_surface: native surfaces are not supported"});
     }
 
+    /// Upload a tightly packed RGBA rectangle into an existing surface.
+    /// Pixels outside the rectangle remain unchanged.
+    virtual RenderOpResult upload_surface_region(
+        runtime::RenderSurfaceHandle /*handle*/,
+        const runtime::SurfaceDesc& /*desc*/,
+        std::int32_t /*x*/, std::int32_t /*y*/,
+        std::uint32_t /*width*/, std::uint32_t /*height*/,
+        std::span<const float> /*rgba*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::upload_surface_region: native surfaces are not supported"});
+    }
+
     virtual RenderOpResult upload_surface_async(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,

@@ -17,8 +17,10 @@
 
 #include "scene_context_setup.hpp"
 #include "camera_change_policy.hpp"  // chronon3d::graph::detail::camera_changed used by Phase 2
+#include <chronon3d/backends/software/render_settings.hpp>
 #include "helpers.hpp"               // resolve_scene_camera, build_graph_context, make_default_pipeline_flags
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
 #include <cassert>

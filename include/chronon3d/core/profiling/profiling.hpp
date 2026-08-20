@@ -17,6 +17,68 @@ namespace profiling {
     extern thread_local RenderCounters* g_current_counters;
     extern thread_local cache::FramebufferPool* g_current_framebuffer_pool;
 
+    enum class FramebufferAllocationCategory : std::uint8_t {
+        Unknown,
+        Text,
+        Effect,
+        Glow,
+        Video,
+        Graph,
+        Scratch,
+    };
+
+    extern thread_local FramebufferAllocationCategory g_framebuffer_allocation_category;
+
+    enum class GpuUploadProducer : std::uint8_t {
+        Unknown,
+        Video,
+        Projection,
+        Composition,
+        Text,
+        Effects,
+        Image,
+        Other,
+        Count,
+    };
+
+    extern thread_local GpuUploadProducer g_gpu_upload_producer;
+
+    class GpuUploadProducerScope {
+    public:
+        explicit GpuUploadProducerScope(GpuUploadProducer producer)
+            : m_previous(g_gpu_upload_producer) {
+            g_gpu_upload_producer = producer;
+        }
+
+        ~GpuUploadProducerScope() {
+            g_gpu_upload_producer = m_previous;
+        }
+
+        GpuUploadProducerScope(const GpuUploadProducerScope&) = delete;
+        GpuUploadProducerScope& operator=(const GpuUploadProducerScope&) = delete;
+
+    private:
+        GpuUploadProducer m_previous;
+    };
+
+    class FramebufferAllocationScope {
+    public:
+        explicit FramebufferAllocationScope(FramebufferAllocationCategory category)
+            : m_previous(g_framebuffer_allocation_category) {
+            g_framebuffer_allocation_category = category;
+        }
+
+        ~FramebufferAllocationScope() {
+            g_framebuffer_allocation_category = m_previous;
+        }
+
+        FramebufferAllocationScope(const FramebufferAllocationScope&) = delete;
+        FramebufferAllocationScope& operator=(const FramebufferAllocationScope&) = delete;
+
+    private:
+        FramebufferAllocationCategory m_previous;
+    };
+
     /// RAII guard that sets profiling thread-locals for its lifetime and
     /// restores the previous values on destruction (exception-safe).
     class ProfilingGuard {
@@ -105,4 +167,3 @@ namespace profiling {
 #define CHRONON_ZONE_C(name, cat) \
     do { (void)sizeof(name); (void)sizeof(cat); } while (false)
 #endif
-

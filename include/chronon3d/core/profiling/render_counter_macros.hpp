@@ -183,6 +183,13 @@ namespace chronon3d {
 
 #define CHRONON_COUNTERS_FRAMEBUFFER(X) \
     X(framebuffer_allocations) \
+    X(framebuffer_alloc_text) \
+    X(framebuffer_alloc_effect) \
+    X(framebuffer_alloc_glow) \
+    X(framebuffer_alloc_video) \
+    X(framebuffer_alloc_graph) \
+    X(framebuffer_alloc_scratch) \
+    X(framebuffer_alloc_unknown) \
     X(framebuffer_reuses) \
     X(framebuffer_bytes_allocated) \
     X(framebuffer_bytes_peak) \

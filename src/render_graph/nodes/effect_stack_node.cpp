@@ -73,9 +73,12 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         ctx.services.surface_registry->release(vertical);
     };
     const auto create_output = ctx.services.backend->create_surface(output, desc);
-    const auto upload = create_output.ok()
-        ? ctx.services.backend->upload_surface(output, desc, rgba)
-        : create_output;
+    RenderOpResult upload = create_output;
+    if (create_output.ok()) {
+        profiling::GpuUploadProducerScope upload_scope(
+            profiling::GpuUploadProducer::Effects);
+        upload = ctx.services.backend->upload_surface(output, desc, rgba);
+    }
     const auto create_horizontal = upload.ok()
         ? ctx.services.backend->create_surface(horizontal, desc)
         : upload;
@@ -135,9 +138,12 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
         ctx.services.surface_registry->release(destination);
     };
     const auto created_source = ctx.services.backend->create_surface(source, desc);
-    const auto uploaded = created_source.ok()
-        ? ctx.services.backend->upload_surface(source, desc, rgba)
-        : created_source;
+    RenderOpResult uploaded = created_source;
+    if (created_source.ok()) {
+        profiling::GpuUploadProducerScope upload_scope(
+            profiling::GpuUploadProducer::Effects);
+        uploaded = ctx.services.backend->upload_surface(source, desc, rgba);
+    }
     const auto created_destination = uploaded.ok()
         ? ctx.services.backend->create_surface(destination, desc)
         : uploaded;
@@ -201,12 +207,13 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const auto source_ready = source_is_existing
         ? RenderOpResult(RenderOpOutcome{})
         : ctx.services.backend->create_surface(source, desc);
-    const auto uploaded = source_ready.ok()
-        ? (source_is_existing
-            ? RenderOpResult(RenderOpOutcome{})
-            : ctx.services.backend->upload_surface(source, desc,
-                                                   pack_framebuffer_rgba(result)))
-        : source_ready;
+    RenderOpResult uploaded = source_ready;
+    if (source_ready.ok() && !source_is_existing) {
+        profiling::GpuUploadProducerScope upload_scope(
+            profiling::GpuUploadProducer::Effects);
+        uploaded = ctx.services.backend->upload_surface(
+            source, desc, pack_framebuffer_rgba(result));
+    }
     const auto created_horizontal = uploaded.ok()
         ? ctx.services.backend->create_surface(horizontal, desc)
         : uploaded;

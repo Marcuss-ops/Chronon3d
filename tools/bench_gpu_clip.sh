@@ -114,7 +114,14 @@ if [[ -x "${CUDA_OVERLAY_BIN}" ]]; then
         echo "failed to rasterize subtitle layer" >&2
         exit 3
     }
-    CUDA_LIB_PATH="${CHRONON_CUDA_LIBRARY_PATH:-/usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib}"
+    if [[ -n "${CHRONON_CUDA_LIBRARY_PATH:-}" ]]; then
+        CUDA_LIB_PATH="${CHRONON_CUDA_LIBRARY_PATH}"
+    elif [[ -n "${CUDA_HOME:-}" && -d "${CUDA_HOME}/lib64" ]]; then
+        CUDA_LIB_PATH="${CUDA_HOME}/lib64"
+    else
+        CUDA_LIB_PATH=""
+        echo "CUDA library path: using dynamic loader defaults"
+    fi
     CUDA_PTX_CACHE="${CHRONON_CUDA_PTX_CACHE:-${OUTPUT_DIR}/chronon_cuda_overlay.ptx}"
     CUDA_DECODER_ARGS=()
     if [[ -n "${CHRONON_CUDA_DECODER:-}" ]]; then
@@ -130,7 +137,7 @@ if [[ -x "${CUDA_OVERLAY_BIN}" ]]; then
         echo "native CUDA compositor=${CUDA_OVERLAY_BIN} (libavcodec NVENC)"
     fi
     CHRONON_CUDA_PTX_CACHE="${CUDA_PTX_CACHE}" \
-    LD_LIBRARY_PATH="${CUDA_LIB_PATH}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+    LD_LIBRARY_PATH="${CUDA_LIB_PATH:+${CUDA_LIB_PATH}:}${LD_LIBRARY_PATH:-}" \
     env "${CUDA_DECODER_ARGS[@]}" CHRONON_NVENC_RAW="${RAW_NVENC}" /usr/bin/time -f 'wall=%e cpu=%P maxrss=%M' \
         "${CUDA_OVERLAY_BIN}" "${INPUT}" "${GPU_ALPHA_OUTPUT}" \
         "${RAW_WATERMARK}" "${WM_W}" "${WM_H}" 40 40 \

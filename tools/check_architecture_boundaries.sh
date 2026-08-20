@@ -528,9 +528,15 @@ echo -n "  [17/26] src/-only include via public path ... "
 hits=""
 while IFS= read -r line; do
     [ -z "$line" ] && continue
-    # Extract the include path after `<chronon3d/` (strip the `<` prefix
-    # and `>` suffix).
-    inc_path=$(echo "$line" | sed -E 's|.*<chronon3d/([^>]+)>.*|\1|')
+    # Extract the include path without spawning one process per include.
+    # This gate runs over thousands of includes, so a sed subprocess here
+    # turns a cheap source check into an accidental build-time bottleneck.
+    include_regex='<chronon3d/([^>]+)>'
+    if [[ "$line" =~ $include_regex ]]; then
+        inc_path="${BASH_REMATCH[1]}"
+    else
+        inc_path=""
+    fi
     [ -z "$inc_path" ] && continue
     # Skip sdk_impl (separate concern, check #14).
     case "$inc_path" in
@@ -541,7 +547,8 @@ while IFS= read -r line; do
     if [ -f "src/$inc_path" ] && [ ! -f "include/chronon3d/$inc_path" ]; then
         hits="${hits}${line}"$'\n'
     fi
-done < <(grep -RnE '#include[[:space:]]*<chronon3d/[^>]+>' $SCRIPT_PATHS 2>/dev/null \
+done < <(rg -n --hidden --glob '*.hpp' --glob '*.cpp' --glob '*.h' \
+    '#include[[:space:]]*<chronon3d/[^>]+>' $SCRIPT_PATHS 2>/dev/null \
     | grep -vE ':[[:space:]]*(//|/\*|\*|///)' \
     | grep -v 'chronon3d_sdk_impl' \
     || true)

@@ -17,10 +17,10 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/backends/software/render_settings.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include "scene_internal.hpp"
 #include <string>
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::effects {
     class EffectCatalog;

@@ -1,21 +1,27 @@
 # ==============================================================================
 # src/render_plan/CMakeLists.txt — chronon3d_render_plan
 #
-# Standalone OBJECT library for the render-plan JSON Schema validator.
-# No SDK state, no asset access — pure function module.  Linked into
-# chronon3d_core (and therefore chronon3d_pipeline + chronon3d_sdk_impl)
-# so the C API compile_plan entrypoint gets it for free.
+# Standalone OBJECT libraries for the render-plan JSON decoder, validator and
+# compiler. They have no SDK state or asset access. Their object files are
+# attached explicitly to the consumers that expose render-plan compilation;
+# this file does not link them into chronon3d_core.
 # ==============================================================================
 
 add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
     render_plan_validator.cpp
 )
+set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
 
 add_library(chronon3d_render_plan_compiler OBJECT
     render_plan_compiler.cpp
     animation_intent.cpp
     visual_preset_materializer.cpp
+)
+set_target_properties(chronon3d_render_plan_compiler PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    render_plan_compiler.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE

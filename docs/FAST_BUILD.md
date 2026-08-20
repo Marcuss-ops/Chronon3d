@@ -37,10 +37,27 @@ implementation lives in two places:
 
 # Turbo path (CLI only, no tests/content, batch size 32): even faster cold
 ./build-fast.sh turbo
+
+# Real GPU/video inner loop (Vulkan + CUDA interop + native FFmpeg).
+# Requires a host CUDA toolkit/driver; configure fails explicitly otherwise.
+./build-fast.sh video-dev
+./build-fast.sh turbo-inc video
 ```
 
 No manual ccache configuration required — `build-fast.sh` bootstraps it on
 the first invocation.
+
+Before diagnosing a slow rebuild, inspect the directory with:
+
+```bash
+tools/build-doctor.sh build/chronon/linux-video-fast-dev
+```
+
+Use one Ninja process per build directory. The doctor now fails explicitly
+when another Ninja is already using that directory; parallel builds should use
+separate directories (`build-dev`, `build-sanitize`, `build-release`). If Ninja
+reports `premature end of file` for its log, stop the duplicate build and run
+`ninja -C <build-dir> -t recompact` before measuring again.
 
 ---
 
@@ -151,7 +168,7 @@ What dominates the cold build, in order of impact:
 Useful flag during a cold run on slow disks:
 
 ```bash
-JOBS=$(($(nproc) / 2)) ./build-fast.sh    # halve parallelism to reduce IO thrash
+JOBS=4 ./build-fast.sh    # reduce parallelism to limit RAM/IO pressure
 ```
 
 After the first cold run, ccache starts firing and subsequent runs land in
@@ -165,7 +182,7 @@ All optional. Listed in `./build-fast.sh --help` as well.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JOBS` | `nproc` | parallel ninja jobs (`JOBS=8 ./build-fast.sh`) |
+| `JOBS` | `8` | parallel ninja jobs (`JOBS=8 ./build-fast.sh`) |
 | `CCACHE_DIR` | `<repo>/.ccache` | explicit values are never modified |
 | `BUILD_DIR_OVERRIDE` | `<repo>/.tmp/chronon-builds/linux-fast-dev` | override the default build directory |
 
@@ -184,6 +201,7 @@ All optional. Listed in `./build-fast.sh --help` as well.
 | `./build-fast.sh cli-test '<pat>'` | + CLI test binary | doctest pattern |
 | `./build-fast.sh ctest [filter]` | depends on filter | whole ctest run |
 | `./build-fast.sh turbo` | CLI only (linux-turbo preset) | — |
+| `./build-fast.sh video-dev` | CLI + real Vulkan/CUDA/native-FFmpeg path | — |
 | `./build-fast.sh turbo-inc <group>` | single CLI group lib + relink | — |
 
 `<group>` for `turbo-inc`: `dev | render | video | telemetry | bench | core`.
@@ -194,6 +212,25 @@ Use:
 - `./build-fast.sh test '<pattern>'` when only the test binary is what you care about
 - `./build-fast.sh turbo-inc video` for snappy CLI iteration (sub‑second when only one group touched)
 
+`turbo-inc video` uses the persistent `linux-video-fast-dev` build directory,
+with Vulkan, CUDA interop and native FFmpeg enabled. The other groups use the
+minimal `linux-turbo` preset.
+
+To measure incremental-build fan-out without touching sources, run:
+
+```bash
+tools/profile_build_fanout.sh build/chronon/linux-fast-dev \
+  apps/chronon3d_cli/utils/video/native_video_frame_decoder.cpp \
+  include/chronon3d/core/memory/framebuffer.hpp
+```
+
+To inspect generated Ninja commands for stale machine-specific CUDA paths,
+add the build directory to the environment-path gate:
+
+```bash
+bash tools/check_environment_specific_paths.sh build/chronon/linux-video-fast-dev
+```
+
 ---
 
 ## Troubleshooting
@@ -201,7 +238,7 @@ Use:
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | First build takes many minutes | cold ccache + cold build dir | expected; see "Cold build (zero hit)" above for the host‑profile range (3–60 min depending on vcpkg state). After the first warm‑vcpkg run, drops to 13–17 s |
-| Cold run feels stuck on a slow disk | IO thrash from full parallelism | try `JOBS=$(($(nproc) / 2)) ./build-fast.sh` to halve parallelism |
+| Cold run feels stuck on a slow disk | IO thrash from full parallelism | try `JOBS=4 ./build-fast.sh` to reduce RAM/IO pressure |
 | `./build-fast.sh` says the build disk is full | selected build directory is too small | use `BUILD_DIR_OVERRIDE=/path/on/ssd` |
 | `ccache -s` shows MISS where you expected HIT | sloppiness not in effect | confirm `<repo>/.ccache/ccache.conf` matches above; explicit caches are not modified |
 | `--report` runs ignore the build cache | expected — each run re‑renders | this is a render‑time concern, not a build‑time concern |

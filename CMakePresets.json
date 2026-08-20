@@ -8,6 +8,9 @@
     "cmake/presets/experimental.json",
     "cmake/presets/profiling.json",
     "cmake/presets/linux-fast-dev.json",
+    "cmake/presets/linux-video-fast-dev.json",
+    "cmake/presets/fast-variants.json",
+    "cmake/presets/build-profile.json",
     "cmake/presets/optimizations.json"
   ],
   "configurePresets": [],
