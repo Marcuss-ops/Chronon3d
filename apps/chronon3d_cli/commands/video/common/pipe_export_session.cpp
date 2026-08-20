@@ -411,18 +411,16 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 break;
             }
 
-            // Reclaim graph-owned FrameTransient images only after the writer
-            // has consumed this frame. GPU encode surfaces are unplanned and
-            // remain owned by FrameInteropRing.
-            while (!ctx.writer_failed.load(std::memory_order_relaxed) &&
-                   ctx.frames_encoded.load(std::memory_order_acquire) < done_count) {
-                std::this_thread::yield();
-            }
+            // The bounded queue/ring provide backpressure. Do not wait for the
+            // writer after every frame: that collapses the render/encode
+            // pipeline to depth one and makes Vulkan work serially.
             if (ctx.writer_failed.load(std::memory_order_relaxed)) {
                 mark_pipe_writer_failed(status, current_frame);
                 break;
             }
-            ctx.backend.release_frame_transient_surfaces();
+            // Retire only resources whose submission fence has completed;
+            // the blocking device drain is reserved for final job cleanup.
+            ctx.backend.retire_frame_transient_surfaces();
             if (surface_registry) {
                 for (const auto handle : surface_registry->handles_with_lifetime(
                          runtime::LifetimeClass::FrameTransient)) {
