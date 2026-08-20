@@ -1,8 +1,7 @@
 {
   "version": 6,
   "include": [
-    "base.json",
-    "experimental.json"
+    "base.json"
   ],
   "configurePresets": [
     {
@@ -13,7 +12,6 @@
       "description": "Shared hidden base for the V0.1 release-validation surface. Forces Release buildType, disables experimental, telemetry, profiling, benchmarks, diagnostics. VCPKG manifest features = `tests`; defaults (cli, blend2d, text, mesh, exr) are merged automatically by vcpkg.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_BUILD_EXPERIMENTAL": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
@@ -33,20 +31,6 @@
         "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
       }
-    },
-    {
-      "name": "linux-experimental-validation",
-      "inherits": "__experimental-base",
-      "displayName": "Linux Experimental Validation (full + Expressions V2)",
-      "description": "Full-fat experimental validation. Enables Expressions V2 (CHRONON3D_BUILD_EXPERIMENTAL=ON), diagnostics, profiling, telemetry, benchmarks. Nightly/manual only — NOT on the V0.1 release path.",
-      "cacheVariables": {
-        "CHRONON3D_BUILD_CLI": "ON",
-        "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "ON",
-        "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CHRONON3D_ENABLE_MESH": "ON",
-        "CHRONON3D_ENABLE_EXR": "ON"
-      }
     }
   ],
   "buildPresets": [
@@ -59,30 +43,12 @@
         "chronon3d_sdk_impl"
       ],
       "jobs": 16
-    },
-    {
-      "name": "linux-experimental-validation",
-      "configurePreset": "linux-experimental-validation",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests",
-        "chronon3d_benchmarks",
-        "chronon3d_sdk_impl"
-      ],
-      "jobs": 16
     }
   ],
   "testPresets": [
     {
       "name": "linux-release-validation-test",
       "configurePreset": "linux-release-validation",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "linux-experimental-validation-test",
-      "configurePreset": "linux-experimental-validation",
       "output": {
         "outputOnFailure": true
       }

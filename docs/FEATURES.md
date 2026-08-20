@@ -163,20 +163,6 @@ release-ready. Questa pagina separa feature presenti, parziali e pianificate.
 
 ## Expressions V2 — quarantena sperimentale
 
-Expressions V2 è presente sotto `experimental/expressions/`, ma non è una
-feature pubblica stabile.
-
-| Superficie | Stato reale |
-|---|---|
-| Root | `experimental/expressions/` |
-| Build switch | `CHRONON3D_BUILD_EXPERIMENTAL=ON` |
-| Default | Escluso |
-| Install/export SDK | No |
-| Integrazione produttiva | No |
-
-Non includere header sperimentali nel codice stabile prima della promozione e
-della rimozione approvata della quarantena.
-
 ## Acceptance Ortho Run Plane Contracts Forward-point 0d Ticket Acceptance Suite Phase D lineage frame
 
 > **Framing note (slug-friendly rename + retain §13/13 textual lineage)**: questa sezione è l'audit-point canonico del piano di test a 3 assi ortogonali (ortho run-plane: `boundary` / `ci` / `acceptance`). Il titolo è **slug-friendly** — nessun carattere `§`, `/`, em-dash `—`, o paren — per garantire identico auto-generated slug in GitHub web UI (`jekyll-anchor`) + MkDocs (`pymdownx.slugs`) + GitLab + Sphinx; lo slug canonico è `acceptance-ortho-run-plane-contracts-forward-point-0d-ticket-acceptance-suite-phase-d-lineage-frame`. Il frame-label `§13/13 Acceptance` (parent-closure-lineage, allinea con `## 13/13 Action Plan — closure summary` in `docs/ROADMAP.md` line 133) è preservato nei cross-ref testuali di `docs/CHANGELOG.md` + `docs/FOLLOWUP_TICKETS.md` come label narrativo, **non** come parte del heading slug — questo evita il bug del primo fix (slug `#§1313-...` vs `#13-13-...` vs `#1313-...` across renderers). Le altre 5 sezioni del doc usano titoli non-numerici (`## Rendering e compositing`, `## Testo`, `## Camera`, `## SDK`, `## Expressions V2 — quarantena sperimentale`).

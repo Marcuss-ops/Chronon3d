@@ -102,12 +102,11 @@ void register_bench_convert(CLI::App& app, CliContext& ctx) {
 
 }  // namespace (closes anonymous namespace)
 
-// Top-level dispatcher — declared in command_registry.hpp:11 and called from
-// command_registry.cpp's register_all_commands().  Mirrors the flat-mount
+// Top-level dispatcher — Mirrors the flat-mount
 // convention used by register_render_commands / register_video_commands:
 // each helper adds its subcommand directly to the provided `app`.  Must live
 // OUTSIDE the anonymous namespace above so it has external linkage and the
-// linker can resolve calls from group_dev.cpp / command_registry.cpp.
+// linker can resolve calls from group_dev.cpp.
 void register_cache_stats(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("cache-stats", "Print live cache diagnostics snapshot");
     cmd->callback([&ctx]() {
