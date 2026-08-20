@@ -288,6 +288,28 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                         ctx.interop_ring.release(interop_slot);
                         interop_slot = FrameInteropRing::kInvalidSlot;
                     }
+                    if (interop_slot != FrameInteropRing::kInvalidSlot) {
+                        auto& persistent_source = ctx.native_source_surfaces[interop_slot];
+                        if (persistent_source == runtime::kInvalidRenderSurfaceHandle) {
+                            const runtime::SurfaceDesc source_desc{
+                                static_cast<std::uint32_t>(ctx.compiled.definition->composition.width),
+                                static_cast<std::uint32_t>(ctx.compiled.definition->composition.height),
+                                runtime::PixelFormat::Rgba32Float,
+                                runtime::ResourceUsage::Storage,
+                                runtime::LifetimeClass::JobPersistent,
+                                static_cast<std::size_t>(ctx.compiled.definition->composition.width) *
+                                    ctx.compiled.definition->composition.height * sizeof(float) * 4};
+                            persistent_source = surface_registry->create(source_desc);
+                            const auto created = ctx.backend.create_surface(persistent_source, source_desc);
+                            if (!created.ok()) {
+                                (void)surface_registry->release(persistent_source);
+                                persistent_source = runtime::kInvalidRenderSurfaceHandle;
+                            }
+                        }
+                        if (persistent_source != runtime::kInvalidRenderSurfaceHandle) {
+                            video_settings.native_video_source_surface = persistent_source;
+                        }
+                    }
                 }
             }
             auto fb = graph::render_compiled_composition_frame_temporal(
