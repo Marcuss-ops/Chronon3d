@@ -101,14 +101,8 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         ctx.services.surface_registry->release(handle);
         return false;
     }
-    // The upload is submitted on the backend queue before the render graph
-    // submits its first consumer.  Vulkan preserves submission order on a
-    // queue, so waiting on the upload ticket here would only serialize the
-    // CPU with the GPU for every video frame.  The backend owns/retires the
-    // staging slot through its fence before it is reused.
-    runtime::UploadTicket upload_ticket;
-    const auto uploaded = ctx.services.backend->upload_surface_async(
-        handle, desc, pack_framebuffer_rgba(framebuffer), upload_ticket);
+    const auto uploaded = ctx.services.backend->upload_surface(
+        handle, desc, pack_framebuffer_rgba(framebuffer));
     if (!uploaded.ok()) {
         spdlog::error("[native-surface] upload failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), uploaded.error().message);

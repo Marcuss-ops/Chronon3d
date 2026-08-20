@@ -32,6 +32,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/native_av_encoder.cpp
         utils/video/native_av_encoder_write.cpp
         utils/video/native_video_frame_decoder.cpp
+        utils/video/cuda_nv12_surface_compositor.cpp
     )
     target_link_libraries(chronon3d_cli_video_export PRIVATE
         chronon3d_ffmpeg_full
@@ -51,16 +52,27 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
     find_library(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI cuda
         HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
         PATH_SUFFIXES lib64 lib/x64 lib
-        PATHS /usr/lib/x86_64-linux-gnu)
+            PATHS /usr/lib/x86_64-linux-gnu)
+    find_path(CHRONON3D_NVRTC_INCLUDE_DIR_CLI nvrtc.h
+        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+        PATH_SUFFIXES include
+        PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/include)
+    find_file(CHRONON3D_NVRTC_LIBRARY_CLI
+        NAMES libnvrtc.so.13 libnvrtc.so
+        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+        PATH_SUFFIXES lib64 lib
+        PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib)
     target_include_directories(chronon3d_cli_video_export PRIVATE
-        "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
+        "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}"
+        "${CHRONON3D_NVRTC_INCLUDE_DIR_CLI}")
     # NativeAvEncoder's public header is included by render_job_execute.cpp,
     # which belongs to chronon3d_cli_render. The CUDA interop type must be
     # visible on that compile target as well, not only on the video library.
     target_include_directories(chronon3d_cli_render PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
     target_link_libraries(chronon3d_cli_video_export PRIVATE
-        chronon3d_backend_vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}")
+        chronon3d_backend_vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}"
+        "${CHRONON3D_NVRTC_LIBRARY_CLI}")
 endif()
 
 target_sources(chronon3d_cli_render PRIVATE

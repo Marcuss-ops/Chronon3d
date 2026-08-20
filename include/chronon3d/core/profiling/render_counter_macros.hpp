@@ -254,6 +254,17 @@ namespace chronon3d {
     X(graph_skipped_wall_ms_sum)
 
 #define CHRONON_COUNTERS_VIDEO(X) \
+    X(video_decode_frames) \
+    X(video_decode_hw_frames) \
+    X(video_decode_hw_transfer_wall_ms) \
+    X(video_decode_cache_hits) \
+    X(video_decode_cache_misses) \
+    X(video_decode_wall_ms) \
+    X(video_decode_sws_wall_ms) \
+    X(video_decode_framebuffer_wall_ms) \
+    X(video_surface_upload_count) \
+    X(video_surface_upload_bytes) \
+    X(video_surface_upload_wall_ms) \
     X(frame_conversion_copy_wall_ms) \
     X(video_graph_eval_wall_ms) \
     X(video_conversion_wall_ms) \
@@ -306,7 +317,16 @@ namespace chronon3d {
     X(gpu_surface_create_failures) \
     X(gpu_encode_failures) \
     X(interop_ring_wait_count) \
-    X(interop_ring_wait_us)
+    X(interop_ring_wait_us) \
+    X(cuda_vulkan_wait_count) \
+    X(cuda_vulkan_wait_submit_us) \
+    X(cuda_vulkan_signal_count) \
+    X(cuda_vulkan_signal_submit_us) \
+    X(cuda_composite_frames) \
+    X(cuda_composite_wall_us) \
+    X(cuda_encode_queue_peak) \
+    X(cuda_encode_event_wait_count) \
+    X(cuda_encode_event_wait_us)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 

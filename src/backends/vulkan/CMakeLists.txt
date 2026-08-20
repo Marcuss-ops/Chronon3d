@@ -89,6 +89,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -DINPUT=${CHRONON3D_FILL_RECT_SPV} -DOUTPUT=${CHRONON3D_FILL_RECT_HEADER} -DSYMBOL=chronon3d_fill_rect_comp_spv -P "${CMAKE_CURRENT_SOURCE_DIR}/embed_spirv.cmake"
     DEPENDS "${CHRONON3D_FILL_RECT_SPV}" embed_spirv.cmake VERBATIM)
 add_library(chronon3d_backend_vulkan OBJECT vulkan_backend.cpp
+    vulkan_legacy_fallback.cpp
     "${CHRONON3D_COMPOSITE_HEADER}" "${CHRONON3D_TRANSFORM_HEADER}"
     "${CHRONON3D_AFFINE_TRANSFORM_HEADER}" "${CHRONON3D_BLUR_HEADER}"
     "${CHRONON3D_COLOR_ADJUST_HEADER}" "${CHRONON3D_MATTE_HEADER}"
