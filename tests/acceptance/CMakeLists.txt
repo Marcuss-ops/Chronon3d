@@ -33,9 +33,7 @@ chronon3d_add_test_suite(
 #   tools/check_batch_100_videos.sh (pre-push gate at Step 4.5k)
 #   tests/tools/selftest_batch_100_videos.sh (4-scenario verdict test).
 # Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate"):
-#   - TICKET-BATCH-100-DASHBOARD-WIREUP: /api/pilot/batch_100_videos endpoint
 #   - TICKET-BATCH-100-REAL-PATH: drop the stub processor for real renders
-#   - TICKET-MANUAL-TOUCHES-DASHBOARD-UX: channel-scope consolidation
 chronon3d_add_test_suite(
     NAME chronon3d_batch_100_videos_tests
     TIER INTEGRATION

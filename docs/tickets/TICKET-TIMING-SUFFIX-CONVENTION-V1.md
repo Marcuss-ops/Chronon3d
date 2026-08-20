@@ -280,8 +280,7 @@ come superficie secondaria.
   `sequential_level_execute_wall_ms` + `setup_graph_parsing_wall_ms`/`setup_asset_io_load_wall_ms`/
   `setup_pool_preallocation_wall_ms`/`image_decode_wall_ms`; pending list rimosso dal gate).
 - **TICKET-TIMING-SUFFIX-SQLITE** — migrazione schema + store + `render_telemetry_record`. ✅ DONE (su `main`; colonne di `render_runs` + `render_telemetry_record` aggiornate inline per GRAPH/NODES/TEXT/VIDEO).
-- **TICKET-TIMING-SUFFIX-DASHBOARD** — `database.py`/`config.py`/`constants.js`/
-  `MetricsGrid.jsx`/`App.jsx`. ✅ DONE (su `main`; aggiornati inline).
+- **TICKET-TIMING-SUFFIX-DASHBOARD** — superseded: dashboard web rimossa (web-free).
 - **TICKET-TIMING-SUFFIX-TOOLING** — `compare_telemetry.py`/`pr_gate.py`/
   `measure_cpu_budget.sh`/`render_job_report.cpp`. ✅ DONE (su `main`; aggiornati inline).
 - **TICKET-TIMING-SUFFIX-GATE** — gate/test di enforcement (fail su `*_ms`/`*_us`
