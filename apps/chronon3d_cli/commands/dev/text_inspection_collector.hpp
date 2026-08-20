@@ -4,7 +4,7 @@
 // text_inspection_collector.hpp — Step 9 §B extracted collector
 //
 // Sits between `command_inspect_text.cpp` (arg parsing + render + exit
-// dispatch) and `text_inspection_json.{hpp,cpp}` (JSON serialisation).
+// dispatch) and the JSON serialisation layer.
 // The collector is the canonical bridge:
 //   - consumes the graph builder's `TextRunAuditSnapshot` vector
 //     (`renderer.text_audit_snapshots()`)
@@ -64,7 +64,7 @@ struct StatusMapping {
 
 /// `map_status_for_node()` — canonical `(TextVisibilityStatus, predicted_contains_world)`
 /// → `(json_status_string, exit_code)` mapping. Public so the JSON layer
-/// (`text_inspection_json.cpp`) can format the per-snapshot JSON entry
+/// can format the per-snapshot JSON entry
 /// without duplicating the mapping logic.
 StatusMapping map_status_for_node(TextVisibilityStatus s,
                                   bool predicted_contains_world) noexcept;
