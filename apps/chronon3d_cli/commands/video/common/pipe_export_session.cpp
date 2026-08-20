@@ -8,6 +8,8 @@
 #include <spdlog/spdlog.h>
 
 #include <optional>
+#include <cstring>
+#include <span>
 #include <thread>
 
 namespace chronon3d::cli {
@@ -345,21 +347,27 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     source_surface = surface_registry->create(source_desc);
                     const auto created = ctx.backend.create_surface(source_surface, source_desc);
                     if (created.ok()) {
-                        std::vector<float> rgba(
-                            static_cast<std::size_t>(fb->width()) * fb->height() * 4);
-                        std::size_t index = 0;
-                        for (int y = 0; y < fb->height(); ++y) {
-                            for (int x = 0; x < fb->width(); ++x) {
-                                const auto pixel = fb->get_pixel(x, y);
-                                rgba[index++] = pixel.r;
-                                rgba[index++] = pixel.g;
-                                rgba[index++] = pixel.b;
-                                rgba[index++] = pixel.a;
+                        std::vector<float> packed;
+                        std::span<const float> rgba;
+                        if (fb->stride() == fb->width()) {
+                            static_assert(sizeof(Color) == sizeof(float) * 4);
+                            rgba = {reinterpret_cast<const float*>(fb->data()),
+                                    static_cast<std::size_t>(fb->width()) * fb->height() * 4};
+                        } else {
+                            packed.resize(static_cast<std::size_t>(fb->width()) * fb->height() * 4);
+                            for (int y = 0; y < fb->height(); ++y) {
+                                std::memcpy(
+                                    packed.data() + static_cast<std::size_t>(y) * fb->width() * 4,
+                                    fb->pixels_row(y),
+                                    static_cast<std::size_t>(fb->width()) * sizeof(Color));
                             }
+                            rgba = packed;
                         }
                         profiling::GpuUploadProducerScope upload_scope(
                             profiling::GpuUploadProducer::Video);
-                        if (!ctx.backend.upload_surface(source_surface, source_desc, rgba).ok()) {
+                        runtime::UploadTicket upload_ticket{};
+                        if (!ctx.backend.upload_surface_async(
+                                source_surface, source_desc, rgba, upload_ticket).ok()) {
                             (void)ctx.backend.release_surface(source_surface);
                             (void)surface_registry->release(source_surface);
                             source_surface = runtime::kInvalidRenderSurfaceHandle;

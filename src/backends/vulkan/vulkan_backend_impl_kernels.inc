@@ -17,10 +17,11 @@
             float padding[2];
             float tint[4];
             float clip_rect[4];
+            std::int32_t dispatch_origin[2];
         } params{blend_mode, source_scale, {0.0f, 0.0f},
                  {tint[0], tint[1], tint[2], tint[3]},
                  {0.0f, 0.0f, static_cast<float>(destination.width),
-                  static_cast<float>(destination.height)}};
+                  static_cast<float>(destination.height)}, {0, 0}};
         if (clip) {
             params.clip_rect[0] = static_cast<float>(std::max(0, clip->x0));
             params.clip_rect[1] = static_cast<float>(std::max(0, clip->y0));
@@ -29,10 +30,20 @@
             params.clip_rect[3] = static_cast<float>(std::min(
                 static_cast<std::int32_t>(destination.height), clip->y1));
         }
+        const auto x0 = std::clamp(static_cast<std::int32_t>(params.clip_rect[0]),
+                                   0, static_cast<std::int32_t>(destination.width));
+        const auto y0 = std::clamp(static_cast<std::int32_t>(params.clip_rect[1]),
+                                   0, static_cast<std::int32_t>(destination.height));
+        const auto x1 = std::clamp(static_cast<std::int32_t>(params.clip_rect[2]),
+                                   x0, static_cast<std::int32_t>(destination.width));
+        const auto y1 = std::clamp(static_cast<std::int32_t>(params.clip_rect[3]),
+                                   y0, static_cast<std::int32_t>(destination.height));
+        params.dispatch_origin[0] = x0;
+        params.dispatch_origin[1] = y0;
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
-        vkCmdDispatch(command, (destination.width + 15) / 16,
-                      (destination.height + 15) / 16, 1);
+        vkCmdDispatch(command, (x1 - x0 + 15) / 16,
+                      (y1 - y0 + 15) / 16, 1);
     }
 
     void record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -138,22 +149,29 @@
         } params{{x0, y0, x1, y1}, {color.r, color.g, color.b, color.a}};
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
-        vkCmdDispatch(command, (destination.width + 15) / 16,
-                      (destination.height + 15) / 16, 1);
+        const auto rx0 = std::clamp(x0, 0, static_cast<std::int32_t>(destination.width));
+        const auto ry0 = std::clamp(y0, 0, static_cast<std::int32_t>(destination.height));
+        const auto rx1 = std::clamp(x1, rx0, static_cast<std::int32_t>(destination.width));
+        const auto ry1 = std::clamp(y1, ry0, static_cast<std::int32_t>(destination.height));
+        vkCmdDispatch(command, (rx1 - rx0 + 15) / 16,
+                      (ry1 - ry0 + 15) / 16, 1);
     }
 
     void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, std::int32_t glyph_count,
                          VkBuffer instance_buffer, bool instance_updated,
                          float current_frame, const Color& highlight_color,
-                         bool highlight_enabled) {
+                         bool highlight_enabled,
+                         std::int32_t dispatch_origin_x,
+                         std::int32_t dispatch_origin_y,
+                         std::int32_t dispatch_end_x,
+                         std::int32_t dispatch_end_y) {
         // Multiple TextRun passes can occur in one frame (for example the
         // watermark followed by subtitles). They intentionally share the
         // per-frame instance buffer, but the previous dispatch may still be
         // reading it when the next vkCmdUpdateBuffer records its write.
         // Make that shader-read -> transfer-write dependency explicit before
         // publishing the new instance data below. Without this barrier the
-        // combined TextRun path is subject to an undefined write-after-read
         // hazard that can surface later as VK_ERROR_DEVICE_LOST.
         if (instance_updated) {
             const VkBufferMemoryBarrier reuse_barrier{
@@ -187,13 +205,24 @@
             std::int32_t highlight_enabled;
             std::int32_t padding;
             float highlight_color[4];
+            std::int32_t dispatch_origin[2];
         } params{glyph_count, current_frame, highlight_enabled ? 1 : 0, 0,
                  {highlight_color.r, highlight_color.g,
-                  highlight_color.b, highlight_color.a}};
+                  highlight_color.b, highlight_color.a}, {0, 0}};
+        const auto x0 = std::clamp(dispatch_origin_x, 0,
+                                   static_cast<std::int32_t>(destination.width));
+        const auto y0 = std::clamp(dispatch_origin_y, 0,
+                                   static_cast<std::int32_t>(destination.height));
+        const auto x1 = std::clamp(dispatch_end_x, x0,
+                                   static_cast<std::int32_t>(destination.width));
+        const auto y1 = std::clamp(dispatch_end_y, y0,
+                                   static_cast<std::int32_t>(destination.height));
+        params.dispatch_origin[0] = x0;
+        params.dispatch_origin[1] = y0;
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
-        vkCmdDispatch(command, (destination.width + 15) / 16,
-                      (destination.height + 15) / 16, 1);
+        vkCmdDispatch(command, (x1 - x0 + 15) / 16,
+                      (y1 - y0 + 15) / 16, 1);
     }
 
     // Read the frame's [start, end] timestamp pair for a ring slot after its
