@@ -92,9 +92,8 @@ MaterializedText materialize_text(const LayerPlan& layer,
             // anchor. Replacing that pin with an absolute top-left coordinate
             // loses the preset's box anchor at large canvases and can clip
             // long captions. Resolve entity-card placement and explicit job
-            // anchors; preserve the native caption/word layout otherwise.
-            if (layer.anchor || (layer.preset != "caption_card" &&
-                                 layer.preset != "active_word_pop")) {
+            // anchors for every modern overlay preset.
+            if (layer.anchor || !layer.preset.empty()) {
                 // Real content bounds (shaped width + font metrics + padding
                 // + stroke/shadow) drive the resolver, NOT the canvas-fraction
                 // layout box.  Falls back to the preset box when the font is

@@ -3,9 +3,8 @@
 // SINGLE canonical registry for overlay-level visual presets.  This is the
 // one place that knows how each preset is painted, anchored and animated:
 //
-//   caption_card / active_word_pop / subtitle_card / lower_third_safe /
-//   organization_card / location_card / image_focus_in plus the 2D showcase
-//   families image_* / name_* / phrase_* (five choices per family).
+//   fast_fade_through / clean_slide_up / slide_lateral / phrase_word_reveal /
+//   undertext_pop, image treatments and special-name glow treatments.
 //
 // PipelineGen only resolves semantic_role → preset_id (editorial decision,
 // kept in its SemanticOverlayResolver); RenderingGen transports and
