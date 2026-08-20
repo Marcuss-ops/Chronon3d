@@ -207,7 +207,15 @@ graph::RenderOpResult draw_packed_text_run_surface(
     const Color& highlight_color,
     bool highlight_enabled) {
     if (glyphs.empty()) {
-        return graph::RenderOpResult(graph::RenderOpOutcome{0});
+        // Bug fix on main: returning RenderOpOutcome{0} here caused the
+        // upstream caller in text_run_execution.cpp:101-102 to treat this
+        // path as success-with-zero-items and skip the legacy backend.draw_text_run()
+        // fallback, which produced all-black frames for every preset-driven render.
+        // Returning an UnsupportedCapability error forces the caller to fall
+        // back to the legacy text path that actually draws pixels.
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_packed_text_run_surface: empty glyph vector; fall back to legacy text path"});
     }
     if (!ctx.services.backend || !ctx.services.surface_registry) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -432,11 +440,17 @@ graph::RenderOpResult draw_packed_text_run(
     float current_frame,
     const Color& highlight_color,
     bool highlight_enabled) {
-    if (!ensure_native_surface(ctx, destination)) {
+    // TextRun output is an independent transparent surface. Avoid uploading
+    // the CPU framebuffer before the glyph pass; this was a full-canvas
+    // CPU->GPU transfer for every watermark/subtitle layer and frame.
+    if (!ensure_empty_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_packed_text_run: destination has no native surface support"});
     }
+    const auto cleared = ctx.services.backend->fill_rect_surface(
+        destination.surface_handle(), 0, 0, destination.width(), destination.height(), Color{});
+    if (!cleared.ok()) return cleared;
     auto result = draw_packed_text_run_surface(
         ctx, destination.surface_handle(), glyphs, current_frame,
         highlight_color, highlight_enabled);
