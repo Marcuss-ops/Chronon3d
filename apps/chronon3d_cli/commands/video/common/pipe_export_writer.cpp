@@ -3,6 +3,10 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <chrono>
+#include <vector>
+
 namespace chronon3d::cli {
 
 // The writer owns the encoder-facing side of the queue. Keeping it separate
@@ -12,16 +16,40 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     profiling::g_current_counters = ctx.renderer.counters();
     profiling::g_current_framebuffer_pool = ctx.renderer.framebuffer_pool().get();
     bool arena_notified = false;
+    struct DeferredInteropSlot {
+        std::size_t slot{FrameInteropRing::kInvalidSlot};
+        graph::RenderBackend* backend{nullptr};
+        runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
+    };
+    std::vector<DeferredInteropSlot> deferred_slots;
+
+    const auto retire_ready_slots = [&]() {
+        deferred_slots.erase(
+            std::remove_if(deferred_slots.begin(), deferred_slots.end(),
+                [&](const DeferredInteropSlot& pending) {
+                    if (!pending.backend || ctx.encoder.poll_native_surface(
+                            *pending.backend, pending.surface)) {
+                        ctx.interop_ring.release(pending.slot);
+                        return true;
+                    }
+                    return false;
+                }),
+            deferred_slots.end());
+    };
 
     for (;;) {
+        retire_ready_slots();
         RenderFramePackage package;
         const auto pop_t0 = profiling::now();
-        const bool popped = ctx.queue.pop(package);
+        const bool popped = ctx.queue.pop_for(package, std::chrono::milliseconds(1));
         const auto pop_t1 = profiling::now();
         const uint64_t dequeue_ms = static_cast<uint64_t>(
             profiling::duration_ms(pop_t0, pop_t1));
 
-        if (!popped) break;
+        if (!popped) {
+            if (ctx.queue.closed_and_empty()) break;
+            continue;
+        }
         if (ctx.renderer.counters()) {
             ctx.renderer.counters()->io_queue_pop_wait_ms.fetch_add(
                 dequeue_ms, std::memory_order_relaxed);
@@ -79,7 +107,14 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 ctx.queue.close();
                 return;
             }
-            release_interop_slot();
+            const bool surface_ready = !gpu_frame || ctx.encoder.poll_native_surface(
+                *package.backend, package.native_surface);
+            if (gpu_frame && !surface_ready) {
+                deferred_slots.push_back({package.interop_slot, package.backend,
+                                          package.native_surface});
+            } else {
+                release_interop_slot();
+            }
             if (ctx.renderer.counters()) {
                 if (gpu_frame) {
                     ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(
@@ -113,6 +148,22 @@ void run_writer_thread(const WriterThreadContext& ctx) {
         }
 
         ctx.triple_arena.release(package.arena);
+    }
+
+    // The queue is closed only after the producer has submitted its final
+    // frame. Keep the ring slots retained until the encoder has consumed all
+    // CUDA work, then release them in the same order used during production.
+    while (!deferred_slots.empty()) {
+        retire_ready_slots();
+        if (!deferred_slots.empty()) {
+            if (!ctx.encoder.finish_native_surface(
+                    *deferred_slots.front().backend,
+                    deferred_slots.front().surface)) {
+                ctx.writer_failed.store(true);
+                break;
+            }
+            retire_ready_slots();
+        }
     }
 }
 

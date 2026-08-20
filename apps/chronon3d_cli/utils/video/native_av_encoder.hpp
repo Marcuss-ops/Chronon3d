@@ -51,6 +51,12 @@ public:
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle destination) override;
+    bool finish_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle destination) override;
+    bool poll_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle destination) override;
     bool close() override;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
@@ -97,6 +103,7 @@ private:
     struct PendingCudaFrame {
         AVFrame* frame{nullptr};
         CUevent ready{nullptr};
+        runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
     };
     std::deque<PendingCudaFrame> pending_cuda_frames_;
     CUstream cuda_stream_{nullptr};

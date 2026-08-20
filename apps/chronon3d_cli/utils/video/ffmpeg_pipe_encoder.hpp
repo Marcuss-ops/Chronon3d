@@ -65,6 +65,23 @@ struct IVideoEncoder {
         runtime::RenderSurfaceHandle destination) {
         return write_native_surface(backend, source, destination);
     }
+    /// Blocks until the encoder has finished all asynchronous CUDA reads of
+    /// `destination`. The writer must call this before releasing the
+    /// interop-ring slot, otherwise Vulkan can recycle the image while CUDA
+    /// still owns it.
+    virtual bool finish_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle destination) {
+        (void)backend; (void)destination;
+        return true;
+    }
+    /// Non-blocking completion probe for asynchronous surface retirement.
+    virtual bool poll_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle destination) {
+        (void)backend; (void)destination;
+        return true;
+    }
     virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
         return write_frame(fb);
     }

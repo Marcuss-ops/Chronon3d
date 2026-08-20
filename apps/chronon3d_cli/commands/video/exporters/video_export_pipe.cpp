@@ -89,7 +89,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     // Phase 9 — Frame-timing sidecar (job timings now include validation + finalize)
     const bool is_native = (session->opts.encoder.encoder_backend == "native");
-    JobTimings timings;
+    pipe_timing::JobTimings timings;
     timings.job_wall_ms = wall_time_ms;
     timings.process_wall_ms = profiling::duration_ms(process_start_time(), wall_t0);
     timings.prepare_ms = profiling::duration_ms(setup_t0, warmup_t1);

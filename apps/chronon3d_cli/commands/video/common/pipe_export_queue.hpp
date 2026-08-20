@@ -165,6 +165,27 @@ public:
         return true;
     }
 
+    /// Timed pop used by the GPU writer to poll asynchronous interop
+    /// completions while the producer is blocked on a full surface ring.
+    bool pop_for(T& item, std::chrono::milliseconds timeout) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!not_empty_.wait_for(lock, timeout, [this]() {
+                return closed_ || !queue_.empty();
+            })) {
+            return false;
+        }
+        if (closed_ && queue_.empty()) return false;
+        item = std::move(queue_.front());
+        queue_.pop();
+        not_full_.notify_one();
+        return true;
+    }
+
+    [[nodiscard]] bool closed_and_empty() const noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return closed_ && queue_.empty();
+    }
+
     /// Close the queue, waking all blocked producers and consumers.
     void close() {
         {

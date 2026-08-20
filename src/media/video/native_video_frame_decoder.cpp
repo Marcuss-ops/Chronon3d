@@ -15,6 +15,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
 extern "C" {
 #include <libavutil/hwcontext_cuda.h>
 }
