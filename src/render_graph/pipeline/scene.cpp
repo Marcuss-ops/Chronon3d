@@ -250,10 +250,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                         has_projected_surface
                             ? profiling::GpuUploadProducer::Projection
                             : profiling::GpuUploadProducer::Video);
-                    const auto uploaded = (clip.x0 == 0 && clip.y0 == 0 &&
-                                           clip.x1 == framebuffer->width() &&
-                                           clip.y1 == framebuffer->height())
-                        ? backend.upload_surface(handle, desc, rgba)
+                    runtime::UploadTicket upload_ticket{};
+                    const auto full_upload = clip.x0 == 0 && clip.y0 == 0 &&
+                        clip.x1 == framebuffer->width() &&
+                        clip.y1 == framebuffer->height();
+                    const auto uploaded = full_upload
+                        ? backend.upload_surface_async(handle, desc, rgba, upload_ticket)
                         : backend.upload_surface_region(
                               handle, desc, clip.x0, clip.y0,
                               static_cast<std::uint32_t>(rw),
@@ -283,18 +285,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 (void)ctx.services.surface_registry->release(handle);
                 return runtime::kInvalidRenderSurfaceHandle;
             }
-            const auto width = static_cast<std::size_t>(framebuffer->width());
-            const auto height = static_cast<std::size_t>(framebuffer->height());
-            std::vector<float> rgba(width * height * 4);
-            const Color* src = framebuffer->data();
-            for (std::size_t y = 0; y < height; ++y) {
-                const Color* row = src + y * static_cast<std::size_t>(framebuffer->stride());
-                std::memcpy(rgba.data() + y * width * 4, row, width * sizeof(Color));
-            }
+            std::vector<float> packed;
+            const auto rgba = framebuffer_rgba_view(*framebuffer, packed);
             const auto upload_start = std::chrono::steady_clock::now();
             profiling::GpuUploadProducerScope upload_scope(
                 profiling::GpuUploadProducer::Video);
-            if (!backend.upload_surface(handle, desc, rgba).ok()) {
+            runtime::UploadTicket upload_ticket{};
+            if (!backend.upload_surface_async(handle, desc, rgba, upload_ticket).ok()) {
                 (void)backend.release_surface(handle);
                 (void)ctx.services.surface_registry->release(handle);
                 return runtime::kInvalidRenderSurfaceHandle;

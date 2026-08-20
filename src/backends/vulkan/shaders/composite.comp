@@ -11,10 +11,11 @@ layout(push_constant) uniform CompositeParams {
     // Keep this as float data to match the explicit std140-compatible
     // offsets used by VulkanBackend::record_composite.
     vec4 clip_rect;
+    ivec2 dispatch_origin;
 } params;
 
 void main() {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(dst_image);
     if (pixel.x >= size.x || pixel.y >= size.y) return;
     if (float(pixel.x) < params.clip_rect.x || float(pixel.y) < params.clip_rect.y ||

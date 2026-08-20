@@ -16,7 +16,9 @@ layout(push_constant) uniform FillRectParams {
 } params;
 
 void main() {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    // Dispatch is restricted to the rectangle's clipped bounds.  Re-add the
+    // absolute origin because gl_GlobalInvocationID is local to that region.
+    ivec2 pixel = params.rect.xy + ivec2(gl_GlobalInvocationID.xy);
     if (pixel.x < params.rect.x || pixel.x >= params.rect.z ||
         pixel.y < params.rect.y || pixel.y >= params.rect.w) return;
     imageStore(dst_image, pixel, params.color);
