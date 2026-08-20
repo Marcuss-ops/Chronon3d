@@ -72,6 +72,9 @@ public:
 
 private:
     struct Session {
+        // FFmpeg contexts are stateful per source. Keep contention local to
+        // this session; the decoder-wide mutex only protects the session map.
+        std::mutex mutex;
         AVFormatContext* fmt{nullptr};
         AVCodecContext* codec{nullptr};
         AVBufferRef* hw_device_ctx{nullptr};
