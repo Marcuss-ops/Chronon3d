@@ -536,7 +536,7 @@ compile_render_plan(
                                 // path.  The older TextDefinition builder
                                 // emits a legacy SourceNode and would force a
                                 // CPU draw_node fallback in strict Vulkan.
-                                builder.text_run(
+                                (void)builder.text_run(
                                     "text", chronon3d::prepare_text(*prepared_texts[index]));
                                 break;
                             case LayerType::SubtitleTrack: {

@@ -18,7 +18,7 @@
       "id": "title",
       "type": "text",
       "text": "Nome speciale",
-      "font": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+      "font": "assets/fonts/Inter-Regular.ttf",
       "font_size": 48,
       "position": [320, 120],
       "animation": {"preset": "fade_in"}
@@ -29,7 +29,7 @@
       "source": "examples/smoke.srt",
       "format": "srt",
       "preset": "minimal_white",
-      "font": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+      "font": "assets/fonts/Inter-Regular.ttf",
       "font_size": 28
     }
   ],

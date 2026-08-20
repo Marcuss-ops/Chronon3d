@@ -5,6 +5,9 @@
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
+#include <chrono>
+#include <cstdint>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::backends::vulkan {
 namespace {
@@ -95,6 +98,11 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
 
 CudaVulkanSurfaceBridge::~CudaVulkanSurfaceBridge() {
     if (m_context) (void)cuCtxSetCurrent(m_context);
+    // Destruction can happen after the owning compositor has stopped
+    // submitting work but while the driver still has pending external
+    // semaphore operations.  Retire the context here as the final lifetime
+    // boundary before destroying imported CUDA objects.
+    (void)cuCtxSynchronize();
     if (m_vulkan_to_cuda) cuDestroyExternalSemaphore(m_vulkan_to_cuda);
     if (m_cuda_to_vulkan) cuDestroyExternalSemaphore(m_cuda_to_vulkan);
     if (m_surface) cuSurfObjectDestroy(m_surface);
@@ -107,19 +115,35 @@ void CudaVulkanSurfaceBridge::make_current() {
 }
 
 void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
+    const auto started = std::chrono::steady_clock::now();
     make_current();
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
     check_cuda(cuWaitExternalSemaphoresAsync(
                    &m_vulkan_to_cuda, &params, 1, stream ? stream : m_stream),
                "cuWaitExternalSemaphoresAsync(vulkan->cuda)");
+    if (auto* counters = profiling::g_current_counters) {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - started).count();
+        counters->cuda_vulkan_wait_count.fetch_add(1, std::memory_order_relaxed);
+        counters->cuda_vulkan_wait_submit_us.fetch_add(
+            static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
+    }
 }
 
 void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
+    const auto started = std::chrono::steady_clock::now();
     make_current();
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
     check_cuda(cuSignalExternalSemaphoresAsync(
                    &m_cuda_to_vulkan, &params, 1, stream ? stream : m_stream),
                "cuSignalExternalSemaphoresAsync(cuda->vulkan)");
+    if (auto* counters = profiling::g_current_counters) {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - started).count();
+        counters->cuda_vulkan_signal_count.fetch_add(1, std::memory_order_relaxed);
+        counters->cuda_vulkan_signal_submit_us.fetch_add(
+            static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
+    }
 }
 
 }  // namespace chronon3d::backends::vulkan

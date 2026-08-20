@@ -119,6 +119,18 @@ struct GpuMetrics {
     std::optional<uint64_t> video_native_fallback_frames;
     std::optional<uint64_t> gpu_surface_create_failures;
     std::optional<uint64_t> gpu_encode_failures;
+    std::optional<uint64_t> interop_ring_wait_count;
+    std::optional<uint64_t> interop_ring_wait_us;
+    std::optional<uint64_t> cuda_vulkan_wait_count;
+    std::optional<uint64_t> cuda_vulkan_wait_submit_us;
+    std::optional<uint64_t> cuda_vulkan_signal_count;
+    std::optional<uint64_t> cuda_vulkan_signal_submit_us;
+    std::optional<uint64_t> cuda_composite_frames;
+    std::optional<uint64_t> cuda_composite_wall_us;
+    std::optional<uint64_t> cuda_encode_queue_peak;
+    std::optional<uint64_t> cuda_encode_event_wait_count;
+    std::optional<uint64_t> cuda_encode_event_wait_us;
+    std::optional<uint64_t> encoder_staging_copy_bytes;
 };
 
 // Job-level timings written to the `job` object of the frame-timing sidecar.
@@ -504,6 +516,18 @@ void write_frame_timing_sidecar(
     put_gpu_u64("video_native_fallback_frames", timings.gpu.video_native_fallback_frames);
     put_gpu_u64("gpu_surface_create_failures", timings.gpu.gpu_surface_create_failures);
     put_gpu_u64("gpu_encode_failures", timings.gpu.gpu_encode_failures);
+    put_gpu_u64("interop_ring_wait_count", timings.gpu.interop_ring_wait_count);
+    put_gpu_u64("interop_ring_wait_us", timings.gpu.interop_ring_wait_us);
+    put_gpu_u64("cuda_vulkan_wait_count", timings.gpu.cuda_vulkan_wait_count);
+    put_gpu_u64("cuda_vulkan_wait_submit_us", timings.gpu.cuda_vulkan_wait_submit_us);
+    put_gpu_u64("cuda_vulkan_signal_count", timings.gpu.cuda_vulkan_signal_count);
+    put_gpu_u64("cuda_vulkan_signal_submit_us", timings.gpu.cuda_vulkan_signal_submit_us);
+    put_gpu_u64("cuda_composite_frames", timings.gpu.cuda_composite_frames);
+    put_gpu_u64("cuda_composite_wall_us", timings.gpu.cuda_composite_wall_us);
+    put_gpu_u64("cuda_encode_queue_peak", timings.gpu.cuda_encode_queue_peak);
+    put_gpu_u64("cuda_encode_event_wait_count", timings.gpu.cuda_encode_event_wait_count);
+    put_gpu_u64("cuda_encode_event_wait_us", timings.gpu.cuda_encode_event_wait_us);
+    put_gpu_u64("encoder_staging_copy_bytes", timings.gpu.encoder_staging_copy_bytes);
     std::string effective_backend = "unknown";
     if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
         effective_backend = timings.gpu.software_fallback_nodes &&
@@ -775,6 +799,18 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.video_native_fallback_frames = c->video_native_fallback_frames.load(std::memory_order_relaxed);
         timings.gpu.gpu_surface_create_failures = c->gpu_surface_create_failures.load(std::memory_order_relaxed);
         timings.gpu.gpu_encode_failures = c->gpu_encode_failures.load(std::memory_order_relaxed);
+        timings.gpu.interop_ring_wait_count = c->interop_ring_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.interop_ring_wait_us = c->interop_ring_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_wait_count = c->cuda_vulkan_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_wait_submit_us = c->cuda_vulkan_wait_submit_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_signal_count = c->cuda_vulkan_signal_count.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_signal_submit_us = c->cuda_vulkan_signal_submit_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_composite_frames = c->cuda_composite_frames.load(std::memory_order_relaxed);
+        timings.gpu.cuda_composite_wall_us = c->cuda_composite_wall_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_encode_queue_peak = c->cuda_encode_queue_peak.load(std::memory_order_relaxed);
+        timings.gpu.cuda_encode_event_wait_count = c->cuda_encode_event_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.cuda_encode_event_wait_us = c->cuda_encode_event_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.encoder_staging_copy_bytes = c->encoder_staging_copy_bytes.load(std::memory_order_relaxed);
     }
     if (session->renderer->counters()) {
         auto* c = session->renderer->counters();
