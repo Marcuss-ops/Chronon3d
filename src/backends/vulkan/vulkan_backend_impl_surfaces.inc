@@ -290,6 +290,62 @@
         }
     }
 
+    void retire_completed_frame_transient_surfaces() noexcept {
+        try {
+            // This is deliberately a status query, never a wait.  A transient
+            // image is eligible for destruction only after every Vulkan
+            // submission that could reference it has completed.  The normal
+            // frame path calls this opportunistically; the final cleanup path
+            // above remains the authoritative blocking drain.
+            if (pending_timeline_value != 0 &&
+                vkGetFenceStatus(device, fence) != VK_SUCCESS) {
+                return;
+            }
+            for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+                if (frame_batch.in_flight[i] &&
+                    vkGetFenceStatus(device, frame_batch.fences[i]) != VK_SUCCESS) {
+                    return;
+                }
+            }
+            for (const auto& upload : upload_slots) {
+                if (upload.in_flight &&
+                    vkGetFenceStatus(device, upload.fence) != VK_SUCCESS) {
+                    return;
+                }
+            }
+
+            std::vector<runtime::RenderSurfaceHandle> handles;
+            handles.reserve(surface_bindings.size());
+            for (const auto& [handle, slot] : surface_bindings) {
+                const auto it = physical_surfaces.find(slot);
+                if (it != physical_surfaces.end() &&
+                    it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
+                    !unplanned_surface_handles.contains(handle)) {
+                    handles.push_back(handle);
+                }
+            }
+            for (const auto handle : handles) {
+                const auto binding = surface_bindings.find(handle);
+                if (binding == surface_bindings.end()) continue;
+                const auto slot = binding->second;
+                surface_bindings.erase(binding);
+                unplanned_surface_handles.erase(handle);
+                if (!slot_in_use(slot)) {
+                    const auto it = physical_surfaces.find(slot);
+                    if (it != physical_surfaces.end()) {
+                        destroy_image(it->second.image);
+                        physical_surfaces.erase(it);
+                    }
+                }
+                ++stats.surface_releases;
+            }
+        } catch (const std::exception& error) {
+            spdlog::error("[vulkan] non-blocking transient retirement failed: {}", error.what());
+        } catch (...) {
+            // Best effort: final job cleanup remains responsible for recovery.
+        }
+    }
+
     std::uint64_t submit_upload(UploadSlot& slot, bool wait_for_completion) {
         check(vkEndCommandBuffer(slot.command_buffer), "vkEndCommandBuffer(upload slot)");
         const auto signal_value = ++next_timeline_value;
@@ -440,4 +496,3 @@
         vkUnmapMemory(device, staging_memory);
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));
     }
-
