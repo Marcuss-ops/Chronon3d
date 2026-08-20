@@ -19,11 +19,26 @@
 #include <memory>
 #include <string>
 
+namespace chronon3d {
+struct RenderCounters;
+namespace runtime { class RenderSurfaceRegistry; }
+namespace graph { class RenderBackend; }
+}
+
 namespace chronon3d::media {
 
 class MediaFrameProvider {
 public:
     virtual ~MediaFrameProvider() = default;
+
+    /// Optional render telemetry sink. Providers that do not expose media
+    /// counters may keep the default no-op implementation.
+    virtual void set_counters(::chronon3d::RenderCounters*) {}
+    /// Optional native GPU output context. Providers that can expose a
+    /// backend-owned surface may use it; the default keeps CPU providers
+    /// source-compatible.
+    virtual void set_native_gpu_context(
+        ::chronon3d::graph::RenderBackend*, ::chronon3d::runtime::RenderSurfaceRegistry*) {}
 
     /// Decode a single frame from the source identified by `path`.
     /// Output dimensions are suggested via `width`/`height`; implementations

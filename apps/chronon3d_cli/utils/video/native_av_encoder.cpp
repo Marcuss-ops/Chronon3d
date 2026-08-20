@@ -415,8 +415,14 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             if (!wait_for_one) return true;
             const auto wait_t0 = Clock::now();
             if (cuEventSynchronize(pending.ready) != CUDA_SUCCESS) return false;
-            native_backpressure_ms_ += elapsed_ms(wait_t0);
+            const auto wait_ms = elapsed_ms(wait_t0);
+            native_backpressure_ms_ += wait_ms;
             ++cuda_backpressure_wait_count_;
+            if (counters_) {
+                counters_->cuda_encode_event_wait_count.fetch_add(1, std::memory_order_relaxed);
+                counters_->cuda_encode_event_wait_us.fetch_add(
+                    static_cast<std::uint64_t>(wait_ms * 1000.0), std::memory_order_relaxed);
+            }
         } else if (ready != CUDA_SUCCESS) {
             return false;
         }
@@ -544,6 +550,13 @@ bool NativeAvEncoder::write_native_surface_impl(
         pending_cuda_frames_.push_back(PendingCudaFrame{gpu_frame, ready});
         cuda_pending_peak_ = std::max<std::uint64_t>(
             cuda_pending_peak_, pending_cuda_frames_.size());
+        if (counters_) {
+            auto observed = counters_->cuda_encode_queue_peak.load(std::memory_order_relaxed);
+            const auto current = static_cast<std::uint64_t>(pending_cuda_frames_.size());
+            while (observed < current &&
+                   !counters_->cuda_encode_queue_peak.compare_exchange_weak(
+                       observed, current, std::memory_order_relaxed)) {}
+        }
         if (counters_) {
             counters_->gpu_surface_copy_frames.fetch_add(1, std::memory_order_relaxed);
             counters_->encoder_staging_copy_bytes.fetch_add(

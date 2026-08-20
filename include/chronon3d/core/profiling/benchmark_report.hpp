@@ -91,6 +91,15 @@ struct BenchmarkCountersSnapshot {
     uint64_t color_space_convert_wall_ms{};
     uint64_t pipe_write_cpu_ms{};
     uint64_t pipe_write_wall_ms{};
+    uint64_t cuda_vulkan_wait_count{};
+    uint64_t cuda_vulkan_wait_submit_us{};
+    uint64_t cuda_vulkan_signal_count{};
+    uint64_t cuda_vulkan_signal_submit_us{};
+    uint64_t cuda_composite_frames{};
+    uint64_t cuda_composite_wall_us{};
+    uint64_t cuda_encode_queue_peak{};
+    uint64_t cuda_encode_event_wait_count{};
+    uint64_t cuda_encode_event_wait_us{};
 };
 
 /// Returns current UTC time formatted as ISO 8601 (e.g. "2026-05-21T12:00:00Z").

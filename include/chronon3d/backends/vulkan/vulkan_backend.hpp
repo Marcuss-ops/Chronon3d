@@ -259,6 +259,13 @@ private:
     void record_software_fallback(
         const char* reason,
         std::chrono::steady_clock::time_point started) noexcept;
+    void record_fallback_counter(const char* reason,
+                                 std::uint64_t elapsed_us) noexcept;
+    void record_fallback_shape(bool image) noexcept;
+    void record_fallback_composite(bool dimensions) noexcept;
+    void composite_legacy_surface(
+        Framebuffer& destination, const Framebuffer& source, BlendMode mode,
+        const std::optional<raster::BBox>& clip);
     [[noreturn]] static void unsupported(const char* operation);
 
 #ifdef CHRONON3D_ENABLE_VULKAN

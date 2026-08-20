@@ -97,6 +97,15 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
         counters["fused_passes"] = report.counters.fused_passes;
         counters["full_frame_passes_per_frame"] = report.counters.full_frame_passes_per_frame;
         counters["full_frame_copies_per_frame"] = report.counters.full_frame_copies_per_frame;
+        counters["cuda_vulkan_wait_count"] = report.counters.cuda_vulkan_wait_count;
+        counters["cuda_vulkan_wait_submit_us"] = report.counters.cuda_vulkan_wait_submit_us;
+        counters["cuda_vulkan_signal_count"] = report.counters.cuda_vulkan_signal_count;
+        counters["cuda_vulkan_signal_submit_us"] = report.counters.cuda_vulkan_signal_submit_us;
+        counters["cuda_composite_frames"] = report.counters.cuda_composite_frames;
+        counters["cuda_composite_wall_us"] = report.counters.cuda_composite_wall_us;
+        counters["cuda_encode_queue_peak"] = report.counters.cuda_encode_queue_peak;
+        counters["cuda_encode_event_wait_count"] = report.counters.cuda_encode_event_wait_count;
+        counters["cuda_encode_event_wait_us"] = report.counters.cuda_encode_event_wait_us;
         // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — encoder/conversion/pipe
         // backpressure-aware breakdown fields.
         counters["encoder_submit_cpu_ms"] = report.counters.encoder_submit_cpu_ms;
@@ -213,6 +222,15 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.counters.fused_passes = counters.value("fused_passes", uint64_t{0});
         report.counters.full_frame_passes_per_frame = counters.value("full_frame_passes_per_frame", 0.0);
         report.counters.full_frame_copies_per_frame = counters.value("full_frame_copies_per_frame", 0.0);
+        report.counters.cuda_vulkan_wait_count = counters.value("cuda_vulkan_wait_count", uint64_t{0});
+        report.counters.cuda_vulkan_wait_submit_us = counters.value("cuda_vulkan_wait_submit_us", uint64_t{0});
+        report.counters.cuda_vulkan_signal_count = counters.value("cuda_vulkan_signal_count", uint64_t{0});
+        report.counters.cuda_vulkan_signal_submit_us = counters.value("cuda_vulkan_signal_submit_us", uint64_t{0});
+        report.counters.cuda_composite_frames = counters.value("cuda_composite_frames", uint64_t{0});
+        report.counters.cuda_composite_wall_us = counters.value("cuda_composite_wall_us", uint64_t{0});
+        report.counters.cuda_encode_queue_peak = counters.value("cuda_encode_queue_peak", uint64_t{0});
+        report.counters.cuda_encode_event_wait_count = counters.value("cuda_encode_event_wait_count", uint64_t{0});
+        report.counters.cuda_encode_event_wait_us = counters.value("cuda_encode_event_wait_us", uint64_t{0});
         // TICKET-VIDEO-PIPELINE-BACKPRESSURE-V1 — forward-compatible defaults.
         report.counters.encoder_submit_cpu_ms = counters.value("encoder_submit_cpu_ms", uint64_t{0});
         report.counters.encoder_backpressure_wait_ms = counters.value("encoder_backpressure_wait_ms", uint64_t{0});
