@@ -20,9 +20,6 @@ void register_commands(CLI::App& app, CliContext& ctx);
 namespace group_dev {
 void register_commands(CLI::App& app, CliContext& ctx);
 }
-namespace group_bench {
-void register_commands(CLI::App& app, CliContext& ctx);
-}
 
 /// Register exactly the command groups linked into the executable.  Feature
 /// options such as CHRONON3D_ENABLE_VIDEO describe engine capability; they do
@@ -38,9 +35,6 @@ inline void register_all_groups(CLI::App& app, CliContext& ctx) {
 #endif
 #ifdef CHRONON3D_HAS_CLI_DEV
     group_dev::register_commands(app, ctx);
-#endif
-#ifdef CHRONON3D_HAS_CLI_BENCH
-    group_bench::register_commands(app, ctx);
 #endif
 }
 

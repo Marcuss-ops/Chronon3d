@@ -236,6 +236,15 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
+# Standalone bench binary (Phase 1 of TICKET-CLI-ISOLATE-RUNTIME-DEV cleanup).
+# The bench subcommands (`bench`, `bench-convert`) used to live under
+# apps/chronon3d_cli/commands/bench + commands/dev/command_bench_convert.cpp;
+# they are extracted to a self-contained executable that owns its own CLI11
+# entry point and only depends on chronon3d_sdk + chronon3d_pipeline.
+if(CHRONON3D_BUILD_BENCHMARK_CLI)
+    add_subdirectory(apps/chronon3d_bench)
+endif()
+
 # ── Test orchestration ───────────────────────────────────────────────────
 # enable_testing() is invoked BEFORE the BUILD_TESTS gate so the
 # standalone install-boundary test (add_test() registered further down)

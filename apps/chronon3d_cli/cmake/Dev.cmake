@@ -8,11 +8,11 @@ if(NOT TARGET chronon3d_cli_render)
 endif()
 
 add_library(chronon3d_cli_dev STATIC
+    commands/dev/command_bench_convert.cpp
     commands/group_dev.cpp
     commands/dev/register_dev_commands.cpp
     commands/dev/register_inspect_commands.cpp
     commands/dev/command_batch.cpp
-    commands/dev/command_bench_convert.cpp
     commands/dev/command_camera_path.cpp
     commands/dev/command_inspect_text.cpp
     commands/dev/command_text_def_inspect.cpp

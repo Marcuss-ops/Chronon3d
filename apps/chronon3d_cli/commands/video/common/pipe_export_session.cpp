@@ -421,12 +421,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             // Retire only resources whose submission fence has completed;
             // the blocking device drain is reserved for final job cleanup.
             ctx.backend.retire_frame_transient_surfaces();
-            if (surface_registry) {
-                for (const auto handle : surface_registry->handles_with_lifetime(
-                         runtime::LifetimeClass::FrameTransient)) {
-                    (void)surface_registry->release(handle);
-                }
-            }
+            // Do not release FrameTransient registry handles here.  They are
+            // still owned by queued RenderFramePackage instances and may be
+            // referenced by the Vulkan/CUDA/NVENC pipeline after this
+            // producer iteration. Releasing them here invalidates the native
+            // source/output surfaces and forces the next frame through a
+            // full CPU->GPU upload. Final job cleanup runs after the writer
+            // has joined and retires/releases the remaining transients.
 
             ++status.frames_enqueued;
 
