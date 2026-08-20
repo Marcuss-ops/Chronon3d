@@ -5,8 +5,6 @@ Chronon3D è un motore motion-graphics code-first, headless e CPU-only in C++20.
 - Stato: [`CURRENT_STATUS.md`](CURRENT_STATUS.md)
 - Prossimi passi: [`ROADMAP.md`](ROADMAP.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
-- Incarichi correnti: [`agent-tasks/`](agent-tasks/)
-
 ## Architettura corrente
 
 `Composition → Scene → RenderGraph → FrameGraphCompiler → CompiledFrameGraph → GraphExecutor → RenderBackend → output`
@@ -22,13 +20,6 @@ Il modello da preservare è:
 - `GraphExecutor`: esecuzione del grafo compilato attraverso il backend astratto.
 
 Lo stato corrente del confine renderer/backend è in riallineamento. Non usare la doppia identità o cast al renderer concreto come modello per nuovo codice.
-
-## Lavoro attivo
-
-1. [`Agente 1 — Renderer/Backend Single Identity`](agent-tasks/AGENT_1_RENDERER_BOUNDARY.md)
-2. [`Agente 2 — CMake Registry, SDK Boundary e Baseline`](agent-tasks/AGENT_2_CMAKE_SDK_BASELINE.md)
-
-Il secondo stream deve essere validato dopo il merge e il rebase del primo.
 
 ## Regole
 
