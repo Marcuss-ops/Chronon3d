@@ -59,6 +59,20 @@ inline std::vector<float> pack_framebuffer_rgba(const Framebuffer& framebuffer) 
     return rgba;
 }
 
+/// Return a zero-copy RGBA view when the framebuffer storage is tightly
+/// packed.  The Vulkan uploader copies the span into its staging buffer before
+/// returning, so the view only needs to live for the upload call.
+inline std::span<const float> framebuffer_rgba_view(
+    const Framebuffer& framebuffer, std::vector<float>& packed) {
+    static_assert(sizeof(Color) == sizeof(float) * 4);
+    if (framebuffer.stride() == framebuffer.width()) {
+        return {reinterpret_cast<const float*>(framebuffer.data()),
+                static_cast<std::size_t>(framebuffer.width()) * framebuffer.height() * 4};
+    }
+    packed = pack_framebuffer_rgba(framebuffer);
+    return packed;
+}
+
 /// Ensure `framebuffer` has a native (device-local) surface: create the
 /// surface, upload the current pixels, and attach the handle.  Returns false
 /// (leaving the framebuffer untouched) when the backend/registry are absent,
@@ -101,8 +115,12 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         ctx.services.surface_registry->release(handle);
         return false;
     }
-    const auto uploaded = ctx.services.backend->upload_surface(
-        handle, desc, pack_framebuffer_rgba(framebuffer));
+    std::vector<float> packed;
+    const auto pixels = framebuffer_rgba_view(framebuffer, packed);
+    runtime::UploadTicket upload_ticket{};
+    const auto uploaded = ctx.policy.retain_native_surface_for_video
+        ? ctx.services.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
+        : ctx.services.backend->upload_surface(handle, desc, pixels);
     if (!uploaded.ok()) {
         spdlog::error("[native-surface] upload failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), uploaded.error().message);
