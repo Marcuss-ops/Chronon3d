@@ -1,5 +1,6 @@
 #include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
+#include "pipe_timing_sidecar.hpp"
 #include "../../../utils/process_start.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -16,162 +17,7 @@
 
 namespace {
 
-// Job-level cache efficiency metrics written to the `cache` object of the
-// sidecar.  Image/font hit-miss come from the prepare barrier (they are
-// reset after warmup); node/glyph/gpu hit-miss and node lookup time come
-// from the render loop counters.
-struct CacheMetrics {
-    std::optional<double> node_lookup_ms;
-    std::optional<uint64_t> node_cache_hits;
-    std::optional<uint64_t> node_cache_misses;
-    std::optional<uint64_t> image_cache_hits;
-    std::optional<uint64_t> image_cache_misses;
-    std::optional<uint64_t> font_cache_hits;
-    std::optional<uint64_t> font_cache_misses;
-    std::optional<uint64_t> glyph_cache_hits;
-    std::optional<uint64_t> glyph_cache_misses;
-    std::optional<uint64_t> gpu_asset_cache_hits;
-    std::optional<uint64_t> gpu_asset_cache_misses;
-};
-
-// Job-level text pipeline timings (cumulative across prepare + render loop).
-// font_resolve happens once in the prepare barrier; shaping/bidi/layout are
-// prepare-only in steady state; glyph lookup / raster / atlas upload / draw
-// accumulate per-frame on the render thread.
-struct TextMetrics {
-    std::optional<double> font_resolve_ms;
-    std::optional<double> shaping_ms;
-    std::optional<double> bidi_ms;
-    std::optional<double> layout_ms;
-    std::optional<double> glyph_cache_lookup_ms;
-    std::optional<double> raster_ms;
-    std::optional<double> atlas_upload_ms;
-    std::optional<double> draw_ms;
-    std::optional<uint64_t> atlas_cache_hits;
-    std::optional<uint64_t> atlas_cache_misses;
-    std::optional<uint64_t> atlas_key_bytes_hashed;
-    std::optional<uint64_t> atlas_repack_count;
-    std::optional<uint64_t> atlas_repack_bytes;
-    std::optional<uint64_t> atlas_upload_count;
-    std::optional<uint64_t> atlas_upload_bytes;
-    std::optional<uint64_t> instance_upload_count;
-    std::optional<uint64_t> instance_upload_bytes;
-};
-
-// Job-level encoder breakdown.  submit_cpu_ms + backpressure_wait_ms are
-// the per-frame totals; flush_ms / packet_receive_ms / mux_packet_ms are
-// global tails (not 1:1 with a frame, esp. with B-frame reordering);
-// device_ms is hardware-encoder-only and stays null on CPU-only encoders.
-struct EncoderMetrics {
-    std::optional<double> submit_cpu_ms;
-    std::optional<double> backpressure_wait_ms;
-    std::optional<uint64_t> cuda_pending_peak;
-    std::optional<uint64_t> cuda_backpressure_wait_count;
-    std::optional<double> flush_ms;
-    std::optional<double> packet_receive_ms;
-    std::optional<double> mux_packet_ms;
-    std::optional<double> device_ms;
-    // Pipe-only: CPU ::write() copy vs poll() back-pressure wait.
-    std::optional<double> pipe_write_cpu_ms;
-    std::optional<double> pipe_backpressure_wait_ms;
-};
-
-// Job-level GPU counters exported by the GPU backend (Vulkan). Fields stay
-// nullopt on software backends and emit JSON null — never a misleading 0.
-// gpu_execute_ms is GPU-elapsed time from Vulkan timestamp queries;
-// gpu_readback_ms is the CPU-side map/memcpy/unmap cost of the surface
-// download (the vkCmdCopyImageToBuffer GPU transfer itself is captured in
-// gpu_execute_ms / gpu_wait_cpu_ms).
-struct GpuMetrics {
-    std::optional<double> gpu_execute_ms;
-    std::optional<double> gpu_readback_ms;
-    std::optional<double> gpu_submit_cpu_ms;
-    std::optional<double> gpu_wait_cpu_ms;
-    std::optional<uint64_t> standalone_wait_count;
-    std::optional<uint64_t> standalone_wait_us;
-    std::optional<uint64_t> frame_batch_drain_wait_count;
-    std::optional<uint64_t> frame_batch_drain_wait_us;
-    std::optional<uint64_t> frame_slot_wait_count;
-    std::optional<uint64_t> frame_slot_wait_us;
-    std::optional<uint64_t> gpu_readback_bytes;
-    std::optional<uint64_t> gpu_upload_bytes;
-    std::optional<uint64_t> gpu_submissions;
-    std::optional<uint64_t> passes_executed;
-    std::optional<uint64_t> gpu_nodes;
-    std::optional<uint64_t> software_fallback_nodes;
-    std::optional<uint64_t> software_fallback_us;
-    std::optional<uint64_t> fallback_draw_node;
-    std::optional<uint64_t> fallback_draw_image;
-    std::optional<uint64_t> fallback_draw_other;
-    std::optional<uint64_t> fallback_text_run;
-    std::optional<uint64_t> fallback_composite;
-    std::optional<uint64_t> fallback_composite_dimensions;
-    std::optional<uint64_t> fallback_composite_mode;
-    std::optional<uint64_t> fallback_effect;
-    std::optional<uint64_t> fallback_blur;
-    std::optional<uint64_t> fallback_dof;
-    std::optional<uint64_t> gpu_native_surface_frames;
-    std::optional<uint64_t> gpu_native_encode_frames;
-    std::optional<uint64_t> gpu_surface_copy_frames;
-    std::optional<uint64_t> cpu_pixel_readback_count;
-    std::optional<uint64_t> cpu_pixel_readback_bytes;
-    std::optional<uint64_t> video_pipe_fallback_frames;
-    std::optional<uint64_t> video_native_fallback_frames;
-    std::optional<uint64_t> gpu_surface_create_failures;
-    std::optional<uint64_t> gpu_encode_failures;
-    std::optional<uint64_t> interop_ring_wait_count;
-    std::optional<uint64_t> interop_ring_wait_us;
-    std::optional<uint64_t> cuda_vulkan_wait_count;
-    std::optional<uint64_t> cuda_vulkan_wait_submit_us;
-    std::optional<uint64_t> cuda_vulkan_signal_count;
-    std::optional<uint64_t> cuda_vulkan_signal_submit_us;
-    std::optional<uint64_t> cuda_composite_frames;
-    std::optional<uint64_t> cuda_composite_wall_us;
-    std::optional<uint64_t> cuda_encode_queue_peak;
-    std::optional<uint64_t> cuda_encode_event_wait_count;
-    std::optional<uint64_t> cuda_encode_event_wait_us;
-    std::optional<uint64_t> encoder_staging_copy_bytes;
-};
-
-// Job-level timings written to the `job` object of the frame-timing sidecar.
-// Fields not measurable inside the pipe-export path (process startup, plan
-// read/parse/validate/compile, graph compile) stay nullopt and emit as JSON
-// null — an honest "not measured here" rather than a misleading 0.0.
-struct JobTimings {
-    std::optional<double> process_wall_ms;
-    std::optional<double> job_wall_ms;
-    std::optional<double> engine_init_ms;
-    std::optional<double> backend_init_ms;
-    std::optional<double> plan_read_ms;
-    std::optional<double> plan_parse_ms;
-    std::optional<double> plan_validate_ms;
-    std::optional<double> plan_compile_ms;
-    std::optional<double> graph_compile_ms;
-    std::optional<double> prepare_ms;
-    std::optional<double> render_loop_wall_ms;
-    std::optional<double> encoder_finalize_ms;
-    std::optional<double> mux_finalize_ms;
-    std::optional<double> output_finalize_ms;
-    std::optional<double> validation_ms;
-    // Output-contract verification split: the ffprobe subprocess and the
-    // SHA-256 digest are timed separately so neither cost is hidden behind
-    // the combined validation_ms.
-    std::optional<double> ffprobe_ms;
-    std::optional<double> sha256_ms;
-    // Framebuffer allocation events across the render loop (post-warmup),
-    // used to derive the per-frame allocation rate in the sidecar.
-    std::optional<uint64_t> framebuffer_allocations;
-    std::optional<double> image_draw_ms;
-    std::optional<uint64_t> image_draw_count;
-    CacheMetrics cache;
-    TextMetrics text;
-    EncoderMetrics encoder;
-    GpuMetrics gpu;
-    chronon3d::runtime::RenderPreparationTimings prepare;
-    // Target output frame rate, used to derive the per-frame budget and the
-    // over-budget count in the summary.
-    std::optional<int> target_fps;
-};
+using chronon3d::cli::pipe_timing::JobTimings;
 
 void write_frame_timing_sidecar(
     const std::string& video_path,
@@ -492,6 +338,8 @@ void write_frame_timing_sidecar(
     put_gpu_u64("frame_slot_wait_us", timings.gpu.frame_slot_wait_us);
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
+    put_gpu_u64("gpu_upload_full_surface_bytes", timings.gpu.gpu_upload_full_surface_bytes);
+    put_gpu_u64("gpu_upload_region_bytes", timings.gpu.gpu_upload_region_bytes);
     put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
     put_gpu_u64("passes_executed", timings.gpu.passes_executed);
     put_gpu_u64("gpu_nodes", timings.gpu.gpu_nodes);
@@ -665,6 +513,13 @@ void write_frame_timing_sidecar(
         memory["framebuffer_allocations"] = nullptr;
         memory["framebuffer_allocations_per_frame"] = nullptr;
     }
+    memory["framebuffer_alloc_text"] = timings.framebuffer_alloc_text.value_or(0);
+    memory["framebuffer_alloc_effect"] = timings.framebuffer_alloc_effect.value_or(0);
+    memory["framebuffer_alloc_glow"] = timings.framebuffer_alloc_glow.value_or(0);
+    memory["framebuffer_alloc_video"] = timings.framebuffer_alloc_video.value_or(0);
+    memory["framebuffer_alloc_graph"] = timings.framebuffer_alloc_graph.value_or(0);
+    memory["framebuffer_alloc_scratch"] = timings.framebuffer_alloc_scratch.value_or(0);
+    memory["framebuffer_alloc_unknown"] = timings.framebuffer_alloc_unknown.value_or(0);
 
     const auto sidecar = std::filesystem::path(video_path).string() + ".timing.json";
     std::ofstream file(sidecar);
@@ -853,6 +708,13 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cache.gpu_asset_cache_misses = c->gpu_asset_cache_misses.load(std::memory_order_relaxed);
         timings.framebuffer_allocations =
             c->framebuffer_allocations.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_text = c->framebuffer_alloc_text.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_effect = c->framebuffer_alloc_effect.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_glow = c->framebuffer_alloc_glow.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_video = c->framebuffer_alloc_video.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_graph = c->framebuffer_alloc_graph.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_scratch = c->framebuffer_alloc_scratch.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_unknown = c->framebuffer_alloc_unknown.load(std::memory_order_relaxed);
     }
     const auto atlas_stats = session->renderer->runtime().gpu_text_atlas_cache().stats();
     timings.text.atlas_cache_hits = atlas_stats.cache_hits;
@@ -898,6 +760,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.gpu_readback_bytes = value;
             } else if (name == "gpu_upload_bytes") {
                 timings.gpu.gpu_upload_bytes = value;
+            } else if (name == "gpu_upload_full_surface_bytes") {
+                timings.gpu.gpu_upload_full_surface_bytes = value;
+            } else if (name == "gpu_upload_region_bytes") {
+                timings.gpu.gpu_upload_region_bytes = value;
             } else if (name == "gpu_submissions") {
                 timings.gpu.gpu_submissions = value;
             } else if (name == "passes_executed") {

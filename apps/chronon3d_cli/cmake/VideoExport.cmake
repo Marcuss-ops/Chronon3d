@@ -43,25 +43,34 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 
 if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    find_path(CHRONON3D_CUDA_INCLUDE_DIR_CLI cuda.h
-        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-        PATH_SUFFIXES include
-        PATHS
-            /usr/local/lib/python3.10/dist-packages/nvidia/cu13/include
-            /tmp/velox-cuda-dev/extracted/usr/include)
-    find_library(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI cuda
-        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-        PATH_SUFFIXES lib64 lib/x64 lib
-            PATHS /usr/lib/x86_64-linux-gnu)
-    find_path(CHRONON3D_NVRTC_INCLUDE_DIR_CLI nvrtc.h
-        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-        PATH_SUFFIXES include
-        PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/include)
-    find_file(CHRONON3D_NVRTC_LIBRARY_CLI
-        NAMES libnvrtc.so.13 libnvrtc.so
-        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-        PATH_SUFFIXES lib64 lib
-        PATHS /usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib)
+    # Prefer CMake's canonical CUDA package.  The fallback is intentionally
+    # environment-driven; no host-specific Python wheel or temporary build
+    # directory belongs in the source tree.
+    find_package(CUDAToolkit QUIET)
+    if(CUDAToolkit_FOUND)
+        set(CHRONON3D_CUDA_INCLUDE_DIR_CLI "${CUDAToolkit_INCLUDE_DIRS}")
+        set(CHRONON3D_NVRTC_INCLUDE_DIR_CLI "${CUDAToolkit_INCLUDE_DIRS}")
+        set(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI CUDA::cuda_driver)
+        set(CHRONON3D_NVRTC_LIBRARY_CLI CUDA::nvrtc)
+    else()
+        find_path(CHRONON3D_CUDA_INCLUDE_DIR_CLI cuda.h
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
+                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
+            PATH_SUFFIXES include include/cuda)
+        find_library(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI cuda
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
+                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
+            PATH_SUFFIXES lib64 lib lib/x64)
+        find_path(CHRONON3D_NVRTC_INCLUDE_DIR_CLI nvrtc.h
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
+                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
+            PATH_SUFFIXES include include/cuda)
+        find_library(CHRONON3D_NVRTC_LIBRARY_CLI
+            NAMES nvrtc libnvrtc.so
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "$ENV{CUDA_ROOT}"
+                  "$ENV{CONDA_PREFIX}" "$ENV{VIRTUAL_ENV}"
+            PATH_SUFFIXES lib64 lib lib/x64)
+    endif()
     target_include_directories(chronon3d_cli_video_export PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}"
         "${CHRONON3D_NVRTC_INCLUDE_DIR_CLI}")

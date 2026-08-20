@@ -155,6 +155,13 @@ struct RenderEngine::Impl {
     // not need to expose or duplicate a second ownership protocol.
     std::mutex                state_mutex;
     std::vector<std::uint8_t> pixel_buffer;
+    // Reuse the prepared barrier for sequential render() calls on the same
+    // composition. The public convenience API must not compile, warm up and
+    // rebuild caches once per frame.
+    std::unique_ptr<chronon3d::PreparedRenderJob> prepared_job;
+    const chronon3d::Composition* prepared_composition{nullptr};
+    int prepared_width{0};
+    int prepared_height{0};
     RenderSettings             settings{};
     RenderOutput              last_output{};
     LogCallback                log_callback{};
@@ -276,8 +283,18 @@ RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
         // execution. Calling the legacy direct adapter here leaves image
         // lookup-only rendering with a placeholder and breaks multi-engine
         // asset-root isolation.
-        auto prepared = m_impl->engine.prepare(composition);
-        return prepared.render(chronon3d::Frame{frame.integral()});
+        if (!m_impl->prepared_job ||
+            m_impl->prepared_composition != &composition ||
+            m_impl->prepared_width != m_impl->settings.width ||
+            m_impl->prepared_height != m_impl->settings.height) {
+            auto prepared = m_impl->engine.prepare(composition);
+            m_impl->prepared_job = std::make_unique<chronon3d::PreparedRenderJob>(
+                std::move(prepared));
+            m_impl->prepared_composition = &composition;
+            m_impl->prepared_width = m_impl->settings.width;
+            m_impl->prepared_height = m_impl->settings.height;
+        }
+        return m_impl->prepared_job->render(chronon3d::Frame{frame.integral()});
     });
 }
 
@@ -287,6 +304,8 @@ RenderEngine::render_compiled(
     return m_impl->render_frame(frame, [&] {
         auto settings = convert_settings(m_impl->settings);
         settings.render_budget = compiled.render_budget;
+        m_impl->prepared_job.reset();
+        m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(settings);
         return m_impl->engine.render_compiled(
             compiled, chronon3d::Frame{frame.integral()});
@@ -432,6 +451,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
 
         auto settings = convert_settings(m_impl->settings);
         settings.render_budget = active_compiled->render_budget;
+        m_impl->prepared_job.reset();
+        m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(settings);
         auto framebuffer = m_impl->engine.render_compiled(
             *active_compiled, chronon3d::Frame{frame});
@@ -523,6 +544,8 @@ RenderEngine::compile_plan_json(std::string_view json) {
         settings.width = prepared.canvas.width;
         settings.height = prepared.canvas.height;
         m_impl->settings = settings;
+        m_impl->prepared_job.reset();
+        m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(convert_settings(settings));
         return std::make_shared<const chronon3d::CompiledComposition>(
             std::move(prepared.compiled_composition));
@@ -577,6 +600,8 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             settings.width = prepared.canvas.width;
             settings.height = prepared.canvas.height;
             m_impl->settings = settings;
+            m_impl->prepared_job.reset();
+            m_impl->prepared_composition = nullptr;
             m_impl->engine.set_settings(convert_settings(settings));
 
             const auto fps = prepared.canvas.fps > 0 ? prepared.canvas.fps : 30;
@@ -605,6 +630,8 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
 void RenderEngine::set_settings(const RenderSettings& settings) {
     std::lock_guard lock(m_impl->state_mutex);
     m_impl->settings = settings;
+    m_impl->prepared_job.reset();
+    m_impl->prepared_composition = nullptr;
     m_impl->engine.set_settings(convert_settings(settings));
 }
 
