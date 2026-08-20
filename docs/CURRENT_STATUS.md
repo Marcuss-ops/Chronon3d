@@ -81,7 +81,7 @@ tools/run_cuda_vulkan_external_memory_probe.sh
 > Ultimo SHA osservato: `main@dc3fb34e` (worktree locale non pulito) — build `linux-fast-dev` PASS per memory/core/text, regex focalizzato CTest PASS (21/21), architecture PASS (26/26), test registration PASS (69 suite/0 raw), doc-sync PASS e sequential graph-cache diagnostics-OFF PASS (3/3 deterministic + 14/14 scene). Same-SHA certification completa: BLOCKED dopo il run developer temporaneo; CTest non ha prodotto il JUnit richiesto dal corpus visuale (`CERTIFICATION_BLOCKED`), quindi la baseline 11/11 non è promossa.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
-> Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> Cronologia dettagliata nella git history.
 
 ## Active Blockers (top 2)
 
@@ -202,7 +202,7 @@ Indice completo dei blocker attivi: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_T
 - [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md) — piano testo
 - [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale
 - [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) — baseline verde certificata
-- [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md) — cronologia estesa (Phase A–H, gate audit pre-`7eb5c2ba`)
+- Cronologia estesa: git log
 
 ## Text Simplicity Plan (M1.8 — PLANNED)
 
