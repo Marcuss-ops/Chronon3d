@@ -29,6 +29,9 @@ RenderLoopOutput run_pipe_export_loop(
     // layer renders as an empty black framebuffer. The decoder is created
     // per render and lazily opens one session per source path.
     auto decoder = std::make_shared<NativeVideoFrameDecoder>();
+    decoder->set_counters(session.renderer->counters());
+    decoder->set_native_gpu_context(
+        &session.renderer->backend(), &session.renderer->runtime().surface_registry());
     media::MediaFrameProvider* video_decoder = decoder.get();
 
     std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
@@ -70,6 +73,10 @@ RenderLoopOutput run_pipe_export_loop(
     if (session.writer_thread.joinable()) {
         session.writer_thread.join();
     }
+    // Retire decoder-owned CUDA/Vulkan imports while the backend surfaces are
+    // still alive.  Trimming the framebuffer pool first invalidates the
+    // imported Vulkan image and makes CUDA teardown unsafe on newer drivers.
+    decoder.reset();
     if (session.renderer && session.renderer->counters()) {
         session.renderer->counters()->interop_ring_wait_count.fetch_add(
             session.interop_ring.wait_count(), std::memory_order_relaxed);

@@ -80,7 +80,10 @@ public:
         if (!decoded) {
             return ctx.acquire_owned_fb(render_w, render_h);
         }
-        return ctx.acquire_owned_fb(*decoded);
+        // Preserve the provider-owned native surface when possible. The
+        // shared_ptr overload avoids an unnecessary CPU copy for GPU-backed
+        // video frames; CPU providers retain the existing copy behavior.
+        return ctx.acquire_owned_fb(std::move(decoded));
     }
 
     const video::VideoSource& source() const { return m_source; }

@@ -91,9 +91,10 @@ public:
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
-          // Native surfaces are unique ownership attached to one framebuffer;
-          // a CPU copy must never duplicate the Vulkan handle.
-          m_surface_handle(runtime::kInvalidRenderSurfaceHandle) {
+          // Native video surfaces are registry-owned GPU resources. Copies
+          // of a read-only video source keep the logical handle so the graph
+          // does not re-upload the CPU shadow framebuffer.
+          m_surface_handle(other.m_surface_handle) {
         copy_pixels_from(other);
     }
 
@@ -333,9 +334,9 @@ private:
         m_owns_pixels = other.m_owns_pixels;
         m_content_cleared = other.m_content_cleared;
         m_key_digest = other.m_key_digest;
-        // Copying pixels does not copy native-surface ownership. A copied
-        // framebuffer must acquire/upload its own surface when needed.
-        m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
+        // Native surfaces are registry-owned and read-only at this boundary;
+        // preserve the handle across a CPU metadata/pixel copy.
+        m_surface_handle = other.m_surface_handle;
     }
 
     void copy_pixels_from(const Framebuffer& other) {

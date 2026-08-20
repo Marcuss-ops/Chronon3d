@@ -215,6 +215,9 @@ RenderLoopOutput run_pipe_export_loop(
     // source path. NativeVideoFrameDecoder compiles to a null-decoding stub
     // when CHRONON3D_ENABLE_NATIVE_FFMPEG is off.
     auto native_decoder = std::make_shared<NativeVideoFrameDecoder>();
+    native_decoder->set_counters(session.renderer->counters());
+    native_decoder->set_native_gpu_context(
+        &session.renderer->backend(), &session.renderer->runtime().surface_registry());
     media::MediaFrameProvider* video_decoder = native_decoder.get();
 
     std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
@@ -256,6 +259,9 @@ RenderLoopOutput run_pipe_export_loop(
     if (session.writer_thread.joinable()) {
         session.writer_thread.join();
     }
+    // Destroy decoder CUDA/Vulkan imports before any backend/pool cleanup.
+    // The imported image must outlive its CUDA external memory bridge.
+    native_decoder.reset();
     if (session.renderer && session.renderer->counters()) {
         session.renderer->counters()->interop_ring_wait_count.fetch_add(
             session.interop_ring.wait_count(), std::memory_order_relaxed);

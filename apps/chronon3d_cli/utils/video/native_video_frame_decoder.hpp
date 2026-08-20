@@ -15,6 +15,13 @@
 #pragma once
 
 #include <chronon3d/media/frame_source_provider.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include "cuda_nv12_surface_compositor.hpp"
+#endif
 
 #include <map>
 #include <memory>
@@ -26,6 +33,7 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <libavutil/hwcontext.h>
 #include <libswscale/swscale.h>
 }
 #endif
@@ -35,9 +43,17 @@ namespace chronon3d::cli {
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
 class NativeVideoFrameDecoder final : public media::MediaFrameProvider {
+    struct Session;
 public:
     NativeVideoFrameDecoder() = default;
     ~NativeVideoFrameDecoder() override;
+
+    void set_counters(RenderCounters* counters) override { m_counters = counters; }
+    void set_native_gpu_context(
+        graph::RenderBackend* backend, runtime::RenderSurfaceRegistry* registry) override {
+        m_backend = backend;
+        m_surface_registry = registry;
+    }
 
     /// Decode one frame from `path` at the given source frame index and pack
     /// it into a renderer Framebuffer at the source's native resolution
@@ -51,10 +67,15 @@ public:
         int height,
         float fps) override;
 
+    std::shared_ptr<Framebuffer> try_native_frame(
+        const std::shared_ptr<Session>& session, AVFrame* frame);
+
 private:
     struct Session {
         AVFormatContext* fmt{nullptr};
         AVCodecContext* codec{nullptr};
+        AVBufferRef* hw_device_ctx{nullptr};
+        AVFrame* hw_transfer_frame{nullptr};
         SwsContext* sws{nullptr};
         int stream_index{-1};
         int64_t last_target{-1};
@@ -62,11 +83,18 @@ private:
         // Bounded decoded-frame cache keyed by source frame index (map is
         // ordered, so eviction drops the oldest entry first).
         std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
+        std::unique_ptr<CudaNv12SurfaceCompositor> native_compositor;
+#endif
 
         ~Session();
     };
 
     std::mutex m_mutex;
+    RenderCounters* m_counters{nullptr};
+    graph::RenderBackend* m_backend{nullptr};
+    runtime::RenderSurfaceRegistry* m_surface_registry{nullptr};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 
     std::shared_ptr<Session> open_session_locked(const std::string& path);

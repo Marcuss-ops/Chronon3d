@@ -27,6 +27,8 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 
+#include <chrono>
+
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include "scene_context_setup.hpp"        // Azione 19 — Phase 0 helper
@@ -235,11 +237,23 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 const Color* row = src + y * static_cast<std::size_t>(framebuffer->stride());
                 std::memcpy(rgba.data() + y * width * 4, row, width * sizeof(Color));
             }
-            runtime::UploadTicket upload_ticket;
-            if (!backend.upload_surface_async(handle, desc, rgba, upload_ticket).ok()) {
+            const auto upload_start = std::chrono::steady_clock::now();
+            if (!backend.upload_surface(handle, desc, rgba).ok()) {
                 (void)backend.release_surface(handle);
                 (void)ctx.services.surface_registry->release(handle);
                 return runtime::kInvalidRenderSurfaceHandle;
+            }
+            const auto upload_ms = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - upload_start).count() / 1000;
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->video_surface_upload_count.fetch_add(
+                    1, std::memory_order_relaxed);
+                ctx.node_exec.counters->video_surface_upload_bytes.fetch_add(
+                    static_cast<std::uint64_t>(rgba.size() * sizeof(float)),
+                    std::memory_order_relaxed);
+                ctx.node_exec.counters->video_surface_upload_wall_ms.fetch_add(
+                    static_cast<std::uint64_t>(upload_ms),
+                    std::memory_order_relaxed);
             }
             framebuffer->set_surface_handle(handle);
             return handle;
