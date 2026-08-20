@@ -199,6 +199,7 @@ public:
     [[nodiscard]] bool is_native_surface_valid(
         runtime::RenderSurfaceHandle) const noexcept override;
     void release_frame_transient_surfaces() noexcept override;
+    void retire_frame_transient_surfaces() noexcept override;
     graph::RenderOpResult upload_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
         std::span<const float>) override;
