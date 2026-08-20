@@ -33,7 +33,6 @@ Commands:
   ctest [filter]      Run ctest with filter (default: core|scene|cli)
   content             Build with linux-content-dev (CLI + content + video ON, no telemetry)
   video-dev           Build the real Vulkan + CUDA interop + native FFmpeg video path
-  dashboard           Build with linux-dashboard-dev (CLI + content + telemetry + diagnostics)
   turbo               Ultra-fast Debug build (CLI only, no tests/content)
   turbo-inc <group>   Incremental rebuild of CLI group + relink
     Groups: dev | render | video | telemetry | bench | core
@@ -259,23 +258,6 @@ case "${TARGET}" in
         echo "╚══════════════════════════════════════════╝"
         cmake --build "$VIDEO_BUILD_DIR" --target chronon3d_cli -j "$JOBS"
         echo "✅ Video GPU build done."
-        ;;
-    dashboard)
-        # ./build-fast.sh dashboard —  engine + content + telemetry + diagnostics
-        DASH_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-dashboard-dev}"
-        DASH_PRESET="linux-dashboard-dev"
-        dash_symlink="$ROOT_DIR/build/chronon/linux-dashboard-dev"
-        mkdir -p "$DASH_BUILD_DIR"
-        mkdir -p "$(dirname "$dash_symlink")"
-        ln -sfnT "$DASH_BUILD_DIR" "$dash_symlink"
-        if [[ ! -f "$DASH_BUILD_DIR/build.ninja" ]]; then
-            cmake --preset "$DASH_PRESET" -B "$dash_symlink"
-        fi
-        echo "╔══════════════════════════════════════════╗"
-        echo "║  📊 DASHBOARD build: content + telemetry ║"
-        echo "╚══════════════════════════════════════════╝"
-        cmake --build "$DASH_BUILD_DIR" --target chronon3d_dev_fast -j "$JOBS"
-        echo "✅ Dashboard build done."
         ;;
     turbo)
         # ./build-fast.sh turbo  —  absolute fastest build (Debug, no tests, no content, unity batch 32)
