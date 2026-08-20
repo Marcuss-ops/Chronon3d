@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = PROJECT_ROOT / "test_renders" / "golden"
 
-# Both databases that the servers read from:
+# Both telemetry databases that tooling reads from:
 DB_PATHS = [
-    PROJECT_ROOT / "output" / "telemetry.db",                           # used by dashboard_server.py (port 8080)
-    Path.home() / ".chronon3d" / "telemetry" / "chronon3d_render_history.sqlite",  # used by flask_app.py (port 8000)
+    PROJECT_ROOT / "output" / "telemetry.db",
+    Path.home() / ".chronon3d" / "telemetry" / "chronon3d_render_history.sqlite",
 ]
 
 if not GOLDEN_DIR.exists():

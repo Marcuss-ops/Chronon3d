@@ -107,11 +107,6 @@ tools/_*.py
 *.zip
 *.pdb
 
-# ── Dashboard frontend ──────────────────────────────────────────────────────
-tools/telemetry_dashboard/frontend/dist/
-tools/telemetry_dashboard/frontend/node_modules/
-tools/telemetry_dashboard/.vite/
-
 # ── Misc (local binaries, scratch) ───────────────────────────────────────────
 bin/
 lib/

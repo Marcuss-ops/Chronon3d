@@ -4,7 +4,6 @@
 # Channel:                   TikTok (ForYou feed + square / 9:16 vertical video)
 # Companion:                 TICKET-PILOT-TT-7D-SETUP row in docs/FOLLOWUP_TICKETS.md §Recently Closed
 # Forward-points (NOT this commit, per "Fare PR piccole e mirate"):
-#   - TICKET-PILOT-TT-DASHBOARD-WIREUP: /api/pilot/tiktok endpoint in flask_app.py
 #   - TICKET-PILOT-TT-OAUTH: OAuth credential storage + auto-post mode (Cat-3 gated)
 #   - Macchina-verifica of the 7-day execution: working build host per AGENTS.md §honesty §13 honest-limitation
 # ─────────────────────────────────────────────────────────────────────────────
@@ -96,10 +95,6 @@ pilot:
       any_of:
         - "video_posted < 3"
         - "bugs >= 5"  # catastrophic envelope
-  dashboard:
-    forward_point: "/api/pilot/tiktok endpoint deferred per TICKET-PILOT-TT-DASHBOARD-WIREUP"
-    ad_hoc_summary: "python3 tools/pilot_metrics.py --log ~/.chronon3d/pilot/tiktok/pilot.jsonl --table"
-    format_options: ["--table", "--json", "--row"]
   race_loop_audit:
     sibling_test_id: "Test #16"  # IG pilot setup precedent
     sibling_ticket: "TICKET-PILOT-IG-7D-RECOVERY (per docs/FOLLOWUP_TICKETS.md)"

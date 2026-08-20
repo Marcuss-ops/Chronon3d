@@ -104,8 +104,3 @@ posting:
     - "post timestamp in pilot.jsonl via: `bash tools/run_pilot.sh log <slug> video_posted=true`"
     - "discard timestamp in pilot.jsonl via: `bash tools/run_pilot.sh log <slug> discarded=true`"
 
-# ── Dashboard wiring (forward-point — see docs/pilots/2026-07-12-pilot-instagram.md §Dashboard wiring)
-dashboard:
-  url: http://localhost:5005            # canonical dev dashboard port (per docs/TELEMETRY_DASHBOARD.md §11)
-  endpoint_wireup_status: planned       # ¬ yet (forward-point TICKET-PILOT-IG-DASHBOARD-WIREUP)
-  one_off_summary_command: "python3 tools/pilot_metrics.py --json"

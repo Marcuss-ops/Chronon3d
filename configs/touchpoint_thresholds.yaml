@@ -100,25 +100,6 @@ event_schema:
 dedup_key: "(run_id, op)"
 dedup_strategy: "keep first; ignore subsequent"
 
-# ── Dashboard panel endpoint (extension of /api/runs pattern) ──────────
-# Per AGENTS.md "non introdurre GUI ... nel core headless CPU-first":
-# the dashboard panel is OPTIONAL telemetry surfacing, NOT GUI; it re-exports
-# the gate's verdict shape via Flask. Host = telemetry-dashboard backend.
-dashboard:
-  endpoint: "/api/pilot/manual_touches"
-  method: "GET"
-  query_params:
-    phase: "one of oggi|fase1|fase2|finale (default: returns all phases)"
-    since: "ISO 8601 datetime; events.ts >= since"
-  response_shape:
-    phase_totals:
-      phase_id: "string"
-      max_allowed: "int"
-      actual: "int (de-duplicated counts)"
-      status: "PASS | FAIL | NO-DATA"
-    per_op: "dict<op → count across all filtered events>"
-    violating_ops: "list<op> where actual > max_allowed"
-
 # ─────────────────────────────────────────────────────────────────────────
 # perf_regression_gate — automatic perf-regression gate (F1.6 / TICKET-PERF-GATE-V1)
 # ─────────────────────────────────────────────────────────────────────────
