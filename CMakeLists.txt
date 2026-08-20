@@ -282,40 +282,6 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
-# ── Experimental subsystems gate ─────────────────────────────────────────────
-# Experimental work (e.g. expressions/v2) lives under experimental/ and is NOT
-# installed, NOT exported in Chronon3D::SDK, NOT built by default. Opt in with
-# -DCHRONON3D_BUILD_EXPERIMENTAL=ON. Promotion criteria for individual
-# experiments are documented in docs/EXPRESSIONS_V2_PROMOTION.md (and similar
-# files for any future experimental subsystems).
-#
-# The legacy CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2 flag is now strictly
-# OBSOLETE: we keep the option() declaration as a cmake-cache-key compatibility
-# no-op so existing forks / CI that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON
-# do not break their configuration step, but it has NO effect on the build. The
-# actual gate is CHRONON3D_BUILD_EXPERIMENTAL.
-option(CHRONON3D_BUILD_EXPERIMENTAL
-    "Build experimental subsystems (e.g. expressions/v2). OFF by default: experiments are NOT installed, NOT exported in the SDK, NOT tested in CI unless this flag is set. See docs/EXPRESSIONS_V2_PROMOTION.md for promotion criteria."
-    OFF)
-
-# Deprecated option kept for cmake-cache-key compat with forks / CI scripts
-# that still pass -DCHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2=ON. The
-# if() below is an empty touch so cmake does not emit "unused cache variable"
-# warnings. The OBSOLETE option has NO EFFECT on the build — the actual gate
-# is CHRONON3D_BUILD_EXPERIMENTAL above.
-option(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2
-    "[OBSOLETE] Retired in favor of CHRONON3D_BUILD_EXPERIMENTAL. Configure with no effect."
-    OFF)
-if(CHRONON3D_ENABLE_EXPERIMENTAL_EXPRESSIONS_V2)
-    # OBSOLETE no-op touch: read the option once so cmake does NOT emit
-    # "unused cache variable" warnings when forks / CI pass -D...=ON.
-    # No-op: use CHRONON3D_BUILD_EXPERIMENTAL=ON instead.
-endif()
-
-if(CHRONON3D_BUILD_EXPERIMENTAL AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/experimental/expressions/CMakeLists.txt")
-    add_subdirectory(experimental/expressions)
-endif()
-
 # ── SDK Install / Export ─────────────────────────────────────────────────────
 # Moved to `cmake/Chronon3DSdkInstall.cmake` so this root CMakeLists.txt
 # stays a thin orchestrator.  The module derives the install + export
