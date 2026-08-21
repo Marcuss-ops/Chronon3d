@@ -16,6 +16,14 @@ namespace chronon3d::cli::telemetry {
 inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counters(const chronon3d::RenderCounters& counters) {
     std::vector<chronon3d::telemetry::CounterTelemetryRecord> result = {
         {"pixels_touched", counters.pixels_touched.load(std::memory_order_relaxed)},
+        {"producer_surface_pixels", counters.producer_surface_pixels.load(std::memory_order_relaxed)},
+        {"producer_canvas_pixels", counters.producer_canvas_pixels.load(std::memory_order_relaxed)},
+        {"tight_surface_count", counters.tight_surface_count.load(std::memory_order_relaxed)},
+        {"full_canvas_overlay_count", counters.full_canvas_overlay_count.load(std::memory_order_relaxed)},
+        {"producer_tight_text_count", counters.producer_tight_text_count.load(std::memory_order_relaxed)},
+        {"producer_tight_image_count", counters.producer_tight_image_count.load(std::memory_order_relaxed)},
+        {"producer_full_frame_text_count", counters.producer_full_frame_text_count.load(std::memory_order_relaxed)},
+        {"producer_full_frame_image_count", counters.producer_full_frame_image_count.load(std::memory_order_relaxed)},
         {"cache_hits", counters.cache_hits.load(std::memory_order_relaxed)},
         {"cache_misses", counters.cache_misses.load(std::memory_order_relaxed)},
         {"node_cache_hits", counters.node_cache_hits.load(std::memory_order_relaxed)},
