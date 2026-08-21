@@ -3,6 +3,10 @@ set(CHRONON3D_TEST_DEFINITIONS
     mesh_disabled_gate.cmake
     backends_software_tests.cmake
     debug/CMakeLists.txt
+    # Architecture include-graph + asset/backend hygiene gates (Python guards
+    # + script linting). Dropped from registration by the slim top-level
+    # orchestrator refactor (fd776350) and re-wired here.
+    architecture_tests.cmake
     core_tests.cmake
     backend_registry_tests.cmake
     memory_tests.cmake

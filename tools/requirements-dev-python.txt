@@ -1,2 +1,0 @@
-# Python-only developer tools used by local validation.
-cmakelang==0.6.13

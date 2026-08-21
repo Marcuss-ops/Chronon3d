@@ -10,14 +10,10 @@
 # CMAKE_CONFIGURE_DEPENDS so Ninja / Make re-run cmake when this file
 # is touched.
 
-set(_ANIMATION_HELPERS_TEST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/animations/test_animation_helpers.cpp
-)
-
 chronon3d_add_test_suite(
     NAME chronon3d_animation_helpers_tests
     TIER UNIT
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/animations/test_animation_helpers.cpp
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/animation/test_animation_helpers.cpp
 )
 
 # Wire into the FAST test aggregator (pure math harness, no rendering

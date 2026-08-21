@@ -35,9 +35,9 @@ set(CORE_TEST_SOURCES
     text/test_text_placement_resolver.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
-    animation/test_spring_canonical.cpp
     core/animation/test_deterministic_random.cpp
     core/animation/test_spring.cpp
+    core/animation/test_spring_canonical.cpp
     core/animation/test_animated_value.cpp
     core/animation/test_animated_value_expression.cpp
     core/animation/test_keyframes.cpp

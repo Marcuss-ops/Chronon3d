@@ -175,7 +175,13 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
     });
     auto fb_multi = renderer.render(comp_multi, 0);
     REQUIRE(fb_multi != nullptr);
-    verify_golden_or_create(*fb_multi, "gradient-multi-stop.png");
+    // Both gradient scenes (linear + multi-stop) are positioned off-canvas
+    // (rect center at {-256,-64} on a 512x128 canvas), so their rendered
+    // output is empty and the goldens were byte-identical (same SHA).
+    // Consolidated onto the single gradient-linear.png baseline; see the
+    // per-pixel Multi-Stop Precision Checks SUBCASE for real multi-stop
+    // coverage on-canvas.
+    verify_golden_or_create(*fb_multi, "gradient-linear.png");
 
     // Scene 4: Stroke Dash / Cap / Join
     Composition comp_stroke(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {

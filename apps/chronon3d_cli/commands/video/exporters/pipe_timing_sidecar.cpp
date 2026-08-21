@@ -497,6 +497,23 @@ void write_frame_timing_sidecar(
     // Framebuffer allocation rate (the only per-frame allocation event rate
     // the engine measures). Emitted as null when the counter is unavailable
     // rather than inventing a heap-allocator estimate.
+    auto& hardware = job["hardware"];
+    const auto put_hardware = [&hardware](const char* key, const std::optional<double>& value) {
+        if (value) hardware[key] = *value; else hardware[key] = nullptr;
+    };
+    const auto put_hardware_u64 = [&hardware](const char* key, const std::optional<uint64_t>& value) {
+        if (value) hardware[key] = *value; else hardware[key] = nullptr;
+    };
+    put_hardware("gpu_utilization_avg", timings.hardware.gpu_utilization_avg);
+    put_hardware("gpu_utilization_peak", timings.hardware.gpu_utilization_peak);
+    put_hardware("nvdec_utilization_avg", timings.hardware.nvdec_utilization_avg);
+    put_hardware("nvdec_utilization_peak", timings.hardware.nvdec_utilization_peak);
+    put_hardware("nvenc_utilization_avg", timings.hardware.nvenc_utilization_avg);
+    put_hardware("nvenc_utilization_peak", timings.hardware.nvenc_utilization_peak);
+    put_hardware("memory_utilization_avg", timings.hardware.memory_utilization_avg);
+    put_hardware_u64("vram_used_peak_mb", timings.hardware.vram_used_peak_mb);
+    put_hardware_u64("vram_total_mb", timings.hardware.vram_total_mb);
+
     auto& memory = out["memory"];
     if (timings.framebuffer_allocations) {
         memory["framebuffer_allocations"] = *timings.framebuffer_allocations;

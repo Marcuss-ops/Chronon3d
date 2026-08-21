@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// tests/animation/test_spring_canonical.cpp — golden-test for spring
+// tests/core/animation/test_spring_canonical.cpp — golden-test for spring
 // post-unification (TICKET-ANIM-SPRING-UNIFY forward-point).
 //
 // Coverage (5 areas locked):

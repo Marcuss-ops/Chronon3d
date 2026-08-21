@@ -113,6 +113,18 @@ struct GpuMetrics {
     std::optional<std::uint64_t> encoder_staging_copy_bytes;
 };
 
+struct HardwareMetrics {
+    std::optional<double> gpu_utilization_avg;
+    std::optional<double> gpu_utilization_peak;
+    std::optional<double> nvdec_utilization_avg;
+    std::optional<double> nvdec_utilization_peak;
+    std::optional<double> nvenc_utilization_avg;
+    std::optional<double> nvenc_utilization_peak;
+    std::optional<double> memory_utilization_avg;
+    std::optional<std::uint64_t> vram_used_peak_mb;
+    std::optional<std::uint64_t> vram_total_mb;
+};
+
 struct JobTimings {
     std::optional<double> process_wall_ms;
     std::optional<double> job_wall_ms;
@@ -145,6 +157,7 @@ struct JobTimings {
     TextMetrics text;
     EncoderMetrics encoder;
     GpuMetrics gpu;
+    HardwareMetrics hardware;
     chronon3d::runtime::RenderPreparationTimings prepare;
     std::optional<int> target_fps;
 };

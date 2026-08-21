@@ -24,10 +24,14 @@
 #endif
 
 #include <array>
+#include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -69,24 +73,36 @@ public:
         float fps) override;
 
     std::shared_ptr<Framebuffer> try_native_frame(
-        const std::shared_ptr<Session>& session, AVFrame* frame);
+        Session& session, AVFrame* frame);
 
 private:
     struct Session {
-        // FFmpeg contexts are stateful per source. Keep contention local to
-        // this session; the decoder-wide mutex only protects the session map.
         std::mutex mutex;
+        std::mutex decode_mutex;
         AVFormatContext* fmt{nullptr};
         AVCodecContext* codec{nullptr};
         AVBufferRef* hw_device_ctx{nullptr};
         AVFrame* hw_transfer_frame{nullptr};
+        AVFrame* decoded{nullptr};
+        AVFrame* closest_frame{nullptr};
+        AVPacket* packet{nullptr};
         SwsContext* sws{nullptr};
         int stream_index{-1};
         int64_t last_target{-1};
         std::vector<uint8_t> rgba;
-        // Bounded decoded-frame cache keyed by source frame index (map is
-        // ordered, so eviction drops the oldest entry first).
         std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
+
+        static constexpr std::size_t kPrefetchCapacity = 4;
+        struct PrefetchedFrame {
+            int64_t target{-1};
+            std::shared_ptr<Framebuffer> framebuffer;
+        };
+        std::deque<PrefetchedFrame> prefetch_queue;
+        std::condition_variable prefetch_cv;
+        std::atomic<bool> prefetch_stop{false};
+        std::thread prefetch_worker;
+        int64_t prefetch_next{-1};
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         static constexpr std::size_t kNativeDecodeSlots = 4;
         struct NativeDecodeSlot {
@@ -95,14 +111,12 @@ private:
         };
         std::array<NativeDecodeSlot, kNativeDecodeSlots> native_slots;
         std::size_t next_native_slot{0};
-        // The decoder owns the persistent native surfaces independently from
-        // any Framebuffer wrapper returned to the graph.  Keep the release
-        // endpoints on the session so teardown is symmetric with creation.
         graph::RenderBackend* native_backend{nullptr};
         runtime::RenderSurfaceRegistry* native_surface_registry{nullptr};
 #endif
 
         ~Session();
+        void start_prefetch_worker(NativeVideoFrameDecoder* decoder);
     };
 
     std::mutex m_mutex;
@@ -110,6 +124,9 @@ private:
     graph::RenderBackend* m_backend{nullptr};
     runtime::RenderSurfaceRegistry* m_surface_registry{nullptr};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
+
+    std::shared_ptr<Framebuffer> decode_frame_internal(
+        Session& session, int64_t target);
 
     std::shared_ptr<Session> open_session_locked(const std::string& path);
 };
