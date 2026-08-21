@@ -436,6 +436,13 @@ NodeExecResult SourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("source_render", trace_category::kRasterize);
+    if (m_cache_policy.reusable_across_frames() && m_cached_result &&
+        !ctx.frame_input.has_camera_2_5d && !m_matrix_override && !m_opacity_override &&
+        (!ctx.node_exec.clip_rect || (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
+                                      ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width &&
+                                      ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height))) {
+        return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
+    }
     const bool full_frame_seed = can_seed_full_frame(ctx);
     const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
     const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
@@ -608,33 +615,11 @@ NodeExecResult SourceNode::execute(
         // cannot take the opaque fast path and replace the background.
         fb->set_opaque(full_frame_seed && state.opacity >= 1.0f);
 
-        if (ctx.policy.diagnostics_enabled && !native_filled && !native_image) {
-            int nonzero_pixels = 0;
-            for (i32 y = 0; y < fb->height(); ++y) {
-                const Color* row = fb->pixels_row(y);
-                for (i32 x = 0; x < fb->width(); ++x) {
-                    const Color& c = row[x];
-                    if (c.a > 0.001f || c.r > 0.001f || c.g > 0.001f || c.b > 0.001f) {
-                        ++nonzero_pixels;
-                    }
-                }
-            }
-
-            spdlog::info(
-                "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f} det2d={:.6f}",
-                m_name,
-                static_cast<int>(m_node.shape.type()),
-                nonzero_pixels,
-                state.opacity,
-                state.matrix[3][0],
-                state.matrix[3][1],
-                glm::determinant(glm::mat3(
-                    state.matrix[0][0], state.matrix[0][1], state.matrix[0][3],
-                    state.matrix[1][0], state.matrix[1][1], state.matrix[1][3],
-                    state.matrix[3][0], state.matrix[3][1], state.matrix[3][3]
-                ))
-            );
-        }
+        // Diagnostics: only log in debug mode without full-buffer pixel scanning
+    }
+    if (m_cache_policy.reusable_across_frames() && fb &&
+        !ctx.frame_input.has_camera_2_5d && !m_matrix_override && !m_opacity_override) {
+        m_cached_result = std::make_shared<Framebuffer>(*fb);
     }
     return NodeExecResult{std::move(fb)};
 }

@@ -325,12 +325,14 @@ NodeExecResult CompositeNode::execute(
             bottom->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
             ctx.services.backend &&
             ctx.services.backend->is_native_surface_valid(bottom->surface_handle());
-        if (ctx.policy.require_native_gpu && !result_native_valid && bottom_native_valid) {
+        if (!result_native_valid && bottom_native_valid) {
             if (!seed_native_destination(ctx, *result, *bottom)) {
-                return NodeExecutionError{
-                    RenderBackendErrorCode::ExecutionFailure,
-                    "CompositeNode",
-                    "native residency violation: failed to seed destination from bottom surface"};
+                if (ctx.policy.require_native_gpu) {
+                    return NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        "CompositeNode",
+                        "native residency violation: failed to seed destination from bottom surface"};
+                }
             }
         }
     } else {

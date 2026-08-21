@@ -239,6 +239,12 @@ namespace chronon3d {
     X(graph_execute_wall_ms) \
     X(graph_total_wall_ms) \
     X(timeline_eval_wall_ms) \
+    X(graph_resolve_layers_wall_us) \
+    X(graph_dirty_rect_wall_us) \
+    X(graph_build_wall_us) \
+    X(graph_execute_wall_us) \
+    X(graph_total_wall_us) \
+    X(timeline_eval_wall_us) \
     X(pixel_fusion_passes_before) \
     X(pixel_fusion_passes_after) \
     X(pixel_fusion_bytes_saved) \
@@ -253,16 +259,33 @@ namespace chronon3d {
     X(node_dispatch_wall_ms) \
     X(node_execute_actual_wall_ms) \
     X(node_overhead_wall_ms) \
+    X(compiled_graph_refresh_wall_us) \
+    X(cache_eval_wall_us) \
+    X(dirty_eval_wall_us) \
+    X(input_resolve_wall_us) \
+    X(framebuffer_lifetime_wall_us) \
+    X(node_schedule_wall_us) \
+    X(node_dispatch_wall_us) \
+    X(node_execute_actual_wall_us) \
+    X(node_overhead_wall_us) \
     X(level_parallel_count) \
     X(level_sequential_count) \
     X(telemetry_emit_wall_ms) \
     X(predicted_bbox_wall_ms) \
     X(clone_context_wall_ms) \
     X(state_assign_wall_ms) \
+    X(telemetry_emit_wall_us) \
+    X(predicted_bbox_wall_us) \
+    X(clone_context_wall_us) \
+    X(state_assign_wall_us) \
     X(bypass_not_cacheable_count) \
     X(nodes_skipped) \
     X(framebuffer_acquire_wall_ms) \
     X(framebuffer_clear_wall_ms) \
+    X(framebuffer_acquire_wall_us) \
+    X(framebuffer_clear_wall_us) \
+    X(graph_reused_frames) \
+    X(fast_path_reused_frames) \
     X(graph_executed_frames) \
     X(graph_skipped_frames) \
     X(graph_executed_wall_ms_sum) \
@@ -275,6 +298,9 @@ namespace chronon3d {
     X(video_decode_hw_transfer_frames) \
     X(video_decode_software_frames) \
     X(video_decode_native_fallback_frames) \
+    X(video_source_requested_frames) \
+    X(video_source_inactive_frames) \
+    X(video_source_repeated_frames) \
     X(video_decode_hw_transfer_wall_ms) \
     X(video_decode_cache_hits) \
     X(video_decode_cache_misses) \

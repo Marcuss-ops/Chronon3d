@@ -114,6 +114,33 @@ void LevelTimings::roll_up(RenderCounters& counters,
 
     counters.node_overhead_wall_ms.fetch_add(
         static_cast<uint64_t>(std::llround(overhead_ms)), std::memory_order_relaxed);
+
+    // Microsecond-precision counters to avoid sub-millisecond truncation
+    counters.input_resolve_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(input_ms * 1000.0)), std::memory_order_relaxed);
+    counters.node_schedule_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(schedule_ms * 1000.0)), std::memory_order_relaxed);
+    counters.node_dispatch_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(dispatch_ms * 1000.0)), std::memory_order_relaxed);
+    counters.framebuffer_lifetime_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(framebuffer_ms * 1000.0)), std::memory_order_relaxed);
+
+    counters.cache_eval_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(cache_sum * 1000.0)), std::memory_order_relaxed);
+    counters.dirty_eval_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(dirty_sum * 1000.0)), std::memory_order_relaxed);
+    counters.telemetry_emit_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(telemetry_sum * 1000.0)), std::memory_order_relaxed);
+    counters.node_execute_actual_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(execute_sum * 1000.0)), std::memory_order_relaxed);
+    counters.predicted_bbox_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(pred_bbox_sum * 1000.0)), std::memory_order_relaxed);
+    counters.clone_context_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(clone_ctx_sum * 1000.0)), std::memory_order_relaxed);
+    counters.state_assign_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(state_sum * 1000.0)), std::memory_order_relaxed);
+    counters.node_overhead_wall_us.fetch_add(
+        static_cast<uint64_t>(std::llround(overhead_ms * 1000.0)), std::memory_order_relaxed);
 }
 
 } // namespace chronon3d::graph

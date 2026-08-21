@@ -330,12 +330,9 @@
                 const auto slot = binding->second;
                 surface_bindings.erase(binding);
                 unplanned_surface_handles.erase(handle);
-                if (!slot_in_use(slot)) {
-                    const auto it = physical_surfaces.find(slot);
-                    if (it != physical_surfaces.end()) {
-                        destroy_image(it->second.image);
-                        physical_surfaces.erase(it);
-                    }
+                const auto it = physical_surfaces.find(slot);
+                if (it != physical_surfaces.end()) {
+                    it->second.image.initialized = false;
                 }
                 ++stats.surface_releases;
             }

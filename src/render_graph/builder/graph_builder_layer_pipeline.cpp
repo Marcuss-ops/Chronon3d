@@ -82,7 +82,7 @@ GraphNodeId build_layer_output_node(
 
     if (!ctx.policy.skip_initial_clear && layer_output != k_invalid_node) {
         const bool simple_opaque_full_frame_layer =
-            (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text) &&
+            (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text || layer.kind == LayerKind::Video) &&
             layer.nodes.size() == 1 &&
             layer.mask.type == MaskType::None &&
             layer.effects().empty() &&
@@ -91,8 +91,7 @@ GraphNodeId build_layer_output_node(
             (layer.transition_in.transition_id.empty() || layer.transition_in.transition_id == "none") &&
             (layer.transition_out.transition_id.empty() || layer.transition_out.transition_id == "none");
 
-        const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(layer_output));
-        const bool can_seed = source_node && source_node->can_seed_full_frame(ctx);
+        const bool can_seed = graph.node(layer_output).can_seed_full_frame(ctx);
 
         if (simple_opaque_full_frame_layer && can_seed) {
             ctx.policy.skip_initial_clear = true;
