@@ -90,7 +90,7 @@ void execute_translate_memcpy(
     i32 x0, i32 x1, i32 y0, i32 y1,
     i32 itx, i32 ity, f32 opacity)
 {
-    CHRONON_ZONE_C("transform_fast_translate", trace_category::kRasterize);
+    CHRONON_TRACE_SCOPE("chronon.node", "transform_fast_translate");
 
     const i32 row_pixels = (x1 - x0);
     const size_t row_bytes = static_cast<size_t>(row_pixels) * sizeof(Color);

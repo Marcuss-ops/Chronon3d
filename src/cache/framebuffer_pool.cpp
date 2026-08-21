@@ -193,7 +193,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
 }
 
 std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool, bool clear) {
-    CHRONON_ZONE_C("framebuffer_acquire", trace_category::kPipeline);
+    CHRONON_TRACE_SCOPE("chronon.pipeline", "framebuffer_acquire");
     if (!pool) {
         return acquire(width, height, clear);
     }
@@ -300,7 +300,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_shared(int width, int heig
 // ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::release(Framebuffer* fb) {
-    CHRONON_ZONE_C("framebuffer_release", trace_category::kPipeline);
+    CHRONON_TRACE_SCOPE("chronon.pipeline", "framebuffer_release");
     if (!fb) return;
 
     if (m_native_surface_releaser) {

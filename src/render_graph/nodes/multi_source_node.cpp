@@ -223,7 +223,7 @@ NodeExecResult MultiSourceNode::execute(
     std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
 ) {
-    CHRONON_ZONE_C("multi_source_render", trace_category::kRasterize);
+    CHRONON_TRACE_SCOPE("chronon.node", "multi_source_render");
 
     // Fase A4 — null backend is a hard error (matches TextRunNode contract).
     if (!ctx.services.backend) {

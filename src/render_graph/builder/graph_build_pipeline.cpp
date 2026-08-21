@@ -28,7 +28,7 @@ void GraphBuildPipeline::add_default_passes() {
 }
 
 RenderGraph GraphBuildPipeline::build(const Scene& scene, RenderGraphContext& ctx) {
-    CHRONON_ZONE_C("GraphBuildPipeline::build", trace_category::kGraph);
+    CHRONON_TRACE_SCOPE("chronon.graph", "GraphBuildPipeline::build");
 
     RenderGraph graph;
     GraphBuildContext build_ctx;
@@ -49,7 +49,7 @@ RenderGraph GraphBuildPipeline::build_with_resolved(
     const Scene& scene, RenderGraphContext& ctx,
     const GraphBuildContext::ResolvedData& resolved)
 {
-    CHRONON_ZONE_C("GraphBuildPipeline::build_with_resolved", trace_category::kGraph);
+    CHRONON_TRACE_SCOPE("chronon.graph", "GraphBuildPipeline::build_with_resolved");
 
     RenderGraph graph;
     GraphBuildContext build_ctx;
@@ -70,7 +70,10 @@ RenderGraph GraphBuildPipeline::build_with_resolved(
 RenderGraph GraphBuildPipeline::run_passes(GraphBuildContext& build_ctx)
 {
     for (auto& pass : m_passes) {
-        CHRONON_ZONE_C(pass->name().data(), trace_category::kGraph);
+        // Constant slice name on the fast path: TRACE_EVENT requires a
+        // static string literal (no dynamic names in the hot loop).  Per-pass
+        // identity is available via debug annotations in a later phase.
+        CHRONON_TRACE_SCOPE("chronon.graph", "GraphPassRun");
         pass->run(build_ctx);
     }
 

@@ -31,7 +31,7 @@ void execute_levels(
 ) {
     for (std::size_t level_index = 0; level_index < levels.size(); ++level_index) {
         const auto& level = levels[level_index];
-        CHRONON_ZONE_C("execute_level", trace_category::kGraph);
+        CHRONON_TRACE_SCOPE("chronon.graph", "execute_level");
 
         const auto t_schedule0 = profiling::now();
 

@@ -13,7 +13,7 @@
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>  // RenderGraphNode::execute() + kind()
 #include <chronon3d/core/memory/framebuffer_handle.hpp>        // Full def of PoolFbDeleter + OwnedFB
 #include <chronon3d/cache/framebuffer_pool.hpp>                // Full def required for parent_pool->shared_from_this() (P1 step 2 hardening — explicit dependency, not transitive-resolved via execution_state.hpp)
-#include <chronon3d/core/profiling/profiling.hpp>              // profiling::now(), profiling::duration_ms(), CHRONON_ZONE_C
+#include <chronon3d/core/profiling/profiling.hpp>              // profiling::now(), profiling::duration_ms(), CHRONON_TRACE_SCOPE
 #include <chronon3d/core/profiling/counters.hpp>              // ctx.node_exec.counters->nodes_executed (atomic fetch_add)
 #include <spdlog/spdlog.h>
 
@@ -38,7 +38,9 @@ double run_node(
     const auto exec_t0 = profiling::now();
     OwnedFB owned;
     {
-        CHRONON_ZONE_C("node_execute", trace_category::kGraph);
+        // chronon.node is a debug/slow category: node execution only shows
+        // in kNodes/kFull traces, keeping light pipeline traces lean (plan §6).
+        CHRONON_TRACE_SCOPE("chronon.node", "node_execute");
         auto exec_result = node.execute(node_ctx, inputs, input_bboxes);
         if (!exec_result) {
             // P0-1 — node execution failed; write error to the shared

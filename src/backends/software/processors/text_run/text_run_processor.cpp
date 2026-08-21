@@ -48,7 +48,7 @@ graph::RenderOpResult draw_text_run(
     namespace stages = chronon3d::renderer::text_run_stages;
 
     stages::TextRunStageState s;
-    CHRONON_ZONE_C("text_run_draw", trace_category::kText);
+    CHRONON_TRACE_SCOPE("chronon.text", "text_run_draw");
 
     // Stage 1 — prepare (validation, scratch acquire, font resolve, bbox, ss)
     if (auto r = stages::prepare_text_run(rctx, params, s); !r.ok()) {

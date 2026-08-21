@@ -55,9 +55,9 @@
 //                            (only used in the temporal branch but
 //                             declared at function scope so they can be
 //                             hoisted if needed)
-//   - profiling counters     (CHRONON_ZONE_C scopes wrap each branch's
+//   - profiling counters     (CHRONON_TRACE_SCOPE slices wrap each branch's
 //                             hot path; moving them across files would
-//                             break the parent-zone hierarchy)
+//                             break the parent-slice hierarchy)
 //   - the engine pointer      (`frame_engine` is forwarded to
 //                             `Composition::evaluate` from both branches
 //                             for textual consistency)
@@ -231,7 +231,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         const auto t_eval0 = profiling::now();
         Scene scene;
         {
-            CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
+            CHRONON_TRACE_SCOPE("chronon.frame", "evaluate_composition");
             const FrameContext ctx = make_frame_context({
             .global_time = SampleTime::from_frame(static_cast<double>(frame), spec.frame_rate),
             .duration = spec.duration,
@@ -261,7 +261,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
 
         const auto t_scene0 = profiling::now();
         {
-            CHRONON_ZONE_C("render_scene_graph", trace_category::kGraph);
+            CHRONON_TRACE_SCOPE("chronon.graph", "render_scene_graph");
             render_fb = call_graph(scene, frame, 0.0f);
         }
         scene_ms = profiling::duration_ms(t_scene0, profiling::now());
@@ -338,7 +338,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
 
         const auto t_mb0 = profiling::now();
         {
-            CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
+            CHRONON_TRACE_SCOPE("chronon.effect", "motion_blur_accumulation");
             for (int s = 0; s < sample_plan.num_samples(); ++s) {
                 if (cancellation && cancellation->is_cancelled()) {
                     merge_sample_reports(static_cast<std::size_t>(s));
@@ -417,7 +417,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             : 1.0f;
 
         {
-            CHRONON_ZONE_C("motion_blur_normalize_in_place", trace_category::kEffect);
+            CHRONON_TRACE_SCOPE("chronon.effect", "motion_blur_normalize_in_place");
             tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
                 [&](const tbb::blocked_range<int>& range) {
                     using namespace hwy::HWY_NAMESPACE;
@@ -452,7 +452,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         const auto t_down0 = profiling::now();
         std::unique_ptr<Framebuffer> out;
         {
-            CHRONON_ZONE_C("downsample_ssaa", trace_category::kDownsample);
+            CHRONON_TRACE_SCOPE("chronon.effect", "downsample_ssaa");
             out = downsample_fb(*render_fb, w, h);
         }
         return std::shared_ptr<Framebuffer>(out.release());
