@@ -174,7 +174,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state, const Camera& camera, i32 width,
                                  i32 height) {
-    CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
+    CHRONON_TRACE_SCOPE("chronon.node", "draw_node");
     m_counters.pixels_touched.fetch_add(clipped_area(width, height, to_local_clip(fb, state.clip_rect)), std::memory_order_relaxed);
     // The backend owns the immutable processor snapshot and refreshes it only
     // when the registry generation changes. Creating a registry snapshot per

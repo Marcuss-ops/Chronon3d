@@ -133,7 +133,7 @@ NodeExecResult TextRunNode::execute(
     std::span<const FramebufferRef> /*inputs*/,
     std::span<const std::optional<raster::BBox>> /*input_bboxes*/
 ) {
-    CHRONON_ZONE_C("text_run_render", trace_category::kRasterize);
+    CHRONON_TRACE_SCOPE("chronon.node", "text_run_render");
 
     // ── 0. Defensive: missing shape (source-pass only emits when set). ──
     if (!m_shape) {

@@ -61,7 +61,7 @@ ImageFormat image_format_from_path(const std::string& path) {
 }
 
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
-    CHRONON_ZONE_C("write_png", trace_category::kOutput);
+    CHRONON_TRACE_SCOPE("chronon.io", "write_png");
     // Use lower compression (2 vs default 8) for ~3x faster encoding.
     // Thread-local to prevent race condition on stbi's global variable
     // when multiple frames are exported in parallel.
@@ -154,7 +154,7 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
 bool save_exr(const Framebuffer& framebuffer,
               const std::string& path,
               const ImageWriteOptions& options) {
-    CHRONON_ZONE_C("write_exr", trace_category::kOutput);
+    CHRONON_TRACE_SCOPE("chronon.io", "write_exr");
     try {
         ensure_parent_dir(path);
 
@@ -284,7 +284,7 @@ bool save_exr(const Framebuffer& framebuffer,
 bool save_image(const Framebuffer& framebuffer,
                 const std::string& path,
                 const ImageWriteOptions& options) {
-    CHRONON_ZONE_C("save_image", trace_category::kOutput);
+    CHRONON_TRACE_SCOPE("chronon.io", "save_image");
     ImageFormat format = options.format;
 
     if (format == ImageFormat::Unknown) {
