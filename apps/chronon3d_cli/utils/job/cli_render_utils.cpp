@@ -64,9 +64,20 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     double* engine_init_ms,
     double* backend_init_ms) {
     const auto engine_t0 = profiling::now();
-    auto renderer = config.has_value()
-        ? std::make_shared<SoftwareRenderer>(std::move(*config))
-        : std::make_shared<SoftwareRenderer>(Config::from_environment());
+    Config cfg = config.has_value() ? std::move(*config) : Config::from_environment();
+    auto runtime_res = runtime::RenderRuntime::create(
+        runtime::RuntimeConfig{.config = cfg, .assets_root = assets_root});
+    if (!runtime_res) {
+        throw std::runtime_error("create_renderer: RenderRuntime::create failed: " + runtime_res.error().message);
+    }
+    struct CliRendererHolder {
+        std::unique_ptr<runtime::RenderRuntime> runtime;
+        std::unique_ptr<SoftwareRenderer> renderer;
+    };
+    auto holder = std::make_shared<CliRendererHolder>();
+    holder->runtime = std::move(runtime_res).value();
+    holder->renderer = std::make_unique<SoftwareRenderer>(*holder->runtime, std::move(cfg));
+    auto renderer = std::shared_ptr<SoftwareRenderer>(holder, holder->renderer.get());
     renderer->set_composition_registry(&registry);
     renderer->set_settings(settings);
 

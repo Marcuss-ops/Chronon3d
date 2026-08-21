@@ -236,6 +236,11 @@ void SubtitleTrackBuilder::build() {
         return;
     }
 
+    // Resolve semantic text placement against the actual authoring canvas.
+    // Without this viewport hand-off SafeAreaBottom keeps the historical
+    // centred origin when the layer is materialized by LayerBuilder.
+    builder_->screen_dimensions(canvas_->width, canvas_->height);
+
     const registry::TextPresetRegistry& preset_registry =
         registry::builtin_text_preset_registry();
 
