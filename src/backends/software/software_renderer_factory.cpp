@@ -45,56 +45,17 @@
 #include <utility>
 
 namespace chronon3d {
-namespace {
-
-std::unique_ptr<runtime::RenderRuntime> create_runtime_or_throw(Config config) {
-    auto result = runtime::RenderRuntime::create(
-        runtime::RuntimeConfig{std::move(config), std::nullopt});
-    if (!result.has_value()) {
-        throw std::runtime_error(
-            "SoftwareRenderer: RenderRuntime::create() failed: " +
-            result.error().message);
-    }
-    return std::move(result).value();
-}
-
-} // namespace
-
 
 // ── Construction ──────────────────────────────────────────────────────────────
 
 // Canonical path — borrows an existing RenderRuntime + overrides Config.
 SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     : m_config(std::move(config))
-    , m_owned_runtime_storage{}
     , m_runtime(&rt)
     , m_image_renderer(rt.image_cache())
     , m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
     , m_text_render_resources(std::make_unique<TextRenderResources>())
 {
-    m_runtime->image_cache().set_asset_resolver(&m_runtime->resolver());
-    m_session = backends::software::make_session(*m_runtime);
-    backends::software::register_builtin_processors(*m_software_registry);
-}
-
-// @deprecated Fase C2 — creates its own runtime internally.  Production code
-// MUST route through `RenderEngine(Config)` which calls the canonical ctor
-// above with a pre-built `runtime::RenderRuntime` instance.
-SoftwareRenderer::SoftwareRenderer(Config config)
-    : m_config(std::move(config))
-    , m_owned_runtime_storage(create_runtime_or_throw(m_config))
-    , m_runtime(m_owned_runtime_storage.get())
-    , m_image_renderer(m_runtime->image_cache())
-{
-    // The deprecated standalone constructor has no separate SDK asset-root
-    // setter. Preserve its historical relative-path behavior by mounting
-    // the current working directory once; RenderEngine users still provide
-    // an explicit root through RenderEngine::set_assets_root().
-    if (!m_runtime->resolver().has_mount()) {
-        m_runtime->resolver().mount(std::filesystem::current_path());
-    }
-    m_software_registry = std::make_unique<renderer::SoftwareRegistry>();
-    m_text_render_resources = std::make_unique<TextRenderResources>();
     m_runtime->image_cache().set_asset_resolver(&m_runtime->resolver());
     m_session = backends::software::make_session(*m_runtime);
     backends::software::register_builtin_processors(*m_software_registry);

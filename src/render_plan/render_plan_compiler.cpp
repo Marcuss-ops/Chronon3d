@@ -546,6 +546,8 @@ compile_render_plan(
                                 auto track = authoring_layer.subtitles(*subtitles[index]);
                                 track.preset(layer.preset.empty() ? "minimal_white" : layer.preset)
                                     .font(layer.font, layer.font_size.value_or(48.0f))
+                                    .box({layer.box_width.value_or(1800.0f),
+                                          layer.box_height.value_or(200.0f)})
                                     // Burned subtitles follow the same lower
                                     // safe-area contract as the ASS style.
                                     // Keeping the vertical anchor explicit is

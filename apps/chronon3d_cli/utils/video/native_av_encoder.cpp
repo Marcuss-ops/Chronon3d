@@ -20,7 +20,7 @@ inline double elapsed_ms(const Clock::time_point& start) {
 
 bool set_codec_option_checked(AVCodecContext* codec, const char* key,
                               const std::string& value) {
-    const int rc = av_opt_set(codec->priv_data, key, value.c_str(), 0);
+    const int rc = av_opt_set(codec, key, value.c_str(), AV_OPT_SEARCH_CHILDREN);
     if (rc < 0) {
         char error[AV_ERROR_MAX_STRING_SIZE]{};
         av_strerror(rc, error, sizeof(error));
