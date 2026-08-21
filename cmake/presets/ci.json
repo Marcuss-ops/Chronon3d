@@ -10,7 +10,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON",
@@ -59,7 +59,7 @@
         "CHRONON3D_ENABLE_MESH": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks"
       }

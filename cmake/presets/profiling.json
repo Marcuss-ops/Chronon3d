@@ -24,7 +24,7 @@
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
@@ -51,7 +51,7 @@
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
@@ -78,7 +78,7 @@
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
-        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
@@ -90,7 +90,7 @@
       "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Extended (mesh, EXR, telemetry, benchmarks, profiling)",
-      "description": "Profile matrix preset — hidden. Everything ON, profiling/Tracy on.",
+      "description": "Profile matrix preset — hidden. Everything ON, tracing on.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -105,10 +105,10 @@
         "CHRONON3D_ENABLE_MESH": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
-        "CHRONON3D_ENABLE_PROFILING": "ON",
+        "CHRONON3D_ENABLE_TRACING": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;profiling"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;tracing"
       }
     }
   ],
