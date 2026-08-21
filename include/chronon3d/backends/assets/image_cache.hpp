@@ -13,6 +13,9 @@
 #include <blend2d.h>
 #endif
 
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <vector>
+
 namespace chronon3d {
 
 namespace assets { class AssetResolver; }
@@ -24,6 +27,8 @@ struct CachedImage {
     BLImage bl_img;
 #endif
     std::shared_ptr<Framebuffer> fb_img;
+    std::vector<float> gpu_rgba;
+    runtime::GpuAssetKey gpu_key;
 
     [[nodiscard]] bool valid() const {
 #ifdef CHRONON3D_USE_BLEND2D
