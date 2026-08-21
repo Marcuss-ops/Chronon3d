@@ -28,7 +28,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <spdlog/spdlog.h>
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include "diagnostics/layout_preview_overlay.hpp"

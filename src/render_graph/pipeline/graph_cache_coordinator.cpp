@@ -8,7 +8,7 @@
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
