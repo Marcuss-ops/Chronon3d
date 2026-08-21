@@ -12,7 +12,7 @@
 //                                  GpuUploadProducerScope/FramebufferAllocationScope/
 //                                  ProfilingGuard
 //   - render_counter_types.hpp   — RenderCounters full definition
-//   - tracing/tracing.hpp        — CHRONON_ZONE / CHRONON_ZONE_C timeline macros
+//   - tracing/tracing.hpp        — CHRONON_TRACE_* Perfetto timeline macros
 //   - tracing/tracing_categories.hpp — chronon3d::trace_category namespace
 // ============================================================================
 
