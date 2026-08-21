@@ -10,6 +10,14 @@ namespace chronon3d::cli::telemetry {
 /// snapshot (store), and peak (max) semantics correctly.
 inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::RenderCounters& src) {
     dst.pixels_touched.fetch_add(src.pixels_touched.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.producer_surface_pixels.fetch_add(src.producer_surface_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.producer_canvas_pixels.fetch_add(src.producer_canvas_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.tight_surface_count.fetch_add(src.tight_surface_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.full_canvas_overlay_count.fetch_add(src.full_canvas_overlay_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.producer_tight_text_count.fetch_add(src.producer_tight_text_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.producer_tight_image_count.fetch_add(src.producer_tight_image_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.producer_full_frame_text_count.fetch_add(src.producer_full_frame_text_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.producer_full_frame_image_count.fetch_add(src.producer_full_frame_image_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.cache_hits.fetch_add(src.cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.cache_misses.fetch_add(src.cache_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.nodes_executed.fetch_add(src.nodes_executed.load(std::memory_order_relaxed), std::memory_order_relaxed);

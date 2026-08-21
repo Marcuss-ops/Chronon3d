@@ -77,6 +77,7 @@ inline void text_bbox_warn_once(
 // matches the convention used by nodes/transform_kernels.cpp for
 // nodes/sampling_utils.hpp.
 #include "text_run/text_run_execution.hpp"
+#include "detail/producer_surface_bounds.hpp"
 #include "text_run/text_run_transform.hpp"
 #include "text_run/text_run_diagnostics.hpp"
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -148,12 +149,21 @@ NodeExecResult TextRunNode::execute(
         m_placement.tight_surface &&
         m_placement.surface_size.x > 0.0f &&
         m_placement.surface_size.y > 0.0f;
-    const int surface_width = tight_surface
-        ? std::max(1, static_cast<int>(std::ceil(m_placement.surface_size.x)))
-        : ctx.frame_input.width;
-    const int surface_height = tight_surface
-        ? std::max(1, static_cast<int>(std::ceil(m_placement.surface_size.y)))
-        : ctx.frame_input.height;
+    const auto producer_surface = tight_surface
+        ? detail::resolve_local_producer_surface(
+              ctx.frame_input.width, ctx.frame_input.height,
+              detail::ProducerSurfaceKind::Text,
+              m_placement.surface_origin, m_placement.surface_size)
+        : detail::ProducerSurfaceBounds{
+              raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height}, false};
+    const int surface_width = producer_surface.width();
+    const int surface_height = producer_surface.height();
+    detail::record_producer_surface(
+        ctx.node_exec.counters,
+        detail::ProducerSurfaceKind::Text,
+        producer_surface,
+        ctx.frame_input.width,
+        ctx.frame_input.height);
     // A projected TextRun is cached as a tight local raster. The general
     // pool's best-fit reuse can hand it a full-frame physical allocation and
     // resize only the logical view, making cache weight and RSS lie about
