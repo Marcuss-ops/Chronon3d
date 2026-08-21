@@ -43,4 +43,20 @@ struct EffectProcessorHandle {
                                      EffectProcessorHandle) = default;
 };
 
+struct ProcessorCapabilities {
+    bool gpu : 1 {false};
+    bool in_place : 1 {false};
+    bool fusible : 1 {false};
+    bool pixel_local : 1 {false};
+    bool native_surface_input : 1 {false};
+    bool native_surface_output : 1 {false};
+
+    [[nodiscard]] constexpr bool is_gpu_fusible() const noexcept {
+        return gpu && fusible && pixel_local;
+    }
+
+    friend constexpr bool operator==(ProcessorCapabilities,
+                                     ProcessorCapabilities) = default;
+};
+
 } // namespace chronon3d::renderer
