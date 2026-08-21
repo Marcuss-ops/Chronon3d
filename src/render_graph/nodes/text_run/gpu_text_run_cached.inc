@@ -12,13 +12,19 @@ graph::RenderOpResult draw_cached_text_run(
             "draw_cached_text_run: CPU glyph atlas is not ready"});
     }
 
-    // The surface text kernel consumes integer pixel quads. Keep the first
-    // bridge deliberately affine/translation-only; animated opacity and
-    // placement still update the instance buffer every frame.
+    // The surface text kernel consumes integer pixel quads. Fold a diagonal
+    // affine scale into the glyph positions/scales so the common animated
+    // subtitle/watermark scale path stays on GPU. Rotation, shear, reflection
+    // and perspective still use the legacy renderer because GlyphInstance
+    // cannot represent them without changing rasterization semantics.
     if (std::abs(model_matrix[0][1]) > 1e-4f ||
         std::abs(model_matrix[1][0]) > 1e-4f ||
-        std::abs(model_matrix[0][0] - 1.0f) > 1e-4f ||
-        std::abs(model_matrix[1][1] - 1.0f) > 1e-4f ||
+        std::abs(model_matrix[0][2]) > 1e-4f ||
+        std::abs(model_matrix[1][2]) > 1e-4f ||
+        std::abs(model_matrix[2][0]) > 1e-4f ||
+        std::abs(model_matrix[2][1]) > 1e-4f ||
+        std::abs(model_matrix[2][3]) > 1e-4f ||
+        model_matrix[0][0] <= 0.0f || model_matrix[1][1] <= 0.0f ||
         std::abs(model_matrix[3][3] - 1.0f) > 1e-4f) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -27,6 +33,10 @@ graph::RenderOpResult draw_cached_text_run(
 
     const auto& layout = *shape.layout;
     const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
+    const float model_scale_x = model_matrix[0][0];
+    const float model_scale_y = model_matrix[1][1];
+    const float model_translate_x = model_matrix[3][0];
+    const float model_translate_y = model_matrix[3][1];
     const auto highlight_plan = build_timed_highlight_plan(shape);
     const float current_frame = static_cast<float>(ctx.frame_input.sample_time.frame);
     std::vector<GpuTextGlyph> glyphs;
@@ -220,12 +230,12 @@ graph::RenderOpResult draw_cached_text_run(
             styled->width,
             styled->height,
             {},
-            static_cast<std::int32_t>(std::lround(model_matrix[3][0] +
-                placed.x + state.position.x + entry->x_offset - pad)),
-            static_cast<std::int32_t>(std::lround(model_matrix[3][1] +
-                placed.y + state.position.y + entry->y_offset - pad)),
-            state.scale.x,
-            state.scale.y,
+            static_cast<std::int32_t>(std::lround(model_translate_x +
+                model_scale_x * (placed.x + state.position.x + entry->x_offset - pad))),
+            static_cast<std::int32_t>(std::lround(model_translate_y +
+                model_scale_y * (placed.y + state.position.y + entry->y_offset - pad))),
+            state.scale.x * model_scale_x,
+            state.scale.y * model_scale_y,
             state.opacity * opacity,
             styled->rgba,
             highlight_plan.enabled ? highlight_plan.glyph_ranges[i].first : -1.0f,

@@ -102,6 +102,11 @@ graph::RenderOpResult render_text_run_item(
     if (native.ok()) {
         return native;
     }
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::debug(
+            "[text-run] native surface path fell back: {}",
+            native.error().message);
+    }
     // The GPU atlas path is an optimization, not a correctness boundary.
     // Stale atlas/surface state must fall back to Chronon's canonical text
     // renderer instead of aborting the complete video frame.  The backend
