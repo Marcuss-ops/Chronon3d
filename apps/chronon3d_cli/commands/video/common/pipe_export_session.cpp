@@ -29,14 +29,14 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     // writes these counters synchronously on the render thread, so a
     // before/after read is a clean per-frame window.
     struct PhaseCounters {
-        uint64_t timeline_eval{0};
-        uint64_t text{0};
-        uint64_t graph_prepare{0};
-        uint64_t graph_execute{0};
-        uint64_t compositing{0};
-        uint64_t effects{0};
-        uint64_t surface{0};
-        uint64_t overhead{0};
+        uint64_t timeline_eval_us{0};
+        uint64_t text_us{0};
+        uint64_t graph_prepare_us{0};
+        uint64_t graph_execute_us{0};
+        uint64_t compositing_us{0};
+        uint64_t effects_us{0};
+        uint64_t surface_us{0};
+        uint64_t overhead_us{0};
     };
     const auto snapshot_phases = [&ctx]() {
         PhaseCounters s;
@@ -44,28 +44,31 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
         const auto load = [](const auto& c) {
             return c.load(std::memory_order_relaxed);
         };
-        s.timeline_eval = load(ctx.counters->timeline_eval_wall_ms);
-        s.text = load(ctx.counters->text_layout_wall_ms)
-               + load(ctx.counters->text_rasterization_wall_ms)
-               + load(ctx.counters->text_shaping_wall_ms)
-               + load(ctx.counters->text_bidi_wall_ms);
-        s.graph_prepare = load(ctx.counters->graph_resolve_layers_wall_ms)
-                        + load(ctx.counters->graph_dirty_rect_wall_ms)
-                        + load(ctx.counters->graph_build_wall_ms);
-        s.graph_execute = load(ctx.counters->graph_execute_wall_ms);
-        s.compositing = load(ctx.counters->clearnode_wall_ms)
-                      + load(ctx.counters->compositenode_blend_wall_ms)
-                      + load(ctx.counters->compositenode_setup_wall_ms)
-                      + load(ctx.counters->compositenode_copy_wall_ms)
-                      + load(ctx.counters->compositenode_dispatch_wall_ms);
-        s.effects = load(ctx.counters->effect_stack_total_wall_ms);
-        s.surface = load(ctx.counters->framebuffer_acquire_wall_ms)
-                  + load(ctx.counters->framebuffer_clear_wall_ms)
-                  + load(ctx.counters->framebuffer_lifetime_wall_ms);
-        s.overhead = load(ctx.counters->node_overhead_wall_ms)
-                   + load(ctx.counters->node_dispatch_wall_ms)
-                   + load(ctx.counters->node_schedule_wall_ms)
-                   + load(ctx.counters->telemetry_emit_wall_ms);
+        s.timeline_eval_us = load(ctx.counters->timeline_eval_wall_us);
+        s.text_us = load(ctx.counters->text_layout_wall_ms) * 1000
+                  + load(ctx.counters->text_rasterization_wall_ms) * 1000
+                  + load(ctx.counters->text_shaping_wall_ms) * 1000
+                  + load(ctx.counters->text_bidi_wall_ms) * 1000
+                  + load(ctx.counters->glyph_cache_lookup_wall_us)
+                  + load(ctx.counters->glyph_atlas_upload_wall_us)
+                  + load(ctx.counters->text_draw_wall_us);
+        s.graph_prepare_us = load(ctx.counters->graph_resolve_layers_wall_us)
+                           + load(ctx.counters->graph_dirty_rect_wall_us)
+                           + load(ctx.counters->graph_build_wall_us);
+        s.graph_execute_us = load(ctx.counters->graph_execute_wall_us);
+        s.compositing_us = load(ctx.counters->clearnode_wall_ms) * 1000
+                         + load(ctx.counters->compositenode_blend_wall_ms) * 1000
+                         + load(ctx.counters->compositenode_setup_wall_ms) * 1000
+                         + load(ctx.counters->compositenode_copy_wall_ms) * 1000
+                         + load(ctx.counters->compositenode_dispatch_wall_ms) * 1000;
+        s.effects_us = load(ctx.counters->effect_stack_total_wall_ms) * 1000;
+        s.surface_us = load(ctx.counters->framebuffer_acquire_wall_us)
+                     + load(ctx.counters->framebuffer_clear_wall_us)
+                     + load(ctx.counters->framebuffer_lifetime_wall_us);
+        s.overhead_us = load(ctx.counters->node_overhead_wall_us)
+                      + load(ctx.counters->node_dispatch_wall_us)
+                      + load(ctx.counters->node_schedule_wall_us)
+                      + load(ctx.counters->telemetry_emit_wall_us);
         return s;
     };
     struct ImageDrawCounters {
@@ -219,21 +222,28 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             chronon3d::telemetry::FrameRenderBreakdown breakdown;
             breakdown.timeline_eval_ms =
-                static_cast<double>(phase_after.timeline_eval - phase_before.timeline_eval);
+                static_cast<double>(phase_after.timeline_eval_us - phase_before.timeline_eval_us) / 1000.0;
             breakdown.text_ms =
-                static_cast<double>(phase_after.text - phase_before.text);
+                static_cast<double>(phase_after.text_us - phase_before.text_us) / 1000.0;
             breakdown.graph_prepare_ms =
-                static_cast<double>(phase_after.graph_prepare - phase_before.graph_prepare);
+                static_cast<double>(phase_after.graph_prepare_us - phase_before.graph_prepare_us) / 1000.0;
             breakdown.graph_execute_ms =
-                static_cast<double>(phase_after.graph_execute - phase_before.graph_execute);
+                static_cast<double>(phase_after.graph_execute_us - phase_before.graph_execute_us) / 1000.0;
             breakdown.compositing_ms =
-                static_cast<double>(phase_after.compositing - phase_before.compositing);
+                static_cast<double>(phase_after.compositing_us - phase_before.compositing_us) / 1000.0;
             breakdown.effects_ms =
-                static_cast<double>(phase_after.effects - phase_before.effects);
+                static_cast<double>(phase_after.effects_us - phase_before.effects_us) / 1000.0;
             breakdown.surface_management_ms =
-                static_cast<double>(phase_after.surface - phase_before.surface);
+                static_cast<double>(phase_after.surface_us - phase_before.surface_us) / 1000.0;
             breakdown.backend_overhead_ms =
-                static_cast<double>(phase_after.overhead - phase_before.overhead);
+                static_cast<double>(phase_after.overhead_us - phase_before.overhead_us) / 1000.0;
+
+            const double accounted_ms = breakdown.timeline_eval_ms + breakdown.text_ms +
+                                        breakdown.graph_prepare_ms + breakdown.graph_execute_ms +
+                                        breakdown.compositing_ms + breakdown.effects_ms +
+                                        breakdown.surface_management_ms + breakdown.backend_overhead_ms;
+            breakdown.accounted_cpu_ms = accounted_ms;
+            breakdown.unaccounted_cpu_ms = std::max(0.0, frame_ms - accounted_ms);
             // animation_eval_ms remains 0.0 — folded into timeline_eval_ms.
 
             chronon3d::telemetry::FrameImageTiming image_timing;

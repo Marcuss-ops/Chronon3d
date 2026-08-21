@@ -164,6 +164,12 @@ public:
         m_phase = GraphPhase::Frozen;
     }
 
+    /// Unfreeze a cached graph instance so that transactional payload refresh
+    /// can update node states before re-freezing.
+    void unfreeze_for_refresh() noexcept {
+        m_phase = GraphPhase::Building;
+    }
+
     // ── Read (safe after freeze) ────────────────────────────────────────
 
     [[nodiscard]] const RenderGraphNode& node(GraphNodeId id) const {

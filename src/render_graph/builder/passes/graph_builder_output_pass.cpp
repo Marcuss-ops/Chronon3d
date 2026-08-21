@@ -134,7 +134,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
                         layer_id, graph, rctx, opaque_memo);
 
                     if (rctx.policy.diagnostics_enabled) {
-                        spdlog::info(
+                        spdlog::debug(
                             "[early-exit-debug] composite_id={} layer_id={} "
                             "layer_name='{}' kind={} layer_fully_covers={}",
                             id, layer_id, graph.node(layer_id).name(),

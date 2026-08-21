@@ -253,6 +253,9 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             sw_sidecar->counters()->timeline_eval_wall_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(evaluate_ms)),
                 std::memory_order_relaxed);
+            sw_sidecar->counters()->timeline_eval_wall_us.fetch_add(
+                static_cast<uint64_t>(std::llround(evaluate_ms * 1000.0)),
+                std::memory_order_relaxed);
         }
         layer_count = static_cast<int>(scene.layers().size());
 

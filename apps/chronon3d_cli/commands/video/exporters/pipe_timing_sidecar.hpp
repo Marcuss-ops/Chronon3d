@@ -122,6 +122,45 @@ struct GpuMetrics {
     std::optional<std::uint64_t> video_decode_framebuffer_wall_ms;
 };
 
+struct CpuBreakdownMetrics {
+    std::optional<double> timeline_eval_ms;
+    std::optional<double> graph_resolve_layers_ms;
+    std::optional<double> graph_dirty_rect_ms;
+    std::optional<double> graph_build_ms;
+    std::optional<double> graph_execute_ms;
+    std::optional<double> compiled_graph_refresh_ms;
+    std::optional<double> cache_eval_ms;
+    std::optional<double> dirty_eval_ms;
+    std::optional<double> input_resolve_ms;
+    std::optional<double> predicted_bbox_ms;
+    std::optional<double> clone_context_ms;
+    std::optional<double> state_assign_ms;
+    std::optional<double> framebuffer_acquire_ms;
+    std::optional<double> framebuffer_clear_ms;
+    std::optional<double> framebuffer_lifetime_ms;
+    std::optional<double> node_schedule_ms;
+    std::optional<double> node_dispatch_ms;
+    std::optional<double> node_execute_actual_ms;
+    std::optional<double> node_overhead_ms;
+    std::optional<double> telemetry_emit_ms;
+    std::optional<double> text_layout_ms;
+    std::optional<double> text_rasterization_ms;
+    std::optional<double> text_shaping_ms;
+    std::optional<double> text_bidi_ms;
+    std::optional<double> glyph_cache_lookup_ms;
+    std::optional<double> glyph_atlas_upload_ms;
+    std::optional<double> text_draw_ms;
+    std::optional<double> clearnode_ms;
+    std::optional<double> compositenode_blend_ms;
+    std::optional<double> effect_stack_total_ms;
+    std::optional<std::uint64_t> graph_executed_frames;
+    std::optional<std::uint64_t> graph_reused_frames;
+    std::optional<std::uint64_t> fast_path_reused_frames;
+    std::optional<std::uint64_t> video_source_requested_frames;
+    std::optional<std::uint64_t> video_source_inactive_frames;
+    std::optional<std::uint64_t> video_source_repeated_frames;
+};
+
 struct HardwareMetrics {
     std::optional<double> gpu_utilization_avg;
     std::optional<double> gpu_utilization_peak;
@@ -166,6 +205,7 @@ struct JobTimings {
     TextMetrics text;
     EncoderMetrics encoder;
     GpuMetrics gpu;
+    CpuBreakdownMetrics cpu_breakdown;
     HardwareMetrics hardware;
     chronon3d::runtime::RenderPreparationTimings prepare;
     std::optional<int> target_fps;

@@ -15,6 +15,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>                // Full def required for parent_pool->shared_from_this() (P1 step 2 hardening — explicit dependency, not transitive-resolved via execution_state.hpp)
 #include <chronon3d/core/profiling/profiling.hpp>              // profiling::now(), profiling::duration_ms(), CHRONON_ZONE_C
 #include <chronon3d/core/profiling/counters.hpp>              // ctx.node_exec.counters->nodes_executed (atomic fetch_add)
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 

@@ -39,6 +39,9 @@ SoftwareRenderer* setup_render_graph_context(
     // — no global lookup needed.
     if (sw_sidecar) {
         ctx.services.sw_renderer_sidecar = sw_sidecar;
+        if (!ctx.node_exec.counters && sw_sidecar->counters()) {
+            ctx.node_exec.counters = sw_sidecar->counters();
+        }
     }
 
     SoftwareRenderer* sw_renderer =

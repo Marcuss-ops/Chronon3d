@@ -543,7 +543,13 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
     int /*height*/,
     float /*fps*/) {
     if (frame < 0 || path.empty()) {
+        if (m_counters) {
+            m_counters->video_source_inactive_frames.fetch_add(1, std::memory_order_relaxed);
+        }
         return nullptr;
+    }
+    if (m_counters) {
+        m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
     }
     const int64_t target = frame.integral();
     const auto decode_start = profiling::now();
@@ -554,7 +560,14 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
         session = open_session_locked(path);
     }
     if (!session) {
+        if (m_counters) {
+            m_counters->video_source_inactive_frames.fetch_add(1, std::memory_order_relaxed);
+        }
         return nullptr;
+    }
+
+    if (session->last_target == target && m_counters) {
+        m_counters->video_source_repeated_frames.fetch_add(1, std::memory_order_relaxed);
     }
 
     std::shared_ptr<Framebuffer> result;
@@ -598,6 +611,12 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
         lock.unlock();
 
         result = decode_frame_internal(*session, target);
+        if (result && m_counters) {
+            m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
+            m_counters->video_decode_wall_ms.fetch_add(
+                static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
+                std::memory_order_relaxed);
+        }
 
         lock.lock();
         session->prefetch_cv.notify_all();
