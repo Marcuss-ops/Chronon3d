@@ -111,6 +111,8 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
 
             entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
             if (entry->fb_img) {
+                entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
+                std::size_t out_gpu = 0;
                 const uint8_t* src = buffer->pixels.get();
                 for (int y = 0; y < entry->height; ++y) {
                     Color* dst_row = entry->fb_img->pixels_row(y);
@@ -124,9 +126,21 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                         // The image backend delivers straight sRGB bytes;
                         // converting after premultiplication leaves dark
                         // assets far too bright and breaks image/shape parity.
-                        dst_row[x] = Color{r, g, b, a}.to_linear().premultiplied();
+                        const auto color = Color{r, g, b, a}.to_linear().premultiplied();
+                        dst_row[x] = color;
+                        entry->gpu_rgba[out_gpu++] = color.r;
+                        entry->gpu_rgba[out_gpu++] = color.g;
+                        entry->gpu_rgba[out_gpu++] = color.b;
+                        entry->gpu_rgba[out_gpu++] = color.a;
                     }
                 }
+                const std::string_view bytes(
+                    reinterpret_cast<const char*>(entry->gpu_rgba.data()),
+                    entry->gpu_rgba.size() * sizeof(float));
+                entry->gpu_key = runtime::GpuAssetKey{
+                    assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
+                    static_cast<std::uint32_t>(entry->width),
+                    static_cast<std::uint32_t>(entry->height)};
             }
 
             const double convert_us = profiling::duration_us(convert_t0, profiling::now());
@@ -144,7 +158,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
 #ifdef CHRONON3D_USE_BLEND2D
                                 + static_cast<size_t>(entry->width) * entry->height * 16 // Framebuffer float
 #endif
-                                ;
+                                + entry->gpu_rgba.size() * sizeof(float);
             return {entry, weight};
         });
 

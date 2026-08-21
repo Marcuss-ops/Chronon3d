@@ -69,7 +69,12 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             return render_plan::PlanDecodeError{options.input, error.what()};
         }
 
-        auto decoded = render_plan::decode_render_plan(root);
+        auto plan_json = root;
+        if (root.is_object() && root.value("schema", "") == "renderinggen.job" && root.contains("render_plan")) {
+            plan_json = root.at("render_plan");
+        }
+
+        auto decoded = render_plan::decode_render_plan(plan_json);
         if (!decoded) {
             return std::move(decoded).error();
         }
