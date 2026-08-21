@@ -3,18 +3,26 @@
 
 namespace chronon3d::graph {
 
-PreResolvedNode resolve_inputs(
+void resolve_inputs(
     const RenderGraph& graph,
     GraphNodeId id,
     ExecutionState& state,
     const std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    std::pmr::memory_resource* res
+    PreResolvedNode& pr
 ) {
     (void)consumer_remaining;
     const auto& input_ids = graph.inputs(id);
-    PreResolvedNode pr(res);
+    // The caller constructs this object directly in the level-owned PMR
+    // vector.  Reuse its storage when a level vector is recycled, avoiding a
+    // temporary PreResolvedNode plus a second vector move/assignment for
+    // every node on every frame.
+    pr.inputs.clear();
+    pr.input_bboxes.clear();
     pr.inputs.resize(input_ids.size());
     pr.input_bboxes.resize(input_ids.size());
+    pr.inputs_frame_dependent = false;
+    pr.has_cacheable_inputs = false;
+    pr.input_hash = 0;
 
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
@@ -33,7 +41,6 @@ PreResolvedNode resolve_inputs(
             pr.input_hash = hash_combine(pr.input_hash, state.resolved_key_digest[input_id]);
         }
     }
-    return pr;
 }
 
 } // namespace chronon3d::graph
