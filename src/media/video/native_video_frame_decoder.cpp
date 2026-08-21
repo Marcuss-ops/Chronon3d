@@ -399,6 +399,11 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(
                             std::memory_order_relaxed);
                         while (depth > peak && !decoder->m_counters->video_prefetch_queue_depth_peak
                             .compare_exchange_weak(peak, depth, std::memory_order_relaxed)) {}
+                        // Perfetto counter track: decoded frames waiting in
+                        // the prefetch queue (emitted from the prefetch worker
+                        // thread only, so the track stays single-threaded).
+                        CHRONON_TRACE_COUNTER("chronon.media", "decoder_prefetch_depth",
+                            static_cast<int64_t>(depth));
                     }
                 } else if (generation == prefetch_generation) {
                     prefetch_next = -1;
@@ -660,6 +665,13 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
                 m_counters->video_decode_wall_ms.fetch_add(
                     static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
                     std::memory_order_relaxed);
+                // Perfetto counter tracks (cumulative totals + live depth),
+                // emitted from the consuming thread only.
+                CHRONON_TRACE_COUNTER("chronon.media", "decoder_prefetch_hits",
+                    static_cast<int64_t>(m_counters->video_prefetch_hits.load(
+                        std::memory_order_relaxed)));
+                CHRONON_TRACE_COUNTER("chronon.media", "decoder_prefetch_depth",
+                    static_cast<int64_t>(session->prefetch_queue.size()));
             }
             session->prefetch_cv.notify_all();
             return result;
@@ -674,6 +686,11 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
             if (!session->prefetch_queue.empty() || session->prefetch_inflight >= 0) {
                 m_counters->video_prefetch_queue_clear_count.fetch_add(1, std::memory_order_relaxed);
             }
+            // Perfetto counter track: cumulative prefetch misses (the queue
+            // is cleared right after this, so no depth sample here).
+            CHRONON_TRACE_COUNTER("chronon.media", "decoder_prefetch_misses",
+                static_cast<int64_t>(m_counters->video_prefetch_misses.load(
+                    std::memory_order_relaxed)));
         }
 
         session->prefetch_queue.clear();
