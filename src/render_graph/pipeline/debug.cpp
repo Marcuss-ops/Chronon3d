@@ -117,7 +117,7 @@ SceneGraphStats analyze_scene_graph(
     auto compiled = compiler.compile(std::move(graph), ctx);
     std::shared_ptr<Framebuffer> fb_shared;
     {
-        CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
+        CHRONON_TRACE_SCOPE("chronon.graph", "execute_graph");
         // FASE 5 — ExecutionScope public direct-ctor is closed; route
         // through make_root() with the session's own arena so the chain
         // anchor stays consistent with the canonical body.

@@ -67,7 +67,7 @@ ReuseEvaluation evaluate_early_reuse_phases(
     // DarkGridBackground frame 1 (active_at changes true→false but
     // static_fp matches).
     if (!has_projected_surface) {
-        CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
+        CHRONON_TRACE_SCOPE("chronon.frame", "resolved_scene_reuse");
 
         FrameFingerprints reuse_fps = compute_frame_fingerprints(
             sw_renderer->scene_hasher(), scene, frame,
@@ -109,7 +109,7 @@ ReuseEvaluation evaluate_early_reuse_phases(
 
     // ── Phase 3: Static-scene fast-path ───────────────────────────────
     if (!has_projected_surface && !ev.fast_path_reuse_fb) {
-        CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
+        CHRONON_TRACE_SCOPE("chronon.frame", "static_scene_fast_check");
 
         auto reuse = evaluate_static_scene_fastpath(
             sw_renderer, scene, frame, cam, ev.frame_fp,
