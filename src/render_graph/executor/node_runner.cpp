@@ -283,7 +283,12 @@ void execute_single_node(
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id) && state.temp[input_id]) {
-            if (consumer_remaining[input_id].load(std::memory_order_relaxed) == 1 &&
+            const bool compiled_sole_consumer =
+                input_id < compiled.ownership_transfers.size() &&
+                compiled.ownership_transfers[input_id].transferable &&
+                compiled.ownership_transfers[input_id].consumer == id;
+            if ((compiled_sole_consumer ||
+                 consumer_remaining[input_id].load(std::memory_order_relaxed) == 1) &&
                 state.temp[input_id].use_count() == 1) {
                 node_ctx.node_exec.reusable_inputs.push_back(state.temp[input_id].get());
                 // The FIRST input (j == 0) is the "bottom" in composite

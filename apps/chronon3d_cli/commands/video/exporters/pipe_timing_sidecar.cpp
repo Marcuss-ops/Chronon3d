@@ -389,6 +389,11 @@ void write_frame_timing_sidecar(
     put_gpu_u64("video_decode_hw_transfer_frames", timings.gpu.video_decode_hw_transfer_frames);
     put_gpu_u64("video_decode_software_frames", timings.gpu.video_decode_software_frames);
     put_gpu_u64("video_decode_native_fallback_frames", timings.gpu.video_decode_native_fallback_frames);
+    put_gpu_u64("video_prefetch_hits", timings.gpu.video_prefetch_hits);
+    put_gpu_u64("video_prefetch_misses", timings.gpu.video_prefetch_misses);
+    put_gpu_u64("video_prefetch_wait_us", timings.gpu.video_prefetch_wait_us);
+    put_gpu_u64("video_prefetch_queue_clear_count", timings.gpu.video_prefetch_queue_clear_count);
+    put_gpu_u64("video_prefetch_queue_depth_peak", timings.gpu.video_prefetch_queue_depth_peak);
     put_gpu_u64("video_decode_wall_ms", timings.gpu.video_decode_wall_ms);
     put_gpu_u64("video_decode_hw_transfer_wall_ms", timings.gpu.video_decode_hw_transfer_wall_ms);
     put_gpu_u64("video_decode_sws_wall_ms", timings.gpu.video_decode_sws_wall_ms);

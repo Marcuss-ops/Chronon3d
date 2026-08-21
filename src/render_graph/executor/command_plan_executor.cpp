@@ -88,6 +88,25 @@ bool execute_command_plan(graph::RenderBackend& backend,
             }
         }
         if (!success) break;
+        if (pass.dynamic_parameters.size != 0) {
+            if (!plan.dynamic_parameters) {
+                spdlog::error(
+                    "[render-graph] pass {} references dynamic parameters without a table",
+                    pass_index);
+                success = false;
+                break;
+            }
+            try {
+                backend.bind_compiled_parameters(plan.dynamic_parameters->bytes(
+                    pass.dynamic_parameters.offset, pass.dynamic_parameters.size));
+            } catch (const std::out_of_range&) {
+                spdlog::error(
+                    "[render-graph] pass {} has an out-of-range dynamic parameter span",
+                    pass_index);
+                success = false;
+                break;
+            }
+        }
         if (!execute_pass(backend, pass)) {
             success = false;
             break;

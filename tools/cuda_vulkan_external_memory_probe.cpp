@@ -12,6 +12,10 @@
 #include <unistd.h>
 #include <vector>
 
+namespace chronon3d::profiling {
+thread_local RenderCounters* g_current_counters = nullptr;
+}
+
 namespace {
 
 [[noreturn]] void fail(const char* what, int code = 1) {
