@@ -81,6 +81,18 @@ public:
         condition_.notify_all();
     }
 
+    /// Number of slots currently owned by the producer/writer (GPU encode
+    /// surfaces in flight).  O(slot_count) — used only for Perfetto counter
+    /// tracks (frames_in_flight), guarded by tracing::TracingActive().
+    [[nodiscard]] std::size_t busy_count() const noexcept {
+        std::lock_guard lock(mutex_);
+        std::size_t count = 0;
+        for (std::size_t i = 0; i < slot_count_; ++i) {
+            if (busy_[i]) ++count;
+        }
+        return count;
+    }
+
     [[nodiscard]] std::uint64_t wait_count() const noexcept {
         return wait_count_.load(std::memory_order_relaxed);
     }

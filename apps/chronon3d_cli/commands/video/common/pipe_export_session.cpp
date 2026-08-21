@@ -425,6 +425,23 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 profiling::duration_ms(wait_t0, wait_t1);
             result.queue_wait_ms += wait_ms;
 
+            // Perfetto counter tracks (pipeline health, render thread): total
+            // frames in flight (render queue + GPU encode surfaces) and
+            // framebuffer pool live bytes / free count.  Guarded by
+            // TracingActive() so the mutex-guarded pool stats cost nothing
+            // when no trace session is running.
+            if (chronon3d::tracing::TracingActive()) {
+                const int64_t in_flight =
+                    static_cast<int64_t>(ctx.queue.size_approx()) +
+                    static_cast<int64_t>(ctx.interop_ring.busy_count());
+                CHRONON_TRACE_COUNTER("chronon.pipeline", "frames_in_flight", in_flight);
+                const auto pool_stats = ctx.sw_renderer->framebuffer_pool()->stats();
+                CHRONON_TRACE_COUNTER("chronon.pipeline", "framebuffer_pool_live_mb",
+                    static_cast<int64_t>(pool_stats.current_bytes >> 20));
+                CHRONON_TRACE_COUNTER("chronon.pipeline", "framebuffer_pool_free_count",
+                    static_cast<int64_t>(pool_stats.available_count));
+            }
+
             if (ctx.counters) {
                 ctx.counters->io_queue_push_wait_ms.fetch_add(
                     static_cast<uint64_t>(wait_ms), std::memory_order_relaxed);

@@ -40,6 +40,20 @@ inline std::int64_t TraceTimeNs() {
 #endif
 }
 
+/// Cheap runtime probe: true only when a Perfetto session is actually
+/// capturing.  Callers use it to skip non-free sampling (e.g. mutex-guarded
+/// pool/queue stats) when tracing is compiled in but no trace is active —
+/// the trace-OFF gate wants zero overhead, and "compiled in but idle" should
+/// cost nothing beyond the probe itself.  Always false when tracing is
+/// compiled out (no-op build stays at zero cost).
+inline bool TracingActive() {
+#ifdef CHRONON3D_ENABLE_TRACING
+    return ::perfetto::TrackEvent::IsEnabled();
+#else
+    return false;
+#endif
+}
+
 /// Global track id for the dedicated GPU timeline track "Chronon Vulkan
 /// Queue".  GPU work is NOT recorded on any CPU thread track: it gets its
 /// own track, with slices positioned using real calibrated GPU timestamps
