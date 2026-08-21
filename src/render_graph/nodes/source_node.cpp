@@ -48,38 +48,20 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
 
     const auto cached = ctx.services.image_cache->find(
         image.path, image.decode_options);
-    if (!cached || !cached->fb_img || !cached->valid()) return false;
+    if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) return false;
 
-    const auto& source = *cached->fb_img;
-    std::vector<float> rgba(static_cast<std::size_t>(source.width()) *
-                            static_cast<std::size_t>(source.height()) * 4);
-    std::size_t out = 0;
-    for (int y = 0; y < source.height(); ++y) {
-        for (int x = 0; x < source.width(); ++x) {
-            const auto pixel = source.get_pixel(x, y);
-            rgba[out++] = pixel.r;
-            rgba[out++] = pixel.g;
-            rgba[out++] = pixel.b;
-            rgba[out++] = pixel.a;
-        }
-    }
-
-    const std::string_view bytes(
-        reinterpret_cast<const char*>(rgba.data()),
-        rgba.size() * sizeof(float));
-    const runtime::GpuAssetKey key{
-        assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
-        static_cast<std::uint32_t>(source.width()),
-        static_cast<std::uint32_t>(source.height())};
+    const auto& key = cached->gpu_key;
     const runtime::SurfaceDesc desc{
-        static_cast<std::uint32_t>(source.width()),
-        static_cast<std::uint32_t>(source.height()),
-        runtime::PixelFormat::Rgba32Float,
+        key.width,
+        key.height,
+        key.format,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::JobPersistent,
-        rgba.size() * sizeof(float)};
-    const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, rgba);
+        cached->gpu_rgba.size() * sizeof(float)};
+    const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
     if (!acquired.ok()) return false;
+
+    const auto& source = *cached->fb_img;
 
     if (!ensure_empty_native_surface(ctx, fb)) return false;
     const Vec2 original_source_size{
@@ -130,13 +112,38 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     transform.bilinear = 1u;
     transform.destination_origin_x = fb.origin_x();
     transform.destination_origin_y = fb.origin_y();
+    const float dst_x0 = tx;
+    const float dst_y0 = ty;
+    const float dst_x1 = tx + sx * source_size.x;
+    const float dst_y1 = ty + sy * source_size.y;
+
+    const auto img_x0 = static_cast<std::int32_t>(std::floor(std::min(dst_x0, dst_x1)));
+    const auto img_y0 = static_cast<std::int32_t>(std::floor(std::min(dst_y0, dst_y1)));
+    const auto img_x1 = static_cast<std::int32_t>(std::ceil(std::max(dst_x0, dst_x1)));
+    const auto img_y1 = static_cast<std::int32_t>(std::ceil(std::max(dst_y0, dst_y1)));
+
+    std::int32_t effective_clip_x0 = img_x0;
+    std::int32_t effective_clip_y0 = img_y0;
+    std::int32_t effective_clip_x1 = img_x1;
+    std::int32_t effective_clip_y1 = img_y1;
+
     if (state.clip_rect) {
-        transform.clip_enabled = 1u;
-        transform.clip_rect[0] = state.clip_rect->x0;
-        transform.clip_rect[1] = state.clip_rect->y0;
-        transform.clip_rect[2] = state.clip_rect->x1;
-        transform.clip_rect[3] = state.clip_rect->y1;
+        effective_clip_x0 = std::max(effective_clip_x0, state.clip_rect->x0);
+        effective_clip_y0 = std::max(effective_clip_y0, state.clip_rect->y0);
+        effective_clip_x1 = std::min(effective_clip_x1, state.clip_rect->x1);
+        effective_clip_y1 = std::min(effective_clip_y1, state.clip_rect->y1);
     }
+
+    if (effective_clip_x1 <= effective_clip_x0 || effective_clip_y1 <= effective_clip_y0) {
+        release_native_surface(ctx, fb);
+        return true;
+    }
+
+    transform.clip_enabled = 1u;
+    transform.clip_rect[0] = effective_clip_x0;
+    transform.clip_rect[1] = effective_clip_y0;
+    transform.clip_rect[2] = effective_clip_x1;
+    transform.clip_rect[3] = effective_clip_y1;
 
     const auto result = ctx.services.backend->transform_surface_affine(
         fb.surface_handle(), acquired.handle, transform);

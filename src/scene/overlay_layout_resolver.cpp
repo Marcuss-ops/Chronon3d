@@ -72,6 +72,8 @@ bool inside_safe_area(const OverlayRegion& box, float canvas_w, float canvas_h,
 Anchor intent_anchor(std::string_view intent) noexcept {
     if (intent == "center")       return Anchor::Center;
     if (intent == "safe_area")    return Anchor::Center;
+    if (intent == "top")          return Anchor::TopCenter;
+    if (intent == "bottom")       return Anchor::BottomCenter;
     if (intent == "lower_third")  return Anchor::BottomCenter;
     if (intent == "lower_left")   return Anchor::BottomLeft;
     if (intent == "lower_right")  return Anchor::BottomRight;

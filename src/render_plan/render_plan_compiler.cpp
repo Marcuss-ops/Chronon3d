@@ -392,10 +392,16 @@ compile_render_plan(
                     VisualPresetMaterializer{}.materialize_image(
                         layer, canvas, plan.style_profile, visual_registry,
                         Frame{plan.canvas.duration.value});
-                layout_requests.push_back(layout_request(
-                    layer, resolved.layout, plan.canvas.duration.value));
-                layout_targets.push_back({index, true});
-                prepared_images[index] = resolved;
+                if (layer.position_dimensions > 0) {
+                    prepared_images[index] = resolved;
+                    prepared_image_positions[index] =
+                        chronon3d::Vec2{layer.position[0], layer.position[1]};
+                } else {
+                    layout_requests.push_back(layout_request(
+                        layer, resolved.layout, plan.canvas.duration.value));
+                    layout_targets.push_back({index, true});
+                    prepared_images[index] = resolved;
+                }
             }
         }
 
@@ -477,7 +483,7 @@ compile_render_plan(
                         switch (layer.type) {
                             case LayerType::Image: {
                                 ImageParams params;
-                                params.asset_path = layer.asset;
+                                params.asset_path = !layer.asset.empty() ? layer.asset : layer.source;
                                 // Preset-driven images resolve their box/fit
                                 // through the materializer (preset defaults +
                                 // plan overrides); preset-less image primitives
