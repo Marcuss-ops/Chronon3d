@@ -3,17 +3,13 @@
 // ============================================================================
 // tracing.hpp — Timeline tracing macro surface
 //
-// This is the ONLY timeline-tracing entry point.  Two macro families:
-//
-//   CHRONON_ZONE / CHRONON_ZONE_C   — legacy Tracy surface (transitional,
-//                                     removed when the Perfetto migration
-//                                     completes; see Fase 5 of the plan).
-//   CHRONON_TRACE_*                 — Perfetto track-event surface (new).
-//
-// Both families compile to no-ops when CHRONON3D_ENABLE_TRACING is off, so
-// call sites are safe in every build configuration.  With tracing enabled,
-// CHRONON_TRACE_* map 1:1 onto the Perfetto TrackEvent API and carry the
+// This is the ONLY timeline-tracing entry point.  The CHRONON_TRACE_* macro
+// family maps 1:1 onto the Perfetto TrackEvent API and carries the
 // "chronon.*" category registry declared in tracing_categories.hpp.
+//
+// All macros compile to no-ops when CHRONON3D_ENABLE_TRACING is off, so
+// call sites are safe in every build configuration (trace-OFF gate: zero
+// overhead beyond the probe in TracingActive()).
 //
 // Responsibility split (AGENTS.md / profiling.hpp migration):
 //   - profiling/timing.hpp          — now()/duration_* numeric timing
@@ -81,14 +77,7 @@ inline void RegisterVulkanQueueTrack() {
 #ifdef CHRONON3D_ENABLE_TRACING
 #include <perfetto.h>
 
-// ── Legacy Tracy surface (transitional — Fase 5 removes it) ──────────────
-#include <tracy/Tracy.hpp>
-#define CHRONON_ZONE(name) \
-    ZoneScopedN(name)
-#define CHRONON_ZONE_C(name, cat) \
-    ZoneScopedN(name)
-
-// ── Perfetto surface (new canonical timeline tracing) ────────────────────
+// ── Perfetto surface (canonical timeline tracing) ────────────────────────
 // `cat` MUST be a static string literal from tracing_categories.hpp
 // (e.g. "chronon.frame") so TRACE_EVENT resolves it at compile time.
 
@@ -178,17 +167,6 @@ inline void RegisterVulkanQueueTrack() {
         static_cast<uint64_t>(end_ns))
 
 #else // !CHRONON3D_ENABLE_TRACING
-
-#ifndef ZoneScoped
-#define ZoneScoped
-#endif
-#ifndef ZoneScopedN
-#define ZoneScopedN(name)
-#endif
-#define CHRONON_ZONE(name) \
-    do { (void)sizeof(name); } while (false)
-#define CHRONON_ZONE_C(name, cat) \
-    do { (void)sizeof(name); (void)sizeof(cat); } while (false)
 
 #define CHRONON_TRACE_SCOPE(cat, name) \
     do { (void)sizeof(cat); (void)sizeof(name); } while (false)
