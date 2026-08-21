@@ -15,6 +15,7 @@
 | Cache key rot | P2 | OPEN | [NODE-CACHE-KEY-COLLAPSE-ROT](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | Sequential graph cache parity | P1 | DONE (verified path) | `CHRONON3D_BUILD_DIAGNOSTICS=OFF` + `settings.diagnostics.enabled=false`: verifier PASS su `main@dc3fb34e` con worktree locale (3/3 deterministic + 14/14 scene, marker `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`); `CHRONON3D_ENABLE_DIAGNOSTICS=ON` resta fuori dalla conclusione: [SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md) |
 | Tools / lint debt | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md); [ANALYZE-FRAMES-ORPHAN](tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md) DONE; remaining watch-list open |
+| Telemetry event stores | P2 | OPEN | [TELEMETRY-STORE-CONSUMER-AUDIT](tickets/TICKET-TELEMETRY-STORE-CONSUMER-AUDIT.md) — audit Fase 7: unico consumer reale è SQLite (default OFF); writers culling/image + 3 collect gated dietro `CHRONON3D_ENABLE_SQLITE_TELEMETRY`; rimozione fisica text/tile + `TelemetrySession` deferred |
 | OpenType feature coverage | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 

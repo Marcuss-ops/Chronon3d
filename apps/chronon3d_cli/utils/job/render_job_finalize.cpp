@@ -273,8 +273,13 @@ bool finalize_render_job(
     }
     phases.push_back({"rendering_loop", profiling::duration_ms(loop_t0, loop_t1)});
 
+    // Per-event telemetry stores exist ONLY for the SQLite consumer
+    // (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT); this path discards the bundle,
+    // so the drain (16 mutex × 7 stores) is gated on the real consumer too.
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     auto telemetry = chronon3d::telemetry::collect_all_telemetry();
     (void)telemetry;
+#endif
 
     if (job.execution.report) {
         cli::telemetry::populate_run_host_attribs(run);

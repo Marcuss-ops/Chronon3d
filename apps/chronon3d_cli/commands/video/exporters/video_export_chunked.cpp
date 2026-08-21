@@ -81,6 +81,9 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const auto setup_t0 = wall_t0;
     chronon3d::RenderCounters aggregate_counters{};
     std::mutex aggregate_mutex;
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    // Per-event stores exist ONLY for the SQLite consumer
+    // (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT); gated with the record sites.
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_events;
     std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_events;
     std::vector<chronon3d::telemetry::CacheTelemetryRecord> cache_events;
@@ -89,6 +92,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     std::vector<chronon3d::telemetry::ImageTelemetryRecord> image_events;
     std::vector<chronon3d::telemetry::TileTelemetryRecord> tile_events;
     std::mutex telemetry_data_mutex;
+#endif
     std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
     std::mutex frames_mutex;
 
@@ -220,6 +224,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 std::lock_guard<std::mutex> lock(aggregate_mutex);
                 cli::telemetry::add_counters(aggregate_counters, *renderer->counters());
                 
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
                 auto local_telemetry = chronon3d::telemetry::collect_all_telemetry();
 
                 {
@@ -232,6 +237,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     for (auto& ev : local_telemetry.image_events) image_events.push_back(std::move(ev));
                     for (auto& ev : local_telemetry.tile_events) tile_events.push_back(std::move(ev));
                 }
+#endif
                 {
                     std::lock_guard<std::mutex> frames_lock(frames_mutex);
                     telemetry_frames.insert(telemetry_frames.end(), local_frames.begin(), local_frames.end());

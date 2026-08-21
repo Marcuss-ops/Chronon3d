@@ -148,6 +148,9 @@ add_library(chronon3d_graph_executor OBJECT
 if(CHRONON3D_ENABLE_TELEMETRY)
     target_sources(chronon3d_graph_executor PRIVATE executor/telemetry_emitter.cpp)
     target_compile_definitions(chronon3d_graph_executor PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    # Culling telemetry writer records only when the SQLite consumer exists
+    # (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT).
+    target_compile_definitions(chronon3d_graph_builder PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 endif()
 set_target_properties(chronon3d_graph_executor PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_executor PUBLIC
