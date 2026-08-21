@@ -59,6 +59,11 @@ void record_image_telemetry(
     double sample_ms,
     uint64_t sampled_pixels
 ) {
+    // The event stores exist ONLY for the SQLite telemetry consumer
+    // (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT); in default builds the records
+    // would be drained and discarded, so the per-draw mutex + string cost is
+    // gated on the real consumer.
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     telemetry::ImageTelemetryRecord rec;
     rec.frame_number = state.frame_number;
     rec.layer_id = state.layer_id;
@@ -70,6 +75,16 @@ void record_image_telemetry(
     rec.sample_ms = sample_ms;
     rec.sampled_pixels = sampled_pixels;
     telemetry::record_image_telemetry(std::move(rec));
+#else
+    (void)state;
+    (void)image_path;
+    (void)image_width;
+    (void)image_height;
+    (void)cache_status;
+    (void)decode_ms;
+    (void)sample_ms;
+    (void)sampled_pixels;
+#endif
 }
 
 void apply_rounded_coverage(Framebuffer& fb, float radius) {

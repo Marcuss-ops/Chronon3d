@@ -251,7 +251,11 @@ void record_pipe_telemetry(
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
 
     // ── Collect all telemetry events ───────────────────────────────────────
+    // Event stores exist ONLY for the SQLite consumer below; the drain is
+    // gated on the same define (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT).
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     auto telemetry = chronon3d::telemetry::collect_all_telemetry();
+#endif
 
     // ── Phase records ──────────────────────────────────────────────────────
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;

@@ -77,7 +77,11 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             }
         }
 
-        // Record culling telemetry
+        // Record culling telemetry — the event stores exist ONLY for the
+        // SQLite telemetry consumer (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT);
+        // in default builds the record would be drained and discarded, so the
+        // per-layer mutex + string cost is gated on the real consumer.
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
         telemetry::CullingTelemetryRecord cull_rec;
         cull_rec.frame_number = static_cast<int>(rctx.frame_input.frame);
         cull_rec.layer_id     = std::string(item.layer->name);
@@ -101,6 +105,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         }
         cull_rec.saved_pixels = saved_pixels;
         telemetry::record_culling_telemetry(std::move(cull_rec));
+#endif
 
         if (is_culled) return;
 
