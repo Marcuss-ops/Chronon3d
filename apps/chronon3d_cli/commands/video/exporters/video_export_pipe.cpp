@@ -214,6 +214,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.framebuffer_alloc_graph = c->framebuffer_alloc_graph.load(std::memory_order_relaxed);
         timings.framebuffer_alloc_scratch = c->framebuffer_alloc_scratch.load(std::memory_order_relaxed);
         timings.framebuffer_alloc_unknown = c->framebuffer_alloc_unknown.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_frames = c->video_decode_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_native_surface_frames = c->video_decode_native_surface_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_hw_transfer_frames = c->video_decode_hw_transfer_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_software_frames = c->video_decode_software_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_native_fallback_frames = c->video_decode_native_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_wall_ms = c->video_decode_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_hw_transfer_wall_ms = c->video_decode_hw_transfer_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_sws_wall_ms = c->video_decode_sws_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_framebuffer_wall_ms = c->video_decode_framebuffer_wall_ms.load(std::memory_order_relaxed);
     }
     const auto atlas_stats = session->renderer->runtime().gpu_text_atlas_cache().stats();
     timings.text.atlas_cache_hits = atlas_stats.cache_hits;
