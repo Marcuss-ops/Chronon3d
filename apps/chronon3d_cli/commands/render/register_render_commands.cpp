@@ -209,6 +209,12 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             CLI::ignore_case));
     cmd->add_option("-v,--log-level", args.log_level,
                     "Log level: trace | debug | info | warn | error");
+    cmd->add_option("--trace", args.trace_output,
+                    "Write a Perfetto timeline trace to this .pftrace path (job-end only, RING_BUFFER)");
+    cmd->add_option("--trace-level", args.trace_level,
+                    "Trace capture level: pipeline (default), nodes, or full")
+        ->default_val("pipeline")
+        ->check(CLI::IsMember({"pipeline", "nodes", "full"}));
 
     add_video_options(*cmd, args);
 
@@ -323,7 +329,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     .encoder_backend = render_args.video_settings.encoder_backend,
                     .ffmpeg_mode = render_args.video_settings.ffmpeg_mode,
                     .encode_preset = render_args.video_settings.encode_preset,
-                    .crf = render_args.video_settings.crf});
+                    .crf = render_args.video_settings.crf},
+                render_args.trace_output, render_args.trace_level);
             return;
         }
         if (render_args.comp_id.empty()) {

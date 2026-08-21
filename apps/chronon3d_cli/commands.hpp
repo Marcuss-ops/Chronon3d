@@ -83,6 +83,10 @@ struct RenderArgs {
     bool report{false};
     std::string command_line;
     chronon3d::CpuBudget cpu_budget;
+    // Timeline tracing (--trace): .pftrace output path; empty = off.
+    std::string trace_output;
+    // Trace capture level: pipeline | nodes | full.
+    std::string trace_level{"pipeline"};
 };
 
 struct BenchConvertArgs {

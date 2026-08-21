@@ -90,7 +90,12 @@ Result<bool, TraceError> TraceSession::start(const TraceOptions& options) {
     }
 
     perfetto::TraceConfig cfg;
-    cfg.add_buffers()->set_size_kb(static_cast<uint32_t>(options.buffer_mb) * 1024);
+    // RING_BUFFER: newest events win and the buffer is drained only in
+    // finish() — zero trace I/O on the render hot path.
+    auto* buffer = cfg.add_buffers();
+    buffer->set_size_kb(static_cast<uint32_t>(options.buffer_mb) * 1024);
+    buffer->set_fill_policy(
+        perfetto::protos::gen::TraceConfig_BufferConfig::RING_BUFFER);
 
     auto* ds_cfg = cfg.add_data_sources()->mutable_config();
     ds_cfg->set_name("track_event");
