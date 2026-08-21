@@ -123,6 +123,11 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
 NativeVideoFrameDecoder::~NativeVideoFrameDecoder() = default;
 
 NativeVideoFrameDecoder::Session::~Session() {
+    prefetch_stop.store(true, std::memory_order_relaxed);
+    prefetch_cv.notify_all();
+    if (prefetch_worker.joinable()) {
+        prefetch_worker.join();
+    }
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     // Destroy the CUDA/Vulkan bridges while their CUDA device context is still
     // owned by hw_device_ctx.
@@ -139,6 +144,15 @@ NativeVideoFrameDecoder::Session::~Session() {
         }
     }
 #endif
+    if (decoded) {
+        av_frame_free(&decoded);
+    }
+    if (closest_frame) {
+        av_frame_free(&closest_frame);
+    }
+    if (packet) {
+        av_packet_free(&packet);
+    }
     if (hw_transfer_frame) {
         av_frame_free(&hw_transfer_frame);
     }
@@ -157,10 +171,10 @@ NativeVideoFrameDecoder::Session::~Session() {
 }
 
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
-    const std::shared_ptr<Session>& session, AVFrame* frame) {
+    Session& session, AVFrame* frame) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
-    if (!session || !frame || frame->format != AV_PIX_FMT_CUDA ||
+    if (!frame || frame->format != AV_PIX_FMT_CUDA ||
         !m_backend || !m_surface_registry || !frame->hw_frames_ctx) {
         if (m_counters && frame && frame->format == AV_PIX_FMT_CUDA) {
             m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
@@ -172,11 +186,11 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
         if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
         return nullptr;
     }
-    session->native_backend = m_backend;
-    session->native_surface_registry = m_surface_registry;
+    session.native_backend = m_backend;
+    session.native_surface_registry = m_surface_registry;
 
-    auto& slot = session->native_slots[session->next_native_slot % Session::kNativeDecodeSlots];
-    session->next_native_slot++;
+    auto& slot = session.native_slots[session.next_native_slot % Session::kNativeDecodeSlots];
+    session.next_native_slot++;
 
     // A graph/pool may reclaim a Framebuffer's raw handle independently of
     // the decoder session. Never submit into a compositor whose imported
@@ -339,12 +353,185 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     }
     session->codec = cc;
     session->hw_transfer_frame = av_frame_alloc();
-    if (!session->hw_transfer_frame) {
-        spdlog::warn("[video-decoder] cannot allocate CUDA transfer frame for '{}'", path);
+    session->decoded = av_frame_alloc();
+    session->closest_frame = av_frame_alloc();
+    session->packet = av_packet_alloc();
+    if (!session->hw_transfer_frame || !session->decoded || !session->closest_frame || !session->packet) {
+        spdlog::warn("[video-decoder] cannot allocate working AVFrames for '{}'", path);
     }
 
+    session->start_prefetch_worker(this);
     m_sessions[path] = session;
     return session;
+}
+
+void NativeVideoFrameDecoder::Session::start_prefetch_worker(
+    NativeVideoFrameDecoder* decoder) {
+    prefetch_worker = std::thread([this, decoder]() {
+        while (!prefetch_stop.load(std::memory_order_relaxed)) {
+            int64_t target_to_fetch = -1;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                prefetch_cv.wait(lock, [this]() {
+                    return prefetch_stop.load(std::memory_order_relaxed) ||
+                           (prefetch_queue.size() < kPrefetchCapacity && prefetch_next >= 0);
+                });
+                if (prefetch_stop.load(std::memory_order_relaxed)) break;
+                target_to_fetch = prefetch_next++;
+            }
+
+            auto fb = decoder->decode_frame_internal(*this, target_to_fetch);
+
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                if (fb) {
+                    prefetch_queue.push_back({target_to_fetch, std::move(fb)});
+                }
+                prefetch_cv.notify_all();
+            }
+        }
+    });
+}
+
+std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
+    Session& session, int64_t target) {
+    std::lock_guard<std::mutex> decode_lock(session.decode_mutex);
+
+    // Frame index → stream timestamp. CFR content (the golden fixtures) has
+    // exact pts = target × frame_duration; B-frame streams are handled by
+    // matching on pts rather than counting decode output.
+    const AVStream* st = session.fmt->streams[session.stream_index];
+    AVRational frame_dur = av_inv_q(st->avg_frame_rate);
+    if (frame_dur.num <= 0 || frame_dur.den <= 0) {
+        frame_dur = av_inv_q(st->r_frame_rate);
+    }
+    if (frame_dur.num <= 0 || frame_dur.den <= 0) {
+        frame_dur = {1, 30};
+    }
+    const int64_t target_pts = av_rescale_q(target, frame_dur, st->time_base);
+
+    // Seek when the request is behind the decode position or far ahead
+    // (sequential decode otherwise). AVSEEK_FLAG_BACKWARD lands on the
+    // keyframe at or before the target timestamp, which is the correct
+    // restart point for B-frame streams.
+    if (session.last_target < 0 ||
+        target < session.last_target ||
+        target > session.last_target + 8) {
+        av_seek_frame(session.fmt, session.stream_index, target_pts, AVSEEK_FLAG_BACKWARD);
+        avcodec_flush_buffers(session.codec);
+        session.last_target = -1;
+    }
+
+    if (!session.decoded || !session.closest_frame || !session.packet) {
+        return nullptr;
+    }
+    av_frame_unref(session.decoded);
+    av_frame_unref(session.closest_frame);
+    av_packet_unref(session.packet);
+
+    AVPacket* packet = session.packet;
+    AVFrame* decoded = session.decoded;
+    AVFrame* closest_frame = session.closest_frame;
+
+    std::shared_ptr<Framebuffer> result;
+    int64_t closest_delta = INT64_MAX;
+    int overshoot = 0;
+
+    // Decode forward from the current position until the target pts appears.
+    while (av_read_frame(session.fmt, packet) >= 0) {
+        if (packet->stream_index != session.stream_index) {
+            av_packet_unref(packet);
+            continue;
+        }
+        const int send = avcodec_send_packet(session.codec, packet);
+        av_packet_unref(packet);
+        if (send < 0) {
+            break;
+        }
+        int receive = 0;
+        while ((receive = avcodec_receive_frame(session.codec, decoded)) == 0) {
+            const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE
+                ? decoded->best_effort_timestamp : decoded->pts;
+            if (pts == target_pts) {
+                if (auto native = try_native_frame(session, decoded)) {
+                    result = std::move(native);
+                    break;
+                }
+                const AVFrame* render_frame = decoded;
+                if (decoded->format == AV_PIX_FMT_CUDA && session.hw_transfer_frame) {
+                    const auto transfer_start = profiling::now();
+                    av_frame_unref(session.hw_transfer_frame);
+                    if (av_hwframe_transfer_data(session.hw_transfer_frame, decoded, 0) >= 0) {
+                        render_frame = session.hw_transfer_frame;
+                        if (m_counters) {
+                            m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+                            m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
+                            m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
+                                static_cast<uint64_t>(profiling::duration_ms(
+                                    transfer_start, profiling::now())),
+                                std::memory_order_relaxed);
+                        }
+                    }
+                } else if (decoded->format != AV_PIX_FMT_CUDA && m_counters) {
+                    m_counters->video_decode_software_frames.fetch_add(1, std::memory_order_relaxed);
+                }
+                result = frame_to_framebuffer(render_frame, session.sws, session.rgba, m_counters);
+                break;
+            }
+            if (pts != AV_NOPTS_VALUE) {
+                const int64_t delta = std::llabs(pts - target_pts);
+                if (delta < closest_delta) {
+                    closest_delta = delta;
+                    av_frame_unref(closest_frame);
+                    if (av_frame_ref(closest_frame, decoded) < 0) {
+                        av_frame_unref(closest_frame);
+                    }
+                }
+                if (pts > target_pts && ++overshoot >= 16) {
+                    break;
+                }
+            }
+        }
+        if (result || overshoot >= 16) {
+            break;
+        }
+        if (receive < 0 && receive != AVERROR(EAGAIN)) {
+            break;
+        }
+    }
+    if (!result && closest_frame->width > 0 && closest_frame->height > 0) {
+        if (closest_frame->format == AV_PIX_FMT_CUDA) {
+            if (auto native = try_native_frame(session, closest_frame)) {
+                result = std::move(native);
+            } else if (session.hw_transfer_frame) {
+                const auto transfer_start = profiling::now();
+                av_frame_unref(session.hw_transfer_frame);
+                if (av_hwframe_transfer_data(session.hw_transfer_frame, closest_frame, 0) >= 0) {
+                    if (m_counters) {
+                        m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+                        m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
+                        m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
+                            static_cast<uint64_t>(profiling::duration_ms(
+                                transfer_start, profiling::now())),
+                            std::memory_order_relaxed);
+                    }
+                    result = frame_to_framebuffer(
+                        session.hw_transfer_frame, session.sws, session.rgba, m_counters);
+                }
+            }
+        } else {
+            if (m_counters) {
+                m_counters->video_decode_software_frames.fetch_add(1, std::memory_order_relaxed);
+            }
+            result = frame_to_framebuffer(
+                closest_frame, session.sws, session.rgba, m_counters);
+        }
+    }
+
+    if (result) {
+        session.last_target = target;
+    }
+    return result;
 }
 
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
@@ -367,183 +554,69 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
     if (!session) {
         return nullptr;
     }
-    std::lock_guard<std::mutex> session_lock(session->mutex);
 
-    // Cache hit.
-    auto cached = session->cache.find(target);
-    if (cached != session->cache.end()) {
-        if (m_counters) {
-            m_counters->video_decode_cache_hits.fetch_add(1, std::memory_order_relaxed);
-        }
-        return cached->second;
-    }
-    if (m_counters) {
-        m_counters->video_decode_cache_misses.fetch_add(1, std::memory_order_relaxed);
-    }
-
-    // Frame index → stream timestamp. CFR content (the golden fixtures) has
-    // exact pts = target × frame_duration; B-frame streams are handled by
-    // matching on pts rather than counting decode output.
-    const AVStream* st = session->fmt->streams[session->stream_index];
-    AVRational frame_dur = av_inv_q(st->avg_frame_rate);
-    if (frame_dur.num <= 0 || frame_dur.den <= 0) {
-        frame_dur = av_inv_q(st->r_frame_rate);
-    }
-    if (frame_dur.num <= 0 || frame_dur.den <= 0) {
-        frame_dur = {1, 30};
-    }
-    const int64_t target_pts = av_rescale_q(target, frame_dur, st->time_base);
-
-    // Seek when the request is behind the decode position or far ahead
-    // (sequential decode otherwise). AVSEEK_FLAG_BACKWARD lands on the
-    // keyframe at or before the target timestamp, which is the correct
-    // restart point for B-frame streams.
-    if (session->last_target < 0 ||
-        target < session->last_target ||
-        target > session->last_target + 8) {
-        av_seek_frame(session->fmt, session->stream_index, target_pts, AVSEEK_FLAG_BACKWARD);
-        avcodec_flush_buffers(session->codec);
-        session->last_target = -1;
-    }
-
-    AVPacket packet{};
-    AVFrame* decoded = av_frame_alloc();
-    AVFrame* closest_frame = av_frame_alloc();
-    if (!decoded || !closest_frame) {
-        av_frame_free(&decoded);
-        av_frame_free(&closest_frame);
-        return nullptr;
-    }
     std::shared_ptr<Framebuffer> result;
-    std::shared_ptr<Framebuffer> closest;
-    int64_t closest_delta = INT64_MAX;
-    int overshoot = 0;
+    {
+        std::unique_lock<std::mutex> lock(session->mutex);
 
-    // Decode forward from the current position until the target pts appears.
-    // For non-exact (VFR) streams we keep the closest frame seen and bail
-    // after a bounded overshoot; exact CFR pts matches always terminate first.
-    while (av_read_frame(session->fmt, &packet) >= 0) {
-        if (packet.stream_index != session->stream_index) {
-            av_packet_unref(&packet);
-            continue;
-        }
-        const int send = avcodec_send_packet(session->codec, &packet);
-        av_packet_unref(&packet);
-        if (send < 0) {
-            break;
-        }
-        int receive = 0;
-        while ((receive = avcodec_receive_frame(session->codec, decoded)) == 0) {
-            const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE
-                ? decoded->best_effort_timestamp : decoded->pts;
-            if (pts == target_pts) {
-                if (auto native = try_native_frame(session, decoded)) {
-                    result = std::move(native);
-                    break;
-                }
-                const AVFrame* render_frame = decoded;
-                if (decoded->format == AV_PIX_FMT_CUDA && session->hw_transfer_frame) {
-                    const auto transfer_start = profiling::now();
-                    av_frame_unref(session->hw_transfer_frame);
-                    if (av_hwframe_transfer_data(session->hw_transfer_frame, decoded, 0) >= 0) {
-                        render_frame = session->hw_transfer_frame;
-                        if (m_counters) {
-                            m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
-                            m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
-                            m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
-                                static_cast<uint64_t>(profiling::duration_ms(
-                                    transfer_start, profiling::now())),
-                                std::memory_order_relaxed);
-                        }
-                    }
-                } else if (decoded->format != AV_PIX_FMT_CUDA && m_counters) {
-                    m_counters->video_decode_software_frames.fetch_add(1, std::memory_order_relaxed);
-                }
-                result = frame_to_framebuffer(render_frame, session->sws, session->rgba, m_counters);
-                break;
-            }
-            if (pts != AV_NOPTS_VALUE) {
-                const int64_t delta = std::llabs(pts - target_pts);
-                if (delta < closest_delta) {
-                    closest_delta = delta;
-                    // Keep the best decoded frame AS-IS (original CUDA AVFrame)
-                    // and defer any expensive GPU->CPU transfer until we know
-                    // no exact target is available.
-                    av_frame_unref(closest_frame);
-                    if (av_frame_ref(closest_frame, decoded) < 0) {
-                        av_frame_unref(closest_frame);
-                    }
-                }
-                // Bounded scan past the target: B-frames after the first
-                // overshooting reference frame may still hit the exact pts,
-                // so allow a small window before falling back to the closest.
-                if (pts > target_pts && ++overshoot >= 16) {
-                    break;
-                }
-            }
-        }
-        if (result || overshoot >= 16) {
-            break;
-        }
-        if (receive < 0 && receive != AVERROR(EAGAIN)) {
-            break;
-        }
-    }
-    if (!result && closest_frame->width > 0 && closest_frame->height > 0) {
-        if (closest_frame->format == AV_PIX_FMT_CUDA) {
-            if (auto native = try_native_frame(session, closest_frame)) {
-                result = std::move(native);
-            } else if (session->hw_transfer_frame) {
-                const auto transfer_start = profiling::now();
-                av_frame_unref(session->hw_transfer_frame);
-                if (av_hwframe_transfer_data(session->hw_transfer_frame, closest_frame, 0) >= 0) {
-                    if (m_counters) {
-                        m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
-                        m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
-                        m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
-                            static_cast<uint64_t>(profiling::duration_ms(
-                                transfer_start, profiling::now())),
-                            std::memory_order_relaxed);
-                    }
-                    result = frame_to_framebuffer(
-                        session->hw_transfer_frame, session->sws, session->rgba, m_counters);
-                }
-            }
-        } else {
+        // 1. Check software cache.
+        auto cached = session->cache.find(target);
+        if (cached != session->cache.end()) {
             if (m_counters) {
-                m_counters->video_decode_software_frames.fetch_add(1, std::memory_order_relaxed);
+                m_counters->video_decode_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
-            result = frame_to_framebuffer(
-                closest_frame, session->sws, session->rgba, m_counters);
+            return cached->second;
         }
-    }
-    av_frame_free(&decoded);
-    av_frame_free(&closest_frame);
 
-    if (!result) {
-        result = closest;
-    }
-    if (result) {
+        // 2. Check prefetch queue.
+        while (!session->prefetch_queue.empty() && session->prefetch_queue.front().target < target) {
+            session->prefetch_queue.pop_front();
+        }
+        if (!session->prefetch_queue.empty() && session->prefetch_queue.front().target == target) {
+            result = std::move(session->prefetch_queue.front().framebuffer);
+            session->prefetch_queue.pop_front();
+            if (m_counters) {
+                m_counters->video_decode_cache_hits.fetch_add(1, std::memory_order_relaxed);
+                m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
+                m_counters->video_decode_wall_ms.fetch_add(
+                    static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
+                    std::memory_order_relaxed);
+            }
+            session->prefetch_cv.notify_all();
+            return result;
+        }
+
+        // 3. Queue miss: reset prefetch target and decode synchronously.
         if (m_counters) {
-            m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
-            m_counters->video_decode_wall_ms.fetch_add(
-                static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
-                std::memory_order_relaxed);
+            m_counters->video_decode_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
-        session->last_target = target;
-    // A native frame points at session->native_surface, which is reused by
-    // the next decode. Caching that Framebuffer would make A→B→A return an A
-    // key with B pixels. Until native surfaces are backed by an immutable
-    // ring, cache only CPU-owned framebuffers.
-    const bool native_surface = result->surface_handle() !=
-        runtime::kInvalidRenderSurfaceHandle;
-    if (!native_surface) {
-        session->cache[target] = result;
-        // Bounded cache: evict the oldest entry beyond the cap.
-        while (session->cache.size() > kMaxCachedFrames) {
-            session->cache.erase(session->cache.begin());
+
+        session->prefetch_queue.clear();
+        session->prefetch_next = target + 1;
+        lock.unlock();
+
+        result = decode_frame_internal(*session, target);
+
+        lock.lock();
+        session->prefetch_cv.notify_all();
+
+        if (result) {
+            const bool native_surface = result->surface_handle() !=
+                runtime::kInvalidRenderSurfaceHandle;
+            if (!native_surface) {
+                session->cache[target] = result;
+                while (session->cache.size() > kMaxCachedFrames) {
+                    session->cache.erase(session->cache.begin());
+                }
+            }
         }
     }
+
+    if (result && m_counters) {
+        m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
+        m_counters->video_decode_wall_ms.fetch_add(
+            static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
+            std::memory_order_relaxed);
     }
     return result;
 }
