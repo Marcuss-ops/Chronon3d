@@ -3,7 +3,7 @@
 #include "tile_execution_policy.hpp"
 #include "scene_tile_execution.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 // TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
 // RenderRuntime (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
