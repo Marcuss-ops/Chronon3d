@@ -47,7 +47,8 @@ struct SurfaceAffineTransform {
     std::uint32_t bilinear{1};
     std::int32_t destination_origin_x{0};
     std::int32_t destination_origin_y{0};
-    std::uint32_t destination_padding[2]{};
+    std::int32_t dispatch_origin_x{0};
+    std::int32_t dispatch_origin_y{0};
     std::int32_t clip_rect[4]{};
     std::uint32_t clip_enabled{0};
     std::uint32_t padding[3]{};

@@ -67,15 +67,36 @@
 
     void record_transform_affine(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  const Image& destination, const Image& source,
-                                 const runtime::SurfaceAffineTransform& transform) {
+                                 runtime::SurfaceAffineTransform transform) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::AffineTransform)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+
+        std::int32_t x0 = 0;
+        std::int32_t y0 = 0;
+        std::int32_t x1 = static_cast<std::int32_t>(destination.width);
+        std::int32_t y1 = static_cast<std::int32_t>(destination.height);
+
+        if (transform.clip_enabled != 0u) {
+            const std::int32_t clip_x0 = transform.clip_rect[0] - transform.destination_origin_x;
+            const std::int32_t clip_y0 = transform.clip_rect[1] - transform.destination_origin_y;
+            const std::int32_t clip_x1 = transform.clip_rect[2] - transform.destination_origin_x;
+            const std::int32_t clip_y1 = transform.clip_rect[3] - transform.destination_origin_y;
+
+            x0 = std::clamp(clip_x0, 0, static_cast<std::int32_t>(destination.width));
+            y0 = std::clamp(clip_y0, 0, static_cast<std::int32_t>(destination.height));
+            x1 = std::clamp(clip_x1, x0, static_cast<std::int32_t>(destination.width));
+            y1 = std::clamp(clip_y1, y0, static_cast<std::int32_t>(destination.height));
+        }
+
+        transform.dispatch_origin_x = x0;
+        transform.dispatch_origin_y = y0;
+
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(transform), &transform);
-        vkCmdDispatch(command, (destination.width + 15) / 16,
-                      (destination.height + 15) / 16, 1);
+        vkCmdDispatch(command, (x1 - x0 + 15) / 16,
+                      (y1 - y0 + 15) / 16, 1);
     }
 
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,

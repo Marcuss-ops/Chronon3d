@@ -9,7 +9,7 @@ layout(push_constant) uniform AffineParams {
     vec4 source_y;
     vec4 limits; // max x, max y, opacity, bilinear flag
     ivec2 destination_origin;
-    ivec2 destination_padding;
+    ivec2 dispatch_origin;
     ivec4 clip_rect;
     uint clip_enabled;
     uint padding0;
@@ -36,7 +36,7 @@ vec4 sample_bilinear(vec2 source, ivec2 size) {
 }
 
 void main() {
-    ivec2 destination = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 destination = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 destination_size = imageSize(dst_image);
     if (destination.x >= destination_size.x || destination.y >= destination_size.y) return;
 
