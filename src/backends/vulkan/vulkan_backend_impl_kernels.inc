@@ -264,6 +264,25 @@
                 static_cast<double>(stamps[1] - stamps[0]) * timestamp_period_ns;
             stats.gpu_execute_us += static_cast<std::uint64_t>(elapsed_ns / 1000.0);
         }
+        // Fase 6: real GPU bars on the "Chronon Vulkan Queue" track.  Only
+        // when VK_EXT_calibrated_timestamps provided an anchor (calibration
+        // taken at backend construction); otherwise only the CPU-side
+        // VulkanSubmit/FenceWait events are traced — never fake GPU bars.
+        if (gpu_timestamps_calibrated && stamps[0] >= calibration_gpu_ts &&
+            stamps[1] > stamps[0]) {
+            const auto gpu_to_cpu = [this](std::uint64_t gpu) {
+                return calibration_cpu_trace_ns +
+                    static_cast<std::int64_t>(
+                        static_cast<double>(gpu - calibration_gpu_ts) *
+                        timestamp_period_ns);
+            };
+            const auto start_ns = gpu_to_cpu(stamps[0]);
+            const auto end_ns = gpu_to_cpu(stamps[1]);
+            if (end_ns > start_ns) {
+                CHRONON_TRACE_GPU_BEGIN("VulkanExecute", start_ns);
+                CHRONON_TRACE_GPU_END(end_ns);
+            }
+        }
     }
 
     // End the active frame batch's command buffer and submit it exactly once
@@ -317,6 +336,7 @@
             static_cast<std::uint32_t>(signal_semaphores.size()),
             signal_semaphores.data()};
         const auto submit_start = profiling::now();
+        CHRONON_TRACE_SCOPE("chronon.gpu", "VulkanSubmit");
         check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
         stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
