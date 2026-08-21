@@ -38,6 +38,17 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     };
 
     for (;;) {
+        // Perfetto counter tracks (pipeline health): frames waiting between
+        // the render thread and the writer, and encode work still in flight
+        // here (GPU surfaces the encoder has not finished consuming).
+        // Guarded by TracingActive() so the mutex-guarded queue probe costs
+        // nothing when no trace session is running.
+        if (chronon3d::tracing::TracingActive()) {
+            CHRONON_TRACE_COUNTER("chronon.pipeline", "render_queue_depth",
+                static_cast<int64_t>(ctx.queue.size_approx()));
+            CHRONON_TRACE_COUNTER("chronon.pipeline", "encoder_queue_depth",
+                static_cast<int64_t>(deferred_slots.size()));
+        }
         retire_ready_slots();
         RenderFramePackage package;
         const auto pop_t0 = profiling::now();
