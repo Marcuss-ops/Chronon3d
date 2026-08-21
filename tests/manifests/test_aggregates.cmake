@@ -150,5 +150,3 @@ foreach(_target IN LISTS CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS)
             LABELS "sanitizer-subsystems")
     endif()
 endforeach()
-
-include(${CMAKE_CURRENT_LIST_DIR}/../architecture_tests.cmake)

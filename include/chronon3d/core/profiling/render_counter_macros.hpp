@@ -304,6 +304,11 @@ namespace chronon3d {
     X(video_decode_hw_transfer_wall_ms) \
     X(video_decode_cache_hits) \
     X(video_decode_cache_misses) \
+    X(video_prefetch_hits) \
+    X(video_prefetch_misses) \
+    X(video_prefetch_wait_us) \
+    X(video_prefetch_queue_clear_count) \
+    X(video_prefetch_queue_depth_peak) \
     X(video_decode_wall_ms) \
     X(video_decode_sws_wall_ms) \
     X(video_decode_framebuffer_wall_ms) \

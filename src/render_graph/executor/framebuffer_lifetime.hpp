@@ -36,7 +36,8 @@ void release_consumed_framebuffers(
     ExecutionState& state,
     RenderGraph& graph,
     std::span<const GraphNodeId> level,
-    std::pmr::vector<std::atomic_size_t>& consumer_remaining
+    std::pmr::vector<std::atomic_size_t>& consumer_remaining,
+    std::span<const GraphNodeId> release_after_level = {}
 );
 
 } // namespace chronon3d::graph

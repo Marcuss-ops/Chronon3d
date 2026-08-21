@@ -89,6 +89,12 @@ private:
         SwsContext* sws{nullptr};
         int stream_index{-1};
         int64_t last_target{-1};
+        // Once a sequential request reaches EOF, all later timeline frames
+        // reuse the final decoded source frame.  Without this state every
+        // tail frame re-read the container until EOF again.
+        bool source_eof{false};
+        int64_t eof_target{-1};
+        std::shared_ptr<Framebuffer> eof_frame;
         std::vector<uint8_t> rgba;
         std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
 
@@ -102,6 +108,8 @@ private:
         std::atomic<bool> prefetch_stop{false};
         std::thread prefetch_worker;
         int64_t prefetch_next{-1};
+        int64_t prefetch_inflight{-1};
+        uint64_t prefetch_generation{0};
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         static constexpr std::size_t kNativeDecodeSlots = 4;

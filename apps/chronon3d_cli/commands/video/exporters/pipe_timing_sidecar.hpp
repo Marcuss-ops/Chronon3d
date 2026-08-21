@@ -116,6 +116,11 @@ struct GpuMetrics {
     std::optional<std::uint64_t> video_decode_hw_transfer_frames;
     std::optional<std::uint64_t> video_decode_software_frames;
     std::optional<std::uint64_t> video_decode_native_fallback_frames;
+    std::optional<std::uint64_t> video_prefetch_hits;
+    std::optional<std::uint64_t> video_prefetch_misses;
+    std::optional<std::uint64_t> video_prefetch_wait_us;
+    std::optional<std::uint64_t> video_prefetch_queue_clear_count;
+    std::optional<std::uint64_t> video_prefetch_queue_depth_peak;
     std::optional<std::uint64_t> video_decode_wall_ms;
     std::optional<std::uint64_t> video_decode_hw_transfer_wall_ms;
     std::optional<std::uint64_t> video_decode_sws_wall_ms;

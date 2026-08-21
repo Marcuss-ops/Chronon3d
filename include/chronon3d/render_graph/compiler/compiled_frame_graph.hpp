@@ -6,6 +6,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <cstdint>
 #include <memory>
@@ -91,6 +92,37 @@ struct ResourceLifetime {
     bool can_release_after_last_consumer{true};
 };
 
+struct CompiledOwnershipTransfer {
+    GraphNodeId producer{k_invalid_node};
+    GraphNodeId consumer{k_invalid_node};
+    bool transferable{false};
+};
+
+// Linear, domain-neutral execution description. Processors that do not yet
+// provide a compiled recorder remain valid through node.execute() fallback.
+struct CompiledOperation {
+    GraphNodeId node{k_invalid_node};
+    StableNodeId stable_node{kInvalidStableNodeId};
+    std::vector<GraphNodeId> inputs;
+    std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
+    std::uint32_t parameter_offset{0};
+    std::uint32_t parameter_size{0};
+};
+
+struct CompiledFrameProgram {
+    // Topological schedule copied once at compile time. Keeping it beside the
+    // operations makes the program the executor's immutable source of truth;
+    // CompiledFrameGraph::levels remains the compatibility fallback.
+    std::vector<std::vector<GraphNodeId>> levels;
+    std::vector<CompiledOperation> operations;
+    bool has_prepared_parameters{false};
+    bool fully_recorded{false};
+
+    [[nodiscard]] bool empty() const noexcept {
+        return operations.empty() || levels.empty();
+    }
+};
+
 struct CompiledFrameGraph {
     RenderGraph graph;
     GraphNodeId output{k_invalid_node};
@@ -121,11 +153,26 @@ struct CompiledFrameGraph {
     std::vector<CompiledNodeInfo> nodes;
     std::vector<ResourceLifetime> lifetimes;
 
+    // Nodes whose transient result is no longer needed after each level.
+    // This is derived once from the compiled DAG; execution does not need to
+    // rediscover the last consumer by walking graph edges.
+    std::vector<std::vector<GraphNodeId>> release_after_level;
+    // Generic ownership steals for resources with exactly one consumer.  A
+    // processor may use this to write into the producer's physical slot
+    // without a domain-specific video/image/text special case.
+    std::vector<CompiledOwnershipTransfer> ownership_transfers;
+
     // Deterministic interval-coloring plan for transient node outputs. The
     // plan is resolution-independent metadata consumed by the executor's
     // existing framebuffer pool; persistent and asynchronous resources are
     // explicitly excluded from aliasing.
     PhysicalFramebufferAllocationPlan physical_framebuffer_plan;
+    CompiledFrameProgram program;
+
+    // Optional prepared, domain-neutral per-frame parameter payload.  A
+    // missing table is valid: the generic node.execute() fallback remains
+    // authoritative for graphs that have not opted into preparation yet.
+    std::shared_ptr<const FrameParameterTable> prepared_parameters;
 
     std::vector<bool> early_exit_skip;
     bool skip_initial_clear{false};

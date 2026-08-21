@@ -1138,3 +1138,102 @@ TEST_CASE("FrameGraphCompiler - compile_with_reuse: post-conditions hold (Test E
     // skip_initial_clear copied from policy
     CHECK(compiled.skip_initial_clear == ctx.policy.skip_initial_clear);
 }
+
+TEST_CASE("FrameGraphCompiler - CompiledLifetimePlan computes deterministic release_after_level and ownership_transfers") {
+    FrameGraphCompiler compiler;
+    RenderGraphContext ctx;
+    FrameGraphCompileOptions options;
+    options.validate_dag = true;
+    options.compute_lifetimes = true;
+
+    // Build DAG:
+    //   A (Producer 0) ───┐
+    //                     ├──> C (Composite, sole consumer of A & B) ──> D (Output)
+    //   B (Producer 1) ───┘
+    RenderGraph graph;
+    GraphNodeId a = graph.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b = graph.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId c = graph.add_node(std::make_unique<CompilerTestNode>("C"));
+    GraphNodeId d = graph.add_node(std::make_unique<CompilerTestNode>("D"));
+    graph.connect(a, c);
+    graph.connect(b, c);
+    graph.connect(c, d);
+    graph.set_output(d);
+
+    auto compiled = compiler.compile(std::move(graph), ctx, options);
+    REQUIRE(compiled.valid);
+
+    // 1. Verify release_after_level derivation
+    REQUIRE(compiled.release_after_level.size() == compiled.levels.size());
+    // a and b have last consumer c -> should be released after the level containing c
+    REQUIRE(compiled.ownership_transfers.size() == compiled.graph.size());
+    CHECK(compiled.ownership_transfers[a].transferable);
+    CHECK(compiled.ownership_transfers[a].consumer == c);
+    CHECK(compiled.ownership_transfers[b].transferable);
+    CHECK(compiled.ownership_transfers[b].consumer == c);
+
+    // 2. Verify CompiledFrameProgram
+    REQUIRE_FALSE(compiled.program.empty());
+    CHECK(compiled.program.levels == compiled.levels);
+    CHECK(compiled.program.operations.size() == 4);
+    CHECK(compiled.program.operations[0].node == a);
+    CHECK(compiled.program.operations[1].node == b);
+    CHECK(compiled.program.operations[2].node == c);
+    CHECK(compiled.program.operations[3].node == d);
+}
+
+TEST_CASE("ExecutionWorkspaceRing - leases and releases workspace slots deterministically") {
+    ExecutionWorkspaceRing ring;
+
+    // Acquire slot 0
+    {
+        auto lease0 = ring.acquire(0);
+        auto& ws0 = lease0.workspace();
+        ws0.temp.resize(4);
+        CHECK(ws0.temp.size() == 4);
+
+        // Nested frame in-flight leases slot 1 without modifying slot 0
+        {
+            auto lease1 = ring.acquire(1);
+            auto& ws1 = lease1.workspace();
+            CHECK(ws1.temp.empty()); // fresh frame begin
+            ws1.temp.resize(2);
+            CHECK(ws1.temp.size() == 2);
+        }
+    }
+
+    // After leases go out of scope, slots can be re-acquired cleanly
+    auto lease0_again = ring.acquire(0);
+    CHECK(lease0_again.workspace().temp.empty()); // begin_frame cleared it
+}
+
+TEST_CASE("FrameParameterTable and FrameParameterSampler - sample and retrieve opaque parameters") {
+    struct TestParamBlock {
+        int64_t source_frame{0};
+        float opacity{1.0f};
+        float transform[4]{1.0f, 0.0f, 0.0f, 1.0f};
+    };
+
+    FrameParameterTable table;
+    const std::size_t kFrameCount = 10;
+    const Frame kStartFrame{100};
+
+    FrameParameterSampler::prepare(table, kStartFrame, kFrameCount, [](Frame frame, FrameParameterWriter& writer) {
+        TestParamBlock block;
+        block.source_frame = frame.integral();
+        block.opacity = static_cast<float>(frame.integral()) / 100.0f;
+        writer.write(block);
+    });
+
+    REQUIRE(table.frame_count() == kFrameCount);
+
+    // Verify sample at frame 105
+    const auto view = table.view(Frame{105});
+    REQUIRE(view.size() == sizeof(TestParamBlock));
+
+    TestParamBlock retrieved{};
+    std::memcpy(&retrieved, view.data(), sizeof(TestParamBlock));
+    CHECK(retrieved.source_frame == 105);
+    CHECK(retrieved.opacity == doctest::Approx(1.05f));
+}
+

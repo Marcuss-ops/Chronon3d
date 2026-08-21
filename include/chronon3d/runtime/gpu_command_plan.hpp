@@ -18,8 +18,10 @@
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
+#include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -103,6 +105,9 @@ using GpuPassParams = std::variant<
 struct GpuPass {
     GpuPassKind kind{GpuPassKind::Composite};
     GpuPassParams params{CompositePass{}};
+    // Offset into CommandPlan::dynamic_parameters. Zero-size means that the
+    // pass uses only structural/static state.
+    ::chronon3d::graph::FrameParameterSlice dynamic_parameters{};
 };
 
 struct PassPlan {
@@ -132,6 +137,7 @@ struct CommandPlan {
     PassPlan passes;
     ResourcePlan resources;
     BarrierPlan barriers;
+    std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> dynamic_parameters;
 
     [[nodiscard]] std::size_t pass_count() const noexcept { return passes.size(); }
 };
@@ -205,6 +211,11 @@ inline RenderSurfaceHandle destination_handle(const GpuPass& pass) {
 /// non-overlapping lifetimes via the canonical ResourcePlanner.
 class GpuCommandPlanner {
 public:
+    void set_dynamic_parameters(
+        std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> parameters) {
+        m_dynamic_parameters = std::move(parameters);
+    }
+
     void declare_surface(RenderSurfaceHandle handle, ResourceDesc desc) {
         m_descs[handle] = desc;
     }
@@ -216,6 +227,13 @@ public:
     void glow(GlowPass pass) { append(GpuPass{GpuPassKind::Glow, std::move(pass)}); }
     void color_adjust(ColorAdjustPass pass) { append(GpuPass{GpuPassKind::ColorAdjust, std::move(pass)}); }
     void matte(MattePass pass) { append(GpuPass{GpuPassKind::Matte, std::move(pass)}); }
+
+    /// Attach an external parameter span to the most recently appended pass.
+    /// The span is metadata only; the structural pass remains reusable across
+    /// frames and the backend receives the bytes at execution time.
+    void bind_last_pass_parameters(::chronon3d::graph::FrameParameterSlice slice) {
+        if (!m_passes.empty()) m_passes.back().dynamic_parameters = slice;
+    }
 
     [[nodiscard]] std::size_t pass_count() const noexcept { return m_passes.size(); }
 
@@ -242,6 +260,7 @@ public:
             planner.add(std::move(request));
         }
         plan.resources = planner.build();
+        plan.dynamic_parameters = m_dynamic_parameters;
 
         // Emit one transition per surface access so the backend can place
         // image barriers: a Read transition for every non-destination surface
@@ -291,6 +310,7 @@ private:
     }
 
     std::vector<GpuPass> m_passes;
+    std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> m_dynamic_parameters;
     std::unordered_map<RenderSurfaceHandle, ResourceDesc> m_descs;
     std::unordered_map<RenderSurfaceHandle, SurfaceLiveness> m_liveness;
 };

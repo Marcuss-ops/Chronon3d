@@ -29,7 +29,8 @@ void execute_levels(
     std::pmr::memory_resource* res,
     const CompiledFrameGraph& compiled
 ) {
-    for (const auto& level : levels) {
+    for (std::size_t level_index = 0; level_index < levels.size(); ++level_index) {
+        const auto& level = levels[level_index];
         CHRONON_ZONE_C("execute_level", trace_category::kGraph);
 
         const auto t_schedule0 = profiling::now();
@@ -199,7 +200,12 @@ void execute_levels(
         const auto t_dispatch1 = profiling::now();
 
         const auto t_fb0 = profiling::now();
-        release_consumed_framebuffers(state, graph, level, consumer_remaining);
+        const std::span<const GraphNodeId> release_schedule =
+            level_index < compiled.release_after_level.size()
+                ? std::span<const GraphNodeId>(compiled.release_after_level[level_index])
+                : std::span<const GraphNodeId>{};
+        release_consumed_framebuffers(
+            state, graph, level, consumer_remaining, release_schedule);
         const auto t_fb1 = profiling::now();
 
         // P1 — the 60-line pre-P1 if-block (sum-of-vectors + overhead derive +

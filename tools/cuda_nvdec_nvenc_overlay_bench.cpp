@@ -247,15 +247,32 @@ int main(int argc, char** argv) {
     AVBufferRef* frames=av_hwframe_ctx_alloc(hwdev); if(!frames) fail("frames alloc"); auto* fctx=(AVHWFramesContext*)frames->data; fctx->format=AV_PIX_FMT_CUDA; fctx->sw_format=AV_PIX_FMT_NV12; fctx->width=W; fctx->height=H; fctx->initial_pool_size=8; av_ok(av_hwframe_ctx_init(frames),"av_hwframe_ctx_init"); ec->hw_frames_ctx=av_buffer_ref(frames); av_ok(avcodec_open2(ec,enc_codec,nullptr),"encoder open"); av_ok(avcodec_parameters_from_context(st->codecpar,ec),"codec parameters"); st->time_base=ec->time_base;
     if(!(out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&out->pb,output,AVIO_FLAG_WRITE),"avio_open"); av_ok(avformat_write_header(out,nullptr),"avformat_write_header");
     AVPacket* pkt=av_packet_alloc(); AVFrame* decoded=av_frame_alloc(); if(!pkt || !decoded) fail("frame/packet alloc"); int64_t out_count=0;
+    std::vector<AVFrame*> dst_pool(8, nullptr);
+    for (auto& dst : dst_pool) {
+      dst = av_frame_alloc();
+      if (!dst) fail("frame alloc");
+      dst->format = AV_PIX_FMT_CUDA;
+      dst->width = W;
+      dst->height = H;
+      dst->hw_frames_ctx = av_buffer_ref(frames);
+      av_ok(av_hwframe_get_buffer(frames, dst, 0), "av_hwframe_get_buffer");
+    }
+    size_t pool_idx = 0;
     auto process=[&](AVFrame* src){
-      AVFrame* dst=av_frame_alloc(); if(!dst) fail("frame alloc"); dst->format=AV_PIX_FMT_CUDA; dst->width=W; dst->height=H; dst->hw_frames_ctx=av_buffer_ref(frames); av_ok(av_hwframe_get_buffer(frames,dst,0),"av_hwframe_get_buffer");
+      AVFrame* dst = dst_pool[pool_idx % dst_pool.size()];
+      pool_idx++;
       copy_plane((CUdeviceptr)dst->data[0],dst->linesize[0],src->data[0],src->linesize[0],W,H,stream); copy_plane((CUdeviceptr)dst->data[1],dst->linesize[1],src->data[1],src->linesize[1],W,(H+1)/2,stream);
       float wop = 0.75f; int kernel_w = W, kernel_h = H;
       void* args[]={&dst->data[0],&dst->data[1],&dst->linesize[0],&dst->linesize[1],&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h};
-      cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"cuLaunchKernel"); cu_ok(cuStreamSynchronize(stream),"cuStreamSynchronize"); dst->pts=out_count; write_packets(ec,out,pkt,dst,out_count); av_frame_free(&dst);
+      cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"cuLaunchKernel");
+      dst->pts=out_count;
+      write_packets(ec,out,pkt,dst,out_count);
     };
     while(av_read_frame(in,pkt)>=0){ if(pkt->stream_index==si){ av_ok(avcodec_send_packet(dc,pkt),"avcodec_send_packet"); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded); } av_packet_unref(pkt); }
-    avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded); write_packets(ec,out,pkt,nullptr,out_count); av_write_trailer(out);
+    avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded);
+    cu_ok(cuStreamSynchronize(stream), "cuStreamSynchronize final");
+    write_packets(ec,out,pkt,nullptr,out_count); av_write_trailer(out);
+    for (auto& dst : dst_pool) av_frame_free(&dst);
     if(!(out->oformat->flags&AVFMT_NOFILE)) avio_closep(&out->pb); av_frame_free(&decoded); av_packet_free(&pkt); avcodec_free_context(&ec); avcodec_free_context(&dc); avformat_close_input(&in); avformat_free_context(out); av_buffer_unref(&frames); av_buffer_unref(&hwdev); cuMemFree(wm.ptr); cuMemFree(sub.ptr); cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev); std::cout << "CUDA_NVDEC_NVENC_OVERLAY_PASS decoder=" << dec->name << " surfaces=" << nvenc_surfaces << " output=" << output << " frames=" << out_count << "\n"; return 0;
   } catch(const std::exception& e){ std::cerr << "CUDA_NVDEC_NVENC_OVERLAY_FAIL: " << e.what() << "\n"; return 1; }
 }
