@@ -42,6 +42,11 @@ struct PipeExportSession {
     double engine_init_ms{0.0};
     double backend_init_ms{0.0};
 
+    // Trace correlation: stable per-job id synthesized at session setup and
+    // shared by the render loop, the decoder and the writer thread so every
+    // stage builds the same Perfetto flow ids (see tracing/trace_ids.hpp).
+    std::uint64_t trace_job_id{0};
+
     // Accumulated prepare-barrier sub-timings (preflight + font preflight +
     // warmup), emitted as the `job.prepare` breakdown in the sidecar.
     runtime::RenderPreparationTimings prepare_timings;

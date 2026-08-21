@@ -73,6 +73,9 @@ struct WriterThreadContext {
     bool require_native_gpu{false};
     FrameInteropRing& interop_ring;
     std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
+    /// Trace correlation: stable per-job id mixed with the package frame
+    /// number to build the terminating Perfetto flow id for this encode.
+    std::uint64_t trace_job_id{0};
 };
 
 // ── Render loop ─────────────────────────────────────────────────────────────
@@ -99,6 +102,9 @@ struct RenderLoopContext {
     TripleBufferArena& triple_arena;
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;
+    /// Trace correlation: stable per-job id mixed with the current frame to
+    /// build the non-terminating Perfetto flow id for this render.
+    std::uint64_t trace_job_id{0};
 };
 
 struct RenderLoopResult {

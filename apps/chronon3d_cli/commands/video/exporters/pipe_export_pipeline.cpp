@@ -57,6 +57,13 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->canvas_width = compiled.definition->composition.width;
     session->canvas_height = compiled.definition->composition.height;
     session->total_frames = static_cast<int64_t>(end - start);
+    // Trace correlation: stable per-job id synthesized at setup (output path
+    // hash ⊕ wall-clock ns) and shared by decode/render/encode so Perfetto
+    // flows for this job never collide with a previous job in the same
+    // process (daemon warm-renderer mode).
+    session->trace_job_id = static_cast<std::uint64_t>(
+        std::hash<std::string>{}(session->original_output_path)) ^
+        profiling::timestamp_ns();
     session->started_at_iso =
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
         chronon3d::telemetry::TelemetryManager::get_current_iso_time();
@@ -187,6 +194,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                 opts.encoder.hardware_encoder == "nvenc",
             .interop_ring = session->interop_ring,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
+            .trace_job_id = session->trace_job_id,
         });
     session->writer_thread = std::thread(run_writer_thread, std::ref(*writer_ctx));
     session->writer_ctx = std::move(writer_ctx);
@@ -218,6 +226,7 @@ RenderLoopOutput run_pipe_export_loop(
     native_decoder->set_counters(session.renderer->counters());
     native_decoder->set_native_gpu_context(
         &session.renderer->backend(), &session.renderer->runtime().surface_registry());
+    native_decoder->set_trace_job_id(session.trace_job_id);
     media::MediaFrameProvider* video_decoder = native_decoder.get();
 
     std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
@@ -250,6 +259,7 @@ RenderLoopOutput run_pipe_export_loop(
         .triple_arena = *session.triple_arena,
         .counters = session.renderer->counters(),
         .telemetry_frames = telemetry_frames,
+        .trace_job_id = session.trace_job_id,
     };
     auto loop_result = run_render_loop(loop_ctx);
 
