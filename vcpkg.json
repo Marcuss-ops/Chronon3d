@@ -64,9 +64,9 @@
       "description": "Build benchmarks (requires Google Benchmark)",
       "dependencies": ["benchmark"]
     },
-    "profiling": {
-      "description": "Tracy profiling (CHRONON3D_ENABLE_PROFILING)",
-      "dependencies": ["tracy"]
+    "tracing": {
+      "description": "Timeline tracing (CHRONON3D_ENABLE_TRACING) — Perfetto is the target backend; Tracy remains as the transitional backend until the migration completes",
+      "dependencies": ["perfetto", "tracy"]
     },
     "vulkan": {
       "description": "Headless Vulkan backend (CHRONON3D_ENABLE_VULKAN)",
