@@ -9,6 +9,7 @@
 #endif
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/tracing/trace_session.hpp>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -16,8 +17,69 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
+#include <filesystem>
 
 namespace chronon3d::cli {
+
+namespace {
+
+/// Job-scoped Perfetto trace session (--trace <path>.pftrace).  Starts before
+/// the render; drains the in-memory RING_BUFFER into the file ONLY at job end
+/// (destructor) — zero trace I/O on the render hot path.  Level → buffer size
+/// per plan §14: pipeline = 32 MiB, nodes/full = 64 MiB.
+class JobTraceSession {
+public:
+    explicit JobTraceSession(const RenderJob& job) {
+        if (job.execution.trace_output.empty()) return;
+        chronon3d::trace::TraceOptions options;
+        options.enabled = true;
+        options.output = job.execution.trace_output;
+        options.level = trace_level_from_name(job.execution.trace_level);
+        options.buffer_mb =
+            options.level == chronon3d::trace::TraceLevel::kPipeline ? 32U : 64U;
+        const auto started = session_.start(options);
+        if (!started) {
+            spdlog::warn("[trace] failed to start trace session: {}",
+                         static_cast<int>(started.error()));
+            return;
+        }
+        output_ = options.output;
+        active_ = true;
+    }
+
+    ~JobTraceSession() {
+        if (!active_) return;
+        try {
+            const auto finished = session_.finish();
+            if (!finished) {
+                spdlog::warn("[trace] failed to write trace at job end: {}",
+                             static_cast<int>(finished.error()));
+            } else {
+                spdlog::info("[trace] timeline written to {} at job end",
+                             output_.string());
+            }
+        } catch (const std::exception& e) {
+            spdlog::warn("[trace] exception while writing trace: {}", e.what());
+        }
+    }
+
+    JobTraceSession(const JobTraceSession&) = delete;
+    JobTraceSession& operator=(const JobTraceSession&) = delete;
+
+private:
+    static chronon3d::trace::TraceLevel trace_level_from_name(
+        const std::string& name) {
+        if (name == "nodes") return chronon3d::trace::TraceLevel::kNodes;
+        if (name == "full") return chronon3d::trace::TraceLevel::kFull;
+        return chronon3d::trace::TraceLevel::kPipeline;
+    }
+
+    bool active_{false};
+    std::filesystem::path output_;
+    chronon3d::trace::TraceSession session_;
+};
+
+}  // namespace
 
 Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job) {
     return execute_render_job(job, {});
@@ -35,6 +97,11 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no compiled composition"};
     }
+
+    // --trace: job-scoped Perfetto session covering every render mode.  The
+    // .pftrace file is written only when this guard is destroyed (job end),
+    // including failure paths — never during the render hot path.
+    JobTraceSession job_trace(job);
 
     if (job.mode == RenderMode::Video) {
         if (!job.selected_frames.empty()) {
