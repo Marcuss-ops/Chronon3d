@@ -297,6 +297,11 @@ private:
     VkQueue m_queue{VK_NULL_HANDLE};
     VkCommandPool m_command_pool{VK_NULL_HANDLE};
     std::uint32_t m_queue_family{0};
+    // VK_EXT_calibrated_timestamps availability on the selected device,
+    // detected at construction.  Enables real GPU→CPU timeline calibration
+    // for the Perfetto "Chronon Vulkan Queue" track (Fase 6); when false the
+    // backend reports only CPU-side submit/fence-wait events.
+    bool m_calibrated_timestamps_supported{false};
 #endif
 };
 

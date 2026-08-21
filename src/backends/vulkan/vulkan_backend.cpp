@@ -183,6 +183,18 @@ struct VulkanBackend::Impl {
     VkQueue queue;
     std::uint32_t queue_family;
     VkCommandPool command_pool;
+    // ── GPU→CPU timeline calibration (VK_EXT_calibrated_timestamps) ──────
+    // Anchors the device timestamp domain to the Perfetto trace-clock domain
+    // so GPU work can be drawn as real bars on the "Chronon Vulkan Queue"
+    // track aligned with the CPU timeline.  All fields stay defaulted when
+    // the extension or timestamp queries are unavailable (fallback: CPU-side
+    // submit/fence-wait events only, never fake GPU bars).
+    bool calibrated_ts_supported{false};
+    PFN_vkGetCalibratedTimestampsEXT pfn_get_calibrated_timestamps{nullptr};
+    bool gpu_timestamps_calibrated{false};
+    std::uint64_t calibration_gpu_ts{0};
+    std::int64_t calibration_cpu_trace_ns{0};
+    std::uint64_t calibration_max_deviation{0};
     VkCommandBuffer command_buffer{VK_NULL_HANDLE};
     VkFence fence{VK_NULL_HANDLE};
     VkSemaphore timeline_semaphore{VK_NULL_HANDLE};
@@ -359,6 +371,10 @@ void VulkanBackend::begin_frame_batch() {
     // size instead of stalling the whole device every frame.
     if (batch.in_flight[slot]) {
         const auto wait_start = profiling::now();
+        // CPU-side fence wait — the honest fallback for GPU timing when
+        // calibrated timestamps are unavailable (Fase 6): the wait shows on
+        // the render thread track, no fake GPU bar is drawn.
+        CHRONON_TRACE_SCOPE("chronon.gpu", "FenceWait");
         const VkResult wait_result = vkWaitForFences(
             m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX);
         if (wait_result == VK_ERROR_DEVICE_LOST) {

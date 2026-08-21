@@ -80,13 +80,36 @@ VulkanBackend::VulkanBackend() {
     const VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
         nullptr, VK_TRUE};
+    // VK_EXT_calibrated_timestamps — optional. When the device exposes it we
+    // enable it so real GPU timestamps can be anchored on the Perfetto CPU
+    // timeline (Fase 6).  When absent, the backend keeps reporting only the
+    // CPU-side submit/fence-wait events — never fake GPU bars.
+    std::uint32_t device_extension_count = 0;
+    vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr,
+                                         &device_extension_count, nullptr);
+    std::vector<VkExtensionProperties> device_extensions(device_extension_count);
+    vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr,
+                                         &device_extension_count,
+                                         device_extensions.data());
+    m_calibrated_timestamps_supported = false;
+    for (const auto& ext : device_extensions) {
+        if (std::strcmp(ext.extensionName,
+                        VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) == 0) {
+            m_calibrated_timestamps_supported = true;
+            break;
+        }
+    }
+    std::vector<const char*> enabled_extensions;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    const char* external_memory_extensions[] = {
+    enabled_extensions.insert(enabled_extensions.end(), {
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
         VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME});
 #endif
+    if (m_calibrated_timestamps_supported) {
+        enabled_extensions.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+    }
     const VkDeviceCreateInfo device_info{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = &timeline_features,
@@ -96,17 +119,9 @@ VulkanBackend::VulkanBackend() {
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
         .enabledExtensionCount =
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-            4,
-#else
-            0,
-#endif
+            static_cast<std::uint32_t>(enabled_extensions.size()),
         .ppEnabledExtensionNames =
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-            external_memory_extensions,
-#else
-            nullptr,
-#endif
+            enabled_extensions.empty() ? nullptr : enabled_extensions.data(),
         .pEnabledFeatures = &features};
     check(vkCreateDevice(m_physical_device, &device_info, nullptr, &m_device),
           "vkCreateDevice");
@@ -120,7 +135,8 @@ VulkanBackend::VulkanBackend() {
     check(vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool),
           "vkCreateCommandPool");
     m_impl = std::make_unique<Impl>(m_physical_device, m_device, m_queue,
-                                    m_queue_family, m_command_pool);
+                                    m_queue_family, m_command_pool,
+                                    m_calibrated_timestamps_supported);
 #else
     throw std::runtime_error("Vulkan backend was not compiled");
 #endif
