@@ -172,6 +172,7 @@ endif()
 
 if(CHRONON3D_ENABLE_TRACING)
     find_package(Tracy CONFIG QUIET)
+    find_package(unofficial-perfetto CONFIG REQUIRED)
 endif()
 
 # --- Git Commit Hash Extraction ---
@@ -227,6 +228,21 @@ if(CHRONON3D_ENABLE_TRACING AND Tracy_FOUND)
     target_compile_definitions(chronon3d_scene PRIVATE CHRONON3D_ENABLE_TRACING TRACY_ON_DEMAND)
     target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON3D_ENABLE_TRACING TRACY_ON_DEMAND)
+endif()
+
+# ── Perfetto tracing backend (Fase 1) ────────────────────────────────────
+# The timeline-tracing surface (CHRONON_TRACE_*, TraceSession) lives in
+# chronon3d_core_impl (src/core/tracing/*.cpp).  Perfetto is the canonical
+# backend; Tracy remains as the transitional CHRONON_ZONE backend until the
+# migration completes (Fase 5).  The compile definition is needed on
+# core_impl so the tracing TUs see the enabled path.
+if(CHRONON3D_ENABLE_TRACING)
+    target_link_libraries(chronon3d_core_impl PRIVATE unofficial::perfetto::perfetto)
+    target_compile_definitions(chronon3d_core_impl PRIVATE CHRONON3D_ENABLE_TRACING)
+    # Final link closure: the static perfetto archive must reach every
+    # consumer that pulls core_impl objects through the pipeline INTERFACE
+    # (mirrors the Tracy INTERFACE pattern above).
+    target_link_libraries(chronon3d_pipeline INTERFACE unofficial::perfetto::perfetto)
 endif()
 
 # Build CLI command-group libraries before the test definitions are loaded.
