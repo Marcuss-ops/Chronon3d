@@ -118,7 +118,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     chronon3d::SoftwareRenderer* sw_sidecar,
     const TemporalRenderContext* temporal_context
 ) {
-    ZoneScoped;
+    CHRONON_TRACE_SCOPE("chronon.graph", "SceneTemporal");
     const auto t0 = profiling::now();
     cache::NodeCache* active_node_cache = temporal_context && temporal_context->value_cache
         ? temporal_context->value_cache
