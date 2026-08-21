@@ -13,6 +13,13 @@
 # symbols (one-way edge, no cycle).
 # ==============================================================================
 
+# Image telemetry writer records only when the SQLite consumer exists
+# (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT); default builds skip the per-draw
+# mutex/string cost entirely.
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_compile_definitions(chronon3d_backend_assets PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+endif()
+
 add_library(chronon3d_backend_assets OBJECT
     image_cache.cpp
     image_renderer.cpp
