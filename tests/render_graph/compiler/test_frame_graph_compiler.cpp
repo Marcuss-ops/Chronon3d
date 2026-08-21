@@ -1237,3 +1237,73 @@ TEST_CASE("FrameParameterTable and FrameParameterSampler - sample and retrieve o
     CHECK(retrieved.opacity == doctest::Approx(1.05f));
 }
 
+#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include <chronon3d/runtime/gpu_runtime.hpp>
+#include <chronon3d/runtime/media_session_pool.hpp>
+#include <chronon3d/runtime/async_encoder_sink.hpp>
+
+TEST_CASE("FrameExecutionSlotRing: state machine and RAII lease management") {
+    using namespace chronon3d::runtime;
+    FrameExecutionSlotRing ring(4);
+    CHECK(ring.capacity() == 4);
+
+    auto lease0 = ring.acquire_lease();
+    CHECK(lease0.valid());
+    CHECK(lease0.slot().state.load() == FrameSlotState::GpuWriting);
+    CHECK(lease0.slot().slot_id == 0);
+
+    lease0.mark_ready();
+    CHECK(lease0.slot().state.load() == FrameSlotState::ReadyForEncode);
+
+    lease0.release();
+    CHECK(!lease0.valid());
+    CHECK(ring.slot(0).state.load() == FrameSlotState::Free);
+}
+
+TEST_CASE("MediaSessionPool: key hashing and registration") {
+    using namespace chronon3d::runtime;
+    MediaSessionPool pool;
+    CHECK(pool.cached_session_count() == 0);
+
+    MediaSessionKey key{
+        MediaCodecId::H264,
+        1920,
+        1080,
+        MediaPixelFormat::NV12,
+        0,
+        false
+    };
+
+    pool.register_session(key, ReusableMediaSession{100, 200, 1, false});
+    CHECK(pool.cached_session_count() == 1);
+
+    pool.clear();
+    CHECK(pool.cached_session_count() == 0);
+}
+
+TEST_CASE("AsyncEncoderSink: asynchronous task dispatch and drain") {
+    using namespace chronon3d::runtime;
+    std::vector<std::uint64_t> drained_frames;
+    std::mutex mtx;
+
+    {
+        AsyncEncoderSink sink([&](FrameExecutionSlot* slot, std::uint64_t frame_idx, bool is_flush) {
+            (void)slot;
+            if (!is_flush) {
+                std::lock_guard lock(mtx);
+                drained_frames.push_back(frame_idx);
+            }
+        });
+
+        FrameExecutionSlot s0{}, s1{};
+        sink.submit_frame(&s0, 42);
+        sink.submit_frame(&s1, 43);
+        sink.flush_and_join();
+    }
+
+    CHECK(drained_frames.size() == 2);
+    CHECK(drained_frames[0] == 42);
+    CHECK(drained_frames[1] == 43);
+}
+
+

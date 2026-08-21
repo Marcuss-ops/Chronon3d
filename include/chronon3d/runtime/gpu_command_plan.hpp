@@ -38,6 +38,7 @@ enum class GpuPassKind : std::uint8_t {
     Glow = 4,
     ColorAdjust = 5,
     Matte = 6,
+    FusedComposite = 7,
 };
 
 // ── Per-kind pass payloads ────────────────────────────────────────────────
@@ -98,9 +99,15 @@ struct MattePass {
     std::int32_t inverted{0};
 };
 
+struct FusedCompositePass {
+    RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
+    RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
+    std::vector<RenderSurfaceHandle> layer_sources{};
+};
+
 using GpuPassParams = std::variant<
     CompositePass, TransformPass, AffineTransformPass, BlurPass,
-    GlowPass, ColorAdjustPass, MattePass>;
+    GlowPass, ColorAdjustPass, MattePass, FusedCompositePass>;
 
 struct GpuPass {
     GpuPassKind kind{GpuPassKind::Composite};
@@ -182,6 +189,14 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
     out.push_back(p.target);
     out.push_back(p.matte);
 }
+inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
+                                 const FusedCompositePass& p) {
+    out.push_back(p.destination);
+    out.push_back(p.source);
+    for (const auto& h : p.layer_sources) {
+        out.push_back(h);
+    }
+}
 
 inline RenderSurfaceHandle destination_of(const CompositePass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const TransformPass& p) { return p.destination; }
@@ -190,6 +205,7 @@ inline RenderSurfaceHandle destination_of(const BlurPass& p) { return p.destinat
 inline RenderSurfaceHandle destination_of(const GlowPass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const ColorAdjustPass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const MattePass& p) { return p.destination; }
+inline RenderSurfaceHandle destination_of(const FusedCompositePass& p) { return p.destination; }
 
 inline std::vector<RenderSurfaceHandle> referenced_handles(const GpuPass& pass) {
     std::vector<RenderSurfaceHandle> handles;
@@ -227,6 +243,7 @@ public:
     void glow(GlowPass pass) { append(GpuPass{GpuPassKind::Glow, std::move(pass)}); }
     void color_adjust(ColorAdjustPass pass) { append(GpuPass{GpuPassKind::ColorAdjust, std::move(pass)}); }
     void matte(MattePass pass) { append(GpuPass{GpuPassKind::Matte, std::move(pass)}); }
+    void fused_composite(FusedCompositePass pass) { append(GpuPass{GpuPassKind::FusedComposite, std::move(pass)}); }
 
     /// Attach an external parameter span to the most recently appended pass.
     /// The span is metadata only; the structural pass remains reusable across

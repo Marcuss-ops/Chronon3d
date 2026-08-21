@@ -7,7 +7,9 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/runtime/media_session_pool.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
@@ -283,6 +285,10 @@ public:
     [[nodiscard]] GpuTextAtlasCache&                       gpu_text_atlas_cache() noexcept { return m_gpu_text_atlas_cache; }
     [[nodiscard]] OverlayTemplateCache&                    overlay_template_cache() noexcept { return m_overlay_template_cache; }
     [[nodiscard]] const OverlayTemplateCache&              overlay_template_cache() const noexcept { return m_overlay_template_cache; }
+    [[nodiscard]] GpuRuntime&                              gpu_runtime() noexcept { return m_gpu_runtime; }
+    [[nodiscard]] const GpuRuntime&                        gpu_runtime() const noexcept { return m_gpu_runtime; }
+    [[nodiscard]] MediaSessionPool&                        media_sessions() noexcept { return m_media_sessions; }
+    [[nodiscard]] const MediaSessionPool&                  media_sessions() const noexcept { return m_media_sessions; }
 
     // WP-3 PR 3.1 — `scene_hasher()` + `program_store()` accessors were
     // REMOVED here.  Both state engines are now per-session owned; reach
@@ -373,6 +379,8 @@ private:
     GpuGlyphAtlas                                      m_gpu_glyph_atlas{};
     GpuTextAtlasCache                                  m_gpu_text_atlas_cache{};
     OverlayTemplateCache                               m_overlay_template_cache{};
+    GpuRuntime                                         m_gpu_runtime{};
+    MediaSessionPool                                   m_media_sessions{};
     /// WP-9 PR 9.0 / R1 — runtime owns the per-runtime FontEngine.
     std::unique_ptr<chronon3d::FontEngine>            m_font_engine_owned;
     bool                                              m_populated{false};
