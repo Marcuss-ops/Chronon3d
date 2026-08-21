@@ -69,7 +69,6 @@ mapfile -t files < <(find . -type f \
   ! -path './docs/ARCHIVE/*' \
   ! -path './.tmp_gate*/*' \
   ! -path './experimental/*' \
-  ! -name 'CHRONON3D_BACKEND_SOFTWARE_SOURCES.txt' \
   ! -path './docs/V3_BLUEPRINT.md' \
   ! -path './docs/CORE_OWNERSHIP.md' \
   ! -path './docs/TEXT_BOTTLENECKS.md' \

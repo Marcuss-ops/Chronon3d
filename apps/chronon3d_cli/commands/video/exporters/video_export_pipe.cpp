@@ -2,6 +2,7 @@
 #include "../common/pipe_export_helpers.hpp"
 #include "pipe_timing_sidecar.hpp"
 #include "../../../utils/process_start.hpp"
+#include "../../../utils/telemetry/nvml_sampler.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
@@ -59,11 +60,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     session->sys_metrics.sample_cpu_start();
 
     // Phase 5 — Render loop + writer join
-    auto loop_output = run_pipe_export_loop(*session, registry, compiled, render_opts, start, end, opts
-);
+    telemetry::NvmlSampler nvml_sampler;
+    nvml_sampler.start(std::chrono::milliseconds(250));
+
+    auto loop_output = run_pipe_export_loop(*session, registry, compiled, render_opts, start, end, opts);
 
     // Phase 6 — Encoder close
     auto close_result = close_pipe_encoder(*session);
+    nvml_sampler.stop();
+    const auto nvml_stats = nvml_sampler.stats();
 
     const auto wall_t1 = profiling::now();
     const double wall_time_ms = profiling::duration_ms(wall_t0, wall_t1);
@@ -97,6 +102,17 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.backend_init_ms = session->backend_init_ms;
     timings.render_loop_wall_ms = loop_output.render_ms;
     timings.encoder_finalize_ms = encode_ms;
+    if (nvml_stats.sample_count > 0) {
+        timings.hardware.gpu_utilization_avg = nvml_stats.gpu_utilization_avg;
+        timings.hardware.gpu_utilization_peak = nvml_stats.gpu_utilization_peak;
+        timings.hardware.nvdec_utilization_avg = nvml_stats.nvdec_utilization_avg;
+        timings.hardware.nvdec_utilization_peak = nvml_stats.nvdec_utilization_peak;
+        timings.hardware.nvenc_utilization_avg = nvml_stats.nvenc_utilization_avg;
+        timings.hardware.nvenc_utilization_peak = nvml_stats.nvenc_utilization_peak;
+        timings.hardware.memory_utilization_avg = nvml_stats.memory_utilization_avg;
+        timings.hardware.vram_used_peak_mb = nvml_stats.vram_used_peak_mb;
+        timings.hardware.vram_total_mb = nvml_stats.vram_total_mb;
+    }
     if (is_native) timings.mux_finalize_ms = close_result.native_trailer_ms;
     if (is_native) {
         timings.encoder.submit_cpu_ms = close_result.native_send_ms;

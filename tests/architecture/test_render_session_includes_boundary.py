@@ -38,6 +38,10 @@ KNOWN_VIOLATIONS = {
             'per-session ownership of SceneProgramStore requires full type; '
             'forward-declaration boundary lifted per '
             'docs/refactor-roadmap/03-render-session-boundary.md'),
+        'node_memory_tracker.hpp': ('WP-3 PR-3.1',
+            'per-session ownership of NodeMemoryTracker requires full type; '
+            'forward-declaration boundary lifted per '
+            'docs/refactor-roadmap/03-render-session-boundary.md'),
     },
 }
 
