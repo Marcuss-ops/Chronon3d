@@ -19,6 +19,9 @@ add_library(chronon3d_core_impl OBJECT
     memory/framebuffer.cpp
     scheduler/execution_scheduler.cpp      # PR-B: ExecutionScheduler owns the tbb::task_arena
     scheduler/scheduler_mode.cpp           # PR-B: SchedulerMode enum + parser, no TBB dep
+    tracing/perfetto_backend.cpp           # Perfetto SDK once-per-process bootstrap
+    tracing/trace_session.cpp              # job-scoped TraceSession (pimpl)
+    tracing/tracing_categories.cpp         # PERFETTO_TRACK_EVENT_STATIC_STORAGE (single TU)
 )
 target_include_directories(chronon3d_core_impl PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
