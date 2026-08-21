@@ -34,6 +34,22 @@ public:
         return raster::BBox{0, 0, render_w, render_h};
     }
 
+    bool can_seed_full_frame(const RenderGraphContext& ctx) const noexcept override {
+        if (ctx.frame_input.has_camera_2_5d) {
+            return false;
+        }
+        if (ctx.node_exec.clip_rect) {
+            const bool clip_is_full = ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
+                                      ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width && ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height;
+            if (!clip_is_full) {
+                return false;
+            }
+        }
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
+        return render_w >= ctx.frame_input.width && render_h >= ctx.frame_input.height;
+    }
+
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const Frame local_frame = ctx.frame_input.frame - m_layer_start;
         const Frame source_frame = video::map_video_frame(local_frame, m_source);

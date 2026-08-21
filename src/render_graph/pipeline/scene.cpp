@@ -148,6 +148,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         temporal_context ? temporal_context->sample_key : TemporalSampleKey{});
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
+    if (!ctx.node_exec.counters && sw_renderer && sw_renderer->counters()) {
+        ctx.node_exec.counters = sw_renderer->counters();
+    }
     if (sw_renderer) {
         ctx.services.surface_registry = &sw_renderer->runtime().surface_registry();
     }
@@ -347,6 +350,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
         if (reuse_eval.fast_path_reuse_fb) {
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);
+            }
             return finish_reused_native_frame(reuse_eval.fast_path_reuse_fb);
         }
     }
@@ -358,10 +364,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // the flag survives for the downstream coordinator (audit §9.4).
     ctx.policy.graph_structure_unchanged =
         reuse_eval.scene_structure_unchanged &&
-        !reuse_eval.static_cam_changed &&
-        reuse_eval.frame_fp.active_at_fp != 0 &&
-        reuse_eval.frame_fp.active_at_fp ==
-            (sw_renderer ? sw_renderer->frame_history().prev_active_at_fingerprint : 0);
+        !reuse_eval.static_cam_changed;
     // DOF changes post-composite payload and depth-tracking execution state.
     // Until cached-graph refresh updates that state atomically, rebuild this
     // graph path to preserve warm/cold byte determinism.
@@ -617,6 +620,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         t_graph0, t_graph1, t_exec0, t_exec1,
         ctx.node_exec.counters,        ctx.policy.diagnostics_enabled && !isolated_temporal_sample,
         frame, graph_result.graph_reused);
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
+        if (graph_result.graph_reused) {
+            ctx.node_exec.counters->graph_reused_frames.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
     record_dirty_telemetry(isolated_temporal_sample ? nullptr : sw_renderer, dirty_out,
 
         exec_result.use_tile_execution, graph_result.graph_reused);

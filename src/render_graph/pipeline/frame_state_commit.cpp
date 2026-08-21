@@ -25,12 +25,22 @@ void record_frame_timings(
         counter.fetch_add(static_cast<uint64_t>(std::llround(std::max(0.0, ms))),
             std::memory_order_relaxed);
     };
+    auto add_us = [&](std::atomic<uint64_t>& counter, double ms) {
+        counter.fetch_add(static_cast<uint64_t>(std::llround(std::max(0.0, ms * 1000.0))),
+            std::memory_order_relaxed);
+    };
 
     add_ms(counters->graph_resolve_layers_wall_ms, timings.resolve_ms);
     add_ms(counters->graph_dirty_rect_wall_ms, timings.dirty_ms);
     add_ms(counters->graph_build_wall_ms, timings.graph_ms);
     add_ms(counters->graph_execute_wall_ms, timings.exec_ms);
     add_ms(counters->graph_total_wall_ms, timings.total_graph_ms);
+
+    add_us(counters->graph_resolve_layers_wall_us, timings.resolve_ms);
+    add_us(counters->graph_dirty_rect_wall_us, timings.dirty_ms);
+    add_us(counters->graph_build_wall_us, timings.graph_ms);
+    add_us(counters->graph_execute_wall_us, timings.exec_ms);
+    add_us(counters->graph_total_wall_us, timings.total_graph_ms);
 }
 
 void setup_pingpong_buffers(

@@ -82,7 +82,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         const bool source_is_static = is_static;
 
         if (ctx.policy.diagnostics_enabled) {
-                spdlog::info(
+            spdlog::debug(
                 "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
                 layer.name.c_str(),
                 static_cast<int>(layer.kind),
