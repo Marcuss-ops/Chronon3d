@@ -38,6 +38,10 @@ struct RenderPlanState {
     std::string backend{"auto"};
     std::shared_ptr<SoftwareRenderer> warm_renderer;
     RenderPlanVideoOverrides video;
+    // Timeline tracing (--trace): .pftrace output path; empty = off.
+    std::string trace_output;
+    // Trace capture level: pipeline | nodes | full.
+    std::string trace_level{"pipeline"};
 };
 
 graph::BackendPreference backend_preference_from_name(const std::string& value) {
@@ -99,6 +103,8 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             backend_preference_from_name(args.backend));
         request.execution.config = std::move(renderer_config);
         request.execution.report = args.report;
+        request.execution.trace_output = std::filesystem::path(args.trace_output);
+        request.execution.trace_level = args.trace_level;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
             ? prepared.canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(prepared.output.codec);
@@ -204,7 +210,9 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          bool report,
                          std::shared_ptr<SoftwareRenderer> warm_renderer,
                          const std::string& backend,
-                         RenderPlanVideoOverrides video) {
+                         RenderPlanVideoOverrides video,
+                         const std::string& trace_output,
+                         const std::string& trace_level) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
@@ -213,6 +221,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
     state.backend = backend;
     state.warm_renderer = std::move(warm_renderer);
     state.video = std::move(video);
+    state.trace_output = trace_output;
+    state.trace_level = trace_level;
     return execute_render_plan(registry, state);
 }
 
@@ -249,7 +259,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
 
         const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
                                             report, std::move(warm_renderer), backend,
-                                            std::move(video));
+                                            std::move(video), /*trace_output=*/"",
+                                            /*trace_level=*/"pipeline");
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};
@@ -282,6 +293,11 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--fps-den", state->fps_den, "Frame-rate denominator");
     command->add_option("--crf", state->crf, "Encoder CRF override (0-51; default = engine default)");
     command->add_option("--encode-preset", state->encode_preset, "x264 preset override (e.g. medium, veryfast)");
+    command->add_option("--trace", state->trace_output,
+                        "Write a Perfetto timeline trace to this .pftrace path (job-end only, RING_BUFFER)");
+    command->add_option("--trace-level", state->trace_level,
+                        "Trace capture level: pipeline (default), nodes, or full")
+        ->check(CLI::IsMember({"pipeline", "nodes", "full"}));
     command->callback([state, &ctx] { ctx.exit_code = execute_render_plan(ctx.registry, *state); });
 }
 
