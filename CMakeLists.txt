@@ -375,6 +375,7 @@ target_link_libraries(chronon3d_asset_text_bench
         chronon3d_runtime
         chronon3d_pipeline
         chronon3d_backend_software
+        chronon3d_backend_vulkan
         chronon3d_content
 )
 

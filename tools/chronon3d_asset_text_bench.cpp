@@ -27,7 +27,11 @@ struct BenchStats {
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>
 
-BenchStats benchmark_composition(const Composition& comp, const std::string& case_name, int frames_count = 408) {
+BenchStats benchmark_composition(
+    const Composition& comp,
+    const std::string& case_name,
+    int frames_count = 408,
+    graph::BackendPreference pref = graph::BackendPreference::GPU) {
     (void)case_name;
     auto runtime_res = runtime::RenderRuntime::create(runtime::RuntimeConfig{});
     if (!runtime_res.has_value()) {
@@ -38,7 +42,7 @@ BenchStats benchmark_composition(const Composition& comp, const std::string& cas
     runtime->resolver().mount(std::filesystem::current_path());
     runtime->image_cache().set_backend(std::make_shared<image::StbImageBackend>());
     SoftwareRenderer renderer(*runtime, Config{});
-    backends::software::attach_software_backend(&renderer);
+    backends::software::attach_software_backend(&renderer, pref);
 
     // 1. COLD: First frame render with asset loading & graph compile
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -93,7 +97,8 @@ int main() {
     cases.emplace_back("IMG_checker_png", create_image_scene(std::filesystem::current_path() / "assets/images/checker.png"));
     cases.emplace_back("IMG_grid_tile_png", create_image_scene(std::filesystem::current_path() / "assets/images/grid_tile.png"));
     cases.emplace_back("IMG_four_mixed", create_four_images_scene());
-    cases.emplace_back("IMG_same_100", create_100_images_scene(std::filesystem::current_path() / "assets/images/checker.png"));
+    cases.emplace_back("IMG_15_static", create_15_images_static_scene(std::filesystem::current_path() / "assets/images/checker.png"));
+    cases.emplace_back("IMG_15_animated", create_15_images_animated_scene(std::filesystem::current_path() / "assets/images/checker.png"));
 
     // Text cases
     cases.emplace_back("TXT_CHRONON", create_static_text_scene("CHRONON"));
@@ -104,7 +109,8 @@ int main() {
     cases.emplace_back("TXT_symbols", create_static_text_scene("€ £ ¥ $ © ® ™ 25°C 100% 1 → 2 A • B • C"));
     cases.emplace_back("TXT_combining_unicode", create_static_text_scene("José Jose\u0301"));
     cases.emplace_back("TXT_dynamic_frame", create_dynamic_text_scene("Marcus Live"));
-    cases.emplace_back("TXT_unique_100", create_100_unique_texts_scene());
+    cases.emplace_back("TXT_15_unique_static", create_15_unique_texts_static_scene());
+    cases.emplace_back("TXT_15_unique_anim", create_15_unique_texts_animated_scene());
 
     for (const auto& [name, comp] : cases) {
         BenchStats s = benchmark_composition(comp, name, 408);

@@ -588,6 +588,9 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
     std::size_t count = 0;
     for (const auto& level : compiled.levels) count += level.size();
     compiled.program.operations.reserve(count);
+
+    std::vector<GraphNodeId> current_fused_batch;
+
     for (const auto& level : compiled.levels) {
         for (GraphNodeId node_id : level) {
             if (node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable) {
@@ -601,8 +604,37 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
                     compiled.physical_framebuffer_plan.allocation_for(node_id)) {
                 operation.output_physical_slot = allocation->physical_slot;
             }
+
+            // Static subgraph identification: if node is frame-invariant static
+            const auto& node_info = compiled.nodes[node_id];
+            if (node_info.cache_policy.reusable_across_frames() && node_info.inputs.empty()) {
+                StaticSubgraphBakePass bake;
+                bake.root_node = node_id;
+                bake.static_fingerprint = node_info.static_key.digest();
+                bake.is_baked = false;
+                compiled.program.static_bakes.push_back(bake);
+            }
+
+            if (node_info.kind == RenderGraphNodeKind::Composite ||
+                node_info.kind == RenderGraphNodeKind::Transform) {
+                current_fused_batch.push_back(node_id);
+            } else if (!current_fused_batch.empty()) {
+                CompiledLayerBatch batch;
+                batch.member_nodes = std::move(current_fused_batch);
+                batch.is_gpu_fused = true;
+                compiled.program.layer_batches.push_back(std::move(batch));
+                current_fused_batch.clear();
+            }
+
             compiled.program.operations.push_back(std::move(operation));
         }
+    }
+
+    if (!current_fused_batch.empty()) {
+        CompiledLayerBatch batch;
+        batch.member_nodes = std::move(current_fused_batch);
+        batch.is_gpu_fused = true;
+        compiled.program.layer_batches.push_back(std::move(batch));
     }
 }
 } // namespace
