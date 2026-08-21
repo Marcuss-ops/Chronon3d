@@ -23,6 +23,7 @@
 #include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
 #endif
 
+#include <array>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -87,9 +88,14 @@ private:
         // ordered, so eviction drops the oldest entry first).
         std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
-        std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor> native_compositor;
-        // The decoder owns the persistent native surface independently from
+        static constexpr std::size_t kNativeDecodeSlots = 4;
+        struct NativeDecodeSlot {
+            runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
+            std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor> compositor;
+        };
+        std::array<NativeDecodeSlot, kNativeDecodeSlots> native_slots;
+        std::size_t next_native_slot{0};
+        // The decoder owns the persistent native surfaces independently from
         // any Framebuffer wrapper returned to the graph.  Keep the release
         // endpoints on the session so teardown is symmetric with creation.
         graph::RenderBackend* native_backend{nullptr};
