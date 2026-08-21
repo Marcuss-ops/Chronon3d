@@ -560,7 +560,52 @@ void FrameGraphCompiler::compute_resource_lifetimes(
             }
         }
     }
+
+    compiled.release_after_level.assign(compiled.levels.size(), {});
+    compiled.ownership_transfers.assign(node_count, CompiledOwnershipTransfer{});
+    for (GraphNodeId node_id = 0; node_id < node_count; ++node_id) {
+        const auto& lifetime = compiled.lifetimes[node_id];
+        // The graph output remains owned by the executor until it returns.
+        // Resources with no consumers are likewise not released here.
+        if (node_id == compiled.output || lifetime.consumer_count == 0 ||
+            lifetime.last_level >= compiled.release_after_level.size()) {
+            continue;
+        }
+        compiled.release_after_level[lifetime.last_level].push_back(node_id);
+
+        if (lifetime.consumer_count == 1 && node_id < compiled.nodes.size() &&
+            compiled.nodes[node_id].consumers.size() == 1) {
+            compiled.ownership_transfers[node_id] = CompiledOwnershipTransfer{
+                node_id, compiled.nodes[node_id].consumers.front(), true};
+        }
+    }
 }
+
+namespace {
+void build_compiled_frame_program(CompiledFrameGraph& compiled) {
+    compiled.program = CompiledFrameProgram{};
+    compiled.program.levels = compiled.levels;
+    std::size_t count = 0;
+    for (const auto& level : compiled.levels) count += level.size();
+    compiled.program.operations.reserve(count);
+    for (const auto& level : compiled.levels) {
+        for (GraphNodeId node_id : level) {
+            if (node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable) {
+                continue;
+            }
+            CompiledOperation operation;
+            operation.node = node_id;
+            operation.stable_node = compiled.nodes[node_id].stable_node_id;
+            operation.inputs = compiled.nodes[node_id].inputs;
+            if (const auto* allocation =
+                    compiled.physical_framebuffer_plan.allocation_for(node_id)) {
+                operation.output_physical_slot = allocation->physical_slot;
+            }
+            compiled.program.operations.push_back(std::move(operation));
+        }
+    }
+}
+} // namespace
 
 void FrameGraphCompiler::build_physical_framebuffer_allocation_plan(
     CompiledFrameGraph& compiled
@@ -654,6 +699,7 @@ void FrameGraphCompiler::build_physical_framebuffer_allocation_plan(
             plan.peak_live_resource_count,
             static_cast<std::uint32_t>(count));
     }
+    build_compiled_frame_program(compiled);
 }
 
 void FrameGraphCompiler::validate(

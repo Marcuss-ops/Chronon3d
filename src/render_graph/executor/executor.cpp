@@ -62,7 +62,9 @@ namespace chronon3d::graph {
     ExecutionScheduler& scheduler
 ) {
     auto& graph = compiled.graph;
-    const auto& levels = compiled.levels;
+    const auto& levels = compiled.program.empty()
+        ? compiled.levels
+        : compiled.program.levels;
     const auto& consumer_counts = compiled.consumer_counts;
     const auto output = compiled.output;
 
@@ -75,6 +77,9 @@ namespace chronon3d::graph {
         return nullptr;
     }
 
+    auto workspace_lease = session.execution_workspaces->acquire(
+        static_cast<std::uint64_t>(std::max<std::int64_t>(0, ctx.frame_input.frame.integral())));
+    auto& workspace = workspace_lease.workspace();
     auto* res = arena.resource();
     struct ArenaGuard {
         FrameArena& arena;
@@ -82,7 +87,7 @@ namespace chronon3d::graph {
     } guard{arena};
 
     const size_t node_count = graph.size();
-    ExecutionState state(res, session.memory_tracker.get());
+    ExecutionState state(workspace, session.memory_tracker.get());
     state.temp.resize(node_count);
     state.resolved_key_digest.assign(node_count, 0);
     state.resolved_frame_dependent.assign(node_count, 0);
@@ -100,9 +105,7 @@ namespace chronon3d::graph {
     const auto t_fb0 = profiling::now();
     init_shared_transparent_fb(state, ctx, res);
 
-    auto consumer_remaining = init_consumer_remaining(
-        node_count, consumer_counts, res
-    );
+    auto consumer_remaining = init_consumer_remaining(node_count, consumer_counts, res);
     const auto t_fb1 = profiling::now();
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->framebuffer_lifetime_wall_ms.fetch_add(

@@ -219,6 +219,11 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.video_decode_hw_transfer_frames = c->video_decode_hw_transfer_frames.load(std::memory_order_relaxed);
         timings.gpu.video_decode_software_frames = c->video_decode_software_frames.load(std::memory_order_relaxed);
         timings.gpu.video_decode_native_fallback_frames = c->video_decode_native_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_hits = c->video_prefetch_hits.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_misses = c->video_prefetch_misses.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_wait_us = c->video_prefetch_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_queue_clear_count = c->video_prefetch_queue_clear_count.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_queue_depth_peak = c->video_prefetch_queue_depth_peak.load(std::memory_order_relaxed);
         timings.gpu.video_decode_wall_ms = c->video_decode_wall_ms.load(std::memory_order_relaxed);
         timings.gpu.video_decode_hw_transfer_wall_ms = c->video_decode_hw_transfer_wall_ms.load(std::memory_order_relaxed);
         timings.gpu.video_decode_sws_wall_ms = c->video_decode_sws_wall_ms.load(std::memory_order_relaxed);

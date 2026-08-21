@@ -454,10 +454,18 @@
                 const bool prev_write =
                     prev_it->second == runtime::ResourceAccess::Write ||
                     prev_it->second == runtime::ResourceAccess::ReadWrite;
-                barriers.push_back(make_image_barrier(
-                    image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-                    prev_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT,
-                    is_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT));
+                // Read-after-read has no memory dependency.  In particular,
+                // a terminal native-video hold surface is sampled by several
+                // consecutive frames without being modified between them.
+                // Emitting a full image barrier for every READ -> READ edge
+                // needlessly serializes command recording and can turn the
+                // tail of a held clip into a CPU fence stall.
+                if (prev_write || is_write) {
+                    barriers.push_back(make_image_barrier(
+                        image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+                        prev_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT,
+                        is_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT));
+                }
             } else if (is_write && !image.initialized) {
                 barriers.push_back(make_image_barrier(
                     image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
@@ -477,4 +485,3 @@
     // helpers below (the BarrierPlan mapper, or the conservative fallback
     // for plan-less calls).  They also never mutate surface state (the
     // `initialized` flags are updated by the operation wrappers).
-

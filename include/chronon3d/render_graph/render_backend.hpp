@@ -204,6 +204,12 @@ public:
     /// is a no-op so single-pass/software backends are unaffected.
     virtual void begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
 
+    /// Bind an external dynamic parameter span for the next compiled pass.
+    /// The default is intentionally a no-op so legacy/software backends keep
+    /// their node.execute() fallback. Vulkan implementations may upload or
+    /// bind the span without changing the domain-neutral graph contract.
+    virtual void bind_compiled_parameters(std::span<const std::byte> /*parameters*/) {}
+
     /// Command-batch lifecycle.  While a command batch is active, a batching
     /// backend defers the single submission it would otherwise perform per
     /// frame batch and instead records N overlays/frames into one command

@@ -70,6 +70,7 @@
 #include <chronon3d/internal/runtime/session_services.hpp>
 #include <chronon3d/internal/runtime/history_state.hpp>
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
+#include <chronon3d/render_graph/executor/execution_workspace.hpp>
 
 // P1 #3 — include for the per-session TextLayoutCache member.
 // TextLayoutCache has NO backend dependencies — it is a pure LRU
@@ -129,6 +130,11 @@ private:
 /// shared-runtime deployment.
 struct RenderSession {
     std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
+
+    // Generic graph execution storage.  It is shared by all node domains;
+    // nested executions lease another slot instead of resetting a parent.
+    std::unique_ptr<chronon3d::graph::ExecutionWorkspaceRing> execution_workspaces{
+        std::make_unique<chronon3d::graph::ExecutionWorkspaceRing>()};
 
     // WP-3 PR 3.1 — per-session mutation state (renamed from
     // `scene_hasher` / `program_store` to `_state` so they don't

@@ -8,6 +8,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/render_graph/executor/execution_workspace.hpp>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -31,16 +32,22 @@ template <typename Container>
 // ── Internal data structures ────────────────────────────────────────
 
 struct ExecutionState {
-    std::pmr::vector<CachedFB> temp;
-    std::pmr::vector<u64> resolved_key_digest;
-    std::pmr::vector<char> resolved_frame_dependent;
-    std::pmr::vector<char> resolved_cache_hit;
-    std::pmr::vector<std::optional<raster::BBox>> resolved_bboxes;
+    struct LocalStorage {
+        std::vector<CachedFB> temp;
+        std::vector<u64> resolved_key_digest;
+        std::vector<char> resolved_frame_dependent;
+        std::vector<char> resolved_cache_hit;
+        std::vector<std::optional<raster::BBox>> resolved_bboxes;
+        std::vector<OwnedFB> physical_slots;
+    };
+    std::unique_ptr<LocalStorage> owned_storage;
 
-    // One owner per compiler-assigned physical slot. Node results borrow
-    // these objects with a RendererOwned deleter; the slot owners remain
-    // alive until the frame ends, so aliasing cannot invalidate a result.
-    std::pmr::vector<OwnedFB> physical_slots;
+    std::vector<CachedFB>& temp;
+    std::vector<u64>& resolved_key_digest;
+    std::vector<char>& resolved_frame_dependent;
+    std::vector<char>& resolved_cache_hit;
+    std::vector<std::optional<raster::BBox>>& resolved_bboxes;
+    std::vector<OwnedFB>& physical_slots;
 
     CachedFB shared_transparent;
 
@@ -49,9 +56,25 @@ struct ExecutionState {
     TextBboxReporter text_bbox_reporter;
     NodeMemoryTracker* node_memory_tracker{nullptr};
 
-    explicit ExecutionState(std::pmr::memory_resource* res, NodeMemoryTracker* tracker = nullptr)
-        : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),
-          resolved_cache_hit(res), resolved_bboxes(res), physical_slots(res),
+    explicit ExecutionState(ExecutionWorkspace& workspace,
+                            NodeMemoryTracker* tracker = nullptr)
+        : owned_storage(nullptr),
+          temp(workspace.temp), resolved_key_digest(workspace.resolved_key_digest),
+          resolved_frame_dependent(workspace.resolved_frame_dependent),
+          resolved_cache_hit(workspace.resolved_cache_hit),
+          resolved_bboxes(workspace.resolved_bboxes),
+          physical_slots(workspace.physical_slots),
+          node_memory_tracker(tracker) {}
+
+    explicit ExecutionState(std::pmr::memory_resource* /*res*/ = nullptr,
+                            NodeMemoryTracker* tracker = nullptr)
+        : owned_storage(std::make_unique<LocalStorage>()),
+          temp(owned_storage->temp),
+          resolved_key_digest(owned_storage->resolved_key_digest),
+          resolved_frame_dependent(owned_storage->resolved_frame_dependent),
+          resolved_cache_hit(owned_storage->resolved_cache_hit),
+          resolved_bboxes(owned_storage->resolved_bboxes),
+          physical_slots(owned_storage->physical_slots),
           node_memory_tracker(tracker) {}
 };
 
