@@ -65,8 +65,8 @@
       "dependencies": ["benchmark"]
     },
     "tracing": {
-      "description": "Timeline tracing (CHRONON3D_ENABLE_TRACING) — Perfetto is the target backend; Tracy remains as the transitional backend until the migration completes",
-      "dependencies": ["perfetto", "tracy"]
+      "description": "Timeline tracing (CHRONON3D_ENABLE_TRACING) — Perfetto track-event backend",
+      "dependencies": ["perfetto"]
     },
     "vulkan": {
       "description": "Headless Vulkan backend (CHRONON3D_ENABLE_VULKAN)",
