@@ -77,14 +77,13 @@ void ensure_nvrtc_builtins_loaded() {
     }
 }
 
-} // namespace
-
-CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
-    const CudaExternalMemoryInfo& target, CUcontext context)
-    : context_(context) {
-    if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
-    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
-    check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
+std::string get_compiled_nv12_ptx() {
+    static std::mutex ptx_mutex;
+    static std::string cached_ptx;
+    std::lock_guard<std::mutex> lock(ptx_mutex);
+    if (!cached_ptx.empty()) {
+        return cached_ptx;
+    }
     ensure_nvrtc_builtins_loaded();
 
     nvrtcProgram program{};
@@ -106,6 +105,20 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
     std::string ptx(ptx_size, '\0');
     check_nvrtc(nvrtcGetPTX(program, ptx.data()), "nvrtcGetPTX");
     nvrtcDestroyProgram(&program);
+    cached_ptx = std::move(ptx);
+    return cached_ptx;
+}
+
+} // namespace
+
+CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
+    const CudaExternalMemoryInfo& target, CUcontext context)
+    : context_(context) {
+    if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
+    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
+    check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
+
+    const std::string ptx = get_compiled_nv12_ptx();
     check_cuda(cuModuleLoadData(&module_, ptx.data()), "cuModuleLoadData");
     check_cuda(cuModuleGetFunction(&kernel_, module_, "nv12_to_rgba"),
                "cuModuleGetFunction");

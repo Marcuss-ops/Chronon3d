@@ -124,20 +124,19 @@ NativeVideoFrameDecoder::~NativeVideoFrameDecoder() = default;
 
 NativeVideoFrameDecoder::Session::~Session() {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    // Destroy the CUDA/Vulkan bridge while its CUDA device context is still
-    // owned by hw_device_ctx.  C++ would otherwise destroy native_compositor
-    // after this destructor body, i.e. after hw_device_ctx has already been
-    // unreferenced, which makes cuStreamSynchronize/interop teardown enter
-    // the driver with a dead context.
-    native_compositor.reset();
-    if (native_surface != runtime::kInvalidRenderSurfaceHandle) {
-        if (native_backend) {
-            (void)native_backend->release_surface(native_surface);
+    // Destroy the CUDA/Vulkan bridges while their CUDA device context is still
+    // owned by hw_device_ctx.
+    for (auto& slot : native_slots) {
+        slot.compositor.reset();
+        if (slot.surface != runtime::kInvalidRenderSurfaceHandle) {
+            if (native_backend) {
+                (void)native_backend->release_surface(slot.surface);
+            }
+            if (native_surface_registry) {
+                (void)native_surface_registry->release(slot.surface);
+            }
+            slot.surface = runtime::kInvalidRenderSurfaceHandle;
         }
-        if (native_surface_registry) {
-            (void)native_surface_registry->release(native_surface);
-        }
-        native_surface = runtime::kInvalidRenderSurfaceHandle;
     }
 #endif
     if (hw_transfer_frame) {
@@ -163,31 +162,47 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
     if (!session || !frame || frame->format != AV_PIX_FMT_CUDA ||
         !m_backend || !m_surface_registry || !frame->hw_frames_ctx) {
+        if (m_counters && frame && frame->format == AV_PIX_FMT_CUDA) {
+            m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+        }
         return nullptr;
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(m_backend);
-    if (!vulkan) return nullptr;
+    if (!vulkan) {
+        if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+        return nullptr;
+    }
     session->native_backend = m_backend;
     session->native_surface_registry = m_surface_registry;
+
+    auto& slot = session->native_slots[session->next_native_slot % Session::kNativeDecodeSlots];
+    session->next_native_slot++;
+
     // A graph/pool may reclaim a Framebuffer's raw handle independently of
     // the decoder session. Never submit into a compositor whose imported
     // image has already been reclaimed; discard the stale bridge and create a
     // fresh surface below.
-    if (session->native_surface != runtime::kInvalidRenderSurfaceHandle &&
-        (!m_surface_registry->lookup(session->native_surface) ||
-         !vulkan->is_native_surface_valid(session->native_surface))) {
-        session->native_compositor.reset();
-        (void)vulkan->release_surface(session->native_surface);
-        (void)m_surface_registry->release(session->native_surface);
-        session->native_surface = runtime::kInvalidRenderSurfaceHandle;
+    if (slot.surface != runtime::kInvalidRenderSurfaceHandle &&
+        (!m_surface_registry->lookup(slot.surface) ||
+         !vulkan->is_native_surface_valid(slot.surface))) {
+        slot.compositor.reset();
+        (void)vulkan->release_surface(slot.surface);
+        (void)m_surface_registry->release(slot.surface);
+        slot.surface = runtime::kInvalidRenderSurfaceHandle;
     }
     auto* frames = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
-    if (!frames || !frames->device_ref) return nullptr;
+    if (!frames || !frames->device_ref) {
+        if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+        return nullptr;
+    }
     auto* device = reinterpret_cast<AVHWDeviceContext*>(frames->device_ref->data);
     auto* cuda = device ? reinterpret_cast<AVCUDADeviceContext*>(device->hwctx) : nullptr;
-    if (!cuda || !cuda->cuda_ctx) return nullptr;
+    if (!cuda || !cuda->cuda_ctx) {
+        if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+        return nullptr;
+    }
 
-    if (session->native_surface == runtime::kInvalidRenderSurfaceHandle) {
+    if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
         const runtime::SurfaceDesc desc{
             static_cast<std::uint32_t>(frame->width),
             static_cast<std::uint32_t>(frame->height),
@@ -195,35 +210,41 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
             static_cast<std::size_t>(frame->width) * frame->height * sizeof(float) * 4};
-        session->native_surface = m_surface_registry->create(desc);
-        if (session->native_surface == runtime::kInvalidRenderSurfaceHandle ||
-            !vulkan->create_cuda_external_surface(session->native_surface, desc).ok()) {
-            if (session->native_surface != runtime::kInvalidRenderSurfaceHandle)
-                (void)m_surface_registry->release(session->native_surface);
-            session->native_surface = runtime::kInvalidRenderSurfaceHandle;
+        slot.surface = m_surface_registry->create(desc);
+        if (slot.surface == runtime::kInvalidRenderSurfaceHandle ||
+            !vulkan->create_cuda_external_surface(slot.surface, desc).ok()) {
+            if (slot.surface != runtime::kInvalidRenderSurfaceHandle)
+                (void)m_surface_registry->release(slot.surface);
+            slot.surface = runtime::kInvalidRenderSurfaceHandle;
+            if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
             return nullptr;
         }
         try {
-            session->native_compositor = std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
-                vulkan->export_cuda_external_memory(session->native_surface), cuda->cuda_ctx);
+            slot.compositor = std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
+                vulkan->export_cuda_external_memory(slot.surface), cuda->cuda_ctx);
         } catch (const std::exception& error) {
             spdlog::warn("[video-decoder] native CUDA surface unavailable: {}", error.what());
-            (void)vulkan->release_surface(session->native_surface);
-            (void)m_surface_registry->release(session->native_surface);
-            session->native_surface = runtime::kInvalidRenderSurfaceHandle;
+            (void)vulkan->release_surface(slot.surface);
+            (void)m_surface_registry->release(slot.surface);
+            slot.surface = runtime::kInvalidRenderSurfaceHandle;
+            if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
             return nullptr;
         }
     }
-    if (!session->native_compositor || !session->native_compositor->composite(
+    if (!slot.compositor || !slot.compositor->composite(
             reinterpret_cast<CUdeviceptr>(frame->data[0]), frame->linesize[0],
             reinterpret_cast<CUdeviceptr>(frame->data[1]), frame->linesize[1],
             static_cast<std::uint32_t>(frame->width),
             static_cast<std::uint32_t>(frame->height), nullptr)) {
+        if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
         return nullptr;
     }
     // The next Vulkan submission waits on cuda_to_vulkan and releases the
     // opposite semaphore for the next NVDEC frame.
-    if (!vulkan->prepare_cuda_surface_for_vulkan(session->native_surface).ok()) return nullptr;
+    if (!vulkan->prepare_cuda_surface_for_vulkan(slot.surface).ok()) {
+        if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+        return nullptr;
+    }
     // The native path only needs a logical framebuffer carrying dimensions
     // and the imported GPU surface handle.  Allocating a CPU pixel array here
     // created one framebuffer allocation per decoded frame even though no
@@ -232,8 +253,11 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     // attached GPU handle.
     auto result = std::make_shared<Framebuffer>(
         frame->width, frame->height, static_cast<Color*>(nullptr));
-    result->set_surface_handle(session->native_surface);
-    if (m_counters) m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+    result->set_surface_handle(slot.surface);
+    if (m_counters) {
+        m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+        m_counters->video_decode_native_surface_frames.fetch_add(1, std::memory_order_relaxed);
+    }
     return result;
 #else
     (void)session; (void)frame;
@@ -412,30 +436,29 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
         while ((receive = avcodec_receive_frame(session->codec, decoded)) == 0) {
             const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE
                 ? decoded->best_effort_timestamp : decoded->pts;
-            const AVFrame* render_frame = decoded;
             if (pts == target_pts) {
                 if (auto native = try_native_frame(session, decoded)) {
                     result = std::move(native);
                     break;
                 }
-            }
-            if (decoded->format == AV_PIX_FMT_CUDA && session->hw_transfer_frame) {
-                const auto transfer_start = profiling::now();
-                av_frame_unref(session->hw_transfer_frame);
-                if (av_hwframe_transfer_data(session->hw_transfer_frame, decoded, 0) < 0) {
-                    spdlog::warn("[video-decoder] CUDA frame transfer failed for '{}'", path);
-                    continue;
+                const AVFrame* render_frame = decoded;
+                if (decoded->format == AV_PIX_FMT_CUDA && session->hw_transfer_frame) {
+                    const auto transfer_start = profiling::now();
+                    av_frame_unref(session->hw_transfer_frame);
+                    if (av_hwframe_transfer_data(session->hw_transfer_frame, decoded, 0) >= 0) {
+                        render_frame = session->hw_transfer_frame;
+                        if (m_counters) {
+                            m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+                            m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
+                            m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
+                                static_cast<uint64_t>(profiling::duration_ms(
+                                    transfer_start, profiling::now())),
+                                std::memory_order_relaxed);
+                        }
+                    }
+                } else if (decoded->format != AV_PIX_FMT_CUDA && m_counters) {
+                    m_counters->video_decode_software_frames.fetch_add(1, std::memory_order_relaxed);
                 }
-                render_frame = session->hw_transfer_frame;
-                if (m_counters) {
-                    m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
-                    m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
-                        static_cast<uint64_t>(profiling::duration_ms(
-                            transfer_start, profiling::now())),
-                        std::memory_order_relaxed);
-                }
-            }
-            if (pts == target_pts) {
                 result = frame_to_framebuffer(render_frame, session->sws, session->rgba, m_counters);
                 break;
             }
@@ -443,12 +466,11 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
                 const int64_t delta = std::llabs(pts - target_pts);
                 if (delta < closest_delta) {
                     closest_delta = delta;
-                    // Keep the best decoded frame and defer the expensive
-                    // YUV->RGBA conversion until we know no exact target is
-                    // available. The old path converted every candidate
-                    // while scanning VFR/B-frame streams.
+                    // Keep the best decoded frame AS-IS (original CUDA AVFrame)
+                    // and defer any expensive GPU->CPU transfer until we know
+                    // no exact target is available.
                     av_frame_unref(closest_frame);
-                    if (av_frame_ref(closest_frame, render_frame) < 0) {
+                    if (av_frame_ref(closest_frame, decoded) < 0) {
                         av_frame_unref(closest_frame);
                     }
                 }
@@ -468,8 +490,32 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
         }
     }
     if (!result && closest_frame->width > 0 && closest_frame->height > 0) {
-        closest = frame_to_framebuffer(
-            closest_frame, session->sws, session->rgba, m_counters);
+        if (closest_frame->format == AV_PIX_FMT_CUDA) {
+            if (auto native = try_native_frame(session, closest_frame)) {
+                result = std::move(native);
+            } else if (session->hw_transfer_frame) {
+                const auto transfer_start = profiling::now();
+                av_frame_unref(session->hw_transfer_frame);
+                if (av_hwframe_transfer_data(session->hw_transfer_frame, closest_frame, 0) >= 0) {
+                    if (m_counters) {
+                        m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+                        m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
+                        m_counters->video_decode_hw_transfer_wall_ms.fetch_add(
+                            static_cast<uint64_t>(profiling::duration_ms(
+                                transfer_start, profiling::now())),
+                            std::memory_order_relaxed);
+                    }
+                    result = frame_to_framebuffer(
+                        session->hw_transfer_frame, session->sws, session->rgba, m_counters);
+                }
+            }
+        } else {
+            if (m_counters) {
+                m_counters->video_decode_software_frames.fetch_add(1, std::memory_order_relaxed);
+            }
+            result = frame_to_framebuffer(
+                closest_frame, session->sws, session->rgba, m_counters);
+        }
     }
     av_frame_free(&decoded);
     av_frame_free(&closest_frame);
