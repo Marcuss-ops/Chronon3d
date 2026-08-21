@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/core/tracing/tracing.hpp>
+
 #include <cstdint>
 #include <dlfcn.h>
 #include <atomic>
@@ -206,6 +208,15 @@ private:
             sample.vram_used_mb = mem.used / (1024 * 1024);
             if (m_vram_total_mb == 0) m_vram_total_mb = mem.total / (1024 * 1024);
         }
+        // Perfetto counter tracks (chronon.gpu): raw NVML samples emitted on
+        // the sampler thread at the configured cadence.  No-op when tracing
+        // is compiled out or no trace session is running.
+        CHRONON_TRACE_COUNTER("chronon.gpu", "vram_used_mb",
+            static_cast<int64_t>(sample.vram_used_mb));
+        CHRONON_TRACE_COUNTER("chronon.gpu", "gpu_utilization", sample.gpu);
+        CHRONON_TRACE_COUNTER("chronon.gpu", "nvdec_utilization", sample.dec);
+        CHRONON_TRACE_COUNTER("chronon.gpu", "nvenc_utilization", sample.enc);
+
         std::lock_guard<std::mutex> lock(m_mutex);
         m_samples.push_back(sample);
     }
