@@ -370,6 +370,15 @@ void write_frame_timing_sidecar(
     put_gpu_u64("cuda_encode_event_wait_count", timings.gpu.cuda_encode_event_wait_count);
     put_gpu_u64("cuda_encode_event_wait_us", timings.gpu.cuda_encode_event_wait_us);
     put_gpu_u64("encoder_staging_copy_bytes", timings.gpu.encoder_staging_copy_bytes);
+    put_gpu_u64("video_decode_frames", timings.gpu.video_decode_frames);
+    put_gpu_u64("video_decode_native_surface_frames", timings.gpu.video_decode_native_surface_frames);
+    put_gpu_u64("video_decode_hw_transfer_frames", timings.gpu.video_decode_hw_transfer_frames);
+    put_gpu_u64("video_decode_software_frames", timings.gpu.video_decode_software_frames);
+    put_gpu_u64("video_decode_native_fallback_frames", timings.gpu.video_decode_native_fallback_frames);
+    put_gpu_u64("video_decode_wall_ms", timings.gpu.video_decode_wall_ms);
+    put_gpu_u64("video_decode_hw_transfer_wall_ms", timings.gpu.video_decode_hw_transfer_wall_ms);
+    put_gpu_u64("video_decode_sws_wall_ms", timings.gpu.video_decode_sws_wall_ms);
+    put_gpu_u64("video_decode_framebuffer_wall_ms", timings.gpu.video_decode_framebuffer_wall_ms);
     std::string effective_backend = "unknown";
     if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
         effective_backend = timings.gpu.software_fallback_nodes &&
