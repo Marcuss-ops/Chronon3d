@@ -16,6 +16,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
     motion_graph_prewarm.cpp
     render_runtime.cpp
+    gpu_runtime.cpp
     gpu_asset_cache.cpp
     gpu_glyph_atlas.cpp
     gpu_text_atlas_cache.cpp
@@ -71,6 +72,12 @@ if(CHRONON3D_ENABLE_VIDEO)
 endif()
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_runtime PUBLIC chronon3d_ffmpeg_full)
+endif()
+if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
+    target_include_directories(chronon3d_runtime PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
+    if(CHRONON3D_CUDA_DRIVER_LIBRARY)
+        target_link_libraries(chronon3d_runtime PRIVATE "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+    endif()
 endif()
 target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_include_directories(chronon3d_runtime
