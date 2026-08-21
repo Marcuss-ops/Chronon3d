@@ -4,9 +4,9 @@
 // tracing.hpp — Timeline tracing macro surface
 //
 // This is the ONLY timeline-tracing entry point.  The current backend is
-// Tracy (gated by CHRONON_PROFILING); the macros are intentionally kept
-// backend-agnostic so a future Perfetto backend can swap in underneath
-// without touching call sites.
+// Tracy (gated by CHRONON3D_ENABLE_TRACING); the macros are intentionally
+// kept backend-agnostic so a future Perfetto backend can swap in
+// underneath without touching call sites.
 //
 // Responsibility split (AGENTS.md / profiling.hpp migration):
 //   - profiling/timing.hpp          — now()/duration_* numeric timing
@@ -14,7 +14,7 @@
 //   - tracing/tracing.hpp           — CHRONON_ZONE* timeline macros (here)
 // ============================================================================
 
-#ifdef CHRONON_PROFILING
+#ifdef CHRONON3D_ENABLE_TRACING
 #include <tracy/Tracy.hpp>
 #define CHRONON_ZONE(name) \
     ZoneScopedN(name)

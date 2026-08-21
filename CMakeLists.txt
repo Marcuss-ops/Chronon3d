@@ -57,7 +57,7 @@ option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder suppor
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz)" ON)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
-option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
+option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Tracy backend today; Perfetto migration in progress)" OFF)
 option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
@@ -170,7 +170,7 @@ if(CHRONON3D_BUILD_BENCHMARKS)
     find_package(benchmark CONFIG REQUIRED)
 endif()
 
-if(CHRONON3D_ENABLE_PROFILING)
+if(CHRONON3D_ENABLE_TRACING)
     find_package(Tracy CONFIG QUIET)
 endif()
 
@@ -222,11 +222,11 @@ if(TARGET chronon3d_content AND TARGET chronon3d_pipeline)
 endif()
 
 # --- Profiling & Condizionali di Build ---
-if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
+if(CHRONON3D_ENABLE_TRACING AND Tracy_FOUND)
     target_link_libraries(chronon3d_scene PRIVATE Tracy::TracyClient)
-    target_compile_definitions(chronon3d_scene PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
+    target_compile_definitions(chronon3d_scene PRIVATE CHRONON3D_ENABLE_TRACING TRACY_ON_DEMAND)
     target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
-    target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
+    target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON3D_ENABLE_TRACING TRACY_ON_DEMAND)
 endif()
 
 # Build CLI command-group libraries before the test definitions are loaded.
