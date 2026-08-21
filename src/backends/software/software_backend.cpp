@@ -9,7 +9,7 @@
 #include "effects/render_effects_processor.hpp"
 #include <chronon3d/scene/model/render/render_node.hpp>          // TICKET-118: RenderNode full type for draw_node (node.shape.type())
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 // TICKET-118 — explicit include for `spdlog::error(...)` calls in
 // SoftwareBackend::draw_node loud-fail paths.  SoftwareBackend::draw_node
