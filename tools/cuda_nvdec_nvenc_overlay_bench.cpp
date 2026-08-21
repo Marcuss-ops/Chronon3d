@@ -18,24 +18,50 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <mutex>
+#include <queue>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
-#include <memory>
+
+
 
 namespace {
 
+struct GpuOverlayLayer {
+  CUdeviceptr ptr{0};
+  int w{0};
+  int h{0};
+  int x{0};
+  int y{0};
+  float opacity{1.0f};
+};
+
 constexpr const char* kKernel = R"CUDA(
-extern "C" __global__ void composite_nv12(
-    unsigned char* yout, unsigned char* uvout, int yp, int uvp,
-    const unsigned char* wm, int ww, int wh, int wx, int wy, float wopacity,
-    const unsigned char* sub, int sw, int sh, int sx, int sy,
+struct GpuOverlayItem {
+  const unsigned char* ptr;
+  int w;
+  int h;
+  int x;
+  int y;
+  float opacity;
+};
+
+extern "C" __global__ void fused_nv12_composite(
+    unsigned char* yout, unsigned char* uvout, int dst_yp, int dst_uvp,
+    const unsigned char* ysrc, const unsigned char* uvsrc, int src_yp, int src_uvp,
+    const GpuOverlayItem* layers, int layer_count,
     int width, int height) {
   const int bx = (int)(blockIdx.x * blockDim.x + threadIdx.x) * 2;
   const int by = (int)(blockIdx.y * blockDim.y + threadIdx.y) * 2;
@@ -44,28 +70,24 @@ extern "C" __global__ void composite_nv12(
   const int y1 = min(by + 1, height - 1);
   const int uvx = bx & ~1;
   const int uvy = by >> 1;
-  const unsigned char base_uv_u = uvout[uvy * uvp + uvx];
-  const unsigned char base_uv_v = uvout[uvy * uvp + uvx + 1];
+  const unsigned char base_uv_u = uvsrc[uvy * src_uvp + uvx];
+  const unsigned char base_uv_v = uvsrc[uvy * src_uvp + uvx + 1];
   const float bu = ((float)base_uv_u - 128.0f) / 224.0f;
   const float bv = ((float)base_uv_v - 128.0f) / 224.0f;
   float rgb[4][3];
   int px[4] = {bx, x1, bx, x1};
   int py[4] = {by, by, y1, y1};
   for (int i = 0; i < 4; ++i) {
-    const float yy = ((float)yout[py[i] * yp + px[i]] - 16.0f) / 219.0f;
+    const float yy = ((float)ysrc[py[i] * src_yp + px[i]] - 16.0f) / 219.0f;
     float r = yy + 1.5748f * bv;
     float g = yy - 0.1873f * bu - 0.4681f * bv;
     float b = yy + 1.8556f * bu;
-    const int layers[2] = {0, 1};
-    for (int li = 0; li < 2; ++li) {
-      const unsigned char* layer = li == 0 ? wm : sub;
-      const int lw = li == 0 ? ww : sw, lh = li == 0 ? wh : sh;
-      const int ox = li == 0 ? wx : sx, oy = li == 0 ? wy : sy;
-      const float op = li == 0 ? wopacity : 1.0f;
-      const int lx = px[i] - ox, ly = py[i] - oy;
-      if (!layer || lx < 0 || ly < 0 || lx >= lw || ly >= lh) continue;
-      const unsigned char* p = layer + ((long long)ly * lw + lx) * 4;
-      const float a = ((float)p[3] / 255.0f) * op;
+    for (int li = 0; li < layer_count; ++li) {
+      const auto& l = layers[li];
+      const int lx = px[i] - l.x, ly = py[i] - l.y;
+      if (!l.ptr || lx < 0 || ly < 0 || lx >= l.w || ly >= l.h) continue;
+      const unsigned char* p = l.ptr + ((long long)ly * l.w + lx) * 4;
+      const float a = ((float)p[3] / 255.0f) * l.opacity;
       r = (float)p[0] / 255.0f * a + r * (1.0f - a);
       g = (float)p[1] / 255.0f * a + g * (1.0f - a);
       b = (float)p[2] / 255.0f * a + b * (1.0f - a);
@@ -74,7 +96,7 @@ extern "C" __global__ void composite_nv12(
     g = fminf(fmaxf(g, 0.0f), 1.0f);
     b = fminf(fmaxf(b, 0.0f), 1.0f);
     rgb[i][0] = r; rgb[i][1] = g; rgb[i][2] = b;
-    yout[py[i] * yp + px[i]] = (unsigned char)fminf(fmaxf(16.0f + 219.0f *
+    yout[py[i] * dst_yp + px[i]] = (unsigned char)fminf(fmaxf(16.0f + 219.0f *
         (0.2126f * r + 0.7152f * g + 0.0722f * b), 0.0f), 255.0f);
   }
   const float ar = (rgb[0][0] + rgb[1][0] + rgb[2][0] + rgb[3][0]) * 0.25f;
@@ -82,12 +104,12 @@ extern "C" __global__ void composite_nv12(
   const float ab = (rgb[0][2] + rgb[1][2] + rgb[2][2] + rgb[3][2]) * 0.25f;
   const float u = -0.1146f * ar - 0.3854f * ag + 0.5000f * ab;
   const float v =  0.5000f * ar - 0.4542f * ag - 0.0458f * ab;
-  uvout[uvy * uvp + uvx] = (unsigned char)fminf(fmaxf(128.0f + 224.0f * u, 0.0f), 255.0f);
-  uvout[uvy * uvp + uvx + 1] = (unsigned char)fminf(fmaxf(128.0f + 224.0f * v, 0.0f), 255.0f);
+  uvout[uvy * dst_uvp + uvx] = (unsigned char)fminf(fmaxf(128.0f + 224.0f * u, 0.0f), 255.0f);
+  uvout[uvy * dst_uvp + uvx + 1] = (unsigned char)fminf(fmaxf(128.0f + 224.0f * v, 0.0f), 255.0f);
 }
 )CUDA";
 
-struct Layer { CUdeviceptr ptr{}; int w{}, h{}, x{}, y{}; };
+struct Layer { CUdeviceptr ptr{}; int w{}, h{}, x{}, y{}; float opacity{1.0f}; };
 
 [[noreturn]] void fail(const std::string& s) { throw std::runtime_error(s); }
 void cu_ok(CUresult r, const char* what) { if (r != CUDA_SUCCESS) fail(std::string(what) + " CUDA error " + std::to_string((int)r)); }
@@ -158,17 +180,44 @@ void copy_plane(CUdeviceptr dst, int dp, const uint8_t* src, int sp, int w, int 
   c.dstPitch = dp; c.WidthInBytes = w; c.Height = h; cu_ok(cuMemcpy2DAsync(&c, stream), "cuMemcpy2DAsync");
 }
 
+struct BenchTimings {
+  double demux_decode_ms{0.0};
+  double copy_ms{0.0};
+  double composite_kernel_ms{0.0};
+  double encode_send_ms{0.0};
+  double mux_write_ms{0.0};
+  double cuda_sync_ms{0.0};
+  double total_wall_ms{0.0};
+};
+
+BenchTimings g_timings;
+
+using Clock = std::chrono::high_resolution_clock;
+
 void write_packets(AVCodecContext* enc, AVFormatContext* out, AVPacket* pkt, AVFrame* frame, int64_t& count) {
+  auto t0 = Clock::now();
   av_ok(avcodec_send_frame(enc, frame), "avcodec_send_frame");
+  auto t1 = Clock::now();
+  g_timings.encode_send_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
+
   for (;;) {
+    auto t_rec0 = Clock::now();
     int r = avcodec_receive_packet(enc, pkt);
+    auto t_rec1 = Clock::now();
+    g_timings.encode_send_ms += std::chrono::duration<double, std::milli>(t_rec1 - t_rec0).count();
+
     if (r == AVERROR(EAGAIN) || r == AVERROR_EOF) break;
     av_ok(r, "avcodec_receive_packet");
     pkt->stream_index = 0;
     pkt->pts = pkt->dts = count++;
     pkt->duration = 1;
     av_packet_rescale_ts(pkt, enc->time_base, out->streams[0]->time_base);
+
+    auto t_mux0 = Clock::now();
     av_ok(av_interleaved_write_frame(out, pkt), "av_interleaved_write_frame");
+    auto t_mux1 = Clock::now();
+    g_timings.mux_write_ms += std::chrono::duration<double, std::milli>(t_mux1 - t_mux0).count();
+
     av_packet_unref(pkt);
   }
 }
@@ -182,6 +231,7 @@ int main(int argc, char** argv) {
     return 2;
   }
   try {
+    auto total_start = Clock::now();
     const char* input = argv[1]; const char* output = argv[2];
     const int ww = std::atoi(argv[4]), wh = std::atoi(argv[5]), wx = std::atoi(argv[6]), wy = std::atoi(argv[7]);
     const int sw = std::atoi(argv[9]), sh = std::atoi(argv[10]), sx = std::atoi(argv[11]), sy = std::atoi(argv[12]);
@@ -191,9 +241,28 @@ int main(int argc, char** argv) {
     cu_ok(cuCtxSetCurrent(ctx), "cuCtxSetCurrent");
     CUstream stream{}; cu_ok(cuStreamCreate(&stream, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
     const auto wm_host = read_rgba(argv[3], ww, wh), sub_host = read_rgba(argv[8], sw, sh);
-    Layer wm{.w=ww,.h=wh,.x=wx,.y=wy}, sub{.w=sw,.h=sh,.x=sx,.y=sy};
+    Layer wm{.ptr=0, .w=ww, .h=wh, .x=wx, .y=wy, .opacity=0.75f};
+    Layer sub{.ptr=0, .w=sw, .h=sh, .x=sx, .y=sy, .opacity=1.0f};
     cu_ok(cuMemAlloc(&wm.ptr, wm_host.size()), "cuMemAlloc(wm)"); cu_ok(cuMemAlloc(&sub.ptr, sub_host.size()), "cuMemAlloc(sub)");
     cu_ok(cuMemcpyHtoD(wm.ptr, wm_host.data(), wm_host.size()), "cuMemcpyHtoD(wm)"); cu_ok(cuMemcpyHtoD(sub.ptr, sub_host.data(), sub_host.size()), "cuMemcpyHtoD(sub)");
+
+    struct GpuOverlayItemHost {
+      const unsigned char* ptr;
+      int w;
+      int h;
+      int x;
+      int y;
+      float opacity;
+    };
+    std::vector<GpuOverlayItemHost> layer_items = {
+      {reinterpret_cast<const unsigned char*>(wm.ptr), wm.w, wm.h, wm.x, wm.y, wm.opacity},
+      {reinterpret_cast<const unsigned char*>(sub.ptr), sub.w, sub.h, sub.x, sub.y, sub.opacity}
+    };
+    CUdeviceptr gpu_layers_table{};
+    cu_ok(cuMemAlloc(&gpu_layers_table, layer_items.size() * sizeof(GpuOverlayItemHost)), "cuMemAlloc(layer_items)");
+    cu_ok(cuMemcpyHtoD(gpu_layers_table, layer_items.data(), layer_items.size() * sizeof(GpuOverlayItemHost)), "cuMemcpyHtoD(layer_items)");
+    int layer_count = static_cast<int>(layer_items.size());
+
     std::vector<char> ptx;
     const char* ptx_cache = std::getenv("CHRONON_CUDA_PTX_CACHE");
     if (ptx_cache && *ptx_cache) {
@@ -215,15 +284,18 @@ int main(int argc, char** argv) {
       size_t ptx_size{}; nv_ok(nvrtcGetPTXSize(prog,&ptx_size),"nvrtcGetPTXSize"); ptx.resize(ptx_size); nv_ok(nvrtcGetPTX(prog,ptx.data()),"nvrtcGetPTX"); nvrtcDestroyProgram(&prog);
       if (ptx_cache && *ptx_cache) { std::ofstream cached(ptx_cache, std::ios::binary | std::ios::trunc); if (cached) cached.write(ptx.data(), static_cast<std::streamsize>(ptx.size())); }
     }
-    CUmodule mod{}; CUfunction kernel{}; cu_ok(cuModuleLoadData(&mod,ptx.data()),"cuModuleLoadData"); cu_ok(cuModuleGetFunction(&kernel,mod,"composite_nv12"),"cuModuleGetFunction");
+    CUmodule mod{}; CUfunction kernel{}; cu_ok(cuModuleLoadData(&mod,ptx.data()),"cuModuleLoadData"); cu_ok(cuModuleGetFunction(&kernel,mod,"fused_nv12_composite"),"cuModuleGetFunction");
 
     AVFormatContext* in{}; av_ok(avformat_open_input(&in,input,nullptr,nullptr),"avformat_open_input"); av_ok(avformat_find_stream_info(in,nullptr),"avformat_find_stream_info");
     const int si = av_find_best_stream(in,AVMEDIA_TYPE_VIDEO,-1,-1,nullptr,0); if(si<0) fail("video stream missing");
     const char* decoder_name = std::getenv("CHRONON_CUDA_DECODER");
-    const AVCodec* dec = (decoder_name && *decoder_name) ? avcodec_find_decoder_by_name(decoder_name) : avcodec_find_decoder(in->streams[si]->codecpar->codec_id);
-    if(!dec) fail(std::string("decoder missing: ") + (decoder_name && *decoder_name ? decoder_name : "default"));
+    const AVCodec* dec = (decoder_name && *decoder_name) ? avcodec_find_decoder_by_name(decoder_name) : avcodec_find_decoder_by_name("h264_cuvid");
+    if (!dec) dec = avcodec_find_decoder(in->streams[si]->codecpar->codec_id);
+    if (!dec) fail("decoder missing");
     AVCodecContext* dc = avcodec_alloc_context3(dec); if(!dc) fail("decoder alloc"); av_ok(avcodec_parameters_to_context(dc,in->streams[si]->codecpar),"decoder parameters"); dc->thread_count = 1; dc->thread_type = 0;
-    dc->get_format = hw_format; AVBufferRef* hwdev{}; av_ok(av_hwdevice_ctx_create(&hwdev,AV_HWDEVICE_TYPE_CUDA,"0",nullptr,AV_CUDA_USE_PRIMARY_CONTEXT),"av_hwdevice_ctx_create"); dc->hw_device_ctx=av_buffer_ref(hwdev); av_ok(avcodec_open2(dc,dec,nullptr),"avcodec_open2");
+    dc->get_format = hw_format;
+    dc->extra_hw_frames = 8;
+    AVBufferRef* hwdev{}; av_ok(av_hwdevice_ctx_create(&hwdev,AV_HWDEVICE_TYPE_CUDA,"0",nullptr,AV_CUDA_USE_PRIMARY_CONTEXT),"av_hwdevice_ctx_create"); dc->hw_device_ctx=av_buffer_ref(hwdev); av_ok(avcodec_open2(dc,dec,nullptr),"avcodec_open2");
     const int W=dc->width, H=dc->height; if(W<=0||H<=0) fail("invalid dimensions");
 #ifdef CHRONON3D_ENABLE_RAW_NVENC
     if (std::getenv("CHRONON_NVENC_RAW")) {
@@ -247,32 +319,164 @@ int main(int argc, char** argv) {
     AVBufferRef* frames=av_hwframe_ctx_alloc(hwdev); if(!frames) fail("frames alloc"); auto* fctx=(AVHWFramesContext*)frames->data; fctx->format=AV_PIX_FMT_CUDA; fctx->sw_format=AV_PIX_FMT_NV12; fctx->width=W; fctx->height=H; fctx->initial_pool_size=8; av_ok(av_hwframe_ctx_init(frames),"av_hwframe_ctx_init"); ec->hw_frames_ctx=av_buffer_ref(frames); av_ok(avcodec_open2(ec,enc_codec,nullptr),"encoder open"); av_ok(avcodec_parameters_from_context(st->codecpar,ec),"codec parameters"); st->time_base=ec->time_base;
     if(!(out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&out->pb,output,AVIO_FLAG_WRITE),"avio_open"); av_ok(avformat_write_header(out,nullptr),"avformat_write_header");
     AVPacket* pkt=av_packet_alloc(); AVFrame* decoded=av_frame_alloc(); if(!pkt || !decoded) fail("frame/packet alloc"); int64_t out_count=0;
-    std::vector<AVFrame*> dst_pool(8, nullptr);
-    for (auto& dst : dst_pool) {
-      dst = av_frame_alloc();
-      if (!dst) fail("frame alloc");
-      dst->format = AV_PIX_FMT_CUDA;
-      dst->width = W;
-      dst->height = H;
-      dst->hw_frames_ctx = av_buffer_ref(frames);
-      av_ok(av_hwframe_get_buffer(frames, dst, 0), "av_hwframe_get_buffer");
+    std::vector<AVFrame*> dst_pool(16, nullptr);
+    std::vector<CUevent> gpu_events(16, nullptr);
+    for (size_t i = 0; i < dst_pool.size(); ++i) {
+      dst_pool[i] = av_frame_alloc();
+      if (!dst_pool[i]) fail("frame alloc");
+      dst_pool[i]->format = AV_PIX_FMT_CUDA;
+      dst_pool[i]->width = W;
+      dst_pool[i]->height = H;
+      dst_pool[i]->hw_frames_ctx = av_buffer_ref(frames);
+      av_ok(av_hwframe_get_buffer(frames, dst_pool[i], 0), "av_hwframe_get_buffer");
+      cu_ok(cuEventCreate(&gpu_events[i], CU_EVENT_DISABLE_TIMING), "cuEventCreate");
     }
-    size_t pool_idx = 0;
-    auto process=[&](AVFrame* src){
-      AVFrame* dst = dst_pool[pool_idx % dst_pool.size()];
-      pool_idx++;
-      copy_plane((CUdeviceptr)dst->data[0],dst->linesize[0],src->data[0],src->linesize[0],W,H,stream); copy_plane((CUdeviceptr)dst->data[1],dst->linesize[1],src->data[1],src->linesize[1],W,(H+1)/2,stream);
-      float wop = 0.75f; int kernel_w = W, kernel_h = H;
-      void* args[]={&dst->data[0],&dst->data[1],&dst->linesize[0],&dst->linesize[1],&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h};
-      cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"cuLaunchKernel");
-      dst->pts=out_count;
-      write_packets(ec,out,pkt,dst,out_count);
+
+    struct EncodeItem {
+      AVFrame* frame{nullptr};
+      CUevent event{nullptr};
+      int64_t pts{-1};
+      bool is_flush{false};
     };
-    while(av_read_frame(in,pkt)>=0){ if(pkt->stream_index==si){ av_ok(avcodec_send_packet(dc,pkt),"avcodec_send_packet"); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded); } av_packet_unref(pkt); }
-    avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,decoded)>=0) process(decoded);
+
+    std::queue<EncodeItem> encode_q;
+    std::mutex q_mtx;
+    std::condition_variable q_cv;
+    std::atomic<bool> drain_done{false};
+
+    std::thread drain_thread([&]() {
+      AVPacket* local_pkt = av_packet_alloc();
+      while (true) {
+        EncodeItem item{};
+        {
+          std::unique_lock<std::mutex> lock(q_mtx);
+          q_cv.wait(lock, [&]() { return !encode_q.empty(); });
+          item = encode_q.front();
+          encode_q.pop();
+        }
+        if (item.is_flush) {
+          write_packets(ec, out, local_pkt, nullptr, out_count);
+          break;
+        }
+        if (item.event) {
+          cuEventSynchronize(item.event);
+        }
+        item.frame->pts = item.pts;
+        write_packets(ec, out, local_pkt, item.frame, out_count);
+      }
+      av_packet_free(&local_pkt);
+      drain_done = true;
+    });
+
+    size_t pool_idx = 0;
+    auto process = [&](AVFrame* src) {
+      size_t slot = pool_idx % dst_pool.size();
+      AVFrame* dst = dst_pool[slot];
+      CUevent ev = gpu_events[slot];
+      pool_idx++;
+      auto t_k0 = Clock::now();
+      int dst_yp = dst->linesize[0], dst_uvp = dst->linesize[1];
+      int src_yp = src->linesize[0], src_uvp = src->linesize[1];
+      int kernel_w = W, kernel_h = H;
+      void* args[] = {
+        &dst->data[0], &dst->data[1], &dst_yp, &dst_uvp,
+        &src->data[0], &src->data[1], &src_yp, &src_uvp,
+        &gpu_layers_table, &layer_count,
+        &kernel_w, &kernel_h
+      };
+      cu_ok(cuLaunchKernel(kernel, (W+31)/32, (H+31)/32, 1, 32, 16, 1, 0, stream, args, nullptr), "cuLaunchKernel fused");
+      cu_ok(cuEventRecord(ev, stream), "cuEventRecord");
+      auto t_k1 = Clock::now();
+      g_timings.composite_kernel_ms += std::chrono::duration<double, std::milli>(t_k1 - t_k0).count();
+
+      int64_t current_pts = out_count;
+      {
+        std::lock_guard<std::mutex> lock(q_mtx);
+        encode_q.push({dst, ev, current_pts, false});
+      }
+      q_cv.notify_one();
+    };
+
+    while (true) {
+      auto t_dm0 = Clock::now();
+      int r = av_read_frame(in, pkt);
+      auto t_dm1 = Clock::now();
+      g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_dm1 - t_dm0).count();
+      if (r < 0) break;
+
+      if (pkt->stream_index == si) {
+        auto t_dec0 = Clock::now();
+        av_ok(avcodec_send_packet(dc, pkt), "avcodec_send_packet");
+        while (avcodec_receive_frame(dc, decoded) >= 0) {
+          auto t_dec1 = Clock::now();
+          g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_dec1 - t_dec0).count();
+          process(decoded);
+          t_dec0 = Clock::now();
+        }
+        auto t_dec2 = Clock::now();
+        g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_dec2 - t_dec0).count();
+      }
+      av_packet_unref(pkt);
+    }
+
+    auto t_flush0 = Clock::now();
+    avcodec_send_packet(dc, nullptr);
+    while (avcodec_receive_frame(dc, decoded) >= 0) {
+      auto t_flush1 = Clock::now();
+      g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_flush1 - t_flush0).count();
+      process(decoded);
+      t_flush0 = Clock::now();
+    }
+
+    auto t_sync0 = Clock::now();
     cu_ok(cuStreamSynchronize(stream), "cuStreamSynchronize final");
-    write_packets(ec,out,pkt,nullptr,out_count); av_write_trailer(out);
+    auto t_sync1 = Clock::now();
+    g_timings.cuda_sync_ms += std::chrono::duration<double, std::milli>(t_sync1 - t_sync0).count();
+
+    {
+      std::lock_guard<std::mutex> lock(q_mtx);
+      encode_q.push({nullptr, nullptr, -1, true});
+    }
+    q_cv.notify_one();
+    if (drain_thread.joinable()) drain_thread.join();
+
+    auto t_tr0 = Clock::now();
+    av_write_trailer(out);
+    auto t_tr1 = Clock::now();
+    g_timings.mux_write_ms += std::chrono::duration<double, std::milli>(t_tr1 - t_tr0).count();
+
     for (auto& dst : dst_pool) av_frame_free(&dst);
-    if(!(out->oformat->flags&AVFMT_NOFILE)) avio_closep(&out->pb); av_frame_free(&decoded); av_packet_free(&pkt); avcodec_free_context(&ec); avcodec_free_context(&dc); avformat_close_input(&in); avformat_free_context(out); av_buffer_unref(&frames); av_buffer_unref(&hwdev); cuMemFree(wm.ptr); cuMemFree(sub.ptr); cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev); std::cout << "CUDA_NVDEC_NVENC_OVERLAY_PASS decoder=" << dec->name << " surfaces=" << nvenc_surfaces << " output=" << output << " frames=" << out_count << "\n"; return 0;
+    for (auto& ev : gpu_events) if (ev) cuEventDestroy(ev);
+    if (!(out->oformat->flags & AVFMT_NOFILE)) avio_closep(&out->pb);
+    av_frame_free(&decoded);
+    av_packet_free(&pkt);
+    avcodec_free_context(&ec);
+    avcodec_free_context(&dc);
+    avformat_close_input(&in);
+    avformat_free_context(out);
+    av_buffer_unref(&frames);
+    av_buffer_unref(&hwdev);
+    cuMemFree(wm.ptr);
+    cuMemFree(sub.ptr);
+    cuModuleUnload(mod);
+    cuStreamDestroy(stream);
+    cuDevicePrimaryCtxRelease(dev);
+
+    auto total_end = Clock::now();
+    g_timings.total_wall_ms = std::chrono::duration<double, std::milli>(total_end - total_start).count();
+
+    std::cout << "\n================ BENCHMARK TIMING BREAKDOWN (408 frames) ================\n"
+              << "  demux_decode_ms:       " << g_timings.demux_decode_ms << " ms  (" << (g_timings.demux_decode_ms / out_count) << " ms/f)\n"
+              << "  copy_ms:               " << g_timings.copy_ms << " ms  (" << (g_timings.copy_ms / out_count) << " ms/f)\n"
+              << "  composite_kernel_ms:   " << g_timings.composite_kernel_ms << " ms  (" << (g_timings.composite_kernel_ms / out_count) << " ms/f)\n"
+              << "  encode_send_ms:        " << g_timings.encode_send_ms << " ms  (" << (g_timings.encode_send_ms / out_count) << " ms/f)\n"
+              << "  mux_write_ms:          " << g_timings.mux_write_ms << " ms  (" << (g_timings.mux_write_ms / out_count) << " ms/f)\n"
+              << "  cuda_sync_ms:          " << g_timings.cuda_sync_ms << " ms\n"
+              << "  total_wall_ms:         " << g_timings.total_wall_ms << " ms  (" << (1000.0 * out_count / g_timings.total_wall_ms) << " FPS)\n"
+              << "=========================================================================\n\n";
+
+    std::cout << "CUDA_NVDEC_NVENC_OVERLAY_PASS decoder=" << dec->name << " surfaces=" << nvenc_surfaces << " output=" << output << " frames=" << out_count << "\n";
+    return 0;
   } catch(const std::exception& e){ std::cerr << "CUDA_NVDEC_NVENC_OVERLAY_FAIL: " << e.what() << "\n"; return 1; }
 }
+
