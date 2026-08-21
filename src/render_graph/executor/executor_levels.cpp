@@ -42,8 +42,7 @@ void execute_levels(
         const auto t_input0 = profiling::now();
         for (size_t i = 0; i < level.size(); ++i) {
             level_resolved.emplace_back(res);
-            level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining, res);
-            level_resolved[i].resolved_opacity = graph.node(level[i]).evaluate_opacity(ctx.frame_input);
+            resolve_inputs(graph, level[i], state, consumer_remaining, level_resolved[i]);
         }
         const auto t_input1 = profiling::now();
 

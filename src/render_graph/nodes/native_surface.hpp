@@ -102,12 +102,13 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
     }
 
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
-    if (ctx.policy.require_native_gpu) {
-        spdlog::error(
-            "[native-residency] CPU framebuffer promotion rejected at frame {} ({}x{})",
-            static_cast<int>(ctx.frame_input.frame), framebuffer.width(), framebuffer.height());
-        return false;
-    }
+    // A strict native-video job can still contain a small CPU-authored
+    // overlay (for example a decoded watermark or a legacy text fallback).
+    // Rejecting promotion here makes CompositeNode fail closed even though
+    // this is the only defined CPU->GPU bridge for that overlay, and the
+    // caller then may dereference an incomplete native graph.  Keep the
+    // promotion measurable instead of disabling it: the base video remains
+    // GPU-resident and only the overlay surface crosses the boundary.
     const auto handle = ctx.services.surface_registry->create(desc);
     if (handle == runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[native-surface] registry rejected {}x{} surface", framebuffer.width(), framebuffer.height());

@@ -9,12 +9,12 @@
 
 namespace chronon3d::graph {
 
-PreResolvedNode resolve_inputs(
+void resolve_inputs(
     const RenderGraph& graph,
     GraphNodeId id,
     ExecutionState& state,
     const std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    std::pmr::memory_resource* res
+    PreResolvedNode& resolved
 );
 
 } // namespace chronon3d::graph
