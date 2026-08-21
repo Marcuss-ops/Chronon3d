@@ -1306,4 +1306,43 @@ TEST_CASE("AsyncEncoderSink: asynchronous task dispatch and drain") {
     CHECK(drained_frames[1] == 43);
 }
 
+TEST_CASE("ProcessorCapabilities: bitmask and fusion predicates") {
+    using namespace chronon3d::renderer;
+    ProcessorCapabilities caps{};
+    CHECK(!caps.is_gpu_fusible());
+
+    caps.gpu = true;
+    caps.fusible = true;
+    caps.pixel_local = true;
+    CHECK(caps.is_gpu_fusible());
+
+    caps.in_place = true;
+    caps.native_surface_input = true;
+    caps.native_surface_output = true;
+    CHECK(caps.is_gpu_fusible());
+}
+
+TEST_CASE("CompiledFrameProgram: operation capabilities and fusion properties") {
+    using namespace chronon3d::graph;
+    using namespace chronon3d::renderer;
+
+    CompiledOperation op{};
+    op.node = 5;
+    op.capabilities.gpu = true;
+    op.capabilities.fusible = true;
+    op.capabilities.pixel_local = true;
+    op.is_fused = true;
+
+    CHECK(op.capabilities.is_gpu_fusible());
+    CHECK(op.is_fused);
+
+    CompiledFrameProgram program{};
+    program.levels = {{5}};
+    program.operations.push_back(op);
+    program.has_fused_passes = true;
+    CHECK(!program.empty());
+    CHECK(program.has_fused_passes);
+}
+
+
 

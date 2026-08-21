@@ -107,6 +107,8 @@ struct CompiledOperation {
     std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
     std::uint32_t parameter_offset{0};
     std::uint32_t parameter_size{0};
+    renderer::ProcessorCapabilities capabilities{};
+    bool is_fused{false};
 };
 
 struct CompiledFrameProgram {
@@ -117,6 +119,7 @@ struct CompiledFrameProgram {
     std::vector<CompiledOperation> operations;
     bool has_prepared_parameters{false};
     bool fully_recorded{false};
+    bool has_fused_passes{false};
 
     [[nodiscard]] bool empty() const noexcept {
         return operations.empty() || levels.empty();
