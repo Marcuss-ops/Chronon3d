@@ -277,6 +277,7 @@ static void log_graph_cache_diagnostics(
         ctx.node_exec.dof_source_coverage.reset();
     }
 
+    compiled.graph.unfreeze_for_refresh();
     const auto t_refresh0 = profiling::now();
     detail::SceneRefreshResult refresh_result;
     try {

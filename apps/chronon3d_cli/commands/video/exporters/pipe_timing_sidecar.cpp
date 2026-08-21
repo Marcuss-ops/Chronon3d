@@ -59,6 +59,8 @@ void write_frame_timing_sidecar(
             {"effects_ms", f.render_breakdown.effects_ms},
             {"surface_management_ms", f.render_breakdown.surface_management_ms},
             {"backend_overhead_ms", f.render_breakdown.backend_overhead_ms},
+            {"accounted_cpu_ms", f.render_breakdown.accounted_cpu_ms},
+            {"unaccounted_cpu_ms", f.render_breakdown.unaccounted_cpu_ms},
             {"total_ms", f.graph_eval_ms}
         };
     };
@@ -187,7 +189,9 @@ void write_frame_timing_sidecar(
             {"native_mux_ms", e ? e->native_mux_ms : 0.0},
             {"node_lookup_ms", frame.node_lookup_ms},
             {"cache_hit", frame.cache_hit},
-            {"dirty_area_ratio", frame.dirty_area_ratio}
+            {"dirty_area_ratio", frame.dirty_area_ratio},
+            {"fast_path_reused", frame.fast_path_reused},
+            {"graph_reused", frame.graph_reused}
         });
     }
 
@@ -277,6 +281,16 @@ void write_frame_timing_sidecar(
         {"frames_over_budget", frames_over_budget},
         {"over_budget_ratio", over_budget_ratio}
     };
+    uint64_t graph_reused_count = 0;
+    uint64_t fast_path_reused_count = 0;
+    for (const auto& f : frames) {
+        if (f.graph_reused) ++graph_reused_count;
+        if (f.fast_path_reused) ++fast_path_reused_count;
+    }
+    summary["graph_reused_frames"] = graph_reused_count;
+    summary["graph_reused_ratio"] = count > 0
+        ? static_cast<double>(graph_reused_count) / static_cast<double>(count) : 0.0;
+    summary["fast_path_reused_frames"] = fast_path_reused_count;
     summary["first_frame"] = std::move(first_frame);
     if (timings.target_fps) {
         summary["target_fps"] = *timings.target_fps;
@@ -506,6 +520,50 @@ void write_frame_timing_sidecar(
     // Framebuffer allocation rate (the only per-frame allocation event rate
     // the engine measures). Emitted as null when the counter is unavailable
     // rather than inventing a heap-allocator estimate.
+    auto& cpu = job["cpu_breakdown"];
+    const auto put_cpu = [&cpu](const char* key, const std::optional<double>& value) {
+        if (value) cpu[key] = *value; else cpu[key] = nullptr;
+    };
+    const auto put_cpu_u64 = [&cpu](const char* key, const std::optional<uint64_t>& value) {
+        if (value) cpu[key] = *value; else cpu[key] = nullptr;
+    };
+    put_cpu("timeline_eval_ms", timings.cpu_breakdown.timeline_eval_ms);
+    put_cpu("graph_resolve_layers_ms", timings.cpu_breakdown.graph_resolve_layers_ms);
+    put_cpu("graph_dirty_rect_ms", timings.cpu_breakdown.graph_dirty_rect_ms);
+    put_cpu("graph_build_ms", timings.cpu_breakdown.graph_build_ms);
+    put_cpu("graph_execute_ms", timings.cpu_breakdown.graph_execute_ms);
+    put_cpu("compiled_graph_refresh_ms", timings.cpu_breakdown.compiled_graph_refresh_ms);
+    put_cpu("cache_eval_ms", timings.cpu_breakdown.cache_eval_ms);
+    put_cpu("dirty_eval_ms", timings.cpu_breakdown.dirty_eval_ms);
+    put_cpu("input_resolve_ms", timings.cpu_breakdown.input_resolve_ms);
+    put_cpu("predicted_bbox_ms", timings.cpu_breakdown.predicted_bbox_ms);
+    put_cpu("clone_context_ms", timings.cpu_breakdown.clone_context_ms);
+    put_cpu("state_assign_ms", timings.cpu_breakdown.state_assign_ms);
+    put_cpu("framebuffer_acquire_ms", timings.cpu_breakdown.framebuffer_acquire_ms);
+    put_cpu("framebuffer_clear_ms", timings.cpu_breakdown.framebuffer_clear_ms);
+    put_cpu("framebuffer_lifetime_ms", timings.cpu_breakdown.framebuffer_lifetime_ms);
+    put_cpu("node_schedule_ms", timings.cpu_breakdown.node_schedule_ms);
+    put_cpu("node_dispatch_ms", timings.cpu_breakdown.node_dispatch_ms);
+    put_cpu("node_execute_actual_ms", timings.cpu_breakdown.node_execute_actual_ms);
+    put_cpu("node_overhead_ms", timings.cpu_breakdown.node_overhead_ms);
+    put_cpu("telemetry_emit_ms", timings.cpu_breakdown.telemetry_emit_ms);
+    put_cpu("text_layout_ms", timings.cpu_breakdown.text_layout_ms);
+    put_cpu("text_rasterization_ms", timings.cpu_breakdown.text_rasterization_ms);
+    put_cpu("text_shaping_ms", timings.cpu_breakdown.text_shaping_ms);
+    put_cpu("text_bidi_ms", timings.cpu_breakdown.text_bidi_ms);
+    put_cpu("glyph_cache_lookup_ms", timings.cpu_breakdown.glyph_cache_lookup_ms);
+    put_cpu("glyph_atlas_upload_ms", timings.cpu_breakdown.glyph_atlas_upload_ms);
+    put_cpu("text_draw_ms", timings.cpu_breakdown.text_draw_ms);
+    put_cpu("clearnode_ms", timings.cpu_breakdown.clearnode_ms);
+    put_cpu("compositenode_blend_ms", timings.cpu_breakdown.compositenode_blend_ms);
+    put_cpu("effect_stack_total_ms", timings.cpu_breakdown.effect_stack_total_ms);
+    put_cpu_u64("graph_executed_frames", timings.cpu_breakdown.graph_executed_frames);
+    put_cpu_u64("graph_reused_frames", timings.cpu_breakdown.graph_reused_frames);
+    put_cpu_u64("fast_path_reused_frames", timings.cpu_breakdown.fast_path_reused_frames);
+    put_cpu_u64("video_source_requested_frames", timings.cpu_breakdown.video_source_requested_frames);
+    put_cpu_u64("video_source_inactive_frames", timings.cpu_breakdown.video_source_inactive_frames);
+    put_cpu_u64("video_source_repeated_frames", timings.cpu_breakdown.video_source_repeated_frames);
+
     auto& hardware = job["hardware"];
     const auto put_hardware = [&hardware](const char* key, const std::optional<double>& value) {
         if (value) hardware[key] = *value; else hardware[key] = nullptr;

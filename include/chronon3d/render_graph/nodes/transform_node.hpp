@@ -43,6 +43,31 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
 
+    bool can_seed_full_frame(const RenderGraphContext& ctx) const noexcept override {
+        if (ctx.frame_input.has_camera_2_5d || m_opacity < 0.999f) {
+            return false;
+        }
+        if (ctx.node_exec.clip_rect) {
+            const bool clip_is_full = ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
+                                      ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width && ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height;
+            if (!clip_is_full) {
+                return false;
+            }
+        }
+        if (m_use_matrix) {
+            const bool is_identity = std::abs(m_matrix[0][0] - 1.0f) < 1e-4f &&
+                                    std::abs(m_matrix[1][1] - 1.0f) < 1e-4f &&
+                                    std::abs(m_matrix[0][1]) < 1e-4f &&
+                                    std::abs(m_matrix[1][0]) < 1e-4f &&
+                                    std::abs(m_matrix[3][0]) < 1e-4f &&
+                                    std::abs(m_matrix[3][1]) < 1e-4f;
+            return is_identity;
+        }
+        return m_transform.position.x == 0.0f && m_transform.position.y == 0.0f &&
+               m_transform.scale.x == 1.0f && m_transform.scale.y == 1.0f &&
+               std::abs(m_transform.rotation.w - 1.0f) < 1e-4f && m_transform.opacity >= 0.999f;
+    }
+
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 params_hash = hash_combine(
             hash_transform(m_transform),

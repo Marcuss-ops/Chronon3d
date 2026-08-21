@@ -91,6 +91,7 @@ private:
     bool m_apply_camera_projection{true};
     bool m_defer_camera_projection{false};
     bool m_native_3d{false};
+    std::shared_ptr<const Framebuffer> m_cached_result;
 };
 
 } // namespace chronon3d::graph

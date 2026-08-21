@@ -28,28 +28,24 @@ NodeExecResult ClearNode::execute(
     // target.  The legacy clear path owns only CPU pixels; letting that
     // framebuffer reach CompositeNode would force a full RGBA32F promotion
     // (or, in strict mode, fail after the composite has already been built).
-    if (ctx.policy.require_native_gpu && ctx.services.backend &&
-        ctx.services.surface_registry) {
-        auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
-        if (!ensure_empty_native_surface(ctx, *fb)) {
+    if ((ctx.policy.require_native_gpu || (ctx.services.backend && ctx.services.backend->supports_native_video_surface())) &&
+        ctx.services.backend && ctx.services.surface_registry) {
+        auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, false);
+        if (ensure_empty_native_surface(ctx, *fb)) {
+            const auto cleared = ctx.services.backend->fill_rect_surface(
+                fb->surface_handle(), 0, 0, fb->width(), fb->height(),
+                Color::transparent());
+            if (cleared.ok()) {
+                fb->set_opaque(false);
+                return NodeExecResult{std::move(fb)};
+            }
+        }
+        if (ctx.policy.require_native_gpu) {
             return NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "ClearNode",
                 "native residency violation: could not allocate clear target"};
         }
-        const auto cleared = ctx.services.backend->fill_rect_surface(
-            fb->surface_handle(), 0, 0, fb->width(), fb->height(),
-            Color::transparent());
-        if (!cleared.ok()) {
-            release_native_surface(ctx, *fb);
-            return NodeExecutionError{
-                RenderBackendErrorCode::ExecutionFailure,
-                "ClearNode",
-                "native clear dispatch failed: " + cleared.error().message};
-        }
-        fb->clear(Color::transparent());
-        fb->set_opaque(false);
-        return NodeExecResult{std::move(fb)};
     }
 
     auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.services.backend);

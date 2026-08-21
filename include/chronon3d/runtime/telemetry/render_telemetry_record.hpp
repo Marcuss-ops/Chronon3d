@@ -262,6 +262,8 @@ struct FrameRenderBreakdown {
     double effects_ms{0.0};
     double surface_management_ms{0.0};
     double backend_overhead_ms{0.0};
+    double accounted_cpu_ms{0.0};
+    double unaccounted_cpu_ms{0.0};
 };
 
 // The single canonical per-frame record.  Formerly split across
