@@ -141,8 +141,6 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
     : m_config(std::move(other.m_config))
     , m_settings(std::move(other.m_settings))
     , m_counters(std::move(other.m_counters))
-    , m_owned_runtime_storage(
-          std::move(other.m_owned_runtime_storage))
     , m_runtime(other.m_runtime)
     , m_image_renderer(std::move(other.m_image_renderer))
     , m_video_decoder(std::move(other.m_video_decoder))
@@ -169,7 +167,6 @@ SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
     m_image_backend  = std::move(other.m_image_backend);
     m_registry       = other.m_registry;
     m_runtime        = other.m_runtime;
-    m_owned_runtime_storage = std::move(other.m_owned_runtime_storage);
     m_image_renderer = std::move(other.m_image_renderer);
     m_text_render_resources = std::move(other.m_text_render_resources);
     m_software_registry = std::move(other.m_software_registry);
