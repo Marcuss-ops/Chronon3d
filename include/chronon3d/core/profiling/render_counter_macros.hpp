@@ -271,6 +271,10 @@ namespace chronon3d {
 #define CHRONON_COUNTERS_VIDEO(X) \
     X(video_decode_frames) \
     X(video_decode_hw_frames) \
+    X(video_decode_native_surface_frames) \
+    X(video_decode_hw_transfer_frames) \
+    X(video_decode_software_frames) \
+    X(video_decode_native_fallback_frames) \
     X(video_decode_hw_transfer_wall_ms) \
     X(video_decode_cache_hits) \
     X(video_decode_cache_misses) \
