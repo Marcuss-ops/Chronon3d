@@ -370,6 +370,7 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(
     prefetch_worker = std::thread([this, decoder]() {
         while (!prefetch_stop.load(std::memory_order_relaxed)) {
             int64_t target_to_fetch = -1;
+            uint64_t generation = 0;
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 prefetch_cv.wait(lock, [this]() {
@@ -378,17 +379,31 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(
                 });
                 if (prefetch_stop.load(std::memory_order_relaxed)) break;
                 target_to_fetch = prefetch_next++;
+                generation = prefetch_generation;
+                prefetch_inflight = target_to_fetch;
             }
 
             auto fb = decoder->decode_frame_internal(*this, target_to_fetch);
 
             {
                 std::lock_guard<std::mutex> lock(mutex);
-                if (fb) {
+                // A synchronous miss can invalidate the producer while this
+                // decode is in flight. Never publish a frame from the old
+                // sequence into the new queue.
+                if (fb && generation == prefetch_generation &&
+                    !prefetch_stop.load(std::memory_order_relaxed)) {
                     prefetch_queue.push_back({target_to_fetch, std::move(fb)});
-                } else {
+                    if (decoder->m_counters) {
+                        auto depth = static_cast<uint64_t>(prefetch_queue.size());
+                        auto peak = decoder->m_counters->video_prefetch_queue_depth_peak.load(
+                            std::memory_order_relaxed);
+                        while (depth > peak && !decoder->m_counters->video_prefetch_queue_depth_peak
+                            .compare_exchange_weak(peak, depth, std::memory_order_relaxed)) {}
+                    }
+                } else if (generation == prefetch_generation) {
                     prefetch_next = -1;
                 }
+                if (prefetch_inflight == target_to_fetch) prefetch_inflight = -1;
                 prefetch_cv.notify_all();
             }
         }
@@ -412,6 +427,13 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
     }
     const int64_t target_pts = av_rescale_q(target, frame_dur, st->time_base);
 
+    // A timeline can outlive its source clip.  After the first request past
+    // EOF, hold the terminal frame and make subsequent requests O(1).
+    if (session.source_eof && session.eof_frame && target >= session.eof_target) {
+        session.last_target = target;
+        return session.eof_frame;
+    }
+
     // Seek when the request is behind the decode position or far ahead
     // (sequential decode otherwise). AVSEEK_FLAG_BACKWARD lands on the
     // keyframe at or before the target timestamp, which is the correct
@@ -422,6 +444,9 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
         av_seek_frame(session.fmt, session.stream_index, target_pts, AVSEEK_FLAG_BACKWARD);
         avcodec_flush_buffers(session.codec);
         session.last_target = -1;
+        session.source_eof = false;
+        session.eof_target = -1;
+        session.eof_frame.reset();
     }
 
     if (!session.decoded || !session.closest_frame || !session.packet) {
@@ -438,9 +463,15 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
     std::shared_ptr<Framebuffer> result;
     int64_t closest_delta = INT64_MAX;
     int overshoot = 0;
+    bool reached_eof = false;
 
     // Decode forward from the current position until the target pts appears.
-    while (av_read_frame(session.fmt, packet) >= 0) {
+    while (true) {
+        const int read_status = av_read_frame(session.fmt, packet);
+        if (read_status < 0) {
+            reached_eof = read_status == AVERROR_EOF;
+            break;
+        }
         if (packet->stream_index != session.stream_index) {
             av_packet_unref(packet);
             continue;
@@ -532,6 +563,11 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
 
     if (result) {
         session.last_target = target;
+        if (reached_eof && !session.source_eof) {
+            session.source_eof = true;
+            session.eof_target = target;
+            session.eof_frame = result;
+        }
     }
     return result;
 }
@@ -574,6 +610,21 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
     {
         std::unique_lock<std::mutex> lock(session->mutex);
 
+        // If the producer is already decoding exactly this frame, wait for it
+        // instead of clearing the queue and decoding the same frame again.
+        // This is the common one-frame producer/consumer race on a warm
+        // sequential render.
+        if (session->prefetch_inflight == target) {
+            const auto wait_start = profiling::now();
+            session->prefetch_cv.wait(lock, [&session, target]() {
+                return session->prefetch_inflight != target ||
+                    session->prefetch_stop.load(std::memory_order_relaxed);
+            });
+            if (m_counters) m_counters->video_prefetch_wait_us.fetch_add(
+                static_cast<uint64_t>(profiling::duration_us(
+                    wait_start, profiling::Clock::now())), std::memory_order_relaxed);
+        }
+
         // 1. Check software cache.
         auto cached = session->cache.find(target);
         if (cached != session->cache.end()) {
@@ -592,6 +643,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
             session->prefetch_queue.pop_front();
             if (m_counters) {
                 m_counters->video_decode_cache_hits.fetch_add(1, std::memory_order_relaxed);
+                m_counters->video_prefetch_hits.fetch_add(1, std::memory_order_relaxed);
                 m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
                 m_counters->video_decode_wall_ms.fetch_add(
                     static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
@@ -601,23 +653,23 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
             return result;
         }
 
-        // 3. Queue miss: reset prefetch target and decode synchronously.
+        // 3. Queue miss: invalidate the old producer sequence and decode
+        // synchronously. The worker may finish its current decode, but its
+        // result is discarded by the generation check above.
         if (m_counters) {
             m_counters->video_decode_cache_misses.fetch_add(1, std::memory_order_relaxed);
+            m_counters->video_prefetch_misses.fetch_add(1, std::memory_order_relaxed);
+            if (!session->prefetch_queue.empty() || session->prefetch_inflight >= 0) {
+                m_counters->video_prefetch_queue_clear_count.fetch_add(1, std::memory_order_relaxed);
+            }
         }
 
         session->prefetch_queue.clear();
+        ++session->prefetch_generation;
         session->prefetch_next = target + 1;
         lock.unlock();
 
         result = decode_frame_internal(*session, target);
-        if (result && m_counters) {
-            m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
-            m_counters->video_decode_wall_ms.fetch_add(
-                static_cast<uint64_t>(profiling::duration_ms(decode_start, profiling::now())),
-                std::memory_order_relaxed);
-        }
-
         lock.lock();
         session->prefetch_cv.notify_all();
 

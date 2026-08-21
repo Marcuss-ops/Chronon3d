@@ -154,7 +154,7 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include"
                 "${CMAKE_SOURCE_DIR}/vcpkg_installed/linux-fast-dev/x64-linux/include")
     target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
-        PRIVATE Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+        PRIVATE chronon3d Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         add_executable(chronon3d_cuda_vulkan_nvenc_probe

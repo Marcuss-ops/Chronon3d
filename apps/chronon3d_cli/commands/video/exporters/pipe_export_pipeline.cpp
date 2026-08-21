@@ -275,12 +275,17 @@ RenderLoopOutput run_pipe_export_loop(
         loop_result.status.writer_error = true;
     }
 
-    // Release pool framebuffers after render — reduces peak memory
-    // from ~900 MB to ~400 MB for VPS-friendly operation.
-    // The pool will reallocate on the next render if needed.
+    // Apply the configured post-job policy. In warm daemon mode this keeps
+    // the framebuffer working set alive; single-shot jobs can still select
+    // TrimAfterJob to release memory explicitly.
     if (session.renderer && session.renderer->framebuffer_pool()) {
-        session.renderer->framebuffer_pool()->clear();
-        spdlog::info("[video] Released framebuffer pool — memory trimmed");
+        const auto policy = session.renderer->framebuffer_pool()->clear_policy();
+        session.renderer->framebuffer_pool()->trim_after_job();
+        if (policy == cache::FramebufferPoolClearPolicy::TrimAfterJob) {
+            spdlog::info("[video] Released framebuffer pool — memory trimmed");
+        } else {
+            spdlog::debug("[video] Retained framebuffer pool — warm policy active");
+        }
     }
 
     // The video IPC path does not pass through finalize_render_job(). Reclaim

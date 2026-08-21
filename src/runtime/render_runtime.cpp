@@ -256,6 +256,16 @@ void RenderRuntime::attach_backend(
         [this](chronon3d::Framebuffer& framebuffer) {
             const auto handle = framebuffer.surface_handle();
             if (handle == runtime::kInvalidRenderSurfaceHandle) return;
+            // Native video frames may temporarily carry the daemon-owned
+            // JobPersistent source surface while passing through the
+            // framebuffer pool. Returning that framebuffer must not destroy
+            // the persistent ring resource; the job/exporter owns its
+            // lifetime and releases it during finalization.
+            if (const auto* record = m_surface_registry.lookup(handle);
+                record && record->desc.lifetime == runtime::LifetimeClass::JobPersistent) {
+                framebuffer.clear_surface_handle();
+                return;
+            }
             (void)m_backend->release_surface(handle);
             (void)m_surface_registry.release(handle);
             framebuffer.clear_surface_handle();
