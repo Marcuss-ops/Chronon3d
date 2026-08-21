@@ -244,7 +244,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
     }
 
     {
-        CHRONON_ZONE_C("write_frame_to_disk", trace_category::kOutput);
+        CHRONON_TRACE_SCOPE("chronon.io", "WriteFrameToDisk");
         if (!save_image(*fb, path, write_options)) {
             print_render_error(
                 graph::NodeExecutionError{

@@ -590,6 +590,18 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
     const int64_t target = frame.integral();
     const auto decode_start = profiling::now();
 
+    // Timeline tracing: source of the NVDEC → render → encode flow. Keyed on
+    // the source frame this decode produces; for the common 1:1 composition
+    // mapping it equals the composition frame used by the render/encode
+    // stages, so the full chain links up in Perfetto. (With non-identity
+    // source mapping the decode flow stays self-contained — annotated with
+    // its real source frame rather than inventing a misleading one.)
+    const auto trace_job_id = m_trace_job_id.load(std::memory_order_relaxed);
+    CHRONON_TRACE_FLOW_IDS("chronon.media", "DecodeFrame",
+        chronon3d::tracing::MakeFlowId(
+            trace_job_id, static_cast<uint64_t>(target)),
+        trace_job_id, static_cast<uint64_t>(target));
+
     std::shared_ptr<Session> session;
     {
         std::lock_guard<std::mutex> lock(m_mutex);

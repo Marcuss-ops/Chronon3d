@@ -66,6 +66,14 @@ void run_writer_thread(const WriterThreadContext& ctx) {
 
             const auto enc_t0 = profiling::now();
             const Framebuffer& fb_ref = *package.framebuffer;
+            // Timeline tracing: terminating flow hop — the frame's
+            // NVDEC → render chain ends here at the encoder sink. The flow id
+            // is the same MakeFlowId(job, frame) emitted by decode and render.
+            const auto trace_flow = chronon3d::tracing::MakeFlowId(
+                ctx.trace_job_id, static_cast<uint64_t>(package.frame_number));
+            CHRONON_TRACE_FLOW_END_IDS("chronon.encode", "EncodeFrame",
+                trace_flow, ctx.trace_job_id,
+                static_cast<uint64_t>(package.frame_number));
             const bool gpu_frame =
                 package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
                 package.backend != nullptr;

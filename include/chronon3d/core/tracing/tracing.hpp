@@ -22,6 +22,7 @@
 // ============================================================================
 
 #include "chronon3d/core/tracing/tracing_categories.hpp"
+#include "chronon3d/core/tracing/trace_ids.hpp"
 
 #ifdef CHRONON3D_ENABLE_TRACING
 #include <perfetto.h>
@@ -61,6 +62,50 @@
         da->set_uint_value(static_cast<uint64_t>(frame_id)); \
     })
 
+/// Scoped slice with job_id + frame_id debug annotations (no flow).
+#define CHRONON_TRACE_SCOPE_IDS(cat, name, job_id, frame_id) \
+    TRACE_EVENT(cat, name, [&](::perfetto::EventContext ctx) { \
+        auto* da = ctx.event()->add_debug_annotations(); \
+        da->set_name("job"); \
+        da->set_uint_value(static_cast<uint64_t>(job_id)); \
+        da = ctx.event()->add_debug_annotations(); \
+        da->set_name("frame"); \
+        da->set_uint_value(static_cast<uint64_t>(frame_id)); \
+    })
+
+/// Non-terminating Flow: work continues on another thread carrying the same
+/// flow id (e.g. decode worker → render thread).
+#define CHRONON_TRACE_FLOW(cat, name, flow_id) \
+    TRACE_EVENT(cat, name, ::perfetto::Flow::ProcessScoped(flow_id))
+
+/// Non-terminating Flow + job_id/frame_id debug annotations.
+#define CHRONON_TRACE_FLOW_IDS(cat, name, flow_id, job_id, frame_id) \
+    TRACE_EVENT(cat, name, ::perfetto::Flow::ProcessScoped(flow_id), \
+        [&](::perfetto::EventContext ctx) { \
+            auto* da = ctx.event()->add_debug_annotations(); \
+            da->set_name("job"); \
+            da->set_uint_value(static_cast<uint64_t>(job_id)); \
+            da = ctx.event()->add_debug_annotations(); \
+            da->set_name("frame"); \
+            da->set_uint_value(static_cast<uint64_t>(frame_id)); \
+        })
+
+/// TerminatingFlow: work completes on this thread (e.g. writer/NVENC sink).
+#define CHRONON_TRACE_FLOW_END(cat, name, flow_id) \
+    TRACE_EVENT(cat, name, ::perfetto::TerminatingFlow::ProcessScoped(flow_id))
+
+/// TerminatingFlow + job_id/frame_id debug annotations.
+#define CHRONON_TRACE_FLOW_END_IDS(cat, name, flow_id, job_id, frame_id) \
+    TRACE_EVENT(cat, name, ::perfetto::TerminatingFlow::ProcessScoped(flow_id), \
+        [&](::perfetto::EventContext ctx) { \
+            auto* da = ctx.event()->add_debug_annotations(); \
+            da->set_name("job"); \
+            da->set_uint_value(static_cast<uint64_t>(job_id)); \
+            da = ctx.event()->add_debug_annotations(); \
+            da->set_name("frame"); \
+            da->set_uint_value(static_cast<uint64_t>(frame_id)); \
+        })
+
 #else // !CHRONON3D_ENABLE_TRACING
 
 #ifndef ZoneScoped
@@ -84,5 +129,17 @@
     do { (void)sizeof(cat); } while (false)
 #define CHRONON_TRACE_FRAME(cat, name, frame_id) \
     do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(frame_id); } while (false)
+#define CHRONON_TRACE_SCOPE_IDS(cat, name, job_id, frame_id) \
+    do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(job_id); (void)sizeof(frame_id); } while (false)
+#define CHRONON_TRACE_FLOW(cat, name, flow_id) \
+    do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(flow_id); } while (false)
+#define CHRONON_TRACE_FLOW_IDS(cat, name, flow_id, job_id, frame_id) \
+    do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(flow_id); \
+         (void)sizeof(job_id); (void)sizeof(frame_id); } while (false)
+#define CHRONON_TRACE_FLOW_END(cat, name, flow_id) \
+    do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(flow_id); } while (false)
+#define CHRONON_TRACE_FLOW_END_IDS(cat, name, flow_id, job_id, frame_id) \
+    do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(flow_id); \
+         (void)sizeof(job_id); (void)sizeof(frame_id); } while (false)
 
 #endif // CHRONON3D_ENABLE_TRACING

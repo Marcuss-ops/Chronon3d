@@ -206,6 +206,14 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     }
                 }
             }
+            // Timeline tracing: non-terminating flow hop from the decode
+            // stage; the same MakeFlowId(job, frame) terminates at the
+            // writer's encode slice, linking NVDEC → graph → NVENC in
+            // Perfetto (see tracing/trace_ids.hpp).
+            const auto trace_flow = chronon3d::tracing::MakeFlowId(
+                ctx.trace_job_id, static_cast<uint64_t>(current_frame));
+            CHRONON_TRACE_FLOW_IDS("chronon.frame", "RenderFrame", trace_flow,
+                ctx.trace_job_id, static_cast<uint64_t>(current_frame));
             auto fb = graph::render_compiled_composition_frame_temporal(
                 ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
                 ctx.video_decoder, ctx.compiled, current_frame,

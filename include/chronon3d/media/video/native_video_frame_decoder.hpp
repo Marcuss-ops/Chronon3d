@@ -60,6 +60,13 @@ public:
         m_surface_registry = registry;
     }
 
+    /// Trace correlation context: stable per-job id mixed with the decoded
+    /// source frame to build the Perfetto flow id for this decode. Set once
+    /// before decoding starts (the prefetch worker may read it concurrently).
+    void set_trace_job_id(std::uint64_t job_id) noexcept {
+        m_trace_job_id.store(job_id, std::memory_order_relaxed);
+    }
+
     /// Decode one frame from `path` at the given source frame index and pack
     /// it into a renderer Framebuffer at the source's native resolution
     /// (the layer transform applies fit/scaling, mirroring image layers).
@@ -131,6 +138,7 @@ private:
     RenderCounters* m_counters{nullptr};
     graph::RenderBackend* m_backend{nullptr};
     runtime::RenderSurfaceRegistry* m_surface_registry{nullptr};
+    std::atomic<std::uint64_t> m_trace_job_id{0};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 
     std::shared_ptr<Framebuffer> decode_frame_internal(
@@ -149,6 +157,7 @@ public:
         const std::string&, Frame, int, int, float) override {
         return nullptr;
     }
+    void set_trace_job_id(std::uint64_t) noexcept {}  // no-op stub
 };
 
 #endif  // CHRONON3D_ENABLE_NATIVE_FFMPEG
