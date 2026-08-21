@@ -386,6 +386,8 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(
                 std::lock_guard<std::mutex> lock(mutex);
                 if (fb) {
                     prefetch_queue.push_back({target_to_fetch, std::move(fb)});
+                } else {
+                    prefetch_next = -1;
                 }
                 prefetch_cv.notify_all();
             }
