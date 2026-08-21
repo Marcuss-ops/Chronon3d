@@ -111,15 +111,31 @@ struct CompiledOperation {
     bool is_fused{false};
 };
 
+struct StaticSubgraphBakePass {
+    GraphNodeId root_node{k_invalid_node};
+    std::uint64_t static_fingerprint{0};
+    bool is_baked{false};
+    std::uint32_t persistent_surface_handle{0};
+};
+
+struct CompiledLayerBatch {
+    std::vector<GraphNodeId> member_nodes;
+    std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
+    bool is_gpu_fused{false};
+};
+
 struct CompiledFrameProgram {
     // Topological schedule copied once at compile time. Keeping it beside the
     // operations makes the program the executor's immutable source of truth;
     // CompiledFrameGraph::levels remains the compatibility fallback.
     std::vector<std::vector<GraphNodeId>> levels;
     std::vector<CompiledOperation> operations;
+    std::vector<StaticSubgraphBakePass> static_bakes;
+    std::vector<CompiledLayerBatch> layer_batches;
     bool has_prepared_parameters{false};
     bool fully_recorded{false};
     bool has_fused_passes{false};
+    bool require_native_gpu{false};
 
     [[nodiscard]] bool empty() const noexcept {
         return operations.empty() || levels.empty();
