@@ -158,6 +158,7 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_text_run_predicted_bbox_golden.cpp
         ${CMAKE_SOURCE_DIR}/src/render_graph/nodes/detail/raster_surface.hpp
         render_graph/nodes/test_raster_surface_geometry.cpp
+        render_graph/nodes/test_producer_surface_bounds.cpp
         render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
         render_graph/nodes/test_per_pixel_dof_node_unit.cpp
         render_graph/nodes/test_shadow_node_rg_integration.cpp

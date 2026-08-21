@@ -23,6 +23,14 @@ namespace chronon3d {
 
 #define CHRONON_COUNTERS_CORE(X) \
     X(pixels_touched) \
+    X(producer_surface_pixels) \
+    X(producer_canvas_pixels) \
+    X(tight_surface_count) \
+    X(full_canvas_overlay_count) \
+    X(producer_tight_text_count) \
+    X(producer_tight_image_count) \
+    X(producer_full_frame_text_count) \
+    X(producer_full_frame_image_count) \
     X(nodes_executed) \
     X(layers_rendered) \
     X(images_sampled) \

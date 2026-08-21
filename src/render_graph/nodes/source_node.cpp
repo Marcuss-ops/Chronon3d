@@ -5,6 +5,7 @@
 #include "../builder/evaluated_layer_placement.hpp"
 #include "detail/preflight_bbox.hpp"
 #include "native_surface.hpp"
+#include "detail/producer_surface_bounds.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -477,10 +478,45 @@ NodeExecResult SourceNode::execute(
         }
     }
 
-    auto fb = ctx.acquire_owned_fb(
+    // Only image overlays need a predicted visual box here.  Background and
+    // video producers are intentionally full-canvas and must not pay for an
+    // extra per-frame bounds calculation.
+    std::optional<raster::BBox> source_bbox;
+    if (m_node.shape.type() == ShapeType::Image && !full_frame_seed) {
+        source_bbox = predicted_bbox(ctx);
+    }
+    const auto producer_surface = detail::resolve_producer_surface_bounds(
         ctx.frame_input.width,
         ctx.frame_input.height,
-        !skip_clear && !direct_full_frame_fill);
+        m_node.shape.type() == ShapeType::Image
+            ? detail::ProducerSurfaceKind::Image
+            : detail::ProducerSurfaceKind::Background,
+        source_bbox
+            ? &*source_bbox
+            : nullptr);
+    detail::record_producer_surface(
+        ctx.node_exec.counters,
+        m_node.shape.type() == ShapeType::Image
+            ? detail::ProducerSurfaceKind::Image
+            : detail::ProducerSurfaceKind::Background,
+        producer_surface,
+        ctx.frame_input.width,
+        ctx.frame_input.height);
+
+    OwnedFB fb;
+    if (producer_surface.tight && ctx.services.framebuffer_pool &&
+        !ctx.node_exec.planned_physical_slot) {
+        fb = ctx.services.framebuffer_pool->acquire_owned_exact(
+            producer_surface.width(), producer_surface.height(),
+            !skip_clear && !direct_full_frame_fill);
+        fb->set_origin(producer_surface.bounds.x0, producer_surface.bounds.y0);
+    } else {
+        fb = ctx.acquire_owned_fb(
+            producer_surface.width(),
+            producer_surface.height(),
+            !skip_clear && !direct_full_frame_fill,
+            producer_surface.bounds);
+    }
 
     // Keep the CPU clear only for the software backend.  A Vulkan video job
     // must materialize even a full-frame color layer as a native surface so
