@@ -24,6 +24,46 @@
 #include "chronon3d/core/tracing/tracing_categories.hpp"
 #include "chronon3d/core/tracing/trace_ids.hpp"
 
+#include <cstdint>
+
+namespace chronon3d::tracing {
+
+/// Current Perfetto trace-clock time in nanoseconds (the same clock used by
+/// every CHRONON_TRACE_* event timestamp).  Returns 0 when tracing is
+/// compiled out.  Used to anchor GPU timestamp calibration to the CPU
+/// timeline (VK_EXT_calibrated_timestamps).
+inline std::int64_t TraceTimeNs() {
+#ifdef CHRONON3D_ENABLE_TRACING
+    return static_cast<std::int64_t>(::perfetto::TrackEvent::GetTraceTimeNs());
+#else
+    return 0;
+#endif
+}
+
+/// Global track id for the dedicated GPU timeline track "Chronon Vulkan
+/// Queue".  GPU work is NOT recorded on any CPU thread track: it gets its
+/// own track, with slices positioned using real calibrated GPU timestamps
+/// converted into the Perfetto trace-clock domain.
+inline constexpr std::uint64_t kVulkanQueueTrackId =
+    static_cast<std::uint64_t>(0x4348524F4E4F4E56ULL);  // "CHRONONV"
+
+/// Name the dedicated GPU track.  Safe to call before a trace session
+/// starts; the descriptor persists in the Perfetto track registry and is
+/// emitted when the track is first used.  No-op when tracing is compiled
+/// out.
+inline void RegisterVulkanQueueTrack() {
+#ifdef CHRONON3D_ENABLE_TRACING
+    const auto track = ::perfetto::Track(kVulkanQueueTrackId);
+    auto desc = track.Serialize();
+    desc.set_name("Chronon Vulkan Queue");
+    ::perfetto::TrackEvent::SetTrackDescriptor(track, desc);
+#else
+    (void)0;
+#endif
+}
+
+} // namespace chronon3d::tracing
+
 #ifdef CHRONON3D_ENABLE_TRACING
 #include <perfetto.h>
 
@@ -106,6 +146,23 @@
             da->set_uint_value(static_cast<uint64_t>(frame_id)); \
         })
 
+// ── GPU slices on the dedicated queue track (calibrated timestamps) ────────
+// `start_ns`/`end_ns` MUST be in the Perfetto trace-clock domain (see
+// chronon3d::tracing::TraceTimeNs()).  Emitted ONLY with real calibrated GPU
+// timestamps — never positioned arbitrarily on a CPU track.
+
+/// Begin a GPU slice on the "Chronon Vulkan Queue" track at `start_ns`.
+#define CHRONON_TRACE_GPU_BEGIN(name, start_ns) \
+    TRACE_EVENT_BEGIN("chronon.gpu", name, \
+        ::perfetto::Track(chronon3d::tracing::kVulkanQueueTrackId), \
+        static_cast<uint64_t>(start_ns))
+
+/// End the GPU slice opened on the queue track at `end_ns`.
+#define CHRONON_TRACE_GPU_END(end_ns) \
+    TRACE_EVENT_END("chronon.gpu", \
+        ::perfetto::Track(chronon3d::tracing::kVulkanQueueTrackId), \
+        static_cast<uint64_t>(end_ns))
+
 #else // !CHRONON3D_ENABLE_TRACING
 
 #ifndef ZoneScoped
@@ -141,5 +198,9 @@
 #define CHRONON_TRACE_FLOW_END_IDS(cat, name, flow_id, job_id, frame_id) \
     do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(flow_id); \
          (void)sizeof(job_id); (void)sizeof(frame_id); } while (false)
+#define CHRONON_TRACE_GPU_BEGIN(name, start_ns) \
+    do { (void)sizeof(name); (void)sizeof(start_ns); } while (false)
+#define CHRONON_TRACE_GPU_END(end_ns) \
+    do { (void)sizeof(end_ns); } while (false)
 
 #endif // CHRONON3D_ENABLE_TRACING

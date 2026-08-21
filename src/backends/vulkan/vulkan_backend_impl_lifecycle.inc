@@ -2,9 +2,11 @@
 // the private state definition single-source while separating responsibilities.
 
     Impl(VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
-         std::uint32_t family, VkCommandPool pool)
+         std::uint32_t family, VkCommandPool pool,
+         bool calibrated_timestamps_supported)
         : physical_device(physical), device(logical), queue(graphics),
-          queue_family(family), command_pool(pool) {
+          queue_family(family), command_pool(pool),
+          calibrated_ts_supported(calibrated_timestamps_supported) {
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);
         stats.device_name = device_properties.deviceName;
@@ -304,6 +306,36 @@
                 static_cast<std::uint32_t>(2 * FrameBatchState::kSlotCount), 0};
             check(vkCreateQueryPool(device, &query_pool_info, nullptr, &timestamp_pool),
                   "vkCreateQueryPool(timestamp)");
+        }
+
+        // VK_EXT_calibrated_timestamps: sample (device GPU timestamp, Perfetto
+        // trace-clock ns) back-to-back to anchor GPU work on the CPU timeline.
+        // One anchor taken at backend construction; the per-frame query
+        // results are then converted with this single (G0, C0) pair.  When
+        // the extension or timestamp queries are unavailable the flag stays
+        // false and only CPU-side submit/fence-wait events are traced — no
+        // fake GPU bars.
+        if (calibrated_ts_supported && timestamp_valid_bits != 0) {
+            pfn_get_calibrated_timestamps =
+                reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(
+                    vkGetDeviceProcAddr(device,
+                                        "vkGetCalibratedTimestampsEXT"));
+            if (pfn_get_calibrated_timestamps) {
+                VkCalibratedTimestampInfoEXT device_domain{
+                    VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT, nullptr,
+                    VK_TIME_DOMAIN_DEVICE_EXT};
+                std::uint64_t gpu_ts = 0;
+                std::uint64_t max_deviation = 0;
+                if (pfn_get_calibrated_timestamps(device, 1, &device_domain,
+                                                  &gpu_ts, &max_deviation) ==
+                    VK_SUCCESS) {
+                    calibration_gpu_ts = gpu_ts;
+                    calibration_max_deviation = max_deviation;
+                    calibration_cpu_trace_ns = chronon3d::tracing::TraceTimeNs();
+                    gpu_timestamps_calibrated = true;
+                    chronon3d::tracing::RegisterVulkanQueueTrack();
+                }
+            }
         }
     }
 
