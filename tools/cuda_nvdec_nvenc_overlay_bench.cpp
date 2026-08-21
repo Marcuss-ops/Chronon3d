@@ -181,20 +181,36 @@ void copy_plane(CUdeviceptr dst, int dp, const uint8_t* src, int sp, int w, int 
 }
 
 struct BenchTimings {
-  double demux_decode_ms{0.0};
-  double copy_ms{0.0};
-  double composite_kernel_ms{0.0};
+  double startup_ms{0.0};
+
+  double demux_ms{0.0};
+  double decode_send_ms{0.0};
+  double decode_receive_ms{0.0};
+
+  double gpu_submit_ms{0.0};
+  double gpu_execute_ms{0.0};
+  double gpu_event_wait_ms{0.0};
+
   double encode_send_ms{0.0};
+  double encode_receive_ms{0.0};
+
   double mux_write_ms{0.0};
-  double cuda_sync_ms{0.0};
-  double total_wall_ms{0.0};
+  double trailer_ms{0.0};
+
+  double queue_wait_ms{0.0};
+  double teardown_ms{0.0};
+
+  double pipeline_wall_ms{0.0};
+  double process_wall_ms{0.0};
+
+  uint64_t queue_high_watermark{0};
 };
 
 BenchTimings g_timings;
 
 using Clock = std::chrono::high_resolution_clock;
 
-void write_packets(AVCodecContext* enc, AVFormatContext* out, AVPacket* pkt, AVFrame* frame, int64_t& count) {
+void write_packets(AVCodecContext* enc, AVFormatContext* out, AVPacket* pkt, AVFrame* frame, uint64_t& encoded_packet_count) {
   auto t0 = Clock::now();
   av_ok(avcodec_send_frame(enc, frame), "avcodec_send_frame");
   auto t1 = Clock::now();
@@ -204,12 +220,12 @@ void write_packets(AVCodecContext* enc, AVFormatContext* out, AVPacket* pkt, AVF
     auto t_rec0 = Clock::now();
     int r = avcodec_receive_packet(enc, pkt);
     auto t_rec1 = Clock::now();
-    g_timings.encode_send_ms += std::chrono::duration<double, std::milli>(t_rec1 - t_rec0).count();
+    g_timings.encode_receive_ms += std::chrono::duration<double, std::milli>(t_rec1 - t_rec0).count();
 
     if (r == AVERROR(EAGAIN) || r == AVERROR_EOF) break;
     av_ok(r, "avcodec_receive_packet");
     pkt->stream_index = 0;
-    pkt->pts = pkt->dts = count++;
+    pkt->pts = pkt->dts = static_cast<int64_t>(encoded_packet_count++);
     pkt->duration = 1;
     av_packet_rescale_ts(pkt, enc->time_base, out->streams[0]->time_base);
 
@@ -222,16 +238,286 @@ void write_packets(AVCodecContext* enc, AVFormatContext* out, AVPacket* pkt, AVF
   }
 }
 
+// Race-free Frame Slot Ring with Explicit Handshake
+enum class SlotState {
+  Free,
+  GpuWriting,
+  ReadyForEncode,
+  Encoding
+};
+
+struct FrameSlot {
+  size_t slot_id{0};
+  AVFrame* frame{nullptr};
+  CUevent gpu_ready_ev{nullptr};
+  CUevent gpu_start_timing_ev{nullptr};
+  CUevent gpu_end_timing_ev{nullptr};
+  std::atomic<SlotState> state{SlotState::Free};
+};
+
+class FrameSlotRing {
+ public:
+  FrameSlotRing(size_t capacity, AVBufferRef* frames_ctx, int width, int height)
+      : slots_(capacity) {
+    for (size_t i = 0; i < capacity; ++i) {
+      slots_[i].slot_id = i;
+      slots_[i].frame = av_frame_alloc();
+      if (!slots_[i].frame) fail("av_frame_alloc");
+      slots_[i].frame->format = AV_PIX_FMT_CUDA;
+      slots_[i].frame->width = width;
+      slots_[i].frame->height = height;
+      slots_[i].frame->hw_frames_ctx = av_buffer_ref(frames_ctx);
+      av_ok(av_hwframe_get_buffer(frames_ctx, slots_[i].frame, 0), "av_hwframe_get_buffer");
+      cu_ok(cuEventCreate(&slots_[i].gpu_ready_ev, CU_EVENT_DISABLE_TIMING), "cuEventCreate ready");
+      cu_ok(cuEventCreate(&slots_[i].gpu_start_timing_ev, CU_EVENT_DEFAULT), "cuEventCreate start");
+      cu_ok(cuEventCreate(&slots_[i].gpu_end_timing_ev, CU_EVENT_DEFAULT), "cuEventCreate end");
+      slots_[i].state.store(SlotState::Free, std::memory_order_relaxed);
+    }
+  }
+
+  FrameSlot* acquire_free_slot() {
+    auto t_wait0 = Clock::now();
+    std::unique_lock<std::mutex> lock(mtx_);
+    cv_free_.wait(lock, [this]() {
+      for (auto& s : slots_) {
+        if (s.state.load(std::memory_order_acquire) == SlotState::Free) return true;
+      }
+      return false;
+    });
+    auto t_wait1 = Clock::now();
+    g_timings.queue_wait_ms += std::chrono::duration<double, std::milli>(t_wait1 - t_wait0).count();
+
+    for (size_t i = 0; i < slots_.size(); ++i) {
+      size_t idx = (next_producer_idx_ + i) % slots_.size();
+      if (slots_[idx].state.load(std::memory_order_acquire) == SlotState::Free) {
+        next_producer_idx_ = (idx + 1) % slots_.size();
+        slots_[idx].state.store(SlotState::GpuWriting, std::memory_order_release);
+        return &slots_[idx];
+      }
+    }
+    fail("unreachable free slot search");
+  }
+
+  void mark_ready(FrameSlot* slot) {
+    slot->state.store(SlotState::ReadyForEncode, std::memory_order_release);
+  }
+
+  void release_slot(FrameSlot* slot) {
+    slot->state.store(SlotState::Free, std::memory_order_release);
+    {
+      std::lock_guard<std::mutex> lock(mtx_);
+    }
+    cv_free_.notify_one();
+  }
+
+  ~FrameSlotRing() {
+    for (auto& s : slots_) {
+      if (s.frame) av_frame_free(&s.frame);
+      if (s.gpu_ready_ev) cuEventDestroy(s.gpu_ready_ev);
+      if (s.gpu_start_timing_ev) cuEventDestroy(s.gpu_start_timing_ev);
+      if (s.gpu_end_timing_ev) cuEventDestroy(s.gpu_end_timing_ev);
+    }
+  }
+
+ private:
+  std::vector<FrameSlot> slots_;
+  size_t next_producer_idx_{0};
+  std::mutex mtx_;
+  std::condition_variable cv_free_;
+};
+
+// Ceiling benchmark modes
+int run_demux_only(const char* input) {
+  auto start = Clock::now();
+  AVFormatContext* in{}; av_ok(avformat_open_input(&in, input, nullptr, nullptr), "open");
+  av_ok(avformat_find_stream_info(in, nullptr), "find_stream");
+  int si = av_find_best_stream(in, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  AVPacket* pkt = av_packet_alloc();
+  uint64_t count = 0;
+  while (av_read_frame(in, pkt) >= 0) {
+    if (pkt->stream_index == si) count++;
+    av_packet_unref(pkt);
+  }
+  av_packet_free(&pkt);
+  avformat_close_input(&in);
+  auto end = Clock::now();
+  double ms = std::chrono::duration<double, std::milli>(end - start).count();
+  std::cout << "[CEILING DEMUX-ONLY] frames=" << count << " total=" << ms << " ms (" << (1000.0 * count / ms) << " FPS)\n";
+  return 0;
+}
+
+int run_decode_only(const char* input) {
+  auto start = Clock::now();
+  CUdevice dev{}; CUcontext ctx{}; cu_ok(cuInit(0), "cuInit"); cu_ok(cuDeviceGet(&dev, 0), "cuDeviceGet");
+  cu_ok(cuDevicePrimaryCtxSetFlags(dev, CU_CTX_SCHED_BLOCKING_SYNC), "cuDevicePrimaryCtxSetFlags");
+  cu_ok(cuDevicePrimaryCtxRetain(&ctx, dev), "cuDevicePrimaryCtxRetain");
+  cu_ok(cuCtxSetCurrent(ctx), "cuCtxSetCurrent");
+
+  AVFormatContext* in{}; av_ok(avformat_open_input(&in, input, nullptr, nullptr), "open");
+  av_ok(avformat_find_stream_info(in, nullptr), "find_stream");
+  int si = av_find_best_stream(in, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  const AVCodec* dec = avcodec_find_decoder_by_name("h264_cuvid");
+  if (!dec) dec = avcodec_find_decoder(in->streams[si]->codecpar->codec_id);
+  AVCodecContext* dc = avcodec_alloc_context3(dec);
+  av_ok(avcodec_parameters_to_context(dc, in->streams[si]->codecpar), "params");
+  dc->get_format = hw_format;
+  dc->extra_hw_frames = 8;
+  AVBufferRef* hwdev{}; av_ok(av_hwdevice_ctx_create(&hwdev, AV_HWDEVICE_TYPE_CUDA, "0", nullptr, AV_CUDA_USE_PRIMARY_CONTEXT), "hwdev");
+  dc->hw_device_ctx = av_buffer_ref(hwdev);
+  av_ok(avcodec_open2(dc, dec, nullptr), "open2");
+
+  AVPacket* pkt = av_packet_alloc();
+  AVFrame* frame = av_frame_alloc();
+  uint64_t count = 0;
+  while (av_read_frame(in, pkt) >= 0) {
+    if (pkt->stream_index == si) {
+      av_ok(avcodec_send_packet(dc, pkt), "send");
+      while (avcodec_receive_frame(dc, frame) >= 0) count++;
+    }
+    av_packet_unref(pkt);
+  }
+  avcodec_send_packet(dc, nullptr);
+  while (avcodec_receive_frame(dc, frame) >= 0) count++;
+
+  av_frame_free(&frame);
+  av_packet_free(&pkt);
+  avcodec_free_context(&dc);
+  avformat_close_input(&in);
+  av_buffer_unref(&hwdev);
+  cuDevicePrimaryCtxRelease(dev);
+
+  auto end = Clock::now();
+  double ms = std::chrono::duration<double, std::milli>(end - start).count();
+  std::cout << "[CEILING NVDEC-ONLY] decoder=" << dec->name << " frames=" << count << " total=" << ms << " ms (" << (1000.0 * count / ms) << " FPS)\n";
+  return 0;
+}
+
+int run_gpu_only(int count, int W, int H) {
+  auto start = Clock::now();
+  CUdevice dev{}; CUcontext ctx{}; cu_ok(cuInit(0), "cuInit"); cu_ok(cuDeviceGet(&dev, 0), "cuDeviceGet");
+  cu_ok(cuDevicePrimaryCtxSetFlags(dev, CU_CTX_SCHED_BLOCKING_SYNC), "cuDevicePrimaryCtxSetFlags");
+  cu_ok(cuDevicePrimaryCtxRetain(&ctx, dev), "cuDevicePrimaryCtxRetain");
+  cu_ok(cuCtxSetCurrent(ctx), "cuCtxSetCurrent");
+  CUstream stream{}; cu_ok(cuStreamCreate(&stream, CU_STREAM_NON_BLOCKING), "stream");
+
+  nvrtcProgram prog{}; nv_ok(nvrtcCreateProgram(&prog, kKernel, "composite.cu", 0, nullptr, nullptr), "createProg");
+  const char* opts[] = {"--gpu-architecture=compute_75"};
+  nv_ok(nvrtcCompileProgram(prog, 1, opts), "compileProg");
+  size_t ptx_size{}; nv_ok(nvrtcGetPTXSize(prog, &ptx_size), "ptxSize");
+  std::vector<char> ptx(ptx_size); nv_ok(nvrtcGetPTX(prog, ptx.data()), "getPTX"); nvrtcDestroyProgram(&prog);
+  CUmodule mod{}; CUfunction kernel{}; cu_ok(cuModuleLoadData(&mod, ptx.data()), "loadData");
+  cu_ok(cuModuleGetFunction(&kernel, mod, "fused_nv12_composite"), "getFunc");
+
+  CUdeviceptr src_y{}, src_uv{}, dst_y{}, dst_uv{};
+  size_t pitch = (W + 31) & ~31;
+  cu_ok(cuMemAlloc(&src_y, pitch * H), "alloc"); cu_ok(cuMemAlloc(&src_uv, pitch * H / 2), "alloc");
+  cu_ok(cuMemAlloc(&dst_y, pitch * H), "alloc"); cu_ok(cuMemAlloc(&dst_uv, pitch * H / 2), "alloc");
+
+  CUevent ev_start{}, ev_end{};
+  cu_ok(cuEventCreate(&ev_start, CU_EVENT_DEFAULT), "create");
+  cu_ok(cuEventCreate(&ev_end, CU_EVENT_DEFAULT), "create");
+
+  CUdeviceptr dummy_table{0}; int layer_count = 0; int ipitch = (int)pitch;
+  void* args[] = {&dst_y, &dst_uv, &ipitch, &ipitch, &src_y, &src_uv, &ipitch, &ipitch, &dummy_table, &layer_count, &W, &H};
+
+  cu_ok(cuEventRecord(ev_start, stream), "record start");
+  for (int i = 0; i < count; ++i) {
+    cu_ok(cuLaunchKernel(kernel, (W + 31) / 32, (H + 31) / 32, 1, 32, 16, 1, 0, stream, args, nullptr), "launch");
+  }
+  cu_ok(cuEventRecord(ev_end, stream), "record end");
+  cu_ok(cuEventSynchronize(ev_end), "sync");
+
+  float gpu_ms = 0.0f;
+  cu_ok(cuEventElapsedTime(&gpu_ms, ev_start, ev_end), "elapsed");
+  auto end = Clock::now();
+  double wall_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+  cuEventDestroy(ev_start); cuEventDestroy(ev_end);
+  cuMemFree(src_y); cuMemFree(src_uv); cuMemFree(dst_y); cuMemFree(dst_uv);
+  cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev);
+
+  std::cout << "[CEILING GPU-ONLY] frames=" << count << " pure_gpu=" << gpu_ms << " ms (" << (1000.0 * count / gpu_ms) << " FPS) wall=" << wall_ms << " ms\n";
+  return 0;
+}
+
+int run_encode_only(int count, int W, int H, const char* output) {
+  auto start = Clock::now();
+  CUdevice dev{}; CUcontext ctx{}; cu_ok(cuInit(0), "cuInit"); cu_ok(cuDeviceGet(&dev, 0), "cuDeviceGet");
+  cu_ok(cuDevicePrimaryCtxSetFlags(dev, CU_CTX_SCHED_BLOCKING_SYNC), "cuDevicePrimaryCtxSetFlags");
+  cu_ok(cuDevicePrimaryCtxRetain(&ctx, dev), "cuDevicePrimaryCtxRetain");
+  cu_ok(cuCtxSetCurrent(ctx), "cuCtxSetCurrent");
+
+  AVFormatContext* out{}; avformat_alloc_output_context2(&out, nullptr, nullptr, output);
+  const AVCodec* enc_codec = avcodec_find_encoder_by_name("h264_nvenc");
+  AVStream* st = avformat_new_stream(out, enc_codec);
+  AVCodecContext* ec = avcodec_alloc_context3(enc_codec);
+  ec->width = W; ec->height = H; ec->time_base = {1, 24}; ec->framerate = {24, 1}; ec->pix_fmt = AV_PIX_FMT_CUDA;
+  ec->bit_rate = 0; ec->thread_count = 1; ec->thread_type = 0; ec->max_b_frames = 0; ec->flags |= AV_CODEC_FLAG_LOW_DELAY;
+  av_opt_set(ec->priv_data, "preset", "p1", 0); av_opt_set_int(ec->priv_data, "qp", 23, 0);
+  av_opt_set_int(ec->priv_data, "surfaces", 8, 0); av_opt_set_int(ec->priv_data, "zerolatency", 1, 0);
+
+  AVBufferRef* hwdev{}; av_ok(av_hwdevice_ctx_create(&hwdev, AV_HWDEVICE_TYPE_CUDA, "0", nullptr, AV_CUDA_USE_PRIMARY_CONTEXT), "hwdev");
+  AVBufferRef* frames = av_hwframe_ctx_alloc(hwdev);
+  auto* fctx = (AVHWFramesContext*)frames->data;
+  fctx->format = AV_PIX_FMT_CUDA; fctx->sw_format = AV_PIX_FMT_NV12; fctx->width = W; fctx->height = H; fctx->initial_pool_size = 8;
+  av_ok(av_hwframe_ctx_init(frames), "init");
+  ec->hw_frames_ctx = av_buffer_ref(frames);
+  av_ok(avcodec_open2(ec, enc_codec, nullptr), "open");
+  av_ok(avcodec_parameters_from_context(st->codecpar, ec), "params");
+  st->time_base = ec->time_base;
+
+  if (!(out->oformat->flags & AVFMT_NOFILE)) av_ok(avio_open(&out->pb, output, AVIO_FLAG_WRITE), "avio");
+  av_ok(avformat_write_header(out, nullptr), "header");
+
+  AVFrame* frame = av_frame_alloc();
+  frame->format = AV_PIX_FMT_CUDA; frame->width = W; frame->height = H; frame->hw_frames_ctx = av_buffer_ref(frames);
+  av_ok(av_hwframe_get_buffer(frames, frame, 0), "get_buffer");
+
+  AVPacket* pkt = av_packet_alloc();
+  uint64_t encoded_packet_count = 0;
+  for (int i = 0; i < count; ++i) {
+    frame->pts = i;
+    write_packets(ec, out, pkt, frame, encoded_packet_count);
+  }
+  write_packets(ec, out, pkt, nullptr, encoded_packet_count);
+  av_write_trailer(out);
+
+  if (!(out->oformat->flags & AVFMT_NOFILE)) avio_closep(&out->pb);
+  av_frame_free(&frame); av_packet_free(&pkt); avcodec_free_context(&ec); avformat_free_context(out);
+  av_buffer_unref(&frames); av_buffer_unref(&hwdev);
+  cuDevicePrimaryCtxRelease(dev);
+
+  auto end = Clock::now();
+  double ms = std::chrono::duration<double, std::milli>(end - start).count();
+  std::cout << "[CEILING NVENC-ONLY] frames=" << count << " total=" << ms << " ms (" << (1000.0 * count / ms) << " FPS)\n";
+  return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
   av_log_set_level(AV_LOG_ERROR);
+  if (argc >= 2 && std::string(argv[1]) == "--demux-only") {
+    return run_demux_only(argv[2]);
+  }
+  if (argc >= 2 && std::string(argv[1]) == "--decode-only") {
+    return run_decode_only(argv[2]);
+  }
+  if (argc >= 2 && std::string(argv[1]) == "--gpu-only") {
+    return run_gpu_only(std::atoi(argv[2]), std::atoi(argv[3]), std::atoi(argv[4]));
+  }
+  if (argc >= 2 && std::string(argv[1]) == "--encode-only") {
+    return run_encode_only(std::atoi(argv[2]), std::atoi(argv[3]), std::atoi(argv[4]), argv[5]);
+  }
+
   if (argc != 13) {
     std::fprintf(stderr, "usage: %s input.mp4 output.mp4 wm.rgba wm_w wm_h wm_x wm_y sub.rgba sub_w sub_h sub_x sub_y\n", argv[0]);
     return 2;
   }
   try {
-    auto total_start = Clock::now();
+    auto process_start = Clock::now();
+    auto startup_start = Clock::now();
+
     const char* input = argv[1]; const char* output = argv[2];
     const int ww = std::atoi(argv[4]), wh = std::atoi(argv[5]), wx = std::atoi(argv[6]), wy = std::atoi(argv[7]);
     const int sw = std::atoi(argv[9]), sh = std::atoi(argv[10]), sx = std::atoi(argv[11]), sy = std::atoi(argv[12]);
@@ -297,57 +583,32 @@ int main(int argc, char** argv) {
     dc->extra_hw_frames = 8;
     AVBufferRef* hwdev{}; av_ok(av_hwdevice_ctx_create(&hwdev,AV_HWDEVICE_TYPE_CUDA,"0",nullptr,AV_CUDA_USE_PRIMARY_CONTEXT),"av_hwdevice_ctx_create"); dc->hw_device_ctx=av_buffer_ref(hwdev); av_ok(avcodec_open2(dc,dec,nullptr),"avcodec_open2");
     const int W=dc->width, H=dc->height; if(W<=0||H<=0) fail("invalid dimensions");
-#ifdef CHRONON3D_ENABLE_RAW_NVENC
-    if (std::getenv("CHRONON_NVENC_RAW")) {
-      AVFormatContext* raw_out{}; avformat_alloc_output_context2(&raw_out,nullptr,nullptr,output); if(!raw_out) fail("raw output alloc"); RawNvenc raw(ctx,W,H,raw_out);
-      if(!(raw_out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&raw_out->pb,output,AVIO_FLAG_WRITE),"raw avio_open"); av_ok(avformat_write_header(raw_out,nullptr),"raw avformat_write_header");
-      CUdeviceptr raw_frame{}; size_t raw_pitch{}; cu_ok(cuMemAllocPitch(&raw_frame,&raw_pitch,W,H+H/2,16),"cuMemAllocPitch(raw frame)"); raw.register_buffer(raw_frame,static_cast<uint32_t>(raw_pitch));
-      AVPacket* raw_pkt=av_packet_alloc(); AVFrame* raw_decoded=av_frame_alloc(); if(!raw_pkt || !raw_decoded) fail("raw frame/packet alloc"); int64_t raw_count=0;
-      raw.set_stream(stream);
-      auto raw_process=[&](AVFrame* src){ CUdeviceptr raw_y=raw_frame, raw_uv=raw_frame+raw_pitch*H; copy_plane(raw_y,static_cast<int>(raw_pitch),src->data[0],src->linesize[0],W,H,stream); copy_plane(raw_uv,static_cast<int>(raw_pitch),src->data[1],src->linesize[1],W,(H+1)/2,stream); float wop=0.75f; int kernel_w=W,kernel_h=H; void* args[]={&raw_y,&raw_uv,&raw_pitch,&raw_pitch,&wm.ptr,&wm.w,&wm.h,&wm.x,&wm.y,&wop,&sub.ptr,&sub.w,&sub.h,&sub.x,&sub.y,&kernel_w,&kernel_h}; cu_ok(cuLaunchKernel(kernel,(W+31)/32,(H+31)/32,1,32,16,1,0,stream,args,nullptr),"raw cuLaunchKernel"); raw.encode(raw_count++,static_cast<uint32_t>(raw_pitch)); };
-      while(av_read_frame(in,raw_pkt)>=0){ if(raw_pkt->stream_index==si){ av_ok(avcodec_send_packet(dc,raw_pkt),"raw avcodec_send_packet"); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); } av_packet_unref(raw_pkt); }
-      avcodec_send_packet(dc,nullptr); while(avcodec_receive_frame(dc,raw_decoded)>=0) raw_process(raw_decoded); av_write_trailer(raw_out); raw.shutdown(); if(!(raw_out->oformat->flags&AVFMT_NOFILE)) avio_closep(&raw_out->pb); av_frame_free(&raw_decoded); av_packet_free(&raw_pkt); avformat_close_input(&in); avformat_free_context(raw_out); cuMemFree(raw_frame); avcodec_free_context(&dc); av_buffer_unref(&hwdev); cuMemFree(wm.ptr); cuMemFree(sub.ptr); cuModuleUnload(mod); cuStreamDestroy(stream); cuDevicePrimaryCtxRelease(dev); std::cout << "CUDA_NVDEC_RAW_NVENC_OVERLAY_PASS decoder=" << dec->name << " output=" << output << " frames=" << raw_count << "\n"; return 0;
-    }
-#endif
-#ifndef CHRONON3D_ENABLE_RAW_NVENC
-    if (std::getenv("CHRONON_NVENC_RAW")) fail("raw NVENC requested but this binary was built without nvEncodeAPI");
-#endif
+
     AVFormatContext* out{}; avformat_alloc_output_context2(&out,nullptr,nullptr,output); if(!out) fail("output alloc");
     const AVCodec* enc_codec=avcodec_find_encoder_by_name("h264_nvenc"); if(!enc_codec) fail("h264_nvenc missing"); AVStream* st=avformat_new_stream(out,enc_codec); if(!st) fail("stream alloc");
     const int nvenc_surfaces = std::max(1, std::atoi(std::getenv("CHRONON_NVENC_SURFACES") ?: "2"));
     AVCodecContext* ec=avcodec_alloc_context3(enc_codec); if(!ec) fail("encoder alloc"); ec->width=W; ec->height=H; ec->time_base={1,24}; ec->framerate={24,1}; ec->pix_fmt=AV_PIX_FMT_CUDA; ec->bit_rate=0; ec->thread_count = 1; ec->thread_type = 0; ec->max_b_frames = 0; ec->flags |= AV_CODEC_FLAG_LOW_DELAY; av_opt_set(ec->priv_data,"preset","p1",0); av_opt_set_int(ec->priv_data,"qp",23,0); av_opt_set_int(ec->priv_data,"surfaces",nvenc_surfaces,0); av_opt_set_int(ec->priv_data,"zerolatency",1,0); av_opt_set_int(ec->priv_data,"b_adapt",0,0);
-    AVBufferRef* frames=av_hwframe_ctx_alloc(hwdev); if(!frames) fail("frames alloc"); auto* fctx=(AVHWFramesContext*)frames->data; fctx->format=AV_PIX_FMT_CUDA; fctx->sw_format=AV_PIX_FMT_NV12; fctx->width=W; fctx->height=H; fctx->initial_pool_size=8; av_ok(av_hwframe_ctx_init(frames),"av_hwframe_ctx_init"); ec->hw_frames_ctx=av_buffer_ref(frames); av_ok(avcodec_open2(ec,enc_codec,nullptr),"encoder open"); av_ok(avcodec_parameters_from_context(st->codecpar,ec),"codec parameters"); st->time_base=ec->time_base;
+    AVBufferRef* frames=av_hwframe_ctx_alloc(hwdev); if(!frames) fail("frames alloc"); auto* fctx=(AVHWFramesContext*)frames->data; fctx->format=AV_PIX_FMT_CUDA; fctx->sw_format=AV_PIX_FMT_NV12; fctx->width=W; fctx->height=H; fctx->initial_pool_size=16; av_ok(av_hwframe_ctx_init(frames),"av_hwframe_ctx_init"); ec->hw_frames_ctx=av_buffer_ref(frames); av_ok(avcodec_open2(ec,enc_codec,nullptr),"encoder open"); av_ok(avcodec_parameters_from_context(st->codecpar,ec),"codec parameters"); st->time_base=ec->time_base;
     if(!(out->oformat->flags&AVFMT_NOFILE)) av_ok(avio_open(&out->pb,output,AVIO_FLAG_WRITE),"avio_open"); av_ok(avformat_write_header(out,nullptr),"avformat_write_header");
-    AVPacket* pkt=av_packet_alloc(); AVFrame* decoded=av_frame_alloc(); if(!pkt || !decoded) fail("frame/packet alloc"); int64_t out_count=0;
-    std::vector<AVFrame*> dst_pool(16, nullptr);
-    std::vector<CUevent> gpu_events(16, nullptr);
-    for (size_t i = 0; i < dst_pool.size(); ++i) {
-      dst_pool[i] = av_frame_alloc();
-      if (!dst_pool[i]) fail("frame alloc");
-      dst_pool[i]->format = AV_PIX_FMT_CUDA;
-      dst_pool[i]->width = W;
-      dst_pool[i]->height = H;
-      dst_pool[i]->hw_frames_ctx = av_buffer_ref(frames);
-      av_ok(av_hwframe_get_buffer(frames, dst_pool[i], 0), "av_hwframe_get_buffer");
-      cu_ok(cuEventCreate(&gpu_events[i], CU_EVENT_DISABLE_TIMING), "cuEventCreate");
-    }
 
-    struct EncodeItem {
-      AVFrame* frame{nullptr};
-      CUevent event{nullptr};
-      int64_t pts{-1};
+    const size_t kRingSlots = 16;
+    FrameSlotRing slot_ring(kRingSlots, frames, W, H);
+
+    struct QueueItem {
+      FrameSlot* slot{nullptr};
+      uint64_t frame_id{0};
       bool is_flush{false};
     };
 
-    std::queue<EncodeItem> encode_q;
+    std::queue<QueueItem> encode_q;
     std::mutex q_mtx;
     std::condition_variable q_cv;
-    std::atomic<bool> drain_done{false};
+    uint64_t encoded_packet_count = 0;
 
     std::thread drain_thread([&]() {
       AVPacket* local_pkt = av_packet_alloc();
       while (true) {
-        EncodeItem item{};
+        QueueItem item{};
         {
           std::unique_lock<std::mutex> lock(q_mtx);
           q_cv.wait(lock, [&]() { return !encode_q.empty(); });
@@ -355,44 +616,70 @@ int main(int argc, char** argv) {
           encode_q.pop();
         }
         if (item.is_flush) {
-          write_packets(ec, out, local_pkt, nullptr, out_count);
+          write_packets(ec, out, local_pkt, nullptr, encoded_packet_count);
           break;
         }
-        if (item.event) {
-          cuEventSynchronize(item.event);
-        }
-        item.frame->pts = item.pts;
-        write_packets(ec, out, local_pkt, item.frame, out_count);
+
+        auto t_ev0 = Clock::now();
+        cuEventSynchronize(item.slot->gpu_ready_ev);
+        auto t_ev1 = Clock::now();
+        g_timings.gpu_event_wait_ms += std::chrono::duration<double, std::milli>(t_ev1 - t_ev0).count();
+
+        float gpu_item_ms = 0.0f;
+        cuEventElapsedTime(&gpu_item_ms, item.slot->gpu_start_timing_ev, item.slot->gpu_end_timing_ev);
+        g_timings.gpu_execute_ms += gpu_item_ms;
+
+        item.slot->frame->pts = static_cast<int64_t>(item.frame_id);
+        write_packets(ec, out, local_pkt, item.slot->frame, encoded_packet_count);
+
+        // Explicit handshake: release slot back to producer ring
+        slot_ring.release_slot(item.slot);
       }
       av_packet_free(&local_pkt);
-      drain_done = true;
     });
 
-    size_t pool_idx = 0;
+    auto startup_end = Clock::now();
+    g_timings.startup_ms = std::chrono::duration<double, std::milli>(startup_end - startup_start).count();
+
+    // WARM PIPELINE START
+    auto pipeline_start = Clock::now();
+
+    uint64_t submitted_frame_id = 0;
+    AVPacket* pkt = av_packet_alloc();
+    AVFrame* decoded = av_frame_alloc();
+    if (!pkt || !decoded) fail("frame/packet alloc");
+
     auto process = [&](AVFrame* src) {
-      size_t slot = pool_idx % dst_pool.size();
-      AVFrame* dst = dst_pool[slot];
-      CUevent ev = gpu_events[slot];
-      pool_idx++;
+      FrameSlot* slot = slot_ring.acquire_free_slot();
       auto t_k0 = Clock::now();
-      int dst_yp = dst->linesize[0], dst_uvp = dst->linesize[1];
+
+      int dst_yp = slot->frame->linesize[0], dst_uvp = slot->frame->linesize[1];
       int src_yp = src->linesize[0], src_uvp = src->linesize[1];
       int kernel_w = W, kernel_h = H;
       void* args[] = {
-        &dst->data[0], &dst->data[1], &dst_yp, &dst_uvp,
+        &slot->frame->data[0], &slot->frame->data[1], &dst_yp, &dst_uvp,
         &src->data[0], &src->data[1], &src_yp, &src_uvp,
         &gpu_layers_table, &layer_count,
         &kernel_w, &kernel_h
       };
-      cu_ok(cuLaunchKernel(kernel, (W+31)/32, (H+31)/32, 1, 32, 16, 1, 0, stream, args, nullptr), "cuLaunchKernel fused");
-      cu_ok(cuEventRecord(ev, stream), "cuEventRecord");
-      auto t_k1 = Clock::now();
-      g_timings.composite_kernel_ms += std::chrono::duration<double, std::milli>(t_k1 - t_k0).count();
 
-      int64_t current_pts = out_count;
+      cu_ok(cuEventRecord(slot->gpu_start_timing_ev, stream), "cuEventRecord start");
+      cu_ok(cuLaunchKernel(kernel, (W+31)/32, (H+31)/32, 1, 32, 16, 1, 0, stream, args, nullptr), "cuLaunchKernel fused");
+      cu_ok(cuEventRecord(slot->gpu_end_timing_ev, stream), "cuEventRecord end");
+      cu_ok(cuEventRecord(slot->gpu_ready_ev, stream), "cuEventRecord ready");
+
+      auto t_k1 = Clock::now();
+      g_timings.gpu_submit_ms += std::chrono::duration<double, std::milli>(t_k1 - t_k0).count();
+
+      const uint64_t cur_frame_id = submitted_frame_id++;
+      slot_ring.mark_ready(slot);
+
       {
         std::lock_guard<std::mutex> lock(q_mtx);
-        encode_q.push({dst, ev, current_pts, false});
+        encode_q.push({slot, cur_frame_id, false});
+        if (encode_q.size() > g_timings.queue_high_watermark) {
+          g_timings.queue_high_watermark = encode_q.size();
+        }
       }
       q_cv.notify_one();
     };
@@ -401,41 +688,43 @@ int main(int argc, char** argv) {
       auto t_dm0 = Clock::now();
       int r = av_read_frame(in, pkt);
       auto t_dm1 = Clock::now();
-      g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_dm1 - t_dm0).count();
+      g_timings.demux_ms += std::chrono::duration<double, std::milli>(t_dm1 - t_dm0).count();
       if (r < 0) break;
 
       if (pkt->stream_index == si) {
-        auto t_dec0 = Clock::now();
+        auto t_dec_send0 = Clock::now();
         av_ok(avcodec_send_packet(dc, pkt), "avcodec_send_packet");
-        while (avcodec_receive_frame(dc, decoded) >= 0) {
-          auto t_dec1 = Clock::now();
-          g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_dec1 - t_dec0).count();
+        auto t_dec_send1 = Clock::now();
+        g_timings.decode_send_ms += std::chrono::duration<double, std::milli>(t_dec_send1 - t_dec_send0).count();
+
+        while (true) {
+          auto t_dec_rec0 = Clock::now();
+          int rec_r = avcodec_receive_frame(dc, decoded);
+          auto t_dec_rec1 = Clock::now();
+          g_timings.decode_receive_ms += std::chrono::duration<double, std::milli>(t_dec_rec1 - t_dec_rec0).count();
+          if (rec_r < 0) break;
           process(decoded);
-          t_dec0 = Clock::now();
         }
-        auto t_dec2 = Clock::now();
-        g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_dec2 - t_dec0).count();
       }
       av_packet_unref(pkt);
     }
 
     auto t_flush0 = Clock::now();
     avcodec_send_packet(dc, nullptr);
-    while (avcodec_receive_frame(dc, decoded) >= 0) {
-      auto t_flush1 = Clock::now();
-      g_timings.demux_decode_ms += std::chrono::duration<double, std::milli>(t_flush1 - t_flush0).count();
+    while (true) {
+      auto t_dec_rec0 = Clock::now();
+      int rec_r = avcodec_receive_frame(dc, decoded);
+      auto t_dec_rec1 = Clock::now();
+      g_timings.decode_receive_ms += std::chrono::duration<double, std::milli>(t_dec_rec1 - t_dec_rec0).count();
+      if (rec_r < 0) break;
       process(decoded);
-      t_flush0 = Clock::now();
     }
-
-    auto t_sync0 = Clock::now();
-    cu_ok(cuStreamSynchronize(stream), "cuStreamSynchronize final");
-    auto t_sync1 = Clock::now();
-    g_timings.cuda_sync_ms += std::chrono::duration<double, std::milli>(t_sync1 - t_sync0).count();
+    auto t_flush1 = Clock::now();
+    g_timings.decode_send_ms += std::chrono::duration<double, std::milli>(t_flush1 - t_flush0).count();
 
     {
       std::lock_guard<std::mutex> lock(q_mtx);
-      encode_q.push({nullptr, nullptr, -1, true});
+      encode_q.push({nullptr, 0, true});
     }
     q_cv.notify_one();
     if (drain_thread.joinable()) drain_thread.join();
@@ -443,10 +732,13 @@ int main(int argc, char** argv) {
     auto t_tr0 = Clock::now();
     av_write_trailer(out);
     auto t_tr1 = Clock::now();
-    g_timings.mux_write_ms += std::chrono::duration<double, std::milli>(t_tr1 - t_tr0).count();
+    g_timings.trailer_ms = std::chrono::duration<double, std::milli>(t_tr1 - t_tr0).count();
 
-    for (auto& dst : dst_pool) av_frame_free(&dst);
-    for (auto& ev : gpu_events) if (ev) cuEventDestroy(ev);
+    auto pipeline_end = Clock::now();
+    g_timings.pipeline_wall_ms = std::chrono::duration<double, std::milli>(pipeline_end - pipeline_start).count();
+
+    // TEARDOWN START
+    auto teardown_start = Clock::now();
     if (!(out->oformat->flags & AVFMT_NOFILE)) avio_closep(&out->pb);
     av_frame_free(&decoded);
     av_packet_free(&pkt);
@@ -458,25 +750,40 @@ int main(int argc, char** argv) {
     av_buffer_unref(&hwdev);
     cuMemFree(wm.ptr);
     cuMemFree(sub.ptr);
+    cuMemFree(gpu_layers_table);
     cuModuleUnload(mod);
     cuStreamDestroy(stream);
     cuDevicePrimaryCtxRelease(dev);
+    auto teardown_end = Clock::now();
+    g_timings.teardown_ms = std::chrono::duration<double, std::milli>(teardown_end - teardown_start).count();
 
-    auto total_end = Clock::now();
-    g_timings.total_wall_ms = std::chrono::duration<double, std::milli>(total_end - total_start).count();
+    auto process_end = Clock::now();
+    g_timings.process_wall_ms = std::chrono::duration<double, std::milli>(process_end - process_start).count();
 
-    std::cout << "\n================ BENCHMARK TIMING BREAKDOWN (408 frames) ================\n"
-              << "  demux_decode_ms:       " << g_timings.demux_decode_ms << " ms  (" << (g_timings.demux_decode_ms / out_count) << " ms/f)\n"
-              << "  copy_ms:               " << g_timings.copy_ms << " ms  (" << (g_timings.copy_ms / out_count) << " ms/f)\n"
-              << "  composite_kernel_ms:   " << g_timings.composite_kernel_ms << " ms  (" << (g_timings.composite_kernel_ms / out_count) << " ms/f)\n"
-              << "  encode_send_ms:        " << g_timings.encode_send_ms << " ms  (" << (g_timings.encode_send_ms / out_count) << " ms/f)\n"
-              << "  mux_write_ms:          " << g_timings.mux_write_ms << " ms  (" << (g_timings.mux_write_ms / out_count) << " ms/f)\n"
-              << "  cuda_sync_ms:          " << g_timings.cuda_sync_ms << " ms\n"
-              << "  total_wall_ms:         " << g_timings.total_wall_ms << " ms  (" << (1000.0 * out_count / g_timings.total_wall_ms) << " FPS)\n"
-              << "=========================================================================\n\n";
+    const double frames_n = static_cast<double>(submitted_frame_id);
+    std::cout << "\n================ COMPLETE BENCHMARK TIMING BREAKDOWN (" << submitted_frame_id << " frames) ================\n"
+              << "  [1] Startup & Context Init:   " << g_timings.startup_ms << " ms\n"
+              << "  [2] Demux (av_read_frame):    " << g_timings.demux_ms << " ms  (" << (g_timings.demux_ms / frames_n) << " ms/f)\n"
+              << "  [3] Decode Send Packet:       " << g_timings.decode_send_ms << " ms  (" << (g_timings.decode_send_ms / frames_n) << " ms/f)\n"
+              << "  [4] Decode Receive Frame:     " << g_timings.decode_receive_ms << " ms  (" << (g_timings.decode_receive_ms / frames_n) << " ms/f)\n"
+              << "  [5] GPU Kernel CPU Submit:    " << g_timings.gpu_submit_ms << " ms  (" << (g_timings.gpu_submit_ms / frames_n) << " ms/f)\n"
+              << "  [6] Pure GPU Execution (Ev):  " << g_timings.gpu_execute_ms << " ms  (" << (g_timings.gpu_execute_ms / frames_n) << " ms/f)\n"
+              << "  [7] GPU Event Wait (Drain):   " << g_timings.gpu_event_wait_ms << " ms  (" << (g_timings.gpu_event_wait_ms / frames_n) << " ms/f)\n"
+              << "  [8] Encode Send Frame:        " << g_timings.encode_send_ms << " ms  (" << (g_timings.encode_send_ms / frames_n) << " ms/f)\n"
+              << "  [9] Encode Receive Packet:    " << g_timings.encode_receive_ms << " ms  (" << (g_timings.encode_receive_ms / frames_n) << " ms/f)\n"
+              << " [10] Mux Write Interleaved:    " << g_timings.mux_write_ms << " ms  (" << (g_timings.mux_write_ms / frames_n) << " ms/f)\n"
+              << " [11] Queue Backpressure Wait:  " << g_timings.queue_wait_ms << " ms\n"
+              << " [12] Trailer Write:            " << g_timings.trailer_ms << " ms\n"
+              << " [13] Teardown & Free:          " << g_timings.teardown_ms << " ms\n"
+              << " ---------------------------------------------------------------------------------\n"
+              << "  >>> WARM PIPELINE WALL TIME:  " << g_timings.pipeline_wall_ms << " ms  ==> " << (1000.0 * frames_n / g_timings.pipeline_wall_ms) << " FPS\n"
+              << "  >>> COLD PROCESS WALL TIME:   " << g_timings.process_wall_ms << " ms  ==> " << (1000.0 * frames_n / g_timings.process_wall_ms) << " FPS\n"
+              << "  >>> Queue High-Watermark:     " << g_timings.queue_high_watermark << " / " << kRingSlots << " slots\n"
+              << "==================================================================================\n\n";
 
-    std::cout << "CUDA_NVDEC_NVENC_OVERLAY_PASS decoder=" << dec->name << " surfaces=" << nvenc_surfaces << " output=" << output << " frames=" << out_count << "\n";
+    std::cout << "CUDA_NVDEC_NVENC_OVERLAY_PASS decoder=" << dec->name << " surfaces=" << nvenc_surfaces << " output=" << output << " frames=" << submitted_frame_id << "\n";
     return 0;
   } catch(const std::exception& e){ std::cerr << "CUDA_NVDEC_NVENC_OVERLAY_FAIL: " << e.what() << "\n"; return 1; }
 }
+
 
