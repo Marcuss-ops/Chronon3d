@@ -104,9 +104,15 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     // maps the selected source rectangle into the authored image box first.
     const float sx = state.matrix[0][0] * placement.dst_rect.size.x / source_size.x;
     const float sy = state.matrix[1][1] * placement.dst_rect.size.y / source_size.y;
-    const float tx = state.matrix[3][0] +
+    // ImageShape stores its local origin at the top-left of the authored
+    // box, while RenderNode's anchor is the box centre.  The native affine
+    // path samples from destination pixels directly and therefore must apply
+    // the same anchor subtraction as the canonical image processor.  Without
+    // it, a tight ROI uses the world-space centre as its left edge and the
+    // image is sampled mostly outside the source surface.
+    const float tx = state.matrix[3][0] - node.world_transform.anchor.x +
                      state.matrix[0][0] * placement.dst_rect.origin.x;
-    const float ty = state.matrix[3][1] +
+    const float ty = state.matrix[3][1] - node.world_transform.anchor.y +
                      state.matrix[1][1] * placement.dst_rect.origin.y;
     if (std::abs(sx) < 1e-6f || std::abs(sy) < 1e-6f) {
         release_native_surface(ctx, fb);

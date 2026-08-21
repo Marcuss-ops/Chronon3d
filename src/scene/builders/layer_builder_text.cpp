@@ -159,9 +159,16 @@ Layer LayerBuilder::build() {
             // authoring and compiled construction.
             const PreparedText prepared =
                 text_internal::normalize_prepared_text(spec.params);
+            // The canonical resolver returns a canvas-space pin. The graph
+            // uses a canvas-centred layer basis, so convert the pin once here
+            // for both normal and tight TextRun producers.
+            const CanvasInfo canvas = CanvasInfo::from_dimensions(
+                m_screen_width, m_screen_height);
+            const Vec2 pin = resolve_placement_origin(
+                canvas, prepared.frame.size, prepared.frame.placement);
             node.world_transform.position = Vec3{
-                prepared.frame.placement.offset.x,
-                prepared.frame.placement.offset.y,
+                pin.x - canvas.width * 0.5f,
+                pin.y - canvas.height * 0.5f,
                 0.0f
             };
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};

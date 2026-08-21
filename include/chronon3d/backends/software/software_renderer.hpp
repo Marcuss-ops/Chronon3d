@@ -57,10 +57,6 @@ public:
     // ── Construction / destruction ─────────────────────────────────────
     /// Canonical constructor — borrows an existing RenderRuntime.
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
-    /// @deprecated Fase C2 — creates its own runtime internally.
-    /// Use the canonical path: RenderEngine(Config) → Impl unified ctor.
-    [[deprecated("Use RenderEngine(Config) instead of standalone SoftwareRenderer")]]
-    explicit SoftwareRenderer(Config config);
     ~SoftwareRenderer() override;
     SoftwareRenderer(SoftwareRenderer const&) = delete;
     SoftwareRenderer const& operator=(SoftwareRenderer const&) = delete;
@@ -187,7 +183,6 @@ private:
     Config            m_config;
     RenderSettings    m_settings{};
     RenderCounters    m_counters;
-    std::unique_ptr<runtime::RenderRuntime> m_owned_runtime_storage;
     runtime::RenderRuntime* m_runtime{nullptr};
     ImageRenderer     m_image_renderer;
     std::shared_ptr<media::MediaFrameProvider> m_video_decoder;

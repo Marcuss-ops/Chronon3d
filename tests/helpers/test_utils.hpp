@@ -108,59 +108,66 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
 #endif
 }
 
+// ── TestRenderer wrapper ──────────────────────────────────────────────────
+
+struct TestRuntimeOwner {
+    std::unique_ptr<runtime::RenderRuntime> m_test_runtime;
+    explicit TestRuntimeOwner(const Config& cfg = Config{}) {
+        auto res = runtime::RenderRuntime::create(
+            runtime::RuntimeConfig{.config = cfg, .assets_root = std::nullopt});
+        if (!res) throw std::runtime_error("TestRenderer: runtime creation failed: " + res.error().message);
+        m_test_runtime = std::move(res).value();
+        if (!m_test_runtime->resolver().has_mount()) {
+            m_test_runtime->resolver().mount(std::filesystem::current_path());
+        }
+    }
+    explicit TestRuntimeOwner(std::unique_ptr<runtime::RenderRuntime> rt)
+        : m_test_runtime(std::move(rt)) {}
+};
+
+class TestRenderer : private TestRuntimeOwner, public SoftwareRenderer {
+public:
+    explicit TestRenderer(Config config = Config{}, float ssaa = 1.0f)
+        : TestRuntimeOwner(config)
+        , SoftwareRenderer(*m_test_runtime, std::move(config))
+    {
+        RenderSettings settings;
+        if (ssaa > 1.0f) settings.ssaa_factor = ssaa;
+        set_settings(settings);
+        set_image_backend(std::make_shared<image::StbImageBackend>());
+        attach_software_backend(this);
+    }
+
+    TestRenderer(TestRenderer&& other) noexcept
+        : TestRuntimeOwner(std::move(other.m_test_runtime))
+        , SoftwareRenderer(std::move(other))
+    {
+    }
+
+    TestRenderer& operator=(TestRenderer&& other) noexcept {
+        SoftwareRenderer::operator=(std::move(other));
+        m_test_runtime = std::move(other.m_test_runtime);
+        return *this;
+    }
+
+    TestRenderer(const TestRenderer&) = delete;
+    TestRenderer& operator=(const TestRenderer&) = delete;
+};
+
 /// Canonical renderer factory — returns shared_ptr<SoftwareRenderer> with
-/// full wiring (settings, image backend, software backend).  Self-contained:
-/// no dependency on CLI headers.  Prefer this over make_renderer() in new tests.
+/// full wiring (settings, image backend, software backend).
 inline std::shared_ptr<SoftwareRenderer> make_renderer_shared() {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-    auto renderer = std::make_shared<SoftwareRenderer>(Config{});
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-    RenderSettings settings;
-        renderer->set_settings(settings);
-    renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
-    attach_software_backend(renderer.get());
-    return renderer;
+    return std::make_shared<TestRenderer>();
 }
 
-/// @deprecated Prefer make_renderer_shared() which returns shared_ptr.
-/// Kept for source compatibility with existing tests.
-inline SoftwareRenderer make_renderer() {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-    SoftwareRenderer renderer(Config{});
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-    RenderSettings settings;
-        renderer.set_settings(settings);
-    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    attach_software_backend(&renderer);
-    return renderer;
+/// Renderer factory returning TestRenderer (which is-a SoftwareRenderer).
+inline TestRenderer make_renderer() {
+    return TestRenderer{};
 }
 
-/// @deprecated Prefer make_renderer_shared() — uses create_renderer() canonical path.
-inline SoftwareRenderer make_renderer_ssaa(float factor) {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-    SoftwareRenderer renderer(Config{});
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-    RenderSettings settings;
-        settings.ssaa_factor = std::max(1.0f, factor);
-    renderer.set_settings(settings);
-    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    attach_software_backend(&renderer);
-    return renderer;
+/// Renderer factory with SSAA factor.
+inline TestRenderer make_renderer_ssaa(float factor) {
+    return TestRenderer{Config{}, factor};
 }
 
 // ── Framebuffer hashes ────────────────────────────────────────────────────
