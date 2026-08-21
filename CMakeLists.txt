@@ -365,6 +365,17 @@ endif()
 # Fast tests are gate here only when actually enabled — gated on BUILD_TESTS
 # to avoid `add_dependencies` against a non-existent target in stripped
 # configurations (e.g. the install_consumer sandbox).
-if(CHRONON3D_BUILD_TESTS AND TARGET chronon3d_tests_fast)
-    add_dependencies(chronon3d_architecture_check chronon3d_tests_fast)
-endif()
+add_executable(chronon3d_asset_text_bench
+    tools/chronon3d_asset_text_bench.cpp
+    examples/bench_micro/asset_text_bench_scenes.cpp
+)
+target_link_libraries(chronon3d_asset_text_bench
+    PRIVATE
+        chronon3d
+        chronon3d_runtime
+        chronon3d_pipeline
+        chronon3d_backend_software
+        chronon3d_content
+)
+
+
