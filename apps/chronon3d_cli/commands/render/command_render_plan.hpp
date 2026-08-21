@@ -28,7 +28,9 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          bool report = false,
                          std::shared_ptr<SoftwareRenderer> warm_renderer = {},
                          const std::string& backend = "auto",
-                         RenderPlanVideoOverrides video = {});
+                         RenderPlanVideoOverrides video = {},
+                         const std::string& trace_output = {},
+                         const std::string& trace_level = "pipeline");
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload

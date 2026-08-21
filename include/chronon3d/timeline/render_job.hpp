@@ -77,6 +77,12 @@ struct RenderExecutionOptions {
     std::optional<Config> config;
     // Runtime-owned asset mount; never stored in CompositionSpec.
     std::optional<std::filesystem::path> assets_root;
+    // Timeline tracing (--trace): output path for the .pftrace; empty = off.
+    // The file is written once at job end — TraceSession drains the in-memory
+    // RING_BUFFER only in finish(), never during the render hot path.
+    std::filesystem::path trace_output;
+    // Trace capture level: pipeline | nodes | full (see trace::TraceLevel).
+    std::string trace_level{"pipeline"};
 };
 
 struct RenderDiagnostics {

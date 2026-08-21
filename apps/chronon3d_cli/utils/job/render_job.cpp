@@ -159,6 +159,8 @@ std::optional<RenderRequest> make_render_request(
     request.execution.report = args.report;
     request.execution.command_line = args.command_line;
     request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
+    request.execution.trace_output = std::filesystem::path(args.trace_output);
+    request.execution.trace_level = args.trace_level;
     fill_execution_options(
         request.execution, args.pipeline, args.cpu_budget,
         request.mode == RenderMode::Video,
