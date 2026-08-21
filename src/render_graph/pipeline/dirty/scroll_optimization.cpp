@@ -46,7 +46,7 @@ std::optional<raster::BBox> try_scroll_optimization(
 
     if (!scroll_eligible) return std::nullopt;
 
-    CHRONON_ZONE_C("scroll_optimization", trace_category::kFrame);
+    CHRONON_TRACE_SCOPE("chronon.frame", "scroll_optimization");
 
     auto& prev = sw_renderer->buffer_ring().prev_framebuffer();
     if (prev.use_count() > 1) {

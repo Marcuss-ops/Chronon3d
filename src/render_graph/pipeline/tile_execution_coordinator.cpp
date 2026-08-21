@@ -60,7 +60,7 @@ TileExecutionResult execute_tile_or_fallback(
     if (result.use_tile_execution) {
         // ── Allocate final framebuffer ──────────────────────────────────
         {
-            CHRONON_ZONE_C("tile_acquire", trace_category::kFrame);
+            CHRONON_TRACE_SCOPE("chronon.frame", "tile_acquire");
             const bool have_prev = sw_renderer &&
                 sw_renderer->buffer_ring().prev_framebuffer() &&
                 sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
@@ -86,7 +86,7 @@ TileExecutionResult execute_tile_or_fallback(
         // graph with an unclipped context, making the tile counters merely an
         // estimate and paying full-frame work while reporting pixels skipped.
         {
-            CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
+            CHRONON_TRACE_SCOPE("chronon.graph", "tile_execute");
             const auto tile_start = profiling::now();
             const int total_tiles = dirty_out.tile_grid
                 ? dirty_out.tile_grid->tile_count() : 0;
@@ -152,7 +152,7 @@ TileExecutionResult execute_tile_or_fallback(
 
         // ── Traditional single-pass execution ───────────────────────────
         {
-            CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
+            CHRONON_TRACE_SCOPE("chronon.graph", "graph_execute");
             // Section 5 violation fix: executor is engine-owned by RenderRuntime,
             // not by SoftwareRenderer.  Reach it via runtime().executor().
             if (!sw_renderer || !sw_renderer->has_runtime()) {

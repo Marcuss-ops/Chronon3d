@@ -92,7 +92,7 @@ DirtyRectOutput compute_dirty_rect(
 
     // ── Diff current vs. previous layer bboxes ──────────────────────────
     {
-        CHRONON_ZONE_C("dirty_rect_compute", trace_category::kFrame);
+        CHRONON_TRACE_SCOPE("chronon.frame", "dirty_rect_compute");
 
         raster::BBox union_dirty{0, 0, 0, 0};
         bool has_dirty = false;

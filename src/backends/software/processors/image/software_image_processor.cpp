@@ -13,7 +13,7 @@ class SoftwareImageProcessor final : public ShapeProcessor {
 public:
     void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        CHRONON_ZONE_C("image_render", trace_category::kImage);
+        CHRONON_TRACE_SCOPE("chronon.image", "image_render");
         // Increment images sampled counter
         rctx.counters->images_sampled.fetch_add(1, std::memory_order_relaxed);
 

@@ -187,7 +187,7 @@ std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
 void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state,
                                  const Camera& camera, int width, int height) {
-    CHRONON_ZONE_C("backend_draw_node", trace_category::kRasterize);
+    CHRONON_TRACE_SCOPE("chronon.node", "backend_draw_node");
     // Compiled graphs carry an immutable processor handle plus the owning
     // snapshot in RenderState. Resolve the pointer only for this dispatch.
     if (m_image_renderer != nullptr && m_proc_ctx.image_renderer == nullptr) {
@@ -240,7 +240,7 @@ void SoftwareBackend::apply_blur(Framebuffer& fb, f32 radius,
     m_counters->blur_pixels.fetch_add(
         clipped_area(fb.width(), fb.height(), local_clip),
         std::memory_order_relaxed);
-    CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
+    CHRONON_TRACE_SCOPE("chronon.effect", "apply_blur");
     renderer::apply_blur(fb, radius, local_clip, 2);
 }
 
@@ -250,7 +250,7 @@ void SoftwareBackend::composite_layer(
     Framebuffer& dst, const Framebuffer& src, BlendMode mode,
     const std::optional<raster::BBox>& clip, CompositeOperator op) {
     m_counters->layers_rendered.fetch_add(1, std::memory_order_relaxed);
-    CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
+    CHRONON_TRACE_SCOPE("chronon.effect", "composite_layer");
     m_counters->pixels_touched.fetch_add(
         clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)),
         std::memory_order_relaxed);
@@ -263,7 +263,7 @@ void SoftwareBackend::composite_layer(
 void SoftwareBackend::apply_effect_stack(
     Framebuffer& fb, const EffectStack& stack,
     const effects::EffectExecutionContext& context) {
-    CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
+    CHRONON_TRACE_SCOPE("chronon.effect", "apply_effect_stack");
 
     const auto local_clip = context.clip.has_value()
         ? to_local_clip(fb, context.clip)
@@ -374,7 +374,7 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
         "software_backend.cpp::capabilities)."
     });
 #else
-    CHRONON_ZONE_C("backend_draw_text_run", trace_category::kText);
+    CHRONON_TRACE_SCOPE("chronon.text", "backend_draw_text_run");
 
     // TICKET-118 — m_owner NO MORE.  The processor context is attached
     // via attach_processor_context() immediately after construction.

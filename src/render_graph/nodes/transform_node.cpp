@@ -57,7 +57,7 @@ NodeExecResult TransformNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
-    CHRONON_ZONE_C("transform_node", trace_category::kRasterize);
+    CHRONON_TRACE_SCOPE("chronon.node", "transform_node");
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->transform_calls.fetch_add(1, std::memory_order_relaxed);
     }

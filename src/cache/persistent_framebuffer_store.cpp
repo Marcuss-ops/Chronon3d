@@ -408,7 +408,7 @@ std::shared_ptr<Framebuffer> PersistentFramebufferStore::get(
 }
 
 StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
-    CHRONON_ZONE_C("persistent_fb_load", trace_category::kPipeline);
+    CHRONON_TRACE_SCOPE("chronon.pipeline", "persistent_fb_load");
 
     if (!is_enabled()) {
         StoreLoadResult result{};
@@ -440,7 +440,7 @@ StoreWriteResult PersistentFramebufferStore::store(
     const NodeCacheKey& key,
     const Framebuffer&  fb)
 {
-    CHRONON_ZONE_C("persistent_fb_store", trace_category::kPipeline);
+    CHRONON_TRACE_SCOPE("chronon.pipeline", "persistent_fb_store");
 
     StoreWriteResult result{};
     if (!is_enabled()) {

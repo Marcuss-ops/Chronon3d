@@ -470,7 +470,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
 
     // ── 7. Empty dirty-rect reuse ──
     if (!isolated_temporal_sample) {
-        CHRONON_ZONE_C("dirty_fast_path_reuse", trace_category::kFrame);
+        CHRONON_TRACE_SCOPE("chronon.frame", "dirty_fast_path_reuse");
         const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
         auto reuse = evaluate_empty_dirty_reuse(
             sw_renderer, scene, frame, cam, reuse_eval.frame_fp,

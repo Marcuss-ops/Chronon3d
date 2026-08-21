@@ -10,7 +10,7 @@ std::optional<raster::BBox> compute_dirty_clip(
     const RenderGraphNode& node,
     const std::optional<raster::BBox>& predicted_bbox
 ) {
-    CHRONON_ZONE_C("dirty_rect_clip", trace_category::kPipeline);
+    CHRONON_TRACE_SCOPE("chronon.pipeline", "dirty_rect_clip");
 
     // Source, Transform, Video, Precomp, and TextRun nodes must
     // render their FULL content.  The dirty-rect clip is only valid for

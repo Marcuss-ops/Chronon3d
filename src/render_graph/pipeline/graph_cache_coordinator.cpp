@@ -171,7 +171,7 @@ static void log_graph_cache_diagnostics(
     const Scene& scene,
     const detail::LayerResolutionResult& resolved)
 {
-    CHRONON_ZONE_C("build_graph", trace_category::kGraph);
+    CHRONON_TRACE_SCOPE("chronon.graph", "build_graph");
 
     // Full build path via GraphBuildPipeline.
     // Uses build_with_resolved() to avoid redundant resolve_layers() call.

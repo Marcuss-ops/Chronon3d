@@ -20,7 +20,7 @@ namespace {
 } // namespace
 
 RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ctx) {
-    CHRONON_ZONE_C("build_render_graph", trace_category::kGraph);
+    CHRONON_TRACE_SCOPE("chronon.graph", "build_render_graph");
     auto mutable_ctx = ctx;
     const auto& catalogs = builtin_pipeline_catalogs();
 
