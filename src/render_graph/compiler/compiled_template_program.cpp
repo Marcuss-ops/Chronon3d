@@ -300,6 +300,9 @@ compile_template_program(CompiledFrameGraph compiled_arg) {
     // ── Fase B: temporal analysis + maximal static islands ───────────
     prog.temporal = classify_temporal(*prog.compiled);
 
+    // ── Fase D: parameter ring (triple-buffered default) ──────────────
+    prog.param_ring = build_parameter_ring(*prog.compiled, /*slot_count=*/3);
+
     // ── Schema / Manifest / Regions / Batches / Boundaries ─────────────
     prog.parameters    = build_parameter_schema(*prog.compiled);
     prog.resources     = build_resource_manifest(*prog.compiled);
