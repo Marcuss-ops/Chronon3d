@@ -25,6 +25,7 @@
 
 | Epic / Area | Pri | Stato | Scheda |
 |---|---:|---|---|
+| Video compiler architecture | P2 | PLANNED | [VIDEO-COMPILER-ARCH-V1](tickets/TICKET-VIDEO-COMPILER-ARCH-V1.md) — `SceneIR → CompiledTemplateProgram → DeviceProgram → hot loop`; fasi A–M atomiche su `main`, no branch |
 | Text: warning clipping testo oversized | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) — warning `[text-vis] CLIP_DROPS_INK` osservato sul golden canary E2E; formalizza la known limitation `TICKET-TEXT-CLIP-BOX` |
 | Text: test/regression clipping oversized | P3 | OPEN | [TEXT-OVERSIZED-CLIP-REGRESSION-TEST](tickets/TICKET-TEXT-OVERSIZED-CLIP-REGRESSION-TEST.md) — lock testuale separato: TEST_CASE render-plan-driven + promozione WARN→CHECK post-enforcement |
 
