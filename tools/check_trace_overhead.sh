@@ -104,9 +104,9 @@ on_pipe="$(run_best "$BIN_ON" pipeline)"
 echo "STEP: timing tracing build ON / nodes..."
 on_nodes="$(run_best "$BIN_ON" nodes)"
 
-# overhead% = (on - off) / off * 100
+# overhead% = (on - off) / off * 100 (sign included: %+.2f)
 pct() {
-    awk -v a="$1" -v b="$2" 'BEGIN{ printf "%.2f", (a - b) / b * 100.0 }'
+    awk -v a="$1" -v b="$2" 'BEGIN{ printf "%+.2f", (a - b) / b * 100.0 }'
 }
 over_off="$(pct "$on_off" "$off")"
 over_pipe="$(pct "$on_pipe" "$off")"
@@ -116,9 +116,9 @@ failures=0
 check_gate() {
     local label="$1" value="$2" threshold="$3"
     if awk -v v="$value" -v t="$threshold" 'BEGIN{exit !(v < t)}'; then
-        echo "  PASS ${label}: +${value}% (threshold <${threshold}%)"
+        echo "  PASS ${label}: ${value}% (threshold <${threshold}%)"
     else
-        echo "  FAIL ${label}: +${value}% (threshold <${threshold}%)" >&2
+        echo "  FAIL ${label}: ${value}% (threshold <${threshold}%)" >&2
         failures=$((failures + 1))
     fi
 }
@@ -134,5 +134,5 @@ if [[ "$failures" -ne 0 ]]; then
 fi
 
 echo "GATE_PASS: all three overhead gates within budget"
-echo "[INFO] ${GATE_NAME}: off=+${over_off}% pipeline=+${over_pipe}% nodes=+${over_nodes}% (baseline ${off} ms)"
+echo "[INFO] ${GATE_NAME}: off=${over_off}% pipeline=${over_pipe}% nodes=${over_nodes}% (baseline ${off} ms)"
 exit 0
