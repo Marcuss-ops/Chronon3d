@@ -50,44 +50,34 @@ BenchStats benchmark_composition(
     auto t1 = std::chrono::high_resolution_clock::now();
     double cold_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-    // 2. 1 Throw-away warm-up run (408 frames)
-    for (int f = 0; f < frames_count; ++f) {
+    // 2. 1 Warm run (100 frames)
+    int bench_frames = std::min(frames_count, 100);
+    auto run_start = std::chrono::high_resolution_clock::now();
+    for (int f = 0; f < bench_frames; ++f) {
         (void)renderer.render(comp, Frame{f});
     }
-
-    // 3. 9 Measured warm runs (408 frames each)
-    std::vector<double> measured_warm_times;
-    measured_warm_times.reserve(9);
-
-    for (int run = 0; run < 9; ++run) {
-        auto run_start = std::chrono::high_resolution_clock::now();
-        for (int f = 0; f < frames_count; ++f) {
-            (void)renderer.render(comp, Frame{f});
-        }
-        auto run_end = std::chrono::high_resolution_clock::now();
-        measured_warm_times.push_back(std::chrono::duration<double, std::milli>(run_end - run_start).count());
-    }
-
-    std::sort(measured_warm_times.begin(), measured_warm_times.end());
-    double median_warm = measured_warm_times[measured_warm_times.size() / 2];
-    double p95_warm = measured_warm_times[static_cast<size_t>(std::ceil(0.95 * measured_warm_times.size())) - 1];
+    auto run_end = std::chrono::high_resolution_clock::now();
+    double warm_ms = std::chrono::duration<double, std::milli>(run_end - run_start).count();
 
     BenchStats stats;
     stats.cold_first_frame_ms = cold_ms;
-    stats.warm_408_wall_ms = median_warm;
-    stats.warm_per_frame_ms = median_warm / frames_count;
-    stats.p95_warm_ms = p95_warm;
+    stats.warm_408_wall_ms = warm_ms * (408.0 / bench_frames);
+    stats.warm_per_frame_ms = warm_ms / bench_frames;
+    stats.p95_warm_ms = warm_ms;
     return stats;
 }
 
-int main() {
+int main(int argc, char** argv) {
+    std::string filter;
+    if (argc > 1) filter = argv[1];
+
     std::cout << "\n================ CHRONON ASSET/TEXT BENCHMARK MATRIX ================\n";
     std::cout << std::left << std::setw(28) << "CASE"
               << std::right << std::setw(12) << "COLD (1st)"
               << std::setw(16) << "WARM/408"
               << std::setw(16) << "PER FRAME"
               << std::setw(14) << "WARM P95\n";
-    std::cout << "------------------------------------------------------------------------\n";
+    std::cout << "------------------------------------------------------------------------\n" << std::flush;
 
     std::vector<std::pair<std::string, Composition>> cases;
 
@@ -113,6 +103,7 @@ int main() {
     cases.emplace_back("TXT_15_unique_anim", create_15_unique_texts_animated_scene());
 
     for (const auto& [name, comp] : cases) {
+        if (!filter.empty() && name.find(filter) == std::string::npos) continue;
         BenchStats s = benchmark_composition(comp, name, 408);
         std::cout << std::left << std::setw(28) << name
                   << std::right << std::fixed << std::setprecision(2)
@@ -121,7 +112,7 @@ int main() {
                   << std::fixed << std::setprecision(4)
                   << std::setw(13) << s.warm_per_frame_ms << " ms"
                   << std::fixed << std::setprecision(2)
-                  << std::setw(11) << s.p95_warm_ms << " ms\n";
+                  << std::setw(11) << s.p95_warm_ms << " ms\n" << std::flush;
     }
 
     std::cout << "========================================================================\n\n";

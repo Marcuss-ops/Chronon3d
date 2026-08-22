@@ -137,6 +137,7 @@ private:
     cache::NodeCacheKey m_key;
     TextRunPlacement m_placement;
     std::optional<f32> m_opacity_override;
+    std::shared_ptr<Framebuffer> m_cached_result{nullptr};
 
     // ── Fase A6 (DONE) — node immutability ───────────────────────────
     // m_shape is READ-ONLY after construction.  Per-frame glyph

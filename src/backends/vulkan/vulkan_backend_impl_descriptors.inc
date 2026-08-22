@@ -19,7 +19,11 @@
         }
         if (target.view != VK_NULL_HANDLE) vkDestroyImageView(device, target.view, nullptr);
         if (target.image != VK_NULL_HANDLE) vkDestroyImage(device, target.image, nullptr);
-        if (target.memory != VK_NULL_HANDLE) vkFreeMemory(device, target.memory, nullptr);
+        if (target.allocation.memory != VK_NULL_HANDLE) {
+            memory_arena.free(target.allocation);
+        } else if (target.memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, target.memory, nullptr);
+        }
         target = {};
     }
 
@@ -49,15 +53,14 @@
         check(vkCreateImage(device, &info, nullptr, &target.image), "vkCreateImage");
         VkMemoryRequirements requirements{};
         vkGetImageMemoryRequirements(device, target.image, &requirements);
-        VkExportMemoryAllocateInfo export_info{
-            VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO};
-        export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
-        VkMemoryAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-        allocation.pNext = exportable ? &export_info : nullptr;
-        check(vkAllocateMemory(device, &allocation, nullptr, &target.memory), "vkAllocateMemory(image)");
-        check(vkBindImageMemory(device, target.image, target.memory, 0), "vkBindImageMemory");
+
+        const MemoryClass mem_class = exportable
+            ? MemoryClass::ExternalExportable
+            : MemoryClass::DeviceLocal;
+        target.allocation = memory_arena.allocate(requirements, mem_class, exportable);
+        target.memory = target.allocation.memory;
+
+        check(vkBindImageMemory(device, target.image, target.allocation.memory, target.allocation.offset), "vkBindImageMemory");
         const VkImageViewCreateInfo view{
             VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, nullptr, 0, target.image,
             VK_IMAGE_VIEW_TYPE_2D, format, {},

@@ -332,10 +332,14 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     f32 opacity = 1.0f;
                     const auto placement = resolve_text_run_placement(
                         item, render_ref, ctx, opacity);
+                    const std::string layer_name_str(rl->layer->name);
+                    const bool item_static = is_static_cache.count(layer_name_str)
+                        ? is_static_cache.at(layer_name_str) : rl->layer->cache_static;
+                    const bool source_is_static = item_static;
                     cache::NodeCacheKey key{
                         .scope = "layer.textrun:" + name + ":"
                             + std::string(render_ref.name),
-                        .frame = ctx.frame_input.frame,
+                        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
                         .width = ctx.frame_input.width,
                         .height = ctx.frame_input.height,
                         .params_hash = hash_render_node_content_only(render_ref),

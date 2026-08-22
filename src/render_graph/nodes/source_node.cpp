@@ -437,7 +437,7 @@ NodeExecResult SourceNode::execute(
 ) {
     CHRONON_TRACE_SCOPE("chronon.node", "source_render");
     if (m_cache_policy.reusable_across_frames() && m_cached_result &&
-        !ctx.frame_input.has_camera_2_5d && !m_matrix_override && !m_opacity_override &&
+        !ctx.frame_input.has_camera_2_5d &&
         (!ctx.node_exec.clip_rect || (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
                                       ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width &&
                                       ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height))) {
@@ -618,7 +618,7 @@ NodeExecResult SourceNode::execute(
         // Diagnostics: only log in debug mode without full-buffer pixel scanning
     }
     if (m_cache_policy.reusable_across_frames() && fb &&
-        !ctx.frame_input.has_camera_2_5d && !m_matrix_override && !m_opacity_override) {
+        !ctx.frame_input.has_camera_2_5d) {
         m_cached_result = std::make_shared<Framebuffer>(*fb);
     }
     return NodeExecResult{std::move(fb)};
