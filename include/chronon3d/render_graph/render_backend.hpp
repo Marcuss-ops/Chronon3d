@@ -12,6 +12,8 @@
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
+#include <chronon3d/runtime/gpu_layer_batch.hpp>
+#include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -554,6 +556,24 @@ public:
         (void)highlight_color;
         (void)highlight_enabled;
         return draw_text_run_surface(destination, atlas, glyphs);
+    }
+
+    /// Execute a compiled GPU layer batch.  Every instance in `instances` is
+    /// composited into `destination` in painter order using the backend's
+    /// SSBO-based batch kernel.  `resources` maps resource_index to the
+    /// texture/atlas handle to sample; `transforms` (optional) maps
+    /// transform_index to a 4×4 matrix; `paints` (optional) maps paint_index
+    /// to a colour uniform.  Backends without a batch kernel return
+    /// UnsupportedCapability.
+    virtual RenderOpResult execute_layer_batch(
+        runtime::RenderSurfaceHandle /*destination*/,
+        std::span<const runtime::LayerInstance> /*instances*/,
+        std::span<const runtime::RenderSurfaceHandle> /*resources*/,
+        std::span<const float> /*transforms*/,
+        std::span<const float> /*paints*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::execute_layer_batch: not supported by this backend"});
     }
 };
 
