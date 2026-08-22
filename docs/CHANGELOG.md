@@ -1,4 +1,13 @@
 ## 2026-08-22
+### `feat(compiler): has_compiled_recorder + fully_recorded fast-path (Fase D/E)`
+  ([TICKET-VIDEO-COMPILER-ARCH-V1](tickets/TICKET-VIDEO-COMPILER-ARCH-V1.md))
+
+`has_compiled_recorder()` virtuale su `RenderGraphNode` (default false,
+override true su Source/MultiSource/TextRun/Transform/Composite/Video).
+Il compiler setta `CompiledFrameProgram::fully_recorded = true` quando
+tutti i nodi reachable hanno il recorder. L'executor attiva un fast-path
+shallow-copy che salta `clone_for_node_execution()`.
+
 ### `refactor(telemetry): remove dead event-store layer`
   ([TICKET-TELEMETRY-STORE-CONSUMER-AUDIT](tickets/TICKET-TELEMETRY-STORE-CONSUMER-AUDIT.md))
 
