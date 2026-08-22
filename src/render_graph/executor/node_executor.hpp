@@ -46,6 +46,7 @@ namespace chronon3d {
 namespace chronon3d::graph {
 
 class RenderGraphNode;       // forward decl: <chronon3d/render_graph/nodes/render_graph_node.hpp>
+struct StableNodeId;         // forward decl: <chronon3d/render_graph/core/node_identity.hpp> (trace annotation)
 using FramebufferPool = ::chronon3d::cache::FramebufferPool;
 
 // run_node — execute node and adopt the returned OwnedFB into a CachedFB.
@@ -65,7 +66,8 @@ double run_node(
     const ::chronon3d::cache::NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
-    FramebufferPool* parent_pool
+    FramebufferPool* parent_pool,
+    const StableNodeId* stable_node_id = nullptr  // trace annotation (plan §7)
 );
 
 } // namespace chronon3d::graph

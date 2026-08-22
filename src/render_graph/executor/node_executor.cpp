@@ -11,6 +11,7 @@
 
 #include <chronon3d/render_graph/render_graph_context.hpp>     // RenderGraphContext fields (services, frame_error, node_exec)
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>  // RenderGraphNode::execute() + kind()
+#include <chronon3d/render_graph/core/node_identity.hpp>       // StableNodeId (trace annotation)
 #include <chronon3d/core/memory/framebuffer_handle.hpp>        // Full def of PoolFbDeleter + OwnedFB
 #include <chronon3d/cache/framebuffer_pool.hpp>                // Full def required for parent_pool->shared_from_this() (P1 step 2 hardening — explicit dependency, not transitive-resolved via execution_state.hpp)
 #include <chronon3d/core/profiling/profiling.hpp>              // profiling::now(), profiling::duration_ms(), CHRONON_TRACE_SCOPE
@@ -28,7 +29,8 @@ double run_node(
     const ::chronon3d::cache::NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
-    FramebufferPool* parent_pool
+    FramebufferPool* parent_pool,
+    const StableNodeId* stable_node_id
 ) {
     (void)parent_pool; // reclaim policy is carried by OwnedFB's deleter
     if (result) {
@@ -40,7 +42,12 @@ double run_node(
     {
         // chronon.node is a debug/slow category: node execution only shows
         // in kNodes/kFull traces, keeping light pipeline traces lean (plan §6).
-        CHRONON_TRACE_SCOPE("chronon.node", "node_execute");
+        // stable_node_id annotation (plan §7): 0 when the node has no stable
+        // id (precomp/isolated paths) — report tooling filters 0 out.
+        const std::uint64_t stable_id =
+            stable_node_id ? stable_node_id->value : 0;
+        CHRONON_TRACE_SCOPE_ANNOTATED("chronon.node", "node_execute",
+                                      "stable_node_id", stable_id);
         auto exec_result = node.execute(node_ctx, inputs, input_bboxes);
         if (!exec_result) {
             // P0-1 — node execution failed; write error to the shared
