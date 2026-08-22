@@ -424,8 +424,7 @@ void record_pipe_telemetry(
         session.started_at_iso, phases, resolved_counters,
         telemetry.node_events, counters, mutable_frames,
         telemetry.layer_events, telemetry.cache_events, telemetry.culling_events,
-        telemetry.text_events, telemetry.image_events, telemetry.tile_events,
-        artifacts);
+        telemetry.image_events, artifacts);
 #endif
 }
 

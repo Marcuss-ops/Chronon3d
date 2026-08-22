@@ -15,7 +15,6 @@
 | Cache key rot | P2 | OPEN | [NODE-CACHE-KEY-COLLAPSE-ROT](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | Sequential graph cache parity | P1 | DONE (verified path) | `CHRONON3D_BUILD_DIAGNOSTICS=OFF` + `settings.diagnostics.enabled=false`: verifier PASS su `main@dc3fb34e` con worktree locale (3/3 deterministic + 14/14 scene, marker `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`); `CHRONON3D_ENABLE_DIAGNOSTICS=ON` resta fuori dalla conclusione: [SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md) |
 | Tools / lint debt | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md); [ANALYZE-FRAMES-ORPHAN](tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md) DONE; remaining watch-list open |
-| Telemetry event stores | P2 | OPEN | [TELEMETRY-STORE-CONSUMER-AUDIT](tickets/TICKET-TELEMETRY-STORE-CONSUMER-AUDIT.md) — audit Fase 7: unico consumer reale è SQLite (default OFF); writers culling/image + 3 collect gated dietro `CHRONON3D_ENABLE_SQLITE_TELEMETRY`; rimozione fisica text/tile + `TelemetrySession` deferred |
 | OpenType feature coverage | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 
@@ -31,6 +30,7 @@
 
 ## Recently Closed
 
+- Telemetry dead layer removed: `TextTelemetryRecord` + `TileTelemetryRecord` stores, `TelemetrySession`, and `render_text_events`/`render_tile_events` SQLite tables; 5 stores (node/layer/cache/culling/image) remain for the optional SQLite consumer. Details in [TICKET-TELEMETRY-STORE-CONSUMER-AUDIT](tickets/TICKET-TELEMETRY-STORE-CONSUMER-AUDIT.md).
 - Render layer timing removed from the global job in `ecf183f5`; typed plan decoding and pre-frame preparation landed in `27dc34d6` and `67f7f00b`.
 - Canonical CLI plan execution landed in `fee74549`; plan state no longer mutates the engine and ABI validation landed in `0ef3b517`.
 - The direct base/animation CMake cycle was removed in `c61a1a3a`; the selectable non-modular path was retired in `6fc72940`.
