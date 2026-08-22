@@ -84,12 +84,15 @@ void synchronize_native_output(RenderGraphContext& ctx,
         framebuffer->clear_surface_handle();
         return;
     }
-    std::size_t index = 0;
-    for (int y = 0; y < framebuffer->height(); ++y) {
-        for (int x = 0; x < framebuffer->width(); ++x) {
-            framebuffer->set_pixel(x, y, Color{
-                rgba[index], rgba[index + 1], rgba[index + 2], rgba[index + 3]});
-            index += 4;
+    if (framebuffer->stride() == framebuffer->width()) {
+        std::memcpy(framebuffer->data(), rgba.data(),
+                    static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() * sizeof(Color));
+    } else {
+        const std::size_t row_bytes = static_cast<std::size_t>(framebuffer->width()) * sizeof(Color);
+        for (int y = 0; y < framebuffer->height(); ++y) {
+            std::memcpy(framebuffer->pixels_row(y),
+                        rgba.data() + static_cast<std::size_t>(y) * framebuffer->width() * 4,
+                        row_bytes);
         }
     }
     if (ctx.services.surface_registry) {

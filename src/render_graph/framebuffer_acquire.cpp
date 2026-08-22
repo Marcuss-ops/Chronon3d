@@ -108,8 +108,10 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     if (node_exec.reusable_bottom.get() == &other &&
         node_exec.reusable_bottom.use_count() <= 2)
     {
+        const auto orig_surface_handle = other.surface_handle();
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(const_cast<Framebuffer&>(other));
+        placeholder->set_surface_handle(orig_surface_handle);
 
         PoolFbDeleter placeholder_deleter;
         if (services.framebuffer_pool) {

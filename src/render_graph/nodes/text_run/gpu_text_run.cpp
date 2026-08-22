@@ -249,15 +249,26 @@ graph::RenderOpResult draw_packed_text_run_surface(
     runtime::PackedTextAtlas persistent_atlas;
     std::string atlas_identity;
     bool stable_identity_valid = true;
+    std::uint64_t hash0 = 0xcbf29ce484222325ULL;
+    std::uint64_t hash1 = 0x100000001b3ULL;
     for (const auto& glyph : glyphs) {
-        if (glyph.atlas_key.empty()) stable_identity_valid = false;
-        const auto key_size = static_cast<std::uint32_t>(glyph.atlas_key.size());
-        atlas_identity.append(reinterpret_cast<const char*>(&key_size), sizeof(key_size));
-        atlas_identity.append(glyph.atlas_key);
-        atlas_identity.append(reinterpret_cast<const char*>(&glyph.width), sizeof(glyph.width));
-        atlas_identity.append(reinterpret_cast<const char*>(&glyph.height), sizeof(glyph.height));
+        if (glyph.atlas_key.empty()) { stable_identity_valid = false; break; }
+        for (char c : glyph.atlas_key) {
+            hash0 ^= static_cast<unsigned char>(c);
+            hash0 *= 0x100000001b3ULL;
+        }
+        hash1 ^= static_cast<std::uint64_t>(glyph.width) | (static_cast<std::uint64_t>(glyph.height) << 32);
+        hash1 *= 0xcbf29ce484222325ULL;
     }
-    if (!stable_identity_valid) atlas_identity.clear();
+    if (stable_identity_valid) {
+        atlas_identity.resize(32);
+        std::memcpy(atlas_identity.data(), &hash0, 8);
+        std::memcpy(atlas_identity.data() + 8, &hash1, 8);
+        std::uint64_t count = glyphs.size();
+        std::memcpy(atlas_identity.data() + 16, &count, 8);
+        std::uint64_t salt = 0x9e3779b97f4a7c15ULL;
+        std::memcpy(atlas_identity.data() + 24, &salt, 8);
+    }
     const bool persistent_available = ctx.services.gpu_text_atlas_cache &&
         ctx.services.gpu_text_atlas_cache->acquire(
             bitmap_views, persistent_atlas, atlas_identity);

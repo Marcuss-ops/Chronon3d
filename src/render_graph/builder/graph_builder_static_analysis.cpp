@@ -1,6 +1,7 @@
 #include "graph_builder_pipeline.hpp"
 
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/text/text_run.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -45,6 +46,16 @@ bool check_static_recursive_impl(
             is_local_static = false;
         } else if (l.anim_transform.is_time_dependent()) {
             is_local_static = false;
+        } else {
+            for (const auto& n : l.nodes) {
+                if (n.shape.type() == ShapeType::TextRun) {
+                    const auto handle = n.shape.text_run_shape_handle();
+                    if (handle.value && !handle.value->animators.empty()) {
+                        is_local_static = false;
+                        break;
+                    }
+                }
+            }
         }
 
         if (is_local_static && rl.has_parent && !rl.parent_missing && !rl.cycle_detected) {

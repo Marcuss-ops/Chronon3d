@@ -75,7 +75,12 @@ bool GpuTextAtlasCache::acquire(
         profiling::g_current_counters->gpu_text_atlas_key_bytes_hashed.fetch_add(
             static_cast<std::uint64_t>(key_bytes.size()), std::memory_order_relaxed);
     }
-    const Key key{assets::sha256_string(key_bytes)};
+    Key key{};
+    if (!stable_identity.empty() && stable_identity.size() == 32) {
+        std::memcpy(key.digest.bytes.data(), stable_identity.data(), 32);
+    } else {
+        key = Key{assets::sha256_string(key_bytes)};
+    }
 
     auto it = m_entries.find(key);
     const bool cache_hit = it != m_entries.end();
@@ -137,7 +142,16 @@ bool GpuTextAtlasCache::acquire(
 
 std::shared_ptr<const GpuTextAtlasCache::StyledGlyphBitmap>
 GpuTextAtlasCache::find_styled(std::string_view key_bytes) const {
-    const Key key{assets::sha256_string(key_bytes)};
+    Key key{};
+    std::uint64_t h0 = 0xcbf29ce484222325ULL;
+    std::uint64_t h1 = 0x100000001b3ULL;
+    for (char c : key_bytes) {
+        h0 ^= static_cast<unsigned char>(c);
+        h0 *= 0x100000001b3ULL;
+        h1 = (h1 << 5) + h1 + static_cast<unsigned char>(c);
+    }
+    std::memcpy(key.digest.bytes.data(), &h0, 8);
+    std::memcpy(key.digest.bytes.data() + 8, &h1, 8);
     std::lock_guard lock(m_mutex);
     const auto it = m_styled_entries.find(key);
     if (it == m_styled_entries.end()) return {};
@@ -148,7 +162,16 @@ void GpuTextAtlasCache::store_styled(
     std::string_view key_bytes, std::uint32_t width, std::uint32_t height,
     std::shared_ptr<const std::vector<float>> rgba) {
     if (!rgba || width == 0 || height == 0) return;
-    const Key key{assets::sha256_string(key_bytes)};
+    Key key{};
+    std::uint64_t h0 = 0xcbf29ce484222325ULL;
+    std::uint64_t h1 = 0x100000001b3ULL;
+    for (char c : key_bytes) {
+        h0 ^= static_cast<unsigned char>(c);
+        h0 *= 0x100000001b3ULL;
+        h1 = (h1 << 5) + h1 + static_cast<unsigned char>(c);
+    }
+    std::memcpy(key.digest.bytes.data(), &h0, 8);
+    std::memcpy(key.digest.bytes.data() + 8, &h1, 8);
     std::lock_guard lock(m_mutex);
     if (m_styled_entries.find(key) != m_styled_entries.end()) return;
     m_styled_entries.emplace(key, StyledEntry{
