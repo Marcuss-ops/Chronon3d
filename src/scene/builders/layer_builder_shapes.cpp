@@ -220,6 +220,10 @@ LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
             std::string(m_layer.name) + "/" + name);
     }
 
+    if (prepared.animation.animators.empty()) {
+        m_layer.cache_static = true;
+    }
+
     auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
         .params = std::move(prepared),

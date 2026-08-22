@@ -76,10 +76,6 @@
                 slot = old_slot;  // content stays where it is
             } else {
                 surface_bindings.erase(previous);
-                if (!slot_in_use(old_slot) && old_it != physical_surfaces.end()) {
-                    destroy_image(old_it->second.image);
-                    physical_surfaces.erase(old_it);
-                }
             }
         }
         if (slot_has_initialized_occupant(slot, handle)) {
@@ -93,13 +89,7 @@
             physical.image.width != desc.width ||
             physical.image.height != desc.height) {
             if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
-        make_image(physical.image, desc.width, desc.height,
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-                   true
-#else
-                   false
-#endif
-        );
+            make_image(physical.image, desc.width, desc.height, false);
             physical.image.initialized = false;
         }
         physical.desc = desc;
@@ -110,9 +100,10 @@
     Image& ensure_surface(runtime::RenderSurfaceHandle handle,
                           const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
-            desc.format != runtime::PixelFormat::Rgba32Float ||
+            (desc.format != runtime::PixelFormat::Rgba32Float &&
+             desc.format != runtime::PixelFormat::Rgba8Unorm) ||
             desc.width == 0 || desc.height == 0) {
-            throw std::invalid_argument("Vulkan surface requires a non-empty Rgba32Float description");
+            throw std::invalid_argument("Vulkan surface requires a valid non-empty description");
         }
         const auto binding = surface_bindings.find(handle);
         if (binding != surface_bindings.end()) {
@@ -133,11 +124,16 @@
         // let a later transient writer mutate the cached asset.  Allocate a
         // dedicated physical image for the whole job/daemon lifetime.
         if (desc.lifetime != runtime::LifetimeClass::JobPersistent) {
-            // Unbound transient: alias a compatible, currently-unused
-            // physical slot (lifetime-disjoint reuse) before allocating a
-            // fresh one.
+            // Unbound transient: alias an exact-match compatible unused physical slot first
             for (auto& [slot, physical] : physical_surfaces) {
                 if (!slot_in_use(slot) && surface_compatible(physical.desc, desc)) {
+                    ensure_descriptor_set();
+                    return bind_handle_to_slot(handle, slot, desc);
+                }
+            }
+            // Next, reuse any unused physical slot (it will be resized by bind_handle_to_slot)
+            for (auto& [slot, physical] : physical_surfaces) {
+                if (!slot_in_use(slot) && physical.desc.lifetime != runtime::LifetimeClass::JobPersistent) {
                     ensure_descriptor_set();
                     return bind_handle_to_slot(handle, slot, desc);
                 }
@@ -219,13 +215,8 @@
         wait_for_pending();
         const auto slot = binding->second;
         surface_bindings.erase(binding);
-        if (!slot_in_use(slot)) {
-            const auto physical_it = physical_surfaces.find(slot);
-            if (physical_it != physical_surfaces.end()) {
-                destroy_image(physical_it->second.image);
-                physical_surfaces.erase(physical_it);
-            }
-        }
+        // Retain physical_surfaces[slot] so subsequent ensure_surface calls
+        // can reuse the allocated physical surface without re-allocating memory!
         unplanned_surface_handles.erase(handle);
         ++stats.surface_releases;
     }
@@ -260,23 +251,11 @@
                 const auto slot = binding->second;
                 surface_bindings.erase(binding);
                 unplanned_surface_handles.erase(handle);
-                if (!slot_in_use(slot)) {
-                    const auto it = physical_surfaces.find(slot);
-                    if (it != physical_surfaces.end()) {
-                        destroy_image(it->second.image);
-                        physical_surfaces.erase(it);
-                    }
+                const auto it = physical_surfaces.find(slot);
+                if (it != physical_surfaces.end()) {
+                    it->second.image.initialized = false;
                 }
                 ++stats.surface_releases;
-            }
-            for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
-                if (it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
-                    !slot_in_use(it->first)) {
-                    destroy_image(it->second.image);
-                    it = physical_surfaces.erase(it);
-                } else {
-                    ++it;
-                }
             }
             if (physical_surfaces.size() > 32) {
                 spdlog::warn("[vulkan] transient cleanup retained bindings={} physical_surfaces={} unplanned={}",

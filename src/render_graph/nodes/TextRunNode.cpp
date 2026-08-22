@@ -141,6 +141,14 @@ NodeExecResult TextRunNode::execute(
             ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
     }
 
+    if (m_cache_policy.reusable_across_frames() && m_cached_result &&
+        !ctx.frame_input.has_camera_2_5d &&
+        (!ctx.node_exec.clip_rect || (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
+                                      ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width &&
+                                      ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height))) {
+        return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
+    }
+
     // ── 1. Acquire the producer surface. Projected TextRuns render into
     // their tight local surface; the following TransformNode owns camera
     // projection and expands it into the canvas. Non-projected text keeps
@@ -313,6 +321,10 @@ NodeExecResult TextRunNode::execute(
             m_render_ref.world_transform.position);
     }
 #endif
+    if (m_cache_policy.reusable_across_frames() && fb &&
+        !ctx.frame_input.has_camera_2_5d) {
+        m_cached_result = std::make_shared<Framebuffer>(*fb);
+    }
 
     return NodeExecResult{std::move(fb)};
 }
