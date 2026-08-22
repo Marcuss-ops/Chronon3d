@@ -84,51 +84,53 @@ bool try_native_dimension_composite(
         source_handle = source_copy->surface_handle();
     }
 
-    const auto desc = native_surface_desc(destination.width(), destination.height());
-    const auto expanded = ctx.services.surface_registry->create(desc);
-    if (expanded == runtime::kInvalidRenderSurfaceHandle) {
-        if (source_copy) release_native_surface(ctx, *source_copy);
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
-        return false;
-    }
-    const auto created = ctx.services.backend->create_surface(expanded, desc);
-    if (!created.ok()) {
-        ctx.services.surface_registry->release(expanded);
-        if (source_copy) release_native_surface(ctx, *source_copy);
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
-        return false;
-    }
-    const auto transformed = ctx.services.backend->transform_surface(
-        expanded, source_handle,
-        source.origin_x() - destination.origin_x(),
-        source.origin_y() - destination.origin_y(), 1.0f);
-    if (!transformed.ok()) {
-        (void)ctx.services.backend->release_surface(expanded);
-        ctx.services.surface_registry->release(expanded);
-        if (source_copy) release_native_surface(ctx, *source_copy);
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
-        return false;
+    const float dx = static_cast<float>(source.origin_x() - destination.origin_x());
+    const float dy = static_cast<float>(source.origin_y() - destination.origin_y());
+    const float src_w = static_cast<float>(source.width());
+    const float src_h = static_cast<float>(source.height());
+
+    runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 1.0f;
+    transform.source_x[2] = -dx;
+    transform.source_y[1] = 1.0f;
+    transform.source_y[2] = -dy;
+    transform.max_x = src_w;
+    transform.max_y = src_h;
+    transform.opacity = 1.0f;
+    transform.bilinear = 0u; // Direct 1:1 pixel sampling
+    transform.destination_origin_x = destination.origin_x();
+    transform.destination_origin_y = destination.origin_y();
+
+    std::int32_t eff_x0 = static_cast<std::int32_t>(dx);
+    std::int32_t eff_y0 = static_cast<std::int32_t>(dy);
+    std::int32_t eff_x1 = static_cast<std::int32_t>(dx + src_w);
+    std::int32_t eff_y1 = static_cast<std::int32_t>(dy + src_h);
+
+    if (clip) {
+        const std::int32_t local_clip_x0 = clip->x0 - destination.origin_x();
+        const std::int32_t local_clip_y0 = clip->y0 - destination.origin_y();
+        const std::int32_t local_clip_x1 = clip->x1 - destination.origin_x();
+        const std::int32_t local_clip_y1 = clip->y1 - destination.origin_y();
+
+        eff_x0 = std::max(eff_x0, local_clip_x0);
+        eff_y0 = std::max(eff_y0, local_clip_y0);
+        eff_x1 = std::min(eff_x1, local_clip_x1);
+        eff_y1 = std::min(eff_y1, local_clip_y1);
     }
 
-    std::optional<raster::BBox> local_clip = clip;
-    if (local_clip) {
-        local_clip = raster::BBox{
-            local_clip->x0 - destination.origin_x(),
-            local_clip->y0 - destination.origin_y(),
-            local_clip->x1 - destination.origin_x(),
-            local_clip->y1 - destination.origin_y()};
+    if (eff_x1 <= eff_x0 || eff_y1 <= eff_y0) {
+        if (source_copy) release_native_surface(ctx, *source_copy);
+        return true;
     }
-    const auto composited = ctx.services.backend->composite_surfaces(
-        destination.surface_handle(), expanded,
-        BlendMode::Normal, CompositeOperator::SourceOver, local_clip);
-    (void)ctx.services.backend->release_surface(expanded);
-    ctx.services.surface_registry->release(expanded);
+
+    transform.clip_enabled = 1u;
+    transform.clip_rect[0] = eff_x0 + destination.origin_x();
+    transform.clip_rect[1] = eff_y0 + destination.origin_y();
+    transform.clip_rect[2] = eff_x1 + destination.origin_x();
+    transform.clip_rect[3] = eff_y1 + destination.origin_y();
+
+    const auto composited = ctx.services.backend->transform_surface_affine(
+        destination.surface_handle(), source_handle, transform);
     if (source_copy) release_native_surface(ctx, *source_copy);
     if (!composited.ok()) {
         if (original_destination == runtime::kInvalidRenderSurfaceHandle) {

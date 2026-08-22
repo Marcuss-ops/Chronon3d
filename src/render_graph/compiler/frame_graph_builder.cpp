@@ -605,16 +605,17 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
                 operation.output_physical_slot = allocation->physical_slot;
             }
 
-            // Static subgraph identification: if node is frame-invariant static
+            // Track static subgraphs: a node is static if it is frame-invariant and all upstream inputs are static
             const auto& node_info = compiled.nodes[node_id];
-            if (node_info.cache_policy.reusable_across_frames() && node_info.inputs.empty()) {
-                StaticSubgraphBakePass bake;
-                bake.root_node = node_id;
-                bake.static_fingerprint = node_info.static_key.digest();
-                bake.is_baked = false;
-                compiled.program.static_bakes.push_back(bake);
+            bool all_inputs_static = true;
+            for (GraphNodeId in_id : node_info.inputs) {
+                if (in_id < compiled.nodes.size()) {
+                    if (!compiled.nodes[in_id].cache_policy.reusable_across_frames()) {
+                        all_inputs_static = false;
+                        break;
+                    }
+                }
             }
-
             if (node_info.kind == RenderGraphNodeKind::Composite ||
                 node_info.kind == RenderGraphNodeKind::Transform) {
                 current_fused_batch.push_back(node_id);
@@ -627,6 +628,45 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             }
 
             compiled.program.operations.push_back(std::move(operation));
+        }
+    }
+
+    // Maximal static island detection: find the highest static nodes whose consumers are NOT all static (or terminal roots)
+    std::vector<bool> is_node_static(compiled.nodes.size(), false);
+    for (const auto& level : compiled.levels) {
+        for (GraphNodeId node_id : level) {
+            if (node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable) continue;
+            const auto& node_info = compiled.nodes[node_id];
+            bool all_inputs_static = true;
+            for (GraphNodeId in_id : node_info.inputs) {
+                if (in_id < compiled.nodes.size() && !is_node_static[in_id]) {
+                    all_inputs_static = false;
+                    break;
+                }
+            }
+            if (node_info.cache_policy.reusable_across_frames() && all_inputs_static) {
+                is_node_static[node_id] = true;
+            }
+        }
+    }
+
+    for (GraphNodeId node_id = 0; node_id < compiled.nodes.size(); ++node_id) {
+        if (!is_node_static[node_id] || !compiled.nodes[node_id].reachable) continue;
+        const auto& node_info = compiled.nodes[node_id];
+        // If this static node has no consumers (final output), or at least one non-static consumer, it is a maximal static island root!
+        bool is_maximal_root = node_info.consumers.empty();
+        for (GraphNodeId consumer_id : node_info.consumers) {
+            if (consumer_id < compiled.nodes.size() && !is_node_static[consumer_id]) {
+                is_maximal_root = true;
+                break;
+            }
+        }
+        if (is_maximal_root) {
+            StaticSubgraphBakePass bake;
+            bake.root_node = node_id;
+            bake.static_fingerprint = node_info.static_key.digest();
+            bake.is_baked = false;
+            compiled.program.static_bakes.push_back(bake);
         }
     }
 

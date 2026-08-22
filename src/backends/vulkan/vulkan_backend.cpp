@@ -14,6 +14,7 @@
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
+#include "vulkan_memory_arena.hpp"
 #endif
 
 #include <array>
@@ -56,6 +57,7 @@ struct VulkanBackend::Impl {
     struct Image {
         VkImage image{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
+        VulkanAllocation allocation{};
         VkImageView view{VK_NULL_HANDLE};
         VkFormat format{VK_FORMAT_R32G32B32A32_SFLOAT};
         std::uint32_t width{0};
@@ -285,6 +287,7 @@ struct VulkanBackend::Impl {
     VkQueryPool timestamp_pool{VK_NULL_HANDLE};
     float timestamp_period_ns{0.0f};
     std::uint32_t timestamp_valid_bits{0};
+    VulkanMemoryArena memory_arena{};
     VulkanBackendStats stats{};
 #include "vulkan_backend_impl_lifecycle.inc"
     ~Impl() {

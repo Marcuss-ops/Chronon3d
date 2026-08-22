@@ -328,6 +328,14 @@ bool SceneHasher::layer_is_static(const Layer& layer) {
     if (layer.anim_transform.is_time_dependent()) return false;
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
+    for (const auto& n : layer.nodes) {
+        if (n.shape.type() == ShapeType::TextRun) {
+            const auto handle = n.shape.text_run_shape_handle();
+            if (handle.value && !handle.value->animators.empty()) {
+                return false;
+            }
+        }
+    }
     return true;
 }
 
@@ -339,6 +347,14 @@ bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     }
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
+    for (const auto& n : layer.nodes) {
+        if (n.shape.type() == ShapeType::TextRun) {
+            const auto handle = n.shape.text_run_shape_handle();
+            if (handle.value && !handle.value->animators.empty()) {
+                return false;
+            }
+        }
+    }
     return true;
 }
 

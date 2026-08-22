@@ -10,6 +10,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
+#include <chronon3d/text/text_run_hash.hpp>
 #include <xxhash.h>
 
 #include <bit>
@@ -337,6 +338,11 @@ template <typename T>
             seed = hash_combine(seed, hash_color(s.grid_plane().color));
             seed = hash_combine(seed, hash_bytes(&s.grid_plane().fade_distance, sizeof(f32)));
             return hash_combine(seed, hash_bytes(&s.grid_plane().fade_min_alpha, sizeof(f32)));
+        case ShapeType::TextRun:
+            if (s.text_run_shape_handle().value) {
+                seed = hash_combine(seed, hash_text_run_shape(*s.text_run_shape_handle().value));
+            }
+            return seed;
         default:
             return seed;
     }

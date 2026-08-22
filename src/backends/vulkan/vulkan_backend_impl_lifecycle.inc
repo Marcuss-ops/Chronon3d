@@ -6,7 +6,8 @@
          bool calibrated_timestamps_supported)
         : physical_device(physical), device(logical), queue(graphics),
           queue_family(family), command_pool(pool),
-          calibrated_ts_supported(calibrated_timestamps_supported) {
+          calibrated_ts_supported(calibrated_timestamps_supported),
+          memory_arena(logical, physical) {
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);
         stats.device_name = device_properties.deviceName;
