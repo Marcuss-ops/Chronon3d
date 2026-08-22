@@ -280,23 +280,6 @@ CREATE TABLE IF NOT EXISTS render_culling_events (
     PRIMARY KEY (run_id, frame_number, layer_id)
 );
 
-CREATE TABLE IF NOT EXISTS render_text_events (
-    run_id TEXT,
-    frame_number INTEGER,
-    layer_id TEXT,
-    text_length INTEGER,
-    line_count INTEGER,
-    glyph_count INTEGER,
-    glyphs_rasterized INTEGER,
-    glyph_cache_hits INTEGER,
-    glyph_cache_misses INTEGER,
-    layout_ms REAL,
-    raster_ms REAL,
-    composite_ms REAL,
-    font_path TEXT,
-    font_size REAL
-);
-
 CREATE TABLE IF NOT EXISTS render_image_events (
     run_id TEXT,
     frame_number INTEGER,
@@ -310,17 +293,6 @@ CREATE TABLE IF NOT EXISTS render_image_events (
     sampled_pixels INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS render_tile_events (
-    run_id TEXT,
-    frame_number INTEGER,
-    layer_id TEXT,
-    tile_x INTEGER,
-    tile_y INTEGER,
-    tile_status TEXT,
-    dirty_rects_count INTEGER,
-    PRIMARY KEY (run_id, frame_number, layer_id, tile_x, tile_y)
-);
-
 -- Performance indices for analytical queries
 CREATE INDEX IF NOT EXISTS idx_node_events_run_type ON render_node_events(run_id, node_type);
 CREATE INDEX IF NOT EXISTS idx_node_events_run_duration ON render_node_events(run_id, duration_ms DESC);
@@ -328,9 +300,7 @@ CREATE INDEX IF NOT EXISTS idx_cache_events_run_status ON render_cache_events(ru
 CREATE INDEX IF NOT EXISTS idx_frames_run ON render_frames(run_id);
 CREATE INDEX IF NOT EXISTS idx_layer_events_run ON render_layer_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_culling_events_run ON render_culling_events(run_id);
-CREATE INDEX IF NOT EXISTS idx_text_events_run ON render_text_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_image_events_run ON render_image_events(run_id);
-CREATE INDEX IF NOT EXISTS idx_tile_events_run ON render_tile_events(run_id);
 
 -- ── Render artifacts (P0 video/text — Fase 1) ────────────────────────────
 

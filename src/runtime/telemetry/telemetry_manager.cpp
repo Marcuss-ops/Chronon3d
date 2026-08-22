@@ -194,9 +194,7 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
                                   const std::vector<LayerTelemetryRecord>& layer_events,
                                   const std::vector<CacheTelemetryRecord>& cache_events,
                                   const std::vector<CullingTelemetryRecord>& culling_events,
-                                  const std::vector<TextTelemetryRecord>& text_events,
                                   const std::vector<ImageTelemetryRecord>& image_events,
-                                  const std::vector<TileTelemetryRecord>& tile_events,
                                   const std::vector<RenderArtifactRecord>& artifacts) {
     spdlog::info("[telemetry] record_run called with {} stores registered", m_stores.size());
     // Inject automatically gathered host attributes
@@ -265,19 +263,9 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
             spdlog::info("[telemetry] write_culling_events returned: {}", r);
             ok &= r;
         }
-        if (!text_events.empty()) {
-            bool r = store->write_text_events(run.run_id, text_events);
-            spdlog::info("[telemetry] write_text_events returned: {}", r);
-            ok &= r;
-        }
         if (!image_events.empty()) {
             bool r = store->write_image_events(run.run_id, image_events);
             spdlog::info("[telemetry] write_image_events returned: {}", r);
-            ok &= r;
-        }
-        if (!tile_events.empty()) {
-            bool r = store->write_tile_events(run.run_id, tile_events);
-            spdlog::info("[telemetry] write_tile_events returned: {}", r);
             ok &= r;
         }
         if (!artifacts.empty()) {

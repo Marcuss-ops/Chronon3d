@@ -21,9 +21,7 @@ public:
     bool write_layer_events(const std::string& run_id, const std::vector<LayerTelemetryRecord>& events) override;
     bool write_cache_events(const std::string& run_id, const std::vector<CacheTelemetryRecord>& events) override;
     bool write_culling_events(const std::string& run_id, const std::vector<CullingTelemetryRecord>& events) override;
-    bool write_text_events(const std::string& run_id, const std::vector<TextTelemetryRecord>& events) override;
     bool write_image_events(const std::string& run_id, const std::vector<ImageTelemetryRecord>& events) override;
-    bool write_tile_events(const std::string& run_id, const std::vector<TileTelemetryRecord>& events) override;
     bool write_artifacts(const std::string& run_id, const std::vector<RenderArtifactRecord>& artifacts) override;
 
 private:

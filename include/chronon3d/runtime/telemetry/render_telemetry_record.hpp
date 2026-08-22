@@ -438,23 +438,6 @@ struct CullingTelemetryRecord {
     uint64_t saved_pixels{0};
 };
 
-struct TextTelemetryRecord {
-    std::string run_id;
-    int frame_number{0};
-    std::string layer_id;
-    int text_length{0};
-    int line_count{0};
-    int glyph_count{0};
-    int glyphs_rasterized{0};
-    int glyph_cache_hits{0};
-    int glyph_cache_misses{0};
-    double layout_ms{0.0};
-    double raster_ms{0.0};
-    double composite_ms{0.0};
-    std::string font_path;
-    double font_size{0.0};
-};
-
 struct ImageTelemetryRecord {
     std::string run_id;
     int frame_number{0};
@@ -466,16 +449,6 @@ struct ImageTelemetryRecord {
     double decode_ms{0.0};
     double sample_ms{0.0};
     uint64_t sampled_pixels{0};
-};
-
-struct TileTelemetryRecord {
-    std::string run_id;
-    int frame_number{0};
-    std::string layer_id;
-    int tile_x{0};
-    int tile_y{0};
-    std::string tile_status; // "hit", "miss", "partial"
-    int dirty_rects_count{0};
 };
 
 // ── Render artifact record (P0 video/text — Fase 1) ────────────────────────

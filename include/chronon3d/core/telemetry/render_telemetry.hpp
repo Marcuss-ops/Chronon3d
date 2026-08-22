@@ -83,18 +83,8 @@ inline detail::ShardedTelemetryStore<CullingTelemetryRecord>& culling_telemetry_
     return store;
 }
 
-inline detail::ShardedTelemetryStore<TextTelemetryRecord>& text_telemetry_store() {
-    static detail::ShardedTelemetryStore<TextTelemetryRecord> store;
-    return store;
-}
-
 inline detail::ShardedTelemetryStore<ImageTelemetryRecord>& image_telemetry_store() {
     static detail::ShardedTelemetryStore<ImageTelemetryRecord> store;
-    return store;
-}
-
-inline detail::ShardedTelemetryStore<TileTelemetryRecord>& tile_telemetry_store() {
-    static detail::ShardedTelemetryStore<TileTelemetryRecord> store;
     return store;
 }
 
@@ -130,28 +120,12 @@ inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() {
     return culling_telemetry_store().collect();
 }
 
-// ── Text telemetry ──────────────────────────────────────────────────
-inline void record_text_telemetry(const TextTelemetryRecord& rec) {
-    text_telemetry_store().record(rec);
-}
-inline std::vector<TextTelemetryRecord> collect_text_telemetry() {
-    return text_telemetry_store().collect();
-}
-
 // ── Image telemetry ─────────────────────────────────────────────────
 inline void record_image_telemetry(const ImageTelemetryRecord& rec) {
     image_telemetry_store().record(rec);
 }
 inline std::vector<ImageTelemetryRecord> collect_image_telemetry() {
     return image_telemetry_store().collect();
-}
-
-// ── Tile telemetry ──────────────────────────────────────────────────
-inline void record_tile_telemetry(const TileTelemetryRecord& rec) {
-    tile_telemetry_store().record(rec);
-}
-inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
-    return tile_telemetry_store().collect();
 }
 
 /// Clear all in-memory telemetry event stores.
@@ -163,9 +137,7 @@ inline void clear_telemetry_stores() {
     layer_telemetry_store().clear();
     cache_telemetry_store().clear();
     culling_telemetry_store().clear();
-    text_telemetry_store().clear();
     image_telemetry_store().clear();
-    tile_telemetry_store().clear();
 }
 
 } // namespace chronon3d::telemetry
