@@ -1,4 +1,5 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
 #endif

@@ -120,30 +120,25 @@ void attach_software_backend(
         [renderer] { return make_software_backend_instance(renderer); });
 
 #ifdef CHRONON3D_ENABLE_VULKAN
-    // Vulkan is strict-opt-in until RenderSurface execution replaces the
-    // current CPU Framebuffer node contract. Auto remains a safe CPU fallback
-    // during this migration and never silently runs a partial GPU path.
-    if (preference == chronon3d::graph::BackendPreference::GPU) {
-        registry.register_backend(
-            chronon3d::graph::BackendType::Vulkan,
-            chronon3d::graph::BackendCapabilities{
-                .graphics = true, .compute = true},
-            [renderer] {
-                auto backend = chronon3d::backends::vulkan::make_vulkan_backend();
-                auto* vulkan = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(
-                    backend.get());
-                if (!vulkan) {
-                    throw std::runtime_error(
-                        "attach_software_backend: Vulkan factory returned an unexpected backend");
-                }
-                // The sidecar is used only when a native surface operation
-                // cannot yet be served (notably the first glyph-atlas miss).
-                // It keeps the frame valid and lets the canonical text
-                // resources warm up for subsequent native GPU frames.
-                vulkan->set_draw_node_fallback(make_software_backend_instance(renderer));
-                return backend;
-            });
-    }
+    registry.register_backend(
+        chronon3d::graph::BackendType::Vulkan,
+        chronon3d::graph::BackendCapabilities{
+            .graphics = true, .compute = true},
+        [renderer] {
+            auto backend = chronon3d::backends::vulkan::make_vulkan_backend();
+            auto* vulkan = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(
+                backend.get());
+            if (!vulkan) {
+                throw std::runtime_error(
+                    "attach_software_backend: Vulkan factory returned an unexpected backend");
+            }
+            // The sidecar is used only when a native surface operation
+            // cannot yet be served (notably the first glyph-atlas miss).
+            // It keeps the frame valid and lets the canonical text
+            // resources warm up for subsequent native GPU frames.
+            vulkan->set_draw_node_fallback(make_software_backend_instance(renderer));
+            return backend;
+        });
 #endif
 
     chronon3d::graph::BackendResolver resolver(registry);

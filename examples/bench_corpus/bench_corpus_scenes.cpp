@@ -549,11 +549,188 @@ Composition bench_b11_portrait_1080x1920() {
     });
 }
 
+// ── Perf_EMPTY ──────────────────────────────────────────────────────────
+Composition bench_perf_empty() {
+    return composition({
+        .name = "Perf_EMPTY",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 100,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        return s.build();
+    });
+}
+
+// ── Perf_IMG_same_100 ───────────────────────────────────────────────────
+Composition bench_perf_img_same_100() {
+    return composition({
+        .name = "Perf_IMG_same_100",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 100,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        for (int i = 0; i < 100; ++i) {
+            const int row = i / 10;
+            const int col = i % 10;
+            const f32 x = (static_cast<f32>(col) - 4.5f) * 180.0f;
+            const f32 y = (static_cast<f32>(row) - 4.5f) * 100.0f;
+            s.layer("img_" + std::to_string(i), [x, y](LayerBuilder& l) {
+                l.position({x, y, 0.0f});
+                l.image("pic", ImageParams{
+                    .asset_path = "assets/images/camera_reference.jpg",
+                    .size = {160.0f, 90.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fit = FitMode::Cover,
+                    .focal_point = {0.5f, 0.5f},
+                    .crop = {},
+                    .opacity = 1.0f,
+                    .radius = 0.0f,
+                });
+            });
+        }
+        return s.build();
+    });
+}
+
+// ── Perf_IMG_move_100 ───────────────────────────────────────────────────
+Composition bench_perf_img_move_100() {
+    return composition({
+        .name = "Perf_IMG_move_100",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 100,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        for (int i = 0; i < 100; ++i) {
+            const int row = i / 10;
+            const int col = i % 10;
+            const f32 x0 = (static_cast<f32>(col) - 4.5f) * 180.0f;
+            const f32 y0 = (static_cast<f32>(row) - 4.5f) * 100.0f;
+            s.layer("img_" + std::to_string(i), [x0, y0](LayerBuilder& l) {
+                l.image("pic", ImageParams{
+                    .asset_path = "assets/images/camera_reference.jpg",
+                    .size = {160.0f, 90.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fit = FitMode::Cover,
+                    .focal_point = {0.5f, 0.5f},
+                    .crop = {},
+                    .opacity = 1.0f,
+                    .radius = 0.0f,
+                });
+                auto& pos = l.position_anim();
+                pos.key(Frame{0}, Vec3{x0, y0, 0.0f}, EasingCurve{Easing::Hold});
+                pos.key(Frame{100}, Vec3{x0 + 50.0f, y0 + 30.0f, 0.0f}, EasingCurve{Easing::Linear});
+            });
+        }
+        return s.build();
+    });
+}
+
+// ── Perf_TXT_static_100 ─────────────────────────────────────────────────
+Composition bench_perf_txt_static_100() {
+    return composition({
+        .name = "Perf_TXT_static_100",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 100,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+        for (int i = 0; i < 100; ++i) {
+            const int row = i / 10;
+            const int col = i % 10;
+            const f32 x = (static_cast<f32>(col) - 4.5f) * 180.0f;
+            const f32 y = (static_cast<f32>(row) - 4.5f) * 100.0f;
+            s.layer("txt_" + std::to_string(i), [x, y, i](LayerBuilder& l) {
+                l.position({x, y, 0.0f});
+                l.text("label", text_preset(
+                    "CHRONON " + std::to_string(i), 24.0f, 700,
+                    {1.0f, 1.0f, 1.0f, 1.0f},
+                    TextAlign::Center, {160.0f, 40.0f}, {0.0f, 0.0f, 0.0f}
+                ));
+            });
+        }
+        return s.build();
+    });
+}
+
+// ── Perf_TXT_move_100 ───────────────────────────────────────────────────
+Composition bench_perf_txt_move_100() {
+    return composition({
+        .name = "Perf_TXT_move_100",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 100,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+        for (int i = 0; i < 100; ++i) {
+            const int row = i / 10;
+            const int col = i % 10;
+            const f32 x0 = (static_cast<f32>(col) - 4.5f) * 180.0f;
+            const f32 y0 = (static_cast<f32>(row) - 4.5f) * 100.0f;
+            s.layer("txt_" + std::to_string(i), [x0, y0, i](LayerBuilder& l) {
+                l.text("label", text_preset(
+                    "MOVE " + std::to_string(i), 24.0f, 700,
+                    {1.0f, 1.0f, 1.0f, 1.0f},
+                    TextAlign::Center, {160.0f, 40.0f}, {0.0f, 0.0f, 0.0f}
+                ));
+                auto& pos = l.position_anim();
+                pos.key(Frame{0}, Vec3{x0, y0, 0.0f}, EasingCurve{Easing::Hold});
+                pos.key(Frame{100}, Vec3{x0 + 40.0f, y0 + 20.0f, 0.0f}, EasingCurve{Easing::Linear});
+                auto& op = l.opacity_anim();
+                op.key(Frame{0}, 0.5f, EasingCurve{Easing::Hold});
+                op.key(Frame{100}, 1.0f, EasingCurve{Easing::Linear});
+            });
+        }
+        return s.build();
+    });
+}
+
+// ── Perf_MIXED_200 ──────────────────────────────────────────────────────
+Composition bench_perf_mixed_200() {
+    return composition({
+        .name = "Perf_MIXED_200",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 100,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+        for (int i = 0; i < 100; ++i) {
+            const int row = i / 10;
+            const int col = i % 10;
+            const f32 x = (static_cast<f32>(col) - 4.5f) * 180.0f;
+            const f32 y = (static_cast<f32>(row) - 4.5f) * 100.0f;
+            s.layer("mix_img_" + std::to_string(i), [x, y](LayerBuilder& l) {
+                l.position({x, y, 0.0f});
+                l.image("pic", ImageParams{
+                    .asset_path = "assets/images/camera_reference.jpg",
+                    .size = {160.0f, 90.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fit = FitMode::Cover,
+                    .focal_point = {0.5f, 0.5f},
+                    .crop = {},
+                    .opacity = 1.0f,
+                    .radius = 0.0f,
+                });
+            });
+            s.layer("mix_txt_" + std::to_string(i), [x, y, i](LayerBuilder& l) {
+                l.position({x, y + 20.0f, 0.0f});
+                l.text("label", text_preset(
+                    "M" + std::to_string(i), 20.0f, 700,
+                    {1.0f, 1.0f, 0.2f, 1.0f},
+                    TextAlign::Center, {120.0f, 30.0f}, {0.0f, 0.0f, 0.0f}
+                ));
+            });
+        }
+        return s.build();
+    });
+}
+
 // ── Registry entry point ─────────────────────────────────────────────────
-// Single function: register all 12 main scenes + 3 B07 inner scenes
-// into the CompositionRegistry. Uses `make_composition_descriptor(...)` and
-// canonical entry — descriptor-first metadata so future tooling can
-// inspect scene properties without instantiating the Composition.
 void register_bench_corpus_compositions(CompositionRegistry& registry) {
     using Desc = chronon3d::CompositionDescriptor;
 
@@ -618,9 +795,6 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
             return bench_b11_portrait_1080x1920();
         }));
 
-    // ── B07 inner precomps — registered so outer composition's precomp()
-    // references resolve at evaluation time. These are NOT part of the
-    // canonical 12-scene corpus; they are composition-graph dependencies.
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB07InnerA",
         .category    = "bench/internal"}, [](const chronon3d::CompositionProps&) {
@@ -635,6 +809,38 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
         .id          = "BenchB07InnerC",
         .category    = "bench/internal"}, [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_c();
+        }));
+
+    // ── 6 Microbenchmarks (Perf_*) ─────────────────────────────────────────
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_EMPTY",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_empty();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_IMG_same_100",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_img_same_100();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_IMG_move_100",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_img_move_100();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_TXT_static_100",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_txt_static_100();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_TXT_move_100",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_txt_move_100();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_MIXED_200",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_mixed_200();
         }));
 }
 

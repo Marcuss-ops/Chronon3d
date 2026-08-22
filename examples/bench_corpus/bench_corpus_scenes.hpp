@@ -142,11 +142,16 @@ Composition bench_b10_random_frame_access();
 // Wrap content in a Composition for the registry add() signature.
 Composition bench_b11_portrait_1080x1920();
 
+// ── 6 Microbenchmark scenes (Perf_*) ─────────────────────────────────────
+Composition bench_perf_empty();
+Composition bench_perf_img_same_100();
+Composition bench_perf_img_move_100();
+Composition bench_perf_txt_static_100();
+Composition bench_perf_txt_move_100();
+Composition bench_perf_mixed_200();
+
 // ── Registry entry point ─────────────────────────────────────────────────
-// Single function: register all 12 scenes into a CompositionRegistry.
-// Mirrors chronon3d::register_builtin_compositions(...) canonical
-// entry; called from apps/chronon3d_cli/register_content_compositions.cpp
-// (the existing canonical composition-bridge site).
+// Single function: register all scenes into a CompositionRegistry.
 void register_bench_corpus_compositions(CompositionRegistry& registry);
 
 } // namespace chronon3d::bench_corpus

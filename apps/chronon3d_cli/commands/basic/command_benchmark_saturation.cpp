@@ -21,6 +21,7 @@
 #include "../../utils/job/cli_render_utils.hpp"
 
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/simd/cpu_isa.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <nlohmann/json.hpp>
@@ -347,23 +348,31 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     perf.available = "false";
 
     // ── Print the Saturation Report ────────────────────────────────────
+    const bool is_gpu = renderer->runtime().backend_attached() &&
+                        renderer->runtime().backend().supports_native_surfaces();
+    const auto backend_name = renderer->runtime().backend_attached()
+        ? (is_gpu ? "Vulkan" : "Software")
+        : "None";
+
     auto& out = std::cout;
     out << "\n";
     out << "CHRONON3D SATURATION REPORT\n";
     out << "================================================\n";
+    out << "HARDWARE & BACKEND\n";
+    out << "Backend..................... " << backend_name << "\n";
+    out << "Native surfaces support..... " << (is_gpu ? "true" : "false") << "\n";
+    out << "Compiled program............ true\n";
+    out << "CPU model................... " << read_cpu_model() << "\n";
+    out << "Logical CPUs................ " << logical_cpus << "\n";
+    out << "NUMA nodes.................. " << count_numa_nodes() << "\n";
+    out << "Context switches............ " << total_ctx_sw << "\n";
+    out << "\n";
     out << "SCENE\n";
     out << "Composition................. " << scene << "\n";
     out << "Duration.................... " << duration_sec << " s\n";
     out << "Rendered frames............. " << total_frames << "\n";
     out << "Motion blur................. mode=" << motion_blur_mode
         << " samples=" << motion_blur_samples << "\n";
-    out << "\n";
-
-    out << "CPU\n";
-    out << "CPU model................... " << read_cpu_model() << "\n";
-    out << "Logical CPUs................ " << logical_cpus << "\n";
-    out << "NUMA nodes.................. " << count_numa_nodes() << "\n";
-    out << "Context switches............ " << total_ctx_sw << "\n";
     out << "\n";
 
     out << "THROUGHPUT\n";
@@ -490,6 +499,16 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     out << "Fused color effects.......... "
         << (render_counters ? render_counters->color_pipeline_effects.load() : 0)
         << "\n\n";
+
+    if (renderer->runtime().backend_attached()) {
+        std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
+        renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+        out << "GPU EXECUTION METRICS\n";
+        for (const auto& [k, v] : gpu_counters) {
+            out << fmt::format("{:<28} {}\n", k, v);
+        }
+        out << "\n";
+    }
 
     // Keep the JSON artifact aligned with the evidence printed above.  A
     // missing determinism run is represented explicitly instead of being

@@ -500,7 +500,7 @@
         for (const auto& inst : instances) {
             if (inst.resource_index >= resources.size()) continue;
             const auto source_handle = resources[inst.resource_index];
-            if (source_handle == kInvalidRenderSurfaceHandle) continue;
+            if (source_handle == chronon3d::runtime::kInvalidRenderSurfaceHandle) continue;
 
             auto& src_image = resolve_image(source_handle);
             if (!src_image.initialized) continue;
@@ -524,9 +524,17 @@
                 (inst.transform_index + 1) * 16 <= transforms.size()) {
                 // Affine transform path: use the matrix from the transform
                 // table.  Each transform is 16 floats (column-major 4×4).
-                runtime::SurfaceAffineTransform affine;
+                runtime::SurfaceAffineTransform affine{};
                 const float* matrix = transforms.data() + inst.transform_index * 16;
-                std::copy(matrix, matrix + 16, &affine.matrix[0]);
+                affine.source_x[0] = matrix[0];
+                affine.source_x[1] = matrix[4];
+                affine.source_x[2] = matrix[12];
+                affine.source_y[0] = matrix[1];
+                affine.source_y[1] = matrix[5];
+                affine.source_y[2] = matrix[13];
+                affine.max_x = static_cast<float>(src_image.width);
+                affine.max_y = static_cast<float>(src_image.height);
+                affine.opacity = opacity;
                 transform_affine(destination, source_handle, affine);
             } else if (dst_x != 0 || dst_y != 0) {
                 // Integer-offset transform (no scale/rotation)
