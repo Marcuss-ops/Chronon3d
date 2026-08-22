@@ -54,6 +54,33 @@ bool execute_pass(RenderBackend& backend, const GpuPass& pass) {
                 return backend.matte_surface(
                     params.destination, params.target, params.matte,
                     params.luma != 0, params.inverted != 0).ok();
+            } else if constexpr (std::is_same_v<P, LayerBatchPass>) {
+                std::vector<runtime::LayerInstance> instances;
+                instances.reserve(params.items.size());
+                for (const auto& item : params.items) {
+                    runtime::LayerInstance inst;
+                    inst.resource_index = 0;
+                    for (std::size_t i = 0; i < params.sources.size(); ++i) {
+                        if (params.sources[i] == item.source) {
+                            inst.resource_index = static_cast<std::uint32_t>(i);
+                            break;
+                        }
+                    }
+                    inst.dst_x0 = item.dst_x;
+                    inst.dst_y0 = item.dst_y;
+                    inst.dst_x1 = item.dst_x + item.dst_w;
+                    inst.dst_y1 = item.dst_y + item.dst_h;
+                    inst.src_x0 = item.src_u0;
+                    inst.src_y0 = item.src_v0;
+                    inst.src_x1 = item.src_u1;
+                    inst.src_y1 = item.src_v1;
+                    inst.opacity = item.opacity;
+                    inst.kind = PrimitiveKind::Image;
+                    inst.blend = BlendMode::Normal;
+                    instances.push_back(inst);
+                }
+                return backend.execute_layer_batch(
+                    params.destination, instances, params.sources, {}, {}).ok();
             }
             return false;  // unreachable: the variant is exhaustive
         },

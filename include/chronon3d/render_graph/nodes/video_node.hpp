@@ -20,7 +20,6 @@ public:
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override {
         return RenderGraphNodeKind::Video;
     }
-    bool has_compiled_recorder() const noexcept override { return true; }
 
     [[nodiscard]] std::string_view name() const noexcept override {
         return m_full_name;

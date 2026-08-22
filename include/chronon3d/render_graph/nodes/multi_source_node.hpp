@@ -34,7 +34,6 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }
-    bool has_compiled_recorder() const noexcept override { return true; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,

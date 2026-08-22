@@ -41,7 +41,10 @@ void commit_transparent_skip(
     // preserva Cat-3 single SSoT + riduce allocazioni). EarlyExit:
     // acquire_owned_fb(64,64,false) + clear(transparent), preservato
     // byte-equivalent al body P1.
-    if (reason == SkipReason::TilePruned) {
+    if (reason == SkipReason::TilePruned || reason == SkipReason::StaticBaked) {
+        // TilePruned and StaticBaked both reuse state.shared_transparent
+        // (no fresh alloc).  StaticBaked interior nodes don't produce a new
+        // framebuffer — the baked surface covers them.
         state.temp[id] = state.shared_transparent;
     } else {
         // ── Acquire + clear transparent 64×64 ──────────────────────────
@@ -69,7 +72,7 @@ void commit_transparent_skip(
     // EarlyExit → `layers_culled`). EarlyExit + Clear
     // aggiunge i counter Clear-specific (preservato byte-equivalent P1).
     if (ctx.node_exec.counters) {
-        if (reason == SkipReason::TilePruned) {
+        if (reason == SkipReason::TilePruned || reason == SkipReason::StaticBaked) {
             ctx.node_exec.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
         } else {
             ctx.node_exec.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);

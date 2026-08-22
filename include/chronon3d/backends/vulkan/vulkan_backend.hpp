@@ -249,6 +249,19 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         std::span<const runtime::GlyphInstance>, float, const Color&, bool) override;
 
+    /// Execute a compiled GPU layer batch.  Every instance in `instances`
+    /// is composited into `destination` in painter order.  `resources` maps
+    /// resource_index→texture/atlas handle; `transforms` maps
+    /// transform_index→4×4 matrix (flat float span, 16 floats per transform);
+    /// `paints` maps paint_index→color uniform (flat float span, 8 floats
+    /// per paint: r,g,b,a,brightness,contrast,tint_amount,flags).
+    graph::RenderOpResult execute_layer_batch(
+        runtime::RenderSurfaceHandle destination,
+        std::span<const runtime::LayerInstance> instances,
+        std::span<const runtime::RenderSurfaceHandle> resources,
+        std::span<const float> transforms,
+        std::span<const float> paints) override;
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&);

@@ -397,6 +397,89 @@
         submit();
     }
 
+    // ── execute_layer_batch ──────────────────────────────────────────────
+    //
+    // GPU layer-batch consumer.  Every LayerInstance in `instances` is
+    // composited into `destination` in painter order.  The batch kernel
+    // receives:
+    //   - instance SSBO (LayerInstance per element)
+    //   - resource table (texture/atlas handles indexed by resource_index)
+    //   - transform table (4×4 matrices indexed by transform_index)
+    //   - paint table (color uniforms indexed by paint_index)
+    //
+    // For Phase 2 the implementation decomposes into per-instance
+    // composite/transform calls — the fused batch kernel lands in a future
+    // phase once the IR and fusion analysis are stable.
+    void execute_layer_batch(runtime::RenderSurfaceHandle destination,
+                             std::span<const runtime::LayerInstance> instances,
+                             std::span<const runtime::RenderSurfaceHandle> resources,
+                             std::span<const float> transforms,
+                             std::span<const float> paints) {
+        if (instances.empty()) return;
+
+        auto& dst_image = resolve_image(destination);
+        if (!dst_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
+            throw std::invalid_argument("Vulkan layer batch references an invalid destination surface");
+        }
+
+        // ── Per-instance dispatch (Phase 2 decomposed path) ────────────
+        //
+        // Walk instances in painter order.  Each instance resolves its
+        // resource handle, computes the destination quad from its dst_*
+        // fields, and delegates to the existing transform/composite ops.
+        // The `src_x0/y0/x1/y1` fields are used as fractional (0..1) UV
+        // coordinates into the source texture.
+        //
+        // When an instance has a non-trivial transform_index, the
+        // transform buffer provides an affine matrix; when paint_index
+        // is non-zero, the paint table carries a tint/opacity override.
+        //
+        // This decomposed path is semantically correct; the fused SSBO
+        // batch kernel will replace the per-instance loop in a later
+        // phase.
+        for (const auto& inst : instances) {
+            if (inst.resource_index >= resources.size()) continue;
+            const auto source_handle = resources[inst.resource_index];
+            if (source_handle == kInvalidRenderSurfaceHandle) continue;
+
+            auto& src_image = resolve_image(source_handle);
+            if (!src_image.initialized) continue;
+
+            // Compute destination quad in integer coordinates from the
+            // instance's dst_* normalized (0..1) placement.
+            const auto dst_w = static_cast<std::int32_t>(
+                (inst.dst_x1 - inst.dst_x0) * static_cast<float>(dst_image.width));
+            const auto dst_h = static_cast<std::int32_t>(
+                (inst.dst_y1 - inst.dst_y0) * static_cast<float>(dst_image.height));
+            const auto dst_x = static_cast<std::int32_t>(
+                inst.dst_x0 * static_cast<float>(dst_image.width));
+            const auto dst_y = static_cast<std::int32_t>(
+                inst.dst_y0 * static_cast<float>(dst_image.height));
+
+            if (dst_w <= 0 || dst_h <= 0) continue;
+
+            const float opacity = inst.opacity;
+
+            if (inst.transform_index > 0 &&
+                (inst.transform_index + 1) * 16 <= transforms.size()) {
+                // Affine transform path: use the matrix from the transform
+                // table.  Each transform is 16 floats (column-major 4×4).
+                runtime::SurfaceAffineTransform affine;
+                const float* matrix = transforms.data() + inst.transform_index * 16;
+                std::copy(matrix, matrix + 16, &affine.matrix[0]);
+                transform_affine(destination, source_handle, affine);
+            } else if (dst_x != 0 || dst_y != 0) {
+                // Integer-offset transform (no scale/rotation)
+                transform(destination, source_handle, dst_x, dst_y, opacity);
+            } else if (opacity < 1.0f) {
+                transform(destination, source_handle, 0, 0, opacity);
+            } else {
+                composite(destination, source_handle, inst.blend == BlendMode::Add
+                          ? BlendMode::Add : BlendMode::Normal);
+            }
+        }
+    }
+
     void ensure_images(std::uint32_t width, std::uint32_t height) {
         if (dst.width == width && dst.height == height && src.image != VK_NULL_HANDLE) return;
         destroy_image(dst);

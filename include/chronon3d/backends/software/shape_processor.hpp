@@ -9,6 +9,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/backends/software/software_processor_context.hpp>
+#include <chronon3d/render_graph/processor_handle.hpp>  // CompileRecorderFn
 
 namespace chronon3d {
     class SoftwareRenderer;
@@ -39,6 +40,14 @@ public:
     
     virtual raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) = 0;
     virtual bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) = 0;
+
+    /// Returns the compile recorder for this shape processor.
+    /// Default returns nullptr (no compiled-recording support).
+    /// Override to provide a CompileRecorderFn that produces executable
+    /// CompiledOperations for the fully-compiled execution path.
+    [[nodiscard]] virtual CompileRecorderFn compile_recorder() const noexcept {
+        return nullptr;
+    }
 };
 
 } // namespace chronon3d::renderer

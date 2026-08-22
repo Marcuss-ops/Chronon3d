@@ -535,4 +535,29 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::execute_layer_batch(
+    runtime::RenderSurfaceHandle destination,
+    std::span<const runtime::LayerInstance> instances,
+    std::span<const runtime::RenderSurfaceHandle> resources,
+    std::span<const float> transforms,
+    std::span<const float> paints) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->execute_layer_batch(destination, instances, resources,
+                                     transforms, paints);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)destination; (void)instances; (void)resources;
+    (void)transforms; (void)paints;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::execute_layer_batch: Vulkan support is disabled"});
+#endif
+}
+
 std::unique_ptr<graph::RenderBackend> make_vulkan_backend() {

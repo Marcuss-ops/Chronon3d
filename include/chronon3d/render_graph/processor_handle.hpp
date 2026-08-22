@@ -11,6 +11,13 @@
 
 #include <cstdint>
 
+// Forward-declare graph types needed by CompileNodeContext / CompileRecorderFn.
+// The full definitions live in compiled_frame_graph.hpp.
+namespace chronon3d::graph {
+struct CompiledOperation;
+struct CompiledNodeInfo;
+} // namespace chronon3d::graph
+
 namespace chronon3d::renderer {
 
 struct ShapeProcessorHandle {
@@ -57,6 +64,40 @@ struct ProcessorCapabilities {
 
     friend constexpr bool operator==(ProcessorCapabilities,
                                      ProcessorCapabilities) = default;
+};
+
+// ── Compiled recording infrastructure ────────────────────────────────────
+//
+// A CompileRecorderFn is a function that, given compile-time node context,
+// produces an executable CompiledOperation.  Processors that provide a
+// recorder enable the fully-compiled execution path; processors without
+// one fall back to node.execute().
+
+/// Context passed by the compiler to a processor's compile_recorder.
+/// Contains everything the recorder needs to produce a CompiledOperation.
+struct CompileNodeContext {
+    const graph::CompiledNodeInfo* node_info{nullptr};
+    const std::uint32_t* input_ids{nullptr};
+    std::uint32_t input_count{0};
+    std::uint32_t output_physical_slot{0};
+};
+
+/// A function that compiles a node into an executable CompiledOperation.
+/// Returns a default-constructed CompiledOperation (with node == k_invalid_node)
+/// when the node cannot be compiled.
+using CompileRecorderFn = graph::CompiledOperation (*)(const CompileNodeContext& ctx);
+
+/// Canonical descriptor for a processor entry in the registry.  Bundles
+/// capabilities with the optional compile-recorder function.  When
+/// compile_recorder is non-null the processor participates in the
+/// fully-compiled execution path.
+struct ProcessorDescriptor {
+    ProcessorCapabilities capabilities;
+    CompileRecorderFn compile_recorder{nullptr};
+
+    [[nodiscard]] constexpr bool has_compile_recorder() const noexcept {
+        return compile_recorder != nullptr;
+    }
 };
 
 } // namespace chronon3d::renderer

@@ -38,6 +38,66 @@
 
 namespace chronon3d::graph {
 
+// ── execute_compiled_program ───────────────────────────────────────────────
+//
+// Executes a fully-compiled frame program by dispatching each
+// CompiledOperation through its compiled_execute function pointer.
+// This path bypasses node.execute() and clone_for_node_execution()
+// entirely: the compiled operation carries its own backend-invocation
+// logic, resolved once at compile time by the processor registry.
+//
+// For now, surface lifecycle management mirrors the reference path:
+// operations produce into physical slots, and the final output is
+// returned through state.temp[output].  Future phases will replace the
+// surface pool with pre-allocated slots from the physical resource plan.
+static bool execute_compiled_program(
+    const CompiledFrameProgram& program,
+    RenderGraphContext& ctx,
+    ExecutionState& state,
+    RenderCounters* counters)
+{
+    auto* backend = ctx.services.backend;
+    if (!backend) {
+        spdlog::error("[compiled-executor] fully_recorded program has no render backend");
+        return false;
+    }
+
+    for (const auto& level : program.levels) {
+        // Operations within a level are independent and could be
+        // parallelised.  Phase 1 executes them sequentially on the
+        // calling thread; later phases integrate with the scheduler.
+        for (GraphNodeId node_id : level) {
+            // Find the operation for this node
+            const CompiledOperation* op = nullptr;
+            for (const auto& candidate : program.operations) {
+                if (candidate.node == node_id) {
+                    op = &candidate;
+                    break;
+                }
+            }
+            if (!op || !op->has_compiled_execute()) {
+                spdlog::error(
+                    "[compiled-executor] node {} has no compiled_execute in "
+                    "a fully_recorded program",
+                    static_cast<int>(node_id));
+                return false;
+            }
+
+            if (counters) {
+                counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+            }
+
+            if (!op->compiled_execute(backend, *op)) {
+                spdlog::error(
+                    "[compiled-executor] compiled_execute failed for node {}",
+                    static_cast<int>(node_id));
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // GraphExecutor public API
 // ──────────────────────────────────────────────────────────────────────
@@ -151,7 +211,17 @@ namespace chronon3d::graph {
     // their cloned RenderGraphContext (shared via clone_for_node_execution).
     ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
 
-    execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res, compiled);
+    // ── Dispatch: compiled path vs reference (node.execute()) path ─────
+    // When every reachable node has produced a real CompiledOperation with
+    // a non-null compiled_execute, use the fully-compiled execution path
+    // that bypasses node.execute() entirely.  Otherwise, fall back to the
+    // reference path that invokes node.execute() through execute_single_node.
+    if (compiled.program.fully_recorded) {
+        execute_compiled_program(compiled.program, ctx, state, parent_counters);
+    } else {
+        execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining,
+                       parent_counters, parent_pool, res, compiled);
+    }
 
     // P0-1 / Fase A5 — after all nodes have executed, check whether any
     // node surfaced a backend failure. The original NodeExecutionError is

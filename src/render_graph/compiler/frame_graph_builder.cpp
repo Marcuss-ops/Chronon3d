@@ -13,6 +13,9 @@
 //   - validate()                    — output node validity check
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/software/effect_processor.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
@@ -605,8 +608,69 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
                 operation.output_physical_slot = allocation->physical_slot;
             }
 
-            // Track static subgraphs: a node is static if it is frame-invariant and all upstream inputs are static
             const auto& node_info = compiled.nodes[node_id];
+
+            // ── Resolve compile recorder from processor snapshot ─────────
+            // Try to obtain a CompileRecorderFn from the processor bound to
+            // this node.  When successful, the recorder produces a
+            // CompiledOperation with compiled_execute set — enabling the
+            // fully-compiled execution path that bypasses node.execute().
+            if (compiled.processor_snapshot) {
+                // Shape processors (SourceNode / MultiSourceNode)
+                if (node_info.shape_processor.valid()) {
+                    auto shape = compiled.processor_snapshot->shape_shared(
+                        node_info.shape_processor);
+                    if (shape) {
+                        auto recorder = shape->compile_recorder();
+                        if (recorder) {
+                            renderer::CompileNodeContext ctx;
+                            ctx.node_info = &node_info;
+                            ctx.input_ids = node_info.inputs.empty()
+                                ? nullptr
+                                : node_info.inputs.data();
+                            ctx.input_count = static_cast<std::uint32_t>(
+                                node_info.inputs.size());
+                            ctx.output_physical_slot =
+                                operation.output_physical_slot;
+                            operation = recorder(ctx);
+                            // Restore fields the recorder may have cleared
+                            operation.node = node_id;
+                            operation.stable_node = node_info.stable_node_id;
+                            operation.inputs = node_info.inputs;
+                        }
+                    }
+                }
+                // Effect processors
+                if (!operation.has_compiled_execute() &&
+                    node_info.effect_processors_count > 0) {
+                    const auto handle_index =
+                        node_info.effect_processors_offset;
+                    if (handle_index < compiled.effect_processor_table.size()) {
+                        auto effect = compiled.processor_snapshot->effect_shared(
+                            compiled.effect_processor_table[handle_index]);
+                        if (effect) {
+                            auto recorder = effect->compile_recorder();
+                            if (recorder) {
+                                renderer::CompileNodeContext ctx;
+                                ctx.node_info = &node_info;
+                                ctx.input_ids = node_info.inputs.empty()
+                                    ? nullptr
+                                    : node_info.inputs.data();
+                                ctx.input_count = static_cast<std::uint32_t>(
+                                    node_info.inputs.size());
+                                ctx.output_physical_slot =
+                                    operation.output_physical_slot;
+                                operation = recorder(ctx);
+                                operation.node = node_id;
+                                operation.stable_node = node_info.stable_node_id;
+                                operation.inputs = node_info.inputs;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Track static subgraphs: a node is static if it is frame-invariant and all upstream inputs are static
             bool all_inputs_static = true;
             for (GraphNodeId in_id : node_info.inputs) {
                 if (in_id < compiled.nodes.size()) {
@@ -616,15 +680,48 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
                     }
                 }
             }
-            if (node_info.kind == RenderGraphNodeKind::Composite ||
-                node_info.kind == RenderGraphNodeKind::Transform) {
+
+            // ── Layer batch construction with fusion ─────────────────────
+            // Source/TextRun nodes start a new fusible region.  If there is
+            // a pending unfused batch, flush it first.
+            const bool is_source_like =
+                node_info.kind == RenderGraphNodeKind::Source ||
+                node_info.kind == RenderGraphNodeKind::TextRun ||
+                node_info.kind == RenderGraphNodeKind::Video;
+            const bool is_xform_composite =
+                node_info.kind == RenderGraphNodeKind::Transform ||
+                node_info.kind == RenderGraphNodeKind::Composite;
+
+            if (is_source_like) {
+                if (!current_fused_batch.empty()) {
+                    // Flush the previous batch before starting a new one
+                    CompiledLayerBatch batch;
+                    batch.member_nodes = std::move(current_fused_batch);
+                    batch.output_physical_slot = operation.output_physical_slot;
+                    batch.is_gpu_fused = true;
+                    compiled.program.layer_batches.push_back(std::move(batch));
+                    current_fused_batch.clear();
+                }
                 current_fused_batch.push_back(node_id);
-            } else if (!current_fused_batch.empty()) {
-                CompiledLayerBatch batch;
-                batch.member_nodes = std::move(current_fused_batch);
-                batch.is_gpu_fused = true;
-                compiled.program.layer_batches.push_back(std::move(batch));
-                current_fused_batch.clear();
+            } else if (is_xform_composite && !current_fused_batch.empty()) {
+                // Continue the fusible region: Transform/Composite appends
+                // to the batch.  The last node in the batch is the Source
+                // that started the chain.
+                current_fused_batch.push_back(node_id);
+            } else if (is_xform_composite) {
+                // Standalone Transform/Composite (no preceding Source in
+                // the same batch) — start a new batch for it alone.
+                current_fused_batch.push_back(node_id);
+            } else {
+                // Non-fusible node: flush and close the batch.
+                if (!current_fused_batch.empty()) {
+                    CompiledLayerBatch batch;
+                    batch.member_nodes = std::move(current_fused_batch);
+                    batch.output_physical_slot = operation.output_physical_slot;
+                    batch.is_gpu_fused = true;
+                    compiled.program.layer_batches.push_back(std::move(batch));
+                    current_fused_batch.clear();
+                }
             }
 
             compiled.program.operations.push_back(std::move(operation));
@@ -677,21 +774,73 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
         compiled.program.layer_batches.push_back(std::move(batch));
     }
 
-    // Compute fully_recorded: true when every reachable node has a compiled
-    // recorder (has_compiled_recorder() returns true).  Nodes that are not
-    // reachable from the output are excluded from the verdict.
-    compiled.program.fully_recorded = true;
-    for (const auto& level : compiled.levels) {
-        for (GraphNodeId node_id : level) {
-            if (node_id >= compiled.graph.size() || !compiled.graph.has_node(node_id)) {
-                continue;
-            }
-            if (!compiled.graph.node(node_id).has_compiled_recorder()) {
-                compiled.program.fully_recorded = false;
-                break;
+    // ── Lower layer batches to CompiledLayerInstance ───────────────────
+    // Walk each batch and collapse Source→Transform→Composite chains into
+    // CompiledLayerInstance entries.  The instance carries:
+    //   - resource_index from the Source node
+    //   - transform_index and opacity from downstream Transform nodes
+    //   - paint_index from downstream effect nodes (future)
+    // This enables the GPU execute_layer_batch() consumer to dispatch a
+    // single SSBO-driven pass instead of per-node draw calls.
+    for (auto& batch : compiled.program.layer_batches) {
+        if (!batch.is_gpu_fused || batch.member_nodes.empty()) continue;
+
+        // Walk member nodes in order, emitting an instance for each
+        // Source-like node that starts a chain.
+        CompiledLayerInstance pending_instance;
+        bool has_pending = false;
+
+        for (GraphNodeId member_id : batch.member_nodes) {
+            if (member_id >= compiled.nodes.size()) continue;
+            const auto& info = compiled.nodes[member_id];
+
+            const bool is_source =
+                info.kind == RenderGraphNodeKind::Source ||
+                info.kind == RenderGraphNodeKind::TextRun ||
+                info.kind == RenderGraphNodeKind::Video;
+
+            if (is_source) {
+                // Flush any previous pending instance
+                if (has_pending) {
+                    batch.instances.push_back(pending_instance);
+                }
+                has_pending = true;
+                pending_instance = CompiledLayerInstance{};
+                pending_instance.node = member_id;
+                pending_instance.resource_index = static_cast<std::uint32_t>(
+                    batch.instances.size());  // resource index is the instance ordinal for now
+                pending_instance.opacity = 1.0f;
+            } else if (has_pending &&
+                       info.kind == RenderGraphNodeKind::Transform) {
+                // Transform modifies the pending instance's placement.
+                // The actual transform_offset/opacity would be resolved
+                // from the node's authored data at frame time; for now
+                // we increment the transform_index to mark the dependency.
+                pending_instance.transform_index =
+                    static_cast<std::uint32_t>(member_id);
+            } else if (has_pending &&
+                       info.kind == RenderGraphNodeKind::Composite) {
+                // Composite completes the chain — the pending instance
+                // is ready.  Composite doesn't add fields beyond what
+                // the Source already provides.
             }
         }
-        if (!compiled.program.fully_recorded) break;
+        // Flush final pending instance
+        if (has_pending) {
+            batch.instances.push_back(pending_instance);
+        }
+    }
+
+    // Compute fully_recorded: true ONLY when every reachable node has
+    // actually produced a CompiledOperation with a non-null compiled_execute
+    // function.  No boolean flag, no kind-based heuristic — the recorder must
+    // have been resolved and must have produced an executable operation.
+    compiled.program.fully_recorded = !compiled.program.operations.empty();
+    for (const auto& op : compiled.program.operations) {
+        if (!op.has_compiled_execute()) {
+            compiled.program.fully_recorded = false;
+            break;
+        }
     }
 }
 } // namespace

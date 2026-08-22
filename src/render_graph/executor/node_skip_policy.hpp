@@ -44,6 +44,7 @@ using FramebufferPool = ::chronon3d::cache::FramebufferPool;
 enum class SkipReason {
     EarlyExit,
     TilePruned,
+    StaticBaked,  // Phase 4: interior static node pre-baked in prepare()
 };
 
 // commit_transparent_skip — produce un CachedFB 64×64 fully-transparent
