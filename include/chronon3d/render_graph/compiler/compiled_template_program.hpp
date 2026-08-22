@@ -22,6 +22,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/core/cache_policy.hpp>  // TemporalClass
+#include <chronon3d/render_graph/compiler/parameter_ring.hpp>  // Fase D
 
 #include <cstddef>
 #include <cstdint>
@@ -66,6 +67,68 @@ struct TemporalAnalysisResult {
     }
 
     [[nodiscard]] bool empty() const noexcept { return per_node.empty(); }
+};
+
+// ── Fase C — physical resource types ────────────────────────────────────────
+
+/// Device-level memory budget for preflight VRAM admission control.
+struct DeviceMemoryPlan {
+    std::uint64_t persistent_assets{0};   // textures uploaded once
+    std::uint64_t baked_surfaces{0};      // static island outputs
+    std::uint64_t physical_slots{0};      // aliased transient resources
+    std::uint64_t frame_slot_buffers{0};  // per-frame-slot ring buffers
+    std::uint64_t decoder_budget{0};      // NVDEC / hardware decoder
+    std::uint64_t encoder_budget{0};      // NVENC / hardware encoder
+    std::uint64_t atlas_budget{0};        // glyph atlas
+    std::uint64_t scratch_budget{0};      // temporary staging / scratch
+    std::uint64_t safety_margin{0};       // driver margin (15% default)
+    std::uint64_t estimated_peak{0};      // sum of all categories + margin
+
+    static constexpr double kDefaultSafetyFraction = 0.15;
+
+    [[nodiscard]] bool operator==(const DeviceMemoryPlan&) const noexcept = default;
+};
+
+/// A physical slot augmented with byte-level sizing (Fase C).
+struct SizedPhysicalSlot {
+    std::uint32_t slot_id{0};
+    std::size_t   max_width{0};
+    std::size_t   max_height{0};
+    std::uint64_t surface_bytes{0};
+};
+
+/// Aggregated physical resource plan (Fase C — evolved from
+/// PhysicalFramebufferAllocationPlan).
+struct PhysicalResourcePlan {
+    std::vector<SizedPhysicalSlot>  sized_slots;
+    std::uint32_t                  slot_count{0};
+    std::uint32_t                  peak_live_resources{0};
+    std::uint32_t                  aliasable_resources{0};
+    std::uint64_t                  peak_transient_bytes{0};
+    std::uint32_t                  logical_resources{0};
+    std::uint32_t                  excluded_persistent{0};
+    std::uint32_t                  excluded_async{0};
+
+    [[nodiscard]] bool empty() const noexcept { return sized_slots.empty(); }
+};
+
+/// Admission verdict.
+enum class AdmissionVerdict : std::uint8_t {
+    Admitted,
+    Degraded,
+    Rejected,
+};
+
+/// Structured result of admission control.
+struct AdmissionResult {
+    AdmissionVerdict verdict{AdmissionVerdict::Admitted};
+    DeviceMemoryPlan  plan;
+    std::uint64_t    available_vram{0};
+    std::string      diagnostic;
+
+    [[nodiscard]] bool ok() const noexcept {
+        return verdict != AdmissionVerdict::Rejected;
+    }
 };
 
 // ── ProgramFingerprint ──────────────────────────────────────────────────────
@@ -199,6 +262,9 @@ struct CompiledTemplateProgram {
     // ── Fase B — temporal analysis ─────────────────────────────────────
     TemporalAnalysisResult             temporal;
 
+    // ── Fase D — parameter ring ────────────────────────────────────────
+    ParameterRingDescriptor            param_ring;
+
     bool                                valid{false};
 
     // ── Accessors (no copies — delegate to compiled) ───────────────────
@@ -257,7 +323,34 @@ compile_template_program(CompiledFrameGraph compiled);
     const CompiledFrameGraph& compiled,
     const TemporalAnalysisResult& temporal);
 
+// ── Fase C — physical resource analysis entry points ────────────────────────
+//
+/// Lift the deterministic interval-coloring plan into a byte-level resource
+/// plan.  `bytes_per_pixel` defaults to 16 (RGBA32F).
+[[nodiscard]] PhysicalResourcePlan analyze_physical_resources(
+    const CompiledFrameGraph& compiled,
+    std::uint32_t bytes_per_pixel = 16);
+
+/// Build a device memory plan from template-level analysis.
+[[nodiscard]] DeviceMemoryPlan build_device_memory_plan(
+    const PhysicalResourcePlan& resources,
+    std::uint64_t decoder_budget = 0,
+    std::uint64_t encoder_budget = 0,
+    std::uint64_t atlas_budget = 0,
+    std::uint64_t scratch_budget = 0);
+
+/// Admission control: reject or degrade the job when the estimated peak
+/// exceeds `available_vram`.
+[[nodiscard]] AdmissionResult admit_or_degrade_job(
+    const DeviceMemoryPlan& plan,
+    std::uint64_t available_vram);
+
 } // namespace chronon3d::graph
+
+// ── Fase C: physical resource analysis + admission ─────────────────────────
+// (separate anonymous block — these types land in chronon3d::graph above)
+// See forward declarations + full definitions in the block below the
+// hash specialization.
 
 // ── std::hash<ProgramFingerprint> ───────────────────────────────────────────
 namespace std {
