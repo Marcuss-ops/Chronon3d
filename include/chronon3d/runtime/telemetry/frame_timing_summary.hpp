@@ -4,11 +4,11 @@
 // frame_timing_summary.hpp — the SINGLE per-frame timing summary.
 //
 // Chronon has ONE per-frame timing summary.  It is computed ONLY at
-// finalize time from the TelemetrySession's frame records (never
-// incrementally during the render loop), and it is the shared
-// implementation used by both the video-export sidecar and the preset
-// certification harness.  Do NOT re-derive first/mean/p95/p99 inline: those
-// percentiles belong here, not in a second collector or a per-caller helper.
+// finalize time from the FrameTelemetry records (never incrementally
+// during the render loop), and it is the shared implementation used by
+// both the video-export sidecar and the preset certification harness.
+// Do NOT re-derive first/mean/p95/p99 inline: those percentiles belong
+// here, not in a second collector or a per-caller helper.
 //
 // This is a pure function over the existing `FrameTelemetry` records — it
 // introduces no new collector, no registry and no store.

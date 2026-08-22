@@ -32,9 +32,7 @@ public:
                     const std::vector<LayerTelemetryRecord>& layer_events = {},
                     const std::vector<CacheTelemetryRecord>& cache_events = {},
                     const std::vector<CullingTelemetryRecord>& culling_events = {},
-                    const std::vector<TextTelemetryRecord>& text_events = {},
                     const std::vector<ImageTelemetryRecord>& image_events = {},
-                    const std::vector<TileTelemetryRecord>& tile_events = {},
                     const std::vector<RenderArtifactRecord>& artifacts = {});
 
     // System helper queries

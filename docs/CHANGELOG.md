@@ -1,3 +1,14 @@
+## 2026-08-22
+### `refactor(telemetry): remove dead event-store layer`
+  ([TICKET-TELEMETRY-STORE-CONSUMER-AUDIT](tickets/TICKET-TELEMETRY-STORE-CONSUMER-AUDIT.md))
+
+Rimozione fisica del dead layer: `TextTelemetryRecord` + `TileTelemetryRecord`
+(zero writer) e relativi store/collect/clear, `TelemetrySession` (collector
+morto senza consumer), tabelle SQLite `render_text_events`/
+`render_tile_events` + `write_text_events`/`write_tile_events`
+sull'interfaccia store. Restano 5 store (node/layer/cache/culling/image) al
+servizio del solo consumer SQLite (default OFF). Cronaca in ticket-home.
+
 ## 2026-08-20
 ### `chore(cleanup): drop orphan + duplicate files (post motion_studio sweep)`
 
