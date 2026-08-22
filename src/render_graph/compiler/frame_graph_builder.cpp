@@ -636,6 +636,23 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
         batch.is_gpu_fused = true;
         compiled.program.layer_batches.push_back(std::move(batch));
     }
+
+    // Compute fully_recorded: true when every reachable node has a compiled
+    // recorder (has_compiled_recorder() returns true).  Nodes that are not
+    // reachable from the output are excluded from the verdict.
+    compiled.program.fully_recorded = true;
+    for (const auto& level : compiled.levels) {
+        for (GraphNodeId node_id : level) {
+            if (node_id >= compiled.graph.size() || !compiled.graph.has_node(node_id)) {
+                continue;
+            }
+            if (!compiled.graph.node(node_id).has_compiled_recorder()) {
+                compiled.program.fully_recorded = false;
+                break;
+            }
+        }
+        if (!compiled.program.fully_recorded) break;
+    }
 }
 } // namespace
 
