@@ -206,11 +206,39 @@ void execute_single_node(
         }
     }
 
-    // Use lightweight clone that skips copying large vectors and shares the
-    // frame-owned DOF depth buffer. Copying a full depth plane for every node
-    // would both break DOF correctness and recreate the old allocation cost.
+    // ── Compiled fast-path (Fase D/E): skip clone_for_node_execution() ──
+    // When the full graph is fully_recorded, every node is backed by a
+    // compiled recorder.  We can avoid the expensive clone_for_node_execution()
+    // call (which copies frame_input, policy, services, and DOF depth vecs)
+    // and use a shallow struct copy instead.  Processor bindings are still
+    // resolved from the compiled snapshot on the node-local copy.
     const auto t_clone0 = profiling::now();
-    auto node_ctx = ctx.clone_for_node_execution();
+    RenderGraphContext node_ctx;
+    if (compiled.program.fully_recorded && id < compiled.nodes.size()
+        && compiled.nodes[id].reachable) {
+        // Shallow copy: POD frame_input + policy, pointer fields (services,
+        // counters, profiler, DOF depth).  Per-node mutable state
+        // (reusable_inputs, scratch views, transform_scratch etc.) stays
+        // default-initialised — same contract as clone_for_node_execution().
+        node_ctx.frame_input = ctx.frame_input;
+        node_ctx.policy = ctx.policy;
+        node_ctx.services = ctx.services;
+        node_ctx.node_exec.counters = ctx.node_exec.counters;
+        node_ctx.node_exec.profiler = ctx.node_exec.profiler;
+        node_ctx.node_exec.active_tile_clip = ctx.node_exec.active_tile_clip;
+        node_ctx.node_exec.dirty_rect = ctx.node_exec.dirty_rect;
+        node_ctx.node_exec.shared_dof_depth = ctx.node_exec.shared_dof_depth
+            ? ctx.node_exec.shared_dof_depth
+            : const_cast<std::vector<float>*>(&ctx.node_exec.dof_depth);
+        node_ctx.node_exec.shared_dof_source_coverage =
+            ctx.node_exec.shared_dof_source_coverage
+                ? ctx.node_exec.shared_dof_source_coverage
+                : const_cast<DofSourceCoverage*>(&ctx.node_exec.dof_source_coverage);
+        node_ctx.node_exec.text_bbox_reporter = ctx.node_exec.text_bbox_reporter;
+        node_ctx.frame_error = ctx.frame_error;
+    } else {
+        node_ctx = ctx.clone_for_node_execution();
+    }
     node_ctx.node_exec.planned_physical_slot = nullptr;
     if (id < compiled.physical_framebuffer_plan.resources.size()) {
         const auto& allocation = compiled.physical_framebuffer_plan.resources[id];
