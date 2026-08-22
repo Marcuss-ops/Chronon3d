@@ -79,7 +79,7 @@ inline std::span<const float> framebuffer_rgba_view(
 /// or any native step fails.  Returns true immediately when the framebuffer
 /// already carries a handle.
 inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
-    if (!ctx.services.backend || !ctx.services.surface_registry) return false;
+    if (!ctx.services.backend || !ctx.services.surface_registry || !ctx.services.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
         // The registry owns logical identity, while Vulkan owns the physical
@@ -148,7 +148,7 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
 /// would add a needless GPU<-CPU round trip on every image layer/frame.
 inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                                         Framebuffer& framebuffer) {
-    if (!ctx.services.backend || !ctx.services.surface_registry) return false;
+    if (!ctx.services.backend || !ctx.services.surface_registry || !ctx.services.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
         if (ctx.services.surface_registry->lookup(handle) &&

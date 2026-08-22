@@ -375,6 +375,19 @@ std::vector<StaticBakeRegion> merge_contiguous_static_regions(
 // the per-node cache becomes redundant — the region-level bake covers the
 // same static surface, and the skip mask eliminates the execute call entirely
 // instead of returning a cached Framebuffer on each frame.
+void preallocate_surfaces(const CompiledTemplateProgram& program,
+                          RenderBackend* backend,
+                          std::uint32_t canvas_width,
+                          std::uint32_t canvas_height) {
+    if (!backend || !program.compiled || canvas_width == 0 || canvas_height == 0) {
+        return;
+    }
+    const auto& plan = program.compiled->physical_framebuffer_plan;
+    if (plan.empty()) return;
+
+    backend->preallocate_plan_surfaces(canvas_width, canvas_height, plan);
+}
+
 PreparedFrameProgram prepare(const CompiledTemplateProgram& program) {
     PreparedFrameProgram prepared;
     if (!program.compiled || program.static_regions.empty()) {

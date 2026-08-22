@@ -1,5 +1,79 @@
 // Vulkan Impl surface ownership and upload helpers. Included inside VulkanBackend::Impl to keep
 // the private state definition single-source while separating responsibilities.
+
+    // Pre-allocate every physical surface from the compiler's interval-coloring
+    // plan.  After this call, ensure_surface() performs direct slot lookup
+    // instead of search/create/resize—zero vkCreateImage, zero vkCreateImageView,
+    // zero vkAllocateMemory in the frame hot loop.
+    //
+    // The pool-based fallback (ensure_surface without plan) remains for:
+    //   - software/reference backends
+    //   - job-persistent assets (decoded images, text atlases)
+    //   - surfaces created outside the compiled graph path
+    void preallocate_plan_surfaces(
+        std::uint32_t canvas_width,
+        std::uint32_t canvas_height,
+        const graph::PhysicalFramebufferAllocationPlan& plan) {
+
+        if (canvas_width == 0 || canvas_height == 0 || plan.empty()) return;
+
+        // Resize the plan's slots with actual canvas dimensions.  The
+        // compiled plan is resolution-independent; max_width/max_height
+        // start at 0 and must be filled with real frame sizes.
+        std::vector<graph::FramebufferSlot> resolved_slots = plan.slots;
+        const auto frame_bytes = static_cast<std::size_t>(canvas_width) *
+            canvas_height * sizeof(float) * 4;  // RGBA32F
+
+        for (auto& slot : resolved_slots) {
+            if (slot.max_width < canvas_width) slot.max_width = canvas_width;
+            if (slot.max_height < canvas_height) slot.max_height = canvas_height;
+        }
+
+        // Pre-create every physical slot as a device-local RGBA32F image.
+        // The VulkanMemoryArena batches allocations, so even for many
+        // slots the actual vkAllocateMemory count stays low (arena-allocated
+        // chunks).
+        for (const auto& slot : resolved_slots) {
+            const std::uint32_t w = slot.max_width > 0
+                ? static_cast<std::uint32_t>(slot.max_width)
+                : canvas_width;
+            const std::uint32_t h = slot.max_height > 0
+                ? static_cast<std::uint32_t>(slot.max_height)
+                : canvas_height;
+
+            if (w == 0 || h == 0) continue;
+
+            auto& physical = physical_surfaces[slot.id];
+            if (physical.image.image != VK_NULL_HANDLE) {
+                destroy_image(physical.image);
+            }
+            make_image(physical.image, w, h, /*exportable=*/false);
+            physical.image.initialized = false;
+            physical.desc = runtime::SurfaceDesc{
+                w, h,
+                runtime::PixelFormat::Rgba32Float,
+                runtime::ResourceUsage::Storage,
+                runtime::LifetimeClass::FrameTransient,
+                frame_bytes};
+            ++stats.surface_creations;
+        }
+
+        // Remember the plan dimensions so ensure_surface can validate
+        // without searching.
+        plan_preallocated = true;
+        plan_canvas_width = canvas_width;
+        plan_canvas_height = canvas_height;
+    }
+
+    // When the plan is preallocated, ensure_surface is a direct binding
+    // operation: bind a logical handle to its planned physical slot with
+    // zero search, zero create, zero resize.  If the handle has no planned
+    // slot, it falls through to the pool path (job-persistent assets,
+    // unplanned scratch surfaces).
+    bool plan_preallocated{false};
+    std::uint32_t plan_canvas_width{0};
+    std::uint32_t plan_canvas_height{0};
+
     static bool surface_compatible(const runtime::SurfaceDesc& a,
                                    const runtime::SurfaceDesc& b) {
         return a.width == b.width && a.height == b.height && a.format == b.format;
@@ -85,11 +159,30 @@
         stats.physical_surfaces_peak = std::max(
             stats.physical_surfaces_peak,
             static_cast<std::uint64_t>(physical_surfaces.size()));
+        // When the plan is preallocated, the image already exists with the
+        // correct dimensions — no create, no resize.  Validate the invariant
+        // and skip all Vulkan object creation.
+        if (plan_preallocated && physical.image.image != VK_NULL_HANDLE) {
+            if (physical.image.width != desc.width ||
+                physical.image.height != desc.height) {
+                throw std::invalid_argument(
+                    "Vulkan plan-preallocated surface slot " +
+                    std::to_string(slot) + " has dimensions " +
+                    std::to_string(physical.image.width) + "x" +
+                    std::to_string(physical.image.height) +
+                    " but requested " + std::to_string(desc.width) + "x" +
+                    std::to_string(desc.height));
+            }
+            physical.desc = desc;
+            surface_bindings[handle] = slot;
+            return physical.image;
+        }
         if (physical.image.image == VK_NULL_HANDLE ||
             physical.image.width != desc.width ||
             physical.image.height != desc.height) {
             if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
-            make_image(physical.image, desc.width, desc.height, false);
+            make_image(physical.image, desc.width, desc.height, false,
+                       to_vk_format(desc.format));
             physical.image.initialized = false;
         }
         physical.desc = desc;
@@ -97,11 +190,30 @@
         return physical.image;
     }
 
+    static VkFormat to_vk_format(runtime::PixelFormat fmt) noexcept {
+        switch (fmt) {
+            case runtime::PixelFormat::Rgba32Float: return VK_FORMAT_R32G32B32A32_SFLOAT;
+            case runtime::PixelFormat::Rgba8Unorm:  return VK_FORMAT_B8G8R8A8_UNORM;
+            case runtime::PixelFormat::R8Unorm:     return VK_FORMAT_R8_UNORM;
+            default: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        }
+    }
+
+    static constexpr std::size_t pixel_format_bytes(runtime::PixelFormat fmt) noexcept {
+        switch (fmt) {
+            case runtime::PixelFormat::Rgba32Float: return 16;
+            case runtime::PixelFormat::Rgba8Unorm:  return 4;
+            case runtime::PixelFormat::R8Unorm:     return 1;
+            default: return 16;
+        }
+    }
+
     Image& ensure_surface(runtime::RenderSurfaceHandle handle,
                           const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             (desc.format != runtime::PixelFormat::Rgba32Float &&
-             desc.format != runtime::PixelFormat::Rgba8Unorm) ||
+             desc.format != runtime::PixelFormat::Rgba8Unorm &&
+             desc.format != runtime::PixelFormat::R8Unorm) ||
             desc.width == 0 || desc.height == 0) {
             throw std::invalid_argument("Vulkan surface requires a valid non-empty description");
         }
@@ -393,23 +505,42 @@
             throw std::invalid_argument("Vulkan region upload is outside surface bounds");
         }
         auto& image = ensure_surface(handle, desc);
-        const VkDeviceSize bytes = static_cast<VkDeviceSize>(width) * height * sizeof(float) * 4;
-        if (rgba.size_bytes() != bytes) {
+        const auto px_bytes = pixel_format_bytes(desc.format);
+        const VkDeviceSize byte_count = static_cast<VkDeviceSize>(width) * height * px_bytes;
+        const VkDeviceSize src_byte_count = static_cast<VkDeviceSize>(rgba.size_bytes());
+        if (desc.format == runtime::PixelFormat::R8Unorm) {
+            // R8Unorm: one float per pixel (coverage 0..1), packed to 1 byte.
+            // Accept the float span and pack during upload.
+            const auto expected_floats = static_cast<VkDeviceSize>(width) * height;
+            if (static_cast<VkDeviceSize>(rgba.size()) != expected_floats) {
+                throw std::invalid_argument(
+                    "Vulkan region upload size does not match rectangle for R8Unorm");
+            }
+        } else if (src_byte_count != byte_count) {
             throw std::invalid_argument("Vulkan region upload size does not match rectangle");
         }
         ++stats.upload_calls;
-        stats.upload_bytes += bytes;
-        stats.upload_region_bytes += bytes;
+        stats.upload_bytes += byte_count;
+        stats.upload_region_bytes += byte_count;
         const auto producer = static_cast<std::size_t>(profiling::g_gpu_upload_producer);
         if (producer < stats.upload_producer_bytes.size()) {
-            stats.upload_producer_bytes[producer] += bytes;
+            stats.upload_producer_bytes[producer] += byte_count;
             stats.upload_producer_region_count[producer] += 1;
         }
         auto& slot = acquire_upload_slot(wait_for_completion);
-        ensure_upload_slot(slot, bytes);
+        ensure_upload_slot(slot, byte_count);
         void* mapped = nullptr;
-        check(vkMapMemory(device, slot.memory, 0, bytes, 0, &mapped), "vkMapMemory(surface region upload)");
-        std::memcpy(mapped, rgba.data(), static_cast<std::size_t>(bytes));
+        check(vkMapMemory(device, slot.memory, 0, byte_count, 0, &mapped), "vkMapMemory(surface region upload)");
+        if (desc.format == runtime::PixelFormat::R8Unorm) {
+            // Pack float→R8: clamp to [0,1], convert to uint8
+            auto* dst = static_cast<std::uint8_t*>(mapped);
+            for (std::size_t i = 0; i < rgba.size(); ++i) {
+                dst[i] = static_cast<std::uint8_t>(
+                    std::clamp(rgba[i], 0.0f, 1.0f) * 255.0f + 0.5f);
+            }
+        } else {
+            std::memcpy(mapped, rgba.data(), static_cast<std::size_t>(byte_count));
+        }
         vkUnmapMemory(device, slot.memory);
         const VkCommandBufferBeginInfo begin{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,

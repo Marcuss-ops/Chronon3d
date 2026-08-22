@@ -266,7 +266,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cpu_breakdown.video_source_inactive_frames = c->video_source_inactive_frames.load(std::memory_order_relaxed);
         timings.cpu_breakdown.video_source_repeated_frames = c->video_source_repeated_frames.load(std::memory_order_relaxed);
     }
-    const auto atlas_stats = session->renderer->runtime().gpu_text_atlas_cache().stats();
+    const auto atlas_stats = session->renderer->runtime().gpu_styled_glyph_cache().stats();
     timings.text.atlas_cache_hits = atlas_stats.cache_hits;
     timings.text.atlas_cache_misses = atlas_stats.cache_misses;
     timings.text.atlas_key_bytes_hashed = atlas_stats.key_bytes_hashed;
