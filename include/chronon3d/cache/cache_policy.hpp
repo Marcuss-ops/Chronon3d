@@ -1,3 +1,10 @@
+// =============================================================================
+// cache_policy.hpp — CROSS-CUTTING INFRASTRUCTURE (not a cache): domain config
+//
+// Resolves capacity/eviction policy per CacheDomain.  Not a cache itself;
+// provides configuration to the three canonical cache families defined in
+// cache_taxonomy.hpp.
+// =============================================================================
 #pragma once
 
 // ── cache_policy.hpp — Centralized cache-domain configuration ───────────

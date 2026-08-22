@@ -14,6 +14,7 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Mask; }
     std::string_view name() const noexcept override { return "Mask"; }
+    bool has_compiled_recorder() const noexcept override { return true; }
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext&,

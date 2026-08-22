@@ -135,7 +135,7 @@ script nei workflow GitHub Actions corrispondenti.
 | Gate | Workflow | Step name | Trigger |
 |------|----------|-----------|---------|
 | `check_test_hygiene.sh` | `.github/workflows/ci.yml` | "Gate / Test Hygiene" | ogni PR + push (pre-build; **Linux only via `if: runner.os == 'Linux'`** perché la matrice include Windows Release) |
-| `check_test_suite_registration.sh` | `.github/workflows/gates-full-validation.yml` | "Gate / Test Suite Registration" | PR-with-sensitive-changes + push (pre-build, paths-scoped a `tests/*` + `CMakeLists.txt`; **Ubuntu-pinned via `runs-on: ubuntu-latest`**) |
+| `check_test_suite_registration.sh` | `.github/workflows/ci.yml (full-validation job)` | "Gate / Test Suite Registration" | PR-with-sensitive-changes + push (pre-build, paths-scoped a `tests/*` + `CMakeLists.txt`; **Ubuntu-pinned via `runs-on: ubuntu-latest`**) |
 | `check_main_clean.sh` | non CI (GATE-MNT-01 = local-only per design) | — | invocato localmente da `tools/wrap_push.sh` + `.git/hooks/pre-push` |
 
 **Nessun `--skip-gates` escape hatch.** Motivi: (a) un duplicate `DOCTEST_MAIN` rompe il link;

@@ -209,7 +209,7 @@ riportano lo stesso stato.
 | # | Azione | Commit | Deliverable sintetico |
 |---|--------|--------|---|
 | P0-A | ctest nei gate core-build/sdk-build | `61bceb6c` | `ctest --preset` aggiunto ai gate CI per esecuzione test reali |
-| P0-B | paths filter full-validation | già presente | paths filter su `gates-full-validation.yml` |
+| P0-B | paths filter full-validation | già presente | paths filter su `ci.yml (full-validation job)` |
 | P0-C | renderer-boundary gate blocking | `e79f8621` | `continue-on-error` rimosso; 5 invarianti (I1–I5) blocking |
 | P0-D | consumer CI manifest-clean | `bb592df5` | consumer CI test manifest-clean |
 | P1-A | Eliminare global AssetRegistry | `f06e4b1f` | DI pattern per AssetRegistry nel CLI |

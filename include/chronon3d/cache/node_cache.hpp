@@ -1,5 +1,16 @@
 #pragma once
 
+// =============================================================================
+// node_cache.hpp — ContentCache: inter-frame rendered node output cache
+//
+// Cache family: ContentCache (see cache/cache_taxonomy.hpp).
+//
+// Keys: content-derived (NodeCacheKey: scope, frame, dimensions, params_hash,
+//   source_hash, input_hash, temporal_key).  Same key ⇒ same output, always.
+//   Only frame-INVARIANT results enter the cache; frame-dependent results
+//   bypass (they are shared within the frame via ExecutionState::temp).
+// =============================================================================
+
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>

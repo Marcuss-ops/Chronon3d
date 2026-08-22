@@ -1,3 +1,8 @@
+// =============================================================================
+// overlay_template.hpp — ProgramCache: overlay template GPU command plans
+//
+// Cache family: ProgramCache (see cache/cache_taxonomy.hpp).
+// =============================================================================
 #pragma once
 
 #include <chronon3d/cache/lru_cache.hpp>

@@ -26,7 +26,7 @@ frame-analysis behavior was not wired into a maintained verification path.
 The two related candidates remain intact:
 
 - `tools/render_showcase_contact_sheet.sh` is invoked by
-  `.github/workflows/nightly-visual.yml`;
+  `.github/workflows/nightly.yml (cinematic-full job)`;
 - `tools/selftest_validate_benchmark_json.sh` is the documented five-case
   manual self-test for `tools/validate_benchmark_json.sh`.
 

@@ -21,6 +21,7 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "DOF"; }
+    bool has_compiled_recorder() const noexcept override { return true; }
 
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
