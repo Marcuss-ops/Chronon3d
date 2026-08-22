@@ -21,7 +21,7 @@ enum class ResourceUsage : std::uint8_t {
     Generic, ColorAttachment, DepthAttachment, Storage
 };
 enum class PixelFormat : std::uint8_t {
-    Unknown, Rgba32Float, Rgba8Unorm, Depth32Float, Bytes
+    Unknown, Rgba32Float, Rgba8Unorm, R8Unorm, Depth32Float, Bytes
 };
 
 /// Backend-neutral description used by the lifetime planner and resource
@@ -59,26 +59,45 @@ static_assert(sizeof(SurfaceAffineTransform) == 96,
 /// Per-glyph instance for the GPU text-run kernel.  It locates one glyph
 /// quad inside a packed atlas texture and places it in the destination
 /// canvas.  The byte layout MUST match the std430 `GlyphInstance` block in
-/// text_run.comp exactly (three ivec2 + four floats = 40 bytes, no padding),
-/// because instances are copied verbatim into the kernel's storage buffer.
+/// text_run.comp exactly.
+///
+/// Fase C: extended with atlas UV coordinates (replacing absolute pixel
+/// offsets), per-instance RGBA color, and atlas page index.  The old
+/// pixel-offset path is kept for the styled atlas fallback.
 struct GlyphInstance {
     std::int32_t dst_x{0};     // destination canvas origin (pixels)
     std::int32_t dst_y{0};
-    std::int32_t atlas_x{0};   // packed atlas origin (pixels)
-    std::int32_t atlas_y{0};
+    // std430 padding: ivec2 (8-byte aligned) → vec4 atlas_uv (16-byte aligned)
+    // has 8 bytes of implicit padding in the GLSL layout.
+    std::int32_t _pad_atlas0{0};
+    std::int32_t _pad_atlas1{0};
+    // Fase C — UV-space atlas coordinates (0..1), replacing atlas_x/atlas_y
+    // for the paged glyph atlas.  When atlas_mode == 1, these are used.
+    float atlas_u0{0.0f};
+    float atlas_v0{0.0f};
+    float atlas_u1{1.0f};
+    float atlas_v1{1.0f};
     std::int32_t width{0};     // glyph quad size (pixels)
     std::int32_t height{0};
     float opacity{1.0f};       // per-glyph premultiplied opacity
     float scale_x{1.0f};
     float scale_y{1.0f};
-    float pad{0.0f};
+    // Fase C — per-instance color (premultiplied RGBA packed as u32).
+    std::uint32_t rgba{0xFFFFFFFFu};  // white, fully opaque default
+    // atlas_mode: 0 = legacy absolute pixel atlas (atlas_x/atlas_y),
+    //             1 = paged atlas with UV coords + instance color
+    std::uint32_t atlas_mode{0};
+    // atlas_page: index into the array of atlas texture pages (atlas_mode 1 only)
+    std::uint32_t atlas_page{0};
     // Optional GPU-driven highlight interval in composition frames.
-    // Negative values mean that this glyph has no timed highlight.
     float highlight_start_frame{-1.0f};
     float highlight_end_frame{-1.0f};
+    // Legacy absolute atlas origin (atlas_mode 0 only).
+    std::int32_t atlas_x{0};
+    std::int32_t atlas_y{0};
 };
-static_assert(sizeof(GlyphInstance) == 48,
-              "GlyphInstance must stay 48 bytes to match text_run.comp");
+static_assert(sizeof(GlyphInstance) == 80,
+              "GlyphInstance must match text_run.comp std430 layout");
 
 struct SurfaceRecord {
     RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
