@@ -16,6 +16,7 @@
 #include <chronon3d/render_graph/compiler/compiled_template_program.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/compiler/parameter_ring.hpp>
+#include <chronon3d/render_graph/compiler/command_replay.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 
 #include <cstdint>
@@ -303,6 +304,75 @@ TEST_CASE("Fase D: ParameterRingWriter writes into correct offset") {
     writer.clear();
     CHECK(buffer[0] == std::byte{0x00});
     CHECK(buffer[16] == std::byte{0x00});
+}
+
+// ── Fase C: physical resource analysis ────────────────────────────────────
+TEST_CASE("Fase C: analyze_physical_resources mirrors alloc plan") {
+    auto g = build_synthetic_compiled_graph();
+    const auto plan = chronon3d::graph::analyze_physical_resources(g);
+    CHECK(plan.sized_slots.size() >= 1);
+    CHECK(plan.slot_count >= 1);
+    CHECK(plan.peak_transient_bytes > 0);
+}
+
+TEST_CASE("Fase C: build_device_memory_plan computes estimated peak") {
+    auto g = build_synthetic_compiled_graph();
+    const auto plan = chronon3d::graph::analyze_physical_resources(g);
+    auto mem = chronon3d::graph::build_device_memory_plan(plan);
+    CHECK(mem.physical_slots > 0);
+    CHECK(mem.safety_margin > 0);
+    CHECK(mem.estimated_peak > mem.physical_slots);
+}
+
+TEST_CASE("Fase C: admit_or_degrade_job rejects over-budget job") {
+    auto g = build_synthetic_compiled_graph();
+    const auto plan = chronon3d::graph::analyze_physical_resources(g);
+    auto mem = chronon3d::graph::build_device_memory_plan(plan);
+
+    auto admitted = chronon3d::graph::admit_or_degrade_job(
+        mem, /*available_vram=*/mem.estimated_peak * 2);
+    CHECK(admitted.verdict == chronon3d::graph::AdmissionVerdict::Admitted);
+    CHECK(admitted.ok());
+
+    auto rejected = chronon3d::graph::admit_or_degrade_job(
+        mem, /*available_vram=*/0);
+    CHECK(rejected.verdict == chronon3d::graph::AdmissionVerdict::Rejected);
+    CHECK_FALSE(rejected.ok());
+}
+
+// ── Fase E: command replay bridge ──────────────────────────────────────────
+TEST_CASE("Fase E: CommandReplayDescriptor allocates slots") {
+    auto g = build_synthetic_compiled_graph();
+    auto ring = chronon3d::graph::build_parameter_ring(g, 3);
+    auto replay = chronon3d::graph::build_command_replay(ring, 3);
+
+    CHECK(replay.valid());
+    CHECK(replay.slot_count == 3);
+    CHECK(replay.total_param_bytes == 3u * ring.total_bytes);
+
+    auto slots = replay.allocate_slots();
+    CHECK(slots.size() == 3);
+    for (std::size_t i = 0; i < 3; ++i) {
+        CHECK(slots[i].ready());
+        CHECK(slots[i].slot_index == i);
+        CHECK(slots[i].param_buffer.size() == ring.total_bytes);
+    }
+}
+
+TEST_CASE("Fase E: write_frame invokes per-op writer") {
+    auto g = build_synthetic_compiled_graph();
+    auto ring = chronon3d::graph::build_parameter_ring(g, 2);
+    auto replay = chronon3d::graph::build_command_replay(ring, 2);
+    auto slots = replay.allocate_slots();
+
+    std::size_t write_count = 0;
+    CHECK(replay.write_frame(
+        std::span<chronon3d::graph::CommandSlot>(slots), 0,
+        [&](std::size_t, const chronon3d::graph::ParameterRingDescriptor::Entry&,
+            chronon3d::graph::ParameterRingWriter&) {
+            ++write_count;
+        }));
+    CHECK(write_count == 2);  // two param entries
 }
 
 TEST_CASE("Fase D: compile_template_program populates param_ring") {

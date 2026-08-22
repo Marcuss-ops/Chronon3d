@@ -23,6 +23,7 @@
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/core/cache_policy.hpp>  // TemporalClass
 #include <chronon3d/render_graph/compiler/parameter_ring.hpp>  // Fase D
+#include <chronon3d/render_graph/compiler/command_replay.hpp>  // Fase E
 
 #include <cstddef>
 #include <cstdint>
@@ -264,6 +265,9 @@ struct CompiledTemplateProgram {
 
     // ── Fase D — parameter ring ────────────────────────────────────────
     ParameterRingDescriptor            param_ring;
+
+    // ── Fase E — command replay ────────────────────────────────────────
+    CommandReplayDescriptor            replay;
 
     bool                                valid{false};
 
