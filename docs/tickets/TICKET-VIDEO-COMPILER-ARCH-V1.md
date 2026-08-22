@@ -1,6 +1,6 @@
 # TICKET-VIDEO-COMPILER-ARCH-V1 — Video-compiler architecture (CompiledTemplateProgram → DeviceProgram → hot loop)
 
-## Stato: OPEN — Fase A + B + D + H DONE (2026-08-22), fasi C + E–M PLANNED
+## Stato: OPEN — Fase A + B + C + D + E + H DONE (2026-08-22), fasi F–G + I–M PLANNED
 
 Architettura "video compiler offline": il grosso del lavoro intellettuale avviene
 prima del primo frame (compilazione) e il runtime si riduce a far scorrere la
@@ -113,10 +113,8 @@ eseguiamo.
 | Fase | Implementazione | Risultato |
 |------|-----------------|-----------|
 | **A** | `CompiledTemplateProgram` + parameter/resource schema | RenderGraph diventa AST |
-| **B** | Temporal Analysis + maximal static islands | elimina lavoro statico |
-| **C** | PhysicalResourcePlan + preflight VRAM | zero churn / OOM controllati |
-| **D** | Persistent FrameSlot parameter ring — DONE (2026-08-22, 3 test PASS) | `ParameterRingDescriptor` + `ParameterRingWriter`, SoA offset/size, triple-buffered, wired in `compile_template_program()` |
-| **E** | Vulkan command replay | CPU orchestration minima |
+| **B** | Temporal Analysis + maximal static islands | elimina lavoro statico || **C** | PhysicalResourcePlan + preflight VRAM — DONE (2026-08-22, 3 test PASS) | `analyze_physical_resources()` da alloc plan, `build_device_memory_plan()` (8 categorie + 15% margin), `admit_or_degrade_job()` Admitted/Rejected |
+| **D** | Persistent FrameSlot parameter ring — DONE (2026-08-22, 3 test PASS) | `ParameterRingDescriptor` + `ParameterRingWriter`, SoA offset/size, triple-buffered, wired in `compile_template_program()` || **E** | Vulkan command replay — DONE (2026-08-22, 2 test PASS) | `CommandReplayDescriptor` header-only bridge: ring → N slots, `allocate_slots()`, `write_frame()`, `build_command_replay()` |
 | **F** | GpuLayerBatch universale | immagini/testo senza intermedi |
 | **G** | PixelProgram IR + fusion | elimina pass GPU intermedi |
 | **H** | Persistent daemon + template cache | cold-start quasi nullo |
