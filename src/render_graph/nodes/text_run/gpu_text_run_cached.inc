@@ -12,7 +12,11 @@ graph::RenderOpResult draw_cached_text_run(
             "draw_cached_text_run: CPU glyph atlas is not ready"});
     }
 
-    // affine matrix rejection — same as before
+    // The surface text kernel consumes integer pixel quads. Fold a diagonal
+    // affine scale into the glyph positions/scales so the common animated
+    // subtitle/watermark scale path stays on GPU. Rotation, shear, reflection
+    // and perspective still use the legacy renderer because GlyphInstance
+    // cannot represent them without changing rasterization semantics.
     if (std::abs(model_matrix[0][1]) > 1e-4f ||
         std::abs(model_matrix[1][0]) > 1e-4f ||
         std::abs(model_matrix[0][2]) > 1e-4f ||
@@ -35,160 +39,19 @@ graph::RenderOpResult draw_cached_text_run(
     const float model_translate_y = model_matrix[3][1];
     const auto highlight_plan = build_timed_highlight_plan(shape);
     const float current_frame = static_cast<float>(ctx.frame_input.sample_time.frame);
-
-    // ── Fase C: detect styled vs plain-glyph run ────────────────────────────
-    // Plain runs (no stroke / shadow / background per glyph) can use the
-    // global paged glyph atlas. Styled runs fall back to the per-phrase
-    // packed atlas (GpuTextAtlasCache).
-    bool any_styled = false;
-    for (const auto& state : shape.glyphs) {
-        if (state.stroke.a > 1e-4f || state.stroke_width > 0.0f ||
-            state.background.a > 1e-4f) {
-            any_styled = true;
-            break;
-        }
-    }
-    for (const auto& shadow : shape.shadows) {
-        if (shadow.enabled && shadow.opacity > 1e-4f) {
-            any_styled = true;
-            break;
-        }
-    }
-
-    // ── Fase C: paged atlas path (plain text — no stroke/shadow/background) ──
-    if (!any_styled && ctx.services.gpu_paged_glyph_atlas &&
-        ctx.services.backend && ctx.services.surface_registry) {
-        std::vector<runtime::GlyphInstance> instances;
-        instances.reserve(layout.placed.glyphs.size());
-        bool all_resident = true;
-
-        for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
-            const auto& state = shape.glyphs[i];
-            if (state.glyph_id == 0) continue;
-            const auto& placed = layout.placed.glyphs[i];
-            if (placed.bbox_x1 <= placed.bbox_x0 ||
-                state.rotation.x > 1e-4f || state.rotation.y > 1e-4f ||
-                state.rotation.z > 1e-4f || state.skew > 1e-4f ||
-                state.blur > 1e-4f) {
-                all_resident = false;
-                break;
-            }
-
-            // Look up the CPU glyph atlas
-            auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
-                layout.font.font_path, state.glyph_id,
-                static_cast<std::uint32_t>(font_size));
-            if ((!entry || !entry->image || entry->image->empty()) &&
-                ctx.services.asset_resolver) {
-                auto warmed = rasterize_missing_glyph(
-                    *ctx.services.text_render_resources, *ctx.services.asset_resolver,
-                    layout.font.font_path, state.glyph_id,
-                    static_cast<std::uint32_t>(font_size), state.fill);
-                if (warmed) {
-                    ctx.services.text_render_resources->store_glyph_atlas(
-                        layout.font.font_path, state.glyph_id,
-                        static_cast<std::uint32_t>(font_size), *warmed);
-                    entry = std::move(warmed);
-                }
-            }
-            if (!entry || !entry->image || entry->image->empty()) {
-                all_resident = false;
-                break;
-            }
-            BLImageData data{};
-            if (entry->image->getData(&data) != BL_SUCCESS ||
-                data.format != BL_FORMAT_PRGB32 || data.size.w <= 0 || data.size.h <= 0) {
-                all_resident = false;
-                break;
-            }
-
-            // Extract coverage from Blend2D PRGB32: alpha channel = coverage
-            const int gw = data.size.w;
-            const int gh = data.size.h;
-            std::vector<std::uint8_t> coverage(static_cast<std::size_t>(gw) * gh);
-            for (int y = 0; y < gh; ++y) {
-                const auto* src_row = static_cast<const std::uint8_t*>(data.pixelData) +
-                    static_cast<std::size_t>(y) * data.stride;
-                auto* dst_row = coverage.data() + static_cast<std::size_t>(y) * gw;
-                for (int x = 0; x < gw; ++x) {
-                    dst_row[x] = src_row[static_cast<std::size_t>(x) * 4 + 3];  // alpha
-                }
-            }
-
-            // Acquire in paged atlas
-            runtime::GpuGlyphKey key{layout.font.font_path, state.glyph_id,
-                                     static_cast<std::uint32_t>(font_size)};
-            auto loc = ctx.services.gpu_paged_glyph_atlas->acquire(
-                key, static_cast<std::uint32_t>(gw), static_cast<std::uint32_t>(gh), coverage);
-
-            if (loc.w == 0) { all_resident = false; break; }
-
-            // Compute destination
-            const Color raster_fill = highlight_plan.enabled ? shape.paint.fill : state.fill;
-            const float eff_opacity = state.opacity * opacity;
-
-            runtime::GlyphInstance instance{};
-            instance.dst_x = static_cast<std::int32_t>(std::lround(
-                model_translate_x + model_scale_x *
-                (placed.x + state.position.x + entry->x_offset)));
-            instance.dst_y = static_cast<std::int32_t>(std::lround(
-                model_translate_y + model_scale_y *
-                (placed.y + state.position.y + entry->y_offset)));
-            instance.width  = gw;
-            instance.height = gh;
-            instance.scale_x = state.scale.x * model_scale_x;
-            instance.scale_y = state.scale.y * model_scale_y;
-            instance.opacity = eff_opacity;
-            instance.atlas_mode = 1u;  // paged atlas UV mode
-            instance.atlas_page = static_cast<std::uint32_t>(loc.page);
-            instance.atlas_u0 = loc.u0;
-            instance.atlas_v0 = loc.v0;
-            instance.atlas_u1 = loc.u1;
-            instance.atlas_v1 = loc.v1;
-            // Pack color: premultiplied RGBA
-            instance.rgba =
-                (static_cast<std::uint32_t>(std::clamp(raster_fill.r, 0.0f, 1.0f) * 255.0f) << 24u) |
-                (static_cast<std::uint32_t>(std::clamp(raster_fill.g, 0.0f, 1.0f) * 255.0f) << 16u) |
-                (static_cast<std::uint32_t>(std::clamp(raster_fill.b, 0.0f, 1.0f) * 255.0f) << 8u) |
-                static_cast<std::uint32_t>(std::clamp(raster_fill.a, 0.0f, 1.0f) * 255.0f);
-            instance.highlight_start_frame = highlight_plan.enabled
-                ? highlight_plan.glyph_ranges[i].first : -1.0f;
-            instance.highlight_end_frame = highlight_plan.enabled
-                ? highlight_plan.glyph_ranges[i].second : -1.0f;
-            instances.push_back(instance);
-        }
-
-        if (all_resident && !instances.empty()) {
-            if (!ensure_empty_native_surface(ctx, destination)) {
-                return graph::RenderOpResult(graph::RenderBackendError{
-                    graph::RenderBackendErrorCode::UnsupportedCapability,
-                    "draw_cached_text_run: destination has no native surface"});
-            }
-            const auto cleared = ctx.services.backend->fill_rect_surface(
-                destination.surface_handle(), 0, 0,
-                destination.width(), destination.height(), Color{});
-            if (!cleared.ok()) return cleared;
-            // Dispatch paged text: the atlas pages are already resident.
-            // For now, fall through to the existing draw_text_run_surface_timed
-            // path which will use the GlyphInstance's atlas_mode=1.
-            auto drawn = ctx.services.backend->draw_text_run_surface_timed(
-                destination.surface_handle(),
-                runtime::kInvalidRenderSurfaceHandle,  // unused in atlas_mode=1
-                instances, current_frame,
-                highlight_plan.color, highlight_plan.enabled);
-            if (drawn.ok()) return drawn;
-            // Fall through to styled path if GPU dispatch failed
-        }
-        // Fall through to the styled path below
-    }
-
-    // ── Legacy styled path (original code, unchanged) ──────────────────────
     std::vector<GpuTextGlyph> glyphs;
     glyphs.reserve(layout.placed.glyphs.size());
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
         const auto& state = shape.glyphs[i];
+        // HarfBuzz uses glyph id 0 for whitespace/missing-glyph entries.
+        // They have no bitmap atlas entry and must not invalidate an
+        // otherwise fully resident run.
         if (state.glyph_id == 0) continue;
         const auto& placed = layout.placed.glyphs[i];
+        // FreeType's vertical metrics are positive-up: bbox_y1 is normally
+        // smaller than bbox_y0 in screen coordinates.  The bitmap dimensions
+        // below, not the signed metric ordering, determine whether there is
+        // drawable ink.
         if (placed.bbox_x1 <= placed.bbox_x0) continue;
         if (!(state.scale.x > 0.0f) || !(state.scale.y > 0.0f) ||
             std::abs(state.rotation.x) > 1e-4f ||
@@ -379,6 +242,10 @@ graph::RenderOpResult draw_cached_text_run(
             highlight_plan.enabled ? highlight_plan.glyph_ranges[i].second : -1.0f});
         glyphs.back().atlas_key = std::move(style_key);
     }
+    // A cached TextRun renders into its own transparent output surface. Do
+    // not upload the CPU framebuffer here: that would copy the full canvas
+    // once per text layer and frame even though the text kernel writes only
+    // the glyph result.
     if (!ensure_empty_native_surface(ctx, destination)) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,

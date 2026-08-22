@@ -20,10 +20,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
-#include <chronon3d/render_graph/compiler/pixel_domain.hpp>
-#include <chronon3d/render_graph/compiler/materialization_reason.hpp>
-#include <chronon3d/render_graph/compiler/gpu_primitive.hpp>
-#include <chronon3d/runtime/telemetry/fast_path_gates.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/core/cache_policy.hpp>  // TemporalClass
 #include <chronon3d/render_graph/compiler/parameter_ring.hpp>  // Fase D
@@ -263,12 +259,6 @@ struct CompiledTemplateProgram {
     std::vector<StaticBakeRegion>       static_regions;
     std::vector<CompiledGpuBatch>       batches;
     std::vector<MaterializationBoundary> boundaries;
-
-    // ── Target First-Principles Architecture fields ────────────────────
-    PixelDomain                         working_domain{PixelDomain::NV12};
-    std::vector<ColorDomainBarrier>     color_conversions;
-    std::vector<MaterializationBarrier> materializations;
-    PrimitiveStream                     primitives;
 
     // ── Fase B — temporal analysis ─────────────────────────────────────
     TemporalAnalysisResult             temporal;
