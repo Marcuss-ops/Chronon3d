@@ -325,7 +325,8 @@ void execute_single_node(
         cache_eval.key,
         cache_eval.result,
         ctx,
-        parent_pool
+        parent_pool,
+        &compiled.nodes[id].stable_node_id  // trace annotation (plan §7)
     );
     if (out_execute_ms) {
         *out_execute_ms = duration_ms;

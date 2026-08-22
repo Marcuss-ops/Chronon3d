@@ -85,6 +85,17 @@ inline void RegisterVulkanQueueTrack() {
 #define CHRONON_TRACE_SCOPE(cat, name) \
     TRACE_EVENT(cat, name)
 
+/// Scoped slice with one uint64 debug annotation (`ann_name` -> `ann_value`),
+/// e.g. stable_node_id on node_execute (plan §7/§8).  The annotation lambda
+/// only runs when the category is active, so building the value costs nothing
+/// when tracing is off.
+#define CHRONON_TRACE_SCOPE_ANNOTATED(cat, name, ann_name, ann_value) \
+    TRACE_EVENT(cat, name, [&](::perfetto::EventContext ctx) { \
+        auto* da = ctx.event()->add_debug_annotations(); \
+        da->set_name(ann_name); \
+        da->set_uint_value(static_cast<uint64_t>(ann_value)); \
+    })
+
 /// Numeric counter sample on a counter track (e.g. queue depths, VRAM).
 #define CHRONON_TRACE_COUNTER(cat, name, value) \
     TRACE_COUNTER(cat, name, value)
@@ -170,6 +181,8 @@ inline void RegisterVulkanQueueTrack() {
 
 #define CHRONON_TRACE_SCOPE(cat, name) \
     do { (void)sizeof(cat); (void)sizeof(name); } while (false)
+#define CHRONON_TRACE_SCOPE_ANNOTATED(cat, name, ann_name, ann_value) \
+    do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(ann_name); (void)sizeof(ann_value); } while (false)
 #define CHRONON_TRACE_COUNTER(cat, name, value) \
     do { (void)sizeof(cat); (void)sizeof(name); (void)sizeof(value); } while (false)
 #define CHRONON_TRACE_BEGIN(cat, name) \
