@@ -84,13 +84,38 @@ def collect(root: Path) -> dict[Path, set[str]]:
     return ownership
 
 
+# ── Documented exceptions ──────────────────────────────────────────────────
+# A source may deliberately be compiled into more than one CMake target.
+# Each entry must name the EXACT resolved repo-relative path and the EXACT
+# owner set; adding an entry requires a matching rationale comment.
+#
+# - src/backends/vulkan/cuda_vulkan_surface_bridge.cpp is compiled into BOTH
+#   chronon3d_backend_vulkan (the real backend) AND the standalone probe
+#   chronon3d_cuda_vulkan_external_memory_probe.  The probe is a diagnostic
+#   executable that must exercise the bridge in isolation (no whole-backend
+#   link), a deliberate probe/test-isolation compile of the same source.
+ALLOWED_MULTI_OWNER: dict[tuple[str, ...], frozenset[str]] = {
+    ("src", "backends", "vulkan", "cuda_vulkan_surface_bridge.cpp"): frozenset(
+        {"chronon3d_backend_vulkan", "chronon3d_cuda_vulkan_external_memory_probe"}
+    ),
+}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="?", default=".", type=Path)
     args = parser.parse_args()
     root = args.root.resolve()
     ownership = collect(root)
-    conflicts = [(path, sorted(targets)) for path, targets in ownership.items() if len(targets) > 1]
+    conflicts = []
+    for path, targets in ownership.items():
+        if len(targets) <= 1:
+            continue
+        rel = path.relative_to(root)
+        allowed = ALLOWED_MULTI_OWNER.get(rel.parts)
+        if allowed is not None and frozenset(targets) == allowed:
+            continue  # documented intentional dual-compile
+        conflicts.append((path, sorted(targets)))
     conflicts.sort(key=lambda item: str(item[0]))
     if conflicts:
         print(f"GATE_FAIL: {len(conflicts)} source(s) have multiple productive owners:")
