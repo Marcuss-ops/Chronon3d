@@ -15,10 +15,15 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>  // CompiledLayerBatch
 
 #include <cstdint>
+#include <optional>
 #include <vector>
+
+namespace chronon3d::graph {
+struct CompiledNodeInfo;
+struct CompiledLayerBatch;
+} // namespace chronon3d::graph
 
 namespace chronon3d::runtime {
 
@@ -46,6 +51,7 @@ struct LayerInstance {
 
     float           src_x0{0}, src_y0{0}, src_x1{0}, src_y1{0};   // texture coords
     float           dst_x0{0}, dst_y0{0}, dst_x1{0}, dst_y1{0};   // framebuffer coords
+    float           opacity{1.0f};
 
     BlendMode       blend{BlendMode::Normal};
 
@@ -66,14 +72,15 @@ struct GpuLayerBatch {
     [[nodiscard]] std::size_t size() const noexcept { return instances.size(); }
 };
 
-/// Lift CompiledLayerBatch (graph-compiler level) to GpuLayerBatch.
-/// `output_physical_slot` is copied from the compiled batch.
-inline GpuLayerBatch make_gpu_batch(
-    const graph::CompiledLayerBatch& compiled_batch) {
-    GpuLayerBatch batch;
-    batch.output_physical_slot = compiled_batch.output_physical_slot;
-    batch.is_gpu_fused         = compiled_batch.is_gpu_fused;
-    return batch;
-}
+[[nodiscard]] std::optional<LayerInstance> lower_node_to_layer_instance(
+    const graph::CompiledNodeInfo& node,
+    std::uint32_t resource_index = 0,
+    std::uint32_t transform_index = 0,
+    std::uint32_t paint_index = 0,
+    float opacity = 1.0f,
+    BlendMode blend = BlendMode::Normal);
+
+[[nodiscard]] GpuLayerBatch make_gpu_batch(
+    const graph::CompiledLayerBatch& compiled_batch);
 
 } // namespace chronon3d::runtime

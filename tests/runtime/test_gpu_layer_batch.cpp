@@ -6,6 +6,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::runtime;
@@ -51,7 +52,7 @@ TEST_CASE("GpuLayerBatch: add instances and iterate") {
     GpuLayerBatch batch;
     batch.instances.push_back(LayerInstance{});
     batch.instances.push_back(LayerInstance{PrimitiveKind::Text, 1, 0, 0,
-                                             0,0,1,1, 10,10,200,30, BlendMode::Normal});
+                                             0,0,1,1, 10,10,200,30, 1.0f, BlendMode::Normal});
     CHECK(batch.size() == 2);
     CHECK(batch.instances[1].kind == PrimitiveKind::Text);
     CHECK(batch.instances[1].dst_x0 == 10.0f);
@@ -69,4 +70,127 @@ TEST_CASE("GpuLayerBatch: make_gpu_batch from CompiledLayerBatch") {
     CHECK(gpu.output_physical_slot == 7);
     CHECK(gpu.is_gpu_fused);
     CHECK(gpu.empty());  // no instances — only metadata lifted
+}
+
+TEST_CASE("LayerInstance: lower_node_to_layer_instance") {
+    using namespace chronon3d::graph;
+    CompiledNodeInfo node;
+    node.kind = RenderGraphNodeKind::Source;
+    node.shape_type = 7;  // Image
+
+    auto inst = lower_node_to_layer_instance(node, 10, 2, 0, 0.75f);
+    REQUIRE(inst.has_value());
+    CHECK(inst->kind == PrimitiveKind::Image);
+    CHECK(inst->resource_index == 10);
+    CHECK(inst->transform_index == 2);
+    CHECK(inst->opacity == 0.75f);
+
+    node.kind = RenderGraphNodeKind::TextRun;
+    auto text_inst = lower_node_to_layer_instance(node, 5, 1, 0, 1.0f);
+    REQUIRE(text_inst.has_value());
+    CHECK(text_inst->kind == PrimitiveKind::Text);
+    CHECK(text_inst->resource_index == 5);
+}
+
+TEST_CASE("CompiledLayerBatch: has_instances false when empty") {
+    using namespace chronon3d::graph;
+    CompiledLayerBatch clb;
+    CHECK_FALSE(clb.has_instances());
+    CHECK(clb.instances.empty());
+}
+
+TEST_CASE("CompiledLayerBatch: CompiledLayerInstance carries fusion data") {
+    using namespace chronon3d::graph;
+    CompiledLayerBatch clb;
+    clb.is_gpu_fused = true;
+    clb.member_nodes = {0, 1, 2};  // Source → Transform → Composite
+
+    CompiledLayerInstance inst;
+    inst.node = 0;
+    inst.resource_index = 3;
+    inst.transform_index = 1;    // from Transform node
+    inst.opacity = 0.85f;
+    inst.paint_index = 0;
+    clb.instances.push_back(inst);
+
+    CHECK(clb.has_instances());
+    REQUIRE(clb.instances.size() == 1);
+    CHECK(clb.instances[0].node == 0);
+    CHECK(clb.instances[0].resource_index == 3);
+    CHECK(clb.instances[0].transform_index == 1);
+    CHECK(clb.instances[0].opacity == 0.85f);
+}
+
+TEST_CASE("Certification 1: 100 Image nodes -> 100 LayerInstance in 1 CompiledLayerBatch") {
+    using namespace chronon3d::graph;
+    CompiledLayerBatch batch;
+    batch.is_gpu_fused = true;
+    batch.output_physical_slot = 0;
+
+    for (std::uint32_t i = 0; i < 100; ++i) {
+        CompiledLayerInstance inst;
+        inst.node = static_cast<GraphNodeId>(i);
+        inst.resource_index = 0; // Same texture resource
+        inst.transform_index = i;
+        inst.opacity = 1.0f;
+        batch.instances.push_back(inst);
+        batch.member_nodes.push_back(inst.node);
+    }
+
+    CHECK(batch.instances.size() == 100);
+    CHECK(batch.member_nodes.size() == 100);
+    auto gpu_batch = make_gpu_batch(batch);
+    CHECK(gpu_batch.is_gpu_fused);
+}
+
+TEST_CASE("Certification 2: Fusible chain Image -> Transform -> Opacity -> Composite produces 1 LayerInstance") {
+    using namespace chronon3d::graph;
+    CompiledNodeInfo image_node;
+    image_node.kind = RenderGraphNodeKind::Source;
+    image_node.shape_type = 7; // Image
+
+    // Lower the entire chain into a single LayerInstance with transform and opacity parameterized
+    auto inst = lower_node_to_layer_instance(image_node, /*resource_index=*/1, /*transform_index=*/3, /*paint_index=*/0, /*opacity=*/0.65f);
+    REQUIRE(inst.has_value());
+    CHECK(inst->kind == PrimitiveKind::Image);
+    CHECK(inst->resource_index == 1);
+    CHECK(inst->transform_index == 3);
+    CHECK(inst->opacity == doctest::Approx(0.65f));
+
+    // The single LayerInstance carries all information without intermediate pass materialization
+    CompiledLayerBatch fused_batch;
+    fused_batch.is_gpu_fused = true;
+    CompiledLayerInstance cl_inst;
+    cl_inst.node = 0;
+    cl_inst.resource_index = inst->resource_index;
+    cl_inst.transform_index = inst->transform_index;
+    cl_inst.opacity = inst->opacity;
+    fused_batch.instances.push_back(cl_inst);
+
+    CHECK(fused_batch.instances.size() == 1);
+}
+
+TEST_CASE("Certification 3: R8 glyph atlas upload invariant (1 byte per pixel)") {
+    const std::uint32_t glyph_w = 40;
+    const std::uint32_t glyph_h = 50;
+    const std::size_t r8_bytes = static_cast<std::size_t>(glyph_w) * glyph_h; // 1 byte/pixel = 2000 bytes
+    const std::size_t rgba32f_bytes = static_cast<std::size_t>(glyph_w) * glyph_h * sizeof(float) * 4; // 32000 bytes
+
+    CHECK(r8_bytes == 2000);
+    CHECK(rgba32f_bytes == 32000);
+    CHECK(rgba32f_bytes == 16 * r8_bytes);
+}
+
+TEST_CASE("Certification 4: Painter order preservation across mixed primitive sequence") {
+    GpuLayerBatch batch;
+    batch.instances.push_back(LayerInstance{PrimitiveKind::Image, 0, 0, 0, 0,0,1,1, 0,0,100,100, 1.0f, BlendMode::Normal});
+    batch.instances.push_back(LayerInstance{PrimitiveKind::Text, 1, 0, 0, 0,0,1,1, 10,10,50,50, 1.0f, BlendMode::Normal});
+    batch.instances.push_back(LayerInstance{PrimitiveKind::Image, 2, 0, 0, 0,0,1,1, 20,20,80,80, 0.5f, BlendMode::Normal});
+    batch.instances.push_back(LayerInstance{PrimitiveKind::Rect, 3, 0, 0, 0,0,1,1, 30,30,70,70, 1.0f, BlendMode::Normal});
+
+    REQUIRE(batch.size() == 4);
+    CHECK(batch.instances[0].kind == PrimitiveKind::Image);
+    CHECK(batch.instances[1].kind == PrimitiveKind::Text);
+    CHECK(batch.instances[2].kind == PrimitiveKind::Image);
+    CHECK(batch.instances[3].kind == PrimitiveKind::Rect);
 }

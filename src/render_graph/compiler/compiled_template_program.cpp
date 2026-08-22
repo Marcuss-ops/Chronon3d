@@ -360,6 +360,62 @@ std::vector<StaticBakeRegion> merge_contiguous_static_regions(
     return regions;
 }
 
+// ── Phase 4 — prepare() bakes maximal static islands ────────────────────────
+//
+// For every StaticBakeRegion discovered by the temporal analysis, prepare()
+// marks interior nodes as skip and records the root node as a baked producer.
+//
+// Phase 4 does NOT allocate GPU surfaces — surface residency lands in Phase 5
+// (PhysicalFramebufferPlan materialization).  What Phase 4 delivers:
+//   1. `interior_node_skip` mask: interior nodes execute = 0 after prepare
+//   2. `baked_regions`: per-region metadata (root, members, fingerprint)
+//   3. The contract that render() never re-evaluates static islands.
+//
+// When mixed with m_cached_result (per-node static caching, Phase 4 cleanup),
+// the per-node cache becomes redundant — the region-level bake covers the
+// same static surface, and the skip mask eliminates the execute call entirely
+// instead of returning a cached Framebuffer on each frame.
+PreparedFrameProgram prepare(const CompiledTemplateProgram& program) {
+    PreparedFrameProgram prepared;
+    if (!program.compiled || program.static_regions.empty()) {
+        prepared.valid = !program.empty();
+        return prepared;
+    }
+
+    const auto& compiled = *program.compiled;
+    const auto node_count = compiled.nodes.size();
+
+    // Every node starts NOT skipped (executed normally).
+    prepared.interior_node_skip.assign(node_count, false);
+
+    for (const auto& region : program.static_regions) {
+        if (region.members.empty()) continue;
+
+        PreparedStaticBake bake;
+        bake.bake_id = region.bake_id;
+        bake.root = region.root;
+
+        // All members EXCEPT the root are interior nodes: they are fully
+        // skipped during frame execution.  The root is the source whose
+        // output represents the entire baked island.
+        for (GraphNodeId member : region.members) {
+            if (member == region.root) continue;
+            if (member < node_count) {
+                prepared.interior_node_skip[member] = true;
+                bake.interior_nodes.push_back(member);
+                ++prepared.skipped_interior_nodes;
+            }
+        }
+
+        // The root node's surface handle will be wired by the physical
+        // resource plan (Phase 5).  For now, mark the bake as valid.
+        prepared.baked_regions[region.bake_id] = std::move(bake);
+    }
+
+    prepared.valid = true;
+    return prepared;
+}
+
 CompiledTemplateProgram
 compile_template_program(CompiledFrameGraph compiled_arg) {
     // ── Move into shared ownership ─────────────────────────────────────
@@ -400,6 +456,25 @@ compile_template_program(CompiledFrameGraph compiled_arg) {
     prog.boundaries.clear();
 
     prog.valid = prog.compiled->valid;
+
+    // ── Phase 4 — bake static islands into compiled program ─────────
+    // Populate interior_node_skip so the executor skips baked interior
+    // nodes on every frame.  In the full prepare() lifecycle this merge
+    // moves to the pipeline; for now auto-wire at compile time so all
+    // existing callers benefit without changing the executor interface.
+    if (prog.valid) {
+        auto prepared = prepare(prog);
+        if (prepared.valid && !prepared.interior_node_skip.empty()) {
+            // The compiled graph is const-shared; mutate the program
+            // inside (non-const access through shared_ptr).  This is
+            // safe because the compiler is the sole writer before the
+            // executor reads.
+            auto& mutable_program =
+                const_cast<CompiledFrameProgram&>(prog.compiled->program);
+            mutable_program.interior_node_skip =
+                std::move(prepared.interior_node_skip);
+        }
+    }
 
     return prog;
 }
