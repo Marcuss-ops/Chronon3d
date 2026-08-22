@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -284,6 +285,53 @@ struct CompiledTemplateProgram {
         return !valid || !compiled || compiled->empty();
     }
 };
+
+// ── PreparedFrameProgram (Fase 4 — static bake in prepare) ──────────────────
+//
+/// Result of the prepare() phase.  Pre-computes everything the frame loop
+/// needs so render(f) is a pure dispatch — no allocation, no shaping,
+/// no upload, no bake.  Baked surfaces are produced once in prepare() and
+/// reused across all frames.
+struct BakedSurfaceHandle {
+    std::uint32_t index{0};
+    [[nodiscard]] bool valid() const noexcept { return index != 0; }
+};
+
+struct PreparedStaticBake {
+    std::uint32_t bake_id{0};
+    GraphNodeId   root{k_invalid_node};
+    BakedSurfaceHandle surface;
+    std::vector<GraphNodeId> interior_nodes;  // members that are fully skipped
+};
+
+/// Holds everything the prepare() phase produces.  After prepare(), the
+/// per-frame render() path never allocates surfaces, never shapes fonts,
+/// never uploads glyphs, and never bakes static regions.
+struct PreparedFrameProgram {
+    /// Mask of nodes to skip during frame execution (interior static nodes
+    /// whose output has been pre-baked).
+    std::vector<bool> interior_node_skip;
+
+    /// Per-region bake results.  bake_id → prepared region.
+    std::unordered_map<std::uint32_t, PreparedStaticBake> baked_regions;
+
+    /// Total interior nodes skipped per frame (telemetry).
+    std::size_t skipped_interior_nodes{0};
+
+    bool valid{false};
+};
+
+/// Pre-compute everything that can be resolved before the first frame.
+/// After this call, render(f) does zero allocation, zero shaping, and
+/// zero bake — pure dispatch.
+///
+/// The caller owns the returned program and must keep it alive for the
+/// lifetime of the frame loop.
+///
+/// For Phase 4 the implementation bakes maximal static islands and
+/// pre-resolves surface residency.  Font shaping / glyph upload / descriptor
+/// table preallocation land in subsequent phases.
+[[nodiscard]] PreparedFrameProgram prepare(const CompiledTemplateProgram& program);
 
 // ── Template program derivation ─────────────────────────────────────────────
 //

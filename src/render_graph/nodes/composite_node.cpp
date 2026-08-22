@@ -20,52 +20,19 @@ namespace chronon3d::graph {
 
 namespace {
 
-bool try_native_dimension_normal(
-    RenderGraphContext& ctx, Framebuffer& destination,
-    const Framebuffer& source) {
-    if (!ctx.services.backend || !ctx.services.surface_registry ||
-        source.width() == destination.width() &&
-            source.height() == destination.height()) {
-        return false;
-    }
-    const auto original_destination = destination.surface_handle();
-    if (!ensure_native_surface(ctx, destination)) return false;
-
-    OwnedFB source_copy;
-    runtime::RenderSurfaceHandle source_handle = source.surface_handle();
-    if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
-        source_copy = ctx.acquire_owned_fb(source);
-        if (!ensure_native_surface(ctx, *source_copy)) {
-            if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-                release_native_surface(ctx, destination);
-            }
-            return false;
-        }
-        source_handle = source_copy->surface_handle();
-    }
-
-    const auto transformed = ctx.services.backend->transform_surface(
-        destination.surface_handle(), source_handle,
-        source.origin_x() - destination.origin_x(),
-        source.origin_y() - destination.origin_y(), 1.0f);
-    if (source_copy) {
-        release_native_surface(ctx, *source_copy);
-    }
-    if (!transformed.ok()) {
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
-        return false;
-    }
-    return true;
-}
-
-bool try_native_dimension_composite(
+// ── try_native_affine_composite ──────────────────────────────────────────
+//
+// Composite `source` onto `destination` when the two surfaces differ in
+// size or origin.  Uses `transform_surface_affine` — the direct GPU path
+// that handles arbitrary affine transforms without intermediate surfaces.
+// Returns true when the native composite succeeded; false when the caller
+// should fall back to the CPU path.
+bool try_native_affine_composite(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source, const std::optional<raster::BBox>& clip) {
     if (!ctx.services.backend || !ctx.services.surface_registry ||
-        source.width() == destination.width() &&
-            source.height() == destination.height()) {
+        (source.width() == destination.width() &&
+         source.height() == destination.height())) {
         return false;
     }
     const auto original_destination = destination.surface_handle();
@@ -172,10 +139,10 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     return false;
 }
 
-// acquire_owned_fb() deliberately copies the CPU snapshot but does not alias
-// the source's native handle.  For native video this is the normal composite
-// setup: seed the new destination with a device-to-device copy/composite from
-// the bottom surface instead of promoting the CPU snapshot to RGBA32F.
+// seed_native_destination() replaces the destination pixels with a copy from
+// the source via transform_surface_affine in replace mode — zero intermediate
+// surfaces, no temporary clear.  The `replace=true` path in Vulkan's
+// composite kernel writes directly into the destination, bypassing blending.
 bool seed_native_destination(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source) {
@@ -184,12 +151,24 @@ bool seed_native_destination(
         !ctx.services.backend->is_native_surface_valid(source.surface_handle())) {
         return false;
     }
+    const auto original_destination = destination.surface_handle();
     if (!ensure_empty_native_surface(ctx, destination)) return false;
-    const auto seeded = ctx.services.backend->composite_surfaces(
-        destination.surface_handle(), source.surface_handle(),
-        BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt);
+
+    // Use the direct affine path: identity transform copies source to
+    // destination pixel-for-pixel without a GPU clear pass.
+    runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 1.0f;
+    transform.source_y[1] = 1.0f;
+    transform.max_x = static_cast<float>(source.width());
+    transform.max_y = static_cast<float>(source.height());
+    transform.opacity = 1.0f;
+
+    const auto seeded = ctx.services.backend->transform_surface_affine(
+        destination.surface_handle(), source.surface_handle(), transform);
     if (!seeded.ok()) {
-        release_native_surface(ctx, destination);
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
         return false;
     }
     return true;
@@ -340,7 +319,7 @@ NodeExecResult CompositeNode::execute(
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
-            if (!try_native_dimension_normal(ctx, *result, *bottom)) {
+            if (!try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
                 if (ctx.services.surface_registry) {
                     const bool destination_ready = ensure_native_surface(ctx, *result);
                     auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
@@ -421,7 +400,7 @@ NodeExecResult CompositeNode::execute(
         const bool native_dimension_composite = !native_composite &&
             m_mode == BlendMode::Normal &&
             m_operator == CompositeOperator::SourceOver &&
-            try_native_dimension_composite(ctx, *result, *top, clip);
+            try_native_affine_composite(ctx, *result, *top, clip);
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
             spdlog::error(

@@ -98,6 +98,17 @@ struct CompiledOwnershipTransfer {
     bool transferable{false};
 };
 
+// ── Compiled execute function type ───────────────────────────────────────
+//
+// When non-null, the operation can be executed without calling
+// node.execute().  The function receives:
+//   - backend: the render backend
+//   - op: this CompiledOperation
+// Returns true on success.
+class RenderBackend;
+using CompiledExecuteFn = bool (*)(RenderBackend* backend,
+                                   const struct CompiledOperation& op);
+
 // Linear, domain-neutral execution description. Processors that do not yet
 // provide a compiled recorder remain valid through node.execute() fallback.
 struct CompiledOperation {
@@ -107,8 +118,16 @@ struct CompiledOperation {
     std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
     std::uint32_t parameter_offset{0};
     std::uint32_t parameter_size{0};
-    renderer::ProcessorCapabilities capabilities{};
+    ::chronon3d::renderer::ProcessorCapabilities capabilities{};
     bool is_fused{false};
+
+    // When non-null, this operation participates in the fully-compiled
+    // execute_compiled_program() path and bypasses node.execute().
+    CompiledExecuteFn compiled_execute{nullptr};
+
+    [[nodiscard]] bool has_compiled_execute() const noexcept {
+        return compiled_execute != nullptr;
+    }
 };
 
 struct StaticSubgraphBakePass {
@@ -118,10 +137,28 @@ struct StaticSubgraphBakePass {
     std::uint32_t persistent_surface_handle{0};
 };
 
+// ── CompiledLayerInstance ──────────────────────────────────────────────────
+//
+/// A single layer instance compiled from a fusible chain (Source→…→Composite).
+/// Mirror of runtime::LayerInstance, kept here to avoid a circular include
+/// (gpu_layer_batch.hpp includes compiled_frame_graph.hpp).
+struct CompiledLayerInstance {
+    GraphNodeId node{k_invalid_node};  // the source (Image/Text/Rect) node
+    std::uint32_t resource_index{0};
+    std::uint32_t transform_index{0};
+    std::uint32_t paint_index{0};
+    float opacity{1.0f};
+};
+
 struct CompiledLayerBatch {
     std::vector<GraphNodeId> member_nodes;
+    std::vector<CompiledLayerInstance> instances;
     std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
     bool is_gpu_fused{false};
+
+    [[nodiscard]] bool has_instances() const noexcept {
+        return !instances.empty();
+    }
 };
 
 struct CompiledFrameProgram {
@@ -133,9 +170,17 @@ struct CompiledFrameProgram {
     std::vector<StaticSubgraphBakePass> static_bakes;
     std::vector<CompiledLayerBatch> layer_batches;
     bool has_prepared_parameters{false};
+    // true when EVERY reachable node has produced a CompiledOperation with
+    // a non-null compiled_execute — set by build_compiled_frame_program.
     bool fully_recorded{false};
     bool has_fused_passes{false};
     bool require_native_gpu{false};
+
+    // ── Phase 4 — static bake skip mask ────────────────────────────────
+    // Nodes whose output has been pre-baked in prepare().  The executor
+    // skips these entirely (execute count = 0).  Populated by merging
+    // PreparedFrameProgram::interior_node_skip before the first frame.
+    std::vector<bool> interior_node_skip;
 
     [[nodiscard]] bool empty() const noexcept {
         return operations.empty() || levels.empty();
@@ -153,13 +198,13 @@ struct CompiledFrameGraph {
     // originating SoftwareRegistry or engine is destroyed.
     std::uint64_t registry_generation{0};
     std::uint64_t processor_snapshot_identity{0};
-    std::shared_ptr<const renderer::ProcessorRegistrySnapshot> processor_snapshot;
+    std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot> processor_snapshot;
 
     // Immutable handle tables populated once at compile time. Raw processor
     // addresses are never persisted in the compiled graph; they are resolved
     // only at the final backend dispatch boundary through processor_snapshot.
-    std::vector<renderer::ShapeProcessorHandle> shape_processor_table;
-    std::vector<renderer::EffectProcessorHandle> effect_processor_table;
+    std::vector<::chronon3d::renderer::ShapeProcessorHandle> shape_processor_table;
+    std::vector<::chronon3d::renderer::EffectProcessorHandle> effect_processor_table;
 
     // Authored-scene topology fingerprint captured by the coordinator when
     // this compiled graph was built. It is compared before refresh so an

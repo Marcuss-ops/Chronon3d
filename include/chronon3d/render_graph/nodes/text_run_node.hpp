@@ -69,7 +69,6 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::TextRun; }
     std::string_view name() const noexcept override { return m_name; }
     std::string_view layer_id() const noexcept { return m_layer_id; }
-    bool has_compiled_recorder() const noexcept override { return true; }
 
     /// TextRuns are NOT full-frame seeds (the run shape itself is constrained).
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext&) const noexcept override {

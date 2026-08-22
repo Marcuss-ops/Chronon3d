@@ -3,6 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/render_graph/processor_handle.hpp>  // CompileRecorderFn
 
 namespace chronon3d::renderer {
 
@@ -16,6 +17,14 @@ public:
     // state: time, frame number, clip, quality, and diagnostics flag.
     virtual void apply(Framebuffer& fb, const EffectParams& params,
                        const effects::EffectExecutionContext& context) = 0;
+
+    /// Returns the compile recorder for this effect processor.
+    /// Default returns nullptr (no compiled-recording support).
+    /// Override to provide a CompileRecorderFn that produces executable
+    /// CompiledOperations for the fully-compiled execution path.
+    [[nodiscard]] virtual CompileRecorderFn compile_recorder() const noexcept {
+        return nullptr;
+    }
 };
 
 } // namespace chronon3d::renderer
