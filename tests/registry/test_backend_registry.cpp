@@ -211,8 +211,10 @@ TEST_CASE("Vulkan text-run kernel samples a packed glyph atlas into the canvas")
 
     // Red glyph at canvas (1,0) full opacity; green glyph at (3,1) half opacity.
     const std::vector<runtime::GlyphInstance> glyphs{
-        runtime::GlyphInstance{1, 0, 0, 0, 1, 1, 1.0f, 0.0f},
-        runtime::GlyphInstance{3, 1, 1, 0, 1, 1, 0.5f, 0.0f}};
+        runtime::GlyphInstance{.dst_x = 1, .dst_y = 0, .width = 1, .height = 1,
+                                .opacity = 1.0f, .atlas_x = 0, .atlas_y = 0},
+        runtime::GlyphInstance{.dst_x = 3, .dst_y = 1, .width = 1, .height = 1,
+                                .opacity = 0.5f, .atlas_x = 1, .atlas_y = 0}};
     REQUIRE(backend.draw_text_run_surface(601, 602, glyphs).ok());
 
     std::vector<float> output(4 * 2 * 4, 0.0f);
