@@ -1,6 +1,6 @@
 # TICKET-VIDEO-COMPILER-ARCH-V1 — Video-compiler architecture (CompiledTemplateProgram → DeviceProgram → hot loop)
 
-## Stato: OPEN — Fase A + B DONE (2026-08-22), fasi C–M PLANNED
+## Stato: OPEN — Fase A + B + H DONE (2026-08-22), fasi C–G + I–M PLANNED
 
 Architettura "video compiler offline": il grosso del lavoro intellettuale avviene
 prima del primo frame (compilazione) e il runtime si riduce a far scorrere la
@@ -304,17 +304,42 @@ cost model semplice (max operations per fused program / max texture samples / ma
 neighborhood radius), poi tuning con Perfetto/benchmark. Cache kernel
 specializzati (`.c3dcache/kernel/*.spv|*.cubin`, key `KernelVariantKey`).
 
-### N. Daemon persistente + template cache
-`ChrononDaemon { DeviceRuntime GPU0 (Vulkan/CUDA context, shader/kernel cache,
-global glyph atlas, texture residency cache, decoder/encoder session pool,
-program cache), JobScheduler }`. Il job NON crea VkDevice/CUDA context/cache/
-atlas/NVENC runtime — tutto già vivo. `TemplateProgramKey { Hash128 topology_hash;
-RenderAbiVersion renderer_abi; QualityProfile quality; }` (niente headline/contenuti
-= bindings). `ParameterImpact { RuntimeOnly, ResourceBinding,
-ProgramSpecialization, TopologyChange }` per evitare invalidazioni inutili.
-`ResidencyBudget { textures, glyph_atlas, baked_templates, compiled_programs }`
-LRU/LFU con pinned residency per job in esecuzione. Scheduler memory-aware:
-`if (active_peak + candidate_peak <= render_budget) admit; else queue;`.
+### H. Template program cache + ResidencyBudget — DONE (Fase H commit, 2026-08-22)
+`TemplateProgramCache` in `chronon3d::runtime` (stesso pattern di
+`OverlayTemplateCache`): bounded LRU keyed by `ProgramFingerprint` (Fase A, che
+È il `TemplateProgramKey` del ticket — alias documentato), backed dalla
+canonica `cache::LruCache` (Count mode, no second cache primitive — per
+CORE_OWNERSHIP "no new cache if LruCache can be used"). Due tier:
+
+- **LRU tier**: `cache::LruCache<ProgramFingerprint, shared_ptr>` Count mode,
+  evicts cold entries first.
+- **Pinned tier** (active-job residency): `std::unordered_map` separata;
+  `pin()` promuove da LRU (o compila fresh) nel pinned tier; il RAII
+  `TemplatePin` handle tiene l'entry immune all'eviction. `unpin()` riporta
+  l'entry nell'LRU (può triggerare eviction se a capacità).
+
+`ResidencyBudget { textures, glyph_atlas, baked_templates,
+compiled_programs }` (+ `kDefaultCompiledPrograms=16`). Costruttore da budget
+o da capacity_entries.
+
+API: `compile(key, builder)` / `pin(key, builder) → TemplatePin` /
+`find(key)` / `clear()` / `stats()` (hits/misses/evictions/lru_entries/
+pinned_entries/total_entries) / `capacity()`.
+
+**File change-set (4 new + 2 edit):**
+- `include/chronon3d/runtime/template_program_cache.hpp` (NEW): ABI surface
+- `src/runtime/template_program_cache.cpp` (NEW): implementation
+- `src/runtime/CMakeLists.txt` (EDIT): wire in chronon3d_runtime
+- `tests/runtime/test_template_program_cache.cpp` (NEW): 9 TEST_CASE
+- `tests/runtime/template_program_cache_tests.cmake` (NEW)
+- `tests/manifests/test_definitions.cmake` (EDIT): wire suite
+
+**Verifica:** build `chronon3d_template_program_cache_tests` PASS + 9/9
+TEST_CASE PASS. Cat-3 minimal-surface: compone la canonica `LruCache` (no
+seconda primitiva), pinned residency = overlay map (non un secondo cache).
+Forward-points: wiring nel `DaemonService` (IPC PREFETCH_TEMPLATE command),
+DeviceRuntime aggregation (glyph atlas, decoder/encoder pool), scheduler
+memory-aware, ParameterImpact classification — deferred per ticket §N.
 
 ### O. Portable vs Maximum Attack — un solo compiler
 Condividono SceneIR / Temporal analysis / Static islands / Resource plan /
