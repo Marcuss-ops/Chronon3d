@@ -77,6 +77,21 @@ target_link_libraries(chronon3d INTERFACE
     chronon3d_core_impl
 )
 
+# Tracing is an engine-wide compile-time capability.  Publish it from the
+# canonical base interface so every OBJECT/static target that already links
+# `chronon3d` compiles CHRONON_TRACE_* call sites against Perfetto instead of
+# silently reducing them to no-ops.  `chronon3d_core_impl` keeps its explicit
+# PRIVATE definition in the root CMakeLists.txt because this target is an
+# OBJECT aggregate referenced by, rather than linked from, the interface.
+if(CHRONON3D_ENABLE_TRACING)
+    target_compile_definitions(chronon3d INTERFACE
+        CHRONON3D_ENABLE_TRACING
+    )
+    target_link_libraries(chronon3d INTERFACE
+        unofficial::perfetto::perfetto
+    )
+endif()
+
 # ==============================================================================
 # Per-subsystem targets (ordered by dependency graph)
 # ==============================================================================

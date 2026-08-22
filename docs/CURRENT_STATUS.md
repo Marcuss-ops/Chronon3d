@@ -78,7 +78,7 @@ tools/run_cuda_vulkan_external_memory_probe.sh
 > Ultima revisione semantica: 2026-08-09.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
-> Ultimo SHA osservato: `main@dc3fb34e` (worktree locale non pulito) — build `linux-fast-dev` PASS per memory/core/text, regex focalizzato CTest PASS (21/21), architecture PASS (26/26), test registration PASS (69 suite/0 raw), doc-sync PASS e sequential graph-cache diagnostics-OFF PASS (3/3 deterministic + 14/14 scene). Same-SHA certification completa: BLOCKED dopo il run developer temporaneo; CTest non ha prodotto il JUnit richiesto dal corpus visuale (`CERTIFICATION_BLOCKED`), quindi la baseline 11/11 non è promossa.
+> Ultimo SHA osservato: `main@8aad8e00f` (worktree locale non pulito) — developer gates PASS (20/20), architecture PASS (26/26), test registration PASS (72 suite/0 raw), doc-sync PASS, Perfetto correctness/overhead PASS, parser sequence-aware PASS e tracing production PASS (30 compile command / 32 TU). Same-SHA certification completa: BLOCKED; CTest fast-dev ha 92 test registrati ma binari mancanti (exit 8), il build mirato ha rilevato rot test preesistente, il native decoder cache gate è FAIL e manca la baseline snapshot dello SHA corrente.
 >
 > Feature freeze V0.1 revocato 2026-07-06. Linux-only.
 > Cronologia dettagliata nella git history.
