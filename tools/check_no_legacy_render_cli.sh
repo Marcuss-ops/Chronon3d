@@ -79,7 +79,7 @@ done
 
 CANONICAL_HEADER="apps/chronon3d_cli/utils/job/render_job.hpp"
 CANONICAL_EXECUTOR="apps/chronon3d_cli/utils/job/render_job_execute.cpp"
-CANONICAL_REGISTRATION="apps/chronon3d_cli/command_registry.cpp"
+CANONICAL_REGISTRATION="apps/chronon3d_cli/commands/render/register_render_commands.cpp"
 
 # Flatten a file to a single line so canonical signature checks are robust to
 # clang-format line breaks, then grep for the given pattern.
