@@ -371,6 +371,12 @@ jobs:
           CHRONON3D_TRACE_GATE_CACHE=${{ github.workspace }}/.trace-gate-cache \
             bash tools/check_trace_correctness.sh
 
+      - name: Trace SQL report sequence-aware parser
+        run: |
+          PERFETTO_SDK_DIR=${{ github.workspace }}/.perfetto-sdk \
+          CHRONON3D_TRACE_GATE_CACHE=${{ github.workspace }}/.trace-gate-cache \
+            bash tools/check_trace_sql_report_selftest.sh /tmp/chronon3d_trace_gate.pftrace
+
       - name: Trace overhead gates (<0.5% / <2% / <5%)
         run: |
           CHRONON3D_TRACE_GATES=1 \
