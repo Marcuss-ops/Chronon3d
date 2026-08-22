@@ -1,3 +1,8 @@
+// =============================================================================
+// compiled_graph_cache.hpp — ProgramCache: compiled frame graph reuse
+//
+// Cache family: ProgramCache (see cache/cache_taxonomy.hpp).
+// =============================================================================
 #pragma once
 
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>

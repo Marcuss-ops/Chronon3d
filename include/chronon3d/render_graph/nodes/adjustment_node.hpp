@@ -14,6 +14,7 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Adjustment; }
     std::string_view name() const noexcept override { return "Adjustment"; }
+    bool has_compiled_recorder() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{

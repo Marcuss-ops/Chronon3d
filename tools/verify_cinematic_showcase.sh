@@ -51,7 +51,7 @@ while [ "${1:-}" != "" ]; do
       echo "  --smoke   : 2 frames × 1 composition, gates {A4.1, A4.2, A4.3 strict, A4.4}."
       echo "              No contact-sheet PNG, no A4.6 perf envelope. For daily push CI."
       echo "  (default) : 6 frames × 5 compositions, gates {A4.1..A4.6}."
-      echo "              Contact-sheet PNG + A4.6 perf envelope. For nightly-visual workflow."
+      echo "              Contact-sheet PNG + A4.6 perf envelope. For nightly.yml cinematic-full job."
       exit 0
       ;;
     *)

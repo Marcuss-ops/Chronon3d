@@ -63,7 +63,7 @@ done
 if [ "${SMOKE_MODE}" = "1" ]; then
     echo "CONTACT_SHEET: SKIPPED — contact sheet is a nightly / full-mode artefact."
     echo "  (smoke: CHRONON3D_CINEMATIC_FRAME_COUNT=2; A4.5 DOCTEST_SKIP'd in binary)"
-    echo "  Re-run without --smoke against .github/workflows/nightly-visual.yml"
+    echo "  Re-run without --smoke against .github/workflows/nightly.yml"
     echo "  to render the full 5760×2160 grid."
     exit 0
 fi
