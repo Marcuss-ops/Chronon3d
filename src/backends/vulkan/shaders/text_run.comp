@@ -1,44 +1,26 @@
 #version 450
 
 // GPU text-run kernel: composites a batch of glyph quads sampled from a
-// glyph atlas. Two modes are supported:
-//   atlas_mode==0 — legacy packed atlas (RGBA32F, absolute pixel coords)
-//   atlas_mode==1 — paged atlas (R8 coverage or RGBA32F alpha-only, UV coords,
-//                   per-instance colour)
-//
-// Dispatch is restricted to the union of the glyph bounds; each pixel
-// in that region accumulates the intersecting instances via source-over.
+// packed glyph atlas. Dispatch is restricted to the union of the glyph
+// bounds; each pixel in that region accumulates the intersecting instances.
+// Atlas pixels are premultiplied RGBA, so the blend is plain source-over.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(binding = 0, rgba32f) uniform image2D dst_image;
-
-// Fase C — atlas page array: binding 1 is the first atlas page (legacy),
-// bindings >= 10 are the paged atlas pages.  Vulkan supports descriptor
-// indexing (binding 10..N as a single descriptor-set variable-count array).
-// For now the legacy binding 1 remains the single packed atlas.
 layout(binding = 1, rgba32f) uniform readonly image2D atlas_image;
 
-// Paged atlas pages — bindings 10..18 (up to 9 pages of 2048×2048 = 36 MPix).
-// Descriptor indexing selects the page via glyph.atlas_page + (10 - 10).
-#define ATLAS_PAGE_BASE 10
-layout(binding = 10, rgba32f) uniform readonly image2D atlas_page_images[9];
-
-// Byte layout must match chronon3d::runtime::GlyphInstance (80 bytes).
+// Byte layout must match chronon3d::runtime::GlyphInstance (40 bytes).
 struct GlyphInstance {
     ivec2 dst_origin;
-    vec4  atlas_uv;      // u0, v0, u1, v1 (atlas_mode==1)
+    ivec2 atlas_origin;
     ivec2 glyph_size;
     float opacity;
     float scale_x;
     float scale_y;
-    uint  rgba;          // premultiplied RGBA packed as u32 (atlas_mode==1)
-    uint  atlas_mode;    // 0=legacy pixel, 1=paged UV+colour
-    uint  atlas_page;    // page index for atlas_mode==1
+    float pad;
     float highlight_start_frame;
     float highlight_end_frame;
-    // Legacy absolute pixel atlas origin (atlas_mode==0 only)
-    ivec2 atlas_origin;
 };
 
 layout(binding = 3, std430) buffer GlyphInstances {
@@ -49,21 +31,10 @@ layout(push_constant) uniform TextRunParams {
     int glyph_count;
     float current_frame;
     int highlight_enabled;
-    int atlas_count;          // number of paged atlas pages bound (Fase C)
     int padding;
     vec4 highlight_color;
     ivec2 dispatch_origin;
 } params;
-
-// Unpack a uint32 to a vec4 of premultiplied linear RGBA.
-vec4 unpackRGBA(uint packed) {
-    return vec4(
-        float(packed >> 24)          / 255.0,
-        float((packed >> 16) & 0xFF) / 255.0,
-        float((packed >> 8)  & 0xFF) / 255.0,
-        float(packed         & 0xFF) / 255.0
-    );
-}
 
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
@@ -78,43 +49,16 @@ void main() {
                                        vec2(glyph.scale_x, glyph.scale_y)));
         if (local.x >= 0 && local.y >= 0 &&
             local.x < scaled_size.x && local.y < scaled_size.y) {
-
-            vec4 src;
-            float glyph_alpha;
-
-            if (glyph.atlas_mode == 1u) {
-                // Fase C — paged atlas with UV coords + instance colour
-                vec2 uv_scale = glyph.atlas_uv.zw - glyph.atlas_uv.xy;
-                vec2 sample_uv = glyph.atlas_uv.xy + uv_scale *
-                    (vec2(local) / vec2(scaled_size));
-                vec2 tex_size = vec2(imageSize(atlas_page_images[glyph.atlas_page]));
-                ivec2 texel = ivec2(sample_uv * tex_size);
-                texel = clamp(texel, ivec2(0), ivec2(tex_size) - 1);
-
-                vec4 atlas_sample = imageLoad(atlas_page_images[glyph.atlas_page], texel);
-                // Atlas stores coverage in alpha (R=G=B=0, A=coverage for RGBA32F,
-                // or R=coverage for future R8 path).
-                float coverage = max(atlas_sample.a, atlas_sample.r);
-                vec4 colour = unpackRGBA(glyph.rgba);
-                glyph_alpha = coverage * colour.a;
-                src = vec4(colour.rgb * coverage * colour.a * glyph.opacity,
-                           glyph_alpha * glyph.opacity);
-            } else {
-                // Legacy mode 0 — absolute pixel atlas
-                ivec2 sample_offset = ivec2(floor(vec2(local) /
-                                                  vec2(glyph.scale_x, glyph.scale_y)));
-                sample_offset = clamp(sample_offset, ivec2(0), glyph.glyph_size - ivec2(1));
-                src = imageLoad(atlas_image, glyph.atlas_origin + sample_offset) * glyph.opacity;
-                glyph_alpha = src.a;
-            }
-
+            ivec2 sample_offset = ivec2(floor(vec2(local) /
+                                              vec2(glyph.scale_x, glyph.scale_y)));
+            sample_offset = clamp(sample_offset, ivec2(0), glyph.glyph_size - ivec2(1));
+            vec4 src = imageLoad(atlas_image, glyph.atlas_origin + sample_offset) * glyph.opacity;
             if (params.highlight_enabled != 0 &&
                 glyph.highlight_start_frame >= 0.0 &&
                 glyph.highlight_end_frame >= glyph.highlight_start_frame) {
-                float highlight_active =
-                    step(glyph.highlight_start_frame, params.current_frame) *
-                    step(params.current_frame, glyph.highlight_end_frame);
-                vec3 highlight_rgb = params.highlight_color.rgb * glyph_alpha;
+                float highlight_active = step(glyph.highlight_start_frame, params.current_frame) *
+                               step(params.current_frame, glyph.highlight_end_frame);
+                vec3 highlight_rgb = params.highlight_color.rgb * src.a;
                 src.rgb = mix(src.rgb, highlight_rgb, highlight_active * params.highlight_color.a);
             }
             accum = src + accum * (1.0 - src.a);
