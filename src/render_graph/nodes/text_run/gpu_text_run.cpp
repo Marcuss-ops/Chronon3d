@@ -9,7 +9,6 @@
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
-#include <chronon3d/runtime/gpu_paged_glyph_atlas.hpp>
 #include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
@@ -294,17 +293,13 @@ graph::RenderOpResult draw_packed_text_run_surface(
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& glyph = glyphs[i];
             instances.push_back(runtime::GlyphInstance{
-                .dst_x = glyph.dst_x,
-                .dst_y = glyph.dst_y,
-                .width = static_cast<std::int32_t>(glyph.width),
-                .height = static_cast<std::int32_t>(glyph.height),
-                .opacity = glyph.opacity,
-                .scale_x = glyph.scale_x,
-                .scale_y = glyph.scale_y,
-                .highlight_start_frame = glyph.highlight_start_frame,
-                .highlight_end_frame = glyph.highlight_end_frame,
-                .atlas_x = static_cast<std::int32_t>(persistent_atlas.origin_x[i]),
-                .atlas_y = static_cast<std::int32_t>(persistent_atlas.origin_y[i])});
+                glyph.dst_x, glyph.dst_y,
+                static_cast<std::int32_t>(persistent_atlas.origin_x[i]),
+                static_cast<std::int32_t>(persistent_atlas.origin_y[i]),
+                static_cast<std::int32_t>(glyph.width),
+                static_cast<std::int32_t>(glyph.height),
+                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f,
+                glyph.highlight_start_frame, glyph.highlight_end_frame});
         }
     } else {
         const auto [packed, dims] = pack_glyphs(glyphs);
@@ -334,15 +329,12 @@ graph::RenderOpResult draw_packed_text_run_surface(
                             atlas_buffer.data() + dst_off);
             }
             instances.push_back(runtime::GlyphInstance{
-                .dst_x = glyph.dst_x,
-                .dst_y = glyph.dst_y,
-                .width = static_cast<std::int32_t>(glyph.width),
-                .height = static_cast<std::int32_t>(glyph.height),
-                .opacity = glyph.opacity,
-                .scale_x = glyph.scale_x,
-                .scale_y = glyph.scale_y,
-                .atlas_x = static_cast<std::int32_t>(place.atlas_x),
-                .atlas_y = static_cast<std::int32_t>(place.atlas_y)});
+                glyph.dst_x, glyph.dst_y,
+                static_cast<std::int32_t>(place.atlas_x),
+                static_cast<std::int32_t>(place.atlas_y),
+                static_cast<std::int32_t>(glyph.width),
+                static_cast<std::int32_t>(glyph.height),
+                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f});
         }
     }
 
