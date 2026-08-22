@@ -269,11 +269,6 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const auto atlas_stats = session->renderer->runtime().gpu_styled_glyph_cache().stats();
     timings.text.atlas_cache_hits = atlas_stats.cache_hits;
     timings.text.atlas_cache_misses = atlas_stats.cache_misses;
-    timings.text.atlas_key_bytes_hashed = atlas_stats.key_bytes_hashed;
-    timings.text.atlas_repack_count = atlas_stats.repack_count;
-    timings.text.atlas_repack_bytes = atlas_stats.repack_bytes;
-    timings.text.atlas_upload_count = atlas_stats.asset_upload_count;
-    timings.text.atlas_upload_bytes = atlas_stats.asset_upload_bytes;
     timings.cache.image_cache_hits = session->prepare_timings.image_cache_hits;
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;
     timings.cache.font_cache_hits = session->prepare_timings.font_cache_hits;

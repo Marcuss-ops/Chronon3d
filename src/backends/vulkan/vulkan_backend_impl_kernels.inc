@@ -379,9 +379,8 @@
         VkMemoryRequirements mem_reqs{};
         vkGetBufferMemoryRequirements(device, slot.params_buffer, &mem_reqs);
         const auto alloc = memory_arena.allocate(
-            mem_reqs, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        if (!alloc.success) {
+            mem_reqs, MemoryClass::HostVisible);
+        if (alloc.memory == VK_NULL_HANDLE) {
             throw std::runtime_error("replay params allocation failed");
         }
         slot.params_memory = alloc.memory;
