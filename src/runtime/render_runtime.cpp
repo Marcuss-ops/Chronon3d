@@ -273,6 +273,7 @@ void RenderRuntime::attach_backend(
     m_gpu_asset_cache.attach(m_surface_registry, *m_backend);
     m_gpu_text_atlas_cache.attach(m_gpu_asset_cache);
     m_gpu_glyph_atlas.attach(m_surface_registry, *m_backend);
+    m_gpu_paged_glyph_atlas.attach(m_surface_registry, *m_backend);
 }
 
 // WP-0 PR 0.1 — `noexcept` REMOVED from both overloads: the body

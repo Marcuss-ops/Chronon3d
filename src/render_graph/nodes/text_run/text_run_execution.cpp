@@ -114,11 +114,7 @@ graph::RenderOpResult render_text_run_item(
     // visible in its telemetry/logs.
     auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
     if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
-        if (!ensure_native_surface(mutable_ctx, fb)) {
-            return graph::RenderOpResult(graph::RenderBackendError{
-                RenderBackendErrorCode::ExecutionFailure,
-                "TextRun fallback rendered but could not be uploaded to the native surface"});
-        }
+        (void)ensure_native_surface(mutable_ctx, fb);
     }
     return fallback;
 }

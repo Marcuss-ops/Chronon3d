@@ -19,6 +19,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     gpu_runtime.cpp
     gpu_asset_cache.cpp
     gpu_glyph_atlas.cpp
+    gpu_paged_glyph_atlas.cpp
     gpu_text_atlas_cache.cpp
     overlay_template.cpp
     template_program_cache.cpp   # Fase H (TICKET-VIDEO-COMPILER-ARCH-V1)
