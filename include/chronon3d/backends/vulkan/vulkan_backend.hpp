@@ -110,6 +110,9 @@ public:
         return false;
 #endif
     }
+    [[nodiscard]] bool supports_native_surfaces() const noexcept override {
+        return true;
+    }
     graph::RenderOpResult create_video_encode_surface(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&) override;
     graph::RenderOpResult copy_surface_to_video_encode(
@@ -163,6 +166,40 @@ public:
     /// physical slot and every slot is backed by exactly one VkImage, so
     /// lifetime-disjoint surfaces alias the same device memory.
     void begin_plan_batch(const runtime::CommandPlan& plan) override;
+
+    /// Phase 5 — pre-allocate every physical surface from the compiler's
+    /// interval-coloring plan.  Must be called once before the first frame
+    /// (after prepare()).  After this call, every `create_surface()` in the
+    /// frame loop is a direct handle→slot binding with zero vkCreateImage,
+    /// zero vkCreateImageView, and zero vkAllocateMemory calls.
+    ///
+    /// The pool-based fallback path remains active for unplanned surfaces
+    /// (job-persistent assets, scratch surfaces, text atlases).
+    void preallocate_plan_surfaces(
+        std::uint32_t canvas_width,
+        std::uint32_t canvas_height,
+        const graph::PhysicalFramebufferAllocationPlan& plan);
+
+    // ── Phase 8: command-replay (record once, submit with param writes) ─
+    /// Number of replay ring slots available.  Matches the frame-batch ring
+    /// depth so the GPU overlap depth stays identical.
+    [[nodiscard]] std::size_t replay_slot_count() const noexcept;
+    /// Open a replay slot.  The returned command buffer is ready for
+    /// recording (VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT).  The caller
+    /// records every pass for one compiled frame into it, then calls
+    /// end_replay_recording().  Must be called from prepare().
+#ifdef CHRONON3D_ENABLE_VULKAN
+    [[nodiscard]] VkCommandBuffer begin_replay_recording(std::size_t slot_index);
+#endif
+    /// Close the replay slot's command buffer so it can be submitted.
+    void end_replay_recording(std::size_t slot_index);
+    /// Submit a pre-recorded replay slot.  Writes `params` into the slot's
+    /// persistently-mapped uniform buffer, then submits the pre-recorded
+    /// command buffer with a single vkQueueSubmit.  Waits on the slot's
+    /// fence if the previous frame is still in flight — same ring-depth
+    /// bound as the live frame-batch path.
+    void replay_submit(std::size_t slot_index,
+                       const void* params, std::size_t params_size);
 
     /// Command-batch overrides.  While a command batch is active,
     /// end_frame_batch() no longer submits: it keeps recording into the
@@ -248,6 +285,14 @@ public:
     graph::RenderOpResult draw_text_run_surface_timed(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         std::span<const runtime::GlyphInstance>, float, const Color&, bool) override;
+
+    /// Draw a text run directly into the final destination — zero
+    /// intermediate surface, zero clear, zero composite after.
+    graph::RenderOpResult draw_text_batch(
+        runtime::RenderSurfaceHandle destination,
+        std::span<const runtime::GlyphStatic> glyphs,
+        std::span<const runtime::TextRunDynamic> runs,
+        std::span<const runtime::RenderSurfaceHandle> atlas_pages) override;
 
     /// Execute a compiled GPU layer batch.  Every instance in `instances`
     /// is composited into `destination` in painter order.  `resources` maps

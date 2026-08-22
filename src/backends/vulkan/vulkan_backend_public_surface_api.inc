@@ -535,6 +535,28 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::draw_text_batch(
+    runtime::RenderSurfaceHandle destination,
+    std::span<const runtime::GlyphStatic> glyphs,
+    std::span<const runtime::TextRunDynamic> runs,
+    std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->draw_text_batch(destination, glyphs, runs, atlas_pages);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)destination; (void)glyphs; (void)runs; (void)atlas_pages;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::draw_text_batch: Vulkan support is disabled"});
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::execute_layer_batch(
     runtime::RenderSurfaceHandle destination,
     std::span<const runtime::LayerInstance> instances,
@@ -557,6 +579,18 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::execute_layer_batch: Vulkan support is disabled"});
+#endif
+}
+
+void VulkanBackend::preallocate_plan_surfaces(
+    std::uint32_t canvas_width,
+    std::uint32_t canvas_height,
+    const graph::PhysicalFramebufferAllocationPlan& plan) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    std::lock_guard lock(m_impl->api_mutex);
+    m_impl->preallocate_plan_surfaces(canvas_width, canvas_height, plan);
+#else
+    (void)canvas_width; (void)canvas_height; (void)plan;
 #endif
 }
 

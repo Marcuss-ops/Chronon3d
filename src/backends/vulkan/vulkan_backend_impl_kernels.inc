@@ -349,3 +349,134 @@
         frame_batch.pass_count = 0;
         frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;
     }
+
+    // ── Command-replay: record once, submit with param writes ────────
+    //
+    // prepare() calls begin_replay_recording() / end_replay_recording()
+    // for each pre-planned pass to bake a VkCommandBuffer.  At frame time
+    // replay_submit() writes the per-frame params into the slot's mapped
+    // buffer and submits the pre-recorded command buffer — zero vkCmd*
+    // calls in the render loop.
+    //
+    // The params buffer is a simple flat allocation; the caller is
+    // responsible for the layout (typically a struct matching the shader's
+    // uniform block).  Capacity grows on demand but never shrinks.
+
+    void ensure_replay_params_capacity(ReplaySlot& slot, VkDeviceSize bytes) {
+        if (slot.params_capacity >= bytes) return;
+        // Destroy old buffer if it exists.
+        if (slot.params_buffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, slot.params_buffer, nullptr);
+            vkFreeMemory(device, slot.params_memory, nullptr);
+            slot.mapped_params = nullptr;
+        }
+        const VkBufferCreateInfo buffer_info{
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0,
+            bytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+        check(vkCreateBuffer(device, &buffer_info, nullptr, &slot.params_buffer),
+              "vkCreateBuffer(replay params)");
+        VkMemoryRequirements mem_reqs{};
+        vkGetBufferMemoryRequirements(device, slot.params_buffer, &mem_reqs);
+        const auto alloc = memory_arena.allocate(
+            mem_reqs, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (!alloc.success) {
+            throw std::runtime_error("replay params allocation failed");
+        }
+        slot.params_memory = alloc.memory;
+        check(vkBindBufferMemory(device, slot.params_buffer,
+                                 slot.params_memory, alloc.offset),
+              "vkBindBufferMemory(replay params)");
+        check(vkMapMemory(device, slot.params_memory, 0, bytes, 0,
+                          &slot.mapped_params),
+              "vkMapMemory(replay params)");
+        slot.params_capacity = bytes;
+    }
+
+    /// Open a replay slot for recording.  The caller records all commands
+    /// for one frame into the returned command buffer, then calls
+    /// end_replay_recording().  Must not be called while a frame batch
+    /// or another replay recording is active.
+    VkCommandBuffer begin_replay_recording(std::size_t slot_index) {
+        if (slot_index >= kReplaySlotCount) {
+            throw std::out_of_range("begin_replay_recording: slot out of range");
+        }
+        auto& slot = replay_slots[slot_index];
+        if (slot.command_buffer == VK_NULL_HANDLE) {
+            const VkCommandBufferAllocateInfo alloc_info{
+                VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr,
+                command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
+            check(vkAllocateCommandBuffers(device, &alloc_info,
+                                           &slot.command_buffer),
+                  "vkAllocateCommandBuffers(replay slot)");
+        }
+        if (slot.fence == VK_NULL_HANDLE) {
+            const VkFenceCreateInfo fence_info{
+                VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
+            check(vkCreateFence(device, &fence_info, nullptr, &slot.fence),
+                  "vkCreateFence(replay slot)");
+        }
+        const VkCommandBufferBeginInfo begin{
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
+            VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT, nullptr};
+        check(vkBeginCommandBuffer(slot.command_buffer, &begin),
+              "vkBeginCommandBuffer(replay slot)");
+        return slot.command_buffer;
+    }
+
+    /// Close the replay slot's command buffer.  After this call the slot
+    /// holds a pre-recorded, reusable VkCommandBuffer.
+    void end_replay_recording(std::size_t slot_index) {
+        if (slot_index >= kReplaySlotCount) {
+            throw std::out_of_range("end_replay_recording: slot out of range");
+        }
+        auto& slot = replay_slots[slot_index];
+        check(vkEndCommandBuffer(slot.command_buffer),
+              "vkEndCommandBuffer(replay slot)");
+    }
+
+    /// Submit a pre-recorded replay slot with the given per-frame params.
+    /// Waits on the slot's fence if it's still in flight (same ring-depth
+    /// as the frame batch), writes `params` into the mapped buffer, then
+    /// calls vkQueueSubmit exactly once.
+    void replay_submit(std::size_t slot_index,
+                       const void* params, VkDeviceSize params_size) {
+        if (slot_index >= kReplaySlotCount) {
+            throw std::out_of_range("replay_submit: slot out of range");
+        }
+        auto& slot = replay_slots[slot_index];
+        // Wait for previous frame using this slot.
+        if (slot.in_flight) {
+            CHRONON_TRACE_SCOPE("chronon.gpu", "ReplayFenceWait");
+            check(vkWaitForFences(device, 1, &slot.fence, VK_TRUE, UINT64_MAX),
+                  "vkWaitForFences(replay slot)");
+            check(vkResetFences(device, 1, &slot.fence),
+                  "vkResetFences(replay slot)");
+            slot.in_flight = false;
+        }
+        // Write per-frame params into the persistently-mapped buffer.
+        if (params && params_size > 0) {
+            ensure_replay_params_capacity(slot, params_size);
+            std::memcpy(slot.mapped_params, params,
+                        static_cast<std::size_t>(params_size));
+        }
+        // Single submit of the pre-recorded command buffer.
+        const auto signal_value = ++next_timeline_value;
+        const VkTimelineSemaphoreSubmitInfo timeline_submit{
+            VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
+            0, nullptr, 1, &signal_value};
+        const VkSubmitInfo submit_info{
+            VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit,
+            0, nullptr, nullptr,
+            1, &slot.command_buffer,
+            1, &timeline_semaphore};
+        const auto submit_start = profiling::now();
+        CHRONON_TRACE_SCOPE("chronon.gpu", "ReplaySubmit");
+        check(vkQueueSubmit(queue, 1, &submit_info, slot.fence),
+              "vkQueueSubmit(replay slot)");
+        stats.gpu_submit_cpu_us +=
+            static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
+        ++stats.submissions;
+        slot.in_flight = true;
+    }

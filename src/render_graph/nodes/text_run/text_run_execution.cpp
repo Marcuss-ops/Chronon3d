@@ -113,7 +113,8 @@ graph::RenderOpResult render_text_run_item(
     // still owns the final native surface and the caller keeps the failure
     // visible in its telemetry/logs.
     auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
-    if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+    if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
+        backend.supports_native_surfaces()) {
         if (!ensure_native_surface(mutable_ctx, fb)) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 RenderBackendErrorCode::ExecutionFailure,
