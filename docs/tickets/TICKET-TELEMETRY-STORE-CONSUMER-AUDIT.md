@@ -1,6 +1,6 @@
 # TICKET-TELEMETRY-STORE-CONSUMER-AUDIT — ShardedTelemetryStore consumer audit + elimination evaluation (Fase 7)
 
-## Stato: AUDITED (2026-08-21; gating landed, physical removal deferred)
+## Stato: DONE (2026-08-22; gating + physical removal landed)
 
 ## Problema (piano §20)
 
@@ -99,13 +99,23 @@ aggregati.
 4. **Si tiene** lo store + `TelemetryManager` + tabelle SQLite + test: la
    feature esiste e ha schema/semantica propria.
 
+### Rimozione fisica (landed 2026-08-22)
+- **Rimossi i pair text/tile**: `TextTelemetryRecord` + `TileTelemetryRecord`
+  (zero writer), store accessors/record/collect in `render_telemetry.hpp`,
+  campi `text_events`/`tile_events` in `TelemetryBundle` e firma
+  `record_output_run`/`record_run` (chirurgia API pubblica + schema SQLite
+  `render_text_events`/`render_tile_events` + indici + `write_text_events`/
+  `write_tile_events` su `TelemetryStore`/`NullTelemetryStore`/
+  `SqliteTelemetryStore`).
+- **Rimossa `TelemetrySession`** (`runtime/telemetry/telemetry_session.hpp`)
+  + relativo test + voce CMake/baseline; commento in `frame_timing_summary.hpp`
+  aggiornato a `FrameTelemetry`.
+- Restano 5 store (node/layer/cache/culling/image) al servizio del solo
+  consumer SQLite (default OFF) + RenderCounters/Perfetto.
+
 ### Deferred (follow-up)
-- **Rimozione fisica** dei pair text/tile (zero writer; richiede chirurgia su
-  API pubblica + schema SQLite + `TelemetryBundle` + firma `record_output_run`).
 - **Eliminazione totale** degli store quando Perfetto + RenderCounters
   copriranno il 100% dei consumer (dopo la certificazione del trace pipeline).
-- **Rimozione `TelemetrySession`** (runtime/telemetry/telemetry_session.hpp),
-  collector morto senza consumer.
 - Verifica WBH con `CHRONON3D_ENABLE_TELEMETRY=ON` (SQLite tables popolate)
   su un host con build telemetry.
 
@@ -118,5 +128,7 @@ aggregati.
 - 26/26 architecture boundaries + doc-sync PASS.
 
 ## Forward-points
-- `TICKET-TELEMETRY-STORE-REMOVAL` (deferred): rimozione fisica text/tile +
-  TelemetrySession + valutazione store totale.
+- `TICKET-TELEMETRY-STORE-REMOVAL`: rimozione fisica text/tile +
+  TelemetrySession **landed** (2026-08-22, questo commit). Resta aperta la
+  valutazione dell'eliminazione totale degli store quando Perfetto +
+  RenderCounters copriranno il 100% dei consumer.

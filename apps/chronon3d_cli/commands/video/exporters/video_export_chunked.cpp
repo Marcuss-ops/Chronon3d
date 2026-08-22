@@ -88,9 +88,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_events;
     std::vector<chronon3d::telemetry::CacheTelemetryRecord> cache_events;
     std::vector<chronon3d::telemetry::CullingTelemetryRecord> culling_events;
-    std::vector<chronon3d::telemetry::TextTelemetryRecord> text_events;
     std::vector<chronon3d::telemetry::ImageTelemetryRecord> image_events;
-    std::vector<chronon3d::telemetry::TileTelemetryRecord> tile_events;
     std::mutex telemetry_data_mutex;
 #endif
     std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
@@ -233,9 +231,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     for (auto& ev : local_telemetry.layer_events) layer_events.push_back(std::move(ev));
                     for (auto& ev : local_telemetry.cache_events) cache_events.push_back(std::move(ev));
                     for (auto& ev : local_telemetry.culling_events) culling_events.push_back(std::move(ev));
-                    for (auto& ev : local_telemetry.text_events) text_events.push_back(std::move(ev));
                     for (auto& ev : local_telemetry.image_events) image_events.push_back(std::move(ev));
-                    for (auto& ev : local_telemetry.tile_events) tile_events.push_back(std::move(ev));
                 }
 #endif
                 {
@@ -373,9 +369,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         /*layer_events=*/layer_events,
         /*cache_events=*/cache_events,
         /*culling_events=*/culling_events,
-        /*text_events=*/text_events,
         /*image_events=*/image_events,
-        /*tile_events=*/tile_events,
         /*artifacts=*/artifacts);
 #endif
 

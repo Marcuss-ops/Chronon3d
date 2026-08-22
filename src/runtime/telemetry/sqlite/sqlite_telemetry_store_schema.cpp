@@ -112,20 +112,10 @@ constexpr const char* CULLING_EVENT_COL_NAMES[] = {
     "bbox_x", "bbox_y", "bbox_w", "bbox_h",
     "visible_x", "visible_y", "visible_w", "visible_h", "saved_pixels"
 };
-constexpr const char* TEXT_EVENT_COL_NAMES[] = {
-    "run_id", "frame_number", "layer_id",
-    "text_length", "line_count", "glyph_count", "glyphs_rasterized",
-    "glyph_cache_hits", "glyph_cache_misses",
-    "layout_ms", "raster_ms", "composite_ms", "font_path", "font_size"
-};
 constexpr const char* IMAGE_EVENT_COL_NAMES[] = {
     "run_id", "frame_number", "layer_id",
     "image_path", "image_width", "image_height", "cache_status",
     "decode_ms", "sample_ms", "sampled_pixels"
-};
-constexpr const char* TILE_EVENT_COL_NAMES[] = {
-    "run_id", "frame_number", "layer_id", "tile_x", "tile_y",
-    "tile_status", "dirty_rects_count"
 };
 
 constexpr TableDef ALL_TABLES[] = {
@@ -137,9 +127,7 @@ constexpr TableDef ALL_TABLES[] = {
     {"render_layer_events", COLUMNS_OF(LAYER_EVENT_COL_NAMES)},
     {"render_cache_events", COLUMNS_OF(CACHE_EVENT_COL_NAMES)},
     {"render_culling_events", COLUMNS_OF(CULLING_EVENT_COL_NAMES)},
-    {"render_text_events", COLUMNS_OF(TEXT_EVENT_COL_NAMES)},
     {"render_image_events", COLUMNS_OF(IMAGE_EVENT_COL_NAMES)},
-    {"render_tile_events", COLUMNS_OF(TILE_EVENT_COL_NAMES)},
 };
 
 #undef COLUMNS_OF

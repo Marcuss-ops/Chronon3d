@@ -74,13 +74,11 @@ public:
     }
     bool write_cache_events(const std::string&, const std::vector<CacheTelemetryRecord>&) override { return true; }
     bool write_culling_events(const std::string&, const std::vector<CullingTelemetryRecord>&) override { return true; }
-    bool write_text_events(const std::string&, const std::vector<TextTelemetryRecord>&) override { return true; }
     bool write_image_events(const std::string&, const std::vector<ImageTelemetryRecord>& events) override {
         image_events_written = true;
         last_image_events = events;
         return true;
     }
-    bool write_tile_events(const std::string&, const std::vector<TileTelemetryRecord>&) override { return true; }
     bool write_artifacts(const std::string&, const std::vector<RenderArtifactRecord>&) override { return true; }
 };
 
@@ -215,7 +213,7 @@ TEST_CASE("Telemetry: image events are forwarded to the store") {
         .sampled_pixels = 480000,
     });
 
-    bool ok = manager.record_run(run, {}, {}, {}, {}, {}, {}, {}, {}, image_events);
+    bool ok = manager.record_run(run, {}, {}, {}, {}, {}, {}, {}, image_events);
     CHECK(ok);
     CHECK(mock->run_written);
     CHECK(mock->image_events_written);
@@ -282,17 +280,9 @@ TEST_CASE("NullTelemetryStore: all writes succeed without SQLite") {
     culling_events.push_back({.layer_id="cull"});
     CHECK(null_store.write_culling_events("run_1", culling_events));
 
-    std::vector<TextTelemetryRecord> text_events;
-    text_events.push_back({.font_path="f"});
-    CHECK(null_store.write_text_events("run_1", text_events));
-
     std::vector<ImageTelemetryRecord> image_events;
     image_events.push_back({.image_path="img"});
     CHECK(null_store.write_image_events("run_1", image_events));
-
-    std::vector<TileTelemetryRecord> tile_events;
-    tile_events.push_back({.layer_id="t"});
-    CHECK(null_store.write_tile_events("run_1", tile_events));
 
     // begin/end_transaction are no-ops (base class defaults)
     null_store.begin_transaction();
