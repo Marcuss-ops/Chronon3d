@@ -27,6 +27,7 @@ target_include_directories(chronon3d_cli_video_export PRIVATE
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
 )
 target_link_libraries(chronon3d_cli_video_export PRIVATE
+    chronon3d
     CLI11::CLI11
     spdlog::spdlog_header_only
     fmt::fmt
