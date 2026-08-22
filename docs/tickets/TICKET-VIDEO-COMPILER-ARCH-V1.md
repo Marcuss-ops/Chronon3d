@@ -1,6 +1,6 @@
 # TICKET-VIDEO-COMPILER-ARCH-V1 — Video-compiler architecture (CompiledTemplateProgram → DeviceProgram → hot loop)
 
-## Stato: OPEN (PLANNED, 2026-08-22)
+## Stato: OPEN — Fase A DONE (2026-08-22), fasi B–M PLANNED
 
 Architettura "video compiler offline": il grosso del lavoro intellettuale avviene
 prima del primo frame (compilazione) e il runtime si riduce a far scorrere la
@@ -132,10 +132,42 @@ lowering diversi dello stesso programma compilato**.
 
 ## Dettagli per fase (contract del ticket)
 
-### A. CompiledTemplateProgram
+### A. CompiledTemplateProgram — DONE (Fase A first commit, 2026-08-22)
 `ProgramFingerprint` + `ParameterSchema` + `ResourceManifest` + `StaticBakeRegion`
-list + `CompiledGpuBatch` list + `MaterializationBoundary` list +
-`PhysicalResourcePlan` + `ExecutionSchedule`. RenderGraph = source language.
+list + `CompiledGpuBatch` (alias di `CompiledLayerBatch` in Fase A) +
+`MaterializationBoundary` list + accessor `resource_plan()` / `execution()`
+verso il compiled graph. RenderGraph = source language.
+
+**Implementazione Fase A (first commit):**
+- `include/chronon3d/render_graph/compiler/compiled_template_program.hpp` (NEW):
+  ABI surface — `ProgramFingerprint` (+ `std::hash`) con `kRenderAbiV1` /
+  `kQualityProfileDefault`, `ParameterSchemaEntry` / `ParameterSchema`,
+  `ResourceKind` / `ResourceManifestEntry` / `ResourceManifest`,
+  `StaticBakeRegion`, `CompiledGpuBatch` (alias), `MaterializationBoundaryKind` /
+  `MaterializationBoundary`, `CompiledTemplateProgram` (shared_ptr<const
+  CompiledFrameGraph> = single source of truth + metadata + accessors).
+- `src/render_graph/compiler/compiled_template_program.cpp` (NEW):
+  `compile_template_program(CompiledFrameGraph)` — move nel shared_ptr, poi
+  lift di fingerprint (structure_hash + kRenderAbiV1), parameter schema (da
+  operations con parameter_size>0 + prepared table frame_count),
+  resource manifest (solo binding_meta.active, classify Image=shape_type 7 /
+  Text=TextRun / Video=Video), static regions (da static_bakes),
+  batches (da layer_batches), boundaries vuoti (Fase G).
+- `src/render_graph/CMakeLists.txt` (EDIT): `compiled_template_program.cpp` in
+  `chronon3d_graph_compiler` OBJECT lib.
+- `tests/render_graph/compiler/test_template_program.cpp` (NEW): 7 TEST_CASE —
+  ABI default-empty, fingerprint equality+hash, lift fingerprint, parameter
+  schema lift, resource manifest classify, static regions+batches lift,
+  move semantics.
+- `tests/render_graph/compiler/template_program_tests.cmake` (NEW) +
+  `tests/manifests/test_definitions.cmake` (EDIT): suite UNIT unconditional.
+
+**Verifica:** build `chronon3d_template_program_tests` PASS + ctest
+7/7 TEST_CASE PASS, 59/59 assertions. Cat-3 minimal-surface: 1 NEW ABI header
++ 1 NEW impl + 1 NEW test + 1 NEW .cmake + 2 EDIT = 6 file; zero duplicazione
+delle strutture esistenti (compose via shared_ptr, non copia i vector di
+`CompiledFrameGraph`). Forward-point: macchina-verifica end-to-end su
+composizione reale (tramite frame-graph compiler) DEFERRED-WBH.
 
 ### B. Temporal Analysis formalizzata
 ```cpp
