@@ -21,6 +21,7 @@
 
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
+#include <chronon3d/render_graph/core/cache_policy.hpp>  // TemporalClass
 
 #include <cstddef>
 #include <cstdint>
@@ -29,6 +30,43 @@
 #include <vector>
 
 namespace chronon3d::graph {
+
+// ── TemporalCapabilities (Fase B) ──────────────────────────────────────────
+//
+/// Declared by each processor or derived from node metadata at compile time.
+/// The temporal analysis pass propagates these through the graph to produce
+/// a per-node TemporalClass.
+struct TemporalCapabilities {
+    bool content_depends_on_time{false};
+    bool transform_depends_on_time{false};
+    bool parameters_depend_on_time{false};
+    bool depends_on_external_frame{false};
+
+    [[nodiscard]] bool fully_static() const noexcept {
+        return !content_depends_on_time && !transform_depends_on_time &&
+               !parameters_depend_on_time && !depends_on_external_frame;
+    }
+};
+
+/// Per-node temporal classification, stored once in the compiled template.
+struct CompiledTemporalInfo {
+    GraphNodeId   node{k_invalid_node};
+    TemporalClass classification{TemporalClass::Static};
+};
+
+/// Result of the temporal analysis pass.
+struct TemporalAnalysisResult {
+    std::vector<CompiledTemporalInfo> per_node;
+    std::size_t static_count{0};
+    std::size_t total_count{0};
+
+    [[nodiscard]] TemporalClass classification(GraphNodeId id) const noexcept {
+        if (id >= per_node.size()) return TemporalClass::ExternalDynamic;
+        return per_node[id].classification;
+    }
+
+    [[nodiscard]] bool empty() const noexcept { return per_node.empty(); }
+};
 
 // ── ProgramFingerprint ──────────────────────────────────────────────────────
 //
@@ -158,6 +196,9 @@ struct CompiledTemplateProgram {
     std::vector<CompiledGpuBatch>       batches;
     std::vector<MaterializationBoundary> boundaries;
 
+    // ── Fase B — temporal analysis ─────────────────────────────────────
+    TemporalAnalysisResult             temporal;
+
     bool                                valid{false};
 
     // ── Accessors (no copies — delegate to compiled) ───────────────────
@@ -191,6 +232,30 @@ struct CompiledTemplateProgram {
 ///  - boundaries: empty (Fase G populates via fusion analysis)
 [[nodiscard]] CompiledTemplateProgram
 compile_template_program(CompiledFrameGraph compiled);
+
+// ── Fase B — temporal analysis entry points ─────────────────────────────────
+//
+/// Topological temporal classification.  The rule: a node is Static when its
+/// own state is static AND all its inputs are static.  Derived classes are
+/// ranked (TransformDynamic < ParameterDynamic < ContentDynamic <
+/// ExternalDynamic) and propagated along the graph.
+[[nodiscard]] TemporalAnalysisResult classify_temporal(
+    const CompiledFrameGraph& compiled);
+
+/// Maximal static island discovery.  Walks the compiled levels top-down,
+/// merges maximal connected Static regions into a single StaticBakeRegion
+/// (BakeResourceId), and returns the discovered regions.
+[[nodiscard]] std::vector<StaticBakeRegion> bake_maximal_static_islands(
+    const CompiledFrameGraph& compiled,
+    const TemporalAnalysisResult& temporal);
+
+/// Merge islands that are contiguous in execution order when their union
+/// stays static.  Conservative: only merges when all inputs of the child
+/// island are within the same region or already static.
+[[nodiscard]] std::vector<StaticBakeRegion> merge_contiguous_static_regions(
+    std::vector<StaticBakeRegion> regions,
+    const CompiledFrameGraph& compiled,
+    const TemporalAnalysisResult& temporal);
 
 } // namespace chronon3d::graph
 

@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 using namespace chronon3d::graph;
@@ -49,6 +50,7 @@ CompiledFrameGraph build_synthetic_compiled_graph() {
     g.nodes[2].id = 2;
     g.nodes[2].kind = RenderGraphNodeKind::Transform;
     g.nodes[2].layer_id = "layer_xform";
+    g.nodes[2].inputs = {0, 1};  // ← topological edge for propagation
     g.nodes[2].binding_meta.active = false;
 
     // ── Program: levels + operations + batches + static bakes ─────────
@@ -173,15 +175,21 @@ TEST_CASE("CompiledTemplateProgram: resource manifest classifies kinds") {
     CHECK(prog.resources.entries[1].binding_id == "layer_text");
 }
 
-TEST_CASE("CompiledTemplateProgram: static regions + GPU batches lift") {
+TEST_CASE("CompiledTemplateProgram: static regions (maximal island bake) + GPU batches lift") {
     auto g = build_synthetic_compiled_graph();
     auto prog = compile_template_program(std::move(g));
 
+    // Fase B: the synthetic graph has exactly one static node (node 0 =
+    // Source Image with default FrameVariant policy → kind-derived static).
+    // Node 1 (TextRun) is ContentDynamic, node 2 (Transform with a
+    // ContentDynamic input) propagates to ContentDynamic.
     REQUIRE(prog.static_regions.size() == 1);
-    CHECK(prog.static_regions[0].bake_id == 17);
     CHECK(prog.static_regions[0].root == 0);
-    CHECK(prog.static_regions[0].fingerprint == 0xABCD);
+    CHECK(prog.static_regions[0].members == std::vector<GraphNodeId>{0});
     CHECK(prog.static_regions[0].is_baked);
+    CHECK(prog.static_regions[0].fingerprint != 0);
+    // bake_id is the region index (BakedResourceId resolved at runtime).
+    CHECK(prog.static_regions[0].bake_id == 0);
 
     REQUIRE(prog.batches.size() == 2);
     CHECK(prog.batches[0].is_gpu_fused);
@@ -191,6 +199,82 @@ TEST_CASE("CompiledTemplateProgram: static regions + GPU batches lift") {
 
     // Boundaries are empty in Fase A (Phase G populates).
     CHECK(prog.boundaries.empty());
+}
+
+// ── Fase B: temporal classification ───────────────────────────────────────
+TEST_CASE("Fase B: classify_temporal propagates worst-class through inputs") {
+    auto g = build_synthetic_compiled_graph();
+    auto prog = compile_template_program(std::move(g));
+
+    REQUIRE(prog.temporal.per_node.size() == 3);
+    CHECK(prog.temporal.classification(0) == TemporalClass::Static);
+    CHECK(prog.temporal.classification(1) == TemporalClass::ContentDynamic);
+    // node 2 (Transform) has own TransformDynamic but input node 1 is
+    // ContentDynamic → propagated worst class wins.
+    CHECK(prog.temporal.classification(2) == TemporalClass::ContentDynamic);
+    CHECK(prog.temporal.static_count == 1);
+    CHECK(prog.temporal.total_count == 3);
+}
+
+TEST_CASE("Fase B: is_static / is_dynamic / to_string helpers") {
+    CHECK(is_static(TemporalClass::Pure));
+    CHECK(is_static(TemporalClass::Static));
+    CHECK_FALSE(is_static(TemporalClass::TransformDynamic));
+    CHECK_FALSE(is_static(TemporalClass::ExternalDynamic));
+    CHECK(is_dynamic(TemporalClass::ParameterDynamic));
+    CHECK_FALSE(is_dynamic(TemporalClass::Pure));
+
+    CHECK(std::string_view(to_string(TemporalClass::Static)) == "Static");
+    CHECK(std::string_view(to_string(TemporalClass::ExternalDynamic)) == "ExternalDynamic");
+    CHECK(std::string_view(to_string(TemporalClass::Pure)) == "Pure");
+}
+
+// ── Fase B: static island splitting at dynamic boundaries ─────────────────
+TEST_CASE("Fase B: bake_maximal_static_islands splits at dynamic separators") {
+    // Two independent static source nodes feeding a dynamic composite.
+    CompiledFrameGraph g;
+    g.valid = true;
+    g.structure_hash = 0x1111;
+    g.output = 2;
+    g.levels = {{0, 1}, {2}};
+    g.nodes.resize(3);
+    g.nodes[0].id = 0;
+    g.nodes[0].kind = RenderGraphNodeKind::Source;
+    g.nodes[0].shape_type = 7;  // Image → static
+    g.nodes[1].id = 1;
+    g.nodes[1].kind = RenderGraphNodeKind::Source;
+    g.nodes[1].shape_type = 7;  // Image → static
+    g.nodes[2].id = 2;
+    g.nodes[2].kind = RenderGraphNodeKind::Effect;
+    g.nodes[2].inputs = {0, 1};  // dynamic composite
+    g.program.levels = g.levels;
+
+    auto temporal = classify_temporal(g);
+    CHECK(temporal.classification(0) == TemporalClass::Static);
+    CHECK(temporal.classification(1) == TemporalClass::Static);
+    CHECK(temporal.classification(2) == TemporalClass::ParameterDynamic);
+
+    auto regions = bake_maximal_static_islands(g, temporal);
+    // Two disconnected static islands, one per source.
+    REQUIRE(regions.size() == 2);
+    CHECK(regions[0].members == std::vector<GraphNodeId>{0});
+    CHECK(regions[1].members == std::vector<GraphNodeId>{1});
+    CHECK(regions[0].bake_id == 0);
+    CHECK(regions[1].bake_id == 1);
+    CHECK(regions[0].fingerprint != regions[1].fingerprint);
+}
+
+TEST_CASE("Fase B: merge_contiguous_static_regions is deterministic no-op in Fase B") {
+    auto g = build_synthetic_compiled_graph();
+    auto temporal = classify_temporal(g);
+    auto regions = bake_maximal_static_islands(g, temporal);
+    auto merged = merge_contiguous_static_regions(regions, g, temporal);
+
+    REQUIRE(merged.size() == regions.size());
+    for (std::size_t i = 0; i < regions.size(); ++i) {
+        CHECK(merged[i].members == regions[i].members);
+        CHECK(merged[i].bake_id == regions[i].bake_id);
+    }
 }
 
 TEST_CASE("CompiledTemplateProgram: consuming the source graph is a move") {
