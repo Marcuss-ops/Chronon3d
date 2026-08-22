@@ -1,7 +1,13 @@
 #pragma once
 
 // ──────────────────────────────────────────────────────────────────────────────
-// template_program_cache.hpp — Fase H: template program cache with residency
+// template_program_cache.hpp — ProgramCache: compiled program residency
+//
+// Cache family: ProgramCache (see cache/cache_taxonomy.hpp).
+//
+// Fase H: template program cache with residency.  Keys by ProgramFingerprint
+// (topology_hash + renderer_abi + quality_profile).  Two tiers: LRU eviction
+// + Pinned (active-job) residency via TemplatePin RAII handles.
 //
 // A bounded, thread-safe cache keyed by ProgramFingerprint (the Fase A
 // template key: topology_hash + renderer_abi + quality_profile — this IS the

@@ -266,9 +266,14 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cpu_breakdown.video_source_inactive_frames = c->video_source_inactive_frames.load(std::memory_order_relaxed);
         timings.cpu_breakdown.video_source_repeated_frames = c->video_source_repeated_frames.load(std::memory_order_relaxed);
     }
-    const auto atlas_stats = session->renderer->runtime().gpu_styled_glyph_cache().stats();
-    timings.text.atlas_cache_hits = atlas_stats.cache_hits;
-    timings.text.atlas_cache_misses = atlas_stats.cache_misses;
+    const auto atlas_stats = session->renderer->runtime().gpu_glyph_atlas().stats();
+    timings.text.atlas_cache_hits = atlas_stats.hits;
+    timings.text.atlas_cache_misses = atlas_stats.misses;
+    timings.text.atlas_key_bytes_hashed = 0;
+    timings.text.atlas_repack_count = 0;
+    timings.text.atlas_repack_bytes = 0;
+    timings.text.atlas_upload_count = atlas_stats.asset_upload_count;
+    timings.text.atlas_upload_bytes = atlas_stats.asset_upload_bytes;
     timings.cache.image_cache_hits = session->prepare_timings.image_cache_hits;
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;
     timings.cache.font_cache_hits = session->prepare_timings.font_cache_hits;

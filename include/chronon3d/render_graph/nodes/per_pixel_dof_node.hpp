@@ -30,6 +30,7 @@ public:
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "PerPixelDOF"; }
+    bool has_compiled_recorder() const noexcept override { return true; }
 
     [[nodiscard]] const Camera2_5DRuntime& camera_for(
         const RenderGraphContext& ctx) const noexcept {

@@ -1,5 +1,22 @@
 #pragma once
 
+// =============================================================================
+// physical_framebuffer_allocation.hpp — ResidencyCache: hot-path allocation plan
+//
+// Cache family: ResidencyCache (see cache/cache_taxonomy.hpp).
+//
+// This is the canonical single source of truth for hot-path framebuffer
+// allocations.  The compiler's interval-coloring algorithm assigns each
+// logical node output to a physical slot; the runtime materializes those
+// slots as OwnedFB[] in ExecutionState.  Nodes with a planned_physical_slot
+// acquire from it directly, bypassing FramebufferPool entirely.
+//
+// FramebufferPool remains available for: cold-path, reference/software
+// backend, uncompiled extensions, and unexpected transient helpers — but
+// the compiler-produced plan is authoritative for the production hot path.
+// =============================================================================
+
+#include <chronon3d/cache/cache_taxonomy.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -7,6 +24,10 @@
 #include <vector>
 
 namespace chronon3d::graph {
+
+// ── Compile-time: this plan IS the ResidencyCache hub ───────────────────────
+static_assert(
+    cache::cache_family_annotation<cache::CacheFamily::ResidencyCache>);
 
 inline constexpr std::uint32_t kInvalidPhysicalFramebufferSlot =
     std::numeric_limits<std::uint32_t>::max();

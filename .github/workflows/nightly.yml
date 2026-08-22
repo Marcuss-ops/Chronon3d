@@ -1,0 +1,193 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# nightly.yml — Chronon3D Nightly Pipeline (merged: Sanitizers + Visual + Profile)
+#
+# 10→3 workflow consolidation 2026-08-22.
+# Merged from: nightly-sanitizers.yml + nightly-visual.yml + profile-envelope.yml.
+#
+# Job catalog:
+#   1.  asan-ubsan            — ASan+UBSan (main push + daily 02:00 + manual)
+#   2.  tsan                  — TSan (weekly Sunday 03:00 + manual)
+#   3.  sanitizer-status      — Explicit verdict for the selected lane
+#   4.  cinematic-full        — Full cinematic showcase (5 comps × 6 keyframes)
+#   5.  profile-envelope      — 4-leg profile matrix observation (weekly Mon)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Chronon Nightly
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # ASan+UBSAN: daily at 02:00 UTC
+    - cron: '0 2 * * *'
+    # TSan: weekly, Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+    # Profile envelope: weekly Monday 04:00 UTC
+    - cron: '0 4 * * 1'
+    # Nightly visual: daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      sanitizer:
+        description: 'Which sanitizer to run (asan or tsan)'
+        required: false
+        default: 'asan'
+        type: choice
+        options: [asan, tsan, both]
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+# ── Concurrency for visual/profile families (per-ref group) ───────────────────
+concurrency:
+  group: nightly-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 1. ASan + UBSan — runs on main, daily 02:00, and manual dispatch
+  # ═══════════════════════════════════════════════════════════════════════════
+  asan-ubsan:
+    name: Sanitizer / ASan+UBSAN
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.sanitizer == 'asan' || github.event.inputs.sanitizer == 'both'))
+      || github.event.schedule == '0 2 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-asan
+      - run: cmake --build --preset linux-asan --target chronon3d_cli chronon3d_tests
+      - run: ctest --preset linux-asan-test --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2. TSan — runs weekly (Sunday 03:00) and manual dispatch
+  # ═══════════════════════════════════════════════════════════════════════════
+  tsan:
+    name: Sanitizer / TSan
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.sanitizer == 'tsan' || github.event.inputs.sanitizer == 'both'))
+      || github.event.schedule == '0 3 * * 0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-tsan
+      - run: cmake --build --preset linux-tsan --target chronon3d_cli chronon3d_tests
+      - run: ctest --preset linux-tsan-test --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 3. Sanitizer baseline status — explicit verdict
+  # ═══════════════════════════════════════════════════════════════════════════
+  sanitizer-status:
+    name: Sanitizer baseline status
+    if: ${{ !cancelled() }}
+    needs: [asan-ubsan, tsan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          REQUESTED: ${{ github.event.inputs.sanitizer }}
+          ASAN_RESULT: ${{ needs.asan-ubsan.result }}
+          TSAN_RESULT: ${{ needs.tsan.result }}
+        run: |
+          required=""
+          if [[ "$EVENT_NAME" == "push" || "$SCHEDULE" == "0 2 * * *" ]]; then required="asan"
+          elif [[ "$SCHEDULE" == "0 3 * * 0" ]]; then required="tsan"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then required="$REQUESTED"
+          fi
+          case "$required" in
+            asan) [[ "$ASAN_RESULT" == "success" ]] || { echo "GATE_FAIL: ASan/UBSan baseline result=$ASAN_RESULT" >&2; exit 1; } ;;
+            tsan) [[ "$TSAN_RESULT" == "success" ]] || { echo "GATE_FAIL: TSan baseline result=$TSAN_RESULT" >&2; exit 1; } ;;
+            both) [[ "$ASAN_RESULT" == "success" && "$TSAN_RESULT" == "success" ]] || { echo "GATE_FAIL: asan=$ASAN_RESULT tsan=$TSAN_RESULT" >&2; exit 1; } ;;
+            *) echo "GATE_FAIL: no sanitizer lane selected" >&2; exit 1 ;;
+          esac
+          echo "GATE_PASS: sanitizer baseline=$required (asan=$ASAN_RESULT tsan=$TSAN_RESULT)"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 4. Cinematic full — nightly visual validation (from nightly-visual.yml)
+  # ═══════════════════════════════════════════════════════════════════════════
+  cinematic-full:
+    name: Nightly cinematic full (5 comps × 6 keyframes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-ci
+      - run: cmake --build build/chronon/linux-ci --target chronon3d_cinematic_camera_showcase_tests --target chronon3d_tests_render -j$(nproc)
+      - name: Verify cinematic showcase (FULL: 5 × 6)
+        env: { CHRONON3D_CINEMATIC_FRAME_COUNT: '6', CHRONON3D_CINEMATIC_COMP_COUNT: '5' }
+        run: bash tools/verify_cinematic_showcase.sh
+      - name: Render contact sheet (FULL: 5760×2160)
+        env: { CHRONON3D_CINEMATIC_FRAME_COUNT: '6', CHRONON3D_CINEMATIC_COMP_COUNT: '5' }
+        run: bash tools/render_showcase_contact_sheet.sh
+      - name: Collect nightly artefacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          if [ -f output/showcase/contact_sheet.png ]; then
+            cp output/showcase/contact_sheet.png artifacts/contact_sheet.png
+            sha256sum output/showcase/contact_sheet.png > artifacts/contact_sheet.png.sha256
+          fi
+          if [ -d output/showcase ]; then
+            find output/showcase -maxdepth 2 -type f \( -name '*.png' -o -name '*.log' -o -name '*.txt' -o -name '*.json' \) \
+              -exec cp --parents {} artifacts/ \; 2>/dev/null || true
+          fi
+          for sub in debug diff camera_visual; do
+            if [ -d "output/${sub}" ]; then cp -r "output/${sub}" "artifacts/${sub}/" 2>/dev/null || true; fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-visual-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 60
+          if-no-files-found: warn
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 5. Profile envelope — 4-leg matrix observation (from profile-envelope.yml)
+  # ═══════════════════════════════════════════════════════════════════════════
+  profile-envelope:
+    name: Profile envelope (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: core
+          - profile: motion
+          - profile: video
+          - { profile: extended, build_args: "--build --parallel 16" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: false }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: chmod +x tools/measure_profile.sh
+      - name: Measure profile (${{ matrix.profile }})
+        run: bash tools/measure_profile.sh "${{ matrix.profile }}" ${{ matrix.build_args }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: profile-${{ matrix.profile }}-measurement
+          path: |
+            build/profiles/linux-profile-${{ matrix.profile }}/profile-measurement.json
+            build/profiles/linux-profile-${{ matrix.profile }}/profile-measurement.md
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,5 +1,21 @@
 #pragma once
 
+// =============================================================================
+// framebuffer_pool.hpp — ResidencyCache: cold-path / reference pool
+//
+// Cache family: ResidencyCache (see cache/cache_taxonomy.hpp).
+//
+// Provides LRU-evicted framebuffer memory pooling by size class.  This is
+// the SECONDARY allocation path: the compiler's PhysicalFramebufferAllocationPlan
+// (physical_framebuffer_allocation.hpp) is the authoritative hot-path source.
+//
+// Pool allocation fires only when:
+//   1. The node has NO planned_physical_slot (cold-path, reference backend,
+//      uncompiled extension, or transient helper framebuffer).
+//   2. The physical slot's OwnedFB has not been materialized yet (first use
+//      of a slot; pool→acquire_owned initializes it once).
+// =============================================================================
+
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <atomic>

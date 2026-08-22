@@ -1,3 +1,10 @@
+// =============================================================================
+// lru_cache.hpp — CANONICAL CACHE PRIMITIVE (thread-safe sharded LRU).
+//
+// Every cache instance across all three families (ContentCache, ResidencyCache,
+// ProgramCache — see cache_taxonomy.hpp) MUST use this single primitive.  No
+// second cache engine is permitted.
+// =============================================================================
 #pragma once
 
 #include <atomic>
