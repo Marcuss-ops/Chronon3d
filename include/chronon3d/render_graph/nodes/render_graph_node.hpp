@@ -122,6 +122,16 @@ public:
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
+    /// Returns true when this node supports a compiled execution path
+    /// (non-virtual dispatch through the processor snapshot).  When ALL
+    /// reachable nodes in a CompiledFrameProgram return true, the
+    /// executor activates the fully_recorded fast-path that skips
+    /// per-node context cloning and uses pre-resolved physical slots.
+    /// Default false: subclasses opt in by overriding.
+    [[nodiscard]] virtual bool has_compiled_recorder() const noexcept {
+        return false;
+    }
+
     virtual NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
