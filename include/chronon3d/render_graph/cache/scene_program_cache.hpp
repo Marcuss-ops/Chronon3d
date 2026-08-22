@@ -1,3 +1,8 @@
+// =============================================================================
+// scene_program_cache.hpp — ProgramCache: scene-specific compiled programs
+//
+// Cache family: ProgramCache (see cache/cache_taxonomy.hpp).
+// =============================================================================
 #pragma once
 
 // ---------------------------------------------------------------------------

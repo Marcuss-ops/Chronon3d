@@ -1,3 +1,9 @@
+// =============================================================================
+// cache_diagnostics.hpp — CROSS-CUTTING INFRASTRUCTURE (not a cache): stats
+//
+// Type-erased snapshot + clear-by-domain for all registered caches.  Not a
+// cache itself; provides observability for the three canonical families.
+// =============================================================================
 #pragma once
 
 // ── cache_diagnostics.hpp — Runtime cache diagnostics service ────────────

@@ -1,5 +1,24 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# ci.yml — Chronon3d CI Pipeline
+# ci.yml — Chronon3D CI Pipeline (merged: CI + Gates + Full Validation + Lint
+#          + Render Contract + Visual CI).  10→3 workflow consolidation 2026-08-22.
+#
+# Job catalog:
+#   1.  build-matrix              — Linux/Win build + test matrix
+#   2.  core-build                — Gate 1: no text/video/content/diagnostics
+#   3.  sdk-build                 — Gate 2: Text+Blend2D ON, no Content/Video
+#   4.  public-header-check       — Gate 3: every header compiled standalone
+#   5.  install-consumer-check    — Gate 4: cmake --install + find_package
+#   6.  architecture-check        — Gate 5: static rules + boundary scripts
+#   7.  install-consumer-script   — Gate 6: tools/install_consumer_test.sh
+#   8.  sdk-product-certification — Gate 7: C/C++/Go/Rust/Python consumers (push)
+#   9.  trace-gates               — Gate 8: Perfetto correctness + overhead
+#  10.  gate-status               — Machine-readable gate summary (P3-A)
+#  11.  full-validation           — Gate 6/heavy: full preset on critical paths
+#  12.  validate                  — Lint: bash syntax, CMake format, stale docs
+#  13.  render-contract           — RenderJob contract matrix (video/image/core)
+#  14.  golden                    — Visual regression golden matrix
+#  15.  benchmarks                — Blend + scene program benchmarks (advisory)
+#  16.  visual-verdict            — Final visual gate (blocks on golden failure)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Chronon CI
@@ -10,69 +29,38 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  CHRONON3D_UPDATE_GOLDENS: ${{ secrets.CHRONON3D_UPDATE_GOLDENS || '' }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
-  build:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 1. Build matrix (from ci.yml — Linux/Win build + test)
+  # ═══════════════════════════════════════════════════════════════════════════
+  build-matrix:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
         config:
-          - name: Linux (Release)
-            slug: linux-release
-            os: ubuntu-latest
-            preset: linux-ci-release-build
-            build_preset: linux-ci-release-build
-            test_preset: linux-ci-release-build-test
-            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
-
-          - name: Linux (Debug/CI)
-            slug: linux-debug-ci
-            os: ubuntu-latest
-            preset: linux-ci
-            build_preset: linux-ci
-            test_preset: linux-ci-test
-            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
-
-          - name: Linux (No Content)
-            slug: linux-nocontent
-            os: ubuntu-latest
-            preset: linux-ci-nocontent
-            build_preset: linux-ci-nocontent
-            test_preset: linux-ci-nocontent-test
-            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
-
-          - name: Windows (Release)
-            slug: windows-release
-            os: windows-latest
-            preset: win-release
-            build_preset: win
-            test_preset: win-test
-            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
-
-    env:
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-      VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
-      # Used only by checksum-pinned public fixture downloads. No repository
-      # content or user data is uploaded by the bootstrap helper.
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          - { name: 'Linux (Release)',   os: ubuntu-latest, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
+          - { name: 'Linux (Debug/CI)',  os: ubuntu-latest, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
+          - { name: 'Linux (No Content)', os: ubuntu-latest, preset: linux-ci-nocontent, build_preset: linux-ci-nocontent, test_preset: linux-ci-nocontent-test, slug: linux-nocontent }
+          - { name: 'Windows (Release)', os: windows-latest, preset: win-release, build_preset: win, test_preset: win-test, slug: windows-release }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          lfs: ${{ github.event_name == 'push' }}
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
 
-      - name: Gate / Test Hygiene (duplicate DOCTEST main)
+      - name: Gate / Test Hygiene
         if: runner.os == 'Linux'
-        working-directory: ${{ github.workspace }}
         run: bash tools/check_test_hygiene.sh
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: ${{ matrix.config.vcpkg_commit }}
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
 
       - name: Configure
         run: cmake --preset ${{ matrix.config.preset }}
@@ -90,59 +78,448 @@ jobs:
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
             -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests" \
-            --output-on-failure \
-            --output-junit test-results-${{ matrix.config.slug }}.xml
+            --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
 
       - name: Run Tests (Full — Push)
         if: github.event_name != 'pull_request'
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
-            --output-on-failure \
-            --output-junit test-results-${{ matrix.config.slug }}.xml
+            --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
 
       - name: Cinematic showcase smoke (Linux Debug/CI, push only)
         if: github.event_name != 'pull_request' && matrix.config.preset == 'linux-ci' && runner.os == 'Linux'
-        run: |
-          bash tools/verify_cinematic_showcase.sh --smoke
+        run: bash tools/verify_cinematic_showcase.sh --smoke
 
-      - name: Clang-Tidy (PR only)
+      - name: Clang-Tidy (PR, Linux only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'
         run: |
-          if command -v clang-tidy-18 &> /dev/null; then
-            TIDY=clang-tidy-18
-          elif command -v clang-tidy-17 &> /dev/null; then
-            TIDY=clang-tidy-17
-          elif command -v clang-tidy-16 &> /dev/null; then
-            TIDY=clang-tidy-16
-          elif command -v clang-tidy &> /dev/null; then
-            TIDY=clang-tidy
-          else
-            echo "clang-tidy not found; skipping static analysis"
-            exit 0
-          fi
+          TIDY=$(command -v clang-tidy-18 || command -v clang-tidy-17 || command -v clang-tidy-16 || command -v clang-tidy || true)
+          if [ -z "$TIDY" ]; then echo "clang-tidy not found; skipping"; exit 0; fi
           BUILD_DIR="build/chronon/${{ matrix.config.preset }}"
           find src include apps -name '*.cpp' -o -name '*.hpp' | \
-            xargs $TIDY --quiet --config-file=.clang-tidy -p "$BUILD_DIR" 2>&1 | \
-            tee clang-tidy-report.txt
-          if grep -q "error:" clang-tidy-report.txt; then
-            echo "clang-tidy found errors!"
-            exit 1
-          fi
+            xargs $TIDY --quiet --config-file=.clang-tidy -p "$BUILD_DIR" 2>&1 | tee clang-tidy-report.txt
+          if grep -q "error:" clang-tidy-report.txt; then exit 1; fi
 
       - name: Generate CI status JSON
         if: runner.os == 'Linux'
         run: |
           python3 tools/ci_status_from_junit.py \
             --junit "test-results-${{ matrix.config.slug }}.xml" \
-            --commit "${{ github.sha }}" \
-            --workflow "${{ github.workflow }}" \
-            --out "ci_status.json"
+            --commit "${{ github.sha }}" --workflow "${{ github.workflow }}" --out "ci_status.json"
 
-      - name: Upload CI status artifact
+      - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
         with:
           name: ci-status-${{ github.sha }}
           path: ci_status.json
           retention-days: 90
           if-no-files-found: ignore
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2. Gate 1 — Core build (no text/video/content/diagnostics)
+  # ═══════════════════════════════════════════════════════════════════════════
+  core-build:
+    name: Gate 1 / core-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-ci-core-gate
+      - run: cmake --build --preset linux-ci-core-gate
+      - run: ctest --preset linux-ci-core-gate-test --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 3. Gate 2 — SDK build (Text+Blend2D ON, no Content/Video)
+  # ═══════════════════════════════════════════════════════════════════════════
+  sdk-build:
+    name: Gate 2 / sdk-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-ci-lean-gate
+      - run: cmake --build --preset linux-ci-lean-gate
+      - run: ctest --preset linux-ci-lean-gate-test --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 4. Gate 3 — Public-header check
+  # ═══════════════════════════════════════════════════════════════════════════
+  public-header-check:
+    name: Gate 3 / public-header-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-ci-lean-gate -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline
+      - run: find include/chronon3d -maxdepth 3 -name '*.hpp' | sort > headers.txt && wc -l headers.txt
+      - name: Compile each header standalone
+        run: |
+          python3 tools/check_public_headers.py \
+            --compile-commands build/chronon/linux-ci-lean-gate/compile_commands.json \
+            --headers-list headers.txt --out out
+          if [ -s out/failures.txt ]; then
+            echo "::error::Public headers that fail to compile standalone:"; cat out/failures.txt; exit 1
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 5. Gate 4 — Install + consumer
+  # ═══════════════════════════════════════════════════════════════════════════
+  install-consumer-check:
+    name: Gate 4 / install-consumer-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-ci
+      - run: cmake --build build/chronon/linux-ci
+      - name: Install to local PREFIX
+        run: |
+          mkdir -p consumer-install
+          DESTDIR=$PWD/consumer-install cmake --install build/chronon/linux-ci
+      - name: Build external consumer project
+        run: |
+          mkdir -p consumer
+          printf 'cmake_minimum_required(VERSION 3.25)\n' > consumer/CMakeLists.txt
+          printf 'project(chronon_consumer LANGUAGES CXX)\n' >> consumer/CMakeLists.txt
+          printf 'set(CMAKE_CXX_STANDARD 20 CACHE STRING \"\")\n' >> consumer/CMakeLists.txt
+          printf 'set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL \"\")\n' >> consumer/CMakeLists.txt
+          printf 'find_package(Chronon3D CONFIG REQUIRED PATHS ${CMAKE_SOURCE_DIR}/../consumer-install/usr/local/lib/cmake/Chronon3D NO_DEFAULT_PATH)\n' >> consumer/CMakeLists.txt
+          printf 'add_executable(chronon_consumer main.cpp)\n' >> consumer/CMakeLists.txt
+          printf 'target_link_libraries(chronon_consumer PRIVATE Chronon3D::SDK)\n' >> consumer/CMakeLists.txt
+          printf '#include <chronon3d/sdk/render_settings.hpp>\n' > consumer/main.cpp
+          printf 'int main() { chronon3d::Color c{}; (void)c; return 0; }\n' >> consumer/main.cpp
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
+          cmake --build consumer/build
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 6. Gate 5 — Architecture check
+  # ═══════════════════════════════════════════════════════════════════════════
+  architecture-check:
+    name: Gate 5 / architecture-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python deps (tomli for py<3.11)
+        run: pip install tomli 2>/dev/null || true
+      - name: Unified architecture rules engine
+        run: python3 tools/check_architecture.py
+      - name: Public-target rule (Chronon3D::SDK / Chronon3D::C only)
+        run: bash tools/check_public_targets.sh
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 7. Gate 6 — Install consumer (tools/install_consumer_test.sh)
+  # ═══════════════════════════════════════════════════════════════════════════
+  install-consumer-script:
+    name: Gate 6 / install-consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: bash tools/install_consumer_test.sh
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 8. Gate 7 — SDK product certification (push only, release gate)
+  # ═══════════════════════════════════════════════════════════════════════════
+  sdk-product-certification:
+    name: Gate 7 / sdk-product-certification
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: sdk_consumers/03_go/go.mod }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bash tools/verify_sdk_product.sh
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 9. Gate 8 — Trace gates (Perfetto correctness + overhead)
+  # ═══════════════════════════════════════════════════════════════════════════
+  trace-gates:
+    name: Gate 8 / trace-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+      - uses: actions/cache@v4
+        with: { path: .trace-gate-cache, key: trace-gates-${{ runner.os }}-perfetto-v53.0-v1 }
+      - name: Provision Perfetto v53.0 amalgamated SDK
+        run: |
+          mkdir -p .perfetto-sdk
+          curl -fsSL -o .perfetto-sdk/perfetto.h https://raw.githubusercontent.com/google/perfetto/v53.0/sdk/perfetto.h
+          curl -fsSL -o .perfetto-sdk/perfetto.cc https://raw.githubusercontent.com/google/perfetto/v53.0/sdk/perfetto.cc
+          wc -l .perfetto-sdk/perfetto.h .perfetto-sdk/perfetto.cc
+      - name: Trace correctness gate
+        run: |
+          CHRONON3D_TRACE_GATES=1 PERFETTO_SDK_DIR=$PWD/.perfetto-sdk \
+          CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache bash tools/check_trace_correctness.sh
+      - name: Trace SQL report selftest
+        run: |
+          PERFETTO_SDK_DIR=$PWD/.perfetto-sdk CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache \
+          bash tools/check_trace_sql_report_selftest.sh /tmp/chronon3d_trace_gate.pftrace
+      - name: Trace overhead gates
+        run: |
+          CHRONON3D_TRACE_GATES=1 PERFETTO_SDK_DIR=$PWD/.perfetto-sdk \
+          CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache bash tools/check_trace_overhead.sh
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 10. Gate status summary (P3-A machine-readable JSON)
+  # ═══════════════════════════════════════════════════════════════════════
+  gate-status:
+    name: Gate Status Summary
+    if: ${{ !cancelled() }}
+    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, trace-gates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate gate status JSON
+        run: |
+          python3 -c "
+          import json, datetime
+          gates = {
+              'core-build':             '${{ needs.core-build.result }}',
+              'sdk-build':              '${{ needs.sdk-build.result }}',
+              'public-header-check':    '${{ needs.public-header-check.result }}',
+              'install-consumer-check': '${{ needs.install-consumer-check.result }}',
+              'architecture-check':     '${{ needs.architecture-check.result }}',
+              'install-consumer-script':'${{ needs.install-consumer-script.result }}',
+              'trace-gates':            '${{ needs.trace-gates.result }}',
+          }
+          passed = sum(1 for v in gates.values() if v == 'success')
+          status = {
+              'schema_version': 1,
+              'commit': '${{ github.sha }}',
+              'tested_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+              'workflow': '${{ github.workflow }}',
+              'gates': gates,
+              'gates_total': len(gates),
+              'gates_passed': passed,
+              'gates_failed': len(gates) - passed,
+              'gates_passed_bool': passed == len(gates),
+          }
+          with open('ci_gates_status.json', 'w') as f:
+              json.dump(status, f, indent=2); f.write('\n')
+          print(json.dumps(status, indent=2))
+          "
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-gates-status-${{ github.sha }}
+          path: ci_gates_status.json
+          retention-days: 90
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 11. Full validation — heavy preset on critical paths (push only)
+  #     (from gates-full-validation.yml)
+  # ═══════════════════════════════════════════════════════════════════════
+  full-validation:
+    name: Full validation
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true }
+      - name: Test Suite Registration gate
+        run: bash tools/check_test_suite_registration.sh
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-ci-full-validation
+      - run: cmake --build --preset linux-ci-full-validation
+      - name: Configure production tracing propagation probe
+        run: |
+          cmake -S . -B build/chronon/linux-trace-production -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/Chronon3DVcpkgToolchain.cmake \
+            -DVCPKG_TARGET_TRIPLET=x64-linux -DVCPKG_INSTALLED_DIR=$PWD/vcpkg_installed/linux-trace-production \
+            -DVCPKG_MANIFEST_FEATURES='cli;blend2d;text;tracing' \
+            -DCHRONON3D_BUILD_CLI=ON -DCHRONON3D_BUILD_TESTS=OFF -DCHRONON3D_BUILD_BENCHMARKS=OFF \
+            -DCHRONON3D_BUILD_CONTENT=OFF -DCHRONON3D_BUILD_DIAGNOSTICS=OFF \
+            -DCHRONON3D_ENABLE_TEXT=ON -DCHRONON3D_USE_BLEND2D=ON -DCHRONON3D_ENABLE_EXR=OFF \
+            -DCHRONON3D_ENABLE_VIDEO=ON -DCHRONON3D_ENABLE_NATIVE_FFMPEG=OFF \
+            -DCHRONON3D_ENABLE_VULKAN=OFF -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF \
+            -DCHRONON3D_ENABLE_MESH=OFF -DCHRONON3D_ENABLE_TRACING=ON \
+            -DCHRONON3D_ENABLE_TELEMETRY=OFF -DCHRONON3D_UNITY_BUILD=OFF
+      - name: Validate production tracing propagation
+        run: bash tools/check_trace_production_build_selftest.sh build/chronon/linux-trace-production/compile_commands.json
+      - name: Run full test suite
+        run: ctest --preset linux-ci-full-validation-test --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 12. Validate — Lint & validation (from validation.yml)
+  # ═══════════════════════════════════════════════════════════════════════
+  validate:
+    name: Lint & Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax
+        run: bash -n tools/*.sh
+      - name: Check changed CMake formatting
+        run: bash tools/check_cmake_format.sh
+      - name: Detect stale docs paths
+        run: |
+          ERRORS=0
+          while IFS= read -r line; do
+            for path in $(echo "$line" | grep -oP '(?<=`)[a-zA-Z0-9_/.-]+(?=`)' | grep -v '^http'); do
+              echo "$path" | grep -qE '^\.\./|^/|\.(h|cpp|py|jsx|ts|json|md|sh)$' || continue
+              if [ ! -f "$path" ] && [ ! -d "$path" ]; then
+                if [ ! -f "docs/$path" ] && [ ! -f "src/$path" ] && [ ! -f "tests/$path" ]; then
+                  echo "WARNING: Possible stale path in docs: $path"; ERRORS=$((ERRORS + 1))
+                fi
+              fi
+            done
+          done < <(find docs/ -name '*.md' -exec cat {} \;)
+          if [ "$ERRORS" -gt 0 ]; then echo "Found $ERRORS potential stale paths in documentation"; else echo "All documentation paths appear valid"; fi
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 13. Render contract matrix (from render-contract-matrix.yml)
+  # ═══════════════════════════════════════════════════════════════════════
+  render-contract:
+    name: RenderJob / ${{ matrix.config.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: 'Video enabled',   preset: linux-ci-render-video-contract,  build_preset: linux-ci-render-video-contract,  test_preset: linux-ci-render-video-contract-test,  core_only: false }
+          - { name: 'Video disabled',  preset: linux-ci-render-image-contract,  build_preset: linux-ci-render-image-contract,  test_preset: linux-ci-render-image-contract-test,  core_only: false }
+          - { name: 'CLI core-only',   preset: linux-ci-cli-core-only,          build_preset: linux-ci-cli-core-only,          test_preset: '',                                       core_only: true }
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Architecture regression guard
+        run: python3 tools/check_render_asset_architecture.py
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset ${{ matrix.config.preset }}
+      - run: cmake --build --preset ${{ matrix.config.build_preset }}
+      - name: Run RenderJob contract
+        if: ${{ ! matrix.config.core_only }}
+        run: ctest --preset ${{ matrix.config.test_preset }} -R '^chronon3d_render_job_contract_tests$' --output-on-failure
+      - name: Smoke core-only CLI
+        if: ${{ matrix.config.core_only }}
+        run: build/chronon/${{ matrix.config.preset }}/apps/chronon3d_cli/chronon3d_cli --help
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 14. Golden matrix — visual regression (from visual_ci.yml)
+  # ═══════════════════════════════════════════════════════════════════════
+  golden:
+    name: Golden (${{ matrix.golden.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        golden:
+          - { name: breathing, label: 'Breathing',      ctest_filter: '-R chronon3d_breathing_golden_tests', golden_subdir: breathing }
+          - { name: camera,    label: 'Camera',         ctest_filter: '-R chronon3d_camera_visual_tests',   golden_subdir: camera }
+          - { name: glow,      label: 'Glow+Suite',     ctest_filter: '-R chronon3d_renderer_tests',        golden_subdir: glow_suite }
+          - { name: support,   label: 'Visual Support', ctest_filter: '-R chronon3d_visual_test_support_tests', golden_subdir: '' }
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install --upgrade pip pillow numpy
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
+            libxcb-xinerama0 libxcb-xinput0 2>/dev/null || true
+        continue-on-error: true
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4' }
+      - run: cmake --preset linux-ci
+      - run: cmake --build --preset linux-ci -j$(nproc)
+      - name: Run ${{ matrix.golden.label }} tests
+        id: golden-test
+        run: |
+          mkdir -p artifacts
+          ctest --preset linux-ci-test ${{ matrix.golden.ctest_filter }} --output-on-failure 2>&1 | \
+            tee artifacts/test_output_${{ matrix.golden.name }}.txt; exit ${PIPESTATUS[0]}
+      - name: Collect artifacts
+        if: always()
+        run: |
+          if [ -d "test_renders/golden" ]; then cp -r test_renders/golden artifacts/golden/ 2>/dev/null || true; fi
+          for dir in output/debug output/diff; do
+            if [ -d "$dir" ]; then find "$dir" -type f \( -name "*.png" -o -name "*.txt" -o -name "*.json" \) -exec cp {} artifacts/diff/ \; 2>/dev/null || true; fi
+          done
+          if [ -d "output/camera_visual" ]; then cp -r output/camera_visual artifacts/camera_visual/ 2>/dev/null || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-${{ matrix.golden.name }}-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 14
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 15. Benchmarks — advisory (from visual_ci.yml)
+  # ═══════════════════════════════════════════════════════════════════════
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4' }
+      - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON
+      - run: cmake --build build/chronon/linux-ci --target chronon3d_benchmarks --target chronon3d_scene_program_benchmarks -j$(nproc)
+      - name: Run blend benchmark
+        id: bench-blend
+        continue-on-error: true
+        run: |
+          mkdir -p output/benchmarks
+          BIN="build/chronon/linux-ci/tests/chronon3d_benchmarks"
+          if [ -f "$BIN" ]; then $BIN --benchmark_min_time=0.01 --benchmark_out=output/benchmarks/bench_blend.json --benchmark_out_format=json 2>&1 | tee output/benchmarks/bench_blend_output.txt; fi
+      - name: Run program benchmark
+        id: bench-program
+        continue-on-error: true
+        run: |
+          mkdir -p output/benchmarks
+          BIN="build/chronon/linux-ci/tests/chronon3d_scene_program_benchmarks"
+          if [ -f "$BIN" ]; then $BIN --benchmark_min_time=0.01 --benchmark_out=output/benchmarks/bench_program.json --benchmark_out_format=json 2>&1 | tee output/benchmarks/bench_program_output.txt; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: output/benchmarks/
+          retention-days: 30
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 16. Visual verdict — blocks on golden failure
+  # ═══════════════════════════════════════════════════════════════════════
+  visual-verdict:
+    name: Visual Verdict
+    runs-on: ubuntu-latest
+    needs: [golden]
+    if: always()
+    steps:
+      - run: |
+          if [ "${{ needs.golden.result }}" != "success" ]; then
+            echo "::error::One or more golden test variants FAILED."; exit 1
+          fi
+          echo "All golden test variants PASSED."

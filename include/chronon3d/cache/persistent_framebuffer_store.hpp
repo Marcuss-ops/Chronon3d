@@ -1,3 +1,8 @@
+// =============================================================================
+// persistent_framebuffer_store.hpp — ResidencyCache: named persistent FB storage
+//
+// Cache family: ResidencyCache (see cache/cache_taxonomy.hpp).
+// =============================================================================
 #pragma once
 
 // ── persistent_framebuffer_store.hpp ─────────────────────────────────────

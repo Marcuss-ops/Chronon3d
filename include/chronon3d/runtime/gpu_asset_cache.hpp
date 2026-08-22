@@ -1,5 +1,17 @@
 #pragma once
 
+// =============================================================================
+// gpu_asset_cache.hpp — ContentCache: decoded assets → GPU device-local surfaces
+//
+// Cache family: ContentCache (see cache/cache_taxonomy.hpp).
+//
+/// Engine-local cache for decoded assets promoted to device-local surfaces.
+/// Keys by ContentDigest + PixelFormat + dimensions.  Same key ⇒ same GPU
+/// surface, always.  The cache owns logical handles and releases backend
+/// storage on eviction; it does not duplicate the RenderSurfaceRegistry or
+/// asset resolver.
+// =============================================================================
+
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
