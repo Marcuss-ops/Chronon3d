@@ -127,3 +127,7 @@ sdk_consumers/04_rust/target/
 
 # ── Local telemetry dashboard WIP (untracked experiment) ────────────────
 tools/telemetry_dashboard/
+
+# ── Perfetto SDK + trace-gate build cache (CI-provisioned, not VCS) ──
+.perfetto-sdk/
+.trace-gate-cache/
