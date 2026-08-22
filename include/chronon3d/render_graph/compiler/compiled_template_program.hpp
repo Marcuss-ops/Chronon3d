@@ -333,6 +333,20 @@ struct PreparedFrameProgram {
 /// table preallocation land in subsequent phases.
 [[nodiscard]] PreparedFrameProgram prepare(const CompiledTemplateProgram& program);
 
+/// Phase 5 — pre-allocate every physical GPU surface from the compiled
+/// interval-coloring plan.  Must be called once after prepare() and before
+/// the first frame.  After this call:
+///
+///   vkCreateImage / frame       = 0
+///   vkCreateImageView / frame   = 0
+///   vkAllocateMemory / frame    = 0
+///
+/// The pool-based fallback stays alive for unplanned surfaces.
+void preallocate_surfaces(const CompiledTemplateProgram& program,
+                          RenderBackend* backend,
+                          std::uint32_t canvas_width,
+                          std::uint32_t canvas_height);
+
 // ── Template program derivation ─────────────────────────────────────────────
 //
 /// Lifts a compiled frame graph into a CompiledTemplateProgram.

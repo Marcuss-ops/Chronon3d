@@ -13,7 +13,6 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
-#include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +42,8 @@ namespace chronon3d::cache {
 }
 
 namespace chronon3d::graph {
+
+struct PhysicalFramebufferAllocationPlan;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend capabilities & error types
@@ -168,6 +169,11 @@ public:
     /// contract; native GPU backends override this only when the surface can
     /// be handed off without exposing backend types to the graph.
     [[nodiscard]] virtual bool supports_native_video_surface() const noexcept {
+        return false;
+    }
+
+    /// Query whether this backend supports native GPU surface handles.
+    [[nodiscard]] virtual bool supports_native_surfaces() const noexcept {
         return false;
     }
 
@@ -558,6 +564,22 @@ public:
         return draw_text_run_surface(destination, atlas, glyphs);
     }
 
+    /// Draw a text run directly into the final destination surface — no
+    /// intermediate text framebuffer, no clear, no separate composite.
+    /// GlyphStatic[glyph_count] carries immutable atlas coordinates;
+    /// TextRunDynamic carries transform/color shared by the whole run.
+    /// `atlas_pages` maps atlas_page indices to the corresponding atlas
+    /// texture handles (one per page).
+    virtual RenderOpResult draw_text_batch(
+        runtime::RenderSurfaceHandle /*destination*/,
+        std::span<const runtime::GlyphStatic> /*glyphs*/,
+        std::span<const runtime::TextRunDynamic> /*runs*/,
+        std::span<const runtime::RenderSurfaceHandle> /*atlas_pages*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::draw_text_batch: not supported by this backend"});
+    }
+
     /// Execute a compiled GPU layer batch.  Every instance in `instances` is
     /// composited into `destination` in painter order using the backend's
     /// SSBO-based batch kernel.  `resources` maps resource_index to the
@@ -574,6 +596,17 @@ public:
         return RenderOpResult(RenderBackendError{
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::execute_layer_batch: not supported by this backend"});
+    }
+
+    /// Phase 5 — pre-allocate every physical GPU surface from the compiled
+    /// interval-coloring plan.  Called once after prepare() and before the
+    /// first frame.  GPU backends create all VkImages here; the default
+    /// no-op is correct for software/reference backends.
+    virtual void preallocate_plan_surfaces(
+        std::uint32_t /*canvas_width*/,
+        std::uint32_t /*canvas_height*/,
+        const PhysicalFramebufferAllocationPlan& /*plan*/) {
+        // Default: no-op (software/reference backends)
     }
 };
 

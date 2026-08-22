@@ -180,6 +180,33 @@ struct VulkanBackend::Impl {
         const runtime::BarrierPlan* sync_plan{nullptr};
     };
 
+    // ── Command-replay ring ───────────────────────────────────────────
+    //
+    // When the compiled program is fully recorded (fully_recorded == true),
+    // prepare() records every VkCommandBuffer once.  Each frame then only
+    // writes per-frame params into a persistently-mapped buffer and submits
+    // the pre-recorded command buffer — zero vkCmd* calls in the hot path.
+    //
+    // The ring size matches the frame-batch ring so the pipeline depth
+    // stays identical; the GPU can still overlap execution of N frames.
+    struct ReplaySlot {
+        VkCommandBuffer command_buffer{VK_NULL_HANDLE};
+        VkFence fence{VK_NULL_HANDLE};
+        bool in_flight{false};
+        // Persistently-mapped uniform buffer for per-frame params.
+        // Written once per frame before vkQueueSubmit; the shaders read
+        // from binding 0 (the legacy descriptor layout already exposes
+        // storage images at 1-3, so binding 0 is free for a UBO).
+        VkBuffer params_buffer{VK_NULL_HANDLE};
+        VkDeviceMemory params_memory{VK_NULL_HANDLE};
+        void* mapped_params{nullptr};
+        VkDeviceSize params_capacity{0};
+    };
+    static constexpr std::size_t kReplaySlotCount = 3;
+    std::array<ReplaySlot, kReplaySlotCount> replay_slots{};
+    bool replay_prepared{false};
+    std::size_t replay_next_slot{0};
+
     VkPhysicalDevice physical_device;
     VkDevice device;
     VkQueue queue;
@@ -318,6 +345,21 @@ struct VulkanBackend::Impl {
         for (auto& slot_buffer : frame_batch.command_buffers) {
             if (slot_buffer != VK_NULL_HANDLE) {
                 vkFreeCommandBuffers(device, command_pool, 1, &slot_buffer);
+            }
+        }
+        // ── Replay slot teardown ───────────────────────────────────
+        for (auto& slot : replay_slots) {
+            if (slot.command_buffer != VK_NULL_HANDLE) {
+                vkFreeCommandBuffers(device, command_pool, 1, &slot.command_buffer);
+            }
+            if (slot.fence != VK_NULL_HANDLE) {
+                vkDestroyFence(device, slot.fence, nullptr);
+            }
+            if (slot.params_buffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, slot.params_buffer, nullptr);
+            }
+            if (slot.params_memory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, slot.params_memory, nullptr);
             }
         }
         if (fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
@@ -525,6 +567,45 @@ void VulkanBackend::end_command_batch() {
     m_impl->command_batch_started = false;
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
+#endif
+}
+
+// ── Phase 8: command-replay public API ────────────────────────────────
+
+std::size_t VulkanBackend::replay_slot_count() const noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    return Impl::kReplaySlotCount;
+#else
+    return 0;
+#endif
+}
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+VkCommandBuffer VulkanBackend::begin_replay_recording(std::size_t slot_index) {
+    std::lock_guard lock(m_impl->api_mutex);
+    return m_impl->begin_replay_recording(slot_index);
+}
+#endif
+
+void VulkanBackend::end_replay_recording(std::size_t slot_index) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    std::lock_guard lock(m_impl->api_mutex);
+    m_impl->end_replay_recording(slot_index);
+#else
+    (void)slot_index;
+#endif
+}
+
+void VulkanBackend::replay_submit(std::size_t slot_index,
+                                   const void* params, std::size_t params_size) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    std::lock_guard lock(m_impl->api_mutex);
+    m_impl->replay_submit(slot_index, params,
+                          static_cast<VkDeviceSize>(params_size));
+#else
+    (void)slot_index;
+    (void)params;
+    (void)params_size;
 #endif
 }
 

@@ -397,6 +397,66 @@
         submit();
     }
 
+    // ── draw_text_batch ──────────────────────────────────────────────────
+    //
+    // Draw a text run directly into `destination` — zero intermediate
+    // surface, zero clear, zero composite after.  GlyphStatic[] provides
+    // immutable atlas coordinates (16B/glyph); TextRunDynamic provides
+    // per-run transform/color (24B/run).  atlas_pages maps atlas_page
+    // indices to VkImages.
+    //
+    // Phase 7 implementation decomposes into per-glyph composite calls
+    // through the existing text_run_surface path.  The fused SSBO kernel
+    // lands in a later phase.
+    void draw_text_batch(runtime::RenderSurfaceHandle destination,
+                         std::span<const runtime::GlyphStatic> glyphs,
+                         std::span<const runtime::TextRunDynamic> runs,
+                         std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
+        if (glyphs.empty() || runs.empty()) return;
+
+        auto& dst_image = resolve_image(destination);
+        if (!dst_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
+            throw std::invalid_argument(
+                "Vulkan draw_text_batch references an invalid destination surface");
+        }
+
+        const auto& run = runs[0];  // single-run batch for now
+
+        // Build legacy GlyphInstance span from GlyphStatic + TextRunDynamic.
+        // The glyph count is glyphs.size(); each glyph in this run shares
+        // the same transform and opacity from TextRunDynamic.
+        std::vector<runtime::GlyphInstance> instances;
+        instances.reserve(glyphs.size());
+        for (const auto& gs : glyphs) {
+            runtime::RenderSurfaceHandle atlas_handle =
+                runtime::kInvalidRenderSurfaceHandle;
+            if (gs.atlas_page < atlas_pages.size()) {
+                atlas_handle = atlas_pages[gs.atlas_page];
+            }
+            if (atlas_handle == runtime::kInvalidRenderSurfaceHandle) continue;
+
+            runtime::GlyphInstance gi;
+            gi.dst_x = static_cast<std::int32_t>(run.tx) + gs.local_x;
+            gi.dst_y = static_cast<std::int32_t>(run.ty) + gs.local_y;
+            gi.atlas_x = static_cast<std::int32_t>(gs.uv_x);
+            gi.atlas_y = static_cast<std::int32_t>(gs.uv_y);
+            gi.width = static_cast<std::int32_t>(gs.width);
+            gi.height = static_cast<std::int32_t>(gs.height);
+            gi.opacity = run.opacity;
+            gi.scale_x = run.sx;
+            gi.scale_y = run.sy;
+            gi.pad = 0.0f;
+            gi.highlight_start_frame = -1.0f;
+            gi.highlight_end_frame = -1.0f;
+            instances.push_back(gi);
+
+            // Draw each glyph individually (decomposed path).  The fused
+            // SSBO batch will dispatch all glyphs in a single kernel.
+            text_run_surface(destination, atlas_handle,
+                             std::span(&instances.back(), 1));
+        }
+    }
+
     // ── execute_layer_batch ──────────────────────────────────────────────
     //
     // GPU layer-batch consumer.  Every LayerInstance in `instances` is

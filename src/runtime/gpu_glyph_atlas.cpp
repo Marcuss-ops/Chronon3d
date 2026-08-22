@@ -1,16 +1,16 @@
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 
+#include <algorithm>
+#include <cstring>
 #include <sstream>
 
 namespace chronon3d::runtime {
 
 namespace {
 
-// Deterministic string form of a glyph key.  The SHA-256 of this string is
-// the asset content digest, so the same (font, glyph, size) resolves to the
-// same device surface regardless of call order.
 std::string glyph_key_string(const GpuGlyphKey& key) {
     std::ostringstream out;
     out << key.font_path << '\x1f' << key.glyph_id << '\x1f' << key.font_size;
@@ -19,56 +19,181 @@ std::string glyph_key_string(const GpuGlyphKey& key) {
 
 } // namespace
 
+// ── GpuGlyphAtlas (paged R8 atlas) ─────────────────────────────────────────
+
 void GpuGlyphAtlas::attach(RenderSurfaceRegistry& registry,
                            graph::RenderBackend& backend) noexcept {
     m_cache.attach(registry, backend);
 }
 
-GpuGlyphLookup GpuGlyphAtlas::acquire(GpuGlyphKey key,
-                                      std::uint32_t width, std::uint32_t height,
-                                      std::span<const float> rgba,
-                                      GpuGlyphMetrics metrics) {
-    GpuAssetKey asset_key;
-    asset_key.content_digest = assets::sha256_string(glyph_key_string(key));
-    asset_key.format = PixelFormat::Rgba32Float;
-    asset_key.width = width;
-    asset_key.height = height;
+GpuGlyphAtlas::AtlasPage& GpuGlyphAtlas::current_page_or_new() {
+    if (m_pages.empty() ||
+        (m_pages.back().cursor_x + 64 > kPageSize &&
+         m_pages.back().cursor_y + m_pages.back().row_height + 64 > kPageSize)) {
+        // Allocate a new page
+        AtlasPage page;
+        GpuAssetKey asset_key;
+        asset_key.content_digest = assets::sha256_string(
+            "atlas_page_" + std::to_string(m_pages.size()));
+        asset_key.format = PixelFormat::R8Unorm;
+        asset_key.width = kPageSize;
+        asset_key.height = kPageSize;
 
-    SurfaceDesc desc{width, height, PixelFormat::Rgba32Float,
-                     ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
-    const auto result = m_cache.acquire(asset_key, desc, rgba);
-    if (!result.ok()) {
-        return {kInvalidRenderSurfaceHandle, metrics, false, result.error};
+        SurfaceDesc desc{kPageSize, kPageSize, PixelFormat::R8Unorm,
+                         ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+        // Allocate device surface; initial content is zero (R8Unorm).
+        std::vector<float> zero(kPageSize * kPageSize, 0.0f);
+        const auto result = m_cache.acquire(asset_key, desc, zero);
+        page.handle = result.handle;
+        m_pages.push_back(std::move(page));
+        ++m_stats.page_count;
     }
+    return m_pages.back();
+}
 
+GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
+                                     std::uint32_t width, std::uint32_t height,
+                                     std::span<const float> coverage,
+                                     GpuGlyphMetrics metrics) {
+    std::lock_guard lock(m_mutex);
+
+    // Check if already resident
     {
-        std::lock_guard lock(m_mutex);
-        const auto [it, inserted] = m_metrics.try_emplace(key, metrics);
-        if (!inserted) {
-            metrics = it->second;  // prefer the metrics stored on first use
-        }
-        m_stats.entries = m_metrics.size();
-        if (result.cache_hit) {
+        const auto it = m_locations.find(key);
+        if (it != m_locations.end()) {
             ++m_stats.hits;
-        } else {
-            ++m_stats.misses;
+            return it->second;
         }
     }
-    return {result.handle, metrics, result.cache_hit, {}};
+    ++m_stats.misses;
+
+    // Glyph too large for a page — allocate a dedicated surface
+    if (width > kPageSize || height > kPageSize) {
+        // Fallback: dedicated RGBA32F surface for oversized glyph
+        GpuAssetKey asset_key;
+        asset_key.content_digest = assets::sha256_string(glyph_key_string(key));
+        asset_key.format = PixelFormat::R8Unorm;  // still R8
+        asset_key.width = width;
+        asset_key.height = height;
+
+        SurfaceDesc desc{width, height, PixelFormat::R8Unorm,
+                         ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+        const auto result = m_cache.acquire(asset_key, desc, coverage);
+
+        GlyphLocation loc;
+        loc.atlas_page = 0;  // dedicated surface (not paged)
+        loc.width = static_cast<std::uint16_t>(width);
+        loc.height = static_cast<std::uint16_t>(height);
+        loc.advance_x = metrics.advance_x;
+        m_locations[key] = loc;
+        m_metrics[key] = metrics;
+        ++m_stats.entries;
+        return loc;
+    }
+
+    // Shelf-pack the glyph into the current page
+    auto& page = current_page_or_new();
+    if (page.cursor_x + width > kPageSize) {
+        page.cursor_x = 0;
+        page.cursor_y += page.row_height;
+        page.row_height = 0;
+    }
+    if (page.cursor_y + height > kPageSize) {
+        // Need a new page
+        AtlasPage new_page;
+        GpuAssetKey asset_key;
+        asset_key.content_digest = assets::sha256_string(
+            "atlas_page_" + std::to_string(m_pages.size()));
+        asset_key.format = PixelFormat::R8Unorm;
+        asset_key.width = kPageSize;
+        asset_key.height = kPageSize;
+
+        SurfaceDesc desc{kPageSize, kPageSize, PixelFormat::R8Unorm,
+                         ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+        std::vector<float> zero(kPageSize * kPageSize, 0.0f);
+        const auto result = m_cache.acquire(asset_key, desc, zero);
+        new_page.handle = result.handle;
+        m_pages.push_back(std::move(new_page));
+        ++m_stats.page_count;
+        page = m_pages.back();
+    }
+
+    // Upload the glyph to the page at (cursor_x, cursor_y)
+    const std::uint32_t px = page.cursor_x;
+    const std::uint32_t py = page.cursor_y;
+
+    // The page is already ensured by GpuAssetCache. Upload the coverage
+    // region into the page.
+    if (m_cache.backend()) {
+        SurfaceDesc page_desc{kPageSize, kPageSize, PixelFormat::R8Unorm,
+                              ResourceUsage::Storage,
+                              LifetimeClass::JobPersistent,
+                              static_cast<std::size_t>(kPageSize) * kPageSize};
+
+        // upload_surface_region converts float→R8 internally
+        m_cache.backend()->upload_surface_region(
+            page.handle, page_desc,
+            static_cast<std::int32_t>(px), static_cast<std::int32_t>(py),
+            width, height, coverage);
+    }
+
+    page.cursor_x += width;
+    page.row_height = std::max(page.row_height, height);
+
+    GlyphLocation loc;
+    loc.atlas_page = static_cast<std::uint16_t>(m_pages.size() - 1);
+    loc.uv_index = static_cast<std::uint16_t>(px | (py << 16));  // encode X/Y
+    loc.local_x = static_cast<std::int16_t>(px);
+    loc.local_y = static_cast<std::int16_t>(py);
+    loc.width = static_cast<std::uint16_t>(width);
+    loc.height = static_cast<std::uint16_t>(height);
+    loc.advance_x = metrics.advance_x;
+
+    m_locations[key] = loc;
+    m_metrics[key] = metrics;
+    ++m_stats.entries;
+    m_stats.total_glyph_bytes += static_cast<std::size_t>(width) * height;
+
+    return loc;
+}
+
+void GpuGlyphAtlas::prepare_batch(
+    std::span<const GpuGlyphKey> keys,
+    std::span<const std::uint32_t> widths,
+    std::span<const std::uint32_t> heights,
+    std::span<const float> coverage_data,
+    std::span<const GpuGlyphMetrics> metrics) {
+    if (keys.size() != widths.size() || keys.size() != heights.size() ||
+        keys.size() != metrics.size()) {
+        return;
+    }
+    // Walk sequentially; coverage_data is a flat concatenation of all
+    // glyph bitmaps.  The caller must ensure correct alignment.
+    std::size_t coverage_offset = 0;
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        const auto w = widths[i];
+        const auto h = heights[i];
+        const auto count = static_cast<std::size_t>(w) * h;
+        if (coverage_offset + count > coverage_data.size()) break;
+        (void)acquire(keys[i], w, h,
+                      coverage_data.subspan(coverage_offset, count),
+                      metrics[i]);
+        coverage_offset += count;
+    }
 }
 
 std::optional<GpuGlyphMetrics> GpuGlyphAtlas::metrics(GpuGlyphKey key) const noexcept {
     std::lock_guard lock(m_mutex);
     const auto it = m_metrics.find(key);
-    if (it == m_metrics.end()) {
-        return std::nullopt;
-    }
+    if (it == m_metrics.end()) return std::nullopt;
     return it->second;
 }
 
 void GpuGlyphAtlas::clear() noexcept {
     std::lock_guard lock(m_mutex);
+    m_locations.clear();
     m_metrics.clear();
+    m_pages.clear();
     m_stats = {};
     m_cache.clear();
 }
@@ -78,6 +203,65 @@ void GpuGlyphAtlas::set_budget_bytes(std::size_t budget_bytes) noexcept {
 }
 
 GpuGlyphAtlasStats GpuGlyphAtlas::stats() const noexcept {
+    std::lock_guard lock(m_mutex);
+    return m_stats;
+}
+
+// ── GpuStyledGlyphCache ─────────────────────────────────────────────────────
+
+namespace {
+
+std::pair<std::uint64_t, std::uint64_t> styled_hash(std::string_view key_bytes) {
+    std::uint64_t h0 = 0xcbf29ce484222325ULL;
+    std::uint64_t h1 = 0x100000001b3ULL;
+    for (char c : key_bytes) {
+        h0 ^= static_cast<unsigned char>(c);
+        h0 *= 0x100000001b3ULL;
+        h1 = (h1 << 5) + h1 + static_cast<unsigned char>(c);
+    }
+    return {h0, h1};
+}
+
+} // namespace
+
+std::shared_ptr<const GpuStyledGlyphCache::StyledGlyphBitmap>
+GpuStyledGlyphCache::find_styled(std::string_view key_bytes) const {
+    const auto [h0, h1] = styled_hash(key_bytes);
+    Key key{h0, h1};
+    std::lock_guard lock(m_mutex);
+    const auto it = m_entries.find(key);
+    if (it == m_entries.end()) {
+        ++m_stats.cache_misses;
+        return {};
+    }
+    ++m_stats.cache_hits;
+    return std::make_shared<const StyledGlyphBitmap>(it->second.bitmap);
+}
+
+void GpuStyledGlyphCache::store_styled(
+    std::string_view key_bytes, std::uint32_t width, std::uint32_t height,
+    std::shared_ptr<const std::vector<float>> rgba) {
+    if (!rgba || width == 0 || height == 0) return;
+    const auto [h0, h1] = styled_hash(key_bytes);
+    Key key{h0, h1};
+    std::lock_guard lock(m_mutex);
+    if (m_entries.find(key) != m_entries.end()) return;
+    ++m_stats.acquire_calls;
+    m_entries.emplace(key, Entry{{width, height, std::move(rgba)}});
+}
+
+void GpuStyledGlyphCache::clear() noexcept {
+    std::lock_guard lock(m_mutex);
+    m_entries.clear();
+    m_stats = {};
+}
+
+std::size_t GpuStyledGlyphCache::size() const noexcept {
+    std::lock_guard lock(m_mutex);
+    return m_entries.size();
+}
+
+GpuStyledGlyphCache::Stats GpuStyledGlyphCache::stats() const noexcept {
     std::lock_guard lock(m_mutex);
     return m_stats;
 }

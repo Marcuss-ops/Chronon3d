@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/core/cache_policy.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
