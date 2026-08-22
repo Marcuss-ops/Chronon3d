@@ -97,7 +97,7 @@ namespace chronon3d {
 namespace chronon3d::runtime {
     class GpuAssetCache;
     class GpuGlyphAtlas;
-    class GpuTextAtlasCache;
+    class GpuStyledGlyphCache;
 }
 
 namespace chronon3d::media {
@@ -149,6 +149,7 @@ struct EffectProcessorHandle;
 namespace chronon3d::graph {
 
 class RenderBackend;
+struct NodeExecutionError;
 class RenderProfiler;
 class CompiledGraphCache;
 class CompiledSceneProgram;
@@ -261,7 +262,7 @@ struct RenderServices {
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     runtime::GpuAssetCache* gpu_asset_cache{nullptr};
     runtime::GpuGlyphAtlas* gpu_glyph_atlas{nullptr};
-    runtime::GpuTextAtlasCache* gpu_text_atlas_cache{nullptr};
+    runtime::GpuStyledGlyphCache* gpu_text_atlas_cache{nullptr};  // deprecated name, kept for ABI
     ImageCache* image_cache{nullptr};
     TextRenderResources* text_render_resources{nullptr};
     cache::NodeCache* node_cache{nullptr};

@@ -21,7 +21,7 @@ enum class ResourceUsage : std::uint8_t {
     Generic, ColorAttachment, DepthAttachment, Storage
 };
 enum class PixelFormat : std::uint8_t {
-    Unknown, Rgba32Float, Rgba8Unorm, Depth32Float, Bytes
+    Unknown, Rgba32Float, Rgba8Unorm, R8Unorm, Depth32Float, Bytes
 };
 
 /// Backend-neutral description used by the lifetime planner and resource
@@ -56,11 +56,36 @@ struct SurfaceAffineTransform {
 static_assert(sizeof(SurfaceAffineTransform) == 96,
               "SurfaceAffineTransform must match affine_transform.comp push constants");
 
-/// Per-glyph instance for the GPU text-run kernel.  It locates one glyph
-/// quad inside a packed atlas texture and places it in the destination
-/// canvas.  The byte layout MUST match the std430 `GlyphInstance` block in
-/// text_run.comp exactly (three ivec2 + four floats = 40 bytes, no padding),
-/// because instances are copied verbatim into the kernel's storage buffer.
+/// Per-glyph static data, immutable across frames.  Carried once from
+/// prepare() and never changed.  16 bytes per glyph.
+struct GlyphStatic {
+    std::uint16_t atlas_page{0};
+    std::uint16_t uv_x{0};
+    std::uint16_t uv_y{0};
+    std::int16_t local_x{0};
+    std::int16_t local_y{0};
+    std::uint16_t width{0};
+    std::uint16_t height{0};
+    std::uint16_t pad{0};
+};
+static_assert(sizeof(GlyphStatic) == 16,
+              "GlyphStatic must be 16 bytes");
+
+/// Per-run dynamic data, updated once per frame.  24 bytes per text run
+/// (NOT per glyph).  All glyphs in a run share the same transform.
+struct TextRunDynamic {
+    float tx{0.0f};
+    float ty{0.0f};
+    float sx{1.0f};
+    float sy{1.0f};
+    float opacity{1.0f};
+    std::uint32_t color{0xFFFFFFFF};  // RGBA packed
+};
+static_assert(sizeof(TextRunDynamic) == 24,
+              "TextRunDynamic must be 24 bytes");
+
+/// Legacy per-glyph instance for the GPU text-run kernel.  Kept for
+/// backward compatibility; new code uses GlyphStatic + TextRunDynamic.
 struct GlyphInstance {
     std::int32_t dst_x{0};     // destination canvas origin (pixels)
     std::int32_t dst_y{0};
@@ -72,8 +97,6 @@ struct GlyphInstance {
     float scale_x{1.0f};
     float scale_y{1.0f};
     float pad{0.0f};
-    // Optional GPU-driven highlight interval in composition frames.
-    // Negative values mean that this glyph has no timed highlight.
     float highlight_start_frame{-1.0f};
     float highlight_end_frame{-1.0f};
 };

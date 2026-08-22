@@ -76,6 +76,7 @@ public:
 
     void set_budget_bytes(std::size_t budget_bytes) noexcept;
     [[nodiscard]] std::size_t budget_bytes() const noexcept { return m_budget_bytes; }
+    [[nodiscard]] graph::RenderBackend* backend() const noexcept { return m_backend; }
     [[nodiscard]] GpuAssetCacheStats stats() const noexcept;
 
 private:

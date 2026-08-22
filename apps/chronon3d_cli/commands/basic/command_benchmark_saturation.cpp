@@ -253,7 +253,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     settings.motion_blur.samples = motion_blur_samples;
     settings.motion_blur.shutter_angle_deg = 180.0f;
     settings.motion_blur.shutter_phase_deg = -90.0f;
-    auto renderer = create_renderer(registry, settings);
+    auto renderer = create_renderer(
+        registry, settings, std::nullopt, std::filesystem::current_path());
 
     // ── Warm-up ─────────────────────────────────────────────────────────
     spdlog::info("Warming up: 10 frames");

@@ -114,7 +114,7 @@ SoftwareRenderer* setup_render_graph_context(
         ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
         ctx.services.gpu_asset_cache = &sw_renderer->runtime().gpu_asset_cache();
         ctx.services.gpu_glyph_atlas = &sw_renderer->runtime().gpu_glyph_atlas();
-        ctx.services.gpu_text_atlas_cache = &sw_renderer->runtime().gpu_text_atlas_cache();
+        ctx.services.gpu_text_atlas_cache = &sw_renderer->runtime().gpu_styled_glyph_cache();
         ctx.services.image_cache = &sw_renderer->runtime().image_cache();
         ctx.services.text_render_resources = sw_renderer->text_render_resources();
         ctx.services.mesh_cache = &sw_renderer->runtime().mesh_cache();
