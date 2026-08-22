@@ -8,10 +8,47 @@
 namespace chronon3d::graph {
 
 enum class TemporalClass : std::uint8_t {
-    Pure,
-    TimeDependent,
-    Stateful,
+    // ── Legacy values (cache-key generation) ──────────────────────────
+    Pure,          // static: output never changes
+    TimeDependent, // generic per-frame dependency
+    Stateful,      // state-dependent across frames (content version)
+
+    // ── Fase B — granular compile-time classification ─────────────────
+    // These five values are the canonical output of the compiler's
+    // temporal analysis pass.  Only Static nodes are eligible for
+    // maximal static island baking.  The legacy values are preserved
+    // for backward compatibility with the cache-key layer.
+    Static,            // never changes (≡ Pure at cache level)
+    TransformDynamic,  // only spatial transform changes per frame
+    ParameterDynamic,  // per-frame parameters (opacity, effects) change
+    ContentDynamic,    // content changes per frame (text, source)
+    ExternalDynamic,   // external frame dependency (video decoder, NVDEC)
 };
+
+/// Returns true when the class is static (no frame dependency).
+[[nodiscard]] constexpr bool is_static(TemporalClass tc) noexcept {
+    return tc == TemporalClass::Pure || tc == TemporalClass::Static;
+}
+
+/// Returns true when the class is any kind of dynamic.
+[[nodiscard]] constexpr bool is_dynamic(TemporalClass tc) noexcept {
+    return tc != TemporalClass::Pure && tc != TemporalClass::Static;
+}
+
+/// Human-readable label for diagnostic/gate output.
+[[nodiscard]] inline const char* to_string(TemporalClass tc) noexcept {
+    switch (tc) {
+        case TemporalClass::Pure:              return "Pure";
+        case TemporalClass::TimeDependent:     return "TimeDependent";
+        case TemporalClass::Stateful:          return "Stateful";
+        case TemporalClass::Static:            return "Static";
+        case TemporalClass::TransformDynamic:  return "TransformDynamic";
+        case TemporalClass::ParameterDynamic:  return "ParameterDynamic";
+        case TemporalClass::ContentDynamic:    return "ContentDynamic";
+        case TemporalClass::ExternalDynamic:   return "ExternalDynamic";
+    }
+    return "Unknown";
+}
 
 // ---------------------------------------------------------------------------
 // CacheMode — single canonical axis for the cache contract

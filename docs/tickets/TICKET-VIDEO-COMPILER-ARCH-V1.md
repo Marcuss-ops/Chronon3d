@@ -1,6 +1,6 @@
 # TICKET-VIDEO-COMPILER-ARCH-V1 — Video-compiler architecture (CompiledTemplateProgram → DeviceProgram → hot loop)
 
-## Stato: OPEN — Fase A DONE (2026-08-22), fasi B–M PLANNED
+## Stato: OPEN — Fase A + B DONE (2026-08-22), fasi C–M PLANNED
 
 Architettura "video compiler offline": il grosso del lavoro intellettuale avviene
 prima del primo frame (compilazione) e il runtime si riduce a far scorrere la
@@ -169,22 +169,37 @@ delle strutture esistenti (compose via shared_ptr, non copia i vector di
 `CompiledFrameGraph`). Forward-point: macchina-verifica end-to-end su
 composizione reale (tramite frame-graph compiler) DEFERRED-WBH.
 
-### B. Temporal Analysis formalizzata
-```cpp
-enum class TemporalClass : uint8_t {
-    Static, TransformDynamic, ParameterDynamic, ContentDynamic, ExternalDynamic
-};
-struct TemporalCapabilities {
-    bool content_depends_on_time;
-    bool transform_depends_on_time;
-    bool parameters_depend_on_time;
-    bool depends_on_external_frame;
-};
-```
-Propagazione topologica una volta in compilazione: `own state static AND all
-inputs static → node static`. (Precedente esistente: `TemporalClass{Pure,
-Stateful, TimeDependent}` in `include/chronon3d/render_graph/core/cache_policy.hpp`
-— riusare/estendere, non duplicare.)
+### B. Temporal Analysis formalizzata — DONE (Fase B commit, 2026-08-22)
+`TemporalClass{Static, TransformDynamic, ParameterDynamic, ContentDynamic,
+ExternalDynamic}` esteso IN PLACE sull'enum esistente di
+`include/chronon3d/render_graph/core/cache_policy.hpp` (i valori legacy `Pure` /
+`TimeDependent` / `Stateful` sono preservati per il layer cache-key; i 5 nuovi
+valori sono l'output canonico del pass di compilazione). Helpers
+`is_static()` / `is_dynamic()` / `to_string()`.
+
+`TemporalCapabilities{content/transform/parameters_depend_on_time,
+depends_on_external_frame}` + `CompiledTemporalInfo` + `TemporalAnalysisResult`
+in `compiled_template_program.hpp`. `classify_temporal()` propaga in ordine
+topologico (per livello): classe di un nodo = max(own, max(inputs)) con rango
+Static(0) < TransformDynamic(1) < ParameterDynamic(2) < ContentDynamic(3) <
+ExternalDynamic(4). Own-capabilities derivate da kind + shape payload + cache
+policy (FrameInvariantMemory → forzato static; Disabled → conservativo
+external; FrameVariant → kind-derived).
+
+`bake_maximal_static_islands()`: discovery dei componenti statici massimali
+(regione = componente connesso di nodi Static; un nodo dinamico spezza la
+regione), `bake_id` = indice regione (BakedResourceId risolto dal runtime),
+fingerprint FNV-1a su {node id, stable_node_id, kind}. `merge_contiguous_static_regions()`
+è no-op semantico in Fase B (le regioni sono già massimali; il pass esiste per
+fasi successive). Wire in `compile_template_program()`: `prog.temporal` +
+`prog.static_regions` (sostituisce il lift diretto di `static_bakes` della
+Fase A — ora le regioni sono il risultato della discovery massimale).
+
+**Verifica:** 4 nuovi TEST_CASE (classify propagation, is_static/helpers, split
+islands, merge determinismo) + aggiornamento del TEST_CASE static regions della
+Fase A → 11 TEST_CASE totali PASS, 0 failure. Cat-3 minimal-surface: 3 EDIT +
+0 new file (riuso dei file Fase A). Zero duplicazione: estende l'enum canonico
+in place (9 usi esistenti verificati, nessun break).
 
 ### C. Maximal Static Island Baking
 Bake della più grande regione statica possibile (image+text+composite+transform →
