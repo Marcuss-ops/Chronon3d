@@ -18,6 +18,12 @@
 #   6. install-consumer-script  — tools/install_consumer_test.sh (PR-0).
 #   7. sdk-product-certification — tools/verify_sdk_product.sh (release only:
 #                                  push to main; 15-check install certification).
+#   8. trace-gates              — plan §23: Perfetto trace correctness
+#                                  (10-frame structure) + overhead budget
+#                                  (<0.5% / <2% / <5%) via the opt-in
+#                                  tools/check_trace_{correctness,overhead}.sh
+#                                  with CHRONON3D_TRACE_GATES=1; provisions
+#                                  the pinned Perfetto v53.0 amalgamated SDK.
 #
 # Why this file exists:
 # The previous CI (ci.yml) only built `chronon3d_tests_fast` on PRs and
@@ -324,7 +330,56 @@ jobs:
       - name: SDK product certification (15 checks)
         run: bash tools/verify_sdk_product.sh
 
-  # 8. Gate status summary — machine-readable JSON artifact (P3-A).
+  # ────────────────────────────────────────────────────────────────────
+  # 8. Trace gates — plan §23 correctness + overhead (opt-in harnesses).
+  #    Provisions the pinned Perfetto v53.0 amalgamated SDK (perfetto.h +
+  #    perfetto.cc) and runs the two opt-in gate scripts with
+  #    CHRONON3D_TRACE_GATES=1.  The first run compiles perfetto.o and
+  #    the harness binaries; those artifacts are cached under the workspace
+  #    so subsequent runs skip the ~2 min amalgamation build.
+  # ────────────────────────────────────────────────────────────────────
+  trace-gates:
+    name: Gate 8 / trace-gates (Perfetto correctness + overhead)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Cache Perfetto build artifacts
+        uses: actions/cache@v4
+        with:
+          path: .trace-gate-cache
+          key: trace-gates-${{ runner.os }}-perfetto-v53.0-v1
+
+      - name: Provision Perfetto v53.0 amalgamated SDK
+        run: |
+          mkdir -p .perfetto-sdk
+          curl -fsSL -o .perfetto-sdk/perfetto.h \
+            https://raw.githubusercontent.com/google/perfetto/v53.0/sdk/perfetto.h
+          curl -fsSL -o .perfetto-sdk/perfetto.cc \
+            https://raw.githubusercontent.com/google/perfetto/v53.0/sdk/perfetto.cc
+          wc -l .perfetto-sdk/perfetto.h .perfetto-sdk/perfetto.cc
+
+      - name: Trace correctness gate (10-frame structure)
+        run: |
+          CHRONON3D_TRACE_GATES=1 \
+          PERFETTO_SDK_DIR=${{ github.workspace }}/.perfetto-sdk \
+          CHRONON3D_TRACE_GATE_CACHE=${{ github.workspace }}/.trace-gate-cache \
+            bash tools/check_trace_correctness.sh
+
+      - name: Trace overhead gates (<0.5% / <2% / <5%)
+        run: |
+          CHRONON3D_TRACE_GATES=1 \
+          PERFETTO_SDK_DIR=${{ github.workspace }}/.perfetto-sdk \
+          CHRONON3D_TRACE_GATE_CACHE=${{ github.workspace }}/.trace-gate-cache \
+            bash tools/check_trace_overhead.sh
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 9. Gate status summary — machine-readable JSON artifact (P3-A).
   # Collects pass/fail from all gate jobs and produces a structured
   # ci_gates_status.json uploaded as a GitHub Actions artifact.
   # ─────────────────────────────────────────────────────────────────────
@@ -338,6 +393,7 @@ jobs:
       - install-consumer-check
       - architecture-check
       - install-consumer-script
+      - trace-gates
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -355,6 +411,7 @@ jobs:
               'install-consumer-check': '${{ needs.install-consumer-check.result }}',
               'architecture-check':     '${{ needs.architecture-check.result }}',
               'install-consumer-script':'${{ needs.install-consumer-script.result }}',
+              'trace-gates':            '${{ needs.trace-gates.result }}',
           }
           passed = sum(1 for v in gates.values() if v == 'success')
           status = {
