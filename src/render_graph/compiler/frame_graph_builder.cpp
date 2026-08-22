@@ -682,38 +682,20 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             }
 
             // ── Layer batch construction with fusion ─────────────────────
-            // Source/TextRun nodes start a new fusible region.  If there is
-            // a pending unfused batch, flush it first.
-            const bool is_source_like =
+            // Source/TextRun/Video and downstream Transform/Composite nodes
+            // accumulate into a single CompiledLayerBatch until interrupted
+            // by a non-fusible barrier node (blur, matte, etc.).
+            const bool is_fusible_layer_node =
                 node_info.kind == RenderGraphNodeKind::Source ||
                 node_info.kind == RenderGraphNodeKind::TextRun ||
-                node_info.kind == RenderGraphNodeKind::Video;
-            const bool is_xform_composite =
+                node_info.kind == RenderGraphNodeKind::Video ||
                 node_info.kind == RenderGraphNodeKind::Transform ||
                 node_info.kind == RenderGraphNodeKind::Composite;
 
-            if (is_source_like) {
-                if (!current_fused_batch.empty()) {
-                    // Flush the previous batch before starting a new one
-                    CompiledLayerBatch batch;
-                    batch.member_nodes = std::move(current_fused_batch);
-                    batch.output_physical_slot = operation.output_physical_slot;
-                    batch.is_gpu_fused = true;
-                    compiled.program.layer_batches.push_back(std::move(batch));
-                    current_fused_batch.clear();
-                }
-                current_fused_batch.push_back(node_id);
-            } else if (is_xform_composite && !current_fused_batch.empty()) {
-                // Continue the fusible region: Transform/Composite appends
-                // to the batch.  The last node in the batch is the Source
-                // that started the chain.
-                current_fused_batch.push_back(node_id);
-            } else if (is_xform_composite) {
-                // Standalone Transform/Composite (no preceding Source in
-                // the same batch) — start a new batch for it alone.
+            if (is_fusible_layer_node) {
                 current_fused_batch.push_back(node_id);
             } else {
-                // Non-fusible node: flush and close the batch.
+                // Non-fusible node: flush and close the current batch.
                 if (!current_fused_batch.empty()) {
                     CompiledLayerBatch batch;
                     batch.member_nodes = std::move(current_fused_batch);
