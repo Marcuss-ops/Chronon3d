@@ -15,6 +15,7 @@
 
 #include <chronon3d/render_graph/compiler/compiled_template_program.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
+#include <chronon3d/render_graph/compiler/parameter_ring.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 
 #include <cstdint>
@@ -262,6 +263,55 @@ TEST_CASE("Fase B: bake_maximal_static_islands splits at dynamic separators") {
     CHECK(regions[0].bake_id == 0);
     CHECK(regions[1].bake_id == 1);
     CHECK(regions[0].fingerprint != regions[1].fingerprint);
+}
+
+// ── Fase D: parameter ring ────────────────────────────────────────────────
+TEST_CASE("Fase D: build_parameter_ring from operations with parameter_size > 0") {
+    auto g = build_synthetic_compiled_graph();
+    auto ring = chronon3d::graph::build_parameter_ring(g, /*slot_count=*/3);
+
+    CHECK(ring.slot_count == 3);
+    CHECK(ring.total_bytes == 48);  // 16 (node 0) + 32 (node 1)
+    REQUIRE(ring.entries.size() == 2);
+    CHECK(ring.entries[0].node == 0);
+    CHECK(ring.entries[0].offset == 0);
+    CHECK(ring.entries[0].size == 16);
+    CHECK(ring.entries[1].node == 1);
+    CHECK(ring.entries[1].offset == 16);
+    CHECK(ring.entries[1].size == 32);
+    CHECK_FALSE(ring.empty());
+    CHECK(ring.buffer_bytes() == 3u * 48u);
+    CHECK(ring.entry_for(0) != nullptr);
+    CHECK(ring.entry_for(99) == nullptr);
+}
+
+TEST_CASE("Fase D: ParameterRingWriter writes into correct offset") {
+    auto g = build_synthetic_compiled_graph();
+    auto ring = chronon3d::graph::build_parameter_ring(g, /*slot_count=*/2);
+
+    std::vector<std::byte> buffer(ring.total_bytes, std::byte{0xFF});
+    chronon3d::graph::ParameterRingWriter writer(
+        std::span<std::byte>(buffer), ring);
+
+    std::vector<std::byte> payload(16, std::byte{0xAB});
+    CHECK(writer.write_entry(0, payload));
+    CHECK(buffer[0] == std::byte{0xAB});
+    CHECK(buffer[15] == std::byte{0xAB});
+    // Node 1's offset starts at 16 — untouched by the node 0 write.
+    CHECK(buffer[16] == std::byte{0xFF});
+
+    writer.clear();
+    CHECK(buffer[0] == std::byte{0x00});
+    CHECK(buffer[16] == std::byte{0x00});
+}
+
+TEST_CASE("Fase D: compile_template_program populates param_ring") {
+    auto g = build_synthetic_compiled_graph();
+    auto prog = compile_template_program(std::move(g));
+
+    CHECK(prog.param_ring.slot_count == 3);
+    CHECK(prog.param_ring.total_bytes == 48);
+    CHECK(prog.param_ring.entries.size() == 2);
 }
 
 TEST_CASE("Fase B: merge_contiguous_static_regions is deterministic no-op in Fase B") {

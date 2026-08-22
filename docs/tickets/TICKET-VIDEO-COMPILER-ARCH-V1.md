@@ -1,6 +1,6 @@
 # TICKET-VIDEO-COMPILER-ARCH-V1 — Video-compiler architecture (CompiledTemplateProgram → DeviceProgram → hot loop)
 
-## Stato: OPEN — Fase A + B + H DONE (2026-08-22), fasi C–G + I–M PLANNED
+## Stato: OPEN — Fase A + B + D + H DONE (2026-08-22), fasi C + E–M PLANNED
 
 Architettura "video compiler offline": il grosso del lavoro intellettuale avviene
 prima del primo frame (compilazione) e il runtime si riduce a far scorrere la
@@ -115,7 +115,7 @@ eseguiamo.
 | **A** | `CompiledTemplateProgram` + parameter/resource schema | RenderGraph diventa AST |
 | **B** | Temporal Analysis + maximal static islands | elimina lavoro statico |
 | **C** | PhysicalResourcePlan + preflight VRAM | zero churn / OOM controllati |
-| **D** | Persistent FrameSlot parameter ring | pochi byte/frame |
+| **D** | Persistent FrameSlot parameter ring — DONE (2026-08-22, 3 test PASS) | `ParameterRingDescriptor` + `ParameterRingWriter`, SoA offset/size, triple-buffered, wired in `compile_template_program()` |
 | **E** | Vulkan command replay | CPU orchestration minima |
 | **F** | GpuLayerBatch universale | immagini/testo senza intermedi |
 | **G** | PixelProgram IR + fusion | elimina pass GPU intermedi |
