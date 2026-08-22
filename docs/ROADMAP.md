@@ -720,6 +720,17 @@ un'animazione in < 5 righe, diagnostica visuale con un comando CLI.
 
 ---
 
+## M7 — Video Compiler Architecture (PLANNED)
+
+> Architettura "video compiler offline": `SceneIR → CompiledTemplateProgram →
+> PreparedJobProgram → DeviceProgram → hot loop` (temporal analysis, static island
+> baking, PhysicalResourcePlan, FrameSlot parameter ring, command replay, PixelProgram
+> IR + fusion, PixelDomain inference YUV-first, daemon + template cache, Macro-ROI,
+> multi-frame waves). Fasi A–M atomiche su `main`, no branch:
+> [`TICKET-VIDEO-COMPILER-ARCH-V1`](tickets/TICKET-VIDEO-COMPILER-ARCH-V1.md).
+
+---
+
 ## Vincoli permanenti
 
 - non reintrodurre executor su raw graph o `ExecutionPlanCache`;
