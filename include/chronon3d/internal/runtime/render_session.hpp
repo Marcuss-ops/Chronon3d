@@ -80,7 +80,10 @@
 namespace chronon3d {
 
 struct CompiledComposition;
-namespace graph { struct NodeExecutionError; }
+namespace graph {
+struct NodeExecutionError;
+class ExecutionWorkspaceRing;
+}
 
 /// Thread-safe storage for the existing graph::NodeExecutionError channel.
 /// This is not a second error framework: it only preserves the first error

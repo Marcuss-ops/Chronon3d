@@ -142,3 +142,44 @@ TEST_CASE("ConditionalLayerByFrame") {
     REQUIRE(!f1.value().scene.layers().empty());
     CHECK(f1.value().scene.layers()[0].name == "odd_layer");
 }
+
+TEST_CASE("StaticSceneExecutionMode: explicit scene_is_frame_invariant activates StaticScene fast path") {
+    CompositionDefinition def;
+    def.composition.name = "static-scene";
+    def.composition.width = 1920;
+    def.composition.height = 1080;
+    def.composition.frame_rate = FrameRate{30, 1};
+    def.composition.duration = Frame{100};
+    def.scene_is_frame_invariant = true;
+    def.scene = [](const FrameContext&) {
+        SceneBuilder sb;
+        sb.layer("static_layer", [](auto& l) {
+            l.rect("r", RectParams{Vec2{100.0f, 100.0f}});
+        });
+        return sb.build();
+    };
+
+    auto compiled_res = compile_composition(def, CompositionCompileContext{});
+    REQUIRE(compiled_res.has_value());
+    const auto& compiled = compiled_res.value();
+    CHECK(compiled.execution_mode == SceneExecutionMode::StaticScene);
+    REQUIRE(compiled.static_scene != nullptr);
+
+    CompositionEvaluateContext eval_ctx;
+    eval_ctx.frame_context = make_frame_context({
+        .duration = def.composition.duration,
+        .width = def.composition.width,
+        .height = def.composition.height,
+    });
+
+    auto f0 = evaluate(compiled, eval_ctx, Frame{0});
+    REQUIRE(f0.has_value());
+    REQUIRE(!f0.value().scene.layers().empty());
+    CHECK(f0.value().scene.layers()[0].name == "static_layer");
+
+    auto f50 = evaluate(compiled, eval_ctx, Frame{50});
+    REQUIRE(f50.has_value());
+    REQUIRE(!f50.value().scene.layers().empty());
+    CHECK(f50.value().scene.layers()[0].name == "static_layer");
+}
+
