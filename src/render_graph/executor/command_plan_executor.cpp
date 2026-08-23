@@ -55,8 +55,9 @@ bool execute_pass(RenderBackend& backend, const GpuPass& pass) {
                     params.destination, params.target, params.matte,
                     params.luma != 0, params.inverted != 0).ok();
             } else if constexpr (std::is_same_v<P, LayerBatchPass>) {
-                std::vector<runtime::LayerInstance> instances;
-                instances.reserve(params.items.size());
+                thread_local std::vector<runtime::LayerInstance> tls_instances;
+                tls_instances.clear();
+                tls_instances.reserve(params.items.size());
                 for (const auto& item : params.items) {
                     runtime::LayerInstance inst;
                     inst.resource_index = 0;
@@ -77,10 +78,10 @@ bool execute_pass(RenderBackend& backend, const GpuPass& pass) {
                     inst.opacity = item.opacity;
                     inst.kind = PrimitiveKind::Image;
                     inst.blend = BlendMode::Normal;
-                    instances.push_back(inst);
+                    tls_instances.push_back(inst);
                 }
                 return backend.execute_layer_batch(
-                    params.destination, instances, params.sources, {}, {}).ok();
+                    params.destination, tls_instances, params.sources, {}, {}).ok();
             }
             return false;  // unreachable: the variant is exhaustive
         },

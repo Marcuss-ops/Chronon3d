@@ -80,6 +80,18 @@ struct VulkanBackendStats {
     std::uint64_t fallback_effect{0};
     std::uint64_t fallback_blur{0};
     std::uint64_t fallback_dof{0};
+    // Detailed native Vulkan execution metrics
+    std::uint64_t vk_cmd_dispatch_count{0};
+    std::uint64_t vk_cmd_draw_count{0};
+    std::uint64_t descriptor_allocations{0};
+    std::uint64_t barriers_emitted{0};
+    std::uint64_t layer_batch_calls{0};
+    std::uint64_t layer_instances_processed{0};
+    std::uint64_t legacy_transform_calls{0};
+    std::uint64_t legacy_composite_calls{0};
+    std::uint64_t text_batch_calls{0};
+    std::uint64_t glyphs_processed{0};
+    std::uint64_t legacy_text_run_surface_calls{0};
 };
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
