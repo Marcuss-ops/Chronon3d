@@ -42,16 +42,20 @@ namespace chronon3d {
 //
 //   Explicit compiled-pipeline input. Holds the static recipe of one
 //   composition:
-//     * `composition` \u2014 the timing/timeline-bound `CompositionSpec`.
-//     * `scene`       \u2014 a `SceneFunction` (signature `Scene(const FrameContext&)`)
+//     * `composition` — the timing/timeline-bound `CompositionSpec`.
+//     * `scene`       — a `SceneFunction` (signature `Scene(const FrameContext&)`)
 //                       the V2 driver invokes per frame to materialise a Scene.
-//     * `scene_content_fingerprint` \u2014 value identity for data captured by
+//     * `scene_content_fingerprint` — value identity for data captured by
 //                       the scene callback. `std::function` cannot inspect
 //                       lambda captures, so value-built scenes must provide
 //                       this deterministic digest explicitly.
-//     * `camera`      \u2014 a V1-shape authoring descriptor (camera_v1::CameraDescriptor)
+//     * `camera`      — a V1-shape authoring descriptor (camera_v1::CameraDescriptor)
 //                       when set; `std::nullopt` falls back to identity / 2.5D null-rig
 //                       (no authored camera path).
+//     * `scene_is_frame_invariant` — explicit author promise that `scene`
+//                       returns value-equivalent scene content for every frame.
+//                       The default is false so per-frame callbacks cannot be
+//                       frozen accidentally by the template-scene fast path.
 //
 //   Move-and-copy friendly: trivially copyable + trivially destructible assuming
 //   `SceneFunction` (std::function) is the only non-trivial member and the std::function
@@ -64,6 +68,10 @@ struct CompositionDefinition {
     SceneFunction    scene{};
     std::uint64_t    scene_content_fingerprint{0};
     std::optional<camera_v1::CameraDescriptor> camera{};
+
+    // Appended after the existing aggregate fields to preserve source
+    // compatibility for positional aggregate initialization.
+    bool scene_is_frame_invariant{false};
 };
 
 } // namespace chronon3d
