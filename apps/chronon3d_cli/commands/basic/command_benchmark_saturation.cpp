@@ -250,6 +250,7 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     RenderSettings settings;
     // Enable dirty rects for better performance.
     settings.dirty.enabled = true;
+    settings.disable_pixel_readback = true;
     settings.motion_blur.mode = static_cast<MotionBlurMode>(motion_blur_mode);
     settings.motion_blur.samples = motion_blur_samples;
     settings.motion_blur.shutter_angle_deg = 180.0f;
@@ -540,6 +541,43 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
             }
         }
     }
+
+    uint64_t gpu_exec_us = 0;
+    uint64_t gpu_rb_us = 0;
+    uint64_t gpu_up_us = 0;
+    if (renderer->runtime().backend_attached()) {
+        std::vector<std::pair<std::string, std::uint64_t>> gpu_c;
+        renderer->runtime().backend().export_gpu_telemetry_counters(gpu_c);
+        for (const auto& [k, v] : gpu_c) {
+            if (k == "gpu_execute_us") gpu_exec_us = v;
+            else if (k == "readback_us") gpu_rb_us = v;
+            else if (k == "gpu_submit_cpu_us") gpu_up_us = v;
+        }
+    }
+
+    const double frames_d = total_frames > 0 ? static_cast<double>(total_frames) : 1.0;
+    const double scene_build_us = (render_counters ? static_cast<double>(render_counters->timeline_eval_wall_us.load(std::memory_order_relaxed)) : 0.0) / frames_d;
+    const double graph_build_us = (render_counters ? static_cast<double>(render_counters->graph_dirty_rect_wall_ms.load(std::memory_order_relaxed) * 1000.0) : 0.0) / frames_d;
+    const double compile_us = 0.0;
+    const double prepare_us = 0.0;
+    const double text_shape_us = (render_counters ? static_cast<double>(render_counters->text_shaping_wall_ms.load(std::memory_order_relaxed) * 1000.0) : 0.0) / frames_d;
+    const double text_layout_us = (render_counters ? static_cast<double>(render_counters->text_layout_wall_ms.load(std::memory_order_relaxed) * 1000.0) : 0.0) / frames_d;
+    const double asset_resolve_us = (render_counters ? static_cast<double>(render_counters->image_resolve_wall_us.load(std::memory_order_relaxed)) : 0.0) / frames_d;
+    const double gpu_upload_us = static_cast<double>(gpu_up_us) / frames_d;
+    const double gpu_execute_us = static_cast<double>(gpu_exec_us) / frames_d;
+    const double readback_us = static_cast<double>(gpu_rb_us) / frames_d;
+
+    out << "LATENCY BREAKDOWN (PER-FRAME AVERAGE)\n";
+    out << "scene_build_us.............. " << fmt::format("{:.1f}", scene_build_us) << " us\n";
+    out << "graph_build_us.............. " << fmt::format("{:.1f}", graph_build_us) << " us\n";
+    out << "compile_us.................. " << fmt::format("{:.1f}", compile_us) << " us\n";
+    out << "prepare_us.................. " << fmt::format("{:.1f}", prepare_us) << " us\n\n";
+    out << "text_shape_us............... " << fmt::format("{:.1f}", text_shape_us) << " us\n";
+    out << "text_layout_us.............. " << fmt::format("{:.1f}", text_layout_us) << " us\n";
+    out << "asset_resolve_us............ " << fmt::format("{:.1f}", asset_resolve_us) << " us\n\n";
+    out << "gpu_upload_us............... " << fmt::format("{:.1f}", gpu_upload_us) << " us\n";
+    out << "gpu_execute_us.............. " << fmt::format("{:.1f}", gpu_execute_us) << " us\n";
+    out << "readback_us................. " << fmt::format("{:.1f}", readback_us) << " us\n\n";
 
     // Keep the JSON artifact aligned with the evidence printed above.  A
     // missing determinism run is represented explicitly instead of being

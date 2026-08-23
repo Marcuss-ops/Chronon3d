@@ -194,6 +194,7 @@ struct FrameInput {
 // pair from RenderTileContext.
 struct RenderPolicy {
     bool retain_native_surface_for_video{false};
+    bool disable_pixel_readback{false};
     bool require_native_gpu{false};
     runtime::RenderSurfaceHandle native_video_encode_surface{
         runtime::kInvalidRenderSurfaceHandle};

@@ -93,16 +93,19 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
     const CompiledComposition& compiled, Frame frame) {
     m_session.common.clear_last_frame_error();
-    const auto preparation = runtime::prepare_render(
-        this, compiled,
-        runtime::RenderPreparationOptions{
-            .warmup_renderer = false,
-            .reference_frame = frame,
-        });
-    if (!preparation.ok()) {
-        throw std::runtime_error(
-            "Render preparation failed for compiled composition: " +
-            preparation.diagnostic());
+    if (m_session.common.prepared_composition != &compiled) {
+        const auto preparation = runtime::prepare_render(
+            this, compiled,
+            runtime::RenderPreparationOptions{
+                .warmup_renderer = false,
+                .reference_frame = frame,
+            });
+        if (!preparation.ok()) {
+            throw std::runtime_error(
+                "Render preparation failed for compiled composition: " +
+                preparation.diagnostic());
+        }
+        m_session.common.prepared_composition = &compiled;
     }
 
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());

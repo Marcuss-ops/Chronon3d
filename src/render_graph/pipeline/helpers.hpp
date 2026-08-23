@@ -145,6 +145,7 @@ namespace chronon3d::graph {
         },
         .policy = RenderPolicy{
             .retain_native_surface_for_video = settings.retain_native_surface_for_video,
+            .disable_pixel_readback = settings.disable_pixel_readback,
             .require_native_gpu = settings.require_native_gpu,
             .native_video_encode_surface = settings.native_video_encode_surface,
             .native_video_source_surface = settings.native_video_source_surface,
