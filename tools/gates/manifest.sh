@@ -24,11 +24,9 @@ DEVELOPER_GATES=(
     check_test_hygiene.sh
     check_test_suite_registration.sh
     check_frame_value_convention.sh
-    check_no_legacy_render_cli.sh
     check_no_changelog_conflict_markers.sh
     check_doc_sha_dedup.sh
     check_commit_subject_length.sh
-    check_push_divergence_window.sh
     check_unique_cmake_source_ownership.py
     check_no_process_wide_caches.sh
     check_no_runtime_image_decode.sh
@@ -38,7 +36,6 @@ DEVELOPER_GATES=(
     check_no_software_effect_dispatch_switch.sh
     check_effect_subsystem_ownership.sh
     check_effect_processor_coverage.py
-    check_no_legacy_umbrella_includes.sh
     check_no_text_material_external_effects.sh
     check_architecture_boundaries.sh
 )

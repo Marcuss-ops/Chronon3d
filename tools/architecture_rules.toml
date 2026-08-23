@@ -51,7 +51,7 @@ hint = "Removed in TICKET-011. Do not reintroduce."
 
 [[forbidden_path]]
 name = "retired_legacy_render_cli_files"
-description = "Retired still/video command files — check_no_legacy_render_cli.sh"
+description = "Retired still/video command files"
 paths = [
     "apps/chronon3d_cli/commands/render/command_still.cpp",
     "apps/chronon3d_cli/commands/video/register_video_commands.cpp",
@@ -119,7 +119,7 @@ skip_comments = true
 
 [[forbidden_symbol]]
 name = "legacy_render_cli_symbols"
-description = "Retired render CLI symbols — check_no_legacy_render_cli.sh"
+description = "Retired render CLI symbols"
 patterns = [
     '\bRenderJobPlan\b',
     '\bVideoJobPlan\b',
@@ -138,7 +138,6 @@ patterns = [
     '\bCHRONON3D_HAS_CLI_VIDEO\b',
     'chronon3d_cli_video\b',
 ]
-exclude_paths = ["tools/check_no_legacy_render_cli.sh"]
 hint = "Canonical render CLI uses make_render_job + execute_render_job(const RenderJob&)."
 
 [[forbidden_symbol]]
@@ -204,7 +203,7 @@ skip_comments = true
 
 [[forbidden_include]]
 name = "legacy_umbrella_includes"
-description = "Legacy chronon3d umbrella headers — check_no_legacy_umbrella_includes.sh"
+description = "Legacy chronon3d umbrella headers"
 patterns = [
     '#include\s*<chronon3d/chronon3d\.hpp>',
     '#include\s*<chronon3d/runtime\.hpp>',

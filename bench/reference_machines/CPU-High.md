@@ -109,7 +109,7 @@ that CPU-Mid sweeps miss entirely.
 
 - [`configs/benchmark_machines.yaml`](../../configs/benchmark_machines.yaml) — YAML SSoT.
 - [`tools/benchmark_host_info.sh`](../../tools/benchmark_host_info.sh) — host attribute collector (includes NUMA detection).
-- [`examples/bench_corpus/run_corpus_v1.sh`](../../examples/bench_corpus/run_corpus_v1.sh) — F1.1 12-scene runner.
+- [`bench/corpus/corpus_v1.json`](../corpus/corpus_v1.json) — F1.1 12-scene manifest.
 - [`bench/run_perf_bench.sh`](../run_perf_bench.sh) — perf-stat + warm-up wrapper (NUMA-aware via taskset).
 - [`docs/PERFORMANCE_BOTTLENECKS.md`](../../docs/PERFORMANCE_BOTTLENECKS.md) — TBB peak-workers analysis.
 - [`docs/tickets/TICKET-BENCH-MACHINES-V1.md`](../../docs/tickets/TICKET-BENCH-MACHINES-V1.md) — cronaca.

@@ -1,4 +1,4 @@
-// examples/content_registry_consumer/main.cpp
+// sdk_consumers/02_content_registry/main.cpp
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // Chronon3D — Content Registry Consumer Example

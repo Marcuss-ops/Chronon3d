@@ -67,7 +67,6 @@ def run_grep(pattern: str, paths: list[str], *, word_regexp: bool = False) -> li
         args = [RG, "-n", "--no-heading", "-t", "cpp"]
         if word_regexp:
             args.append("-w")
-        args.extend(["-g", "!tools/check_no_legacy_render_cli.sh"])
         args.extend(["-g", "!tools/check_architecture.py"])
         args.extend(["-g", "!tools/architecture_rules.toml"])
         args.append(pattern)
@@ -194,6 +193,26 @@ def filter_allow_symbol(matches: list[str], allow_symbols: list[str]) -> list[st
     return result
 
 
+def count_pattern(root: Path, paths: list[str], pattern: str) -> int:
+    """Count source lines matching a legacy census pattern."""
+    compiled = re.compile(pattern)
+    count = 0
+    for rel in paths:
+        base = root / rel
+        if not base.exists():
+            continue
+        files = [base] if base.is_file() else base.rglob("*")
+        for path in files:
+            if path.suffix not in {".cpp", ".hpp", ".h"}:
+                continue
+            try:
+                count += sum(1 for line in path.read_text(errors="replace").splitlines()
+                             if compiled.search(strip_cpp_comments(line)))
+            except OSError:
+                continue
+    return count
+
+
 # ── Rule enforcement ────────────────────────────────────────────────────────
 class GateRunner:
     """Reads architecture_rules.toml and enforces every rule."""
@@ -229,6 +248,29 @@ class GateRunner:
             msg += f" — {detail}"
         print(msg)
         self.passes.append(name)
+
+    def check_legacy_census(self) -> None:
+        """Report the two historical prevalence censuses in one place.
+
+        These are informational inventories, matching the old forward-only
+        shell gates. Hard architectural prohibitions remain declarative TOML
+        rules and are enforced as failures by the normal rule categories.
+        """
+        print("=== Legacy Census (informational) ===")
+        asset = sum((
+            count_pattern(self.root, ["content", "src/scene"],
+                          r"\b(?:font_path|image_path|video_path|audio_path)\b"),
+            count_pattern(self.root, ["src/scene", "content"],
+                          r"\b(?:resolve_handle|load_image|decode_video|decode_audio|font_engine\.load)\b"),
+        ))
+        timeline = sum((
+            count_pattern(self.root, ["content"], r"\blayer\.(?:from|duration)\b"),
+            count_pattern(self.root, ["content", "src/animation", "src/text"],
+                          r"\bsample\(\s*(?:ctx\.frame|frame_context\.frame|global_frame)\b"),
+            count_pattern(self.root, ["content", "src/scene"],
+                          r"(?:^|[^A-Za-z0-9_.])duration\s*=\s*[01]\b"),
+        ))
+        self._pass("legacy_census", f"asset={asset} timeline={timeline} (informational)")
 
     # ── Forbidden Path ──────────────────────────────────────────────────
     def check_forbidden_path(self, rule: dict[str, Any]) -> None:
@@ -646,6 +688,9 @@ class GateRunner:
         print()
         for rule in loc_bounds:
             self.check_loc_bound(rule)
+
+        print()
+        self.check_legacy_census()
 
         print()
         print("=== CMake Source Ownership ===")

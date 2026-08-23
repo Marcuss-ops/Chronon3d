@@ -81,7 +81,7 @@ mandatory fix before any other class is even consulted.
 
 - [`configs/benchmark_machines.yaml`](../../configs/benchmark_machines.yaml) — YAML SSoT.
 - [`tools/benchmark_host_info.sh`](../../tools/benchmark_host_info.sh) — host attribute collector.
-- [`examples/bench_corpus/run_corpus_v1.sh`](../../examples/bench_corpus/run_corpus_v1.sh) — F1.1 12-scene runner (the underlying workload).
+- [`bench/corpus/corpus_v1.json`](../corpus/corpus_v1.json) — F1.1 12-scene manifest (the underlying workload).
 - [`bench/run_perf_bench.sh`](../run_perf_bench.sh) — perf-stat + warm-up wrapper (this ticket).
 - [`docs/tickets/TICKET-BENCH-MACHINES-V1.md`](../../docs/tickets/TICKET-BENCH-MACHINES-V1.md) — cronaca (this ticket home).
 - AGENTS.md §honest-limitation (§DEFERRED-WBH posture when env-block).
