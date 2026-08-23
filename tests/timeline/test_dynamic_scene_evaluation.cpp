@@ -8,6 +8,7 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 using namespace chronon3d;
@@ -37,9 +38,13 @@ CompositionEvaluateContext make_evaluate_context() {
     };
 }
 
-CompiledComposition compile_or_fail(const CompositionDefinition& definition) {
+CompiledComposition compile_or_throw(const CompositionDefinition& definition) {
     auto compiled = compile_composition(definition, CompositionCompileContext{});
-    REQUIRE(compiled.has_value());
+    if (!compiled.has_value()) {
+        throw std::runtime_error(
+            "dynamic scene regression fixture failed to compile: " +
+            compiled.error().message);
+    }
     return std::move(compiled).value();
 }
 
@@ -61,7 +66,7 @@ TEST_CASE("DynamicTopologyByFrame") {
         return scene;
     });
 
-    auto compiled = compile_or_fail(definition);
+    auto compiled = compile_or_throw(definition);
     const auto context = make_evaluate_context();
 
     auto frame0 = evaluate(compiled, context, Frame{0});
@@ -84,7 +89,7 @@ TEST_CASE("DynamicTextContentByFrame") {
         return scene;
     });
 
-    auto compiled = compile_or_fail(definition);
+    auto compiled = compile_or_throw(definition);
     const auto context = make_evaluate_context();
 
     auto frame7 = evaluate(compiled, context, Frame{7});
@@ -108,7 +113,7 @@ TEST_CASE("ConditionalLayerByFrame") {
         return scene;
     });
 
-    auto compiled = compile_or_fail(definition);
+    auto compiled = compile_or_throw(definition);
     const auto context = make_evaluate_context();
 
     auto before = evaluate(compiled, context, Frame{49});
@@ -131,7 +136,7 @@ TEST_CASE("FrameInvariantSceneTemplateRequiresExplicitOptIn") {
     });
     definition.scene_is_frame_invariant = true;
 
-    auto compiled = compile_or_fail(definition);
+    auto compiled = compile_or_throw(definition);
     const auto context = make_evaluate_context();
 
     auto first = evaluate(compiled, context, Frame{1});
