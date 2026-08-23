@@ -19,6 +19,7 @@
 #include "../../commands.hpp"
 #include "../../cli_context.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
+#include "../../utils/benchmark/benchmark_corpus.hpp"
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -424,6 +425,12 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     out << "Motion blur................. mode=" << motion_blur_mode
         << " samples=" << motion_blur_samples << "\n";
     out << "\n";
+    out << "HOT-PATH CORPUS\n";
+    for (const auto& corpus_case : benchmark::kHotPathCorpus) {
+        out << corpus_case.id << "  " << corpus_case.description
+            << "  " << (corpus_case.native_path ? "native" : "baseline") << "\n";
+    }
+    out << "\n";
 
     out << "THROUGHPUT\n";
     out << "FPS......................... " << fmt::format("{:.1f}", fps) << "\n";
@@ -529,6 +536,20 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         << (renderer->dirty_telemetry().tile_cost_model_ready() ? "READY" : "WARMING")
         << "\n";
     out << "\n";
+
+    out << "HOT-PATH CONTRACTS\n";
+    out << "Surface YUV frames........... "
+        << (render_counters ? render_counters->native_surface_yuv_frames.load() : 0) << "\n";
+    out << "Surface YUV bytes............ "
+        << (render_counters ? render_counters->native_surface_yuv_bytes.load() : 0) << "\n";
+    out << "Batch YUV frames............. "
+        << (render_counters ? render_counters->native_batch_yuv_frames.load() : 0) << "\n";
+    out << "Batch YUV bytes.............. "
+        << (render_counters ? render_counters->native_batch_yuv_bytes.load() : 0) << "\n";
+    out << "SIMO variant submits......... "
+        << (render_counters ? render_counters->simo_variant_submits.load() : 0) << "\n";
+    out << "Encoder staging copies....... "
+        << (render_counters ? render_counters->encoder_staging_copy_bytes.load() : 0) << " bytes\n\n";
 
     // Pixel-fusion counters are emitted by the compiler pass itself.  Keep
     // them in the saturation report so a benchmark cannot claim fusion from
@@ -738,6 +759,14 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                 {"pool_reuses", pool_stats.total_reuses},
                 {"pool_clears", pool_stats.total_clears},
                 {"pool_evictions", pool_stats.evicted_count}
+            }},
+            {"hot_path", {
+                {"native_surface_yuv_frames", counter(&RenderCounters::native_surface_yuv_frames)},
+                {"native_surface_yuv_bytes", counter(&RenderCounters::native_surface_yuv_bytes)},
+                {"native_batch_yuv_frames", counter(&RenderCounters::native_batch_yuv_frames)},
+                {"native_batch_yuv_bytes", counter(&RenderCounters::native_batch_yuv_bytes)},
+                {"simo_variant_submits", counter(&RenderCounters::simo_variant_submits)},
+                {"encoder_staging_copy_bytes", counter(&RenderCounters::encoder_staging_copy_bytes)}
             }},
             {"cache", {
                 {"entries", node_cache_stats.current_size},

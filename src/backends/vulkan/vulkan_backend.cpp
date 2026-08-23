@@ -17,6 +17,8 @@
 #include "fill_rect_comp_spv.hpp"
 #include "layer_batch_comp_spv.hpp"
 #include "text_batch_comp_spv.hpp"
+#include "text_tile_bin_comp_spv.hpp"
+#include "text_tile_raster_comp_spv.hpp"
 #include "vulkan_memory_arena.hpp"
 #endif
 
@@ -35,6 +37,64 @@
 #include <vector>
 
 namespace chronon3d::backends::vulkan {
+
+std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    std::vector<VulkanDeviceInfo> result;
+    VkInstance instance = VK_NULL_HANDLE;
+    const VkApplicationInfo app_info{
+        VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr, "Chronon3D discovery",
+        VK_MAKE_VERSION(0, 1, 0), "Chronon3D", VK_MAKE_VERSION(0, 1, 0),
+        VK_API_VERSION_1_2};
+    const VkInstanceCreateInfo instance_info{
+        VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, nullptr, 0, &app_info,
+        0, nullptr, 0, nullptr};
+    if (vkCreateInstance(&instance_info, nullptr, &instance) != VK_SUCCESS) {
+        return result;
+    }
+    std::uint32_t count = 0;
+    if (vkEnumeratePhysicalDevices(instance, &count, nullptr) != VK_SUCCESS ||
+        count == 0) {
+        vkDestroyInstance(instance, nullptr);
+        return result;
+    }
+    std::vector<VkPhysicalDevice> devices(count);
+    if (vkEnumeratePhysicalDevices(instance, &count, devices.data()) != VK_SUCCESS) {
+        vkDestroyInstance(instance, nullptr);
+        return result;
+    }
+    for (const auto device : devices) {
+        std::uint32_t family_count = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &family_count, nullptr);
+        std::vector<VkQueueFamilyProperties> families(family_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &family_count, families.data());
+        const bool graphics = std::any_of(
+            families.begin(), families.end(), [](const auto& family) {
+                return family.queueCount != 0 &&
+                    (family.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+            });
+        if (!graphics) continue;
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(device, &properties);
+        VkPhysicalDeviceMemoryProperties memory{};
+        vkGetPhysicalDeviceMemoryProperties(device, &memory);
+        std::uint64_t local_memory = 0;
+        for (std::uint32_t i = 0; i < memory.memoryHeapCount; ++i) {
+            if ((memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
+                local_memory += memory.memoryHeaps[i].size;
+            }
+        }
+        result.push_back({
+            static_cast<std::uint32_t>(result.size()), properties.deviceName,
+            properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+            local_memory});
+    }
+    vkDestroyInstance(instance, nullptr);
+    return result;
+#else
+    return {};
+#endif
+}
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 namespace {
@@ -87,9 +147,13 @@ struct VulkanBackend::Impl {
         static constexpr std::size_t kStorageImagesPerSet = 3;
         static constexpr std::size_t kStorageBuffersPerSet = 2;
 
-        void create(VkDevice device, VkDescriptorSetLayout layout) {
+        void create(VkDevice device, VkDescriptorSetLayout layout,
+                    std::size_t storage_images = kStorageImagesPerSet,
+                    std::size_t storage_buffers = kStorageBuffersPerSet) {
             device_ = device;
             layout_ = layout;
+            storage_images_ = storage_images;
+            storage_buffers_ = storage_buffers;
         }
 
         void destroy() {
@@ -135,14 +199,19 @@ struct VulkanBackend::Impl {
     private:
         void grow() {
             const std::size_t sets = kInitialChunkSets * (1u << pools_.size());
-            const VkDescriptorPoolSize pool_sizes[] = {
-                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                 static_cast<std::uint32_t>(sets * kStorageImagesPerSet)},
-                {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                 static_cast<std::uint32_t>(sets * kStorageBuffersPerSet)}};
+            std::vector<VkDescriptorPoolSize> pool_sizes;
+            if (storage_images_ != 0) {
+                pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                      static_cast<std::uint32_t>(sets * storage_images_)});
+            }
+            if (storage_buffers_ != 0) {
+                pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                      static_cast<std::uint32_t>(sets * storage_buffers_)});
+            }
             const VkDescriptorPoolCreateInfo pool_info{
                 VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
-                static_cast<std::uint32_t>(sets), 2, pool_sizes};
+                static_cast<std::uint32_t>(sets),
+                static_cast<std::uint32_t>(pool_sizes.size()), pool_sizes.data()};
             VkDescriptorPool pool = VK_NULL_HANDLE;
             check(vkCreateDescriptorPool(device_, &pool_info, nullptr, &pool),
                   "vkCreateDescriptorPool(frame descriptor chunk)");
@@ -151,6 +220,8 @@ struct VulkanBackend::Impl {
 
         VkDevice device_{VK_NULL_HANDLE};
         VkDescriptorSetLayout layout_{VK_NULL_HANDLE};
+        std::size_t storage_images_{kStorageImagesPerSet};
+        std::size_t storage_buffers_{kStorageBuffersPerSet};
         std::vector<VkDescriptorPool> pools_{};
         std::size_t active_pool_{0};
     };
@@ -174,6 +245,8 @@ struct VulkanBackend::Impl {
         std::array<VkFence, kSlotCount> fences{};
         std::array<bool, kSlotCount> in_flight{};
         std::array<FrameDescriptorAllocator, kSlotCount> descriptor_allocators{};
+        std::array<FrameDescriptorAllocator, kSlotCount> text_tile_bin_allocators{};
+        std::array<FrameDescriptorAllocator, kSlotCount> text_tile_raster_allocators{};
         std::vector<VkDescriptorSet> descriptor_sets;
         std::size_t pass_count{0};
         // When set, the batch is plan-driven: ops synchronize through this
@@ -233,10 +306,14 @@ struct VulkanBackend::Impl {
     std::uint64_t next_timeline_value{0};
     std::uint64_t pending_timeline_value{0};
     VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
+    VkDescriptorSetLayout text_tile_bin_descriptor_layout{VK_NULL_HANDLE};
+    VkDescriptorSetLayout text_tile_raster_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
     VkDescriptorSet descriptor_set{VK_NULL_HANDLE};
     std::array<VkDescriptorSet, 3> glow_descriptor_sets{};
     VkPipelineLayout pipeline_layout{VK_NULL_HANDLE};
+    VkPipelineLayout text_tile_bin_pipeline_layout{VK_NULL_HANDLE};
+    VkPipelineLayout text_tile_raster_pipeline_layout{VK_NULL_HANDLE};
     GpuKernelRegistry kernel_registry{};
     VkBuffer staging{VK_NULL_HANDLE};
     VkDeviceMemory staging_memory{VK_NULL_HANDLE};
@@ -266,6 +343,14 @@ struct VulkanBackend::Impl {
     std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_capacities{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> text_run_dynamic_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_sizes{};
+    // Per-pass tile binning buffers. Counts are reset with vkCmdFillBuffer;
+    // both buffers stay device-local and are reused with the frame ring.
+    std::array<VkBuffer, kGlyphInstanceRingSize> text_tile_count_buffers{};
+    std::array<VkDeviceMemory, kGlyphInstanceRingSize> text_tile_count_memories{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_tile_count_capacities{};
+    std::array<VkBuffer, kGlyphInstanceRingSize> text_tile_index_buffers{};
+    std::array<VkDeviceMemory, kGlyphInstanceRingSize> text_tile_index_memories{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_tile_index_capacities{};
     struct UploadSlot {
         VkBuffer buffer{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
@@ -361,6 +446,18 @@ struct VulkanBackend::Impl {
             if (text_run_dynamic_memories[i] != VK_NULL_HANDLE) {
                 vkFreeMemory(device, text_run_dynamic_memories[i], nullptr);
             }
+            if (text_tile_count_buffers[i] != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, text_tile_count_buffers[i], nullptr);
+            }
+            if (text_tile_count_memories[i] != VK_NULL_HANDLE) {
+                vkFreeMemory(device, text_tile_count_memories[i], nullptr);
+            }
+            if (text_tile_index_buffers[i] != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, text_tile_index_buffers[i], nullptr);
+            }
+            if (text_tile_index_memories[i] != VK_NULL_HANDLE) {
+                vkFreeMemory(device, text_tile_index_memories[i], nullptr);
+            }
         }
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
         for (auto& allocator : frame_batch.descriptor_allocators) {
@@ -395,16 +492,32 @@ struct VulkanBackend::Impl {
                               GpuKernelId::AffineTransform, GpuKernelId::Blur,
                               GpuKernelId::ColorAdjust, GpuKernelId::Matte,
                               GpuKernelId::TextRun, GpuKernelId::FillRect,
-                              GpuKernelId::LayerBatch, GpuKernelId::TextBatch}) {
+                              GpuKernelId::LayerBatch, GpuKernelId::TextBatch,
+                              GpuKernelId::TextTileBin, GpuKernelId::TextTileRaster}) {
             const auto handle = kernel_registry.resolve(id);
             if (handle != 0) {
                 vkDestroyPipeline(device,
                     reinterpret_cast<VkPipeline>(handle), nullptr);
             }
         }
+        for (auto& allocator : frame_batch.descriptor_allocators) allocator.destroy();
+        for (auto& allocator : frame_batch.text_tile_bin_allocators) allocator.destroy();
+        for (auto& allocator : frame_batch.text_tile_raster_allocators) allocator.destroy();
         if (pipeline_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+        if (text_tile_bin_pipeline_layout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, text_tile_bin_pipeline_layout, nullptr);
+        }
+        if (text_tile_raster_pipeline_layout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, text_tile_raster_pipeline_layout, nullptr);
+        }
         if (descriptor_pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
         if (descriptor_layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
+        if (text_tile_bin_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, text_tile_bin_descriptor_layout, nullptr);
+        }
+        if (text_tile_raster_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, text_tile_raster_descriptor_layout, nullptr);
+        }
         if (timestamp_pool != VK_NULL_HANDLE) vkDestroyQueryPool(device, timestamp_pool, nullptr);
     }
 
@@ -471,6 +584,8 @@ void VulkanBackend::begin_frame_batch() {
     // resetting it now is safe because the slot's previous submission (the
     // only one referencing those sets) has completed.
     batch.descriptor_allocators[slot].reset();
+    batch.text_tile_bin_allocators[slot].reset();
+    batch.text_tile_raster_allocators[slot].reset();
     const VkCommandBufferBeginInfo begin{
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr};
     check(vkResetCommandBuffer(batch.command_buffers[slot], 0),
@@ -638,7 +753,7 @@ void VulkanBackend::replay_submit(std::size_t slot_index,
 }
 
 #include "vulkan_backend_public_surface_api.inc"
-    return std::make_unique<VulkanBackend>();
+    return std::make_unique<VulkanBackend>(device_index);
 }
 
 } // namespace chronon3d::backends::vulkan

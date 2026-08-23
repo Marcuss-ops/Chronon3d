@@ -376,6 +376,59 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void record_text_tile_bin(VkCommandBuffer command, VkDescriptorSet descriptors,
+                              std::int32_t glyph_count, std::int32_t tiles_x,
+                              std::int32_t tiles_y, std::int32_t max_glyphs_per_tile,
+                              std::int32_t dst_width, std::int32_t dst_height) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(
+                              GpuKernelId::TextTileBin)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                text_tile_bin_pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::uint32_t glyph_count;
+            std::uint32_t tiles_x;
+            std::uint32_t tiles_y;
+            std::uint32_t max_glyphs_per_tile;
+            std::uint32_t dst_width;
+            std::uint32_t dst_height;
+        } params{static_cast<std::uint32_t>(glyph_count), static_cast<std::uint32_t>(tiles_x),
+                 static_cast<std::uint32_t>(tiles_y), static_cast<std::uint32_t>(max_glyphs_per_tile),
+                 static_cast<std::uint32_t>(dst_width), static_cast<std::uint32_t>(dst_height)};
+        vkCmdPushConstants(command, text_tile_bin_pipeline_layout,
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(params), &params);
+        vkCmdDispatch(command, (static_cast<std::uint32_t>(glyph_count) + 63) / 64, 1, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void record_text_tile_raster(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                 std::int32_t tiles_x, std::int32_t tiles_y,
+                                 std::int32_t max_glyphs_per_tile,
+                                 const Image& destination, const Image& atlas) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(
+                              GpuKernelId::TextTileRaster)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                text_tile_raster_pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::uint32_t tiles_x;
+            std::uint32_t tiles_y;
+            std::uint32_t max_glyphs_per_tile;
+            std::uint32_t dst_width;
+            std::uint32_t dst_height;
+            float atlas_inv_w;
+            float atlas_inv_h;
+        } params{static_cast<std::uint32_t>(tiles_x), static_cast<std::uint32_t>(tiles_y),
+                 static_cast<std::uint32_t>(max_glyphs_per_tile), destination.width,
+                 destination.height, 1.0f / static_cast<float>(atlas.width),
+                 1.0f / static_cast<float>(atlas.height)};
+        vkCmdPushConstants(command, text_tile_raster_pipeline_layout,
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(params), &params);
+        vkCmdDispatch(command, static_cast<std::uint32_t>(tiles_x),
+                      static_cast<std::uint32_t>(tiles_y), 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     // Read the frame's [start, end] timestamp pair for a ring slot after its
     // fence has been signaled and accumulate the GPU elapsed duration.  The
     // slot's queries are reset by vkCmdResetQueryPool when the buffer is

@@ -173,6 +173,7 @@ private:
 
 class Config {
 public:
+    static constexpr std::uint32_t kAutoGpuDevice = UINT32_MAX;
     /// Factory: construct a Config by reading environment variables.
     /// This is the preferred creation path for per-instance configuration.
     [[nodiscard]] static Config from_environment();
@@ -211,6 +212,12 @@ public:
         backend_preference_ = preference;
     }
 
+    /// Select a deterministic Vulkan graphics-device index. The auto value
+    /// keeps the backend's score-based device selection.
+    void set_gpu_device_id(std::uint32_t device_id) noexcept {
+        gpu_device_id_ = device_id;
+    }
+
     // ── Domain accessors ──────────────────────────────────────────────
 
     [[nodiscard]] const DebugConfig&     debug()     const noexcept { return debug_; }
@@ -220,6 +227,9 @@ public:
     [[nodiscard]] const CpuBudget&       cpu_budget() const noexcept { return cpu_budget_; }
     [[nodiscard]] chronon3d::graph::BackendPreference backend_preference() const noexcept {
         return backend_preference_;
+    }
+    [[nodiscard]] std::uint32_t gpu_device_id() const noexcept {
+        return gpu_device_id_;
     }
 
     // ── Utility (kept public, unchanged) ──────────────────────────────
@@ -245,6 +255,7 @@ private:
     CpuBudget       cpu_budget_;
     chronon3d::graph::BackendPreference backend_preference_{
         chronon3d::graph::BackendPreference::Auto};
+    std::uint32_t gpu_device_id_{kAutoGpuDevice};
 };
 
 } // namespace chronon3d

@@ -4,6 +4,7 @@
 #include "../utils/common/cli_utils.hpp"
 
 #include <memory>
+#include <CLI/CLI.hpp>
 
 namespace chronon3d::cli::group_core {
 
@@ -114,6 +115,7 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
     auto build_command = std::make_shared<std::string>("bash build-fast.sh cli");
     auto socket_path = std::make_shared<std::string>();
     auto backend = std::make_shared<std::string>("auto");
+    auto gpu_device_id = std::make_shared<std::uint32_t>(chronon3d::Config::kAutoGpuDevice);
     command->add_option("-a,--assets-root", *assets_root,
                         "Asset root directory (fonts, images)");
     command->add_option("-b,--build-cmd", *build_command,
@@ -124,9 +126,13 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
     command->add_option("--backend", *backend,
                         "Persistent render backend: auto, software, or vulkan")
         ->check(CLI::IsMember({"auto", "software", "vulkan"}));
-    command->callback([assets_root, build_command, socket_path, backend, &ctx]() {
+    command->add_option("--gpu-device", *gpu_device_id,
+                        "Vulkan graphics-device index (default: automatic)");
+    command->callback([assets_root, build_command, socket_path, backend,
+                       gpu_device_id, &ctx]() {
         ctx.exit_code = command_daemon(
-            ctx.registry, *assets_root, *build_command, *socket_path, *backend);
+            ctx.registry, *assets_root, *build_command, *socket_path, *backend,
+            *gpu_device_id);
     });
 }
 

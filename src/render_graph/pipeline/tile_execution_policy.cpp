@@ -3,7 +3,7 @@
 
 namespace chronon3d::graph {
 
-TileDecision TileExecutionPolicy::decide(
+TileDecision ExecutionResolver::decide(
     const detail::LayerResolutionResult& resolved,
     const RenderSettings& settings,
     const detail::DirtyRectOutput& dirty_out,
@@ -19,12 +19,14 @@ TileDecision TileExecutionPolicy::decide(
     // or garbage (from the fresh per-tile framebuffer), producing visible seams at
     // tile edges.  Disable tile execution when ANY active layer has spatial effects.
     if (detail::has_layer_with_spatial_effects(resolved, frame, effect_catalog)) {
-        return {false, "spatial_effect_detected"};
+        return {false, FrameExecutionPath::FullRgb, false, true, false,
+                "spatial_effect_detected"};
     }
 
     // The dirty-rect phase must have enabled the bitmask-based tile output.
     if (!dirty_out.use_dirty_tiles) {
-        return {false, "dirty_rects_not_active"};
+        return {false, FrameExecutionPath::FullRgb, false, true, false,
+                "dirty_rects_not_active"};
     }
 
     // When the dirty area covers >threshold of the screen, per-tile graph
@@ -39,12 +41,14 @@ TileDecision TileExecutionPolicy::decide(
     // accessor on SoftwareRenderer; the executor lives on RenderRuntime.
     // `has_runtime()` is the equivalent pre-condition for callers.
     if (!sw_renderer || !sw_renderer->has_runtime()) {
-        return {false, "missing_renderer_runtime"};
+        return {false, FrameExecutionPath::FullRgb, false, true, false,
+                "missing_renderer_runtime"};
     }
 
     // Need a tile grid + mask with at least one dirty tile.
     if (!dirty_out.tile_grid || !dirty_out.dirty_tiles || !dirty_out.dirty_tiles->any()) {
-        return {false, "no_dirty_tiles"};
+        return {false, FrameExecutionPath::ReuseSurface, false, false, false,
+                "no_dirty_tiles"};
     }
 
     // Use measured execution cost once both paths have enough samples.  The
@@ -53,10 +57,11 @@ TileDecision TileExecutionPolicy::decide(
     const auto& cost = sw_renderer->dirty_telemetry();
     if (cost.tile_cost_model_ready() &&
         cost.tile_exec_ms_ewma > cost.full_frame_exec_ms_ewma * 1.10) {
-        return {false, "cost_model_tile_slower"};
+        return {false, FrameExecutionPath::FullRgb, false, true, false,
+                "cost_model_tile_slower"};
     }
 
-    return {true, ""};
+    return {true, FrameExecutionPath::SparseTiles, false, true, false, ""};
 }
 
 } // namespace chronon3d::graph

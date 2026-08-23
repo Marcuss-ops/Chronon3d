@@ -65,11 +65,20 @@ TEST_CASE("GpuLayerBatch: make_gpu_batch from CompiledLayerBatch") {
     clb.output_physical_slot = 7;
     clb.is_gpu_fused = true;
     clb.member_nodes = {42, 43};
+    clb.instances.push_back(CompiledLayerInstance{
+        .node = 42, .resource_index = 3, .transform_index = 2,
+        .paint_index = 1, .opacity = 0.75f, .dst_bounds = {10, 20, 100, 80}});
 
     auto gpu = make_gpu_batch(clb);
     CHECK(gpu.output_physical_slot == 7);
     CHECK(gpu.is_gpu_fused);
-    CHECK(gpu.empty());  // no instances — only metadata lifted
+    REQUIRE(gpu.size() == 1);
+    CHECK(gpu.instances[0].resource_index == 3);
+    CHECK(gpu.instances[0].transform_index == 2);
+    CHECK(gpu.instances[0].paint_index == 1);
+    CHECK(gpu.instances[0].opacity == doctest::Approx(0.75f));
+    CHECK(gpu.instances[0].dst_x0 == 10.0f);
+    CHECK(gpu.instances[0].dst_y1 == 80.0f);
 }
 
 TEST_CASE("LayerInstance: lower_node_to_layer_instance") {

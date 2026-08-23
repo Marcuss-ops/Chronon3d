@@ -90,95 +90,24 @@ DirtyRectOutput compute_dirty_rect(
         tile_mask = raster::DirtyTileMask(tile_grid);
     }
 
-    // ── Diff current vs. previous layer bboxes ──────────────────────────
+    // ── Compile current-vs-previous layer delta ────────────────────────
+    // FrameDeltaCompiler is the single owner of old/new bounds unioning and
+    // tile marking.  Scroll optimization and overflow policy remain explicit
+    // policies around this pure delta compilation step.
+    FrameDelta delta;
     {
         CHRONON_TRACE_SCOPE("chronon.frame", "dirty_rect_compute");
-
-        raster::BBox union_dirty{0, 0, 0, 0};
-        bool has_dirty = false;
-
-        auto add_dirty_bbox = [&](const raster::BBox& b) {
-            if (b.is_empty()) return;
-            raster::BBox clipped = b;
-            clipped.clip_to(width, height);
-            if (clipped.is_empty()) return;
-            if (!has_dirty) {
-                union_dirty = clipped;
-                has_dirty = true;
-            } else {
-                union_dirty.x0 = std::min(union_dirty.x0, clipped.x0);
-                union_dirty.y0 = std::min(union_dirty.y0, clipped.y0);
-                union_dirty.x1 = std::max(union_dirty.x1, clipped.x1);
-                union_dirty.y1 = std::max(union_dirty.y1, clipped.y1);
-            }
-            if (tiles_enabled) {
-                tile_mask.mark_bbox(tile_grid, clipped);
-            }
-        };
-
-        auto same_bbox = [](const raster::BBox& a, const raster::BBox& b) -> bool {
-            return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
-        };
-
-        auto add_layer_dirty = [&](const LayerBBoxState& curr,
-                                   const LayerBBoxState* prev) {
-            const bool prev_exists = prev != nullptr;
-            const bool curr_visible = curr.visible;
-            const bool prev_visible = prev_exists ? prev->visible : false;
-
-            if (!prev_exists) {
-                add_dirty_bbox(curr.bbox);
-                return;
-            }
-
-            if (curr_visible != prev_visible) {
-                add_dirty_bbox(curr_visible ? curr.bbox : prev->bbox);
-                return;
-            }
-
-            if (!curr_visible) return;
-
-            const bool geometry_changed =
-                (cam_changed && curr.uses_2_5d_projection) ||
-                (curr.world_matrix != prev->world_matrix);
-            const bool content_changed =
-                !curr.cache_static ||
-                curr.opacity != prev->opacity ||
-                curr.content_hash != prev->content_hash;
-
-            if (geometry_changed) {
-                if (same_bbox(curr.bbox, prev->bbox)) {
-                    add_dirty_bbox(curr.bbox);
-                } else {
-                    add_dirty_bbox(curr.bbox);
-                    add_dirty_bbox(prev->bbox);
-                }
-                return;
-            }
-
-            if (content_changed) {
-                add_dirty_bbox(curr.bbox);
-            }
-        };
-
-        // Diff current against previous
-        // WP-3 PR 3.2 — `layer_history().prev_layer_bboxes` was folded
-        // into `dirty_telemetry().previous_layers`.  The dirty-rect
-        // diff reads the canonical home now.
-        for (const auto& pair : out.layer_bboxes) {
-            const auto& curr = pair.second;
-            auto prev_it = sw_renderer->dirty_telemetry().previous_layers.find(pair.first);
-            add_layer_dirty(
-                curr,
-                prev_it == sw_renderer->dirty_telemetry().previous_layers.end() ? nullptr : &prev_it->second
-            );
-        }
-
-        // Layers removed since previous frame
-        for (const auto& pair : sw_renderer->dirty_telemetry().previous_layers) {
-            if (out.layer_bboxes.find(pair.first) == out.layer_bboxes.end()) {
-                add_dirty_bbox(pair.second.bbox);
-            }
+        delta = FrameDeltaCompiler::compile(
+            frame,
+            out.layer_bboxes,
+            sw_renderer->dirty_telemetry().previous_layers,
+            cam_changed,
+            width,
+            height,
+            tiles_enabled ? &tile_grid : nullptr);
+        out.dirty_rect = delta.dirty_bounds;
+        if (delta.dirty_tiles) {
+            tile_mask = std::move(*delta.dirty_tiles);
         }
 
         // ── Try scroll optimisation ─────────────────────────────────────
@@ -204,9 +133,6 @@ DirtyRectOutput compute_dirty_rect(
                 tile_mask.mark_bbox(tile_grid, *scroll_rect);
             }
         } else {
-            out.dirty_rect = has_dirty ? std::optional(union_dirty)
-                                       : std::optional(raster::BBox{0, 0, 0, 0});
-
             // ── Dirty rect overflow protection ─────────────────────
             // When the dirty union exceeds 50% of the frame, reset to
             // full-frame to avoid pathological expansion (105%+ overlap).

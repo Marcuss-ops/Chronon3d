@@ -132,7 +132,7 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     const auto device_stats = vulkan->stats();
     CHECK(device_stats.discrete_gpu);
     CHECK(device_stats.device_name.find("RTX A4000") != std::string::npos);
-    CHECK(vulkan->kernel_registry().size() == 8);
+    CHECK(vulkan->kernel_registry().size() == 12);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::Composite));
     CHECK(vulkan->kernel_registry().contains(
@@ -149,6 +149,14 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
         chronon3d::backends::vulkan::GpuKernelId::TextRun));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::FillRect));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::LayerBatch));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::TextBatch));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::TextTileBin));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::TextTileRaster));
 }
 
 TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
@@ -1753,6 +1761,28 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     CHECK_FALSE(atlas.metrics(glyph_a).has_value());
 }
 
+TEST_CASE("MTSDF glyph identity ignores runtime font size") {
+    using chronon3d::runtime::GlyphRepresentation;
+    using chronon3d::runtime::GpuGlyphKey;
+
+    GpuGlyphKey mtsdf_a{"font.ttf", 65, 0x1234, GlyphRepresentation::Mtsdf, 7, 32};
+    GpuGlyphKey mtsdf_b = mtsdf_a;
+    mtsdf_b.font_size = 96;
+    CHECK(mtsdf_a == mtsdf_b);
+    CHECK(chronon3d::runtime::GpuGlyphKeyHash{}(mtsdf_a) ==
+          chronon3d::runtime::GpuGlyphKeyHash{}(mtsdf_b));
+
+    GpuGlyphKey coverage_b = mtsdf_b;
+    coverage_b.representation = GlyphRepresentation::Coverage;
+    CHECK_FALSE(mtsdf_a == coverage_b);
+    coverage_b.font_size = mtsdf_a.font_size;
+    GpuGlyphKey coverage_a = mtsdf_a;
+    coverage_a.representation = GlyphRepresentation::Coverage;
+    CHECK(coverage_a == coverage_b);
+    coverage_b.font_size = 128;
+    CHECK_FALSE(coverage_a == coverage_b);
+}
+
 TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pixel error") {
     using namespace chronon3d::runtime;
     chronon3d::backends::vulkan::VulkanBackend backend;
@@ -2255,4 +2285,3 @@ TEST_CASE("RenderSurfaceRegistry supports NV12 and P010 multi-format surfaces wi
     CHECK(record->desc.color.matrix == ColorMatrix::Bt709);
     CHECK(record->desc.color.range == ColorRange::Limited);
 }
-

@@ -34,18 +34,24 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <cerrno>
+#include <atomic>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
+#include <mutex>
 #include <vector>
 
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <poll.h>
 #include <unistd.h>
 
 #ifndef MSG_NOSIGNAL
@@ -256,6 +262,60 @@ public:
             ::close(client);
             if (shutdown) return 0;
         }
+    }
+
+    /// Concurrent ingress variant. Each client owns its transport thread;
+    /// the handler decides its own execution/session serialization. This
+    /// keeps socket acceptance independent from a long render request.
+    int serve_concurrent(const RequestHandler& handler) noexcept {
+        std::atomic<bool> shutdown_requested{false};
+        struct ActiveClients {
+            std::mutex mutex;
+            std::vector<int> fds;
+        };
+        const auto active = std::make_shared<ActiveClients>();
+        std::vector<std::thread> workers;
+        while (!shutdown_requested.load(std::memory_order_acquire)) {
+            pollfd ready{};
+            ready.fd = m_fd;
+            ready.events = POLLIN;
+            const int polled = ::poll(&ready, 1, 100);
+            if (polled < 0) {
+                if (errno == EINTR) continue;
+                return errno;
+            }
+            if (polled == 0) continue;
+            const int client = ::accept(m_fd, nullptr, nullptr);
+            if (client < 0) {
+                if (errno == EINTR) continue;
+                return errno;
+            }
+            {
+                std::lock_guard lock(active->mutex);
+                active->fds.push_back(client);
+            }
+            workers.emplace_back([client, &handler, &shutdown_requested, active]() {
+                bool shutdown = false;
+                while (serve_once(client, handler, &shutdown)) {}
+                ::close(client);
+                {
+                    std::lock_guard lock(active->mutex);
+                    active->fds.erase(std::remove(active->fds.begin(), active->fds.end(), client),
+                                      active->fds.end());
+                }
+                if (shutdown) {
+                    shutdown_requested.store(true, std::memory_order_release);
+                    std::lock_guard lock(active->mutex);
+                    for (const int fd : active->fds) {
+                        if (fd != client) ::shutdown(fd, SHUT_RDWR);
+                    }
+                }
+            });
+        }
+        for (auto& worker : workers) {
+            if (worker.joinable()) worker.join();
+        }
+        return 0;
     }
 
     /// Bind path (empty until listen() succeeds).

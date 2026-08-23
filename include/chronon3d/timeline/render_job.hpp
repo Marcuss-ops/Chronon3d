@@ -43,6 +43,10 @@ struct VideoSettings {
     bool        keep_frames{false};
     std::string frames_dir;
     int         chunks{1};
+    // Optional compressed source used by the GOP smart-copy planner.
+    // Empty keeps the regular render path.
+    std::string gop_source;
+    bool        gop_copy_only{false};
 
     std::string hardware_encoder{"none"};
     std::string ffmpeg_mode{"pipe"};

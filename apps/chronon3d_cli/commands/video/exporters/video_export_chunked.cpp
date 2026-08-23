@@ -1,5 +1,8 @@
 #include "../common/video_export_common.hpp"
 #include "../common/pipe_export_helpers.hpp"
+#include "../common/pipe_export_pipeline.hpp"
+#include "../../../utils/video/packet_assembler.hpp"
+#include "../../../utils/video/gop_smart_copy.hpp"
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
@@ -41,6 +44,50 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     ChunkedExportResult result;
     result.frames_total = static_cast<int>(end - start);
 
+    if (opts.gop_copy_only) {
+        if (opts.gop_source.empty()) {
+            spdlog::error("[video] --gop-copy-only requires --gop-source");
+            return result;
+        }
+        const auto copied = copy_gop_source(
+            opts.gop_source, opts.output.output,
+            static_cast<double>(start) / opts.output.fps,
+            static_cast<double>(end) / opts.output.fps);
+        if (!copied) {
+            spdlog::error("[video] GOP packet copy failed for '{}'", opts.gop_source);
+            result.encode_failed = true;
+            return result;
+        }
+        result.frames_written = static_cast<int>(copied->video_packets);
+        result.success = true;
+        result.return_code = 0;
+        spdlog::info("[video] GOP packet copy completed: video_packets={} audio_packets={}",
+                     copied->video_packets, copied->audio_packets);
+        return result;
+    }
+
+    // Native encoding already owns the persistent renderer, async surface
+    // ring and in-process packet mux boundary. Keep it out of the legacy
+    // chunk loop: that loop necessarily creates a Framebuffer and a temporary
+    // container per worker. The pipe pipeline is the canonical native fast
+    // path; chunked MP4 remains available for the explicit legacy sink.
+    if (opts.encoder.encoder_backend == "native") {
+        spdlog::info("[video] native backend uses persistent async pipeline; "
+                     "bypassing legacy chunk containers");
+        const auto native = render_and_encode_ffmpeg_pipe(
+            registry, compiled, composition_id, settings,
+            start, end, opts, cpu_budget);
+        result.return_code = native.return_code;
+        result.success = native.success;
+        result.encode_failed = native.encoder_close_failed || native.writer_error;
+        result.frames_written = native.frames_encoded;
+        result.frames_total = static_cast<int>(end - start);
+        result.wall_time_ms = native.wall_time_ms;
+        result.render_ms = native.render_ms;
+        result.encode_ms = native.encode_ms;
+        return result;
+    }
+
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
@@ -57,6 +104,25 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 
     spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
                  total, start, end, opts.output.fps, chunks, opts.output.output);
+
+    if (!opts.gop_source.empty()) {
+        const auto source_plan = inspect_gop_source(
+            opts.gop_source,
+            resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder),
+            static_cast<double>(start) / opts.output.fps,
+            static_cast<double>(end) / opts.output.fps);
+        if (!source_plan) {
+            spdlog::warn("[video] GOP source analysis unavailable for '{}'",
+                         opts.gop_source);
+        } else {
+            const auto copy_candidates = std::count_if(
+                source_plan->plans.begin(), source_plan->plans.end(),
+                [](const auto& plan) { return plan.copy_packets(); });
+            spdlog::info("[video] GOP analysis source='{}' plans={} copy_candidates={} "
+                         "(codec compatibility pending execution resolver)",
+                         opts.gop_source, source_plan->plans.size(), copy_candidates);
+        }
+    }
 
     const auto started_at_iso =
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
@@ -326,6 +392,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 int64_t pts_offset = 0;
                 int64_t dts_offset = 0;
                 AVStream* out_stream = nullptr;
+                std::unique_ptr<PacketAssembler> packet_assembler;
 
                 for (size_t i = 0; i < chunk_output_files.size() && success; ++i) {
                     AVFormatContext* in_ctx = nullptr;
@@ -366,7 +433,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                             break;
                         }
                         out_stream->time_base = in_stream->time_base;
-                        if (!(out_ctx->oformat->flags & AVFMT_NOHEADER)) {
+                        if (!(out_ctx->oformat->flags & AVFMT_NOFILE)) {
                             if (avio_open(&out_ctx->pb, opts.output.output.c_str(), AVIO_FLAG_WRITE) < 0) {
                                 spdlog::error("[video] In-process remux: failed to open output file {}", opts.output.output);
                                 avformat_close_input(&in_ctx);
@@ -380,6 +447,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                             success = false;
                             break;
                         }
+                        packet_assembler = std::make_unique<PacketAssembler>(out_ctx, out_stream);
                     }
 
                     AVPacket* pkt = av_packet_alloc();
@@ -389,7 +457,6 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 
                     while (av_read_frame(in_ctx, pkt) >= 0) {
                         if (pkt->stream_index == video_stream_idx) {
-                            pkt->stream_index = out_stream->index;
                             if (pkt->pts != AV_NOPTS_VALUE) {
                                 max_pts = std::max(max_pts, pkt->pts);
                                 pkt->pts += pts_offset;
@@ -398,11 +465,15 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                                 max_dts = std::max(max_dts, pkt->dts);
                                 pkt->dts += dts_offset;
                             }
-                            last_duration = pkt->duration;
-                            av_packet_rescale_ts(pkt, in_stream->time_base, out_stream->time_base);
-                            av_interleaved_write_frame(out_ctx, pkt);
+                            last_duration = std::max<int64_t>(1, pkt->duration);
+                            if (!packet_assembler ||
+                                !packet_assembler->submit_copied_video(*pkt, in_stream->time_base)) {
+                                spdlog::error("[video] In-process remux: packet assembly failed for chunk {}", i);
+                                success = false;
+                            }
                         }
                         av_packet_unref(pkt);
+                        if (!success) break;
                     }
                     av_packet_free(&pkt);
                     pts_offset += max_pts + last_duration;
@@ -412,9 +483,9 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 }
 
                 if (success) {
-                    av_write_trailer(out_ctx);
+                    success = packet_assembler && packet_assembler->finalize();
                 }
-                if (!(out_ctx->oformat->flags & AVFMT_NOHEADER) && out_ctx->pb) {
+                if (!(out_ctx->oformat->flags & AVFMT_NOFILE) && out_ctx->pb) {
                     avio_closep(&out_ctx->pb);
                 }
                 avformat_free_context(out_ctx);

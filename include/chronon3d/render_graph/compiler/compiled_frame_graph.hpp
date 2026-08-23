@@ -149,6 +149,10 @@ struct CompiledLayerInstance {
     std::uint32_t transform_index{0};
     std::uint32_t paint_index{0};
     float opacity{1.0f};
+    // Canonical axis-aligned coverage carried into backend-neutral batches.
+    // A zero/empty box means that the backend must use its conservative
+    // full-surface fallback for this instance.
+    raster::BBox dst_bounds{0, 0, 0, 0};
 };
 
 struct CompiledLayerBatch {

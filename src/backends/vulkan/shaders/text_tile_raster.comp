@@ -3,7 +3,7 @@
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(set = 0, binding = 0, rgba8) uniform image2D dst_image;
-layout(set = 0, binding = 1) uniform sampler2D atlas_sampler;
+layout(set = 0, binding = 1, rgba8) uniform readonly image2D atlas_image;
 
 struct GpuGlyphStatic {
     uint run_index;
@@ -150,7 +150,10 @@ void main() {
             (atlas_y + v_norm * atlas_h) * params.atlas_inv_h
         );
 
-        vec4 sampled = texture(atlas_sampler, uv);
+        ivec2 atlas_size = imageSize(atlas_image);
+        ivec2 atlas_coord = clamp(ivec2(uv * vec2(atlas_size)),
+                                  ivec2(0), atlas_size - ivec2(1));
+        vec4 sampled = imageLoad(atlas_image, atlas_coord);
         float dist = median3(sampled.r, sampled.g, sampled.b) - 0.5;
 
         // MTSDF screen distance

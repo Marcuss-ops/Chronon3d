@@ -61,7 +61,19 @@ struct GpuGlyphKey {
     std::uint16_t generation_profile{0};
     std::uint32_t font_size{0};
 
-    friend bool operator==(const GpuGlyphKey&, const GpuGlyphKey&) = default;
+    /// Runtime font size is a layout concern for distance fields.  It is part
+    /// of identity only for Coverage, whose pixels are raster-size-specific.
+    friend bool operator==(const GpuGlyphKey& a, const GpuGlyphKey& b) noexcept {
+        if (a.font_path != b.font_path ||
+            a.glyph_id != b.glyph_id ||
+            a.variation_hash != b.variation_hash ||
+            a.representation != b.representation ||
+            a.generation_profile != b.generation_profile) {
+            return false;
+        }
+        return a.representation != GlyphRepresentation::Coverage ||
+               a.font_size == b.font_size;
+    }
 };
 
 struct GpuGlyphKeyHash {
