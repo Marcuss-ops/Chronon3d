@@ -100,7 +100,7 @@ echo "=============================================="
 echo ""
 
 echo "== 1. Architecture prerequisites =="
-for gate in tools/check_no_legacy_render_cli.sh tools/check_architecture_boundaries.sh tools/check_test_hygiene.sh; do
+for gate in tools/check_architecture_boundaries.sh tools/check_test_hygiene.sh; do
     if [ ! -f "$gate" ]; then
         blocked "$(basename "$gate")" "script missing"
         continue

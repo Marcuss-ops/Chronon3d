@@ -71,23 +71,11 @@ add_library(chronon3d_content OBJECT
     experimental/effects-gateway/effect_diagnostics_gateway.cpp
 
     # ── Examples ────────────────────────────────────────────────────────────
-    # TICKET-REFACTOR-CONTENT-EXAMPLES-17 (2026-07-12) — the monolithic
-    # `examples/text/text_animations.cpp` (>360 LoC) has been split into 3
-    # dedicated files by domain:
-    #   - examples/text/easy_text_animations.cpp  (5 easy anims + helpers)
-    #   - examples/text/typewriter_animations.cpp (5 typewriters using
-    #     Step 11 `build_2line_typewriter(TwoLineTypewriterSpec&)` from
-    #     content/common/text/typewriter_block.hpp)
-    #   - examples/text/text_animation_registration.cpp (10
-    #     `registry.add(...)` calls consolidated)
-    # The 10 inline `registry.add(...)` calls in animation_compositions.cpp
-    # have been REMOVED; the new file's `register_text_animation_compositions`
-    # is called from `register_anim_compositions` instead.
     examples/text/easy_text_animations.cpp
     examples/text/typewriter_animations.cpp
     examples/text/text_animation_registration.cpp
-    examples/light/light_text_animations.cpp  # drift-allow: stale-ref
-    examples/image/image_animated_reveals.cpp  # drift-allow: stale-ref
+    examples/light/light_text_animations.cpp
+    examples/image/image_animated_reveals.cpp
 
     # ── Backgrounds ────────────────────────────────────────────────────────
     backgrounds/grid_clean.cpp
@@ -116,24 +104,7 @@ add_library(chronon3d_content OBJECT
     # ── Sequence V2 migrated compositions (SequenceBuilder-only) ──
     showcases/sequence-v2/sequence_v2_compositions.cpp
 
-    # TICKET-CLI-ISOLATE-RUNTIME-DEV (2026-07-12) — AE Parity camera scenes
-    # (AE_CAM_01..10) are now DEV-only per the user-spec verbatim §3 (isola
-    # runtime/dev).  Azione 17 RELOCATED the factory bodies from
-    # `tests/visual/ae_parity/ae_parity_scenes.cpp` (gone) to
-    # `content/ae_parity/ae_cam_scenes.cpp`/`hpp` — production-side namespace
-    # `chronon3d::content::ae_parity::ae_cam_scenes` (per user spec verbatim §2),
-    # still compiled into chronon3d_cli_dev (when CHRONON3D_BUILD_CLI_DEV=ON)
-    # via `apps/chronon3d_cli/CMakeLists.txt` and registered via
-    # `apps/chronon3d_cli/register_dev_compositions.cpp` (DEV-gated).
-    # Production CLI (CHRONON3D_BUILD_CLI_DEV=OFF) does NOT include AE_CAM_*
-    # at all.  Azione 16 (forward-point (b) of TICKET-CLI-ISOLATE-RUNTIME-DEV
-    # closure, 2026-07-13) DELETED the dead-code
-    # `content/ae_parity/register_ae_parity_compositions.{cpp,hpp}` files —
-    # they had zero callers upstream (orchestrator already removed in the
-    # original 2026-07-12 chore).  Test fixtures continue to reference the
-    # AE_CAM_* factory functions via the DEV-only path (include path
-    # `content/ae_parity/ae_cam_scenes.hpp` + matching `using namespace
-    # chronon3d::content::ae_parity::ae_cam_scenes`).
+    # AE parity camera scenes are development-only compositions.
 )
 
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})
@@ -189,12 +160,6 @@ endif()
 
 target_sources(chronon3d_content PRIVATE
     # ── Production-location composition ──
-    # content/compositions/chronon_glow_final.hpp — moved from tests/visual/ae_parity/glow_final_compositions.hpp
-    # on 2026-07-12 (TICKET-GLOW-FINAL-COMPOSITIONS-MOVE / refactor(glow) §4 cleanup).
-    # Originally a header-only inline factory; SPLIT into:
-    #   - chronon_glow_final.hpp  (slim, decl-only)
-    #   - chronon_glow_final.cpp  (implementation companion)
-    # Both live in chronon3d::content::glow_final namespace.
     compositions/chronon_glow_final.cpp
     compositions/glow_camera_product_v1.cpp
 )

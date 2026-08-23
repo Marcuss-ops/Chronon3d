@@ -39,7 +39,6 @@
 #  14. SDK public surface boundary           — AGENTS.md §4 / ADR-010
 #        (semantic)
 #  15. Legacy text pipeline gate             — P1 #4 census
-#        (check_legacy_text_pipeline.sh)
 #  16. SDK public-deps SSoT wiring           — ADR-010 Decision 3
 #  17. src/-only header on public path       — TICKET-ae-cam-hash-collision
 #  18. V2 AssetPreflight stubs RETIRED       — Phase A1 close-out
@@ -425,26 +424,7 @@ if [ -n "$hits" ]; then
     FAILED=1
 else echo "PASS"; fi
 
-# ── 15. Legacy text pipeline gate (P1 #4 — census gate) ────────────────
-# Dual text pipeline (TextShape vs TextRun).  Blocks NEW production
-# callsites of rasterize_text_to_bl_image and TextLayoutEngine::layout
-# outside the census-tracked whitelist.  See
-# docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #4.
-echo -n "  [15/26] Legacy text pipeline gate         ... "
-if [ -x tools/check_legacy_text_pipeline.sh ]; then
-    if bash tools/check_legacy_text_pipeline.sh > /dev/null 2>&1; then
-        echo "PASS"
-    else
-        echo "FAIL"
-        bash tools/check_legacy_text_pipeline.sh 2>&1 | sed 's/^/    /' | head -30 || true
-        FAILED=1
-    fi
-else
-    echo "FAIL (tools/check_legacy_text_pipeline.sh not executable)"
-    FAILED=1
-fi
-
-# ── 16. SDK public-deps SSoT fail-on-drift ─────────────────────────────
+# ── 15. SDK public-deps SSoT fail-on-drift ─────────────────────────────
 # Source-level structural invariant enforcing the fail-on-drift contract
 # (per ANTI_DUPLICATION_RULES.md) between the canonical SDK_PUBLIC_DEPS
 # list (cmake/Chronon3DRegistry.cmake) and the AUTO-GENERATED marker

@@ -186,17 +186,7 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
-# ── Central registry (FIX: must be included BEFORE add_subdirectory(src)) ─────
-# `cmake/Chronon3DSdkInstall.cmake` derives `_chronon3d_install_targets`
-# from `CHRONON3D_REGISTRY_OBJECT_LIBS` + `CHRONON3D_REGISTRY_INTERFACE_LIBS`.
-# Without this include() the lists stay empty, the
-# `install(TARGETS ... EXPORT Chronon3DTargets)` call has nothing to
-# register, and the subsequent `install(EXPORT Chronon3DTargets ...)`
-# fails with `INSTALL(EXPORT) given unknown export "Chronon3DTargets"`.
-# Refactor regression introduced by the SDK install/export extraction
-# commits (b1f24ff0 + 19abfe3b); this single-line include restores the
-# canonical include-order documented at the top of
-# `cmake/Chronon3DRegistry.cmake`.
+# ── Central registry (must be included before src) ───────────────────────────
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DRegistry.cmake)
 
 add_subdirectory(src)
@@ -222,11 +212,7 @@ if(TARGET chronon3d_content AND TARGET chronon3d_pipeline)
 endif()
 
 # ── Perfetto tracing backend ─────────────────────────────────────────────
-# The timeline-tracing surface (CHRONON_TRACE_*, TraceSession) lives in
-# chronon3d_core_impl (src/core/tracing/*.cpp).  Perfetto is the sole
-# timeline-tracing backend (Fase 5 removed the transitional Tracy backend).
-# The compile definition is needed on core_impl so the tracing TUs see the
-# enabled path.
+# Perfetto is the timeline-tracing backend for core_impl.
 if(CHRONON3D_ENABLE_TRACING)
     target_link_libraries(chronon3d_core_impl PRIVATE unofficial::perfetto::perfetto)
     target_compile_definitions(chronon3d_core_impl PRIVATE CHRONON3D_ENABLE_TRACING)
@@ -242,11 +228,7 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
-# Standalone bench binary (Phase 1 of TICKET-CLI-ISOLATE-RUNTIME-DEV cleanup).
-# The bench subcommands (`bench`, `bench-convert`) used to live under
-# apps/chronon3d_cli/commands/bench + commands/dev/command_bench_convert.cpp;
-# they are extracted to a self-contained executable that owns its own CLI11
-# entry point and only depends on chronon3d_sdk + chronon3d_pipeline.
+# Standalone benchmark CLI.
 if(CHRONON3D_BUILD_BENCHMARK_CLI)
     add_subdirectory(apps/chronon3d_bench)
 endif()
@@ -298,16 +280,7 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 # ── SDK Install / Export ─────────────────────────────────────────────────────
-# Moved to `cmake/Chronon3DSdkInstall.cmake` so this root CMakeLists.txt
-# stays a thin orchestrator.  The module derives the install + export
-# target list from `cmake/Chronon3DRegistry.cmake` (replacing the
-# previous hand-maintained ~40-entry list), runs GNUInstallDirs +
-# CMakePackageConfigHelpers, and emits Chronon3DConfig.cmake,
-# Chronon3DConfigVersion.cmake, Chronon3DTargets.cmake under
-# `<prefix>/<libdir>/cmake/Chronon3D/`.  The (TICKET-011 cmake-boundary)
-# public-surface contract is documented in that file's header — the
-# EXACTLY-one public target is `Chronon3D::SDK`; inner targets remain
-# importable under their raw names for transitive link closure.
+# Install and export the public SDK target.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkInstall.cmake)
 
 # ── Aggregate developer target (CLI + fast tests) ──────────────────────────────
@@ -333,8 +306,8 @@ include(cmake/Hygiene.cmake)
 # The architecture-check target compiles (or verifies the previous build of)
 # every architectural boundary layer the project uses:
 #
-#   • chronon3d_runtime          ─ engine-lifetime state owner (TICKET-011)
-#   • chronon3d_graph_executor   ─ stateless graph executor (TICKET-009)
+#   • chronon3d_runtime          ─ engine-lifetime state owner
+#   • chronon3d_graph_executor   ─ stateless graph executor
 #   • chronon3d_graph_pipeline   ─ scene orchestration + tile dispatch
 #   • chronon3d_backend_software ─ software backend core
 #   • chronon3d_tests_fast       ─ guard tests that no boundary regresses

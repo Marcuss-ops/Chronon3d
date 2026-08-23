@@ -57,7 +57,7 @@ chronon3d_add_test_suite(
             # ctest -C Debug/-C Release discovery — the source compiles in both,
             # BRUTE_TEST_BUILD_CONFIG tag + per-binary self-reference ensure
             # the same-code-different-config dimension is correctly enumerated.
-            determinism/test_brute_determinism.cpp
+            deterministic/test_brute_determinism.cpp
 )
 target_compile_definitions(chronon3d_deterministic_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 if(TARGET chronon3d::content)
