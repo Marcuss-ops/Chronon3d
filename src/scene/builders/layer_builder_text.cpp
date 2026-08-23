@@ -170,11 +170,17 @@ Layer LayerBuilder::build() {
                 m_screen_width, m_screen_height);
             const Vec2 pin = resolve_placement_origin(
                 canvas, prepared.frame.size, prepared.frame.placement);
-            node.world_transform.position = Vec3{
-                pin.x - canvas.width * 0.5f,
-                pin.y - canvas.height * 0.5f,
-                0.0f
-            };
+            // A layer pin already supplies the canvas placement for this
+            // producer. An Absolute text placement inside that pinned layer
+            // is therefore local to the layer; subtracting the canvas half
+            // size here would apply the centering convention twice.
+            const bool layer_has_pin = m_layer.layout.pin.has_value();
+            node.world_transform.position = layer_has_pin &&
+                prepared.frame.placement.kind == TextPlacementKind::Absolute
+                ? Vec3{0.0f, 0.0f, 0.0f}
+                : Vec3{pin.x - canvas.width * 0.5f,
+                       pin.y - canvas.height * 0.5f,
+                       0.0f};
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);

@@ -180,6 +180,7 @@ public:
                                 bool graph_reused);
 
 private:
+    void preflight_images(const Scene& scene);
     Config            m_config;
     RenderSettings    m_settings{};
     RenderCounters    m_counters;
