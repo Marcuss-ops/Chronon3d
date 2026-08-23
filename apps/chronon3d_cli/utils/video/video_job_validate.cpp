@@ -40,12 +40,6 @@ bool validate_video_job(const RenderJob& job) {
             job.video_settings.ffmpeg_mode);
         return false;
     }
-    if (job.video_settings.encoder_backend == "native" &&
-        job.video_settings.ffmpeg_mode != "pipe") {
-        spdlog::error(
-            "[video] Native encoder backend requires ffmpeg mode pipe");
-        return false;
-    }
     return true;
 }
 

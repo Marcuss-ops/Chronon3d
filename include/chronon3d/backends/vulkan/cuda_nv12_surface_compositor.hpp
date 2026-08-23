@@ -27,10 +27,17 @@ public:
     bool composite(CUdeviceptr y, int y_pitch, CUdeviceptr uv, int uv_pitch,
                    std::uint32_t width, std::uint32_t height, CUstream stream);
 
+    /// Direct NV12 overlay compositor without intermediate RGB surfaces
+    bool composite_direct_nv12(
+        CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
+        CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
+        std::uint32_t width, std::uint32_t height, CUstream stream);
+
 private:
     CUcontext context_{nullptr};
     CUmodule module_{nullptr};
     CUfunction kernel_{nullptr};
+    CUfunction direct_nv12_kernel_{nullptr};
     CUstream stream_{nullptr};
     bool first_write_{true};
     std::unique_ptr<CudaVulkanSurfaceBridge> bridge_;

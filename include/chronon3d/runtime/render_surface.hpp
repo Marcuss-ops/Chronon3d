@@ -21,8 +21,81 @@ enum class ResourceUsage : std::uint8_t {
     Generic, ColorAttachment, DepthAttachment, Storage
 };
 enum class PixelFormat : std::uint8_t {
-    Unknown, Rgba32Float, Rgba8Unorm, R8Unorm, Depth32Float, Bytes
+    Unknown,
+    Rgba32Float,
+    Rgba8Unorm,
+    R8Unorm,
+    Nv12,
+    P010,
+    Depth32Float,
+    Bytes
 };
+
+/// Color metadata according to video/broadcast standards.
+enum class ColorMatrix : std::uint8_t {
+    Identity,
+    Bt601,
+    Bt709,
+    Bt2020Ncl
+};
+
+enum class ColorRange : std::uint8_t {
+    Limited,
+    Full
+};
+
+enum class TransferFunction : std::uint8_t {
+    Srgb,
+    Bt1886,
+    Pq,
+    Hlg
+};
+
+enum class ColorPrimaries : std::uint8_t {
+    Bt709,
+    Bt2020
+};
+
+enum class ChromaLocation : std::uint8_t {
+    Left,
+    Center,
+    TopLeft
+};
+
+struct ColorMetadata {
+    ColorMatrix matrix{ColorMatrix::Bt709};
+    ColorRange range{ColorRange::Limited};
+    TransferFunction transfer{TransferFunction::Srgb};
+    ColorPrimaries primaries{ColorPrimaries::Bt709};
+    ChromaLocation chroma_location{ChromaLocation::Left};
+};
+
+/// Single canonical calculation of tight surface bytes across all backends.
+[[nodiscard]] constexpr std::size_t tight_surface_bytes(
+    PixelFormat fmt, std::uint32_t width, std::uint32_t height) noexcept {
+    const std::size_t w = static_cast<std::size_t>(width);
+    const std::size_t h = static_cast<std::size_t>(height);
+    switch (fmt) {
+        case PixelFormat::Rgba32Float: return w * h * 16;
+        case PixelFormat::Rgba8Unorm:   return w * h * 4;
+        case PixelFormat::R8Unorm:      return w * h;
+        case PixelFormat::Nv12: {
+            const std::size_t chroma_w = (w + 1) & ~static_cast<std::size_t>(1);
+            const std::size_t chroma_h = (h + 1) / 2;
+            return w * h + chroma_w * chroma_h;
+        }
+        case PixelFormat::P010: {
+            const std::size_t chroma_w = (w + 1) & ~static_cast<std::size_t>(1);
+            const std::size_t chroma_h = (h + 1) / 2;
+            return w * h * 2 + chroma_w * chroma_h * 2;
+        }
+        case PixelFormat::Depth32Float: return w * h * 4;
+        case PixelFormat::Bytes:
+        case PixelFormat::Unknown:
+        default:
+            return w * h;
+    }
+}
 
 /// Backend-neutral description used by the lifetime planner and resource
 /// resolvers. It contains no Framebuffer or Vulkan type.
@@ -33,6 +106,7 @@ struct SurfaceDesc {
     ResourceUsage usage{ResourceUsage::Generic};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     std::size_t bytes{0};
+    ColorMetadata color{};
 };
 
 /// Affine source mapping for a device-local transform. Coordinates are in
@@ -119,8 +193,7 @@ public:
             return kInvalidRenderSurfaceHandle;
         }
         if (desc.bytes == 0) {
-            desc.bytes = static_cast<std::size_t>(desc.width) * desc.height *
-                (desc.format == PixelFormat::Depth32Float ? sizeof(float) : sizeof(float) * 4);
+            desc.bytes = tight_surface_bytes(desc.format, desc.width, desc.height);
         }
         const auto handle = m_next_handle++;
         m_surfaces.emplace(handle, SurfaceRecord{

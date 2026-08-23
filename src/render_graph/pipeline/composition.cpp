@@ -231,7 +231,9 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         const auto t_eval0 = profiling::now();
         Scene dynamic_scene;
         const Scene* scene_ptr = nullptr;
-        if (compiled.is_static_topology && compiled.template_scene) {
+        if (compiled.execution_mode == SceneExecutionMode::StaticScene && compiled.static_scene) {
+            scene_ptr = compiled.static_scene.get();
+        } else if (compiled.template_scene && compiled.is_static_topology) {
             scene_ptr = compiled.template_scene.get();
         } else {
             CHRONON_TRACE_SCOPE("chronon.frame", "evaluate_composition");

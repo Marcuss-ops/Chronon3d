@@ -83,11 +83,6 @@ int render_and_encode_ffmpeg(
                       opts.sink.ffmpeg_mode);
         return 1;
     }
-    if (opts.encoder.encoder_backend == "native" &&
-        opts.sink.ffmpeg_mode != "pipe") {
-        spdlog::error("[video] Native encoder backend requires ffmpeg mode pipe");
-        return 1;
-    }
 
     if (opts.sink.ffmpeg_mode == "pipe") {
         auto result = render_and_encode_ffmpeg_pipe(

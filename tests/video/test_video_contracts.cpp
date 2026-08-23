@@ -65,7 +65,12 @@ namespace {
 // chrono3d_cli binary discovery: 3 canonical candidates per
 // tools/check_first_principles_fail_loud.sh SCRIPT_DIR/build pattern.
 std::string discover_cli_binary() {
+    if (const char* env = std::getenv("CHRONON3D_CLI_PATH")) {
+        if (fs::exists(env)) return env;
+    }
     const std::vector<std::string> candidates = {
+        "build/chronon/linux-video-fast-dev/apps/chronon3d_cli/chronon3d_cli",
+        "build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli",
         "build/manual-test/chrono3d_cli/chronon3d_cli",
         "build/test-host/chrono3d_cli/chronon3d_cli",
         "build/chrono3d_cli",

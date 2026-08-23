@@ -135,7 +135,8 @@ do_render() {
     OMP_NUM_THREADS="$threads" \
         "$cli" render "$COMPOSITION" \
             --frame "$FRAME" \
-            --output "$png" >/dev/null
+            --output "$png" \
+            --assets-root "$REPO_ROOT" >/dev/null
 
     # CRITICAL-2 fix: guarded convert-pipeline.  If PNG is missing or
     # ImageMagick fails, write EXPLICIT sentinel into the TSV rather than
@@ -148,7 +149,7 @@ do_render() {
     fi
 
     # Inspect-text JSON (per docs/CLI_REFERENCE.md).
-    "$cli" inspect-text "$COMPOSITION" --frame "$FRAME" --json > "$json" 2>/dev/null || true
+    "$cli" inspect-text "$COMPOSITION" --frame "$FRAME" --assets-root "$REPO_ROOT" --json > "$json" 2>/dev/null || true
 
     local alpha_bbox glyph_count predicted_bbox diag_status
     if jq -e 'type == "array" and length > 0' "$json" >/dev/null 2>&1; then
