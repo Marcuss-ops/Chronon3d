@@ -1,43 +1,32 @@
 # Follow-up Tickets — Open Blockers Index
 
-> Stato corrente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
-> Questo file è un indice sintetico dei blocker attivi; il dettaglio vive nelle schede `tickets/`.
+> Stato: [`CURRENT_STATUS.md`](CURRENT_STATUS.md) — dettaglio in `docs/tickets/`.
 
 ## Open Blockers (≤10)
 
-| Epic / Area | Pri | Stato | Scheda |
-|---|---:|---|---|
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
 | Test aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
-| Deprecated API cleanup (remaining symbols) | P1 | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
-| Test harness + certification | P1 | OPEN | Regex focalizzato PASS 21/21 su `main@dc3fb34e`; same-SHA developer BLOCKED perché il corpus visuale non ha prodotto il JUnit richiesto. Restano baseline globale, font e certificazione WBH: [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md), [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
-| Core systems / ADR gaps | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
-| Benchmark + CPU budget | P1 | OPEN | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md), [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
+| Deprecated API | P1 | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
+| Test harness + WBH cert | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
+| Benchmark + CPU budget | P1 | OPEN | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) + [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
 | Cache key rot | P2 | OPEN | [NODE-CACHE-KEY-COLLAPSE-ROT](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
-| Sequential graph cache parity | P1 | DONE (verified path) | `CHRONON3D_BUILD_DIAGNOSTICS=OFF` + `settings.diagnostics.enabled=false`: verifier PASS su `main@dc3fb34e` con worktree locale (3/3 deterministic + 14/14 scene, marker `CHRONON_SEQUENTIAL_GRAPH_CACHE_PASS`); `CHRONON3D_ENABLE_DIAGNOSTICS=ON` resta fuori dalla conclusione: [SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md) |
-| Tools / lint debt | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md); [ANALYZE-FRAMES-ORPHAN](tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md) DONE; remaining watch-list open |
-| OpenType feature coverage | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
+| Tools / lint | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
+| OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
+| Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
 
-## Non-Blocking Backlog (P3 — non blockers)
+## Backlog P2/P3 (non bloccante)
 
-> Ticket che NON bloccano alcun percorso stabile; dettaglio nelle schede `tickets/`.
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
+| Video compiler arch | P2 | PLANNED | [VIDEO-COMPILER-ARCH-V1](tickets/TICKET-VIDEO-COMPILER-ARCH-V1.md) |
+| Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
 
-| Epic / Area | Pri | Stato | Scheda |
-|---|---:|---|---|
-| Video compiler architecture | P2 | PLANNED | [VIDEO-COMPILER-ARCH-V1](tickets/TICKET-VIDEO-COMPILER-ARCH-V1.md) — `SceneIR → CompiledTemplateProgram → DeviceProgram → hot loop`; fasi A–M atomiche su `main`, no branch |
-| Text: warning clipping testo oversized | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) — warning `[text-vis] CLIP_DROPS_INK` osservato sul golden canary E2E; formalizza la known limitation `TICKET-TEXT-CLIP-BOX` |
-| Text: test/regression clipping oversized | P3 | OPEN | [TEXT-OVERSIZED-CLIP-REGRESSION-TEST](tickets/TICKET-TEXT-OVERSIZED-CLIP-REGRESSION-TEST.md) — lock testuale separato: TEST_CASE render-plan-driven + promozione WARN→CHECK post-enforcement |
+## Recently Closed (ultimi 3)
 
-## Recently Closed
+- `has_compiled_recorder` + `fully_recorded` fast-path (TICKET-VIDEO-COMPILER-ARCH-V1 Fase D/E) — 2026-08-22
+- Telemetry dead layer removed (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT) — 2026-08-22
+- `Sequential graph cache parity` DONE con `DIAGNOSTICS=OFF` (TICKET-SEQUENTIAL-CACHE-DIVERGENCE)
 
-- Telemetry dead layer removed: `TextTelemetryRecord` + `TileTelemetryRecord` stores, `TelemetrySession`, and `render_text_events`/`render_tile_events` SQLite tables; 5 stores (node/layer/cache/culling/image) remain for the optional SQLite consumer. Details in [TICKET-TELEMETRY-STORE-CONSUMER-AUDIT](tickets/TICKET-TELEMETRY-STORE-CONSUMER-AUDIT.md).
-- Render layer timing removed from the global job in `ecf183f5`; typed plan decoding and pre-frame preparation landed in `27dc34d6` and `67f7f00b`.
-- Canonical CLI plan execution landed in `fee74549`; plan state no longer mutates the engine and ABI validation landed in `0ef3b517`.
-- The direct base/animation CMake cycle was removed in `c61a1a3a`; the selectable non-modular path was retired in `6fc72940`.
-- Legacy C API/context adapters were removed in `8f43d29d`; architecture failures became blocking in `20a102f3`.
-- Transition cleanup master tracker closed as DONE/ARCHIVED on 2026-08-01; TRN-03–TRN-07 remain the detailed evidence sheets.
-- The executor-side persistent-cache bridge and retired cache-mode API are absent from source; `TICKET-PERSISTENT-CACHE-ADR-GAP` is DONE/ARCHIVED, while `PersistentFramebufferStore` remains active.
-- `ShapedGlyphLine` legacy constructor surface is absent; `TICKET-PUB-DEPRECATE-REMOVAL` and `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL` are DONE/ARCHIVED. Remaining deprecations are tracked only by `TICKET-DEPRECATED-API-REMOVAL`.
-- CompositionDescriptor registration is canonical: the legacy string/factory overload and duplicate factory map are absent; remaining deprecation work stays open under the narrowed API-cleanup tickets.
-- Markdown conflict-marker gate now scans all `docs/**/*.md` and closes `TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX` (`bf413d58`).
-- Sequential graph cache parity is DONE after diagnostics-OFF verification on `main@dc3fb34e` with the local worktree (3/3 deterministic + 14/14 scene); details in [TICKET-SEQUENTIAL-CACHE-DIVERGENCE](tickets/TICKET-SEQUENTIAL-CACHE-DIVERGENCE.md).
+> Storico completo: `docs/CHANGELOG.md` + `docs/tickets/archive/`.

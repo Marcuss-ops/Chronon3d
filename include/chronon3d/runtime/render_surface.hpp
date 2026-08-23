@@ -130,20 +130,55 @@ struct SurfaceAffineTransform {
 static_assert(sizeof(SurfaceAffineTransform) == 96,
               "SurfaceAffineTransform must match affine_transform.comp push constants");
 
-/// Per-glyph static data, immutable across frames.  Carried once from
-/// prepare() and never changed.  16 bytes per glyph.
-struct GlyphStatic {
-    std::uint16_t atlas_page{0};
-    std::uint16_t uv_x{0};
-    std::uint16_t uv_y{0};
-    std::int16_t local_x{0};
-    std::int16_t local_y{0};
-    std::uint16_t width{0};
-    std::uint16_t height{0};
-    std::uint16_t pad{0};
+/// RectF for 2D bounding boxes
+struct RectF {
+    float x0{0.0f};
+    float y0{0.0f};
+    float x1{0.0f};
+    float y1{0.0f};
+
+    friend bool operator==(const RectF&, const RectF&) = default;
 };
-static_assert(sizeof(GlyphStatic) == 16,
-              "GlyphStatic must be 16 bytes");
+
+/// Precalculated static text run bounding box
+struct TextRunStatic {
+    std::uint32_t first_glyph{0};
+    std::uint32_t glyph_count{0};
+    RectF local_bbox{};
+};
+
+/// Per-glyph static data, immutable across frames.
+/// Distinguishes atlas rect from plane bounds, includes draw_order.
+struct alignas(16) GlyphStatic {
+    std::uint32_t run_index{0};
+    std::uint16_t atlas_page{0};
+    std::uint16_t flags{0};
+
+    std::uint16_t atlas_x{0};
+    std::uint16_t atlas_y{0};
+    std::uint16_t atlas_w{0};
+    std::uint16_t atlas_h{0};
+
+    float plane_left{0.0f};
+    float plane_top{0.0f};
+    float plane_right{0.0f};
+    float plane_bottom{0.0f};
+
+    std::uint32_t draw_order{0};
+    std::uint32_t pad0{0};
+    std::uint32_t pad1{0};
+    std::uint32_t pad2{0};
+
+    // Backward-compatibility helpers / alias getters
+    std::uint16_t uv_x() const noexcept { return atlas_x; }
+    std::uint16_t uv_y() const noexcept { return atlas_y; }
+    std::int16_t local_x() const noexcept { return static_cast<std::int16_t>(plane_left); }
+    std::int16_t local_y() const noexcept { return static_cast<std::int16_t>(plane_top); }
+    std::uint16_t width() const noexcept { return atlas_w; }
+    std::uint16_t height() const noexcept { return atlas_h; }
+};
+static_assert(sizeof(GlyphStatic) == 48,
+              "GlyphStatic must be 48 bytes matching std430 layout");
 
 /// Per-run dynamic data, updated once per frame.  24 bytes per text run
 /// (NOT per glyph).  All glyphs in a run share the same transform.

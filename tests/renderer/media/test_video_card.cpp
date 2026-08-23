@@ -61,7 +61,7 @@ public:
 };
 
 std::shared_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mock_color = {0.2f, 0.6f, 1.0f, 1.0f}) {
-    SoftwareRenderer renderer = test::make_renderer();
+    auto renderer = test::make_renderer();
     auto decoder = std::make_shared<MockVideoDecoder>(mock_color);
     renderer.set_video_decoder(decoder);
     return renderer.render(comp, 0);

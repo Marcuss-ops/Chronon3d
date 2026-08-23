@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <thread>
 #include <fstream>
 #include <string>
 #include <string_view>
@@ -482,6 +483,7 @@ TEST_CASE("PreparedAssetManifest detects bytes changed after preflight") {
 
     // Keep the size stable: the integrity boundary must not rely on size
     // alone. The timestamp fast path falls back to SHA-256 after this write.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     write_file(g_temp.path, "images/changed.png", "BBBB");
     const auto verified = chronon3d::assets::verify_asset_manifest(
         prepared.value(), resolver);

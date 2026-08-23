@@ -10,16 +10,20 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D dst_image;
 layout(binding = 1, rgba32f) uniform readonly image2D atlas_image;
 
-// 32 bytes per glyph static entry
+// 48 bytes per glyph static entry (matching std430 layout)
 struct GpuGlyphStatic {
-    uint atlas_page;   // atlas page (0 for single atlas page)
-    uint run_index;    // index into runs array
-    uint uv_x;
-    uint uv_y;
-    int local_x;
-    int local_y;
-    uint width;
-    uint height;
+    uint run_index;
+    uint atlas_page_and_flags; // low 16: atlas_page, high 16: flags
+    uint atlas_pos;            // low 16: atlas_x, high 16: atlas_y
+    uint atlas_size;           // low 16: atlas_w, high 16: atlas_h
+    float plane_left;
+    float plane_top;
+    float plane_right;
+    float plane_bottom;
+    uint draw_order;
+    uint pad0;
+    uint pad1;
+    uint pad2;
 };
 
 // 32 bytes per text run dynamic entry
@@ -48,6 +52,10 @@ layout(push_constant) uniform TextBatchParams {
     ivec2 dispatch_origin;
 } params;
 
+float median3(float a, float b, float c) {
+    return max(min(a, b), min(max(a, b), c));
+}
+
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 dst_size = imageSize(dst_image);
@@ -59,18 +67,48 @@ void main() {
         GpuGlyphStatic g = glyphs[i];
         GpuTextRunDynamic run = runs[g.run_index];
 
-        float origin_x = run.tx + float(g.local_x) * run.sx;
-        float origin_y = run.ty + float(g.local_y) * run.sy;
-        float gw = float(g.width) * run.sx;
-        float gh = float(g.height) * run.sy;
+        float sx = (run.sx != 0.0) ? run.sx : 1.0;
+        float sy = (run.sy != 0.0) ? run.sy : 1.0;
 
-        if (float(pixel.x) >= origin_x && float(pixel.x) < origin_x + gw &&
-            float(pixel.y) >= origin_y && float(pixel.y) < origin_y + gh) {
+        float origin_x = run.tx + g.plane_left * sx;
+        float origin_y = run.ty + g.plane_top * sy;
+        float plane_w = (g.plane_right - g.plane_left) * sx;
+        float plane_h = (g.plane_bottom - g.plane_top) * sy;
+
+        uint atlas_x = g.atlas_pos & 0xFFFFu;
+        uint atlas_y = (g.atlas_pos >> 16u) & 0xFFFFu;
+        uint atlas_w = g.atlas_size & 0xFFFFu;
+        uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
+
+        if (plane_w <= 0.0) plane_w = float(atlas_w) * sx;
+        if (plane_h <= 0.0) plane_h = float(atlas_h) * sy;
+
+        if (float(pixel.x) >= origin_x && float(pixel.x) < origin_x + plane_w &&
+            float(pixel.y) >= origin_y && float(pixel.y) < origin_y + plane_h) {
             
-            vec2 sample_offset = floor((vec2(pixel) - vec2(origin_x, origin_y)) / vec2(run.sx, run.sy));
-            sample_offset = clamp(sample_offset, vec2(0.0), vec2(float(g.width) - 1.0, float(g.height) - 1.0));
-            ivec2 atlas_coord = ivec2(g.uv_x, g.uv_y) + ivec2(sample_offset);
-            vec4 src = imageLoad(atlas_image, atlas_coord) * run.opacity;
+            vec2 norm = (vec2(pixel) - vec2(origin_x, origin_y)) / vec2(plane_w, plane_h);
+            norm = clamp(norm, vec2(0.0), vec2(1.0));
+            vec2 sample_pos = vec2(float(atlas_x), float(atlas_y)) + norm * vec2(float(atlas_w), float(atlas_h));
+            ivec2 atlas_coord = ivec2(clamp(sample_pos, vec2(float(atlas_x)), vec2(float(atlas_x + atlas_w - 1u), float(atlas_y + atlas_h - 1u))));
+
+            vec4 sample_val = imageLoad(atlas_image, atlas_coord);
+            uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
+
+            vec4 src;
+            if ((flags & 1u) != 0u) {
+                // MTSDF representation
+                float msd = median3(sample_val.r, sample_val.g, sample_val.b);
+                float sd = msd - 0.5;
+                float screen_scale = 0.5 * (abs(sx) + abs(sy));
+                float screen_px_range = max(1.0, 8.0 * screen_scale);
+                float alpha = clamp(sd * screen_px_range + 0.5, 0.0, 1.0);
+                src = vec4(alpha);
+            } else {
+                // Linear coverage representation
+                src = sample_val;
+            }
+
+            src *= run.opacity;
             if (run.color != 0xFFFFFFFFu && run.color != 0u) {
                 vec4 tint = vec4(float(run.color & 0xFFu) / 255.0,
                                  float((run.color >> 8u) & 0xFFu) / 255.0,

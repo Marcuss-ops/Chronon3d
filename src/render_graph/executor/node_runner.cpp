@@ -133,13 +133,18 @@ void execute_fused_batch(
                 }
 
                 runtime::GlyphStatic g_stat{};
+                g_stat.run_index = static_cast<uint32_t>(all_runs.size() - 1);
                 g_stat.atlas_page = static_cast<uint16_t>(page_idx);
-                g_stat.uv_x = static_cast<uint16_t>(entry->x_offset >= 0 ? entry->x_offset : 0);
-                g_stat.uv_y = static_cast<uint16_t>(entry->y_offset >= 0 ? entry->y_offset : 0);
-                g_stat.local_x = static_cast<int16_t>(placed.x);
-                g_stat.local_y = static_cast<int16_t>(placed.y);
-                g_stat.width = static_cast<uint16_t>(entry->image->width());
-                g_stat.height = static_cast<uint16_t>(entry->image->height());
+                g_stat.flags = 0;
+                g_stat.atlas_x = static_cast<uint16_t>(entry->x_offset >= 0 ? entry->x_offset : 0);
+                g_stat.atlas_y = static_cast<uint16_t>(entry->y_offset >= 0 ? entry->y_offset : 0);
+                g_stat.atlas_w = static_cast<uint16_t>(entry->image->width());
+                g_stat.atlas_h = static_cast<uint16_t>(entry->image->height());
+                g_stat.plane_left = static_cast<float>(placed.x);
+                g_stat.plane_top = static_cast<float>(placed.y);
+                g_stat.plane_right = static_cast<float>(placed.x + entry->image->width());
+                g_stat.plane_bottom = static_cast<float>(placed.y + entry->image->height());
+                g_stat.draw_order = static_cast<uint32_t>(all_glyphs.size());
                 all_glyphs.push_back(g_stat);
             }
         }
@@ -167,6 +172,7 @@ void execute_fused_batch(
         const auto& node = graph.node(inst.node);
         if (node.kind() != RenderGraphNodeKind::Source) continue;
         const auto& src_node = static_cast<const SourceNode&>(node);
+        if (src_node.render_node().shape.type() != ShapeType::Image) continue;
         const auto& img = src_node.render_node().shape.image();
         if (img.path.empty() || !ctx.services.image_cache || !ctx.services.gpu_asset_cache) continue;
 
@@ -324,7 +330,8 @@ void execute_single_node(
     }
 
     // ── Phase B — GPU Fused Layer / Text Batch Execution ──────────────
-    if (id < compiled.nodes.size() && compiled.nodes[id].lowered_into_batch) {
+    if (id < compiled.nodes.size() && compiled.nodes[id].lowered_into_batch &&
+        ctx.services.backend && ctx.services.backend->is_batching_supported()) {
         const CompiledLayerBatch* batch_for_root = nullptr;
         for (const auto& b : compiled.program.layer_batches) {
             if (b.is_gpu_fused && b.root_node == id) {

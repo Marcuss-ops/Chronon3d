@@ -40,6 +40,8 @@ enum class GpuPassKind : std::uint8_t {
     Matte = 6,
     FusedComposite = 7,
     LayerBatch = 8,
+    Scale = 9,
+    TextBatch = 10,
 };
 
 // ── Per-kind pass payloads ────────────────────────────────────────────────
@@ -120,9 +122,25 @@ struct FusedCompositePass {
     std::vector<RenderSurfaceHandle> layer_sources{};
 };
 
+struct ScalePass {
+    RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
+    RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
+    std::int32_t filter_mode{1};  // 0 = Nearest, 1 = Linear, 2 = Bicubic
+    float scale_x{1.0f};
+    float scale_y{1.0f};
+};
+
+struct TextBatchPass {
+    RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
+    std::vector<RenderSurfaceHandle> atlas_pages{};
+    std::vector<GlyphStatic> glyphs{};
+    std::vector<TextRunDynamic> runs{};
+};
+
 using GpuPassParams = std::variant<
     CompositePass, TransformPass, AffineTransformPass, BlurPass,
-    GlowPass, ColorAdjustPass, MattePass, FusedCompositePass, LayerBatchPass>;
+    GlowPass, ColorAdjustPass, MattePass, FusedCompositePass, LayerBatchPass,
+    ScalePass, TextBatchPass>;
 
 struct GpuPass {
     GpuPassKind kind{GpuPassKind::Composite};
@@ -219,6 +237,18 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
         out.push_back(h);
     }
 }
+inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
+                                 const ScalePass& p) {
+    out.push_back(p.destination);
+    out.push_back(p.source);
+}
+inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
+                                 const TextBatchPass& p) {
+    out.push_back(p.destination);
+    for (const auto& h : p.atlas_pages) {
+        out.push_back(h);
+    }
+}
 
 inline RenderSurfaceHandle destination_of(const CompositePass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const TransformPass& p) { return p.destination; }
@@ -229,6 +259,8 @@ inline RenderSurfaceHandle destination_of(const ColorAdjustPass& p) { return p.d
 inline RenderSurfaceHandle destination_of(const MattePass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const FusedCompositePass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const LayerBatchPass& p) { return p.destination; }
+inline RenderSurfaceHandle destination_of(const ScalePass& p) { return p.destination; }
+inline RenderSurfaceHandle destination_of(const TextBatchPass& p) { return p.destination; }
 
 inline std::vector<RenderSurfaceHandle> referenced_handles(const GpuPass& pass) {
     std::vector<RenderSurfaceHandle> handles;
@@ -268,6 +300,8 @@ public:
     void matte(MattePass pass) { append(GpuPass{GpuPassKind::Matte, std::move(pass)}); }
     void fused_composite(FusedCompositePass pass) { append(GpuPass{GpuPassKind::FusedComposite, std::move(pass)}); }
     void layer_batch(LayerBatchPass pass) { append(GpuPass{GpuPassKind::LayerBatch, std::move(pass)}); }
+    void scale(ScalePass pass) { append(GpuPass{GpuPassKind::Scale, std::move(pass)}); }
+    void text_batch(TextBatchPass pass) { append(GpuPass{GpuPassKind::TextBatch, std::move(pass)}); }
 
     /// Attach an external parameter span to the most recently appended pass.
     /// The span is metadata only; the structural pass remains reusable across

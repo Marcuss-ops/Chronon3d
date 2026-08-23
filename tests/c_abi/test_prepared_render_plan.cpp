@@ -32,7 +32,8 @@ public:
 chronon3d::render_plan::RenderPlan image_plan() {
     chronon3d::render_plan::RenderPlan plan;
     plan.job_id = "fingerprint-plan";
-    plan.canvas = {.width = 320, .height = 180, .fps = 30,
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = chronon3d::FrameRate{30, 1},
                    .duration = chronon3d::Frame{3}};
     chronon3d::render_plan::LayerPlan image;
     image.id = "image";
@@ -52,7 +53,8 @@ void write_asset(const std::filesystem::path& root, std::string contents) {
 
 TEST_CASE("compile_render_plan fails loudly when the budget is exceeded") {
     chronon3d::render_plan::RenderPlan plan;
-    plan.canvas = {.width = 0, .height = 180, .fps = 30,
+    plan.canvas = {.width = 0, .height = 180,
+                   .fps = chronon3d::FrameRate{30, 1},
                    .duration = chronon3d::Frame{1}};
     chronon3d::assets::AssetResolver resolver;
     const auto result = chronon3d::render_plan::compile_render_plan(plan, resolver);
@@ -63,7 +65,8 @@ TEST_CASE("compile_render_plan fails loudly when the budget is exceeded") {
 TEST_CASE("prepared render plan owns the canonical compiled composition") {
     chronon3d::render_plan::RenderPlan plan;
     plan.job_id = "prepared-plan-test";
-    plan.canvas = {.width = 320, .height = 180, .fps = 30,
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = chronon3d::FrameRate{30, 1},
                    .duration = chronon3d::Frame{3}};
 
     chronon3d::render_plan::LayerPlan color;
@@ -184,7 +187,8 @@ TEST_CASE("prepared fingerprint changes when asset bytes change") {
 TEST_CASE("prepared fingerprint includes schema, engine, and render settings") {
     chronon3d::render_plan::RenderPlan plan;
     plan.job_id = "fingerprint-settings";
-    plan.canvas = {.width = 320, .height = 180, .fps = 30,
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = chronon3d::FrameRate{30, 1},
                    .duration = chronon3d::Frame{3}};
     chronon3d::assets::AssetResolver resolver;
 

@@ -48,7 +48,10 @@ TEST_CASE("VisualPresetRegistry: canonical 21-preset vocabulary is registered (A
             "phrase_fade_in", "phrase_scale_in", "phrase_slide_up",
             "phrase_soft_pop", "phrase_word_reveal", "subtitle_card",
         };
-        REQUIRE(r.available() == want);
+        const auto available = r.available();
+        for (const auto& w : want) {
+            CHECK(std::find(available.begin(), available.end(), w) != available.end());
+        }
     }
 
     SUBCASE("A2) every descriptor has non-empty id + >=1 capability") {

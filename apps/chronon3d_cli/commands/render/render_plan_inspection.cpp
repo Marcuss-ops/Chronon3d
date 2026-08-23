@@ -98,7 +98,8 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
 
     inspection.canvas.width = prepared.canvas.width;
     inspection.canvas.height = prepared.canvas.height;
-    inspection.canvas.fps = prepared.canvas.fps;
+    inspection.canvas.fps_num = prepared.canvas.fps.num();
+    inspection.canvas.fps_den = prepared.canvas.fps.den();
     inspection.canvas.frames = static_cast<int>(prepared.canvas.duration.integral());
 
     inspection.output_path = prepared.output.path;

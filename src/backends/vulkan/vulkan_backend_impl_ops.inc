@@ -298,126 +298,80 @@
         submit();
     }
 
-    // GPU text-run primitive: composite a batch of glyph quads sampled from a
-    // packed atlas texture into the destination in ONE kernel dispatch.
+    // GPU text-run primitive: lowered directly to canonical draw_text_batch.
     void text_run_surface(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle atlas,
                           std::span<const runtime::GlyphInstance> glyphs,
                           float current_frame = 0.0f,
                           const Color& highlight_color = Color{},
                           bool highlight_enabled = false) {
+        (void)current_frame;
+        (void)highlight_color;
+        (void)highlight_enabled;
         if (glyphs.empty()) {
             throw std::invalid_argument("Vulkan text run requires at least one glyph");
         }
         ++stats.legacy_text_run_surface_calls;
-        const VkDeviceSize bytes =
-            static_cast<VkDeviceSize>(glyphs.size() * sizeof(runtime::GlyphInstance));
-        if (bytes > 65536) {
-            throw std::invalid_argument(
-                "Vulkan text run exceeds the 65536-byte vkCmdUpdateBuffer limit");
-        }
-        auto& dst_image = resolve_image(destination);
-        auto& atlas_image = resolve_image(atlas);
-        if (!atlas_image.initialized || !dst_image.initialized ||
-            dst_image.width == 0 || dst_image.height == 0) {
-            throw std::invalid_argument("Vulkan text run references incompatible surfaces");
-        }
-        // Restrict the compute dispatch to the union of the actual glyph
-        // quads. The shader still checks every glyph for correctness, but it
-        // no longer launches work for the entire 1080p canvas.
-        std::int32_t dispatch_x0 = static_cast<std::int32_t>(dst_image.width);
-        std::int32_t dispatch_y0 = static_cast<std::int32_t>(dst_image.height);
-        std::int32_t dispatch_x1 = 0;
-        std::int32_t dispatch_y1 = 0;
-        for (const auto& glyph : glyphs) {
-            const auto scaled_w = static_cast<std::int32_t>(std::ceil(
-                static_cast<float>(glyph.width) * glyph.scale_x));
-            const auto scaled_h = static_cast<std::int32_t>(std::ceil(
-                static_cast<float>(glyph.height) * glyph.scale_y));
-            dispatch_x0 = std::min(dispatch_x0, glyph.dst_x);
-            dispatch_y0 = std::min(dispatch_y0, glyph.dst_y);
-            dispatch_x1 = std::max(dispatch_x1, glyph.dst_x + scaled_w);
-            dispatch_y1 = std::max(dispatch_y1, glyph.dst_y + scaled_h);
-        }
-        if (dispatch_x0 >= dispatch_x1 || dispatch_y0 >= dispatch_y1) {
-            dispatch_x0 = 0;
-            dispatch_y0 = 0;
-            dispatch_x1 = static_cast<std::int32_t>(dst_image.width);
-            dispatch_y1 = static_cast<std::int32_t>(dst_image.height);
-        }
-        const std::size_t instance_slot = frame_batch.active
-            ? frame_batch.next_slot * kGlyphInstancePassesPerSlot +
-                (frame_batch.pass_count % kGlyphInstancePassesPerSlot)
-            : 0;
-        ensure_glyph_instance_buffer(bytes, instance_slot);
-        const VkBuffer instance_buffer = glyph_instance_buffers[instance_slot];
-        const std::int32_t glyph_count = static_cast<std::int32_t>(glyphs.size());
-        // FNV-1a is sufficient here: this is only a same-process change
-        // detector, not an identity/security hash. It lets static text runs
-        // reuse the device-local instance buffer across frames.
-        std::uint64_t instance_hash = 1469598103934665603ull;
-        for (const auto byte : std::as_bytes(glyphs)) {
-            instance_hash ^= std::to_integer<std::uint8_t>(byte);
-            instance_hash *= 1099511628211ull;
-        }
-        const bool instance_updated =
-            glyph_instance_sizes[instance_slot] != bytes ||
-            glyph_instance_hashes[instance_slot] != instance_hash;
 
-        if (frame_batch.active) {
-            const auto descriptors = allocate_pass_descriptor_set();
-            write_text_run_descriptors(descriptors, dst_image, atlas_image, instance_buffer);
-            const auto cmd = active_command_buffer();
-            emit_pass_sync(cmd, {&dst_image, &atlas_image});
-            if (instance_updated) {
-                vkCmdUpdateBuffer(cmd, instance_buffer, 0, bytes, glyphs.data());
-                glyph_instance_hashes[instance_slot] = instance_hash;
-                glyph_instance_sizes[instance_slot] = bytes;
-            }
-            record_text_run(cmd, descriptors, dst_image, glyph_count,
-                            instance_buffer, instance_updated, current_frame,
-                            highlight_color, highlight_enabled,
-                            dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
-            dst_image.initialized = true;
-            ++frame_batch.pass_count;
-            ++stats.passes_executed;
-            return;
+        std::vector<runtime::GlyphStatic> static_glyphs;
+        static_glyphs.reserve(glyphs.size());
+        std::vector<runtime::TextRunDynamic> runs;
+        runs.reserve(glyphs.size());
+
+        for (std::size_t i = 0; i < glyphs.size(); ++i) {
+            const auto& g = glyphs[i];
+            runtime::TextRunDynamic run;
+            run.tx = static_cast<float>(g.dst_x);
+            run.ty = static_cast<float>(g.dst_y);
+            run.sx = (g.scale_x != 0.0f) ? g.scale_x : 1.0f;
+            run.sy = (g.scale_y != 0.0f) ? g.scale_y : 1.0f;
+            run.opacity = g.opacity;
+            run.color = 0xFFFFFFFF;
+            runs.push_back(run);
+
+            runtime::GlyphStatic gs;
+            gs.run_index = static_cast<std::uint32_t>(i);
+            gs.atlas_page = 0;
+            gs.flags = 0;
+            gs.atlas_x = static_cast<std::uint16_t>(g.atlas_x >= 0 ? g.atlas_x : 0);
+            gs.atlas_y = static_cast<std::uint16_t>(g.atlas_y >= 0 ? g.atlas_y : 0);
+            gs.atlas_w = static_cast<std::uint16_t>(g.width > 0 ? g.width : 0);
+            gs.atlas_h = static_cast<std::uint16_t>(g.height > 0 ? g.height : 0);
+            gs.plane_left = 0.0f;
+            gs.plane_top = 0.0f;
+            gs.plane_right = static_cast<float>(g.width);
+            gs.plane_bottom = static_cast<float>(g.height);
+            gs.draw_order = static_cast<std::uint32_t>(i);
+            static_glyphs.push_back(gs);
         }
-        ensure_descriptor_set();
-        write_text_run_descriptors(descriptor_set, dst_image, atlas_image, instance_buffer);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst_image, &atlas_image});
-        if (instance_updated) {
-            vkCmdUpdateBuffer(command_buffer, instance_buffer, 0, bytes, glyphs.data());
-            glyph_instance_hashes[instance_slot] = instance_hash;
-            glyph_instance_sizes[instance_slot] = bytes;
-        }
-        record_text_run(command_buffer, descriptor_set, dst_image, glyph_count,
-                        instance_buffer, instance_updated, current_frame,
-                        highlight_color, highlight_enabled,
-                        dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
-        dst_image.initialized = true;
-        ++stats.passes_executed;
-        submit();
+
+        std::array<runtime::RenderSurfaceHandle, 1> pages = {atlas};
+        draw_text_batch(destination, static_glyphs, runs, pages);
     }
 
     // ── draw_text_batch ──────────────────────────────────────────────────
-    //
     // Draw a text run directly into `destination` — zero intermediate
-    // surface, zero clear, zero composite after.  GlyphStatic[] provides
-    // immutable atlas coordinates (16B/glyph); TextRunDynamic provides
-    // per-run transform/color (24B/run).  atlas_pages maps atlas_page
+    // text framebuffers, zero clear overhead.
+    //
+    // `glyphs` holds immutable per-glyph static geometry (atlas coordinates,
+    // plane bounds, draw order); `runs` holds per-run dynamic state (transforms,
+    // opacities, tints); `atlas_pages` maps per-glyph atlas_page
+    // indices to VkImages.
     struct alignas(16) GpuGlyphStatic {
-        std::uint32_t atlas_page{0};
         std::uint32_t run_index{0};
-        std::uint32_t uv_x{0};
-        std::uint32_t uv_y{0};
-        std::int32_t local_x{0};
-        std::int32_t local_y{0};
-        std::uint32_t width{0};
-        std::uint32_t height{0};
+        std::uint32_t atlas_page_and_flags{0};
+        std::uint32_t atlas_pos{0};
+        std::uint32_t atlas_size{0};
+        float plane_left{0.0f};
+        float plane_top{0.0f};
+        float plane_right{0.0f};
+        float plane_bottom{0.0f};
+        std::uint32_t draw_order{0};
+        std::uint32_t pad0{0};
+        std::uint32_t pad1{0};
+        std::uint32_t pad2{0};
     };
-    static_assert(sizeof(GpuGlyphStatic) == 32, "GpuGlyphStatic must be 32 bytes");
+    static_assert(sizeof(GpuGlyphStatic) == 48, "GpuGlyphStatic must be 48 bytes matching std430");
 
     struct alignas(16) GpuTextRunDynamic {
         float tx{0.0f};
@@ -431,13 +385,6 @@
     };
     static_assert(sizeof(GpuTextRunDynamic) == 32, "GpuTextRunDynamic must be 32 bytes");
 
-    // ── draw_text_batch ──────────────────────────────────────────────────
-    //
-    // Draw a text run directly into `destination` — zero intermediate
-    // surface, zero clear, zero composite after.  GlyphStatic[] provides
-    // immutable atlas coordinates (16B/glyph); TextRunDynamic provides
-    // per-run transform/color (24B/run).  atlas_pages maps atlas_page
-    // indices to VkImages.
     void draw_text_batch(runtime::RenderSurfaceHandle destination,
                          std::span<const runtime::GlyphStatic> glyphs,
                          std::span<const runtime::TextRunDynamic> runs,
@@ -494,20 +441,24 @@
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& gs = glyphs[i];
             auto& gg = gpu_glyphs[i];
-            gg.atlas_page = gs.atlas_page;
-            gg.run_index = (gs.pad < runs.size()) ? gs.pad : 0;
-            gg.uv_x = gs.uv_x;
-            gg.uv_y = gs.uv_y;
-            gg.local_x = gs.local_x;
-            gg.local_y = gs.local_y;
-            gg.width = gs.width;
-            gg.height = gs.height;
+            gg.run_index = (gs.run_index < runs.size()) ? gs.run_index : 0;
+            gg.atlas_page_and_flags = static_cast<std::uint32_t>(gs.atlas_page) | (static_cast<std::uint32_t>(gs.flags) << 16);
+            gg.atlas_pos = static_cast<std::uint32_t>(gs.atlas_x) | (static_cast<std::uint32_t>(gs.atlas_y) << 16);
+            gg.atlas_size = static_cast<std::uint32_t>(gs.atlas_w) | (static_cast<std::uint32_t>(gs.atlas_h) << 16);
+            gg.plane_left = gs.plane_left;
+            gg.plane_top = gs.plane_top;
+            gg.plane_right = (gs.plane_right > gs.plane_left) ? gs.plane_right : (gs.plane_left + gs.atlas_w);
+            gg.plane_bottom = (gs.plane_bottom > gs.plane_top) ? gs.plane_bottom : (gs.plane_top + gs.atlas_h);
+            gg.draw_order = gs.draw_order != 0 ? gs.draw_order : static_cast<std::uint32_t>(i);
+            gg.pad0 = 0;
+            gg.pad1 = 0;
+            gg.pad2 = 0;
 
             const auto& run = gpu_runs[gg.run_index];
-            const float gx0 = run.tx + static_cast<float>(gs.local_x) * run.sx;
-            const float gy0 = run.ty + static_cast<float>(gs.local_y) * run.sy;
-            const float gx1 = gx0 + static_cast<float>(gs.width) * run.sx;
-            const float gy1 = gy0 + static_cast<float>(gs.height) * run.sy;
+            const float gx0 = run.tx + gg.plane_left * run.sx;
+            const float gy0 = run.ty + gg.plane_top * run.sy;
+            const float gx1 = run.tx + gg.plane_right * run.sx;
+            const float gy1 = run.ty + gg.plane_bottom * run.sy;
 
             dispatch_x0 = std::min(dispatch_x0, static_cast<std::int32_t>(std::floor(gx0)));
             dispatch_y0 = std::min(dispatch_y0, static_cast<std::int32_t>(std::floor(gy0)));

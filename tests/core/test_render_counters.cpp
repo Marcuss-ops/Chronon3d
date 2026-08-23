@@ -328,11 +328,12 @@ constexpr std::string_view kQualifiedUnitMarkers[] = {
 constexpr std::string_view kConformingAllowlist[] = {
     "process_cpu_user_ms",
     "process_cpu_sys_ms",
+    "cuda_vulkan_wait_submit_us",
+    "cuda_vulkan_signal_submit_us",
 };
 
 bool mentions_timing_unit(std::string_view name) {
-    return name.find("_ms") != std::string_view::npos ||
-           name.find("_us") != std::string_view::npos;
+    return name.ends_with("_ms") || name.ends_with("_us");
 }
 
 bool has_qualified_unit(std::string_view name) {

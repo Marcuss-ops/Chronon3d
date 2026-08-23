@@ -11,7 +11,7 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps", 30},
+        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 60}}},
         {"layers", {{{"id", "title"}, {"type", "text"},
                       {"text", "Hello"}, {"start_frame", 3}}}},
@@ -34,7 +34,7 @@ TEST_CASE("render plan decoder derives layer type from preset supported_layer") 
         nlohmann::json source = {
             {"schema", "chronon.render-plan"},
             {"version", 1},
-            {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+            {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                          {"duration_frames", 30}}},
             {"layers", nlohmann::json::array({layer})},
             {"output", {{"path", "out.mp4"}}}};
@@ -72,7 +72,7 @@ TEST_CASE("render plan decoder rejects a layer with neither type nor preset") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 30}}},
         {"layers", {{{{"id", "orphan"}, {"text", "no type no preset"}}}}},
         {"output", {{"path", "out.mp4"}}}};
@@ -92,7 +92,7 @@ TEST_CASE("render plan decoder rejects absolute and traversal asset references")
     const nlohmann::json base = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 320}, {"height", 180}, {"fps", 30},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 1}}},
         {"layers", {{{"id", "image"}, {"type", "image"},
                       {"asset", "image.png"}}}},
@@ -111,7 +111,7 @@ TEST_CASE("render plan budget rejects excessive layer count") {
     chronon3d::render_plan::RenderPlan plan;
     plan.canvas.width = 320;
     plan.canvas.height = 180;
-    plan.canvas.fps = 30;
+    plan.canvas.fps = chronon3d::FrameRate{30, 1};
     plan.canvas.duration = chronon3d::Frame{10};
     plan.layers.resize(2);
 
@@ -126,7 +126,7 @@ namespace {
 
 chronon3d::render_plan::RenderPlan budget_plan() {
     chronon3d::render_plan::RenderPlan plan;
-    plan.canvas = {.width = 320, .height = 180, .fps = 30,
+    plan.canvas = {.width = 320, .height = 180, .fps = chronon3d::FrameRate{30, 1},
                    .duration = chronon3d::Frame{30}};
     return plan;
 }
@@ -149,7 +149,7 @@ TEST_CASE("validate_render_budget rejects resolution, fps, and duration limits")
     CHECK(error->path == "canvas.height");
 
     plan = budget_plan();
-    plan.canvas.fps = 0;
+    plan.canvas.fps = chronon3d::FrameRate{0, 1};
     error = chronon3d::render_plan::validate_render_budget(plan, budget);
     REQUIRE(error);
     CHECK(error->path == "canvas.fps");
@@ -272,7 +272,7 @@ TEST_CASE("render plan decoder uses fail-loud budget phase") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 320}, {"height", 180}, {"fps", 30},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 1}}},
         {"layers", nlohmann::json::array()},
         {"output", {{"path", "out.png"}}}};
@@ -297,7 +297,7 @@ TEST_CASE("render plan fingerprint includes decoded content and preserves order"
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 12}}},
         {"layers", {{{"id", "first"}, {"type", "text"},
                       {"text", "one"}},
@@ -337,7 +337,7 @@ TEST_CASE("render plan decoder decodes the extended visual contract fields") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps", 30},
+        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 90}}},
         {"layers", {{
             {"id", "person_01"},
@@ -412,7 +412,7 @@ TEST_CASE("render plan decoder keeps the minimal {preset, text} form compatible"
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},
         {"version", 1},
-        {"canvas", {{"width", 640}, {"height", 360}, {"fps", 30},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 30}}},
         {"layers", {{
             {"id", "minimal"},

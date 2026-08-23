@@ -62,7 +62,7 @@ TEST_CASE("FramebufferLifetime: exact ownership keeps delete policy through cach
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
     const auto before = pool->stats();
 
-    auto owned = pool->acquire_owned_exact(640, 128, true);
+    auto owned = make_owned_fb_from_shared(std::make_shared<Framebuffer>(640, 128));
     REQUIRE(owned != nullptr);
     CHECK(owned->width() == 640);
     CHECK(owned->height() == 128);

@@ -49,7 +49,8 @@ json make_minimal_valid_plan() {
         {"canvas", {
             {"width", 1920},
             {"height", 1080},
-            {"fps", 30},
+            {"fps_num", 30},
+            {"fps_den", 1},
             {"duration_frames", 60}
         }},
         {"layers", json::array({
@@ -144,7 +145,7 @@ TEST_CASE("render_plan: nested required-field violation surfaces at correct path
 TEST_CASE("render_plan: multiple issues accumulated in one pass (no fail-fast)") {
     auto plan = make_minimal_valid_plan();
     plan["canvas"]["width"] = 0;        // below minimum (minimum: 1)
-    plan["canvas"]["fps"] = -1;         // below minimum
+    plan["canvas"]["fps_num"] = -1;     // below minimum
     plan["layers"][0]["type"] = "bogus";// enum mismatch
     plan["output"].erase("path");       // missing required
     plan["output"]["crf"] = 999;        // above maximum (maximum: 63)

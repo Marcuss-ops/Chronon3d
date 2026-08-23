@@ -23,7 +23,8 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
         .add(plan.style_profile)
         .add(plan.canvas.width)
         .add(plan.canvas.height)
-        .add(plan.canvas.fps)
+        .add(plan.canvas.fps.num())
+        .add(plan.canvas.fps.den())
         .add(plan.canvas.duration)
         // Temporal resource policy changes the effective render identity.
         .add(plan.budget.max_temporal_pixels)
@@ -391,7 +392,7 @@ std::optional<PlanDecodeError> validate_render_budget(
     if (plan.canvas.height <= 0 ||
         static_cast<std::uint64_t>(plan.canvas.height) > budget.max_height)
         return fail("canvas.height", "render budget resolution height exceeded or is non-positive");
-    if (plan.canvas.fps <= 0)
+    if (plan.canvas.fps.num() <= 0 || plan.canvas.fps.den() <= 0)
         return fail("canvas.fps", "frame rate must be positive");
     if (plan.output.bitrate < 0)
         return fail("output.bitrate", "bitrate cannot be negative");
@@ -515,7 +516,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         plan.canvas = CanvasSpec{
             canvas.at("width").get<int>(),
             canvas.at("height").get<int>(),
-            canvas.at("fps").get<int>(),
+            FrameRate{canvas.at("fps_num").get<int>(), canvas.at("fps_den").get<int>()},
             Frame{canvas.at("duration_frames").get<std::int64_t>()}};
         for (const auto& layer : root.at("layers")) {
             auto decoded_layer = decode_layer(layer);
@@ -548,7 +549,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         plan.output.crf = output.value("crf", 0);
         plan.output.profile_id = output.value("profile_id", std::string{});
         if (plan.output.profile_id == "velox-h264-1080p30-v1" &&
-            (plan.canvas.width != 1920 || plan.canvas.height != 1080 || plan.canvas.fps != 30)) {
+            (plan.canvas.width != 1920 || plan.canvas.height != 1080 || plan.canvas.fps != FrameRate{30, 1})) {
             return PlanDecodeError{"canvas", "velox-h264-1080p30-v1 requires 1920x1080 at 30 fps"};
         }
         if (root.contains("budget")) {

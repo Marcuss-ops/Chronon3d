@@ -119,7 +119,7 @@ TICKET-CHANGELOG-CONFLICT-CLEANUP (closed 2026-07-10) already created the forwar
 Per-gate tee logs captured at `tmp/baseline-908c7034/*.log`. These logs are **gitignored** by this commit's `.gitignore` addition (`tmp/`), so they will not enter the git index. The logs serve as forensic-replay evidence; they are not committed because:
 
 1. They are transient (regenerated per cert run).
-2. They can contain machine-specific absolute paths (e.g. `/home/<user>/Pyt/Chronon3d/...`) that would violate `tools/check_gitignored_dirs.sh` if ever committed.
+2. They can contain machine-specific absolute paths (e.g. `<REPO_ROOT>/...`) that would violate `tools/check_gitignored_dirs.sh` if ever committed.
 3. The textual conclusion is captured in this baseline doc's tables.
 
 Forensic-replay log index:

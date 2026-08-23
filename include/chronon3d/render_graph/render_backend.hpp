@@ -177,6 +177,11 @@ public:
         return false;
     }
 
+    /// Query whether this backend supports GPU fused batch execution.
+    [[nodiscard]] virtual bool is_batching_supported() const noexcept {
+        return supports_native_surfaces();
+    }
+
     virtual RenderOpResult create_video_encode_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/) {
