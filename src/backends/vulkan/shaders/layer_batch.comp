@@ -1,0 +1,111 @@
+#version 450
+
+// Fused GPU layer batch compute kernel: composites an array of layer instances
+// (images, quads, affine-transformed surfaces) into the destination surface
+// in painter's order within a single kernel dispatch.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0, rgba32f) uniform image2D dst_image;
+layout(binding = 1, rgba32f) uniform readonly image2D src_image;
+
+// 96 bytes per instance, matching C++ GpuLayerInstance
+struct GpuLayerInstance {
+    vec4 dst_rect;      // dst_x0, dst_y0, dst_x1, dst_y1 in destination pixels
+    vec4 src_rect;      // src_u0, src_v0, src_u1, src_v1 (normalized 0..1)
+    vec4 affine_row0;   // affine transform row 0 (x coeffs: c0, c1, c2, min_x)
+    vec4 affine_row1;   // affine transform row 1 (y coeffs: c0, c1, c2, min_y)
+    vec4 limits;        // max_x, max_y, opacity, bilinear
+    uint has_affine;    // 0 = axis-aligned dst_rect, 1 = affine transform
+    uint blend_mode;    // 0 = normal (premultiplied over), 1 = add, 2 = replace
+    uint resource_idx;  // resource index
+    uint pad;
+};
+
+layout(binding = 3, std430) buffer LayerInstances {
+    GpuLayerInstance instances[];
+};
+
+layout(push_constant) uniform LayerBatchParams {
+    int instance_count;
+    int padding0;
+    ivec2 dispatch_origin;
+} params;
+
+vec4 sample_nearest(vec2 source, ivec2 size) {
+    ivec2 p = ivec2(floor(source));
+    if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) return vec4(0.0);
+    return imageLoad(src_image, p);
+}
+
+vec4 sample_bilinear(vec2 source, ivec2 size) {
+    vec2 u = source - vec2(0.5);
+    ivec2 p = ivec2(floor(u));
+    vec2 f = fract(u);
+    ivec2 p00 = clamp(p, ivec2(0), size - ivec2(1));
+    ivec2 p10 = clamp(p + ivec2(1, 0), ivec2(0), size - ivec2(1));
+    ivec2 p01 = clamp(p + ivec2(0, 1), ivec2(0), size - ivec2(1));
+    ivec2 p11 = clamp(p + ivec2(1, 1), ivec2(0), size - ivec2(1));
+    return mix(mix(imageLoad(src_image, p00), imageLoad(src_image, p10), f.x),
+               mix(imageLoad(src_image, p01), imageLoad(src_image, p11), f.x), f.y);
+}
+
+void main() {
+    ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dst_size = imageSize(dst_image);
+    if (pixel.x >= dst_size.x || pixel.y >= dst_size.y) return;
+
+    vec4 accum = imageLoad(dst_image, pixel);
+    ivec2 src_size = imageSize(src_image);
+
+    for (int i = 0; i < params.instance_count; ++i) {
+        GpuLayerInstance inst = instances[i];
+        vec4 src_col = vec4(0.0);
+        bool hit = false;
+
+        if (inst.has_affine == 0u) {
+            if (float(pixel.x) >= inst.dst_rect.x && float(pixel.x) < inst.dst_rect.z &&
+                float(pixel.y) >= inst.dst_rect.y && float(pixel.y) < inst.dst_rect.w) {
+                float rw = inst.dst_rect.z - inst.dst_rect.x;
+                float rh = inst.dst_rect.w - inst.dst_rect.y;
+                if (rw > 0.0 && rh > 0.0) {
+                    float u_norm = (float(pixel.x) - inst.dst_rect.x) / rw;
+                    float v_norm = (float(pixel.y) - inst.dst_rect.y) / rh;
+                    float u = mix(inst.src_rect.x, inst.src_rect.z, u_norm);
+                    float v = mix(inst.src_rect.y, inst.src_rect.w, v_norm);
+                    ivec2 src_coord = ivec2(clamp(floor(vec2(u, v) * vec2(src_size)), vec2(0.0), vec2(src_size - ivec2(1))));
+                    src_col = imageLoad(src_image, src_coord) * inst.limits.z;
+                    hit = true;
+                }
+            }
+        } else {
+            vec2 canvas = vec2(pixel) + vec2(0.5);
+            vec2 source = vec2(dot(inst.affine_row0.xyz, vec3(canvas, 1.0)),
+                               dot(inst.affine_row1.xyz, vec3(canvas, 1.0)));
+            if (source.x >= inst.affine_row0.w && source.x < inst.limits.x &&
+                source.y >= inst.affine_row1.w && source.y < inst.limits.y) {
+                src_col = inst.limits.w > 0.5
+                    ? sample_bilinear(source, src_size)
+                    : sample_nearest(source, src_size);
+                src_col *= inst.limits.z;
+                hit = true;
+            }
+        }
+
+        if (hit && src_col.a > 0.0) {
+            if (inst.blend_mode == 1u) {
+                // Additive
+                accum.rgb += src_col.rgb;
+                accum.a = clamp(accum.a + src_col.a, 0.0, 1.0);
+            } else if (inst.blend_mode == 2u) {
+                // Replace
+                accum = src_col;
+            } else {
+                // Normal Source-Over (premultiplied RGBA)
+                accum = src_col + accum * (1.0 - src_col.a);
+            }
+        }
+    }
+
+    imageStore(dst_image, pixel, accum);
+}

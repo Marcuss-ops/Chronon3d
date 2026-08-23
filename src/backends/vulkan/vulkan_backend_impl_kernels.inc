@@ -44,6 +44,7 @@
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -63,6 +64,7 @@
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_transform_affine(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -97,6 +99,7 @@
                            0, sizeof(transform), &transform);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -114,6 +117,7 @@
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -136,6 +140,7 @@
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -153,6 +158,7 @@
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_fill_rect(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -176,6 +182,7 @@
         const auto ry1 = std::clamp(y1, ry0, static_cast<std::int32_t>(destination.height));
         vkCmdDispatch(command, (rx1 - rx0 + 15) / 16,
                       (ry1 - ry0 + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
@@ -244,6 +251,129 @@
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void record_layer_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
+                            const Image& destination, std::int32_t instance_count,
+                            VkBuffer instance_buffer, bool instance_updated,
+                            std::int32_t dispatch_origin_x,
+                            std::int32_t dispatch_origin_y,
+                            std::int32_t dispatch_end_x,
+                            std::int32_t dispatch_end_y) {
+        if (instance_updated) {
+            const VkBufferMemoryBarrier reuse_barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                instance_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
+            const VkBufferMemoryBarrier barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                instance_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                 0, nullptr, 1, &barrier, 0, nullptr);
+        }
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::LayerBatch)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t instance_count;
+            std::int32_t padding0;
+            std::int32_t dispatch_origin[2];
+        } params{instance_count, 0, {dispatch_origin_x, dispatch_origin_y}};
+        const auto x0 = std::clamp(dispatch_origin_x, 0,
+                                   static_cast<std::int32_t>(destination.width));
+        const auto y0 = std::clamp(dispatch_origin_y, 0,
+                                   static_cast<std::int32_t>(destination.height));
+        const auto x1 = std::clamp(dispatch_end_x, x0,
+                                   static_cast<std::int32_t>(destination.width));
+        const auto y1 = std::clamp(dispatch_end_y, y0,
+                                   static_cast<std::int32_t>(destination.height));
+        params.dispatch_origin[0] = x0;
+        params.dispatch_origin[1] = y0;
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (x1 - x0 + 15) / 16,
+                      (y1 - y0 + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void record_text_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
+                           const Image& destination, std::int32_t glyph_count,
+                           std::int32_t run_count,
+                           VkBuffer glyph_buffer, bool glyph_updated,
+                           VkBuffer run_buffer, bool run_updated,
+                           std::int32_t dispatch_origin_x,
+                           std::int32_t dispatch_origin_y,
+                           std::int32_t dispatch_end_x,
+                           std::int32_t dispatch_end_y) {
+        if (glyph_updated) {
+            const VkBufferMemoryBarrier reuse_barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                glyph_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
+            const VkBufferMemoryBarrier barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                glyph_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                 0, nullptr, 1, &barrier, 0, nullptr);
+        }
+        if (run_updated) {
+            const VkBufferMemoryBarrier reuse_barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                run_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
+            const VkBufferMemoryBarrier barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                run_buffer, 0, VK_WHOLE_SIZE};
+            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                 0, nullptr, 1, &barrier, 0, nullptr);
+        }
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::TextBatch)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            std::int32_t glyph_count;
+            std::int32_t run_count;
+            std::int32_t dispatch_origin[2];
+        } params{glyph_count, run_count, {dispatch_origin_x, dispatch_origin_y}};
+        const auto x0 = std::clamp(dispatch_origin_x, 0,
+                                   static_cast<std::int32_t>(destination.width));
+        const auto y0 = std::clamp(dispatch_origin_y, 0,
+                                   static_cast<std::int32_t>(destination.height));
+        const auto x1 = std::clamp(dispatch_end_x, x0,
+                                   static_cast<std::int32_t>(destination.width));
+        const auto y1 = std::clamp(dispatch_end_y, y0,
+                                   static_cast<std::int32_t>(destination.height));
+        params.dispatch_origin[0] = x0;
+        params.dispatch_origin[1] = y0;
+        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (x1 - x0 + 15) / 16,
+                      (y1 - y0 + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
     }
 
     // Read the frame's [start, end] timestamp pair for a ring slot after its
