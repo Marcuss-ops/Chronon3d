@@ -87,7 +87,7 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             m_impl->prepared_composition = nullptr;
             m_impl->engine.set_settings(convert_settings(settings));
 
-            const auto fps = prepared.canvas.fps > 0 ? prepared.canvas.fps : 30;
+            const auto fps = prepared.canvas.fps.numerator > 0 ? prepared.canvas.fps : chronon3d::FrameRate{30, 1};
             const auto duration = prepared.canvas.duration.integral();
             compiled_holder =
                 std::make_shared<const chronon3d::CompiledComposition>(
@@ -99,7 +99,7 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
                 : output_path;
             request.start_frame = Frame{0};
             request.end_frame = Frame{duration > 0 ? duration - 1 : 0};
-            request.frame_rate = FrameRate{fps, 1};
+            request.frame_rate = chronon3d::sdk::FrameRate{fps.numerator, fps.denominator};
         } catch (const std::exception& error) {
             return RenderError{RenderErrorCode::DecodeFailure,
                 std::string{"render plan error: "} + error.what(),

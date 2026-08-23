@@ -16,7 +16,7 @@ namespace {
 nlohmann::json make_script() {
     return nlohmann::json::parse(R"({
         "job_id": "first_script_overlay",
-        "canvas": { "width": 1920, "height": 1080, "fps": 30, "duration_frames": 300 },
+        "canvas": { "width": 1920, "height": 1080, "fps_num": 30, "fps_den": 1, "duration_frames": 300 },
         "background": "images/background.jpg",
         "events": [
             {

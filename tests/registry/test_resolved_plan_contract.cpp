@@ -55,7 +55,7 @@ nlohmann::json plan_json(std::string_view preset_id, VisualLayerKind kind) {
         {"version", 1},
         {"job_id", "contract"},
         {"canvas",
-         {{"width", 1920}, {"height", 1080}, {"fps", 30},
+         {{"width", 1920}, {"height", 1080}, {"fps_num", 30}, {"fps_den", 1},
           {"duration_frames", 120}}},
         {"layers",
          nlohmann::json::array(

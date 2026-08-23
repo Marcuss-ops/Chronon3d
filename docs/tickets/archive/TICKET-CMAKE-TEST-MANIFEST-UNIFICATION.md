@@ -112,7 +112,7 @@ inspect_text / text_clip_policy):
 - ✅ `cmake --preset linux-dev -B build/lstest` → exit 0; 119 targets registered (structurally SSoT-aligned).
 - ⚠️ `cmake --build build/lstest --target chronon3d_compositor_tests` → **FAILED con pre-existing rot**, NON introdotta da questo chore:
   ```text
-  /home/pierone/Pyt/Chronon3d/include/chronon3d/scene/builders/layer_builder.hpp:408:19: error:
+  <REPO_ROOT>/include/chronon3d/scene/builders/layer_builder.hpp:408:19: error:
   ‘chronon3d::LayerBuilder& chronon3d::LayerBuilder::text(std::string, const chronon3d::TextSpec&)’ cannot be overloaded with
   ‘chronon3d::LayerBuilder& chronon3d::LayerBuilder::text(std::string, const chronon3d::TextSpec&)’
   ```
