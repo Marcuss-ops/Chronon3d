@@ -15,6 +15,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/runtime/render_surface_handle.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -65,6 +66,8 @@ struct LayerInstance {
 /// resource/transform/paint handles, and dispatches the appropriate kernel.
 struct GpuLayerBatch {
     std::vector<LayerInstance> instances;
+    // Frame-local resolved resource table; this is not a second registry.
+    std::vector<RenderSurfaceHandle> resources;
     std::uint32_t              output_physical_slot{0};
     bool                       is_gpu_fused{false};
 
