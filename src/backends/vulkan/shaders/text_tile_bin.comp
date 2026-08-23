@@ -1,0 +1,94 @@
+#version 450
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+struct GpuGlyphStatic {
+    uint run_index;
+    uint atlas_page_and_flags;
+    uint atlas_pos;
+    uint atlas_size;
+    float plane_left;
+    float plane_top;
+    float plane_right;
+    float plane_bottom;
+    uint draw_order;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
+
+struct GpuTextRunDynamic {
+    float tx;
+    float ty;
+    float sx;
+    float sy;
+    float opacity;
+    uint color;
+    float pad0;
+    float pad1;
+};
+
+layout(std430, binding = 0) readonly buffer GlyphBuffer {
+    GpuGlyphStatic glyphs[];
+};
+
+layout(std430, binding = 1) readonly buffer RunBuffer {
+    GpuTextRunDynamic runs[];
+};
+
+// Output: tile_count_grid and tile_glyph_indices (flattened max_glyphs_per_tile * num_tiles)
+layout(std430, binding = 2) buffer TileCounters {
+    uint tile_glyph_counts[];
+};
+
+layout(std430, binding = 3) buffer TileGlyphIndices {
+    uint tile_glyph_indices[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint glyph_count;
+    uint tiles_x;
+    uint tiles_y;
+    uint max_glyphs_per_tile;
+    uint dst_width;
+    uint dst_height;
+} params;
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= params.glyph_count) return;
+
+    GpuGlyphStatic g = glyphs[gid];
+    GpuTextRunDynamic r = runs[g.run_index];
+
+    // Compute screen AABB of glyph
+    float x0 = r.tx + g.plane_left * r.sx;
+    float y0 = r.ty + g.plane_top * r.sy;
+    float x1 = r.tx + g.plane_right * r.sx;
+    float y1 = r.ty + g.plane_bottom * r.sy;
+
+    float min_x = min(x0, x1);
+    float max_x = max(x0, x1);
+    float min_y = min(y0, y1);
+    float max_y = max(y0, y1);
+
+    if (max_x < 0.0 || min_x >= float(params.dst_width) ||
+        max_y < 0.0 || min_y >= float(params.dst_height)) {
+        return;
+    }
+
+    int tile_min_x = clamp(int(floor(min_x / 16.0)), 0, int(params.tiles_x) - 1);
+    int tile_max_x = clamp(int(floor(max_x / 16.0)), 0, int(params.tiles_x) - 1);
+    int tile_min_y = clamp(int(floor(min_y / 16.0)), 0, int(params.tiles_y) - 1);
+    int tile_max_y = clamp(int(floor(max_y / 16.0)), 0, int(params.tiles_y) - 1);
+
+    for (int ty = tile_min_y; ty <= tile_max_y; ++ty) {
+        for (int tx = tile_min_x; tx <= tile_max_x; ++tx) {
+            uint tile_idx = uint(ty * int(params.tiles_x) + tx);
+            uint slot = atomicAdd(tile_glyph_counts[tile_idx], 1);
+            if (slot < params.max_glyphs_per_tile) {
+                tile_glyph_indices[tile_idx * params.max_glyphs_per_tile + slot] = gid;
+            }
+        }
+    }
+}

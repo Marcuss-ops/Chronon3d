@@ -71,7 +71,7 @@ struct SemanticBackground {
 /// A semantic script: canvas + optional backdrop + ordered overlay events.
 struct SemanticScript {
     std::string job_id{"script_overlay"};
-    render_plan::CanvasSpec canvas{1920, 1080, 30, Frame{300}};
+    render_plan::CanvasSpec canvas{1920, 1080, FrameRate{30, 1}, Frame{300}};
     std::optional<SemanticBackground> background;
     std::vector<SemanticOverlay> events;
     render_plan::OutputSpec output;

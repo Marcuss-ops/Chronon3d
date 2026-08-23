@@ -144,7 +144,8 @@ int validate_render_plan(const RenderPlanPreparationOptions& options) {
     js["request_digest"]  = context.prepared.fingerprint.request_digest.hex();
     js["width"]           = context.prepared.canvas.width;
     js["height"]          = context.prepared.canvas.height;
-    js["fps"]             = context.prepared.canvas.fps;
+    js["fps_num"]         = context.prepared.canvas.fps.num();
+    js["fps_den"]         = context.prepared.canvas.fps.den();
     js["duration_frames"] = context.prepared.canvas.duration.integral();
     js["layers"]          = context.decoded.layers.size();
     js["status"]          = "PASS";

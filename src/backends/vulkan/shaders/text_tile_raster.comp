@@ -1,0 +1,169 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba8) uniform image2D dst_image;
+layout(set = 0, binding = 1) uniform sampler2D atlas_sampler;
+
+struct GpuGlyphStatic {
+    uint run_index;
+    uint atlas_page_and_flags;
+    uint atlas_pos;
+    uint atlas_size;
+    float plane_left;
+    float plane_top;
+    float plane_right;
+    float plane_bottom;
+    uint draw_order;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
+
+struct GpuTextRunDynamic {
+    float tx;
+    float ty;
+    float sx;
+    float sy;
+    float opacity;
+    uint color;
+    float pad0;
+    float pad1;
+};
+
+layout(std430, set = 0, binding = 2) readonly buffer GlyphBuffer {
+    GpuGlyphStatic glyphs[];
+};
+
+layout(std430, set = 0, binding = 3) readonly buffer RunBuffer {
+    GpuTextRunDynamic runs[];
+};
+
+layout(std430, set = 0, binding = 4) readonly buffer TileCounters {
+    uint tile_glyph_counts[];
+};
+
+layout(std430, set = 0, binding = 5) readonly buffer TileGlyphIndices {
+    uint tile_glyph_indices[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint tiles_x;
+    uint tiles_y;
+    uint max_glyphs_per_tile;
+    uint dst_width;
+    uint dst_height;
+    float atlas_inv_w;
+    float atlas_inv_h;
+} params;
+
+// Shared memory for tile glyph sorting
+shared uint s_glyph_indices[256];
+shared uint s_draw_orders[256];
+shared uint s_count;
+
+float median3(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+vec4 unpack_color(uint c) {
+    float a = float((c >> 24) & 0xFFu) / 255.0;
+    float b = float((c >> 16) & 0xFFu) / 255.0;
+    float g = float((c >> 8)  & 0xFFu) / 255.0;
+    float r = float( c        & 0xFFu) / 255.0;
+    return vec4(r, g, b, a);
+}
+
+void main() {
+    uint tx = gl_WorkGroupID.x;
+    uint ty = gl_WorkGroupID.y;
+    uint tile_idx = ty * params.tiles_x + tx;
+    uint tid = gl_LocalInvocationIndex; // 0..255
+
+    // Cooperatively load tile count and glyph indices
+    if (tid == 0) {
+        s_count = min(tile_glyph_counts[tile_idx], params.max_glyphs_per_tile);
+    }
+    barrier();
+
+    uint count = s_count;
+    if (tid < count) {
+        uint gid = tile_glyph_indices[tile_idx * params.max_glyphs_per_tile + tid];
+        s_glyph_indices[tid] = gid;
+        s_draw_orders[tid] = glyphs[gid].draw_order;
+    }
+    barrier();
+
+    // In-place parallel sort by draw_order in shared memory (Bitonic sort for <= 256 items)
+    if (tid == 0 && count > 1) {
+        // Sequential insertion sort on thread 0 is extremely fast for small N <= 64
+        for (uint i = 1; i < count; ++i) {
+            uint key_g = s_glyph_indices[i];
+            uint key_order = s_draw_orders[i];
+            int j = int(i) - 1;
+            while (j >= 0 && s_draw_orders[j] > key_order) {
+                s_glyph_indices[j + 1] = s_glyph_indices[j];
+                s_draw_orders[j + 1] = s_draw_orders[j];
+                --j;
+            }
+            s_glyph_indices[j + 1] = key_g;
+            s_draw_orders[j + 1] = key_order;
+        }
+    }
+    barrier();
+
+    ivec2 pixel_coord = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel_coord.x >= int(params.dst_width) || pixel_coord.y >= int(params.dst_height)) {
+        return;
+    }
+
+    vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
+    vec4 current_color = imageLoad(dst_image, pixel_coord);
+
+    for (uint i = 0; i < count; ++i) {
+        uint gid = s_glyph_indices[i];
+        GpuGlyphStatic g = glyphs[gid];
+        GpuTextRunDynamic r = runs[g.run_index];
+
+        float plane_w = g.plane_right - g.plane_left;
+        float plane_h = g.plane_bottom - g.plane_top;
+        if (plane_w <= 0.0 || plane_h <= 0.0) continue;
+
+        // Local plane position relative to run
+        vec2 local_pt = (pixel_pos - vec2(r.tx, r.ty)) / vec2(r.sx, r.sy);
+        if (local_pt.x < g.plane_left || local_pt.x > g.plane_right ||
+            local_pt.y < g.plane_top  || local_pt.y > g.plane_bottom) {
+            continue;
+        }
+
+        // Texture coordinates in atlas
+        float u_norm = (local_pt.x - g.plane_left) / plane_w;
+        float v_norm = (local_pt.y - g.plane_top) / plane_h;
+
+        float atlas_x = float(g.atlas_pos & 0xFFFFu);
+        float atlas_y = float((g.atlas_pos >> 16) & 0xFFFFu);
+        float atlas_w = float(g.atlas_size & 0xFFFFu);
+        float atlas_h = float((g.atlas_size >> 16) & 0xFFFFu);
+
+        vec2 uv = vec2(
+            (atlas_x + u_norm * atlas_w) * params.atlas_inv_w,
+            (atlas_y + v_norm * atlas_h) * params.atlas_inv_h
+        );
+
+        vec4 sampled = texture(atlas_sampler, uv);
+        float dist = median3(sampled.r, sampled.g, sampled.b) - 0.5;
+
+        // MTSDF screen distance
+        float screen_px_range = 4.0 * max(abs(r.sx), abs(r.sy));
+        float opacity = clamp(dist * screen_px_range + 0.5, 0.0, 1.0);
+        opacity *= r.opacity;
+
+        vec4 tint = unpack_color(r.color);
+        vec4 glyph_rgba = vec4(tint.rgb, tint.a * opacity);
+
+        // Pre-multiplied alpha composite
+        current_color = glyph_rgba + current_color * (1.0 - glyph_rgba.a);
+    }
+
+    imageStore(dst_image, pixel_coord, current_color);
+}

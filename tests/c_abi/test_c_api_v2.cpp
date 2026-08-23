@@ -81,7 +81,7 @@ TEST_CASE("C ABI v2 maps a missing asset to ASSET_NOT_FOUND") {
     REQUIRE(engine != nullptr);
 
     const std::string missing =
-        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps":30,"duration_frames":1},"layers":[{"id":"img","type":"image","asset":"cabi_missing_asset_never_exists.png"}],"output":{"path":"out.png"}})";
+        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"img","type":"image","asset":"cabi_missing_asset_never_exists.png"}],"output":{"path":"out.png"}})";
     chronon_plan* plan = nullptr;
     const chronon_status status = chronon_plan_compile_json_n(
         engine, missing.data(), missing.size(), &plan);
@@ -192,7 +192,7 @@ TEST_CASE("C ABI v2 rejects a prepared asset changed before render") {
     REQUIRE(chronon_engine_create_v2(&config, &engine, &error) == CHRONON_OK);
 
     const std::string source =
-        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps":30,"duration_frames":1},"layers":[{"id":"image","type":"image","asset":"assets/test_image.png"}],"output":{"path":"out.png"}})";
+        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"image","type":"image","asset":"assets/test_image.png"}],"output":{"path":"out.png"}})";
     REQUIRE(chronon_plan_compile_json_n(
         engine, source.data(), source.size(), &plan) == CHRONON_OK);
 

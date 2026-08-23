@@ -333,7 +333,7 @@ compile_render_plan(
         spec.name = plan.job_id;
         spec.width = plan.canvas.width;
         spec.height = plan.canvas.height;
-        spec.frame_rate = {plan.canvas.fps, 1};
+        spec.frame_rate = plan.canvas.fps;
         spec.duration = plan.canvas.duration;
 
         // Real text bounds require a shaping engine.  Construct one against

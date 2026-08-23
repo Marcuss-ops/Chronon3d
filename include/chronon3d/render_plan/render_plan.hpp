@@ -3,6 +3,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
 
 #include <array>
@@ -25,7 +26,7 @@ enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
 struct CanvasSpec {
     int width{0};
     int height{0};
-    int fps{0};
+    FrameRate fps{30, 1};
     Frame duration{0};
 };
 

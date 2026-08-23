@@ -106,7 +106,8 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.execution.trace_output = std::filesystem::path(args.trace_output);
         request.execution.trace_level = args.trace_level;
         request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
-            ? prepared.canvas.fps : static_cast<int>(args.fps_num / args.fps_den);
+            ? static_cast<int>(std::lround(prepared.canvas.fps.fps()))
+            : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(prepared.output.codec);
         if (!args.video.codec.empty()) request.video_settings.codec = args.video.codec;
         if (!args.video.hardware_encoder.empty())
@@ -180,8 +181,8 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             receipt_input.backend = args.backend;
             receipt_input.width = prepared.canvas.width;
             receipt_input.height = prepared.canvas.height;
-            receipt_input.fps_num = prepared.canvas.fps;
-            receipt_input.fps_den = 1;
+            receipt_input.fps_num = prepared.canvas.fps.num();
+            receipt_input.fps_den = prepared.canvas.fps.den();
             receipt_input.frames = prepared.canvas.duration.integral();
             receipt_input.requested_codec = codec_name(prepared.output.codec);
             receipt_input.has_audio_tracks = false;

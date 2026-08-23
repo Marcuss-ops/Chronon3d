@@ -119,7 +119,8 @@ Result<SemanticScript, SemanticError> decode_semantic_script(
     const auto& canvas = root.at("canvas");
     script.canvas.width = canvas.value("width", 1920);
     script.canvas.height = canvas.value("height", 1080);
-    script.canvas.fps = canvas.value("fps", 30);
+    script.canvas.fps = FrameRate{canvas.value("fps_num", canvas.value("fps", 30)),
+                                   canvas.value("fps_den", 1)};
     if (canvas.contains("duration_frames"))
         script.canvas.duration = Frame{canvas.at("duration_frames").get<std::int64_t>()};
 
@@ -280,7 +281,8 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
     root["canvas"] = {
         {"width", plan.canvas.width},
         {"height", plan.canvas.height},
-        {"fps", plan.canvas.fps},
+        {"fps_num", plan.canvas.fps.num()},
+        {"fps_den", plan.canvas.fps.den()},
         {"duration_frames", plan.canvas.duration.integral()},
     };
 

@@ -14,6 +14,12 @@
 #include <algorithm>
 #include <fmt/format.h>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+}
+
 namespace chronon3d::cli {
 
 namespace {
@@ -104,9 +110,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     workers.reserve(static_cast<size_t>(chunks));
     std::vector<std::string> chunk_output_files(chunks);
 
-    const std::string codec_resolved = (opts.encoder.codec == "auto")
-        ? "libx264"
-        : resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
+    const std::string codec_resolved =
+        resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
 
     for (size_t chunk_idx = 0; chunk_idx < ranges.size(); ++chunk_idx) {
         const auto chunk = ranges[chunk_idx];
@@ -308,39 +313,117 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         }
 
         if (success) {
-            // Write concat list file
-            const std::filesystem::path concat_file = frames_dir / "concat_list.txt";
-            {
-                std::error_code fec;
-                FILE* f = fopen(concat_file.string().c_str(), "w");
-                if (f) {
-                    for (const auto& chunk_file : chunk_output_files) {
-                        fmt::print(f, "file '{}'\n", chunk_file);
+            spdlog::info("[video] In-Process Bitstream Remux into {}", opts.output.output);
+            const auto encode_t0 = profiling::now();
+
+            AVFormatContext* out_ctx = nullptr;
+            int ret = avformat_alloc_output_context2(&out_ctx, nullptr, nullptr, opts.output.output.c_str());
+            if (ret < 0 || !out_ctx) {
+                spdlog::error("[video] In-process remux: failed to alloc output context for {}", opts.output.output);
+                success = false;
+                result.encode_failed = true;
+            } else {
+                int64_t pts_offset = 0;
+                int64_t dts_offset = 0;
+                AVStream* out_stream = nullptr;
+
+                for (size_t i = 0; i < chunk_output_files.size() && success; ++i) {
+                    AVFormatContext* in_ctx = nullptr;
+                    if (avformat_open_input(&in_ctx, chunk_output_files[i].c_str(), nullptr, nullptr) < 0) {
+                        spdlog::error("[video] In-process remux: failed to open chunk {}", chunk_output_files[i]);
+                        success = false;
+                        break;
                     }
-                    fclose(f);
-                } else {
-                    spdlog::error("[video] Failed to write concat list {}", concat_file.string());
-                    success = false;
-                    result.encode_failed = true;
+                    if (avformat_find_stream_info(in_ctx, nullptr) < 0) {
+                        spdlog::error("[video] In-process remux: failed to find stream info for {}", chunk_output_files[i]);
+                        avformat_close_input(&in_ctx);
+                        success = false;
+                        break;
+                    }
+
+                    int video_stream_idx = -1;
+                    for (unsigned int s = 0; s < in_ctx->nb_streams; ++s) {
+                        if (in_ctx->streams[s]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+                            video_stream_idx = static_cast<int>(s);
+                            break;
+                        }
+                    }
+
+                    if (video_stream_idx < 0) {
+                        spdlog::error("[video] In-process remux: no video stream in chunk {}", chunk_output_files[i]);
+                        avformat_close_input(&in_ctx);
+                        success = false;
+                        break;
+                    }
+
+                    AVStream* in_stream = in_ctx->streams[video_stream_idx];
+                    if (i == 0) {
+                        out_stream = avformat_new_stream(out_ctx, nullptr);
+                        if (!out_stream || avcodec_parameters_copy(out_stream->codecpar, in_stream->codecpar) < 0) {
+                            spdlog::error("[video] In-process remux: failed to copy codec parameters");
+                            avformat_close_input(&in_ctx);
+                            success = false;
+                            break;
+                        }
+                        out_stream->time_base = in_stream->time_base;
+                        if (!(out_ctx->oformat->flags & AVFMT_NOHEADER)) {
+                            if (avio_open(&out_ctx->pb, opts.output.output.c_str(), AVIO_FLAG_WRITE) < 0) {
+                                spdlog::error("[video] In-process remux: failed to open output file {}", opts.output.output);
+                                avformat_close_input(&in_ctx);
+                                success = false;
+                                break;
+                            }
+                        }
+                        if (avformat_write_header(out_ctx, nullptr) < 0) {
+                            spdlog::error("[video] In-process remux: failed to write header");
+                            avformat_close_input(&in_ctx);
+                            success = false;
+                            break;
+                        }
+                    }
+
+                    AVPacket* pkt = av_packet_alloc();
+                    int64_t max_pts = 0;
+                    int64_t max_dts = 0;
+                    int64_t last_duration = 0;
+
+                    while (av_read_frame(in_ctx, pkt) >= 0) {
+                        if (pkt->stream_index == video_stream_idx) {
+                            pkt->stream_index = out_stream->index;
+                            if (pkt->pts != AV_NOPTS_VALUE) {
+                                max_pts = std::max(max_pts, pkt->pts);
+                                pkt->pts += pts_offset;
+                            }
+                            if (pkt->dts != AV_NOPTS_VALUE) {
+                                max_dts = std::max(max_dts, pkt->dts);
+                                pkt->dts += dts_offset;
+                            }
+                            last_duration = pkt->duration;
+                            av_packet_rescale_ts(pkt, in_stream->time_base, out_stream->time_base);
+                            av_interleaved_write_frame(out_ctx, pkt);
+                        }
+                        av_packet_unref(pkt);
+                    }
+                    av_packet_free(&pkt);
+                    pts_offset += max_pts + last_duration;
+                    dts_offset += max_dts + last_duration;
+
+                    avformat_close_input(&in_ctx);
                 }
+
+                if (success) {
+                    av_write_trailer(out_ctx);
+                }
+                if (!(out_ctx->oformat->flags & AVFMT_NOHEADER) && out_ctx->pb) {
+                    avio_closep(&out_ctx->pb);
+                }
+                avformat_free_context(out_ctx);
             }
 
-            if (success) {
-                const std::string cmd = fmt::format(
-                    "ffmpeg -y -f concat -safe 0 -i \"{}\" -c copy -movflags +faststart \"{}\"",
-                    concat_file.string(), opts.output.output);
-
-                spdlog::info("[video] Bitstream Remux: {}", cmd);
-                const auto encode_t0 = profiling::now();
-                const int rc = std::system(cmd.c_str());
-                const auto encode_t1 = profiling::now();
-                result.encode_ms = profiling::duration_ms(encode_t0, encode_t1);
-
-                if (rc != 0) {
-                    spdlog::error("[video] ffmpeg concat exited with code {}", rc);
-                    success = false;
-                    result.encode_failed = true;
-                }
+            const auto encode_t1 = profiling::now();
+            result.encode_ms = profiling::duration_ms(encode_t0, encode_t1);
+            if (!success) {
+                result.encode_failed = true;
             }
         }
     }
