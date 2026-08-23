@@ -34,6 +34,11 @@ struct CompiledComposition {
     // consumer (SDK, C ABI, CLI, and file rendering) observes the same budget.
     render_plan::RenderBudget render_budget{};
     std::uint64_t fingerprint{0};
+
+    // Cached template scene materialized once at prepare/frame-0 time.
+    // Avoids re-running SceneBuilder, text layout, HarfBuzz, and string formatting
+    // on every steady-state frame.
+    mutable std::shared_ptr<const Scene> template_scene{};
 };
 
 } // namespace chronon3d

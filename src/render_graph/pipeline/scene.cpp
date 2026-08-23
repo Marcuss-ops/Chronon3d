@@ -70,6 +70,9 @@ void synchronize_native_output(RenderGraphContext& ctx,
         ctx.policy.retain_native_surface_for_video) {
         return;
     }
+    if (ctx.policy.disable_pixel_readback) {
+        return;
+    }
     std::vector<float> rgba(static_cast<std::size_t>(framebuffer->width()) *
                             framebuffer->height() * 4);
     const auto result = ctx.services.backend->download_surface(
