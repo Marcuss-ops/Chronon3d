@@ -39,6 +39,7 @@ struct CompiledComposition {
     // Avoids re-running SceneBuilder, text layout, HarfBuzz, and string formatting
     // on every steady-state frame.
     mutable std::shared_ptr<const Scene> template_scene{};
+    bool is_static_topology{false};
 };
 
 } // namespace chronon3d

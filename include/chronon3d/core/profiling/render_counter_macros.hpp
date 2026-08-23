@@ -378,6 +378,26 @@ namespace chronon3d {
     X(cuda_encode_event_wait_count) \
     X(cuda_encode_event_wait_us)
 
+#define CHRONON_COUNTERS_FRAME_WALL(X) \
+    X(timeline_patch_wall_us) \
+    X(scene_clone_wall_us) \
+    X(graph_refresh_wall_us) \
+    X(parameter_patch_wall_us) \
+    X(instance_patch_wall_us) \
+    X(frame_slot_acquire_wall_us) \
+    X(fence_wait_wall_us) \
+    X(ssbo_write_wall_us) \
+    X(descriptor_update_wall_us) \
+    X(command_record_wall_us) \
+    X(queue_submit_cpu_wall_us) \
+    X(gpu_timestamp_wall_us) \
+    X(output_wrap_wall_us) \
+    X(texture_upload_bytes) \
+    X(texture_upload_count) \
+    X(layer_ssbo_bytes) \
+    X(transform_bytes) \
+    X(resource_table_bytes)
+
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 
 #define CHRONON_RENDER_COUNTERS(X) \
@@ -393,7 +413,8 @@ namespace chronon3d {
     CHRONON_COUNTERS_DIRTY(X) \
     CHRONON_COUNTERS_LAYER(X) \
     CHRONON_COUNTERS_GRAPH(X) \
-    CHRONON_COUNTERS_VIDEO(X)
+    CHRONON_COUNTERS_VIDEO(X) \
+    CHRONON_COUNTERS_FRAME_WALL(X)
 
 #define CHRONON_RENDER_COUNTERS_SYSTEM(X) \
     X(process_context_switches_voluntary) \

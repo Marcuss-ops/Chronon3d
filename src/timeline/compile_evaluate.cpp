@@ -22,6 +22,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 
 #include <exception>
 
@@ -154,7 +155,82 @@ compile_composition(const CompositionDefinition& definition,
             keep, keep.get());
     }
 
-    // (5) Deterministic per-field fingerprint — P1 #11. Keep the helper
+    // (5) Probe if the scene function produces a static topology across frames.
+    if (definition.scene) {
+        try {
+            const auto dur_frames = static_cast<double>(definition.composition.duration);
+            const double f_mid = dur_frames > 2.0 ? dur_frames * 0.5 : 1.0;
+            const double f_end = dur_frames > 2.0 ? dur_frames - 1.0 : 1.0;
+
+            const FrameContext fc0 = make_frame_context({
+                .global_time = SampleTime::from_frame(0.0, definition.composition.frame_rate),
+                .duration = definition.composition.duration,
+                .width = definition.composition.width,
+                .height = definition.composition.height,
+            });
+            const FrameContext fc1 = make_frame_context({
+                .global_time = SampleTime::from_frame(1.0, definition.composition.frame_rate),
+                .duration = definition.composition.duration,
+                .width = definition.composition.width,
+                .height = definition.composition.height,
+            });
+            const FrameContext fcm = make_frame_context({
+                .global_time = SampleTime::from_frame(f_mid, definition.composition.frame_rate),
+                .duration = definition.composition.duration,
+                .width = definition.composition.width,
+                .height = definition.composition.height,
+            });
+            const FrameContext fce = make_frame_context({
+                .global_time = SampleTime::from_frame(f_end, definition.composition.frame_rate),
+                .duration = definition.composition.duration,
+                .width = definition.composition.width,
+                .height = definition.composition.height,
+            });
+
+            Scene s0 = definition.scene(fc0);
+            Scene s1 = definition.scene(fc1);
+            Scene sm = definition.scene(fcm);
+            Scene se = definition.scene(fce);
+
+            auto scenes_match = [](const Scene& a, const Scene& b) -> bool {
+                if (a.layers().size() != b.layers().size() || a.nodes().size() != b.nodes().size()) return false;
+                for (std::size_t i = 0; i < a.layers().size(); ++i) {
+                    const auto& la = a.layers()[i];
+                    const auto& lb = b.layers()[i];
+                    if (la.name != lb.name || la.kind != lb.kind || la.nodes.size() != lb.nodes.size()) return false;
+                    for (std::size_t n = 0; n < la.nodes.size(); ++n) {
+                        const auto& na = la.nodes[n];
+                        const auto& nb = lb.nodes[n];
+                        if (na.name != nb.name || na.shape.payload.index() != nb.shape.payload.index()) return false;
+                        if (na.shape.type() == ShapeType::Rect) {
+                            if (na.shape.rect().size != nb.shape.rect().size) return false;
+                        } else if (na.shape.type() == ShapeType::Circle) {
+                            if (na.shape.circle().radius != nb.shape.circle().radius) return false;
+                        } else if (na.shape.type() == ShapeType::TextRun) {
+                            const auto& tra = na.shape.text_run_shape_handle().value;
+                            const auto& trb = nb.shape.text_run_shape_handle().value;
+                            if (tra && trb && tra->layout && trb->layout) {
+                                if (tra->layout->source_text != trb->layout->source_text) return false;
+                            } else {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            };
+
+            bool static_topo = scenes_match(s0, s1) && scenes_match(s0, sm) && scenes_match(s0, se);
+            if (static_topo) {
+                out.is_static_topology = true;
+                out.template_scene = std::make_shared<const Scene>(std::move(s0));
+            }
+        } catch (...) {
+            out.is_static_topology = false;
+        }
+    }
+
+    // (6) Deterministic per-field fingerprint — P1 #11. Keep the helper
     // reusable so compatibility adapters can replace storage without making
     // the fingerprint describe a different immutable definition.
     out.fingerprint = fingerprint_composition_definition(definition);
@@ -268,18 +344,8 @@ evaluate(const CompiledComposition& compiled,
     // frame arena.
     EvaluatedCompositionFrame result(context.frame_context.resource);
     try {
-        // Correct-by-default: SceneFunction is a per-frame API. Reuse the
-        // cached template only when the author explicitly promises that scene
-        // materialization is frame invariant. This preserves the fast path for
-        // truly static topology/content without freezing dynamic callbacks.
-        if (def.scene_is_frame_invariant) {
-            if (compiled.template_scene) {
-                result.scene = compiled.template_scene->clone();
-            } else {
-                result.scene = def.scene(fc);
-                compiled.template_scene =
-                    std::make_shared<const Scene>(result.scene.clone());
-            }
+        if ((def.scene_is_frame_invariant || compiled.is_static_topology) && compiled.template_scene) {
+            result.scene = compiled.template_scene->clone();
         } else {
             result.scene = def.scene(fc);
         }
