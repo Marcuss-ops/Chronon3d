@@ -167,7 +167,7 @@ void execute_fused_batch(
     gpu_batch.output_physical_slot = batch.output_physical_slot;
     gpu_batch.is_gpu_fused = batch.is_gpu_fused;
     auto& instances = gpu_batch.instances;
-    std::vector<runtime::RenderSurfaceHandle> resources;
+    auto& resources = gpu_batch.resources;
     std::unordered_map<runtime::RenderSurfaceHandle, uint32_t> resource_map;
 
     for (const auto& inst : batch.instances) {
