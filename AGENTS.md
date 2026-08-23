@@ -47,19 +47,16 @@ permanente di release viene modificato (RELEASE_GATE).
 Dettagli tecnici → `docs/tickets/TICKET-NNN.md`.  Nei canonici: max una riga
 sintetica (stato + link al ticket).
 
-### Documenti di supporto (non fonti canoniche di stato)
+### Documenti di supporto
 
 | Ruolo | File |
 |---|---|
 | Piano operativo | `docs/CHRONON_PLAN.md` |
 | Zero-copy gates | `docs/ZERO_COPY_GATES.md` |
-| Inventario feature | `docs/FEATURES.md` |
-| Chiusure recenti | `docs/CHANGELOG.md` |
 | Baseline certificata | `docs/baselines/main-<sha>-baseline.md` |
 | Scheda ticket | `docs/tickets/TICKET-NNN.md` |
 | ADR | `docs/adr/ADR-NNN-<titolo>.md` |
-| Regole lint documentale | `docs/reference/AGENTS_LINT_RULES.md` |
-| GATE-MNT workflow | `docs/reference/AGENTS_GATE_MNT.md` |
+| Regole lint | `docs/reference/AGENTS_LINT_RULES.md` |
 
 ---
 
