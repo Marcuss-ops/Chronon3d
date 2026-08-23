@@ -1,4 +1,5 @@
 #include "../common/video_export_common.hpp"
+#include "../common/pipe_export_helpers.hpp"
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
@@ -101,9 +102,20 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     std::atomic<int> frames_done{0};
     std::vector<std::thread> workers;
     workers.reserve(static_cast<size_t>(chunks));
+    std::vector<std::string> chunk_output_files(chunks);
 
-    for (const auto& chunk : ranges) {
-        workers.emplace_back([&, chunk]() {
+    const std::string codec_resolved = (opts.encoder.codec == "auto")
+        ? "libx264"
+        : resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
+
+    for (size_t chunk_idx = 0; chunk_idx < ranges.size(); ++chunk_idx) {
+        const auto chunk = ranges[chunk_idx];
+        const std::string chunk_output = (chunks == 1)
+            ? opts.output.output
+            : (frames_dir / fmt::format("chunk_{:04d}.mp4", chunk_idx)).string();
+        chunk_output_files[chunk_idx] = chunk_output;
+
+        workers.emplace_back([&, chunk, chunk_idx, chunk_output]() {
             try {
                 const auto renderer_t0 = profiling::now();
                 Config chunk_cfg = Config::from_environment(cpu_budget);
@@ -114,8 +126,6 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     const auto setup_ms = static_cast<uint64_t>(
                         profiling::duration_ms(renderer_t0, renderer_t1));
                     renderer->counters()->setup_graph_parsing_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
-                    // Note: in chunked mode each worker creates its own renderer, so
-                    // setup_graph_parsing_wall_ms will be summed across all workers in the aggregate.
                 }
 
                 // Warmup
@@ -152,8 +162,6 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         const auto warmup_ms = static_cast<uint64_t>(
                             profiling::duration_ms(warmup_t0, warmup_t1));
                         renderer->counters()->setup_pool_preallocation_wall_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
-                        // Note: in chunked mode each worker runs its own warmup, so
-                        // setup_pool_preallocation_wall_ms will be summed across all workers in the aggregate.
 
                         saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
                         saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
@@ -170,16 +178,33 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
                     }
 
-                    // Clear per-event telemetry stores after warmup, since
-                    // atomic counters were reset above.  This keeps Hot Nodes
-                    // events in sync with atomic counters.
                     chronon3d::telemetry::clear_telemetry_stores();
+                }
+
+                // Create dedicated encoder for this video chunk
+                FfmpegExportOptions chunk_opts = opts;
+                chunk_opts.output.output = chunk_output;
+                auto encoder = create_video_encoder(chunk_opts);
+                if (!encoder) {
+                    spdlog::error("[video] Failed to create chunk encoder for chunk {}", chunk_idx);
+                    failed.store(true);
+                    return;
+                }
+
+                auto pipe_options = make_pipe_options(compiled, chunk_opts, codec_resolved, cpu_budget);
+                if (!encoder->open(pipe_options)) {
+                    spdlog::error("[video] Failed to open chunk encoder for chunk {}", chunk_idx);
+                    failed.store(true);
+                    return;
                 }
 
                 std::vector<chronon3d::telemetry::FrameTelemetry> local_frames;
                 local_frames.reserve(static_cast<size_t>(chunk.end - chunk.start));
                 for (Frame f = chunk.start; f < chunk.end; ++f) {
-                    if (failed.load()) return;
+                    if (failed.load()) {
+                        encoder->close();
+                        return;
+                    }
                     const auto frame_t0 = profiling::now();
                     const auto hits_before = renderer->node_cache().stats().hits;
                     auto fb = renderer->render_compiled(compiled, f);
@@ -188,13 +213,15 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     if (!fb) {
                         spdlog::error("[video] Render failed at frame {}", f);
                         failed.store(true);
+                        encoder->close();
                         return;
                     }
                     const auto frame_render_t1 = profiling::now();
-                    const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
-                    if (!save_png(*fb, png)) {
-                        spdlog::error("[video] PNG write failed: {}", png);
+
+                    if (!encoder->write_frame(*fb)) {
+                        spdlog::error("[video] Chunk encoder write_frame failed at frame {}", f);
                         failed.store(true);
+                        encoder->close();
                         return;
                     }
                     const auto frame_t1 = profiling::now();
@@ -217,6 +244,12 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                     if (done % std::max(1, total / 10) == 0 || done == total) {
                         spdlog::info("[video]   {}/{} frames", done, total);
                     }
+                }
+
+                if (!encoder->close()) {
+                    spdlog::error("[video] Failed to close chunk encoder for chunk {}", chunk_idx);
+                    failed.store(true);
+                    return;
                 }
 
                 std::lock_guard<std::mutex> lock(aggregate_mutex);
@@ -263,42 +296,51 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     result.frames_written = frames_done.load();
     bool success = !result.chunk_failed;
 
-    if (success) {
+    if (success && chunks > 1) {
         const auto output_parent = std::filesystem::path(opts.output.output).parent_path();
         if (!output_parent.empty()) {
             std::filesystem::create_directories(output_parent, ec);
             if (ec) {
                 spdlog::error("[video] Cannot create output directory {}: {}", output_parent.string(), ec.message());
                 success = false;
-                result.encode_failed = true;  // pre-encode setup failure
+                result.encode_failed = true;
             }
         }
 
         if (success) {
-            const std::string pattern = (frames_dir / "frame_%06d.png").string();
-            const std::string codec   = resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
-            const std::string pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
-            const std::string cmd     = fmt::format(
-                "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt {} -movflags +faststart \"{}\"",
-                opts.output.fps, pattern, codec, opts.encoder.crf, opts.encoder.encode_preset, pix_fmt, opts.output.output);
-
-            spdlog::info("[video] {}", cmd);
-            const auto encode_t0 = profiling::now();
-            const int rc = [&]() {
-                if (!is_shell_safe(opts.encoder.encode_preset) || !is_shell_safe(opts.output.output)) {
-                    spdlog::error("[video] encode_preset or output path contains shell metacharacters, refusing to execute");
+            // Write concat list file
+            const std::filesystem::path concat_file = frames_dir / "concat_list.txt";
+            {
+                std::error_code fec;
+                FILE* f = fopen(concat_file.string().c_str(), "w");
+                if (f) {
+                    for (const auto& chunk_file : chunk_output_files) {
+                        fmt::print(f, "file '{}'\n", chunk_file);
+                    }
+                    fclose(f);
+                } else {
+                    spdlog::error("[video] Failed to write concat list {}", concat_file.string());
+                    success = false;
                     result.encode_failed = true;
-                    return -1;
                 }
-                return std::system(cmd.c_str());
-            }();
-            const auto encode_t1 = profiling::now();
-            result.encode_ms = profiling::duration_ms(encode_t0, encode_t1);
+            }
 
-            if (rc != 0) {
-                spdlog::error("[video] ffmpeg exited with code {}", rc);
-                success = false;
-                result.encode_failed = true;
+            if (success) {
+                const std::string cmd = fmt::format(
+                    "ffmpeg -y -f concat -safe 0 -i \"{}\" -c copy -movflags +faststart \"{}\"",
+                    concat_file.string(), opts.output.output);
+
+                spdlog::info("[video] Bitstream Remux: {}", cmd);
+                const auto encode_t0 = profiling::now();
+                const int rc = std::system(cmd.c_str());
+                const auto encode_t1 = profiling::now();
+                result.encode_ms = profiling::duration_ms(encode_t0, encode_t1);
+
+                if (rc != 0) {
+                    spdlog::error("[video] ffmpeg concat exited with code {}", rc);
+                    success = false;
+                    result.encode_failed = true;
+                }
             }
         }
     }

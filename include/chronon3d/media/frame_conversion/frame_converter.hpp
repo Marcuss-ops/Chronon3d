@@ -140,8 +140,6 @@ std::optional<FramePlanes> resolve_frame_planes(
 /// Human-readable error string (for logs).
 const char* conversion_error_to_string(ConversionError err);
 
-// ── Dispatcher ───────────────────────────────────────────────────────────
-
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req);
 
 /// Convenience overload accepting the unpacked plane layout.  Equivalent to
@@ -152,5 +150,25 @@ ConvertFrameResult convert_frame_tight(
     int width, int height, EncoderPixelFormat format,
     YuvMatrix matrix, ColorRange range,
     bool apply_gamma = true);
+
+// ── Direct NV12 Overlay Compositor ──────────────────────────────────────
+
+/// Request for direct compositing of an RGBA foreground overlay directly onto
+/// an NV12 background in 4:2:0 space without RGB roundtripping.
+struct CompositeOverlayNv12Request {
+    FramePlanes bg_planes;      ///< Input background NV12 (y, uv)
+    const Framebuffer& fg_src;  ///< Rendered foreground RGBA overlay
+    FramePlanes out_planes;     ///< Output destination NV12 (can alias bg_planes for in-place)
+
+    int width{0};
+    int height{0};
+
+    YuvMatrix matrix{YuvMatrix::BT709};
+    ColorRange range{ColorRange::Limited};
+};
+
+/// Direct NV12 overlay compositor. Blends foreground RGBA on top of background
+/// NV12 in 4:2:0 space with 2x2 chroma subsampling aware alpha weighting.
+ConvertFrameResult composite_overlay_nv12(const CompositeOverlayNv12Request& req);
 
 } // namespace chronon3d::video
