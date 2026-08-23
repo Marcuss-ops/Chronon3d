@@ -28,7 +28,8 @@ nlohmann::json inspection_to_json(const ResolvedRenderPlanInspection& i) {
     js["canvas"] = {
         {"width", i.canvas.width},
         {"height", i.canvas.height},
-        {"fps", i.canvas.fps},
+        {"fps_num", i.canvas.fps_num},
+        {"fps_den", i.canvas.fps_den},
         {"frames", i.canvas.frames},
     };
     js["output"] = {
@@ -159,7 +160,8 @@ std::string inspection_to_text(const ResolvedRenderPlanInspection& i) {
         << "  asset manifest        " << i.job.asset_manifest_digest << "\n\n"
         << "Canvas\n"
         << "  " << i.canvas.width << 'x' << i.canvas.height << '\n'
-        << "  " << i.canvas.fps << " fps\n"
+        << "  " << i.canvas.fps_num << (i.canvas.fps_den != 1
+            ? "/" + std::to_string(i.canvas.fps_den) : "") << " fps\n"
         << "  " << i.canvas.frames << " frames\n\n"
         << "Output\n"
         << "  path                  " << i.output_path << '\n'

@@ -39,7 +39,8 @@ struct JobInspection {
 struct CanvasInspection {
     int width{0};
     int height{0};
-    int fps{0};
+    int fps_num{30};
+    int fps_den{1};
     int frames{0};
 };
 

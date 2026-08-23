@@ -113,7 +113,7 @@ void verify_golden_or_create(const Framebuffer& rendered, const std::string& fil
 }
 
 std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) {
-    SoftwareRenderer renderer = test::make_renderer();
+    auto renderer = test::make_renderer();
     return renderer.render(comp, frame);
 }
 

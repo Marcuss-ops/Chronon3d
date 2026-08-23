@@ -82,8 +82,18 @@ bool execute_pass(RenderBackend& backend, const GpuPass& pass) {
                 }
                 return backend.execute_layer_batch(
                     params.destination, tls_instances, params.sources, {}, {}).ok();
+            } else if constexpr (std::is_same_v<P, ScalePass>) {
+                SurfaceAffineTransform xform{};
+                xform.source_x[0] = (params.scale_x != 0.0f) ? 1.0f / params.scale_x : 1.0f;
+                xform.source_y[1] = (params.scale_y != 0.0f) ? 1.0f / params.scale_y : 1.0f;
+                xform.opacity = 1.0f;
+                xform.bilinear = static_cast<std::uint32_t>(params.filter_mode != 0);
+                return backend.transform_surface_affine(params.destination, params.source, xform).ok();
+            } else if constexpr (std::is_same_v<P, TextBatchPass>) {
+                backend.draw_text_batch(params.destination, params.glyphs, params.runs, params.atlas_pages);
+                return true;
             }
-            return false;  // unreachable: the variant is exhaustive
+            return false;
         },
         pass.params);
 }
