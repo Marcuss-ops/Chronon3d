@@ -72,6 +72,32 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 
 } // namespace
 
+void SoftwareRenderer::preflight_images(const Scene& scene) {
+    for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
+        const auto cached = m_runtime->image_cache().get_or_load(ref.path);
+        if (!cached || !cached->valid()) {
+            throw std::runtime_error("Render preparation failed for scene image: " + ref.path);
+        }
+    }
+    for (const auto& layer : scene.layers()) {
+        for (const auto& node : layer.nodes) {
+            const ImageShape* image = nullptr;
+            switch (node.shape.type()) {
+                case ShapeType::Image: image = &node.shape.image(); break;
+                case ShapeType::TiledImage: image = &node.shape.tiled_image().image; break;
+                default: break;
+            }
+            if (!image || image->path.empty()) continue;
+            const auto cached = m_runtime->image_cache().get_or_load(
+                image->path, image->decode_options);
+            if (!cached || !cached->valid()) {
+                throw std::runtime_error(
+                    "Render preparation failed for scene image node: " + image->path);
+            }
+        }
+    }
+}
+
 // ── Render entry points ──────────────────────────────────────────────────────
 
 /// Fase C3 — canonical unified pipeline.  This is the V0.2 SDK path;
@@ -131,6 +157,12 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         (void)preflight_fonts(scene, m_runtime->resolver());
     }
 
+    // This deprecated scene wrapper predates the compiled preparation
+    // barrier. Keep its compatibility contract explicit: image I/O is done
+    // once before graph execution, while the graph/render loop remains
+    // lookup-only. The canonical composition path uses prepare_render()
+    // instead and does not enter this wrapper.
+    preflight_images(scene);
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_scene_via_graph(

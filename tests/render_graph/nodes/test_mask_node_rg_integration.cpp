@@ -30,7 +30,7 @@ using namespace chronon3d;
 
 namespace {
 namespace mask_rg_impl {
-SoftwareRenderer make_mask_rg_renderer() {
+test::TestRenderer make_mask_rg_renderer() {
     auto r = test::make_renderer();
     RenderSettings s;
         r.set_settings(s);

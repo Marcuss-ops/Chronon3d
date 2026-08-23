@@ -154,6 +154,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         (void)preflight_fonts(scene, m_runtime->resolver());
         fence_guard.fence = &trr->debug_io_fence;
     }
+    preflight_images(scene);
 
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 

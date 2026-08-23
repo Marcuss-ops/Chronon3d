@@ -20,6 +20,9 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include <chronon3d/render_graph/nodes/video_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/render_graph/nodes/dof_node.hpp>
@@ -685,12 +688,27 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             // Source/TextRun/Video and downstream Transform/Composite nodes
             // accumulate into a single CompiledLayerBatch until interrupted
             // by a non-fusible barrier node (blur, matte, etc.).
+            // Layer fusion is a lowering step, not an enum-based shortcut.
+            // Custom/test nodes may advertise the same kind while lacking the
+            // concrete payload and executor contract required by a fused
+            // batch.  Starting a batch only from canonical production node
+            // types keeps the compiled program lossless for other graph
+            // operators; transforms/composites may extend an already valid
+            // batch but can never create one on their own.
+            const auto& graph_node = compiled.graph.node(node_id);
+            const bool is_canonical_layer_source =
+                dynamic_cast<const SourceNode*>(&graph_node) != nullptr ||
+                dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr ||
+                dynamic_cast<const TextRunNode*>(&graph_node) != nullptr ||
+                dynamic_cast<const VideoNode*>(&graph_node) != nullptr;
             const bool is_fusible_layer_node =
-                node_info.kind == RenderGraphNodeKind::Source ||
-                node_info.kind == RenderGraphNodeKind::TextRun ||
-                node_info.kind == RenderGraphNodeKind::Video ||
-                node_info.kind == RenderGraphNodeKind::Transform ||
-                node_info.kind == RenderGraphNodeKind::Composite;
+                (is_canonical_layer_source &&
+                 (node_info.kind == RenderGraphNodeKind::Source ||
+                  node_info.kind == RenderGraphNodeKind::TextRun ||
+                  node_info.kind == RenderGraphNodeKind::Video)) ||
+                (!current_fused_batch.empty() &&
+                 (dynamic_cast<const TransformNode*>(&graph_node) != nullptr ||
+                  dynamic_cast<const CompositeNode*>(&graph_node) != nullptr));
 
             if (is_fusible_layer_node) {
                 current_fused_batch.push_back(node_id);
