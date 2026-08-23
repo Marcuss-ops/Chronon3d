@@ -27,7 +27,7 @@ bash tools/chronon-linux.sh
 `render` è l’unico comando canonico per still, sequence e video. I precedenti
 comandi separati `still` e `video` sono stati rimossi.
 
-Build incrementali: [`docs/FAST_BUILD.md`](docs/FAST_BUILD.md).
+
 
 ## Asset authoring
 
