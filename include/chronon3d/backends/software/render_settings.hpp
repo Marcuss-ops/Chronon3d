@@ -229,6 +229,10 @@ struct RenderSettings {
      */
     bool force_scalar_normal_blend{true};
 
+    /// When true, disables synchronous CPU pixel readback from GPU surfaces (VRAM -> RAM).
+    /// Used for steady-state GPU benchmarks and direct-to-encoder pipelines (NVENC).
+    bool disable_pixel_readback{false};
+
     /**
      * SceneProgramCache capacity (number of entries).
      * 0 = use default (8).  Affects how many distinct nested scene programs

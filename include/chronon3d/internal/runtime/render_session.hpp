@@ -79,6 +79,7 @@
 
 namespace chronon3d {
 
+struct CompiledComposition;
 namespace graph { struct NodeExecutionError; }
 
 /// Thread-safe storage for the existing graph::NodeExecutionError channel.
@@ -173,6 +174,8 @@ struct RenderSession {
     // boundary; nested executors only publish_first().
     std::unique_ptr<RenderErrorSlot> frame_error_slot{
         std::make_unique<RenderErrorSlot>()};
+
+    const CompiledComposition* prepared_composition{nullptr};
 
     void clear_last_frame_error() {
         frame_error_slot->clear();
