@@ -229,40 +229,48 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
         }
 
         const auto t_eval0 = profiling::now();
-        Scene scene;
-        {
+        Scene dynamic_scene;
+        const Scene* scene_ptr = nullptr;
+        if (compiled.is_static_topology && compiled.template_scene) {
+            scene_ptr = compiled.template_scene.get();
+        } else {
             CHRONON_TRACE_SCOPE("chronon.frame", "evaluate_composition");
             const FrameContext ctx = make_frame_context({
-            .global_time = SampleTime::from_frame(static_cast<double>(frame), spec.frame_rate),
-            .duration = spec.duration,
-            .width = spec.width,
-            .height = spec.height,
-            .assets_root = frame_runtime
-                ? frame_runtime->resolver().mount_root().string()
-                : std::string{},
-            .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
-            .runtime = frame_runtime,
-        });
-        scene = evaluate_scene(ctx);
+                .global_time = SampleTime::from_frame(static_cast<double>(frame), spec.frame_rate),
+                .duration = spec.duration,
+                .width = spec.width,
+                .height = spec.height,
+                .assets_root = frame_runtime
+                    ? frame_runtime->resolver().mount_root().string()
+                    : std::string{},
+                .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
+                .runtime = frame_runtime,
+            });
+            dynamic_scene = evaluate_scene(ctx);
+            scene_ptr = &dynamic_scene;
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         // Timeline/animation evaluation boundary (the pre-graph half of the
         // frame).  Accumulated per-frame so the render loop can delta it for
         // the per-frame architectural breakdown.
         if (sw_sidecar && sw_sidecar->counters()) {
+            const auto eval_us = static_cast<uint64_t>(std::llround(evaluate_ms * 1000.0));
             sw_sidecar->counters()->timeline_eval_wall_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(evaluate_ms)),
                 std::memory_order_relaxed);
             sw_sidecar->counters()->timeline_eval_wall_us.fetch_add(
-                static_cast<uint64_t>(std::llround(evaluate_ms * 1000.0)),
+                eval_us,
+                std::memory_order_relaxed);
+            sw_sidecar->counters()->timeline_patch_wall_us.fetch_add(
+                eval_us,
                 std::memory_order_relaxed);
         }
-        layer_count = static_cast<int>(scene.layers().size());
+        layer_count = static_cast<int>(scene_ptr->layers().size());
 
         const auto t_scene0 = profiling::now();
         {
             CHRONON_TRACE_SCOPE("chronon.graph", "render_scene_graph");
-            render_fb = call_graph(scene, frame, 0.0f);
+            render_fb = call_graph(*scene_ptr, frame, 0.0f);
         }
         scene_ms = profiling::duration_ms(t_scene0, profiling::now());
     } else {
