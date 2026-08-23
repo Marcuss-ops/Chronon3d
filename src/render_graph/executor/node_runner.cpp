@@ -163,7 +163,10 @@ void execute_fused_batch(
     }
 
     // Image Batch
-    std::vector<runtime::LayerInstance> instances;
+    runtime::GpuLayerBatch gpu_batch;
+    gpu_batch.output_physical_slot = batch.output_physical_slot;
+    gpu_batch.is_gpu_fused = batch.is_gpu_fused;
+    auto& instances = gpu_batch.instances;
     std::vector<runtime::RenderSurfaceHandle> resources;
     std::unordered_map<runtime::RenderSurfaceHandle, uint32_t> resource_map;
 
@@ -235,7 +238,8 @@ void execute_fused_batch(
 
     auto dest_fb = ctx.acquire_framebuffer(ctx.frame_input.width, ctx.frame_input.height, true);
     ensure_native_surface(ctx, *dest_fb);
-    ctx.services.backend->execute_layer_batch(dest_fb->surface_handle(), instances, resources, {}, {});
+    ctx.services.backend->execute_layer_batch(
+        dest_fb->surface_handle(), gpu_batch, resources, {}, {});
 
     state.temp[id] = dest_fb;
     state.resolved_bboxes[id] = raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};

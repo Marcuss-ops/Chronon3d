@@ -603,6 +603,20 @@ public:
             "RenderBackend::execute_layer_batch: not supported by this backend"});
     }
 
+    /// Canonical GpuLayerBatch entry point.  Keep the backend-facing IR in
+    /// one place; the span overload above remains the ABI-compatible leaf
+    /// used by concrete backends and legacy command-plan callers.
+    virtual RenderOpResult execute_layer_batch(
+        runtime::RenderSurfaceHandle destination,
+        const runtime::GpuLayerBatch& batch,
+        std::span<const runtime::RenderSurfaceHandle> resources,
+        std::span<const float> transforms,
+        std::span<const float> paints) {
+        return execute_layer_batch(
+            destination, std::span<const runtime::LayerInstance>(batch.instances),
+            resources, transforms, paints);
+    }
+
     /// Phase 5 — pre-allocate every physical GPU surface from the compiled
     /// interval-coloring plan.  Called once after prepare() and before the
     /// first frame.  GPU backends create all VkImages here; the default
