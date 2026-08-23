@@ -34,9 +34,12 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>
@@ -237,8 +240,11 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     }
 
     auto composition = registry.create(scene);
+    const auto compile_t0 = std::chrono::steady_clock::now();
     auto compiled_result = chronon3d::compile_composition(
         composition, CompositionCompileContext{});
+    const double compile_us = std::chrono::duration<double, std::micro>(
+        std::chrono::steady_clock::now() - compile_t0).count();
     if (!compiled_result) {
         spdlog::error("Compilation failed: {}", compiled_result.error().message);
         return 1;
@@ -258,6 +264,17 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     auto renderer = create_renderer(
         registry, settings, std::nullopt, std::filesystem::current_path());
 
+    auto snapshot_gpu = [&]() {
+        std::vector<std::pair<std::string, std::uint64_t>> ordered;
+        if (renderer->runtime().backend_attached()) {
+            renderer->runtime().backend().export_gpu_telemetry_counters(ordered);
+        }
+        std::unordered_map<std::string, std::uint64_t> by_name;
+        by_name.reserve(ordered.size());
+        for (const auto& [name, value] : ordered) by_name.emplace(name, value);
+        return std::make_pair(std::move(ordered), std::move(by_name));
+    };
+
     // ── Warm-up ─────────────────────────────────────────────────────────
     spdlog::info("Warming up: 10 frames");
     for (int i = 0; i < 10; ++i) {
@@ -265,11 +282,21 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     }
 
     // ── Snapshot pre-run counters & proc state ─────────────────────────
+    // Every architectural timing below is a DELTA from this point. Warm-up
+    // work must never be divided by the timed-frame count.
     const auto* counters = renderer->counters();
     const auto proc_start = read_proc_status();
     const uint64_t pre_alloc = counters->framebuffer_allocations.load(std::memory_order_relaxed);
     const uint64_t pre_copies = counters->full_frame_copies.load(std::memory_order_relaxed);
     const uint64_t pre_passes = counters->full_frame_passes.load(std::memory_order_relaxed);
+    const uint64_t pre_timeline_eval_us = counters->timeline_eval_wall_us.load(std::memory_order_relaxed);
+    const uint64_t pre_graph_total_us = counters->graph_total_wall_us.load(std::memory_order_relaxed);
+    const uint64_t pre_graph_refresh_us = counters->compiled_graph_refresh_wall_us.load(std::memory_order_relaxed);
+    const uint64_t pre_text_shape_ms = counters->text_shaping_wall_ms.load(std::memory_order_relaxed);
+    const uint64_t pre_text_layout_ms = counters->text_layout_wall_ms.load(std::memory_order_relaxed);
+    const uint64_t pre_asset_resolve_us = counters->image_resolve_wall_us.load(std::memory_order_relaxed);
+    auto [gpu_pre_ordered, gpu_pre] = snapshot_gpu();
+    (void)gpu_pre_ordered;
 
     // ── Timed render loop ──────────────────────────────────────────────
     spdlog::info("Benchmarking {} for {} seconds...", scene, duration_sec);
@@ -305,6 +332,24 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     const uint64_t post_alloc = counters->framebuffer_allocations.load(std::memory_order_relaxed);
     const uint64_t post_copies = counters->full_frame_copies.load(std::memory_order_relaxed);
     const uint64_t post_passes = counters->full_frame_passes.load(std::memory_order_relaxed);
+    const uint64_t post_timeline_eval_us = counters->timeline_eval_wall_us.load(std::memory_order_relaxed);
+    const uint64_t post_graph_total_us = counters->graph_total_wall_us.load(std::memory_order_relaxed);
+    const uint64_t post_graph_refresh_us = counters->compiled_graph_refresh_wall_us.load(std::memory_order_relaxed);
+    const uint64_t post_text_shape_ms = counters->text_shaping_wall_ms.load(std::memory_order_relaxed);
+    const uint64_t post_text_layout_ms = counters->text_layout_wall_ms.load(std::memory_order_relaxed);
+    const uint64_t post_asset_resolve_us = counters->image_resolve_wall_us.load(std::memory_order_relaxed);
+    auto [gpu_post_ordered, gpu_post] = snapshot_gpu();
+
+    const auto delta_u64 = [](std::uint64_t after, std::uint64_t before) {
+        return after >= before ? after - before : std::uint64_t{0};
+    };
+    const auto gpu_delta = [&](const std::string& name) -> std::uint64_t {
+        const auto post_it = gpu_post.find(name);
+        if (post_it == gpu_post.end()) return 0;
+        const auto pre_it = gpu_pre.find(name);
+        const std::uint64_t before = pre_it == gpu_pre.end() ? 0 : pre_it->second;
+        return delta_u64(post_it->second, before);
+    };
 
     // Read context switches directly from /proc (the system counters in
     // RenderCounters are populated by the 1Hz async sampler which may not
@@ -326,13 +371,17 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     const double p50 = percentile(sorted, 0.50);
     const double p95 = percentile(sorted, 0.95);
     const double p99 = percentile(sorted, 0.99);
+    const double frames_d = total_frames > 0 ? static_cast<double>(total_frames) : 1.0;
+    const double avg_frame_wall_us = total_frames > 0
+        ? (std::accumulate(frame_times_ms.begin(), frame_times_ms.end(), 0.0) * 1000.0 / frames_d)
+        : 0.0;
 
     const uint64_t alloc_per_frame = static_cast<uint64_t>(
-        static_cast<double>(post_alloc - pre_alloc) / static_cast<double>(total_frames));
+        static_cast<double>(post_alloc - pre_alloc) / frames_d);
     const uint64_t copies_per_frame = static_cast<uint64_t>(
-        static_cast<double>(post_copies - pre_copies) / static_cast<double>(total_frames));
+        static_cast<double>(post_copies - pre_copies) / frames_d);
     const uint64_t passes_per_frame = static_cast<uint64_t>(
-        static_cast<double>(post_passes - pre_passes) / static_cast<double>(total_frames));
+        static_cast<double>(post_passes - pre_passes) / frames_d);
     const uint64_t peak_rss_mb = peak_rss_kb / 1024;
 
     // ── SIMD detection ─────────────────────────────────────────────────
@@ -378,6 +427,7 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
 
     out << "THROUGHPUT\n";
     out << "FPS......................... " << fmt::format("{:.1f}", fps) << "\n";
+    out << "Average frame............... " << fmt::format("{:.3f}", avg_frame_wall_us / 1000.0) << " ms\n";
     out << "P50 frame................... " << fmt::format("{:.1f}", p50) << " ms\n";
     out << "P95 frame................... " << fmt::format("{:.1f}", p95) << " ms\n";
     out << "P99 frame................... " << fmt::format("{:.1f}", p99) << " ms\n";
@@ -502,30 +552,24 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         << "\n\n";
 
     if (renderer->runtime().backend_attached()) {
-        std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
-        renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
-        
-        std::uint64_t lb_calls = 0, l_inst = 0, tb_calls = 0, glyphs = 0;
-        std::uint64_t leg_xform = 0, leg_comp = 0, leg_txt = 0;
-        for (const auto& [k, v] : gpu_counters) {
-            if (k == "layer_batch_calls") lb_calls = v;
-            else if (k == "layer_instances") l_inst = v;
-            else if (k == "text_batch_calls") tb_calls = v;
-            else if (k == "glyphs") glyphs = v;
-            else if (k == "legacy_transform_calls") leg_xform = v;
-            else if (k == "legacy_composite_calls") leg_comp = v;
-            else if (k == "legacy_text_run_surface_calls") leg_txt = v;
-        }
+        const std::uint64_t lb_calls = gpu_delta("layer_batch_calls");
+        const std::uint64_t l_inst = gpu_delta("layer_instances");
+        const std::uint64_t tb_calls = gpu_delta("text_batch_calls");
+        const std::uint64_t glyphs = gpu_delta("glyphs");
+        const std::uint64_t leg_xform = gpu_delta("legacy_transform_calls");
+        const std::uint64_t leg_comp = gpu_delta("legacy_composite_calls");
+        const std::uint64_t leg_txt = gpu_delta("legacy_text_run_surface_calls");
 
-        out << "BATCHING & INSTANCING\n";
-        out << "layer_batch_calls/frame..... " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(lb_calls) / total_frames : 0.0) << "\n";
-        out << "layer_instances/frame....... " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(l_inst) / total_frames : 0.0) << "\n";
-        out << "text_batch_calls/frame...... " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(tb_calls) / total_frames : 0.0) << "\n";
-        out << "glyphs/frame................ " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(glyphs) / total_frames : 0.0) << "\n\n";
+        out << "BATCHING & INSTANCING (TIMED-RUN DELTAS)\n";
+        out << "layer_batch_calls/frame..... " << fmt::format("{:.1f}", static_cast<double>(lb_calls) / frames_d) << "\n";
+        out << "layer_instances/frame....... " << fmt::format("{:.1f}", static_cast<double>(l_inst) / frames_d) << "\n";
+        out << "text_batch_calls/frame...... " << fmt::format("{:.1f}", static_cast<double>(tb_calls) / frames_d) << "\n";
+        out << "glyphs/frame................ " << fmt::format("{:.1f}", static_cast<double>(glyphs) / frames_d) << "\n\n";
 
-        out << "GPU EXECUTION METRICS\n";
-        for (const auto& [k, v] : gpu_counters) {
-            out << fmt::format("{:<28} {}\n", k, v);
+        out << "GPU EXECUTION METRICS (TIMED-RUN DELTAS)\n";
+        for (const auto& [k, unused] : gpu_post_ordered) {
+            (void)unused;
+            out << fmt::format("{:<28} {}\n", k, gpu_delta(k));
         }
         out << "\n";
 
@@ -542,44 +586,82 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         }
     }
 
-    uint64_t gpu_exec_us = 0;
-    uint64_t gpu_rb_us = 0;
-    uint64_t gpu_up_us = 0;
-    if (renderer->runtime().backend_attached()) {
-        std::vector<std::pair<std::string, std::uint64_t>> gpu_c;
-        renderer->runtime().backend().export_gpu_telemetry_counters(gpu_c);
-        for (const auto& [k, v] : gpu_c) {
-            if (k == "gpu_execute_us") gpu_exec_us = v;
-            else if (k == "readback_us") gpu_rb_us = v;
-            else if (k == "gpu_submit_cpu_us") gpu_up_us = v;
-        }
-    }
+    // ── Honest frame-wall accounting ───────────────────────────────────
+    // Top-level accounting is deliberately disjoint: timeline evaluation +
+    // render-graph wall. GPU submit/wait/timestamp values below are nested
+    // diagnostics and MUST NOT be added again to `accounted_us`.
+    const double timeline_eval_us = static_cast<double>(
+        delta_u64(post_timeline_eval_us, pre_timeline_eval_us)) / frames_d;
+    const double graph_total_us = static_cast<double>(
+        delta_u64(post_graph_total_us, pre_graph_total_us)) / frames_d;
+    const double graph_refresh_us = static_cast<double>(
+        delta_u64(post_graph_refresh_us, pre_graph_refresh_us)) / frames_d;
+    const double text_shape_us = static_cast<double>(
+        delta_u64(post_text_shape_ms, pre_text_shape_ms)) * 1000.0 / frames_d;
+    const double text_layout_us = static_cast<double>(
+        delta_u64(post_text_layout_ms, pre_text_layout_ms)) * 1000.0 / frames_d;
+    const double asset_resolve_us = static_cast<double>(
+        delta_u64(post_asset_resolve_us, pre_asset_resolve_us)) / frames_d;
 
-    const double frames_d = total_frames > 0 ? static_cast<double>(total_frames) : 1.0;
-    const double scene_build_us = (render_counters ? static_cast<double>(render_counters->timeline_eval_wall_us.load(std::memory_order_relaxed)) : 0.0) / frames_d;
-    const double graph_build_us = (render_counters ? static_cast<double>(render_counters->graph_dirty_rect_wall_ms.load(std::memory_order_relaxed) * 1000.0) : 0.0) / frames_d;
-    const double compile_us = 0.0;
-    const double prepare_us = 0.0;
-    const double text_shape_us = (render_counters ? static_cast<double>(render_counters->text_shaping_wall_ms.load(std::memory_order_relaxed) * 1000.0) : 0.0) / frames_d;
-    const double text_layout_us = (render_counters ? static_cast<double>(render_counters->text_layout_wall_ms.load(std::memory_order_relaxed) * 1000.0) : 0.0) / frames_d;
-    const double asset_resolve_us = (render_counters ? static_cast<double>(render_counters->image_resolve_wall_us.load(std::memory_order_relaxed)) : 0.0) / frames_d;
-    const double gpu_upload_us = static_cast<double>(gpu_up_us) / frames_d;
-    const double gpu_execute_us = static_cast<double>(gpu_exec_us) / frames_d;
-    const double readback_us = static_cast<double>(gpu_rb_us) / frames_d;
+    const double frame_slot_wait_us = static_cast<double>(gpu_delta("frame_slot_wait_us")) / frames_d;
+    const double fence_wait_us = static_cast<double>(gpu_delta("gpu_wait_cpu_us")) / frames_d;
+    const double queue_submit_cpu_us = static_cast<double>(gpu_delta("gpu_submit_cpu_us")) / frames_d;
+    const double gpu_timestamp_us = static_cast<double>(gpu_delta("gpu_execute_us")) / frames_d;
+    const double readback_us = static_cast<double>(gpu_delta("readback_us")) / frames_d;
 
-    out << "LATENCY BREAKDOWN (PER-FRAME AVERAGE)\n";
-    out << "scene_build_us.............. " << fmt::format("{:.1f}", scene_build_us) << " us\n";
-    out << "graph_build_us.............. " << fmt::format("{:.1f}", graph_build_us) << " us\n";
-    out << "compile_us.................. " << fmt::format("{:.1f}", compile_us) << " us\n";
-    out << "prepare_us.................. " << fmt::format("{:.1f}", prepare_us) << " us\n\n";
+    const double texture_upload_count = static_cast<double>(gpu_delta("gpu_upload_count")) / frames_d;
+    const double texture_upload_bytes = static_cast<double>(gpu_delta("gpu_upload_bytes")) / frames_d;
+    const double image_upload_count = static_cast<double>(
+        gpu_delta("gpu_upload_image_full_count") +
+        gpu_delta("gpu_upload_image_region_count")) / frames_d;
+    const double image_upload_bytes = static_cast<double>(gpu_delta("gpu_upload_image_bytes")) / frames_d;
+
+    const double accounted_us = timeline_eval_us + graph_total_us;
+    // Keep this signed. A negative value is evidence that supposedly disjoint
+    // top-level counters overlap and must be fixed; clamping would hide it.
+    const double unaccounted_us = avg_frame_wall_us - accounted_us;
+    const double accounting_check_us = accounted_us + unaccounted_us - avg_frame_wall_us;
+
+    out << "SETUP TIMINGS\n";
+    out << "compile_us.................. " << fmt::format("{:.1f}", compile_us) << " us (one-time)\n";
+    out << "prepare_us.................. N/A (prepare barrier not separately surfaced)\n\n";
+
+    out << "FRAME WALL BREAKDOWN (PER-FRAME AVERAGE; WARM-UP EXCLUDED)\n";
+    out << "frame_wall_us............... " << fmt::format("{:.1f}", avg_frame_wall_us) << " us\n";
+    out << "timeline_eval_us............ " << fmt::format("{:.1f}", timeline_eval_us) << " us\n";
+    out << "timeline_patch_us........... N/A (not separately instrumented)\n";
+    out << "scene_clone_us.............. N/A (not separately instrumented)\n";
+    out << "graph_total_us.............. " << fmt::format("{:.1f}", graph_total_us) << " us\n";
+    out << "graph_refresh_us............ " << fmt::format("{:.1f}", graph_refresh_us) << " us\n";
+    out << "parameter_patch_us.......... N/A (not separately instrumented)\n";
+    out << "instance_patch_us........... N/A (not separately instrumented)\n";
+    out << "frame_slot_acquire_us....... N/A (only wait time is instrumented)\n";
+    out << "frame_slot_wait_us.......... " << fmt::format("{:.1f}", frame_slot_wait_us) << " us [nested]\n";
+    out << "fence_wait_us............... " << fmt::format("{:.1f}", fence_wait_us) << " us [nested]\n";
+    out << "ssbo_write_us............... N/A (not separately instrumented)\n";
+    out << "descriptor_update_us........ N/A (not separately instrumented)\n";
+    out << "command_record_us........... N/A (not separately instrumented)\n";
+    out << "queue_submit_cpu_us......... " << fmt::format("{:.1f}", queue_submit_cpu_us) << " us [nested]\n";
+    out << "gpu_timestamp_us............ " << fmt::format("{:.1f}", gpu_timestamp_us) << " us [GPU elapsed; nested]\n";
+    out << "output_wrap_us.............. N/A (not separately instrumented)\n";
+    out << "readback_us................. " << fmt::format("{:.1f}", readback_us) << " us [nested]\n";
+    out << "accounted_us................ " << fmt::format("{:.1f}", accounted_us) << " us\n";
+    out << "unaccounted_us.............. " << fmt::format("{:.1f}", unaccounted_us) << " us\n";
+    out << "accounting_check_us......... " << fmt::format("{:.3f}", accounting_check_us) << " us (target ~= 0)\n\n";
+
+    out << "STEADY-STATE UPLOADS (PER-FRAME AVERAGE)\n";
+    out << "texture_upload_count/frame. " << fmt::format("{:.3f}", texture_upload_count) << "\n";
+    out << "texture_upload_bytes/frame. " << fmt::format("{:.1f}", texture_upload_bytes) << "\n";
+    out << "image_upload_count/frame... " << fmt::format("{:.3f}", image_upload_count) << "\n";
+    out << "image_upload_bytes/frame... " << fmt::format("{:.1f}", image_upload_bytes) << "\n";
+    out << "NOTE........................ No gpu_upload_us proxy: upload time is not instrumented.\n\n";
+
+    out << "TEXT / ASSET NESTED COSTS\n";
     out << "text_shape_us............... " << fmt::format("{:.1f}", text_shape_us) << " us\n";
     out << "text_layout_us.............. " << fmt::format("{:.1f}", text_layout_us) << " us\n";
     out << "asset_resolve_us............ " << fmt::format("{:.1f}", asset_resolve_us) << " us\n\n";
-    out << "gpu_upload_us............... " << fmt::format("{:.1f}", gpu_upload_us) << " us\n";
-    out << "gpu_execute_us.............. " << fmt::format("{:.1f}", gpu_execute_us) << " us\n";
-    out << "readback_us................. " << fmt::format("{:.1f}", readback_us) << " us\n\n";
 
-    // Keep the JSON artifact aligned with the evidence printed above.  A
+    // Keep the JSON artifact aligned with the evidence printed above. A
     // missing determinism run is represented explicitly instead of being
     // inferred from a single sequential benchmark.
     if (!report_json.empty()) {
@@ -587,7 +669,7 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
             return render_counters ? (render_counters->*member).load(std::memory_order_relaxed) : 0;
         };
         nlohmann::json report{
-            {"schema_version", 1},
+            {"schema_version", 2},
             {"scene", scene},
             {"duration_sec", duration_sec},
             {"frames", total_frames},
@@ -598,10 +680,53 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                 {"shutter_phase_deg", -90.0}
             }},
             {"fps", fps},
+            {"average_frame_ms", avg_frame_wall_us / 1000.0},
             {"p50_ms", p50},
             {"p95_ms", p95},
             {"p99_ms", p99},
             {"total_elapsed_sec", total_elapsed_sec},
+            {"setup", {
+                {"compile_us", compile_us},
+                {"prepare_us", nullptr},
+                {"prepare_status", "NOT_SEPARATELY_INSTRUMENTED"}
+            }},
+            {"frame_wall_breakdown", {
+                {"frame_wall_us", avg_frame_wall_us},
+                {"timeline_eval_us", timeline_eval_us},
+                {"timeline_patch_us", nullptr},
+                {"scene_clone_us", nullptr},
+                {"graph_total_us", graph_total_us},
+                {"graph_refresh_us", graph_refresh_us},
+                {"parameter_patch_us", nullptr},
+                {"instance_patch_us", nullptr},
+                {"frame_slot_acquire_us", nullptr},
+                {"frame_slot_wait_us", frame_slot_wait_us},
+                {"fence_wait_us", fence_wait_us},
+                {"ssbo_write_us", nullptr},
+                {"descriptor_update_us", nullptr},
+                {"command_record_us", nullptr},
+                {"queue_submit_cpu_us", queue_submit_cpu_us},
+                {"gpu_timestamp_us", gpu_timestamp_us},
+                {"output_wrap_us", nullptr},
+                {"readback_us", readback_us},
+                {"accounted_us", accounted_us},
+                {"unaccounted_us", unaccounted_us},
+                {"accounting_check_us", accounting_check_us},
+                {"accounting_contract", "accounted_us + unaccounted_us == frame_wall_us"}
+            }},
+            {"uploads", {
+                {"texture_upload_count_per_frame", texture_upload_count},
+                {"texture_upload_bytes_per_frame", texture_upload_bytes},
+                {"image_upload_count_per_frame", image_upload_count},
+                {"image_upload_bytes_per_frame", image_upload_bytes},
+                {"upload_time_us", nullptr},
+                {"upload_time_status", "NOT_INSTRUMENTED"}
+            }},
+            {"nested_costs", {
+                {"text_shape_us", text_shape_us},
+                {"text_layout_us", text_layout_us},
+                {"asset_resolve_us", asset_resolve_us}
+            }},
             {"memory", {
                 {"peak_rss_mb", peak_rss_mb},
                 {"framebuffer_allocations_per_frame", alloc_per_frame},
