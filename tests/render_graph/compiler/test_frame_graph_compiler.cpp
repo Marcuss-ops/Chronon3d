@@ -4,6 +4,9 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/clear_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
@@ -1342,6 +1345,67 @@ TEST_CASE("CompiledFrameProgram: operation capabilities and fusion properties") 
     program.has_fused_passes = true;
     CHECK(!program.empty());
     CHECK(program.has_fused_passes);
+}
+
+TEST_CASE("Invariant: 100 Image layers lower into 1 CompiledLayerBatch and 0 legacy ops") {
+    using namespace chronon3d::graph;
+
+    RenderGraph graph;
+    auto clear_node = std::make_unique<ClearNode>();
+    GraphNodeId current = graph.add_node(std::move(clear_node));
+
+    cache::NodeCacheKey key{.scope = "img", .frame = 0, .width = 1920, .height = 1080};
+    for (int i = 0; i < 100; ++i) {
+        RenderNode rn;
+        rn.shape = Shape{ImageShape{.path = "assets/images/camera_reference.jpg", .size = Vec2{160.0f, 90.0f}}};
+        auto img_node = std::make_unique<SourceNode>("img_" + std::to_string(i), rn, key);
+        GraphNodeId img_id = graph.add_node(std::move(img_node));
+
+        Transform t{Vec3{static_cast<float>(i * 10), static_cast<float>(i * 5), 0.0f}};
+        auto xform_node = std::make_unique<TransformNode>(t);
+        GraphNodeId xform_id = graph.add_node(std::move(xform_node));
+        graph.connect(img_id, xform_id);
+
+        auto comp_node = std::make_unique<CompositeNode>(
+            graph.next_composite_id(), BlendMode::Normal);
+        GraphNodeId comp_id = graph.add_node(std::move(comp_node));
+        graph.connect(current, comp_id);
+        graph.connect(xform_id, comp_id);
+        current = comp_id;
+    }
+    graph.set_output(current);
+
+    FrameGraphCompiler compiler;
+    ValidationBackend backend(false);
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    auto compiled = compiler.compile(std::move(graph), ctx);
+
+    CHECK(compiled.program.layer_batches.size() == 1);
+    CHECK(compiled.program.layer_batches[0].instances.size() == 100);
+
+    auto count_legacy_transform_ops = [](const CompiledFrameGraph& g) {
+        std::size_t count = 0;
+        for (const auto& op : g.program.operations) {
+            if (op.node < g.nodes.size() && g.nodes[op.node].kind == RenderGraphNodeKind::Transform) {
+                count++;
+            }
+        }
+        return count;
+    };
+
+    auto count_legacy_composite_ops = [](const CompiledFrameGraph& g) {
+        std::size_t count = 0;
+        for (const auto& op : g.program.operations) {
+            if (!op.is_fused && op.node < g.nodes.size() && g.nodes[op.node].kind == RenderGraphNodeKind::Composite) {
+                count++;
+            }
+        }
+        return count;
+    };
+
+    CHECK(count_legacy_transform_ops(compiled) == 0);
+    CHECK(count_legacy_composite_ops(compiled) == 0);
 }
 
 

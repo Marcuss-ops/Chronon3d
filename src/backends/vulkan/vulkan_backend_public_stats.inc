@@ -131,6 +131,17 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("fallback_effect", m_impl->stats.fallback_effect);
     out.emplace_back("fallback_blur", m_impl->stats.fallback_blur);
     out.emplace_back("fallback_dof", m_impl->stats.fallback_dof);
+    out.emplace_back("layer_batch_calls", m_impl->stats.layer_batch_calls);
+    out.emplace_back("layer_instances", m_impl->stats.layer_instances_processed);
+    out.emplace_back("legacy_transform_calls", m_impl->stats.legacy_transform_calls);
+    out.emplace_back("legacy_composite_calls", m_impl->stats.legacy_composite_calls);
+    out.emplace_back("text_batch_calls", m_impl->stats.text_batch_calls);
+    out.emplace_back("glyphs", m_impl->stats.glyphs_processed);
+    out.emplace_back("legacy_text_run_surface_calls", m_impl->stats.legacy_text_run_surface_calls);
+    out.emplace_back("vkCmdDispatch", m_impl->stats.vk_cmd_dispatch_count);
+    out.emplace_back("vkCmdDraw", m_impl->stats.vk_cmd_draw_count);
+    out.emplace_back("descriptor_allocations", m_impl->stats.descriptor_allocations);
+    out.emplace_back("barriers", m_impl->stats.barriers_emitted);
 #else
     (void)out;
 #endif

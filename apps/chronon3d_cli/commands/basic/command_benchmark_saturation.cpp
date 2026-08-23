@@ -503,11 +503,42 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     if (renderer->runtime().backend_attached()) {
         std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
         renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+        
+        std::uint64_t lb_calls = 0, l_inst = 0, tb_calls = 0, glyphs = 0;
+        std::uint64_t leg_xform = 0, leg_comp = 0, leg_txt = 0;
+        for (const auto& [k, v] : gpu_counters) {
+            if (k == "layer_batch_calls") lb_calls = v;
+            else if (k == "layer_instances") l_inst = v;
+            else if (k == "text_batch_calls") tb_calls = v;
+            else if (k == "glyphs") glyphs = v;
+            else if (k == "legacy_transform_calls") leg_xform = v;
+            else if (k == "legacy_composite_calls") leg_comp = v;
+            else if (k == "legacy_text_run_surface_calls") leg_txt = v;
+        }
+
+        out << "BATCHING & INSTANCING\n";
+        out << "layer_batch_calls/frame..... " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(lb_calls) / total_frames : 0.0) << "\n";
+        out << "layer_instances/frame....... " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(l_inst) / total_frames : 0.0) << "\n";
+        out << "text_batch_calls/frame...... " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(tb_calls) / total_frames : 0.0) << "\n";
+        out << "glyphs/frame................ " << fmt::format("{:.1f}", total_frames > 0 ? static_cast<double>(glyphs) / total_frames : 0.0) << "\n\n";
+
         out << "GPU EXECUTION METRICS\n";
         for (const auto& [k, v] : gpu_counters) {
             out << fmt::format("{:<28} {}\n", k, v);
         }
         out << "\n";
+
+        // Hard gate for Perf_* benchmark scenes
+        if (scene == "Perf_IMG_same_100" || scene == "Perf_IMG_move_100" ||
+            scene == "Perf_TXT_static_100" || scene == "Perf_TXT_move_100") {
+            if (leg_xform > 0 || leg_comp > 0 || leg_txt > 0) {
+                spdlog::error("[BENCHMARK ARCHITECTURE FAIL] Legacy operations executed in {}: legacy_transform={} legacy_composite={} legacy_text_run={}",
+                              scene, leg_xform, leg_comp, leg_txt);
+                assert(leg_xform == 0 && "legacy_transform_calls must be 0");
+                assert(leg_comp == 0 && "legacy_composite_calls must be 0");
+                assert(leg_txt == 0 && "legacy_text_run_surface_calls must be 0");
+            }
+        }
     }
 
     // Keep the JSON artifact aligned with the evidence printed above.  A

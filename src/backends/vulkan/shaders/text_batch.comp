@@ -1,0 +1,86 @@
+#version 450
+
+// Fused GPU text batch compute kernel: composites a batch of glyph quads
+// directly into the destination surface in a single kernel dispatch.
+// Consumes GlyphStatic[] (immutable atlas coordinates) and
+// TextRunDynamic[] (per-run dynamic transform/color).
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0, rgba32f) uniform image2D dst_image;
+layout(binding = 1, rgba32f) uniform readonly image2D atlas_image;
+
+// 32 bytes per glyph static entry
+struct GpuGlyphStatic {
+    uint atlas_page;   // atlas page (0 for single atlas page)
+    uint run_index;    // index into runs array
+    uint uv_x;
+    uint uv_y;
+    int local_x;
+    int local_y;
+    uint width;
+    uint height;
+};
+
+// 32 bytes per text run dynamic entry
+struct GpuTextRunDynamic {
+    float tx;
+    float ty;
+    float sx;
+    float sy;
+    float opacity;
+    uint color;        // packed RGBA (0xFFFFFFFF = white/identity)
+    float pad0;
+    float pad1;
+};
+
+layout(binding = 3, std430) buffer GlyphStaticBuffer {
+    GpuGlyphStatic glyphs[];
+};
+
+layout(binding = 4, std430) buffer TextRunDynamicBuffer {
+    GpuTextRunDynamic runs[];
+};
+
+layout(push_constant) uniform TextBatchParams {
+    int glyph_count;
+    int run_count;
+    ivec2 dispatch_origin;
+} params;
+
+void main() {
+    ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dst_size = imageSize(dst_image);
+    if (pixel.x >= dst_size.x || pixel.y >= dst_size.y) return;
+
+    vec4 accum = imageLoad(dst_image, pixel);
+
+    for (int i = 0; i < params.glyph_count; ++i) {
+        GpuGlyphStatic g = glyphs[i];
+        GpuTextRunDynamic run = runs[g.run_index];
+
+        float origin_x = run.tx + float(g.local_x) * run.sx;
+        float origin_y = run.ty + float(g.local_y) * run.sy;
+        float gw = float(g.width) * run.sx;
+        float gh = float(g.height) * run.sy;
+
+        if (float(pixel.x) >= origin_x && float(pixel.x) < origin_x + gw &&
+            float(pixel.y) >= origin_y && float(pixel.y) < origin_y + gh) {
+            
+            vec2 sample_offset = floor((vec2(pixel) - vec2(origin_x, origin_y)) / vec2(run.sx, run.sy));
+            sample_offset = clamp(sample_offset, vec2(0.0), vec2(float(g.width) - 1.0, float(g.height) - 1.0));
+            ivec2 atlas_coord = ivec2(g.uv_x, g.uv_y) + ivec2(sample_offset);
+            vec4 src = imageLoad(atlas_image, atlas_coord) * run.opacity;
+            if (run.color != 0xFFFFFFFFu && run.color != 0u) {
+                vec4 tint = vec4(float(run.color & 0xFFu) / 255.0,
+                                 float((run.color >> 8u) & 0xFFu) / 255.0,
+                                 float((run.color >> 16u) & 0xFFu) / 255.0,
+                                 float((run.color >> 24u) & 0xFFu) / 255.0);
+                src *= tint;
+            }
+            accum = src + accum * (1.0 - src.a);
+        }
+    }
+
+    imageStore(dst_image, pixel, accum);
+}

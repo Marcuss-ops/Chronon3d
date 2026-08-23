@@ -72,6 +72,7 @@ struct CompiledNodeInfo {
 
     bool reachable{false};
     bool early_exit_skip{false};
+    bool lowered_into_batch{false};
 
     std::optional<raster::BBox> predicted_bbox;
 
@@ -153,6 +154,7 @@ struct CompiledLayerInstance {
 struct CompiledLayerBatch {
     std::vector<GraphNodeId> member_nodes;
     std::vector<CompiledLayerInstance> instances;
+    GraphNodeId root_node{k_invalid_node};
     std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
     bool is_gpu_fused{false};
 

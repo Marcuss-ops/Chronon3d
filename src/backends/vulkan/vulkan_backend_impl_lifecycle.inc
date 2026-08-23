@@ -29,9 +29,10 @@
             {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
-            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo layout_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 4, bindings};
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 5, bindings};
         check(vkCreateDescriptorSetLayout(device, &layout_info, nullptr, &descriptor_layout),
               "vkCreateDescriptorSetLayout");
 
@@ -44,7 +45,7 @@
         // never needs to be reset on the frame boundary.
         const VkDescriptorPoolSize pool_sizes[] = {
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 512},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 64}};
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 512}};
         const VkDescriptorPoolCreateInfo pool_info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
             256, 2, pool_sizes};
@@ -264,6 +265,58 @@
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(fill_rect_pipeline))) {
             vkDestroyPipeline(device, fill_rect_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected FillRect pipeline");
+        }
+
+        const VkShaderModuleCreateInfo layer_batch_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_layer_batch_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_layer_batch_comp_spv)};
+        VkShaderModule layer_batch_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &layer_batch_shader_info, nullptr, &layer_batch_shader),
+              "vkCreateShaderModule(layer batch)");
+        const VkPipelineShaderStageCreateInfo layer_batch_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            layer_batch_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo layer_batch_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            layer_batch_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+        VkPipeline layer_batch_pipeline = VK_NULL_HANDLE;
+        const VkResult layer_batch_result = vkCreateComputePipelines(
+            device, VK_NULL_HANDLE, 1, &layer_batch_pipeline_info, nullptr, &layer_batch_pipeline);
+        vkDestroyShaderModule(device, layer_batch_shader, nullptr);
+        check(layer_batch_result, "vkCreateComputePipelines(layer batch)");
+        if (!kernel_registry.register_kernel(
+                GpuKernelId::LayerBatch,
+                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(layer_batch_pipeline))) {
+            vkDestroyPipeline(device, layer_batch_pipeline, nullptr);
+            throw std::runtime_error("Vulkan kernel registry rejected LayerBatch pipeline");
+        }
+
+        const VkShaderModuleCreateInfo text_batch_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_text_batch_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_text_batch_comp_spv)};
+        VkShaderModule text_batch_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &text_batch_shader_info, nullptr, &text_batch_shader),
+              "vkCreateShaderModule(text batch)");
+        const VkPipelineShaderStageCreateInfo text_batch_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            text_batch_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo text_batch_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            text_batch_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+        VkPipeline text_batch_pipeline = VK_NULL_HANDLE;
+        const VkResult text_batch_result = vkCreateComputePipelines(
+            device, VK_NULL_HANDLE, 1, &text_batch_pipeline_info, nullptr, &text_batch_pipeline);
+        vkDestroyShaderModule(device, text_batch_shader, nullptr);
+        check(text_batch_result, "vkCreateComputePipelines(text batch)");
+        if (!kernel_registry.register_kernel(
+                GpuKernelId::TextBatch,
+                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_batch_pipeline))) {
+            vkDestroyPipeline(device, text_batch_pipeline, nullptr);
+            throw std::runtime_error("Vulkan kernel registry rejected TextBatch pipeline");
         }
 
         const VkCommandBufferAllocateInfo command_info{
