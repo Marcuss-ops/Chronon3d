@@ -101,15 +101,12 @@ Le composizioni di progetto devono vivere in pack esterni, non nel core engine.
 ## Documenti principali
 
 - [`AGENTS.md`](AGENTS.md) — istruzioni operative e regole architetturali.
-- [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) — contratto documentale (single-source-of-truth).
+- [`docs/CHRONON_PLAN.md`](docs/CHRONON_PLAN.md) — piano operativo (10 fasi GPU-first).
 - [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) — stato presente.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone prodotto.
 - [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) — requisiti permanenti di release.
 - [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) — difetti e follow-up aperti.
-- [`docs/FEATURES.md`](docs/FEATURES.md) — inventario delle feature.
-- [`docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`](docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md) — piano testo.
-- [`docs/CAMERA_FEATURE_MATRIX.md`](docs/CAMERA_FEATURE_MATRIX.md) — matrice camera.
-- [`docs/V3_BLUEPRINT.md`](docs/V3_BLUEPRINT.md) — futuro tile-first, non runtime corrente.
+- [`docs/ZERO_COPY_GATES.md`](docs/ZERO_COPY_GATES.md) — certificazione zero-copy.
 
 ## License
 
