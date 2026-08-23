@@ -83,6 +83,7 @@ void VulkanBackend::export_gpu_telemetry_counters(
     if (!m_impl) return;
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
+    out.emplace_back("gpu_upload_count", m_impl->stats.upload_calls);
     out.emplace_back("gpu_upload_bytes", m_impl->stats.upload_bytes);
     out.emplace_back("gpu_upload_full_surface_bytes", m_impl->stats.upload_full_surface_bytes);
     out.emplace_back("gpu_upload_region_bytes", m_impl->stats.upload_region_bytes);

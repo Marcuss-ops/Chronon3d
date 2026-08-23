@@ -46,6 +46,7 @@ std::uint64_t fingerprint_composition_definition(
         .add(definition.composition.frame_rate.denominator)
         .add(definition.composition.duration)
         .add(definition.scene_content_fingerprint)
+        .add(definition.scene_is_frame_invariant)
         .add(definition.camera.has_value());
 
     if (definition.camera.has_value()) {
@@ -192,6 +193,12 @@ compile_composition(const Composition& composition,
     };
     definition.scene_content_fingerprint = composition.scene_content_fingerprint();
 
+    // Legacy Composition scene functions have always been evaluated per-frame.
+    // Keep the compatibility adapter correctness-first: only callers using the
+    // explicit CompositionDefinition surface may opt into frame-invariant scene
+    // caching after making that semantic promise deliberately.
+    definition.scene_is_frame_invariant = false;
+
     // Snapshot the sole authoring-time camera input. Compilation owns the
     // resulting CameraProgram in CompiledComposition.
     if (composition.has_default_camera_descriptor()) {
@@ -261,11 +268,20 @@ evaluate(const CompiledComposition& compiled,
     // frame arena.
     EvaluatedCompositionFrame result(context.frame_context.resource);
     try {
-        if (compiled.template_scene) {
-            result.scene = compiled.template_scene->clone();
+        // Correct-by-default: SceneFunction is a per-frame API. Reuse the
+        // cached template only when the author explicitly promises that scene
+        // materialization is frame invariant. This preserves the fast path for
+        // truly static topology/content without freezing dynamic callbacks.
+        if (def.scene_is_frame_invariant) {
+            if (compiled.template_scene) {
+                result.scene = compiled.template_scene->clone();
+            } else {
+                result.scene = def.scene(fc);
+                compiled.template_scene =
+                    std::make_shared<const Scene>(result.scene.clone());
+            }
         } else {
             result.scene = def.scene(fc);
-            compiled.template_scene = std::make_shared<const Scene>(result.scene.clone());
         }
     } catch (const std::exception& e) {
         CompositionEvaluateError err;
