@@ -102,7 +102,7 @@ private:
     AVPacket*        packet_{nullptr};
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    static constexpr std::size_t kCudaEncodeRingSlots = 4;
+    static constexpr std::size_t kCudaEncodeRingSlots = 6;
     std::unordered_map<std::uint64_t,
         std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>>
         cuda_nv12_compositors_;
