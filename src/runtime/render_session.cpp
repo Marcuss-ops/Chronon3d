@@ -57,6 +57,7 @@ void RenderSession::reset_job() {
 
     // Frame-value state is reset independently from temporal history.
     reset_frame_values();
+    prepared_composition = nullptr;
 }
 
 } // namespace chronon3d

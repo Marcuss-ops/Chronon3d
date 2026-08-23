@@ -261,7 +261,12 @@ evaluate(const CompiledComposition& compiled,
     // frame arena.
     EvaluatedCompositionFrame result(context.frame_context.resource);
     try {
-        result.scene = def.scene(fc);
+        if (compiled.template_scene) {
+            result.scene = compiled.template_scene->clone();
+        } else {
+            result.scene = def.scene(fc);
+            compiled.template_scene = std::make_shared<const Scene>(result.scene.clone());
+        }
     } catch (const std::exception& e) {
         CompositionEvaluateError err;
         err.kind    = CompositionEvaluateError::Kind::SceneBuildFailed;
