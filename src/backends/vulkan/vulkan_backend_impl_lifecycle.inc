@@ -60,6 +60,50 @@
         check(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline_layout),
               "vkCreatePipelineLayout");
 
+        const VkDescriptorSetLayoutBinding tile_bin_bindings[] = {
+            {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+        const VkDescriptorSetLayoutCreateInfo tile_bin_layout_info{
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            4, tile_bin_bindings};
+        check(vkCreateDescriptorSetLayout(device, &tile_bin_layout_info, nullptr,
+                                          &text_tile_bin_descriptor_layout),
+              "vkCreateDescriptorSetLayout(text tile bin)");
+
+        const VkDescriptorSetLayoutBinding tile_raster_bindings[] = {
+            {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+        const VkDescriptorSetLayoutCreateInfo tile_raster_layout_info{
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            6, tile_raster_bindings};
+        check(vkCreateDescriptorSetLayout(device, &tile_raster_layout_info, nullptr,
+                                          &text_tile_raster_descriptor_layout),
+              "vkCreateDescriptorSetLayout(text tile raster)");
+
+        const VkPushConstantRange tile_bin_push{
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, 24};
+        const VkPipelineLayoutCreateInfo tile_bin_pipeline_layout_info{
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1,
+            &text_tile_bin_descriptor_layout, 1, &tile_bin_push};
+        check(vkCreatePipelineLayout(device, &tile_bin_pipeline_layout_info, nullptr,
+                                     &text_tile_bin_pipeline_layout),
+              "vkCreatePipelineLayout(text tile bin)");
+
+        const VkPushConstantRange tile_raster_push{
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, 28};
+        const VkPipelineLayoutCreateInfo tile_raster_pipeline_layout_info{
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1,
+            &text_tile_raster_descriptor_layout, 1, &tile_raster_push};
+        check(vkCreatePipelineLayout(device, &tile_raster_pipeline_layout_info, nullptr,
+                                     &text_tile_raster_pipeline_layout),
+              "vkCreatePipelineLayout(text tile raster)");
+
         const VkShaderModuleCreateInfo shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
             shaders::chronon3d_composite_comp_spv_size,
@@ -319,6 +363,62 @@
             throw std::runtime_error("Vulkan kernel registry rejected TextBatch pipeline");
         }
 
+        const VkShaderModuleCreateInfo text_tile_bin_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_text_tile_bin_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_text_tile_bin_comp_spv)};
+        VkShaderModule text_tile_bin_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &text_tile_bin_shader_info, nullptr,
+                                   &text_tile_bin_shader),
+              "vkCreateShaderModule(text tile bin)");
+        const VkPipelineShaderStageCreateInfo text_tile_bin_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            text_tile_bin_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo text_tile_bin_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            text_tile_bin_stage, text_tile_bin_pipeline_layout, VK_NULL_HANDLE, -1};
+        VkPipeline text_tile_bin_pipeline = VK_NULL_HANDLE;
+        const VkResult text_tile_bin_result = vkCreateComputePipelines(
+            device, VK_NULL_HANDLE, 1, &text_tile_bin_pipeline_info, nullptr,
+            &text_tile_bin_pipeline);
+        vkDestroyShaderModule(device, text_tile_bin_shader, nullptr);
+        check(text_tile_bin_result, "vkCreateComputePipelines(text tile bin)");
+        if (!kernel_registry.register_kernel(
+                GpuKernelId::TextTileBin,
+                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_tile_bin_pipeline))) {
+            vkDestroyPipeline(device, text_tile_bin_pipeline, nullptr);
+            throw std::runtime_error("Vulkan kernel registry rejected TextTileBin pipeline");
+        }
+
+        const VkShaderModuleCreateInfo text_tile_raster_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_text_tile_raster_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_text_tile_raster_comp_spv)};
+        VkShaderModule text_tile_raster_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &text_tile_raster_shader_info, nullptr,
+                                   &text_tile_raster_shader),
+              "vkCreateShaderModule(text tile raster)");
+        const VkPipelineShaderStageCreateInfo text_tile_raster_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            text_tile_raster_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo text_tile_raster_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            text_tile_raster_stage, text_tile_raster_pipeline_layout, VK_NULL_HANDLE, -1};
+        VkPipeline text_tile_raster_pipeline = VK_NULL_HANDLE;
+        const VkResult text_tile_raster_result = vkCreateComputePipelines(
+            device, VK_NULL_HANDLE, 1, &text_tile_raster_pipeline_info, nullptr,
+            &text_tile_raster_pipeline);
+        vkDestroyShaderModule(device, text_tile_raster_shader, nullptr);
+        check(text_tile_raster_result, "vkCreateComputePipelines(text tile raster)");
+        if (!kernel_registry.register_kernel(
+                GpuKernelId::TextTileRaster,
+                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_tile_raster_pipeline))) {
+            vkDestroyPipeline(device, text_tile_raster_pipeline, nullptr);
+            throw std::runtime_error("Vulkan kernel registry rejected TextTileRaster pipeline");
+        }
+
         const VkCommandBufferAllocateInfo command_info{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
@@ -343,6 +443,12 @@
         }
         for (auto& allocator : frame_batch.descriptor_allocators) {
             allocator.create(device, descriptor_layout);
+        }
+        for (auto& allocator : frame_batch.text_tile_bin_allocators) {
+            allocator.create(device, text_tile_bin_descriptor_layout, 0, 4);
+        }
+        for (auto& allocator : frame_batch.text_tile_raster_allocators) {
+            allocator.create(device, text_tile_raster_descriptor_layout, 2, 4);
         }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
         const VkSemaphoreTypeCreateInfo timeline_type{
@@ -392,4 +498,3 @@
             }
         }
     }
-

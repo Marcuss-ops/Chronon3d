@@ -594,4 +594,5 @@ void VulkanBackend::preallocate_plan_surfaces(
 #endif
 }
 
-std::unique_ptr<graph::RenderBackend> make_vulkan_backend() {
+std::unique_ptr<graph::RenderBackend> make_vulkan_backend(
+    std::uint32_t device_index) {

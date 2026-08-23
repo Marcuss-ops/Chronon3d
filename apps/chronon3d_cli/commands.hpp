@@ -240,7 +240,8 @@ int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
                    const std::string& build_command = "",
                    const std::string& socket_path = "",
-                   const std::string& backend = "auto");
+                   const std::string& backend = "auto",
+                   std::uint32_t gpu_device_id = chronon3d::Config::kAutoGpuDevice);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry,
                    const DoctorOptions& options);

@@ -138,6 +138,10 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     video->add_option("--chunks", args.video_settings.chunks,
                       "Render frame range in N chunks")
         ->check(CLI::Range(1, 1024));
+    video->add_option("--gop-source", args.video_settings.gop_source,
+                      "Compressed video source for GOP smart-copy analysis");
+    video->add_flag("--gop-copy-only", args.video_settings.gop_copy_only,
+                    "Copy compressed video/audio packets without rendering (explicit source-equivalence contract)");
     video->add_option("--ffmpeg-mode", args.video_settings.ffmpeg_mode,
                       "FFmpeg mode: pipe or png")
         ->check(CLI::IsMember({"pipe", "png"}));

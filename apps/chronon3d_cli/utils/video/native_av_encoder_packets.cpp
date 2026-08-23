@@ -35,22 +35,11 @@ bool NativeAvEncoder::drain_packets() {
             return false;
         }
 
-        // libx264 emits PTS but no per-packet duration; the MP4 muxer
-        // derives the container duration from the last packet's
-        // pts + duration, so without an explicit duration the final
-        // frame's display time is dropped (a 90-frame @30fps segment
-        // reports 2.967s instead of 3.0s — Test 7).  One frame in codec
-        // time_base {1, fps} units.
-        if (packet_->duration <= 0) {
-            packet_->duration = 1;
-        }
-
-        // Rescale timestamps to stream time base and mux
-        av_packet_rescale_ts(packet_, codec_->time_base, stream_->time_base);
-        packet_->stream_index = stream_->index;
-
         const auto t_mux0 = Clock::now();
-        ret = av_interleaved_write_frame(fmt_, packet_);
+        ret = packet_assembler_ &&
+                      packet_assembler_->submit_video(*packet_, codec_->time_base)
+                  ? 0
+                  : AVERROR_EXTERNAL;
         const double mux_ms = elapsed_ms(t_mux0);
         native_mux_write_ms_ += mux_ms;
 
