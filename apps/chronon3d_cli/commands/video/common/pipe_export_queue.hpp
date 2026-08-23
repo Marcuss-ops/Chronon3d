@@ -26,7 +26,9 @@ namespace chronon3d::cli {
 /// writer after the encoder has consumed that surface.
 class FrameInteropRing {
 public:
-    static constexpr std::size_t kSlotCount = 3;
+    // Six slots keep decode, composition, and NVENC ownership overlapped
+    // without allowing an unbounded surface queue to grow.
+    static constexpr std::size_t kSlotCount = 6;
     static constexpr std::size_t kInvalidSlot = kSlotCount;
 
     explicit FrameInteropRing(std::size_t slots = kSlotCount)

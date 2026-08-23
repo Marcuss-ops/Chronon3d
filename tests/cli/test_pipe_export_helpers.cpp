@@ -80,6 +80,18 @@ TEST_CASE("FrameInteropRing: bounded triple buffer records real contention") {
     ring.release(acquired);
 }
 
+TEST_CASE("FrameInteropRing: native pipeline can occupy the full six-slot ring") {
+    FrameInteropRing ring;
+    std::array<std::size_t, FrameInteropRing::kSlotCount> slots{};
+    for (auto& slot : slots) {
+        slot = ring.acquire();
+        REQUIRE(slot != FrameInteropRing::kInvalidSlot);
+    }
+    CHECK(ring.busy_count() == FrameInteropRing::kSlotCount);
+    for (const auto slot : slots) ring.release(slot);
+    CHECK(ring.busy_count() == 0);
+}
+
 TEST_CASE("FrameInteropRing: close cancels future acquisition") {
     FrameInteropRing ring;
     ring.close();
