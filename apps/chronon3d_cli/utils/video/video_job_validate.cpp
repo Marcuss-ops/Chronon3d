@@ -40,6 +40,18 @@ bool validate_video_job(const RenderJob& job) {
             job.video_settings.ffmpeg_mode);
         return false;
     }
+    if (job.video_settings.gop_copy_only) {
+        if (job.video_settings.gop_source.empty()) {
+            spdlog::error("[video] gop_copy_only requires a non-empty gop_source.");
+            return false;
+        }
+        if (job.video_settings.ffmpeg_mode != "png") {
+            spdlog::error(
+                "[video] gop_copy_only requires ffmpeg_mode='png'; "
+                "the pipe path must not silently ignore the request.");
+            return false;
+        }
+    }
     return true;
 }
 

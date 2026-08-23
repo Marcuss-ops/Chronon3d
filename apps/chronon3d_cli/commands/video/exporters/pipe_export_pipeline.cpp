@@ -19,6 +19,83 @@
 
 namespace chronon3d::cli {
 
+namespace {
+
+/// Encoder-side SIMO fanout. The render queue carries one framebuffer and
+/// every child receives the same shared owner; preparation, decode, shaping
+/// and graph execution therefore happen once per frame.
+class VariantFanoutEncoder final : public IVideoEncoder {
+public:
+    struct Child {
+        std::unique_ptr<IVideoEncoder> encoder;
+        FfmpegPipeOptions options;
+    };
+
+    explicit VariantFanoutEncoder(std::vector<Child> children)
+        : children_(std::move(children)) {}
+
+    bool open(const FfmpegPipeOptions&) override {
+        for (auto& child : children_) {
+            if (!child.encoder->open(child.options)) return false;
+        }
+        return !children_.empty();
+    }
+
+    void set_counters(RenderCounters* counters) override {
+        counters_ = counters;
+        for (auto& child : children_) child.encoder->set_counters(counters);
+    }
+
+    bool write_frame(const Framebuffer& framebuffer) override {
+        for (auto& child : children_) {
+            if (!child.encoder->write_frame(framebuffer)) return false;
+        }
+        if (counters_) {
+            counters_->simo_variant_submits.fetch_add(
+                children_.size(), std::memory_order_relaxed);
+        }
+        return true;
+    }
+
+    bool write_frame_async(const Framebuffer& framebuffer,
+                           std::shared_ptr<Framebuffer> owner) override {
+        for (auto& child : children_) {
+            if (!child.encoder->write_frame_async(framebuffer, owner)) return false;
+        }
+        if (counters_) {
+            counters_->simo_variant_submits.fetch_add(
+                children_.size(), std::memory_order_relaxed);
+        }
+        return true;
+    }
+
+    bool close() override {
+        bool ok = true;
+        for (auto& child : children_) ok = child.encoder->close() && ok;
+        return ok;
+    }
+
+    [[nodiscard]] std::uint64_t frames_written() const override {
+        if (children_.empty()) return 0;
+        auto frames = children_.front().encoder->frames_written();
+        for (const auto& child : children_) {
+            frames = std::min(frames, child.encoder->frames_written());
+        }
+        return frames;
+    }
+
+    [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override {
+        return children_.empty() ? EncoderFrameTelemetry{}
+                                 : children_.front().encoder->last_frame_telemetry();
+    }
+
+private:
+    std::vector<Child> children_;
+    RenderCounters* counters_{nullptr};
+};
+
+} // namespace
+
 std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
     const CompiledComposition& compiled,
@@ -82,8 +159,45 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         ? "libx264"
         : resolve_cli_ffmpeg_codec(session->opts.encoder.codec, session->opts.encoder.hardware_encoder);
 
-    // ── Create encoder ────────────────────────────────────────────────────
-    session->encoder = create_video_encoder(session->opts);
+    // ── Create encoder(s) ─────────────────────────────────────────────────
+    if (!session->opts.variants.empty()) {
+        if (session->opts.encoder.encoder_backend == "native") {
+            spdlog::error("[video] SIMO variants require the shared CPU-frame encoder path; "
+                          "native surface fanout is not yet supported");
+            return session;
+        }
+        std::vector<VariantFanoutEncoder::Child> children;
+        children.reserve(session->opts.variants.size());
+        for (std::size_t index = 0; index < session->opts.variants.size(); ++index) {
+            const auto& variant = session->opts.variants[index];
+            if (variant.width == 0 || variant.height == 0) {
+                spdlog::error("[video] SIMO variant {} has invalid dimensions", index);
+                return session;
+            }
+            FfmpegExportOptions child_opts = session->opts;
+            child_opts.variants.clear();
+            child_opts.output.output = variant.output.empty()
+                ? session->opts.output.output + ".variant" + std::to_string(index)
+                : variant.output;
+            if (!variant.codec.empty()) child_opts.encoder.codec = variant.codec;
+            if (!variant.pixel_format.empty()) child_opts.pipe.pipe_pixfmt = variant.pixel_format;
+            const auto child_codec = child_opts.encoder.codec == "auto"
+                ? "libx264"
+                : resolve_cli_ffmpeg_codec(child_opts.encoder.codec,
+                                           child_opts.encoder.hardware_encoder);
+            auto child_encoder = create_video_encoder(child_opts);
+            if (!child_encoder) return session;
+            auto child_options = make_pipe_options(
+                compiled, child_opts, child_codec, cpu_budget);
+            child_options.width = static_cast<int>(variant.width);
+            child_options.height = static_cast<int>(variant.height);
+            child_options.output_path = child_opts.output.output;
+            children.push_back({std::move(child_encoder), std::move(child_options)});
+        }
+        session->encoder = std::make_unique<VariantFanoutEncoder>(std::move(children));
+    } else {
+        session->encoder = create_video_encoder(session->opts);
+    }
     if (!session->encoder) {
         spdlog::error("[video] Failed to create encoder");
         return session;  // encoder is null → caller checks
@@ -94,6 +208,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->opts.sink.sink_type == VideoSinkType::RawFile) {
         if (!ensure_output_directory_exists(session->opts.output.output)) {
             return session;
+        }
+        for (const auto& variant : session->opts.variants) {
+            const auto variant_path = variant.output.empty()
+                ? session->opts.output.output
+                : variant.output;
+            if (!ensure_output_directory_exists(variant_path)) return session;
         }
     }
 

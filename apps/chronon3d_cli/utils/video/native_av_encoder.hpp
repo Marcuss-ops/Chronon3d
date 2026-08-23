@@ -1,6 +1,8 @@
 #pragma once
 
 #include "ffmpeg_pipe_encoder.hpp"
+#include "packet_assembler.hpp"
+#include <cstddef>
 #include <deque>
 #include <memory>
 #include <string>
@@ -9,6 +11,7 @@
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
+#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
 #endif
 
 
@@ -94,12 +97,19 @@ private:
     AVFormatContext* fmt_{nullptr};
     AVCodecContext*  codec_{nullptr};
     AVStream*        stream_{nullptr};
+    std::unique_ptr<PacketAssembler> packet_assembler_;
     AVFrame*         frame_{nullptr};
     AVPacket*        packet_{nullptr};
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    using CudaSurfaceBridge = backends::vulkan::CudaVulkanSurfaceBridge;
-    std::unordered_map<std::uint64_t, std::unique_ptr<CudaSurfaceBridge>> cuda_surface_bridges_;
+    static constexpr std::size_t kCudaEncodeRingSlots = 4;
+    std::unordered_map<std::uint64_t,
+        std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>>
+        cuda_nv12_compositors_;
+    // AVFrame wrappers are recycled across the bounded CUDA/NVENC ring. The
+    // hw-frame pool remains owned by FFmpeg; only the wrapper lifetime is
+    // reused here, avoiding an av_frame_alloc/free pair per encoded frame.
+    std::deque<AVFrame*> reusable_cuda_frames_;
     struct PendingCudaFrame {
         AVFrame* frame{nullptr};
         CUevent ready{nullptr};

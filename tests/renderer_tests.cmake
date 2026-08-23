@@ -93,6 +93,7 @@ chronon3d_add_test_suite(
         runtime/test_telemetry.cpp
         runtime/test_telemetry_report.cpp
         runtime/test_telemetry_semantic.cpp
+        runtime/test_media_session_pool.cpp
         scene/shapes/mask_tests.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
@@ -167,6 +168,7 @@ chronon3d_add_test_suite(
         render_graph/pipeline/test_dirty_rects.cpp
         render_graph/pipeline/test_dirty_rects_v2.cpp
         render_graph/pipeline/test_dirty_tiles_output.cpp
+        render_graph/pipeline/test_frame_delta_compiler.cpp
         render_graph/pipeline/test_graph_health.cpp
         render_graph/pipeline/test_graph_preflight_diagnostics.cpp
         render_graph/pipeline/test_grid_math.cpp

@@ -10,7 +10,7 @@
 ///          Extracted from scene.cpp to keep the orchestrator clean.
 //
 // The coordinator replaces three inline blocks in scene.cpp:
-//   1. TileExecutionPolicy::decide() call + diagnostics logging
+//   1. ExecutionResolver::decide() call + diagnostics logging
 //   2. Tile execution path (allocate FB, execute tiles, update counters)
 //   3. Traditional fallback path (single-pass graph execute + tile fallback tracking)
 // ===========================================================================

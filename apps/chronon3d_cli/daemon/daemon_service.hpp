@@ -1,11 +1,15 @@
 #pragma once
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/runtime/device_scheduler.hpp>
 #include "chronon_ipc.hpp"
 #include <functional>
 #include <string>
 #include <memory>
+#include <mutex>
 #include <vector>
+#include <unordered_map>
 
 namespace chronon3d {
     class RenderEngine;
@@ -32,6 +36,7 @@ struct DaemonOptions {
 
     /// Backend selected for the persistent runtime (software | vulkan | auto).
     std::string backend{"auto"};
+    std::uint32_t gpu_device_id{chronon3d::Config::kAutoGpuDevice};
 
     /// Shell command to rebuild the project (e.g. "bash build-fast.sh cli").
     /// Empty = no rebuild support.
@@ -98,14 +103,20 @@ private:
     ipc::Reply ipc_prepare_plan(const std::string& comp_id);
     ipc::Reply ipc_render_overlay(const std::string& args);
     ipc::Reply ipc_status();
+    [[nodiscard]] std::shared_ptr<SoftwareRenderer> warm_renderer_for_device(
+        runtime::DeviceId device);
 
     const CompositionRegistry& m_registry;
     DaemonOptions m_options;
     std::unique_ptr<RenderEngine> m_engine;
     std::shared_ptr<SoftwareRenderer> m_warm_renderer;
+    std::unordered_map<runtime::DeviceId, std::shared_ptr<SoftwareRenderer>>
+        m_device_sessions;
     std::string m_backend{"auto"};
+    runtime::DeviceScheduler m_device_scheduler;
     std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
+    mutable std::mutex m_ipc_state_mutex;                 // warm session ownership
     bool m_running{true};
     int m_render_count{0};
     double m_total_render_ms{0.0};

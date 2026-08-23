@@ -11,6 +11,7 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
     utils/video/video_sink_adapter.cpp
+    utils/video/gop_smart_copy.cpp
 )
 # Keep each exporter/encoder translation unit independent.  This is
 # intentional: these files are large and include optional FFmpeg/CUDA APIs;
@@ -44,6 +45,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/native_av_encoder.cpp
         utils/video/native_av_encoder_write.cpp
         utils/video/native_av_encoder_packets.cpp
+        utils/video/packet_assembler.cpp
     )
     target_link_libraries(chronon3d_cli_video_export PRIVATE
         chronon3d_ffmpeg_full chronon3d_media_native

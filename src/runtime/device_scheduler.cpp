@@ -43,12 +43,26 @@ float DeviceScheduler::calculate_pressure(const DeviceResourceState& state, cons
     float nvenc_p = (state.capacity.nvenc_sessions > 0)
         ? static_cast<float>(state.reserved.nvenc_sessions + req.nvenc_sessions) / static_cast<float>(state.capacity.nvenc_sessions)
         : 0.0f;
+    const float pcie_p = (state.capacity.pcie_bandwidth > 0.0f)
+        ? (state.reserved.pcie_bandwidth + req.pcie_bandwidth) / state.capacity.pcie_bandwidth
+        : 0.0f;
 
-    return std::max({compute_p, vram_p, nvdec_p, nvenc_p});
+    return std::max({compute_p, vram_p, nvdec_p, nvenc_p, pcie_p});
 }
 
 std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceResourceVector& requirements) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    return reserve_locked(requirements, nullptr);
+}
+
+std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceSelectionRequirements& requirements) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return reserve_locked(requirements.resources, &requirements);
+}
+
+std::optional<DeviceReservation> DeviceScheduler::reserve_locked(
+    const DeviceResourceVector& requirements,
+    const DeviceSelectionRequirements* capabilities) {
     if (m_devices.empty()) {
         return std::nullopt;
     }
@@ -59,6 +73,19 @@ std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceResourceVe
 
     for (std::size_t i = 0; i < m_devices.size(); ++i) {
         const auto& entry = m_devices[i];
+
+        if (capabilities &&
+            ((capabilities->cuda && !entry.caps.cuda) ||
+             (capabilities->vulkan_interop && !entry.caps.vulkan_interop) ||
+             (capabilities->nvdec && !entry.caps.nvdec) ||
+             (capabilities->nvenc && !entry.caps.nvenc) ||
+             (capabilities->nv12 && !entry.caps.nv12) ||
+             (capabilities->p010 && !entry.caps.p010) ||
+             (capabilities->h264 && !entry.caps.h264) ||
+             (capabilities->hevc && !entry.caps.hevc) ||
+             (capabilities->av1 && !entry.caps.av1))) {
+            continue;
+        }
 
         // Capacity bounds check
         if (entry.state.capacity.compute_units > 0.0f &&
@@ -77,6 +104,11 @@ std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceResourceVe
             (entry.state.reserved.nvenc_sessions + requirements.nvenc_sessions > entry.state.capacity.nvenc_sessions)) {
             continue;
         }
+        if (entry.state.capacity.pcie_bandwidth > 0.0f &&
+            entry.state.reserved.pcie_bandwidth + requirements.pcie_bandwidth >
+                entry.state.capacity.pcie_bandwidth) {
+            continue;
+        }
 
         const float peak_p = calculate_pressure(entry.state, requirements);
         float comp_p = (entry.state.capacity.compute_units > 0.0f)
@@ -87,7 +119,11 @@ std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceResourceVe
             ? static_cast<float>(entry.state.reserved.nvdec_sessions + requirements.nvdec_sessions) / static_cast<float>(entry.state.capacity.nvdec_sessions) : 0.0f;
         float enc_p = (entry.state.capacity.nvenc_sessions > 0)
             ? static_cast<float>(entry.state.reserved.nvenc_sessions + requirements.nvenc_sessions) / static_cast<float>(entry.state.capacity.nvenc_sessions) : 0.0f;
-        const float sum_p = comp_p + vram_p + dec_p + enc_p;
+        const float pcie_p = (entry.state.capacity.pcie_bandwidth > 0.0f)
+            ? (entry.state.reserved.pcie_bandwidth + requirements.pcie_bandwidth) /
+                entry.state.capacity.pcie_bandwidth
+            : 0.0f;
+        const float sum_p = comp_p + vram_p + dec_p + enc_p + pcie_p;
 
         if (peak_p < min_peak_pressure || (std::abs(peak_p - min_peak_pressure) < 1e-6f && sum_p < min_total_pressure)) {
             min_peak_pressure = peak_p;
@@ -105,6 +141,7 @@ std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceResourceVe
     chosen.state.reserved.vram_bytes += requirements.vram_bytes;
     chosen.state.reserved.nvdec_sessions += requirements.nvdec_sessions;
     chosen.state.reserved.nvenc_sessions += requirements.nvenc_sessions;
+    chosen.state.reserved.pcie_bandwidth += requirements.pcie_bandwidth;
 
     return DeviceReservation(this, chosen.caps.id, requirements);
 }
@@ -123,6 +160,8 @@ void DeviceScheduler::release(DeviceId id, const DeviceResourceVector& resources
         ? entry.state.reserved.nvdec_sessions - resources.nvdec_sessions : 0;
     entry.state.reserved.nvenc_sessions = (entry.state.reserved.nvenc_sessions >= resources.nvenc_sessions)
         ? entry.state.reserved.nvenc_sessions - resources.nvenc_sessions : 0;
+    entry.state.reserved.pcie_bandwidth = std::max(
+        0.0f, entry.state.reserved.pcie_bandwidth - resources.pcie_bandwidth);
 }
 
 std::size_t DeviceScheduler::device_count() const noexcept {

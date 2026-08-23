@@ -75,6 +75,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     cuda_pending_peak_ = 0;
     cuda_backpressure_wait_count_ = 0;
     pending_cuda_frames_.clear();
+    reusable_cuda_frames_.clear();
 #endif
 
     // Reset conversion cache so a stale digest from a prior export won't
@@ -174,7 +175,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (!cuda_frames_ref_) return false;
         auto* frames = reinterpret_cast<AVHWFramesContext*>(cuda_frames_ref_->data);
         frames->format = AV_PIX_FMT_CUDA;
-        frames->sw_format = AV_PIX_FMT_BGR0;
+        // NVENC consumes CUDA NV12/P010 planes directly. Keeping NV12 here
+        // lets the Vulkan RGBA surface be converted by the 2x2 CUDA kernel
+        // straight into the encoder frame, with no RGBA staging allocation.
+        frames->sw_format = AV_PIX_FMT_NV12;
         frames->width = options_.width;
         frames->height = options_.height;
         frames->initial_pool_size = 4;
@@ -258,6 +262,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
+    packet_assembler_ = std::make_unique<PacketAssembler>(fmt_, stream_);
+
     // 8. Allocate frame + packet
     frame_  = av_frame_alloc();
     packet_ = av_packet_alloc();
@@ -315,8 +321,8 @@ bool NativeAvEncoder::close() {
     //    This is the mux finalization, measured separately from the encoder
     //    flush so the two tails never mask each other.
     const auto t_trailer0 = Clock::now();
-    if (fmt_) {
-        av_write_trailer(fmt_);
+    if (packet_assembler_) {
+        (void)packet_assembler_->finalize();
     }
     const double trailer_ms = elapsed_ms(t_trailer0);
 
@@ -338,13 +344,18 @@ bool NativeAvEncoder::close() {
     av_packet_free(&packet_);
     av_frame_free(&frame_);
     avcodec_free_context(&codec_);
+    packet_assembler_.reset();
     avformat_free_context(fmt_);
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     // Imported external memory and semaphores are reusable for the lifetime
     // of each persistent encode surface. Do not destroy them frame-by-frame:
     // that path causes driver object churn and defeats the interop ring.
-    cuda_surface_bridges_.clear();
+    cuda_nv12_compositors_.clear();
+    for (auto* reusable : reusable_cuda_frames_) {
+        av_frame_free(&reusable);
+    }
+    reusable_cuda_frames_.clear();
     if (cuda_stream_) {
         cuStreamDestroy(cuda_stream_);
         cuda_stream_ = nullptr;
@@ -387,8 +398,12 @@ void NativeAvEncoder::abort_open() noexcept {
         }
     }
     pending_cuda_frames_.clear();
+    for (auto* reusable : reusable_cuda_frames_) {
+        av_frame_free(&reusable);
+    }
+    reusable_cuda_frames_.clear();
     if (cuda_context_) (void)cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_));
-    cuda_surface_bridges_.clear();
+    cuda_nv12_compositors_.clear();
     if (cuda_stream_) {
         (void)cuStreamDestroy(cuda_stream_);
         cuda_stream_ = nullptr;
@@ -397,6 +412,7 @@ void NativeAvEncoder::abort_open() noexcept {
     av_packet_free(&packet_);
     av_frame_free(&frame_);
     avcodec_free_context(&codec_);
+    packet_assembler_.reset();
     if (fmt_ && fmt_->pb && fmt_->oformat &&
         !(fmt_->oformat->flags & AVFMT_NOFILE)) {
         avio_closep(&fmt_->pb);
@@ -442,7 +458,9 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         const auto send_t0 = Clock::now();
         const int send_ret = avcodec_send_frame(codec_, pending.frame);
         native_send_frame_ms_ += elapsed_ms(send_t0);
-        av_frame_free(&pending.frame);
+        av_frame_unref(pending.frame);
+        reusable_cuda_frames_.push_back(pending.frame);
+        pending.frame = nullptr;
         cuEventDestroy(pending.ready);
         pending.ready = nullptr;
         pending_cuda_frames_.pop_front();
@@ -501,23 +519,19 @@ bool NativeAvEncoder::write_native_surface_impl(
     }
     try {
         if (!drain_ready_cuda_frames(false)) return false;
-        if (pending_cuda_frames_.size() >= 3 &&
+        if (pending_cuda_frames_.size() >= kCudaEncodeRingSlots &&
             !drain_ready_cuda_frames(true)) {
             spdlog::error("[native_av] CUDA encoder queue backpressure failed");
             return false;
         }
-        const auto key = static_cast<std::uint64_t>(destination);
-        auto bridge_it = cuda_surface_bridges_.find(key);
-        if (bridge_it == cuda_surface_bridges_.end()) {
-            const auto info = vulkan->export_cuda_external_memory(destination);
-            auto bridge = std::make_unique<backends::vulkan::CudaVulkanSurfaceBridge>(
-                info, reinterpret_cast<CUcontext>(cuda_context_));
-            bridge_it = cuda_surface_bridges_.emplace(key, std::move(bridge)).first;
+        AVFrame* gpu_frame = nullptr;
+        if (!reusable_cuda_frames_.empty()) {
+            gpu_frame = reusable_cuda_frames_.front();
+            reusable_cuda_frames_.pop_front();
+            av_frame_unref(gpu_frame);
+        } else {
+            gpu_frame = av_frame_alloc();
         }
-        auto& bridge = *bridge_it->second;
-        bridge.wait_for_vulkan(cuda_stream_);
-
-        AVFrame* gpu_frame = av_frame_alloc();
         if (!gpu_frame) return false;
         gpu_frame->format = AV_PIX_FMT_CUDA;
         gpu_frame->width = options_.width;
@@ -525,33 +539,51 @@ bool NativeAvEncoder::write_native_surface_impl(
         gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
         if (av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0) < 0) {
             spdlog::error("[native_av] av_hwframe_get_buffer failed for GPU frame {}", frames_written_);
-            av_frame_free(&gpu_frame);
+            av_frame_unref(gpu_frame);
+            reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
-        CUDA_MEMCPY2D copy{};
-        copy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-        copy.srcArray = bridge.array();
-        copy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
-        copy.dstDevice = reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]);
-        copy.srcPitch = static_cast<std::size_t>(options_.width) * 4;
-        copy.dstPitch = gpu_frame->linesize[0];
-        copy.WidthInBytes = static_cast<std::size_t>(options_.width) * 4;
-        copy.Height = options_.height;
-        if (cuMemcpy2DAsync(&copy, cuda_stream_) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] cuMemcpy2DAsync failed for GPU frame {}", frames_submitted_);
-            av_frame_free(&gpu_frame);
+        if (!gpu_frame->data[0] || !gpu_frame->data[1]) {
+            spdlog::error("[native_av] NV12 CUDA frame has no Y/UV planes");
+            av_frame_unref(gpu_frame);
+            reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
-        // The encode destination is reused by a later Vulkan submission. The
-        // CUDA copy and this release signal are ordered on the same stream;
-        // Vulkan consumes the matching CUDA->Vulkan semaphore before writing
-        // the surface again.
-        bridge.signal_for_vulkan(cuda_stream_);
+        const auto key = static_cast<std::uint64_t>(destination);
+        auto compositor_it = cuda_nv12_compositors_.find(key);
+        if (compositor_it == cuda_nv12_compositors_.end()) {
+            const auto info = vulkan->export_cuda_external_memory(destination);
+            auto compositor = std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
+                info, reinterpret_cast<CUcontext>(cuda_context_));
+            compositor_it = cuda_nv12_compositors_.emplace(key, std::move(compositor)).first;
+        }
+        if (!compositor_it->second->composite_surface_to_nv12(
+                reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]),
+                gpu_frame->linesize[0],
+                reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
+                gpu_frame->linesize[1],
+                static_cast<std::uint32_t>(options_.width),
+                static_cast<std::uint32_t>(options_.height), cuda_stream_)) {
+            spdlog::error("[native_av] direct RGBA->NV12 CUDA compositor failed");
+            av_frame_unref(gpu_frame);
+            reusable_cuda_frames_.push_back(gpu_frame);
+            return false;
+        }
+        if (counters_) {
+            counters_->native_surface_yuv_frames.fetch_add(1, std::memory_order_relaxed);
+            counters_->native_surface_yuv_bytes.fetch_add(
+                static_cast<std::uint64_t>(options_.width) *
+                    static_cast<std::uint64_t>(options_.height) * 3 / 2,
+                std::memory_order_relaxed);
+        }
+        // The direct compositor signals CUDA completion on the imported
+        // destination surface; publish that ownership transition to Vulkan.
         const auto prepared = vulkan->prepare_cuda_surface_for_vulkan(destination);
         if (!prepared.ok()) {
             spdlog::error("[native_av] failed to publish CUDA completion for surface {}: {}",
                           destination, prepared.error().message);
-            av_frame_free(&gpu_frame);
+            av_frame_unref(gpu_frame);
+            reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
         CUevent ready = nullptr;
@@ -560,7 +592,8 @@ bool NativeAvEncoder::write_native_surface_impl(
             if (ready) cuEventDestroy(ready);
             spdlog::error("[native_av] CUDA completion event failed for GPU frame {}",
                           frames_submitted_);
-            av_frame_free(&gpu_frame);
+            av_frame_unref(gpu_frame);
+            reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
@@ -573,12 +606,6 @@ bool NativeAvEncoder::write_native_surface_impl(
             while (observed < current &&
                    !counters_->cuda_encode_queue_peak.compare_exchange_weak(
                        observed, current, std::memory_order_relaxed)) {}
-        }
-        if (counters_) {
-            counters_->gpu_surface_copy_frames.fetch_add(1, std::memory_order_relaxed);
-            counters_->encoder_staging_copy_bytes.fetch_add(
-                static_cast<std::uint64_t>(options_.width) * options_.height * 4,
-                std::memory_order_relaxed);
         }
         // Poll only; the bounded queue applies backpressure on the oldest
         // event when it reaches three frames in flight.

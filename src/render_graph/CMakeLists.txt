@@ -230,6 +230,7 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
     pipeline/scene_reuse_coordinator.cpp # Azione 19 - Phases 1+2+3 coordinator extracted
     pipeline/scene_dirty.cpp
+    pipeline/frame_delta_compiler.cpp
     pipeline/dirty/scroll_optimization.cpp
     pipeline/dirty/layer_bbox_collector.cpp
     pipeline/dirty/root_bbox_collector.cpp

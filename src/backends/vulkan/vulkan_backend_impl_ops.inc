@@ -507,6 +507,89 @@
             text_run_dynamic_sizes[pass_slot] != run_bytes ||
             text_run_dynamic_hashes[pass_slot] != run_hash;
 
+        // MTSDF pages use RGBA8 and can use the two-pass tile path. Coverage
+        // and single-channel SDF pages retain TextBatch until a format-
+        // qualified raster variant is available. The bin/raster descriptors
+        // are separate because their binding 0/1 types differ.
+        const bool use_mtsdf_tiles = frame_batch.active &&
+            (atlas_image.format == VK_FORMAT_B8G8R8A8_UNORM ||
+             atlas_image.format == VK_FORMAT_R8G8B8A8_UNORM);
+        if (use_mtsdf_tiles) {
+            constexpr std::int32_t kTileSize = 16;
+            constexpr std::int32_t kMaxGlyphsPerTile = 64;
+            const std::int32_t tiles_x =
+                (static_cast<std::int32_t>(dst_image.width) + kTileSize - 1) / kTileSize;
+            const std::int32_t tiles_y =
+                (static_cast<std::int32_t>(dst_image.height) + kTileSize - 1) / kTileSize;
+            const VkDeviceSize tile_count_bytes = static_cast<VkDeviceSize>(tiles_x) *
+                static_cast<VkDeviceSize>(tiles_y) * sizeof(std::uint32_t);
+            const VkDeviceSize tile_index_bytes = tile_count_bytes * kMaxGlyphsPerTile;
+            ensure_text_tile_buffer(tile_count_bytes, pass_slot, false);
+            ensure_text_tile_buffer(tile_index_bytes, pass_slot, true);
+            const VkBuffer count_buffer = text_tile_count_buffers[pass_slot];
+            const VkBuffer index_buffer = text_tile_index_buffers[pass_slot];
+            const auto bin_descriptors = allocate_text_tile_bin_descriptor_set();
+            const auto raster_descriptors = allocate_text_tile_raster_descriptor_set();
+            write_text_tile_bin_descriptors(bin_descriptors, glyph_buffer, run_buffer,
+                                            count_buffer, index_buffer);
+            write_text_tile_raster_descriptors(raster_descriptors, dst_image, atlas_image,
+                                               glyph_buffer, run_buffer,
+                                               count_buffer, index_buffer);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image, &atlas_image});
+            if (glyph_updated) {
+                vkCmdUpdateBuffer(cmd, glyph_buffer, 0, glyph_bytes, gpu_glyphs);
+                glyph_instance_hashes[pass_slot] = glyph_hash;
+                glyph_instance_sizes[pass_slot] = glyph_bytes;
+            }
+            if (run_updated) {
+                vkCmdUpdateBuffer(cmd, run_buffer, 0, run_bytes, gpu_runs);
+                text_run_dynamic_hashes[pass_slot] = run_hash;
+                text_run_dynamic_sizes[pass_slot] = run_bytes;
+            }
+            vkCmdFillBuffer(cmd, count_buffer, 0, tile_count_bytes, 0);
+            const VkBufferMemoryBarrier upload_barriers[] = {
+                {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                 VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                 glyph_buffer, 0, VK_WHOLE_SIZE},
+                {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                 VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                 run_buffer, 0, VK_WHOLE_SIZE},
+                {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                 VK_ACCESS_TRANSFER_WRITE_BIT,
+                 VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                 count_buffer, 0, VK_WHOLE_SIZE}};
+            vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                 0, nullptr, 3, upload_barriers, 0, nullptr);
+            record_text_tile_bin(cmd, bin_descriptors,
+                                 static_cast<std::int32_t>(glyphs.size()), tiles_x, tiles_y,
+                                 kMaxGlyphsPerTile,
+                                 static_cast<std::int32_t>(dst_image.width),
+                                 static_cast<std::int32_t>(dst_image.height));
+            const VkBufferMemoryBarrier bin_barriers[] = {
+                {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                 VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                 count_buffer, 0, VK_WHOLE_SIZE},
+                {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
+                 VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                 index_buffer, 0, VK_WHOLE_SIZE}};
+            vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                                 0, nullptr, 2, bin_barriers, 0, nullptr);
+            record_text_tile_raster(cmd, raster_descriptors, tiles_x, tiles_y,
+                                    kMaxGlyphsPerTile, dst_image, atlas_image);
+            ++frame_batch.pass_count;
+            dst_image.initialized = true;
+            stats.passes_executed += 2;
+            return;
+        }
+
         if (frame_batch.active) {
             const auto descriptors = allocate_pass_descriptor_set();
             write_text_batch_descriptors(descriptors, dst_image, atlas_image, glyph_buffer, run_buffer);
@@ -860,6 +943,40 @@
         text_run_dynamic_capacities[index] = bytes;
         text_run_dynamic_hashes[index] = 0;
         text_run_dynamic_sizes[index] = 0;
+    }
+
+    void ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,
+                                 bool indices) {
+        if (index >= kGlyphInstanceRingSize) index = 0;
+        auto& buffer = indices ? text_tile_index_buffers[index]
+                               : text_tile_count_buffers[index];
+        auto& memory = indices ? text_tile_index_memories[index]
+                               : text_tile_count_memories[index];
+        auto& capacity = indices ? text_tile_index_capacities[index]
+                                 : text_tile_count_capacities[index];
+        if (capacity >= bytes) return;
+        if (buffer != VK_NULL_HANDLE) vkDestroyBuffer(device, buffer, nullptr);
+        if (memory != VK_NULL_HANDLE) vkFreeMemory(device, memory, nullptr);
+        const VkBufferCreateInfo info{
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+        check(vkCreateBuffer(device, &info, nullptr, &buffer),
+              indices ? "vkCreateBuffer(text tile indices)"
+                      : "vkCreateBuffer(text tile counts)");
+        VkMemoryRequirements requirements{};
+        vkGetBufferMemoryRequirements(device, buffer, &requirements);
+        const VkMemoryAllocateInfo allocation{
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
+            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+        check(vkAllocateMemory(device, &allocation, nullptr, &memory),
+              indices ? "vkAllocateMemory(text tile indices)"
+                      : "vkAllocateMemory(text tile counts)");
+        check(vkBindBufferMemory(device, buffer, memory, 0),
+              indices ? "vkBindBufferMemory(text tile indices)"
+                      : "vkBindBufferMemory(text tile counts)");
+        capacity = bytes;
     }
 
     static void transition(VkCommandBuffer command, VkImage image,

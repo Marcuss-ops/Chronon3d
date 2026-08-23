@@ -44,6 +44,20 @@ struct DeviceCapabilities {
     bool av1{false};
 };
 
+/// Capability and resource requirements for a placement decision.
+struct DeviceSelectionRequirements {
+    DeviceResourceVector resources{};
+    bool cuda{false};
+    bool vulkan_interop{false};
+    bool nvdec{false};
+    bool nvenc{false};
+    bool nv12{false};
+    bool p010{false};
+    bool h264{false};
+    bool hevc{false};
+    bool av1{false};
+};
+
 class DeviceScheduler;
 
 /// RAII token representing a dynamic reservation on a device.
@@ -102,6 +116,7 @@ public:
     void register_device(DeviceCapabilities caps, DeviceResourceVector capacity);
 
     [[nodiscard]] std::optional<DeviceReservation> reserve(const DeviceResourceVector& requirements);
+    [[nodiscard]] std::optional<DeviceReservation> reserve(const DeviceSelectionRequirements& requirements);
 
     void release(DeviceId id, const DeviceResourceVector& resources) noexcept;
 
@@ -120,6 +135,10 @@ private:
 
     mutable std::mutex m_mutex;
     std::vector<DeviceEntry> m_devices;
+
+    [[nodiscard]] std::optional<DeviceReservation> reserve_locked(
+        const DeviceResourceVector& requirements,
+        const DeviceSelectionRequirements* capabilities);
 };
 
 } // namespace chronon3d::runtime

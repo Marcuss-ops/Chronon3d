@@ -121,7 +121,7 @@ namespace chronon3d::graph::detail {
     }
     ExecutionScope tile_scope = tile_scope_res.value();
     // Section 5 canonical-owner invariant: tile execution is selected only
-    // when TileExecutionPolicy has a renderer with a runtime-owned executor.
+    // when ExecutionResolver has a renderer with a runtime-owned executor.
     // Do not construct a second GraphExecutor here; a missing runtime is a
     // violated pipeline precondition and must fail loudly.
     if (!sw_renderer || !sw_renderer->has_runtime()) {

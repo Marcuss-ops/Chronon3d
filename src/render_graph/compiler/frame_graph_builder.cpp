@@ -749,6 +749,9 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
                 pending_instance.resource_index = static_cast<std::uint32_t>(
                     batch.instances.size());
                 pending_instance.opacity = 1.0f;
+                if (info.predicted_bbox) {
+                    pending_instance.dst_bounds = *info.predicted_bbox;
+                }
             } else if (has_pending &&
                        info.kind == RenderGraphNodeKind::Transform) {
                 pending_instance.transform_index =

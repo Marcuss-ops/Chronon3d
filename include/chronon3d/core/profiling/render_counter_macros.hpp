@@ -376,7 +376,12 @@ namespace chronon3d {
     X(cuda_composite_wall_us) \
     X(cuda_encode_queue_peak) \
     X(cuda_encode_event_wait_count) \
-    X(cuda_encode_event_wait_us)
+    X(cuda_encode_event_wait_us) \
+    X(native_surface_yuv_frames) \
+    X(native_surface_yuv_bytes) \
+    X(native_batch_yuv_frames) \
+    X(native_batch_yuv_bytes) \
+    X(simo_variant_submits)
 
 #define CHRONON_COUNTERS_FRAME_WALL(X) \
     X(timeline_patch_wall_us) \
