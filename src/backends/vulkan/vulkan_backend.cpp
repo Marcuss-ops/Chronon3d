@@ -15,6 +15,8 @@
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
+#include "layer_batch_comp_spv.hpp"
+#include "text_batch_comp_spv.hpp"
 #include "vulkan_memory_arena.hpp"
 #endif
 
@@ -83,7 +85,7 @@ struct VulkanBackend::Impl {
         // storage-buffer binding (the text-run kernel's glyph instances).
         // Pool sizing over-reserves so any pass can allocate safely.
         static constexpr std::size_t kStorageImagesPerSet = 3;
-        static constexpr std::size_t kStorageBuffersPerSet = 1;
+        static constexpr std::size_t kStorageBuffersPerSet = 2;
 
         void create(VkDevice device, VkDescriptorSetLayout layout) {
             device_ = device;
@@ -252,6 +254,18 @@ struct VulkanBackend::Impl {
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_capacities{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> glyph_instance_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_sizes{};
+    // Device-local storage buffers for layer batch instances
+    std::array<VkBuffer, kGlyphInstanceRingSize> layer_instance_buffers{};
+    std::array<VkDeviceMemory, kGlyphInstanceRingSize> layer_instance_memories{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> layer_instance_capacities{};
+    std::array<std::uint64_t, kGlyphInstanceRingSize> layer_instance_hashes{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> layer_instance_sizes{};
+    // Device-local storage buffers for text batch dynamic runs
+    std::array<VkBuffer, kGlyphInstanceRingSize> text_run_dynamic_buffers{};
+    std::array<VkDeviceMemory, kGlyphInstanceRingSize> text_run_dynamic_memories{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_capacities{};
+    std::array<std::uint64_t, kGlyphInstanceRingSize> text_run_dynamic_hashes{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_sizes{};
     struct UploadSlot {
         VkBuffer buffer{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
@@ -335,6 +349,18 @@ struct VulkanBackend::Impl {
             if (glyph_instance_memories[i] != VK_NULL_HANDLE) {
                 vkFreeMemory(device, glyph_instance_memories[i], nullptr);
             }
+            if (layer_instance_buffers[i] != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, layer_instance_buffers[i], nullptr);
+            }
+            if (layer_instance_memories[i] != VK_NULL_HANDLE) {
+                vkFreeMemory(device, layer_instance_memories[i], nullptr);
+            }
+            if (text_run_dynamic_buffers[i] != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, text_run_dynamic_buffers[i], nullptr);
+            }
+            if (text_run_dynamic_memories[i] != VK_NULL_HANDLE) {
+                vkFreeMemory(device, text_run_dynamic_memories[i], nullptr);
+            }
         }
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
         for (auto& allocator : frame_batch.descriptor_allocators) {
@@ -368,7 +394,8 @@ struct VulkanBackend::Impl {
         for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
                               GpuKernelId::AffineTransform, GpuKernelId::Blur,
                               GpuKernelId::ColorAdjust, GpuKernelId::Matte,
-                              GpuKernelId::TextRun, GpuKernelId::FillRect}) {
+                              GpuKernelId::TextRun, GpuKernelId::FillRect,
+                              GpuKernelId::LayerBatch, GpuKernelId::TextBatch}) {
             const auto handle = kernel_registry.resolve(id);
             if (handle != 0) {
                 vkDestroyPipeline(device,
