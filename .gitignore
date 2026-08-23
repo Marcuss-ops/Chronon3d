@@ -38,7 +38,6 @@ dist/
 /test_output/
 /test_output_*.png
 test_renders/
-!test_renders/golden/
 *.mp4
 render_*.png
 sdk_consumer_output.png
@@ -46,6 +45,7 @@ reference/chronon3d/*.png
 tests/visual/glow_with/
 tests/visual/glow_without/
 tests/golden/ae_parity/diff/
+tests/golden/**/*.png
 
 # ── Logs and reports ─────────────────────────────────────────────────────────
 *.log

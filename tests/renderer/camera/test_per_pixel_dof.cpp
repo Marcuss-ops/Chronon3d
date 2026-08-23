@@ -594,8 +594,8 @@ TEST_CASE("PerPixelDOF: end-to-end render with DOF does not crash") {
 // ============================================================================
 // Exercises the BEFORE path (std::vector<float> alloc + 1920x1080 memcpy)
 // vs the AFTER path (span direct, no copy) under the IDENTICAL workload.
-// Reports both timings to reports/perf/dof_span_before_after.json so the
-// delta is verifiable per-frame on this hardware.  Set
+// Writes both timings to the ignored reports/perf/ directory so the delta
+// remains verifiable per-frame locally without versioning run output.  Set
 //   CHRONON3D_SKIP_DOF_BENCH=1  to skip the bench (CI-fast helper).
 // ============================================================================
 TEST_CASE("PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta report)") {
