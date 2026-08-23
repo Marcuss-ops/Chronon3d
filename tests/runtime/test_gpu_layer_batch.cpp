@@ -59,6 +59,17 @@ TEST_CASE("GpuLayerBatch: add instances and iterate") {
     CHECK(batch.instances[1].dst_y1 == 30.0f);
 }
 
+TEST_CASE("GpuLayerBatch: owns the frame-local resolved resource table") {
+    GpuLayerBatch batch;
+    batch.resources = {17, 23};
+    batch.instances.push_back(LayerInstance{
+        .resource_index = 1,
+    });
+
+    REQUIRE(batch.resources.size() == 2);
+    CHECK(batch.resources[batch.instances[0].resource_index] == 23);
+}
+
 TEST_CASE("GpuLayerBatch: make_gpu_batch from CompiledLayerBatch") {
     using namespace chronon3d::graph;
     CompiledLayerBatch clb;
