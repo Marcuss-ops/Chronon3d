@@ -19,8 +19,8 @@
 #      + NodeCache + simd link targets not currently in this cmake
 #   3. DIAGNOSTICS gate rot — the existing `pipeline_parity_tests.cmake` is
 #      gated on `CHRONON3D_BUILD_DIAGNOSTICS=OFF`, hiding rot from CI
-#   4. NativeAvEncoder rot — public `include/chronon3d/video/native_encoder.hpp`
-#      includes a missing `encoder.hpp`; actual `IVideoEncoder` is in CLI utils
+#   4. NativeAvEncoder coverage — the native encoder is intentionally owned by
+#      CLI video export; the former broken public duplicate was removed.
 #   5. CLI inspect-text JSON rot — JSON doesn't surface the 4 structural fields
 #   6. doctest SUCCEED rot — SUCCEED doesn't accept `<<` stream; use MESSAGE
 #

@@ -396,40 +396,113 @@ tutte le fasi 1-9 precedentemente PASS.
 
 ---
 
-## Things to Remove (DELETE LIST)
+## Controlled Demolition — DELETE TARGETS
 
-Queste feature esistono nel codice ma vanno eliminate nel corso delle fasi:
+Questa è la lista ufficiale dei candidati alla rimozione. Una voce può passare
+da `TODO` a `DONE` solo dopo questa sequenza atomica:
 
-- [ ] **Scene rebuild/frame** — `SceneExecutionMode::DynamicCallback` per-frame
-      quando `StaticScene` è disponibile (Fase 0→1)
-- [ ] **Graph rebuild/frame** — Ricostruzione del render graph ogni frame
-      quando è statico (Fase 0→1)
-- [ ] **text_run.comp duplicate renderer** — Se `text_batch.comp` e
-      `text_tile_raster.comp` producono output identico, eliminare il primo (Fase 3)
-- [ ] **bitmap glyph scaling path** — Path legacy per scaling bitmap glifi
-      quando MTSDF è disponibile (Fase 3)
-- [ ] **RGBA intermediate fast-video path** — Passaggio intermedio RGBA
-      nella pipeline video quando Direct YUV è disponibile (Fase 4)
-- [ ] **CPU Framebuffer native-video path** — Path CPU per framebuffer
-      quando GPU native è disponibile (Fase 4)
-- [ ] **per-frame CUDA/Vulkan sync** — Sync per-frame quando il ring
-      persistente gestisce la sincronizzazione (Fase 5)
-- [ ] **per-chunk renderer/context creation** — Creazione renderer/context
-      per ogni chunk quando il persistent encoder è disponibile (Fase 6)
-- [ ] **temporary MP4 chunks** — File MP4 temporanei quando
-      in-process assembly è disponibile (Fase 7)
-- [ ] **ffmpeg subprocess** — Lancio di ffmpeg quando libavformat
-      in-process è disponibile (Fase 7)
-- [ ] **PNG intermediates** — File PNG temporanei per la pipeline video
-      (Fase 7)
-- [ ] **silent software encoder fallback** — Fallback software silenzioso
-      quando NVENC è disponibile (Fase 6)
-- [ ] **duplicate SIMO preparation** — Preparazione duplicata per varianti
-      quando il batch SIMO è disponibile (Fase 9)
-- [ ] **unnecessary audio decode** — Decode audio non necessario quando
-      l'audio è pass-through (Fase 7)
-- [ ] **unnecessary video decode** — Decode video non necessario quando
-      il GOP è unchanged (Fase 8)
+```text
+replacement certificato
+    → telemetria dimostra l'uso del replacement
+    → golden/correctness equivalenti verdi
+    → vecchio path deprecato e fallback reso esplicito
+    → DELETE del vecchio path
+```
+
+Un fallback non va cancellato solo perché è lento: va isolato, nominato e
+selezionato da `FallbackPolicy { Forbid, Warn, Allow }`. I benchmark usano
+`Forbid`; production sceglie `Warn` o `Allow` secondo configurazione. Nessuna
+voce di questa lista è certificata implicitamente dalla sua presenza nel piano.
+
+### Hot path
+
+- [ ] **Scene/frame** — eliminare `Scene` per-frame quando la topology è già
+      compilata; il fallback per topology arbitraria resta separato.
+- [ ] **RenderGraph/frame** — eliminare build, walk e pass discovery per-frame;
+      il loop consuma `FrameParameters`, `FrameDelta`, `ExecutionDecision` e
+      `CommandPlan`.
+- [ ] **Heap allocation/frame** — portare le allocazioni steady-state a zero:
+      tabelle parametri, tile mask/liste, glyph refs, motion hints, packet
+      buffers, encoder queue, surface ring e telemetry sono preallocati.
+- [ ] **String/hash lookup** — risolvere gli identificatori in integer handle
+      durante compile/preparation; nessuna stringa, confronto o path resolution
+      nel loop caldo.
+- [ ] **Text shaping/frame** — spostare HarfBuzz, segmentazione Unicode e line
+      breaking al cambio di layout; transform-only aggiorna solo parametri.
+- [ ] **Glyph generation/upload steady-state** — dopo warmup,
+      `glyph_atlas_upload_bytes/frame = 0`, anche tra job compatibili del daemon.
+- [ ] **Global GPU synchronization/frame** — rimuovere `vkDeviceWaitIdle`,
+      `cudaDeviceSynchronize` e `cuStreamSynchronize` dal steady-state; tenerli
+      solo per shutdown, debug, recovery e test.
+
+### Video
+
+- [ ] **CPU `Framebuffer` nel native path** — percorso certificato:
+      `RenderSurfaceHandle → NVENC`; `Framebuffer` resta per CPU renderer,
+      immagini, debug, golden e fallback software.
+- [ ] **RGBA intermediate fast path** — `GpuLayerBatch → direct YUV
+      compositor → NV12/P010`; eliminare clear, superfici e passaggi RGB
+      intermedi quando l'effetto non li richiede.
+- [ ] **YUV↔RGB fast-path conversions** — eliminare conversioni non necessarie;
+      `FullRgb` resta solo per effetti che lo richiedono davvero.
+- [ ] **Temporary `chunk_XXXX.mp4`** — `EncodedPacket → central
+      PacketAssembler`; eliminare file temporanei, reopen, stream parsing,
+      cleanup directory e filename generation.
+- [ ] **PNG intermediates** — eliminare i file PNG temporanei usati come
+      trasporto della pipeline video; conservarli solo per export immagine,
+      debug e golden tests.
+- [ ] **Per-chunk renderer/encoder creation** — acquisire una `DeviceSession`
+      dal pool persistente; niente setup Vulkan/CUDA, warmup atlas o encoder
+      creation nel worker chunk.
+- [ ] **Native-path FFmpeg subprocess** — isolare la pipe in
+      `video/fallback/`; il native path usa solo packet assembly in-process.
+
+### Text
+
+- [ ] **Duplicate text renderer** — adattare l'input legacy a
+      `CanonicalTextBatch`, certificare `GpuGlyphStatic + TextRunDynamic +
+      MTSDF + tile binning`, poi eliminare il renderer duplicato.
+- [ ] **Full-canvas × glyph loop** — eliminare il loop per-pixel di
+      `text_batch.comp` quando il tile path produce golden equivalenti.
+- [ ] **Font-size nella MTSDF identity** — la chiave diventa
+      `face + glyph-id + variation + representation + generation-profile`;
+      la scala resta runtime.
+- [ ] **Runtime bitmap scaling e styled bitmap cache ridondanti** — rimuovere
+      i path legacy solo dopo parity del distance-field path.
+
+### Smart render e media pass-through
+
+- [ ] **Full-frame default** — `FrameDeltaCompiler`/resolver deve scegliere
+      `COPY`, `REUSE`, `SPARSE`, `FULL YUV` o `FULL RGB`; un dirty lower-third
+      non implica redraw del canvas.
+- [ ] **Unchanged GOP decode/render/encode** — per GOP intatto usare packet
+      copy con timestamp mapping e mux; NVDEC, compositor e NVENC restano
+      fuori da quel tratto.
+- [ ] **Unchanged audio processing** — per audio pass-through usare packet
+      remap; decode PCM, filtri e AAC encode restano solo sui tratti necessari.
+- [ ] **SIMO preparation duplication** — compile, decode, shape, asset upload e
+      atlas warmup una volta; le varianti fanno solo fan-out/recompose/output.
+
+### Infrastructure e benchmark
+
+- [ ] **Silent fallback** — eliminare i fallback impliciti, non tutti i
+      fallback: ogni downgrade deve produrre policy, diagnostic e telemetry.
+- [ ] **Per-job compilation** — usare `CompiledProgramCache` per fingerprint
+      di composition, asset, compile options e backend capabilities; nessuna
+      ricompilazione nel job path quando il programma è invariato.
+- [ ] **Duplicate benchmark plumbing** — mantenere `chronon3d_bench` e il
+      benchmark E2E, ma condividere `BenchmarkCore`, metric model, serializer,
+      scenario metadata, percentile calculator e hardware description.
+- [ ] **Dead shaders, stale counters e duplicate registries/resolvers** —
+      rimuovere solo dopo source audit, test/gate verdi e verifica che la sede
+      canonica sia unica.
+
+### Esplicitamente conservati
+
+`CPU renderer` (oracle/fallback/correctness), `FFmpeg fallback` (formati o
+codec non coperti dal native path), `C ABI v2` e `chronon3d_bench` non sono
+delete target. La loro superficie va eventualmente ridotta o resa esplicita,
+ma non rimossa come parte di questa demolizione.
 
 ---
 
