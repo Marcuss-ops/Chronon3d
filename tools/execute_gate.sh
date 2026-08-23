@@ -17,9 +17,6 @@ case "$GATE" in
   check_commit_subject_length.sh)
     exec bash "$SCRIPT_DIR/$GATE" "$REMOTE/$BRANCH"
     ;;
-  check_push_divergence_window.sh)
-    exec bash "$SCRIPT_DIR/$GATE" "$REMOTE" "$BRANCH"
-    ;;
   *)
     exec bash "$SCRIPT_DIR/$GATE"
     ;;

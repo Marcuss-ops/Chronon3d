@@ -1,5 +1,5 @@
 {
-  "_schema_note": "Canonical manifest for the Chronon3D benchmark corpus v1. Defines the 12-scene B00-B11 ranking used for the CPU-only performance program. Consumed by tools/run_bench_corpus.sh for orchestration (iterates scene_id × preset × threads × resolution — fps dimension is metadata-only, NOT iterated because frame-time metrics are fps-independent) and by tools/validate_corpus_v1.sh (1-line gate). Authoritative scene implementations live in examples/bench_corpus/bench_corpus_scenes.cpp (C++ Composition factories registered via register_bench_corpus_compositions in apps/chronon3d_cli/register_content_compositions.cpp).",
+  "_schema_note": "Canonical manifest for the Chronon3D benchmark corpus v1. Defines the 12-scene B00-B11 ranking used for the CPU-only performance program. Authoritative scene implementations live in bench/corpus/bench_corpus_scenes.cpp and are registered by apps/chronon3d_cli/register_content_compositions.cpp.",
 
   "version": "1.0",
   "ticket": "TICKET-BENCH-CORPUS-V1",
@@ -183,16 +183,16 @@
 
   "registration": {
     "source_files": [
-      "examples/bench_corpus/bench_corpus_scenes.hpp",
-      "examples/bench_corpus/bench_corpus_scenes.cpp"
+      "bench/corpus/bench_corpus_scenes.hpp",
+      "bench/corpus/bench_corpus_scenes.cpp"
     ],
-    "registry_bridge": "chronon3d::bench_corpus::register_bench_corpus_compositions (defined in examples/bench_corpus/bench_corpus_scenes.cpp; invoked from apps/chronon3d_cli/register_content_compositions.cpp)",
+    "registry_bridge": "chronon3d::bench_corpus::register_bench_corpus_compositions (defined in bench/corpus/bench_corpus_scenes.cpp; invoked from apps/chronon3d_cli/register_content_compositions.cpp)",
     "invoked_from": "apps/chronon3d_cli/register_content_compositions.cpp",
     "gate": "CHRONON3D_BUILD_CONTENT (production content build; same gate as runtime compositions)"
   },
 
   "cli_invocations": {
-    "bench_runner": "bash examples/bench_corpus/run_corpus_v1.sh",
+    "bench_runner": "apps/chronon3d_bench (benchmark CLI)",
     "single_scene_render": "chronon3d_cli render BenchB03_CinematicGlow1080p --frames 0-90 --output /tmp/bench_b03.png",
     "single_scene_video": "chronon3d_cli video BenchB03_CinematicGlow1080p -o /tmp/bench_b03.mp4 --start 0 --end 90 --fps 30",
     "single_scene_bench": "chronon3d_cli bench BenchB03_CinematicGlow1080p --frames 100 --warmup 10 --json-file /tmp/bench_b03.json",

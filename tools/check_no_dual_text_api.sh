@@ -44,7 +44,7 @@ SCAN_PATHS='src include content apps tests'
 FAILED=0
 
 # ── Comment-strip filter ───────────────────────────────────────────────
-# Same pattern as check_legacy_text_pipeline.sh — drops pure-comment lines
+# Same code-only filtering pattern used by the architecture rules engine.
 # AND trailing `//` comment text.  Reads grep -Rn format
 # <path>:<line>:<content> from stdin; emits non-comment lines only.
 

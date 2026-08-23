@@ -6,14 +6,14 @@
 # single-composition hardware-event profiling (cycles/frame, IPC, cache
 # miss rate, etc.) against a specific composition + frames + repetitions.
 #
-# TICKET-BENCH-MACHINES-V1 — wraps the F1.1 12-scene corpus (`examples/bench_corpus/`)
+# Reference-machine runner for the F1.1 12-scene corpus (`bench/corpus/`)
 # in a controlled environment: cpupower performance governor + taskset affinity +
 # warm-up frames + `perf stat -d -r 7` measurement.
 #
 # Cat-3 minimal-surface: ZERO new SDK API. ZERO new CLI flag. Reuses:
 #   * configs/benchmark_machines.yaml             ← SSoT for machine specs
 #   * tools/benchmark_host_info.sh                ← host attributes collector
-#   * examples/bench_corpus/run_corpus_v1.sh      ← F1.1 scene runner
+#   * apps/chronon3d_cli                         ← canonical scene runner
 #   * python3 (yaml.safe_load) for parsing YAML   ← already a hard dep
 #
 # Graceful degradation (per AGENTS.md §honest-limitation):
@@ -44,7 +44,6 @@ VERBOSE="${CHRONON3D_BENCH_VERBOSE:-false}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BENCHMARK_MACHINES_YAML="$REPO_ROOT/configs/benchmark_machines.yaml"
-EXAMPLE_RUNNER="$REPO_ROOT/examples/bench_corpus/run_corpus_v1.sh"
 HOST_INFO="$REPO_ROOT/tools/benchmark_host_info.sh"
 
 # ── Arg parsing ──────────────────────────────────────────────────────────
@@ -227,8 +226,8 @@ fi
 MEASURE_START="$(date +%s)"
 if command -v perf >/dev/null 2>&1 && perf stat -d -r 1 /bin/true >/dev/null 2>&1; then
     _info "measurement: perf stat -d -r $REPETITIONS (7 repeats with full event breakdown)"
-    PERF_TARGET="$EXAMPLE_RUNNER"
-    PERF_ARGS=(--only "$SCENE")
+    PERF_TARGET="$CLI_BIN"
+    PERF_ARGS=(bench "$SCENE" --frames "$WARMUP_FRAMES" --warmup-renderer)
     if [[ -n "$TASKSET_MASK" ]]; then
         TASKSET_PREFIX=(taskset -c "$TASKSET_MASK")
         _info "wrapping with taskset -c $TASKSET_MASK"
@@ -242,8 +241,8 @@ if command -v perf >/dev/null 2>&1 && perf stat -d -r 1 /bin/true >/dev/null 2>&
 else
     _warn "perf not available (typical on VPS / non-root container) — falling back to /usr/bin/time -v"
     _info "measurement: /usr/bin/time -v (single run + repetitions off; this is best-effort)"
-    TIME_TARGET="$EXAMPLE_RUNNER"
-    TIME_ARGS=(--only "$SCENE")
+    TIME_TARGET="$CLI_BIN"
+    TIME_ARGS=(bench "$SCENE" --frames "$WARMUP_FRAMES" --warmup-renderer)
     if [[ -n "$TASKSET_MASK" ]]; then
         TASKSET_PREFIX=(taskset -c "$TASKSET_MASK")
     else

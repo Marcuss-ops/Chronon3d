@@ -33,11 +33,11 @@
 #include <chronon3d/authoring/style_registry.hpp>
 #include <chronon3d/authoring/motion_registry.hpp>
 // TICKET-BENCH-CORPUS-V1 — register the 12-scene benchmark corpus (B00-B11)
-// via the canonical bridge in examples/bench_corpus/.  Hooked here so
+// via the canonical bridge in bench/corpus/.  Hooked here so
 // the corpus is available everywhere the content module is built (same
 // gate).  Follows ADR-016 single-source-of-truth — no duplicate
 // registration sites anywhere.
-#include "examples/bench_corpus/bench_corpus_scenes.hpp"
+#include "bench/corpus/bench_corpus_scenes.hpp"
 #endif
 
 namespace chronon3d {

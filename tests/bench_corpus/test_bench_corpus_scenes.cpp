@@ -2,7 +2,7 @@
 // test_bench_corpus_scenes.cpp — Sanity test for the 12-scene bench corpus.
 //
 // Forward-point 2 of TICKET-TEXT-ANIMATOR-WORKING-TREE-MIGRATION:
-//   "examples/bench_corpus/bench_corpus_scenes.cpp NON ha unit test.
+//   "bench/corpus/bench_corpus_scenes.cpp" NON ha unit test.
 //    Aggiungere almeno un sanity test in tests/bench_corpus/test_bench_corpus_scenes.cpp
 //    che chiama B00..B11 bench_bN* factories e confronta dimension/duration/shape
 //    count dopo evaluate (lock-in regression)."
@@ -28,8 +28,8 @@
 
 // Direct include of the bench corpus public-factories header.
 // Path resolves from `tests/bench_corpus/test_bench_corpus_scenes.cpp`
-// to `examples/bench_corpus/bench_corpus_scenes.hpp`.
-#include "../../examples/bench_corpus/bench_corpus_scenes.hpp"
+// to `bench/corpus/bench_corpus_scenes.hpp`.
+#include "../../bench/corpus/bench_corpus_scenes.hpp"
 
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <memory_resource>

@@ -52,7 +52,7 @@ if [ -s "$HITS_FILE" ]; then
     sed 's/^/    /' "$HITS_FILE" >&2
     echo "" >&2
     echo "REMEDIATION:" >&2
-    echo "  1. Resolve each conflict block manually (run bash tools/resolve_rebase_conflict.py for the canonical guide)." >&2
+    echo "  1. Resolve each conflict block manually, preserving both sides where required." >&2
     echo "  2. OR: if these are intentional markers in tests/selftest code, refactor into a Python fixture (.py allowed)." >&2
     echo "  3. OR: if markers are in prose/docstring/ASCII-art separators, ensure they do NOT start the line." >&2
     rm -f "$HITS_FILE"

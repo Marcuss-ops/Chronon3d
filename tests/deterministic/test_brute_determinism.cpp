@@ -1,4 +1,4 @@
-// tests/determinism/test_brute_determinism.cpp
+// tests/deterministic/test_brute_determinism.cpp
 // ─────────────────────────────────────────────────────────────────────
 // Test 17 / First-Principles Product Check — Brute-force determinism
 // for the canonical cinematic-glow composition `ChrononGlowFinalAE`.

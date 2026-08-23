@@ -15,7 +15,7 @@
 # speed is never conflated with encoding or I/O.
 #
 # This scene is a GPU program, distinct from the CPU-only B00-B11 ranking in
-# examples/bench_corpus/corpus_v1.json.  Per AGENTS.md v0.1 Cat-3 + §honesty:
+# bench/corpus/corpus_v1.json.  Per AGENTS.md v0.1 Cat-3 + §honesty:
 # metadata-only (zero new SDK surface); the overlay composition is
 # FORWARD-POINTED (not yet registered) and every number below is a REFERENCE
 # TARGET, not a measured result.
