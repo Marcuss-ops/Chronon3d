@@ -84,23 +84,31 @@ struct GpuGlyphAtlasStats {
     std::size_t total_glyph_bytes{0};  // R8 bytes, not RGBA32F
 };
 
+/// Representation of glyph contours inside the GPU atlas.
+enum class GlyphRepresentation : std::uint8_t {
+    Coverage = 0,   ///< R8 linear coverage bitmap
+    Sdf = 1,        ///< Single-channel signed distance field
+    Msdf = 2,       ///< Multi-channel signed distance field (RGB)
+    Mtsdf = 3       ///< Multi-channel + true signed distance field (RGBA)
+};
+
 /// Global paged glyph atlas — the ONE source of truth for VRAM-resident
-/// glyphs.  Every glyph is stored as R8Unorm (1 byte per pixel) in a page.
-/// Pages are created lazily and never deleted (job-persistent).
+/// glyphs.  Every glyph is stored as R8Unorm (coverage) or Rgba8Unorm (MTSDF)
+/// in an atlas page. Pages are created lazily and never deleted (job-persistent).
 ///
 /// The atlas stores one `GlyphLocation` per (font, glyph_id, font_size).
 /// The location is immutable after first write — the draw loop receives it
 /// pre-resolved and never touches the atlas.
 class GpuGlyphAtlas {
 public:
-    static constexpr std::uint32_t kPageSize = 2048;  // 2048×2048 R8 = 4 MiB per page
+    static constexpr std::uint32_t kPageSize = 2048;  // 2048×2048
 
     void attach(RenderSurfaceRegistry& registry,
                 graph::RenderBackend& backend) noexcept;
 
     /// Resolve a glyph to a GlyphLocation.  On first call, the glyph is
-    /// uploaded to the current (or next) atlas page as R8Unorm (1 byte/pixel).
-    /// `coverage` must have `width * height` elements (one float 0..1 per pixel).
+    /// uploaded to the current (or next) atlas page.
+    /// `coverage` must have `width * height` elements.
     /// Returns a ready-to-use GlyphLocation with atlas_page + uv_index set.
     [[nodiscard]] GlyphLocation acquire(GpuGlyphKey key,
                          std::uint32_t width, std::uint32_t height,
@@ -108,7 +116,7 @@ public:
                          GpuGlyphMetrics metrics);
 
     /// Placement metrics for a previously-acquired glyph, without touching the
-    /// device.  Returns nullopt for a glyph never acquired (or cleared).
+    /// device.  Returns nullopt if the glyph was never acquired.
     [[nodiscard]] std::optional<GpuGlyphMetrics> metrics(GpuGlyphKey key) const noexcept;
 
     /// Pre-upload a batch of glyphs in prepare() — moves all rasterization
@@ -126,6 +134,9 @@ public:
 private:
     struct AtlasPage {
         RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
+        GlyphRepresentation representation{GlyphRepresentation::Coverage};
+        float distance_range{4.0f};
+        float em_scale{1.0f};
         std::uint32_t cursor_x{0};
         std::uint32_t cursor_y{0};
         std::uint32_t row_height{0};

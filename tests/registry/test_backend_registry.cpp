@@ -1716,51 +1716,41 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     chronon3d::runtime::RenderSurfaceRegistry registry;
     chronon3d::runtime::GpuGlyphAtlas atlas;
     atlas.attach(registry, backend);
-    // Two 4x4 float glyphs (64 bytes each) fit exactly; a third would evict.
-    atlas.set_budget_bytes(4 * 4 * 4 * sizeof(float) * 2);
 
-    const std::vector<float> glyph_pixels(4 * 4 * 4, 0.5f);
+    const std::vector<float> glyph_coverage(4 * 4, 0.5f);
     const chronon3d::runtime::GpuGlyphKey glyph_a{"font.ttf", 65, 32};
     const chronon3d::runtime::GpuGlyphMetrics metrics_a{-1, -2, 8.0f};
 
-    const auto first = atlas.acquire(glyph_a, 4, 4, glyph_pixels, metrics_a);
-    REQUIRE(first.ok());
-    CHECK_FALSE(first.cache_hit);
-    CHECK(first.metrics.x_offset == -1);
-    CHECK(first.metrics.y_offset == -2);
-    CHECK(first.metrics.advance_x == 8.0f);
+    const auto first = atlas.acquire(glyph_a, 4, 4, glyph_coverage, metrics_a);
+    CHECK(first.local_x == -1);
+    CHECK(first.local_y == -2);
+    CHECK(first.width == 4);
+    CHECK(first.height == 4);
+    CHECK(first.advance_x == 8.0f);
 
-    // Same glyph again: device-resident hit, same surface, same metrics.
-    const auto second = atlas.acquire(glyph_a, 4, 4, glyph_pixels, metrics_a);
-    REQUIRE(second.ok());
-    CHECK(second.cache_hit);
-    CHECK(second.handle == first.handle);
-    CHECK(second.metrics.advance_x == 8.0f);
+    // Same glyph again: device-resident hit, same page, same uv_index
+    const auto second = atlas.acquire(glyph_a, 4, 4, glyph_coverage, metrics_a);
+    CHECK(second.atlas_page == first.atlas_page);
+    CHECK(second.uv_index == first.uv_index);
+    CHECK(second.advance_x == 8.0f);
 
     // Metrics are queryable without touching the device.
     const auto stored = atlas.metrics(glyph_a);
     REQUIRE(stored.has_value());
     CHECK(stored->advance_x == 8.0f);
 
-    // A different glyph is a miss with its own surface and metrics.
+    // A different glyph is a miss with its own uv_index.
     const chronon3d::runtime::GpuGlyphKey glyph_b{"font.ttf", 66, 32};
-    const auto third = atlas.acquire(glyph_b, 4, 4, glyph_pixels,
+    const auto third = atlas.acquire(glyph_b, 4, 4, glyph_coverage,
                                      chronon3d::runtime::GpuGlyphMetrics{0, 0, 9.0f});
-    REQUIRE(third.ok());
-    CHECK_FALSE(third.cache_hit);
-    CHECK(third.handle != first.handle);
+    CHECK(third.uv_index != first.uv_index);
     CHECK(atlas.stats().hits == 1);
     CHECK(atlas.stats().misses == 2);
     CHECK(atlas.stats().entries == 2);
 
-    // Both glyph surfaces remain device-resident within budget.
-    CHECK(registry.lookup(first.handle) != nullptr);
-    CHECK(registry.lookup(third.handle) != nullptr);
-
     atlas.clear();
     CHECK(atlas.stats().entries == 0);
     CHECK_FALSE(atlas.metrics(glyph_a).has_value());
-    CHECK(registry.lookup(first.handle) == nullptr);
 }
 
 TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pixel error") {
@@ -2025,7 +2015,7 @@ TEST_CASE("surface registry owns logical identity independently of physical slot
         LifetimeClass::FrameTransient, 0});
     REQUIRE(handle != kInvalidRenderSurfaceHandle);
     REQUIRE(registry.lookup(handle) != nullptr);
-    CHECK(registry.lookup(handle)->desc.bytes == 16u * 8u * sizeof(float) * 4u);
+    CHECK(registry.lookup(handle)->desc.bytes == 16u * 8u * 4u);
     CHECK(registry.lookup(handle)->physical_slot == std::numeric_limits<std::size_t>::max());
     CHECK(registry.bind_physical_slot(handle, 3));
     CHECK(registry.lookup(handle)->physical_slot == 3);
@@ -2215,3 +2205,54 @@ TEST_CASE("checkbackend size mismatch is reported as a sentinel failure") {
     CHECK_FALSE(report.matched);
     CHECK(report.mismatched_pixels == std::numeric_limits<std::size_t>::max());
 }
+
+TEST_CASE("tight_surface_bytes calculates correct sizes for all formats") {
+    using namespace chronon3d::runtime;
+    constexpr std::uint32_t w = 1920;
+    constexpr std::uint32_t h = 1080;
+
+    CHECK(tight_surface_bytes(PixelFormat::Rgba32Float, w, h) == 1920 * 1080 * 16);
+    CHECK(tight_surface_bytes(PixelFormat::Rgba8Unorm, w, h) == 1920 * 1080 * 4);
+    CHECK(tight_surface_bytes(PixelFormat::R8Unorm, w, h) == 1920 * 1080 * 1);
+    CHECK(tight_surface_bytes(PixelFormat::Nv12, w, h) == 1920 * 1080 * 3 / 2);
+    CHECK(tight_surface_bytes(PixelFormat::P010, w, h) == 1920 * 1080 * 3);
+    CHECK(tight_surface_bytes(PixelFormat::Depth32Float, w, h) == 1920 * 1080 * 4);
+
+    // Odd dimensions chroma alignment
+    constexpr std::uint32_t odd_w = 1919;
+    constexpr std::uint32_t odd_h = 1079;
+    const std::size_t expected_nv12_odd = 1919 * 1079 + 1920 * 540;
+    CHECK(tight_surface_bytes(PixelFormat::Nv12, odd_w, odd_h) == expected_nv12_odd);
+}
+
+TEST_CASE("RenderSurfaceRegistry supports NV12 and P010 multi-format surfaces with ColorMetadata") {
+    using namespace chronon3d::runtime;
+    RenderSurfaceRegistry registry;
+
+    SurfaceDesc nv12_desc{
+        .width = 1920,
+        .height = 1080,
+        .format = PixelFormat::Nv12,
+        .usage = ResourceUsage::Storage,
+        .lifetime = LifetimeClass::JobPersistent,
+        .bytes = 0,
+        .color = ColorMetadata{
+            .matrix = ColorMatrix::Bt709,
+            .range = ColorRange::Limited,
+            .transfer = TransferFunction::Bt1886,
+            .primaries = ColorPrimaries::Bt709,
+            .chroma_location = ChromaLocation::Left,
+        },
+    };
+
+    const auto handle = registry.create(nv12_desc);
+    REQUIRE(handle != kInvalidRenderSurfaceHandle);
+
+    const auto* record = registry.lookup(handle);
+    REQUIRE(record != nullptr);
+    CHECK(record->desc.format == PixelFormat::Nv12);
+    CHECK(record->desc.bytes == 1920 * 1080 * 3 / 2);
+    CHECK(record->desc.color.matrix == ColorMatrix::Bt709);
+    CHECK(record->desc.color.range == ColorRange::Limited);
+}
+

@@ -375,3 +375,63 @@ TEST_CASE("ConvertedFrameCache: clear resets all state") {
     CHECK(cache.misses() == 0);
     CHECK_FALSE(cache.lookup(k));
 }
+
+// ---------------------------------------------------------------------------
+// Test: Direct NV12 Overlay Compositor
+// ---------------------------------------------------------------------------
+
+TEST_CASE("composite_overlay_nv12: transparent overlay passes background through unchanged") {
+    constexpr int w = 4, h = 4;
+    std::vector<uint8_t> bg_y(w * h, 100);
+    std::vector<uint8_t> bg_uv((w / 2) * (h / 2) * 2, 128);
+
+    std::vector<uint8_t> out_y(w * h, 0);
+    std::vector<uint8_t> out_uv((w / 2) * (h / 2) * 2, 0);
+
+    auto fg = make_solid(w, h, Color{1.0f, 0.0f, 0.0f, 0.0f}); // fully transparent
+
+    CompositeOverlayNv12Request req{
+        .bg_planes = FramePlanes{.y = bg_y.data(), .uv = bg_uv.data(), .stride_y = w, .stride_uv = w},
+        .fg_src = fg,
+        .out_planes = FramePlanes{.y = out_y.data(), .uv = out_uv.data(), .stride_y = w, .stride_uv = w},
+        .width = w,
+        .height = h,
+    };
+
+    const auto res = composite_overlay_nv12(req);
+    REQUIRE(res.success);
+    CHECK(out_y == bg_y);
+    CHECK(out_uv == bg_uv);
+}
+
+TEST_CASE("composite_overlay_nv12: opaque solid overlay completely replaces background") {
+    constexpr int w = 4, h = 4;
+    std::vector<uint8_t> bg_y(w * h, 16);
+    std::vector<uint8_t> bg_uv((w / 2) * (h / 2) * 2, 128);
+
+    std::vector<uint8_t> out_y(w * h, 0);
+    std::vector<uint8_t> out_uv((w / 2) * (h / 2) * 2, 0);
+
+    // Pure white overlay
+    auto fg = make_solid(w, h, Color{1.0f, 1.0f, 1.0f, 1.0f});
+
+    CompositeOverlayNv12Request req{
+        .bg_planes = FramePlanes{.y = bg_y.data(), .uv = bg_uv.data(), .stride_y = w, .stride_uv = w},
+        .fg_src = fg,
+        .out_planes = FramePlanes{.y = out_y.data(), .uv = out_uv.data(), .stride_y = w, .stride_uv = w},
+        .width = w,
+        .height = h,
+    };
+
+    const auto res = composite_overlay_nv12(req);
+    REQUIRE(res.success);
+
+    // Limited range white: Y = 235, U = 128, V = 128
+    for (uint8_t y_val : out_y) {
+        CHECK(y_val == 235);
+    }
+    for (uint8_t uv_val : out_uv) {
+        CHECK(uv_val == 128);
+    }
+}
+

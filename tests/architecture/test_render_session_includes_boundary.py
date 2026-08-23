@@ -42,6 +42,10 @@ KNOWN_VIOLATIONS = {
             'per-session ownership of NodeMemoryTracker requires full type; '
             'forward-declaration boundary lifted per '
             'docs/refactor-roadmap/03-render-session-boundary.md'),
+        'execution_workspace.hpp': ('WP-3 PR-3.1',
+            'per-session ownership of ExecutionWorkspaceRing requires full type; '
+            'forward-declaration boundary lifted per '
+            'docs/refactor-roadmap/03-render-session-boundary.md'),
     },
 }
 

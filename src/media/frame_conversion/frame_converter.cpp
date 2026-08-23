@@ -221,4 +221,102 @@ ConvertFrameResult convert_frame_tight(
     return convert_frame(req);
 }
 
+ConvertFrameResult composite_overlay_nv12(const CompositeOverlayNv12Request& req) {
+    const uint64_t t0 = profiling::timestamp_ns();
+    if (req.width <= 0 || req.height <= 0 || (req.width % 2 != 0) || (req.height % 2 != 0)) {
+        return ConvertFrameResult{.success = false, .backend = FrameConversionBackend::Packed, .error = ConversionError::OddDims};
+    }
+    if (!req.bg_planes.y || !req.bg_planes.uv || !req.out_planes.y || !req.out_planes.uv) {
+        return ConvertFrameResult{.success = false, .backend = FrameConversionBackend::Packed, .error = ConversionError::NullPointer};
+    }
+
+    const int width = req.width;
+    const int height = req.height;
+    const int fg_stride = req.fg_src.allocated_width();
+    const Color* fg_pixels = req.fg_src.data();
+
+    const int stride_bg_y = req.bg_planes.stride_y;
+    const int stride_bg_uv = req.bg_planes.stride_uv;
+    const int stride_out_y = req.out_planes.stride_y;
+    const int stride_out_uv = req.out_planes.stride_uv;
+
+    for (int y2 = 0; y2 < height; y2 += 2) {
+        const uint8_t* bg_y0 = req.bg_planes.y + y2 * stride_bg_y;
+        const uint8_t* bg_y1 = req.bg_planes.y + (y2 + 1) * stride_bg_y;
+        uint8_t* out_y0 = req.out_planes.y + y2 * stride_out_y;
+        uint8_t* out_y1 = req.out_planes.y + (y2 + 1) * stride_out_y;
+
+        const uint8_t* bg_uv = req.bg_planes.uv + (y2 / 2) * stride_bg_uv;
+        uint8_t* out_uv = req.out_planes.uv + (y2 / 2) * stride_out_uv;
+
+        const Color* fg_row0 = fg_pixels + y2 * fg_stride;
+        const Color* fg_row1 = fg_pixels + (y2 + 1) * fg_stride;
+
+        for (int x2 = 0; x2 < width; x2 += 2) {
+            const Color& c00 = fg_row0[x2];
+            const Color& c10 = fg_row0[x2 + 1];
+            const Color& c01 = fg_row1[x2];
+            const Color& c11 = fg_row1[x2 + 1];
+
+            const float a00 = std::clamp(c00.a, 0.0f, 1.0f);
+            const float a10 = std::clamp(c10.a, 0.0f, 1.0f);
+            const float a01 = std::clamp(c01.a, 0.0f, 1.0f);
+            const float a11 = std::clamp(c11.a, 0.0f, 1.0f);
+
+            // Fast path: if entire 2x2 block is transparent, copy Y and UV
+            if (a00 == 0.0f && a10 == 0.0f && a01 == 0.0f && a11 == 0.0f) {
+                out_y0[x2]     = bg_y0[x2];
+                out_y0[x2 + 1] = bg_y0[x2 + 1];
+                out_y1[x2]     = bg_y1[x2];
+                out_y1[x2 + 1] = bg_y1[x2 + 1];
+                out_uv[x2]     = bg_uv[x2];
+                out_uv[x2 + 1] = bg_uv[x2 + 1];
+                continue;
+            }
+
+            auto blend_y = [](uint8_t bg_val, const Color& c, float a) -> uint8_t {
+                if (a <= 0.0f) return bg_val;
+                const float y_fg = 16.0f + 219.0f * (0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b);
+                const float mixed = (1.0f - a) * static_cast<float>(bg_val) + a * y_fg;
+                return static_cast<uint8_t>(std::clamp(std::round(mixed), 16.0f, 235.0f));
+            };
+
+            out_y0[x2]     = blend_y(bg_y0[x2], c00, a00);
+            out_y0[x2 + 1] = blend_y(bg_y0[x2 + 1], c10, a10);
+            out_y1[x2]     = blend_y(bg_y1[x2], c01, a01);
+            out_y1[x2 + 1] = blend_y(bg_y1[x2 + 1], c11, a11);
+
+            const float a_block = (a00 + a10 + a01 + a11) * 0.25f;
+            if (a_block <= 0.0f) {
+                out_uv[x2]     = bg_uv[x2];
+                out_uv[x2 + 1] = bg_uv[x2 + 1];
+            } else {
+                const float a_sum = a00 + a10 + a01 + a11;
+                const float r_avg = (c00.r * a00 + c10.r * a10 + c01.r * a01 + c11.r * a11) / a_sum;
+                const float g_avg = (c00.g * a00 + c10.g * a10 + c01.g * a01 + c11.g * a11) / a_sum;
+                const float b_avg = (c00.b * a00 + c10.b * a10 + c01.b * a01 + c11.b * a11) / a_sum;
+
+                const float u_fg = 128.0f + 224.0f * (-0.1146f * r_avg - 0.3854f * g_avg + 0.5000f * b_avg);
+                const float v_fg = 128.0f + 224.0f * ( 0.5000f * r_avg - 0.4542f * g_avg - 0.0458f * b_avg);
+
+                const float bg_u = static_cast<float>(bg_uv[x2]);
+                const float bg_v = static_cast<float>(bg_uv[x2 + 1]);
+
+                const float u_out = (1.0f - a_block) * bg_u + a_block * u_fg;
+                const float v_out = (1.0f - a_block) * bg_v + a_block * v_fg;
+
+                out_uv[x2]     = static_cast<uint8_t>(std::clamp(std::round(u_out), 16.0f, 240.0f));
+                out_uv[x2 + 1] = static_cast<uint8_t>(std::clamp(std::round(v_out), 16.0f, 240.0f));
+            }
+        }
+    }
+
+    return ConvertFrameResult{
+        .success = true,
+        .backend = FrameConversionBackend::Packed,
+        .error = ConversionError::None,
+        .conversion_ns = profiling::timestamp_ns() - t0,
+    };
+}
+
 } // namespace chronon3d::video
