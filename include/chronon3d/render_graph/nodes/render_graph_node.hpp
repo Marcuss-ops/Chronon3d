@@ -114,6 +114,10 @@ public:
         return false;
     }
 
+    [[nodiscard]] virtual bool has_compiled_recorder() const noexcept {
+        return false;
+    }
+
     /// Immutable cache descriptor set at construction time.
     /// Subclasses must NOT override this — pass the policy to the base-class
     /// constructor instead.  Changing cache policy requires a graph rebuild.
