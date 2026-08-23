@@ -111,7 +111,7 @@ declare -A GATES=(
     ["test_suite_registration"]="tools/check_test_suite_registration.sh"
     ["test_hygiene"]="tools/check_test_hygiene.sh"
     ["frame_value_convention"]="tools/check_frame_value_convention.sh"
-    ["legacy_timeline_prevalence"]="tools/check_legacy_timeline_prevalence.sh"
+    ["architecture_rules"]="tools/check_architecture.py"
 )
 
 for gate_name in "${!GATES[@]}"; do

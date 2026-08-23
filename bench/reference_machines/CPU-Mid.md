@@ -91,7 +91,7 @@ own workstation matches the published numbers, and where bug repros are
 - [`configs/benchmark_machines.yaml`](../../configs/benchmark_machines.yaml) — YAML SSoT.
 - [`tools/benchmark_host_info.sh`](../../tools/benchmark_host_info.sh) — host attribute collector.
 - [`tools/verify_performance_linux.sh`](../../tools/verify_performance_linux.sh) — reuses this profile.
-- [`examples/bench_corpus/run_corpus_v1.sh`](../../examples/bench_corpus/run_corpus_v1.sh) — F1.1 12-scene runner.
+- [`bench/corpus/corpus_v1.json`](../corpus/corpus_v1.json) — F1.1 12-scene manifest.
 - [`bench/run_perf_bench.sh`](../run_perf_bench.sh) — perf-stat + warm-up wrapper.
 - [`docs/PERFORMANCE_BOTTLENECKS.md`](../../docs/PERFORMANCE_BOTTLENECKS.md) — historical bottleneck analysis pinned to this class.
 - [`docs/tickets/TICKET-BENCH-MACHINES-V1.md`](../../docs/tickets/TICKET-BENCH-MACHINES-V1.md) — cronaca.

@@ -51,9 +51,8 @@ CONSUMER_DIRS=(
     sdk_consumers
     tests/install_consumer
     tests/package_consumer
-    examples/getting_started
     examples/text_export_consumer
-    examples/content_registry_consumer
+    sdk_consumers/02_content_registry
     templates/basic
 )
 

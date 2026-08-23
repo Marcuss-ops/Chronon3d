@@ -29,7 +29,7 @@ For EVERY (Chronon3D | competitor × scene) combination, the SAME baseline appli
 | Resolution | `1920×1080` (1080p) | `configs/benchmark_machines.yaml.resolutions[0]` |
 | Codec | `libx264` CPU-only | `VideoCodec::H264` (no NVENC/QSV/AMF hardware) |
 | Container | MP4 | `VideoContainer::Mp4` |
-| Content | 12-scene corpus B00–B11 | `examples/bench_corpus/corpus_v1.json` |
+| Content | 12-scene corpus B00–B11 | `bench/corpus/corpus_v1.json` |
 | Duration | per-scene `duration_seconds` | corpus_v1.json (typical: 60s) |
 | Warmup policy | 3 warm runs + discard 1st frame + median of last 2 | `configs/benchmark_machines.yaml.common.warmup` |
 | Cold measurement | NOT measured (warm-cache is canonical comparison) | `common.warmup.discard_first_frame: true` |
@@ -81,7 +81,7 @@ costo_per_minuto_output = 0.04 × 30 / 3600 / 1
 ## 12-scene strategic corpus grid (template)
 
 For each scene (`BenchB00_EmptyFrame` … `BenchB11_Portrait1080x1920`) per
-`examples/bench_corpus/corpus_v1.json`, the matrix records:
+`bench/corpus/corpus_v1.json`, the matrix records:
 
 | Scene | ID | Description | Dur (s) | Threads | Resolution | Codec |
 |---|---|---|---|---|---|---|
@@ -192,7 +192,7 @@ Each `configs/benchmarks/corpus/b0X_<scene>.yaml` already publishes a
 | Resource | Path |
 |---|---|
 | Canonical machine spec | [`configs/benchmark_machines.yaml`](../configs/benchmark_machines.yaml) (cpu-low class + thread_counts + common.warmup) |
-| 12-scene manifest | [`examples/bench_corpus/corpus_v1.json`](../examples/bench_corpus/corpus_v1.json) |
+| 12-scene manifest | [`bench/corpus/corpus_v1.json`](corpus/corpus_v1.json) |
 | Per-scene schematic | [`configs/benchmarks/corpus/b00..b11.yaml`](../configs/benchmarks/corpus/) |
 | Output schema | [`bench/benchmark_schema.json`](benchmark_schema.json) (chronon3d.bench.v3 — 16 required flat fields) |
 | Existing precedent | [`docs/product-tests/TEST-17-COMPARISON.md`](../docs/product-tests/TEST-17-COMPARISON.md) (8-metric Chronon3D vs Pipeline Precedente vs Remotion; matrix formalizes + extends) |

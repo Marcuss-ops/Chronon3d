@@ -20,7 +20,7 @@
 # silently break the test contract (the call would not link).
 #
 # Cat-3 minimal-surface: ZERO new SDK API; re-uses the bench factories
-# declared in `examples/bench_corpus/bench_corpus_scenes.hpp` (header-only
+# declared in `bench/corpus/bench_corpus_scenes.hpp` (header-only
 # inline per ADR-016 single-source-of-truth).
 
 if(NOT CHRONON3D_BUILD_CONTENT)
@@ -47,7 +47,7 @@ chronon3d_add_test_suite(
     TIER INTEGRATION
     SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/test_bench_corpus_scenes.cpp
-        ${CMAKE_SOURCE_DIR}/examples/bench_corpus/bench_corpus_scenes.cpp
+        ${CMAKE_SOURCE_DIR}/bench/corpus/bench_corpus_scenes.cpp
     LINK_TARGETS
         chronon3d_pipeline
         chronon3d_backend_software
