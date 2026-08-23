@@ -51,10 +51,9 @@ sintetica (stato + link al ticket).
 
 | Ruolo | File |
 |---|---|
-| Contratto documentale | `docs/DOCUMENTATION_GOVERNANCE.md` |
+| Piano operativo | `docs/CHRONON_PLAN.md` |
+| Zero-copy gates | `docs/ZERO_COPY_GATES.md` |
 | Inventario feature | `docs/FEATURES.md` |
-| Piano testo | `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` |
-| Matrice camera | `docs/CAMERA_FEATURE_MATRIX.md` |
 | Chiusure recenti | `docs/CHANGELOG.md` |
 | Baseline certificata | `docs/baselines/main-<sha>-baseline.md` |
 | Scheda ticket | `docs/tickets/TICKET-NNN.md` |
