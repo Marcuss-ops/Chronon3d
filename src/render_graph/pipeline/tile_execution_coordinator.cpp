@@ -26,7 +26,6 @@
 #include <spdlog/spdlog.h>
 #include <cmath>
 #include <stdexcept>
-#include <vector>
 
 namespace chronon3d::graph {
 
@@ -45,10 +44,12 @@ TileExecutionResult execute_tile_or_fallback(
 {
     TileExecutionResult result;
 
-    const TileDecision tile_decision = TileExecutionPolicy::decide(
+    const TileDecision tile_decision = ExecutionResolver::decide(
         resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame,
         ctx.services.effect_catalog);
-    result.use_tile_execution = tile_decision.enabled;
+    result.use_tile_execution =
+        tile_decision.enabled &&
+        tile_decision.path == FrameExecutionPath::SparseTiles;
 
     if (ctx.policy.diagnostics_enabled && !result.use_tile_execution) {
         spdlog::info(
@@ -67,14 +68,17 @@ TileExecutionResult execute_tile_or_fallback(
                 sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
             if (have_prev) {
                 const auto previous = sw_renderer->buffer_ring().prev_framebuffer();
-                std::vector<Color> previous_pixels(
-                    previous->data(),
-                    previous->data() + static_cast<size_t>(width) * static_cast<size_t>(height));
-                // Do not use the reusable-bottom swap path here: tile
-                // rendering needs the previous frame to remain available as
-                // the restore source for every dirty region.
+                // Keep the pool-backed destination and copy directly row by
+                // row.  A temporary full-frame vector here was an avoidable
+                // steady-state heap allocation; tile rendering still needs
+                // an independent destination because every tile execution
+                // must retain the previous frame as its restore source.
                 result.fb = ctx.acquire_framebuffer(width, height, false);
-                std::copy(previous_pixels.begin(), previous_pixels.end(), result.fb->data());
+                for (int y = 0; y < height; ++y) {
+                    std::copy(previous->pixels_row(y),
+                              previous->pixels_row(y) + width,
+                              result.fb->pixels_row(y));
+                }
             } else {
                 result.fb = ctx.acquire_framebuffer(width, height, true);
             }

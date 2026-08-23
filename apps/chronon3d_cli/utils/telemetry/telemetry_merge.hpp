@@ -156,6 +156,11 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.used_parallel_composite.fetch_add(src.used_parallel_composite.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.skipped_composite_small.fetch_add(src.skipped_composite_small.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.skipped_encoder_backpressure.fetch_add(src.skipped_encoder_backpressure.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.native_surface_yuv_frames.fetch_add(src.native_surface_yuv_frames.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.native_surface_yuv_bytes.fetch_add(src.native_surface_yuv_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.native_batch_yuv_frames.fetch_add(src.native_batch_yuv_frames.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.native_batch_yuv_bytes.fetch_add(src.native_batch_yuv_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.simo_variant_submits.fetch_add(src.simo_variant_submits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_pixels.fetch_add(src.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_full_fallbacks.fetch_add(src.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);

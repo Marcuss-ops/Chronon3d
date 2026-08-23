@@ -7,6 +7,7 @@
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include "camera_change_policy.hpp"
 #include "dirty_safety_policy.hpp"
+#include "frame_delta_compiler.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include <unordered_map>
 #include <optional>

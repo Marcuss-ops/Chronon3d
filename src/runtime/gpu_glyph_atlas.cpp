@@ -13,7 +13,13 @@ namespace {
 
 std::string glyph_key_string(const GpuGlyphKey& key) {
     std::ostringstream out;
-    out << key.font_path << '\x1f' << key.glyph_id << '\x1f' << key.font_size;
+    out << key.font_path << '\x1f' << key.glyph_id << '\x1f'
+        << key.variation_hash << '\x1f'
+        << static_cast<int>(key.representation) << '\x1f'
+        << key.generation_profile;
+    if (key.representation == GlyphRepresentation::Coverage) {
+        out << '\x1f' << key.font_size;
+    }
     return out.str();
 }
 

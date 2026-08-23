@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -78,6 +79,39 @@ public:
     void register_session(const MediaSessionKey& key, ReusableMediaSession session) {
         std::lock_guard lock(m_mutex);
         m_sessions[key].push_back(session);
+    }
+
+    /// Acquire an idle session for a persistent device/codec lane.
+    /// The returned value is a handle snapshot; the pool remains the owner.
+    [[nodiscard]] std::optional<ReusableMediaSession> acquire(
+        const MediaSessionKey& key, std::uint64_t timestamp) {
+        std::lock_guard lock(m_mutex);
+        const auto it = m_sessions.find(key);
+        if (it == m_sessions.end()) return std::nullopt;
+        for (auto& session : it->second) {
+            if (!session.in_use) {
+                session.in_use = true;
+                session.last_used_timestamp = timestamp;
+                return session;
+            }
+        }
+        return std::nullopt;
+    }
+
+    /// Release a previously acquired session without destroying the codec
+    /// context or its device-local frame resources.
+    void release(const MediaSessionKey& key, std::uintptr_t codec_ctx_handle,
+                 std::uint64_t timestamp) noexcept {
+        std::lock_guard lock(m_mutex);
+        const auto it = m_sessions.find(key);
+        if (it == m_sessions.end()) return;
+        for (auto& session : it->second) {
+            if (session.codec_ctx_handle == codec_ctx_handle) {
+                session.in_use = false;
+                session.last_used_timestamp = timestamp;
+                return;
+            }
+        }
     }
 
     [[nodiscard]] std::size_t cached_session_count() const noexcept {

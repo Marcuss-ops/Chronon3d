@@ -5,6 +5,9 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
 #include "../utils/job/cli_render_utils.hpp"
 
 #include "utils/common/render_error_formatter.hpp"
@@ -15,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include <filesystem>
 #include <sstream>
 
@@ -68,8 +72,25 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     , m_options(std::move(options))
     , m_backend(m_options.backend.empty() ? "auto" : m_options.backend)
 {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    std::vector<backends::vulkan::VulkanDeviceInfo> discovered_devices;
+    if (m_backend == "vulkan" || m_backend == "auto") {
+        discovered_devices = backends::vulkan::VulkanBackend::enumerate_devices();
+        if (m_options.gpu_device_id == Config::kAutoGpuDevice &&
+            !discovered_devices.empty()) {
+            const auto selected = std::find_if(
+                discovered_devices.begin(), discovered_devices.end(),
+                [](const auto& device) { return device.discrete; });
+            m_options.gpu_device_id = selected == discovered_devices.end()
+                ? discovered_devices.front().index : selected->index;
+        }
+    }
+#else
+    std::vector<int> discovered_devices;
+#endif
     Config config = Config::from_environment();
     config.set_backend_preference(backend_preference_from_name(m_backend));
+    config.set_gpu_device_id(m_options.gpu_device_id);
 
     if (!m_options.assets_root.empty()) {
         m_engine = std::make_unique<RenderEngine>(
@@ -86,11 +107,58 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     RenderSettings warm_settings;
     Config warm_config = Config::from_environment();
     warm_config.set_backend_preference(backend_preference_from_name(m_backend));
+    warm_config.set_gpu_device_id(m_options.gpu_device_id);
     m_warm_renderer = create_renderer(
         m_registry, warm_settings, std::move(warm_config),
         m_options.assets_root.empty()
             ? std::optional<std::filesystem::path>{}
             : std::optional<std::filesystem::path>{m_options.assets_root});
+
+    // Register the persistent daemon lane with the canonical scheduler.
+    // Physical-device discovery remains owned by the backend; this service
+    // advertises the selected Vulkan lane and keeps software fail-closed for
+    // native GPU requests.
+    const auto register_device = [this](runtime::DeviceId id,
+                                        std::string name,
+                                        std::uint64_t vram_bytes) {
+        runtime::DeviceCapabilities capabilities;
+        capabilities.id = id;
+        capabilities.name = std::move(name);
+        capabilities.cuda = true;
+        capabilities.vulkan_interop = true;
+        capabilities.nvdec = true;
+        capabilities.nvenc = true;
+        capabilities.nv12 = true;
+        capabilities.p010 = true;
+        capabilities.h264 = true;
+        capabilities.hevc = true;
+        capabilities.av1 = true;
+        m_device_scheduler.register_device(
+            std::move(capabilities),
+            runtime::DeviceResourceVector{
+                .compute_units = 1.0f,
+                .vram_bytes = vram_bytes,
+                .nvdec_sessions = 2U,
+                .nvenc_sessions = 2U,
+                .pcie_bandwidth = 1.0f});
+    };
+#ifdef CHRONON3D_ENABLE_VULKAN
+    for (const auto& device : discovered_devices) {
+        register_device(device.index, device.name, device.device_memory_bytes);
+    }
+#endif
+    if (m_device_scheduler.device_count() == 0) {
+        runtime::DeviceCapabilities capabilities;
+        capabilities.id = 0;
+        capabilities.name = m_backend;
+        m_device_scheduler.register_device(
+            std::move(capabilities),
+            runtime::DeviceResourceVector{.compute_units = 1.0f});
+    }
+    m_device_sessions.emplace(
+        m_options.gpu_device_id == Config::kAutoGpuDevice
+            ? 0 : m_options.gpu_device_id,
+        m_warm_renderer);
 
     spdlog::info("🔥 Engine initialised. backend={}, FB pool warm, font engines loaded.",
                  m_backend);
@@ -98,6 +166,24 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
 }
 
 DaemonService::~DaemonService() = default;
+
+std::shared_ptr<SoftwareRenderer> DaemonService::warm_renderer_for_device(
+    runtime::DeviceId device) {
+    const auto existing = m_device_sessions.find(device);
+    if (existing != m_device_sessions.end()) return existing->second;
+
+    Config config = Config::from_environment();
+    config.set_backend_preference(backend_preference_from_name(m_backend));
+    config.set_gpu_device_id(device);
+    auto renderer = create_renderer(
+        m_registry, RenderSettings{}, std::move(config),
+        m_options.assets_root.empty()
+            ? std::optional<std::filesystem::path>{}
+            : std::optional<std::filesystem::path>{m_options.assets_root});
+    m_device_sessions.emplace(device, renderer);
+    spdlog::info("[daemon] created warm device session {}", device);
+    return renderer;
+}
 
 // ── Main Loop ─────────────────────────────────────────────────────────────────
 
@@ -329,7 +415,7 @@ void DaemonService::run_socket(const std::string& path) {
     spdlog::info("🔌 Daemon listening on Unix socket '{}'", server.path());
     spdlog::info("   PREFETCH_ASSET | PREPARE_PLAN | RENDER_OVERLAY | RENDER_JOB | STATUS | SHUTDOWN");
 
-    const int rc = server.serve([this](const ipc::Request& req) {
+    const int rc = server.serve_concurrent([this](const ipc::Request& req) {
         return handle_ipc(req);
     });
 
@@ -342,19 +428,30 @@ void DaemonService::run_socket(const std::string& path) {
 }
 
 ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
+    // Socket ingress is concurrent, but the warm engine/prepared plan is a
+    // single session. DeviceSessionPool will replace this serialized lane
+    // when per-device workers are available; until then this lock is the
+    // ownership boundary that prevents cross-request renderer races.
     switch (req.cmd) {
-        case ipc::Command::PrefetchAsset:
+        case ipc::Command::PrefetchAsset: {
+            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             return ipc_prefetch_asset(req.payload);
-        case ipc::Command::PreparePlan:
+        }
+        case ipc::Command::PreparePlan: {
+            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             return ipc_prepare_plan(req.payload);
-        case ipc::Command::RenderOverlay:
+        }
+        case ipc::Command::RenderOverlay: {
+            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             return ipc_render_overlay(req.payload);
+        }
         case ipc::Command::RenderJob: {
             // A daemon owns one persistent renderer. Reject a request that
             // claims a different backend instead of silently rendering on the
             // warm backend and producing misleading provenance.
+            nlohmann::json request;
             try {
-                const auto request = nlohmann::json::parse(req.payload);
+                request = nlohmann::json::parse(req.payload);
                 const auto requested = request.value("backend", m_backend);
                 if (requested != m_backend &&
                     !(requested == "auto" && m_backend == "auto")) {
@@ -367,9 +464,46 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                 return ipc::Reply{ipc::Status::BadRequest,
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
             }
+            const auto requested_backend = request.value("backend", m_backend);
+            const auto hardware = request.value(
+                "hardware_encoder", request.value("hardware", std::string{"none"}));
+            const auto encoder_backend = request.value(
+                "encoder_backend", std::string{"pipe"});
+            const auto codec = request.value("codec", std::string{"auto"});
+            const bool native_nvenc =
+                (requested_backend == "vulkan" ||
+                 (requested_backend == "auto" && m_backend == "vulkan")) &&
+                (hardware == "nvenc" || hardware == "auto") &&
+                encoder_backend == "native";
+            runtime::DeviceSelectionRequirements requirements;
+            requirements.cuda = native_nvenc;
+            requirements.vulkan_interop = native_nvenc;
+            requirements.nvenc = native_nvenc;
+            requirements.nv12 = native_nvenc;
+            requirements.resources.nvenc_sessions = native_nvenc ? 1U : 0U;
+            requirements.resources.vram_bytes = native_nvenc
+                ? 512ULL * 1024ULL * 1024ULL : 0;
+            requirements.resources.pcie_bandwidth = native_nvenc ? 0.25f : 0.0f;
+            requirements.h264 = native_nvenc &&
+                (codec == "auto" || codec == "h264" || codec == "libx264" ||
+                 codec == "h264_nvenc");
+            requirements.hevc = native_nvenc &&
+                (codec == "hevc" || codec == "h265" || codec == "libx265" ||
+                 codec == "hevc_nvenc");
+            requirements.av1 = native_nvenc &&
+                (codec == "av1" || codec == "libsvtav1" || codec == "av1_nvenc");
+            auto reservation = m_device_scheduler.reserve(requirements);
+            if (!reservation) {
+                return ipc::Reply{ipc::Status::Error,
+                                  "RENDER_JOB rejected: no device satisfies requested capabilities"};
+            }
+            spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={})",
+                          reservation->device(), native_nvenc);
+            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
+            auto warm_renderer = warm_renderer_for_device(reservation->device());
             auto& warm_dispatcher = warm_render_job_dispatcher();
             if (warm_dispatcher) {
-                return warm_dispatcher(req.payload, m_warm_renderer);
+                return warm_dispatcher(req.payload, std::move(warm_renderer));
             }
             auto& dispatcher = render_job_dispatcher();
             if (dispatcher) {
@@ -378,8 +512,10 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             return ipc::Reply{ipc::Status::NotFound,
                               "RENDER_JOB unavailable: render group not compiled"};
         }
-        case ipc::Command::Status:
+        case ipc::Command::Status: {
+            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             return ipc_status();
+        }
         case ipc::Command::Shutdown:
             return ipc::Reply{ipc::Status::Shutdown, "bye"};
         default:

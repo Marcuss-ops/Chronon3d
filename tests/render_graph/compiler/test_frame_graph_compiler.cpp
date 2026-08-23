@@ -1409,4 +1409,3 @@ TEST_CASE("Invariant: 100 Image layers lower into 1 CompiledLayerBatch and 0 leg
 }
 
 
-

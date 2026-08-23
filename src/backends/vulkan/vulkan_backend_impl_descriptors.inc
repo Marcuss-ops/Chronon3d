@@ -359,6 +359,65 @@
         return set;
     }
 
+    VkDescriptorSet allocate_text_tile_bin_descriptor_set() {
+        if (!frame_batch.active) {
+            throw std::logic_error("text tile bin requires an active frame batch");
+        }
+        return frame_batch.text_tile_bin_allocators[frame_batch.next_slot].allocate();
+    }
+
+    VkDescriptorSet allocate_text_tile_raster_descriptor_set() {
+        if (!frame_batch.active) {
+            throw std::logic_error("text tile raster requires an active frame batch");
+        }
+        return frame_batch.text_tile_raster_allocators[frame_batch.next_slot].allocate();
+    }
+
+    void write_text_tile_bin_descriptors(
+        VkDescriptorSet set, VkBuffer glyph_buffer, VkBuffer run_buffer,
+        VkBuffer tile_counts, VkBuffer tile_indices) {
+        const VkDescriptorBufferInfo glyph{glyph_buffer, 0, VK_WHOLE_SIZE};
+        const VkDescriptorBufferInfo runs{run_buffer, 0, VK_WHOLE_SIZE};
+        const VkDescriptorBufferInfo counts{tile_counts, 0, VK_WHOLE_SIZE};
+        const VkDescriptorBufferInfo indices{tile_indices, 0, VK_WHOLE_SIZE};
+        const VkWriteDescriptorSet writes[] = {
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &runs, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 2, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &counts, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 3, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr}};
+        vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
+    }
+
+    void write_text_tile_raster_descriptors(
+        VkDescriptorSet set, const Image& destination, const Image& atlas,
+        VkBuffer glyph_buffer, VkBuffer run_buffer,
+        VkBuffer tile_counts, VkBuffer tile_indices) {
+        const VkDescriptorImageInfo dst{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+        const VkDescriptorImageInfo atlas_info{VK_NULL_HANDLE, atlas.view, VK_IMAGE_LAYOUT_GENERAL};
+        const VkDescriptorBufferInfo glyph{glyph_buffer, 0, VK_WHOLE_SIZE};
+        const VkDescriptorBufferInfo runs{run_buffer, 0, VK_WHOLE_SIZE};
+        const VkDescriptorBufferInfo counts{tile_counts, 0, VK_WHOLE_SIZE};
+        const VkDescriptorBufferInfo indices{tile_indices, 0, VK_WHOLE_SIZE};
+        const VkWriteDescriptorSet writes[] = {
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst, nullptr, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &atlas_info, nullptr, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 2, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 3, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &runs, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &counts, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 5, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr}};
+        vkUpdateDescriptorSets(device, 6, writes, 0, nullptr);
+    }
+
     // ── synchronization helpers (single emission site) ───────────────────────
     // Layout transitions and memory barriers for the pass pipeline are built
     // ONLY here.  Kernels (record_*) never synchronize; the operation

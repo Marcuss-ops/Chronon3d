@@ -1,6 +1,6 @@
 // Vulkan public backend construction and move lifecycle. Included by the backend TU to preserve the
 // single public implementation while keeping each responsibility inspectable.
-VulkanBackend::VulkanBackend() {
+VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const VkApplicationInfo app_info{
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -35,6 +35,8 @@ VulkanBackend::VulkanBackend() {
           "vkEnumeratePhysicalDevices");
 
     int best_score = -1;
+    std::uint32_t graphics_device_index = 0;
+    bool requested_device_selected = false;
     for (const auto device : devices) {
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(device, &properties);
@@ -53,19 +55,29 @@ VulkanBackend::VulkanBackend() {
         for (std::uint32_t i = 0; i < family_count; ++i) {
             if (families[i].queueCount != 0 &&
                 (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
-                if (device_score > best_score) {
+                if (requested_device_index != UINT32_MAX) {
+                    if (graphics_device_index == requested_device_index) {
+                        m_physical_device = device;
+                        m_queue_family = i;
+                        requested_device_selected = true;
+                    }
+                } else if (device_score > best_score) {
                     m_physical_device = device;
                     m_queue_family = i;
                     best_score = device_score;
                 }
+                ++graphics_device_index;
                 break;
             }
         }
     }
-    if (m_physical_device == VK_NULL_HANDLE) {
+    if (m_physical_device == VK_NULL_HANDLE ||
+        (requested_device_index != UINT32_MAX && !requested_device_selected)) {
         vkDestroyInstance(m_instance, nullptr);
         m_instance = VK_NULL_HANDLE;
-        throw std::runtime_error("Vulkan: no graphics queue family available");
+        throw std::runtime_error(requested_device_index == UINT32_MAX
+            ? "Vulkan: no graphics queue family available"
+            : "Vulkan: requested graphics device index is unavailable");
     }
 
     constexpr float queue_priority = 1.0f;
@@ -176,4 +188,3 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
 #endif
     return *this;
 }
-

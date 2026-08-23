@@ -94,6 +94,16 @@ struct VulkanBackendStats {
     std::uint64_t legacy_text_run_surface_calls{0};
 };
 
+/// Hardware descriptors returned by the backend-owned physical-device
+/// enumeration. Indices are stable for the lifetime of the Vulkan instance
+/// and are the only IDs accepted by VulkanBackend's device selector.
+struct VulkanDeviceInfo {
+    std::uint32_t index{0};
+    std::string name{};
+    bool discrete{false};
+    std::uint64_t device_memory_bytes{0};
+};
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 struct CudaExternalMemoryInfo {
     int fd{-1};
@@ -112,7 +122,7 @@ struct CudaExternalMemoryInfo {
 /// this boundary and never exposes Vulkan handles to graph nodes.
 class VulkanBackend final : public graph::RenderBackend {
 public:
-    VulkanBackend();
+    explicit VulkanBackend(std::uint32_t device_index = UINT32_MAX);
     ~VulkanBackend() override;
 
     [[nodiscard]] bool supports_native_video_surface() const noexcept override {
@@ -134,6 +144,8 @@ public:
     VulkanBackend& operator=(const VulkanBackend&) = delete;
     VulkanBackend(VulkanBackend&&) noexcept;
     VulkanBackend& operator=(VulkanBackend&&) noexcept;
+
+    [[nodiscard]] static std::vector<VulkanDeviceInfo> enumerate_devices();
 
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override;
     [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
@@ -375,6 +387,7 @@ private:
 #endif
 };
 
-[[nodiscard]] std::unique_ptr<graph::RenderBackend> make_vulkan_backend();
+[[nodiscard]] std::unique_ptr<graph::RenderBackend> make_vulkan_backend(
+    std::uint32_t device_index = UINT32_MAX);
 
 } // namespace chronon3d::backends::vulkan

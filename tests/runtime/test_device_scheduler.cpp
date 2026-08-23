@@ -65,3 +65,44 @@ TEST_CASE("DeviceScheduler: multi-device deterministic pressure-based placement"
     auto res_overflow = scheduler.reserve(DeviceResourceVector{.compute_units = 0.8f, .vram_bytes = 800});
     CHECK_FALSE(res_overflow.has_value());
 }
+
+TEST_CASE("DeviceScheduler: PCIe pressure participates in reservation") {
+    DeviceScheduler scheduler;
+    scheduler.register_device(
+        DeviceCapabilities{.name = "GPU_0"},
+        DeviceResourceVector{.compute_units = 1.0f, .pcie_bandwidth = 1.0f});
+
+    auto first = scheduler.reserve(DeviceResourceVector{.pcie_bandwidth = 0.75f});
+    REQUIRE(first.has_value());
+    CHECK(first->device() == 0);
+
+    auto over = scheduler.reserve(DeviceResourceVector{.pcie_bandwidth = 0.5f});
+    CHECK_FALSE(over.has_value());
+}
+
+TEST_CASE("DeviceScheduler: capability filter precedes pressure placement") {
+    DeviceScheduler scheduler;
+    scheduler.register_device(
+        DeviceCapabilities{.name = "software", .cuda = false, .nvenc = false},
+        DeviceResourceVector{.compute_units = 1.0f, .nvenc_sessions = 4, .pcie_bandwidth = 1.0f});
+    scheduler.register_device(
+        DeviceCapabilities{.name = "native", .cuda = true, .vulkan_interop = true, .nvenc = true,
+                           .nv12 = true, .h264 = true},
+        DeviceResourceVector{.compute_units = 1.0f, .nvenc_sessions = 4, .pcie_bandwidth = 1.0f});
+
+    DeviceSelectionRequirements requirements{
+        .resources = DeviceResourceVector{.compute_units = 0.25f, .nvenc_sessions = 1, .pcie_bandwidth = 0.25f},
+        .cuda = true,
+        .vulkan_interop = true,
+        .nvenc = true,
+        .nv12 = true,
+        .h264 = true,
+    };
+    auto reservation = scheduler.reserve(requirements);
+    REQUIRE(reservation.has_value());
+    CHECK(reservation->device() == 1);
+
+    requirements.hevc = true;
+    auto unsupported = scheduler.reserve(requirements);
+    CHECK_FALSE(unsupported.has_value());
+}

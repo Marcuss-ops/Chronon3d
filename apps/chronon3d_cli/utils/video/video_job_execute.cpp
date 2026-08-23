@@ -46,6 +46,8 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.warmup = std::move(warmup);
     opts.sink = std::move(sink);
     opts.assets_root = job.execution.assets_root;
+    opts.gop_source = job.video_settings.gop_source;
+    opts.gop_copy_only = job.video_settings.gop_copy_only;
     // Honor the canonical backend preference resolved from --backend.
     // The video pipe exporter otherwise rebuilt a fresh Config::from_environment
     // (Auto → Software) and silently ignored --backend vulkan.

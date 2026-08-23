@@ -14,6 +14,7 @@
 #include "encoder_options.hpp"
 #include "pipe_options.hpp"
 #include "warmup_options.hpp"
+#include "../../../utils/video/variant_batch.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
@@ -71,6 +72,15 @@ struct FfmpegExportOptions {
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};
+
+    // Optional compressed source for packet-level GOP analysis.
+    std::string gop_source;
+    bool gop_copy_only{false};
+
+    // Optional SIMO outputs. An empty list preserves the single-output path;
+    // populated variants share the render master and fan out at the encoder
+    // boundary according to VariantBatchPlan.
+    std::vector<OutputVariant> variants;
 };
 
 // render_and_encode_ffmpeg_pipe() is declared in pipe_export_pipeline.hpp

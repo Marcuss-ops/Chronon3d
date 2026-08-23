@@ -9,10 +9,12 @@ int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root,
                    const std::string& build_command,
                    const std::string& socket_path,
-                   const std::string& backend) {
+                   const std::string& backend,
+                   std::uint32_t gpu_device_id) {
     DaemonOptions options;
     options.assets_root = assets_root;
     options.backend = backend;
+    options.gpu_device_id = gpu_device_id;
     options.build_command = build_command;
     options.watch_dirs = {"src", "include", "apps", "content"};
 

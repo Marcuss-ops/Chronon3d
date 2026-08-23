@@ -125,7 +125,8 @@ void attach_software_backend(
         chronon3d::graph::BackendCapabilities{
             .graphics = true, .compute = true},
         [renderer] {
-            auto backend = chronon3d::backends::vulkan::make_vulkan_backend();
+            auto backend = chronon3d::backends::vulkan::make_vulkan_backend(
+                renderer->runtime().config().gpu_device_id());
             auto* vulkan = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(
                 backend.get());
             if (!vulkan) {
