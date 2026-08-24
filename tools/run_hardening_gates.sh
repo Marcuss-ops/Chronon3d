@@ -22,6 +22,10 @@ budget_args=(
 if [[ -n "${BUILD_BINARY:-}" ]]; then budget_args+=(--binary "$BUILD_BINARY"); fi
 if [[ -n "${MAX_BUILD_DEPENDENCIES:-}" ]]; then
     budget_args+=(--max-dependencies "$MAX_BUILD_DEPENDENCIES")
+else
+    # Keep the dependency budget active even when no specific ELF was passed;
+    # check_build_budget.py discovers all ELF artifacts in the build tree.
+    budget_args+=(--max-dependencies "${DEFAULT_MAX_BUILD_DEPENDENCIES:-128}")
 fi
 budget_args+=(--out "$out/build-metrics.json")
 python3 "${budget_args[@]}"
