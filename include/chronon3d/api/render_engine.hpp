@@ -205,6 +205,11 @@ public:
     /// composition-aware rendering.
     void set_composition_registry(const CompositionRegistry* registry);
 
+    /// Read the active composition registry, or nullptr if none has been set.
+    /// ADR-024: Added so the IPC daemon's CompositionSession can resolve
+    /// composition descriptors through the canonical registry.
+    [[nodiscard]] const CompositionRegistry* composition_registry() const noexcept;
+
     // ── Rendering (primary API) ──────────────────────────────────
 
     /// Render a scene with a standard Camera.

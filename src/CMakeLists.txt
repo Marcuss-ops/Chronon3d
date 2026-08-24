@@ -121,6 +121,9 @@ add_subdirectory(animations)        # chronon3d_animations
 if(CHRONON3D_ENABLE_TEXT)
     add_subdirectory(text)              # chronon3d_text_core
 endif()
+if(CHRONON3D_BUILD_CLI)
+    add_subdirectory(ipc)               # chronon3d_ipc (ADR-024: daemon IPC)
+endif()
 
 # ==============================================================================
 # Final aggregate INTERFACE targets (logical groupers; the SDK surface is

@@ -9,6 +9,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     architecture_tests.cmake
     core_tests.cmake
     backend_registry_tests.cmake
+    shader_abi_tests.cmake
     memory_tests.cmake
     c_abi_tests.cmake
     scene_tests.cmake

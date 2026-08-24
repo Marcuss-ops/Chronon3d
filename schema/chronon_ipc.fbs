@@ -1,0 +1,139 @@
+// ---------------------------------------------------------------------------
+// schema/chronon_ipc.fbs — FlatBuffers schema for the Chronon3D daemon IPC
+//
+// Architecture:
+//   Client (Go/Rust/Node) → FlatBuffers → Unix Socket → IpcCommand
+//                                                           ↓
+//                                                     Chronon Runtime API
+//                                                           ↓
+//                                                       RenderEngine
+//                                                           ↓
+//                                                   CompiledComposition
+//
+// Key principle (ADR-024): CreateOnce per composition, per-frame parameters
+// are minimal — the compiled frame graph is reused across RenderFrame calls.
+// The daemon keeps the warm render engine alive; clients only send
+// composition identity + frame index + dynamic parameters.
+//
+// Version: 1.0 — Level 1 (Unix-domain socket, single daemon service)
+// ---------------------------------------------------------------------------
+
+namespace chronon3d.ipc;
+
+// ── Enums ──────────────────────────────────────────────────────────────────
+
+/// Backend preference for the daemon session.  Must match the runtime
+/// graph::BackendPreference values.
+enum BackendPreference : byte {
+    Auto = 0,
+    Software = 1,
+    GPU = 2,
+}
+
+/// Status codes returned by every IPC request.
+enum IpcStatus : byte {
+    Ok = 0,
+    Error = 1,
+    NotFound = 2,
+    BadRequest = 3,
+    Shutdown = 4,
+    NotPrepared = 5,    // no active prepared plan
+}
+
+// ── Request types ──────────────────────────────────────────────────────────
+
+/// Create a new composition from a descriptor and compile it once.
+/// The compiled frame graph is cached per composition_id for subsequent
+/// RenderFrame calls.  Large payload — sent once per composition.
+table CreateCompositionRequest {
+    composition_id: string (required);       // unique session identifier
+    descriptor_json: string (required);      // CompositionDescriptor JSON
+    assets_root: string;                     // optional asset resolution root
+}
+
+/// Render one frame of a previously-prepared composition.
+/// Small payload — sent every frame (few bytes).
+table RenderFrameRequest {
+    composition_id: string (required);
+    frame_index: uint32;
+    // Dynamic parameter overrides for this frame.  Matches the parameter
+    // slots declared by the CompiledFrameGraph at prepare time.  The key
+    // is the parameter name (e.g. "opacity", "text", "position.x").
+    parameters: [ParamOverride];
+    // Output path for this frame (optional — daemon can auto-resolve).
+    output_path: string;
+}
+
+/// Dynamic parameter override for a single frame.
+table ParamOverride {
+    key: string (required);
+    value: string (required);    // JSON-encoded value (float, int, string, etc.)
+}
+
+/// Query daemon health and statistics.
+table StatusRequest {}
+
+/// Graceful shutdown command.
+table ShutdownRequest {}
+
+// ── Reply types ────────────────────────────────────────────────────────────
+
+table CreateCompositionReply {
+    status: IpcStatus = Ok;
+    message: string;
+}
+
+table RenderFrameReply {
+    status: IpcStatus = Ok;
+    message: string;
+    output_path: string;       // path where the rendered frame was saved
+    render_ms: float32;        // wall-clock render time (ms)
+}
+
+table StatusReply {
+    status: IpcStatus = Ok;
+    message: string;           // JSON-encoded engine statistics
+}
+
+table ShutdownReply {
+    status: IpcStatus = Ok;
+    message: string;
+}
+
+// ── Union dispatch ─────────────────────────────────────────────────────────
+
+/// Tagged union of all IPC request types.  The transport layer reads the
+/// root table type to dispatch to the correct handler.
+union IpcRequestBody {
+    CreateCompositionRequest,
+    RenderFrameRequest,
+    StatusRequest,
+    ShutdownRequest,
+}
+
+union IpcReplyBody {
+    CreateCompositionReply,
+    RenderFrameReply,
+    StatusReply,
+    ShutdownReply,
+}
+
+/// Each IPC message is an envelope with exactly one request or reply body.
+table IpcEnvelope {
+    /// Monotonically increasing message id for request/reply correlation.
+    /// The daemon echoes the request's id back in the reply so multi-threaded
+    /// clients can match responses to pending futures.
+    message_id: uint64;
+
+    /// Exactly one request or reply — the transport codec reads body_type to
+    /// select the correct union variant.
+    body: IpcRequestBody;
+}
+
+table IpcReplyEnvelope {
+    message_id: uint64;
+    body: IpcReplyBody;
+}
+
+root_type IpcEnvelope;
+root_type IpcReplyEnvelope;
