@@ -203,11 +203,25 @@ if(CHRONON3D_ENABLE_VULKAN)
     find_package(Vulkan REQUIRED)
     find_package(unofficial-spirv-reflect CONFIG REQUIRED)
     if(TARGET unofficial::spirv-reflect)
-        get_target_property(_spv_inc unofficial::spirv-reflect INTERFACE_INCLUDE_DIRECTORIES)
-        get_filename_component(_spv_root "${_spv_inc}" DIRECTORY)
-        set_property(TARGET unofficial::spirv-reflect APPEND PROPERTY
-            INTERFACE_INCLUDE_DIRECTORIES "${_spv_root}"
+        # Keep the imported vcpkg target immutable.  The port currently
+        # exports the legacy header below include/spirv-reflect while the
+        # code generator includes <spirv_reflect.h> from its parent.  This
+        # wrapper is the single local compatibility boundary and can be
+        # deleted once the port exports the canonical include root.
+        add_library(chronon3d_spirv_reflect_headers INTERFACE)
+        target_link_libraries(chronon3d_spirv_reflect_headers INTERFACE
+            unofficial::spirv-reflect
         )
+        find_path(CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT
+            NAMES spirv_reflect.h
+            HINTS
+                "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include"
+        )
+        if(CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT)
+            target_include_directories(chronon3d_spirv_reflect_headers SYSTEM
+                INTERFACE "${CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT}"
+            )
+        endif()
     endif()
     find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 endif()
