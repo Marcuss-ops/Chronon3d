@@ -82,11 +82,18 @@ set(CHRONON3D_VULKAN_ABI_HEADERS "${_chronon3d_shader_abi_headers}" CACHE INTERN
 add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend.cpp
     vulkan_legacy_fallback.cpp
+    memory/vulkan_memory_manager.cpp
     ${_chronon3d_shader_headers}
 )
 set_target_properties(chronon3d_backend_vulkan PROPERTIES UNITY_BUILD OFF)
 target_compile_definitions(chronon3d_backend_vulkan PUBLIC CHRONON3D_ENABLE_VULKAN)
-target_link_libraries(chronon3d_backend_vulkan PUBLIC chronon3d Vulkan::Vulkan)
+target_link_libraries(chronon3d_backend_vulkan
+    PUBLIC
+        chronon3d
+        Vulkan::Vulkan
+    PRIVATE
+        GPUOpen::VulkanMemoryAllocator
+)
 target_include_directories(chronon3d_backend_vulkan
     PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
            $<BUILD_INTERFACE:${CHRONON3D_VULKAN_GENERATED_DIR}>
@@ -103,17 +110,21 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
             CHRONON3D_NVRTC_LIBRARY)
         if(DEFINED ${_chronon3d_cuda_cache_var} AND
            "${${_chronon3d_cuda_cache_var}}" MATCHES
-           "(/usr/local/lib/|/tmp/)|libnvrtc(-builtins)?\\.so\\.[0-9]+")
+           "(/tmp/)|libnvrtc(-builtins)?\\.so\\.[0-9]+")
             unset(${_chronon3d_cuda_cache_var} CACHE)
             unset(${_chronon3d_cuda_cache_var})
         endif()
     endforeach()
 
     find_path(CHRONON3D_CUDA_INCLUDE_DIR cuda.h
-        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+        HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
+              "/home/pierone/cuda-include-chronon"
+              "/usr/local/lib/python3.10/dist-packages/nvidia/cu13/include"
+              "/usr/local/lib/python3.10/dist-packages/nvidia/cuda_runtime/include"
         PATH_SUFFIXES include)
     find_library(CHRONON3D_CUDA_DRIVER_LIBRARY cuda
         HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+              "/usr/lib/x86_64-linux-gnu"
         PATH_SUFFIXES lib64 lib/x64 lib)
     if(NOT CHRONON3D_CUDA_INCLUDE_DIR OR NOT CHRONON3D_CUDA_DRIVER_LIBRARY)
         message(FATAL_ERROR
@@ -157,11 +168,15 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
                     "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
 
         find_path(CHRONON3D_NVRTC_INCLUDE_DIR nvrtc.h
-            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
+                  "/home/pierone/cuda-include-chronon"
+                  "/usr/local/lib/python3.10/dist-packages/nvidia/cuda_nvrtc/include"
             PATH_SUFFIXES include include/cuda)
         find_library(CHRONON3D_NVRTC_LIBRARY
-            NAMES nvrtc libnvrtc.so
-            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+            NAMES nvrtc libnvrtc.so libnvrtc-chronon.so
+            HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
+                  "/home/pierone"
+                  "/usr/local/lib/python3.10/dist-packages/nvidia/cuda_nvrtc/lib"
             PATH_SUFFIXES lib64 lib lib/x64)
         if(NOT CHRONON3D_NVRTC_LIBRARY)
             foreach(_chronon3d_cuda_root IN ITEMS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}")

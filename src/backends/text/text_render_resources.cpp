@@ -2,8 +2,7 @@
 #include <chronon3d/text/glyph_atlas.hpp>  // P1-9: full definitions of GlyphAtlasEntry, GlyphAtlasStats
 
 #include <chronon3d/assets/asset_resolver.hpp>
-// P1-8: per-renderer text-raster cache state + `hash_text_style` impl relocation.
-#include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+// P1-8: per-renderer text-raster cache state.
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>  // g_current_counters + RenderCounters full definition
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>

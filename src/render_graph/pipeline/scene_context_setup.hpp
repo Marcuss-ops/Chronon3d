@@ -6,7 +6,8 @@
 // surface (does not live under include/chronon3d/) and is consumed
 // exclusively by scene.cpp (caller) and scene_context_setup.cpp (impl).
 //
-// Counterpart header: scene_reuse_coordinator.hpp.
+// Counterpart implementation: tile_execution_policy.cpp owns the
+// canonical execution-plan and reuse decision.
 // ---------------------------------------------------------------------------
 
 #pragma once

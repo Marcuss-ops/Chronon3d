@@ -60,7 +60,7 @@ graph::RenderOpResult draw_cached_text_run(
             std::abs(state.skew) > 1e-4f || state.blur > 1e-4f) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "draw_cached_text_run: animated/style feature requires legacy text path"});
+                "draw_cached_text_run: animated/style feature requires canonical software text path"});
         }
         auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
             layout.font.font_path, state.glyph_id,

@@ -25,7 +25,6 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
-#include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 // WP-8 PR 8.1 — the renderer-local FontEngine is constructed from
 // `m_runtime->resolver()` in `software_renderer_factory.cpp`.  This TU
 // is the SOLE owner of the `font_engine()` accessor bodies (the per-renderer

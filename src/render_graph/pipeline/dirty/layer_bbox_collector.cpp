@@ -20,6 +20,78 @@
 
 namespace chronon3d::graph::detail {
 
+void populate_node_semantic_fingerprints(
+    const RenderNode& node,
+    LayerBBoxState& state) {
+    using namespace chronon3d::graph;
+
+    state.semantic_presence |= SemanticColor;
+    state.color_hash = hash_combine(state.color_hash, hash_color(node.color));
+    state.color_hash = hash_combine(state.color_hash, hash_fill(node.fill));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_string(node.name));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_value(static_cast<int>(node.shape.type())));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_surface_policy(node.surface_policy));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_transform_policy(node.transform_policy));
+
+    switch (node.shape.type()) {
+        case ShapeType::TextRun:
+            state.semantic_presence |= SemanticText;
+            state.text_hash = hash_combine(state.text_hash, hash_shape(node.shape));
+            break;
+        case ShapeType::Image:
+        case ShapeType::TiledImage:
+            state.semantic_presence |= SemanticImage;
+            state.image_hash = hash_combine(state.image_hash, hash_shape(node.shape));
+            break;
+        default:
+            break;
+    }
+}
+
+void populate_layer_semantic_fingerprints(
+    const Layer& layer,
+    SampleTime sample_time,
+    LayerBBoxState& state) {
+    using namespace chronon3d::graph;
+
+    state.structure_hash = hash_combine(state.structure_hash, hash_string(layer.name));
+    state.structure_hash = hash_combine(state.structure_hash, hash_string(layer.parent_name));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_value(static_cast<int>(layer.kind)));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_value(layer.nodes.size()));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_value(layer.uses_2_5d_projection));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_value(layer.screen_space));
+    state.structure_hash = hash_combine(
+        state.structure_hash, hash_value(static_cast<int>(layer.blend_mode)));
+    for (const auto& node : layer.nodes) {
+        populate_node_semantic_fingerprints(node, state);
+    }
+
+    if (layer.m_effects && !layer.m_effects->empty()) {
+        state.semantic_presence |= SemanticEffects;
+        state.effects_hash = hash_effect_stack(*layer.m_effects);
+    }
+    if (layer.anim_transform.blur.is_time_dependent()) {
+        state.semantic_presence |= SemanticEffects;
+        state.effects_hash = hash_combine(
+            state.effects_hash,
+            hash_value(layer.anim_transform.blur.evaluate(
+                layer.local_time(sample_time))));
+    }
+    if (layer.kind == LayerKind::Video && layer.video_source) {
+        state.semantic_presence |= SemanticVideoSource;
+        state.video_source_hash = hash_video_source(*layer.video_source);
+    }
+    state.semantic_fingerprints_valid = true;
+}
+
 std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
     const RenderGraphContext& ctx,
     const LayerResolutionResult& resolved,
@@ -93,6 +165,8 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                             hash_value(rl.layer->anim_transform.blur.evaluate(blur_time)));
                     }
                     state.content_hash = content_h;
+                    populate_layer_semantic_fingerprints(
+                        *rl.layer, ctx.frame_input.sample_time, state);
                     local_map[std::string(rl.layer->name)] = state;
                 }
             }
