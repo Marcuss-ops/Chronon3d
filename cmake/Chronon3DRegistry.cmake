@@ -129,7 +129,7 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
     chronon3d_blend2d_paint                 # CHRONON3D_USE_BLEND2D
     chronon3d_content                       # CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS
     chronon3d_diagnostics                   # CHRONON3D_BUILD_DIAGNOSTICS
-    chronon3d_ipc                           # CHRONON3D_BUILD_CLI (ADR-024: daemon IPC)
+    chronon3d_ipc                           # CHRONON3D_ENABLE_IPC (ADR-024: daemon IPC)
     chronon3d_media_video                   # CHRONON3D_ENABLE_VIDEO
     chronon3d_text_core                     # CHRONON3D_ENABLE_TEXT
 )
