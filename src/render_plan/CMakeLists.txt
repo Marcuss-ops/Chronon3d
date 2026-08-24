@@ -48,6 +48,7 @@ target_include_directories(chronon3d_render_plan_compiler
 target_link_libraries(chronon3d_render_plan
     PUBLIC
         nlohmann_json::nlohmann_json
+        nlohmann_json_schema_validator::validator
         chronon3d_core_impl
 )
 

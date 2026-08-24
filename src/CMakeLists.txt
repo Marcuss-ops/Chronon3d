@@ -95,12 +95,10 @@ endif()
 # ==============================================================================
 # Per-subsystem targets (ordered by dependency graph)
 # ==============================================================================
-if(CHRONON3D_ENABLE_IPC)
-    # Imported targets created in src/ipc are directory-scoped; declare the
-    # package here too because chronon3d_pipeline carries IPC OBJECT files
-    # to consumers in this parent directory.
-    find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
-endif()
+# Render-plan structural validation and IPC contracts share the same official
+# JSON Schema implementation. Keep the package available independently of IPC
+# so the C ABI/render-plan target does not inherit a false feature gate.
+find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
 
 add_subdirectory(core)              # chronon3d_core_impl
 add_subdirectory(cache)             # chronon3d_cache
