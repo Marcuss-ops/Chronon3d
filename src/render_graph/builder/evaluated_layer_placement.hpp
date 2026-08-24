@@ -383,17 +383,12 @@ struct EvaluatedSourcePlacement {
         ? node_matrix
         : result.layer.source_matrix * node_matrix;
 
-    // All source-producing paths (single source, multisource, fresh build,
-    // and refresh) share the same authored-text and pinned-canvas rules.
-    // Keeping these adjustments here prevents a refresh from silently
-    // reconstructing a different source payload than the fresh builder.
+    // TextRun placement is already resolved by LayerBuilder and consumed by
+    // its dedicated source path. Regular source nodes retain the layer/node
+    // composition here; no text placement kind is interpreted in this shared
+    // evaluator.
     if (!result.use_local) {
-        if (has_custom_absolute_text_transform(item, node, ctx)) {
-            result.matrix = resolve_custom_absolute_text_matrix(item, node, ctx);
-        } else {
-            result.matrix = resolve_absolute_text_source_matrix(
-                item, node, ctx, result.matrix);
-        }
+        result.matrix = result.layer.source_matrix * node_matrix;
     }
     result.opacity = (result.use_local || result.layer.defer_camera_projection)
         ? node.world_transform.opacity

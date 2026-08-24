@@ -177,94 +177,6 @@ inline Mat4 source_space_world_matrix(const LayerGraphItem& item, const RenderGr
     return world;
 }
 
-// TextPlacement::Absolute is already expressed in canvas coordinates.  Text
-// layers can nevertheless carry the automatic canvas-centre transform from
-// their layer placement.  Remove that implicit parent before composing the
-// text node, including when the layer is aggregated by MultiSourceNode.
-inline Mat4 resolve_absolute_text_source_matrix(
-    const LayerGraphItem& item,
-    const RenderNode& node,
-    const RenderGraphContext& ctx,
-    Mat4 matrix) {
-    if (node.shape.type() != ShapeType::TextRun) return matrix;
-
-    const auto run_shape = node.shape.text_run_shape_handle().value;
-    const bool absolute_placement =
-        run_shape && run_shape->placement_kind == TextPlacementKind::Absolute;
-    // A pinned layer owns the canvas-center translation.  Do not strip it
-    // when an animated layer happens to land exactly at (0, 0): that would
-    // make the final keyframe use only the text node's box-local origin and
-    // visibly jump to the upper-left corner.  The old condition was only
-    // safe for an unpinned parent whose absolute placement was already in
-    // canvas coordinates.
-    const bool layer_is_pinned = item.layer && item.layer->layout.pin.has_value();
-    if (absolute_placement && !layer_is_pinned && matrix_near(
-            item.transform.to_mat4(), implicit_canvas_center_matrix(ctx))) {
-        // No authored layer transform: the node's Absolute placement is
-        // already in canvas coordinates.  Remove only the automatic root
-        // centering before composing it.
-        return glm::inverse(implicit_canvas_center_matrix(ctx)) * matrix;
-    }
-    return matrix;
-}
-
-/// Resolve an authored transform on an unpinned Absolute Text layer.
-/// Returns the COMPLETE text matrix (not a parent matrix).  Callers must not
-/// multiply the result by node.world_transform a second time.
-inline Mat4 resolve_custom_absolute_text_matrix(
-    const LayerGraphItem& item,
-    const RenderNode& node,
-    const RenderGraphContext& ctx) {
-    Transform layer_transform = item.transform;
-    const Vec3 canvas_size{
-        ctx.frame_input.width * 0.5f,
-        ctx.frame_input.height * 0.5f,
-        0.0f
-    };
-    if (std::abs(layer_transform.position.x - canvas_size.x) > 1e-4f ||
-        std::abs(layer_transform.position.y - canvas_size.y) > 1e-4f) {
-        layer_transform.position -= canvas_size;
-    }
-
-    Transform local_text_transform = node.world_transform;
-    local_text_transform.position = Vec3{0.0f, 0.0f, 0.0f};
-    return layer_transform.to_mat4() * local_text_transform.to_mat4();
-}
-
-inline bool has_custom_absolute_text_transform(
-    const LayerGraphItem& item,
-    const RenderNode& node,
-    const RenderGraphContext& ctx) {
-    if (node.shape.type() != ShapeType::TextRun) return false;
-    const auto run_shape = node.shape.text_run_shape_handle().value;
-    if (!run_shape || run_shape->placement_kind != TextPlacementKind::Absolute) {
-        return false;
-    }
-    if (item.layer && item.layer->layout.pin.has_value()) return false;
-    if (matrix_near(item.transform.to_mat4(), implicit_canvas_center_matrix(ctx))) {
-        return false;
-    }
-
-    // A static translation is already represented by the legacy absolute
-    // text path and must retain its established canvas-space semantics.  The
-    // problematic case is a transform that is re-evaluated (or changes the
-    // text basis through scale/rotation/anchor): that path needs the authored
-    // layer matrix composed with the node-local text matrix exactly once.
-    const bool time_dependent = item.layer && item.layer->anim_transform.is_time_dependent();
-    const bool non_translation =
-        std::abs(item.transform.rotation.w - 1.0f) > 1e-4f ||
-        std::abs(item.transform.rotation.x) > 1e-4f ||
-        std::abs(item.transform.rotation.y) > 1e-4f ||
-        std::abs(item.transform.rotation.z) > 1e-4f ||
-        std::abs(item.transform.scale.x - 1.0f) > 1e-4f ||
-        std::abs(item.transform.scale.y - 1.0f) > 1e-4f ||
-        std::abs(item.transform.scale.z - 1.0f) > 1e-4f ||
-        std::abs(item.transform.anchor.x) > 1e-4f ||
-        std::abs(item.transform.anchor.y) > 1e-4f ||
-        std::abs(item.transform.anchor.z) > 1e-4f;
-    return time_dependent || non_translation;
-}
-
 /// Strip the implicit canvas-center translation from a TransformNode matrix.
 ///
 /// The SourceNode / MultiSourceNode already applies the canvas-center
@@ -374,29 +286,12 @@ inline TextRunPlacement resolve_text_run_placement(
         return TextRunPlacement{node.world_transform.to_mat4()};
     }
 
-    if (has_custom_absolute_text_transform(item, node, ctx)) {
-        out_opacity = item.transform.opacity * node.world_transform.opacity;
-        return TextRunPlacement{
-            resolve_custom_absolute_text_matrix(item, node, ctx)};
-    }
-
-    // Non-local path: compose parent layer placement and node-local text
-    // placement directly.  In particular, retain an implicit canvas-center
-    // carried by item.world_matrix: it compensates the text box anchor offset
-    // exactly once instead of leaving the final model at -width/2,-height/2.
-    Mat4 parent_matrix = resolve_absolute_text_source_matrix(
-        item, node, ctx, item.world_matrix);
-    Mat4 matrix = parent_matrix * node.world_transform.to_mat4();
+    // The layer resolver already owns Canvas centering, layer pins, and
+    // parent transforms. The text resolver owns the node-local box matrix.
+    // Their product is the only TextRun placement composition.
     out_opacity = item.transform.opacity * node.world_transform.opacity;
-
-    // Projected/non-implicit centered paths may request centered rendering
-    // without carrying canvas-center in item.world_matrix.  Bake it only for
-    // those paths; implicit-centered layers already contain it above.
-    if (should_use_centered_rendering(item, ctx) && !is_implicit_2d_centering_only(item, ctx)) {
-        matrix = implicit_canvas_center_matrix(ctx) * matrix;
-    }
-
-    return TextRunPlacement{matrix};
+    return TextRunPlacement{
+        item.world_matrix * node.world_transform.to_mat4()};
 }
 
 } // namespace chronon3d::graph::detail
