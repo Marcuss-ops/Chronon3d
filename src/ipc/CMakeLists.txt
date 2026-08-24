@@ -1,0 +1,41 @@
+# ── Chronon3D IPC module (ADR-024) ────────────────────────────────────────
+# FlatBuffers schema → generated C++ → OBJECT library
+#
+# Schema compilation: flatc --cpp schema/chronon_ipc.fbs → chronon_ipc_generated.h
+
+find_program(CHRONON3D_FLATC flatc REQUIRED)
+find_package(flatbuffers CONFIG REQUIRED)
+
+set(CHRONON3D_IPC_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(CHRONON3D_IPC_SCHEMA "${CMAKE_SOURCE_DIR}/schema/chronon_ipc.fbs")
+set(CHRONON3D_IPC_GENERATED_HEADER "${CHRONON3D_IPC_GENERATED_DIR}/chronon_ipc_generated.h")
+
+add_custom_command(
+    OUTPUT "${CHRONON3D_IPC_GENERATED_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CHRONON3D_IPC_GENERATED_DIR}"
+    COMMAND "${CHRONON3D_FLATC}"
+        --cpp
+        -o "${CHRONON3D_IPC_GENERATED_DIR}"
+        "${CHRONON3D_IPC_SCHEMA}"
+    DEPENDS "${CHRONON3D_IPC_SCHEMA}"
+    COMMENT "Compiling FlatBuffers schema: chronon_ipc.fbs → C++"
+    VERBATIM
+)
+
+add_library(chronon3d_ipc OBJECT
+    ipc_codec.cpp
+    composition_session.cpp
+    "${CHRONON3D_IPC_GENERATED_HEADER}"
+)
+set_target_properties(chronon3d_ipc PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_ipc PUBLIC chronon3d flatbuffers::flatbuffers)
+target_include_directories(chronon3d_ipc
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    PRIVATE ${CHRONON3D_IPC_GENERATED_DIR}
+           ${CMAKE_SOURCE_DIR}
+)
+
+# Publish to the canonical registry
+set(CHRONON3D_IPC_GENERATED_DIR "${CHRONON3D_IPC_GENERATED_DIR}" CACHE INTERNAL
+    "IPC FlatBuffers generated header directory")

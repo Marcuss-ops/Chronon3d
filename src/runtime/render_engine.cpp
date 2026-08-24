@@ -215,6 +215,11 @@ void RenderEngine::set_composition_registry(const CompositionRegistry* registry)
     m_impl->m_renderer->set_composition_registry(registry);
 }
 
+const CompositionRegistry* RenderEngine::composition_registry() const noexcept {
+    if (!m_impl || !m_impl->m_renderer) return nullptr;
+    return m_impl->m_renderer->composition_registry();
+}
+
 // ── Rendering (forward) ────────────────────────────────────────────────────
 
 std::shared_ptr<Framebuffer> RenderEngine::render_scene(

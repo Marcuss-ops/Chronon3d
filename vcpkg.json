@@ -26,7 +26,7 @@
     },
     "cli": {
       "description": "CLI application (CHRONON3D_BUILD_CLI)",
-      "dependencies": ["cli11"]
+      "dependencies": ["cli11", "flatbuffers"]
     },
     "blend2d": {
       "description": "Blend2D software rendering backend (CHRONON3D_USE_BLEND2D)",
@@ -70,7 +70,7 @@
     },
     "vulkan": {
       "description": "Headless Vulkan backend (CHRONON3D_ENABLE_VULKAN)",
-      "dependencies": ["vulkan"]
+      "dependencies": ["vulkan", {"name": "spirv-tools", "features": ["tools"]}, "spirv-reflect"]
     }
   },
   "default-features": ["mesh", "cli", "blend2d", "text", "exr"]

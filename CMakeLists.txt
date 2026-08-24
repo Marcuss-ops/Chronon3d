@@ -156,6 +156,7 @@ find_package(magic_enum CONFIG REQUIRED)
 
 if(CHRONON3D_ENABLE_VULKAN)
     find_package(Vulkan REQUIRED)
+    find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 endif()
 
 if(CHRONON3D_ENABLE_EXR)
@@ -188,6 +189,14 @@ endif()
 
 # ── Central registry (must be included before src) ───────────────────────────
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DRegistry.cmake)
+
+# ── Canonical shader pipeline (glslang → spirv-val → spirv-opt → embed) ───
+include(${CMAKE_SOURCE_DIR}/cmake/ChrononShaders.cmake)
+
+# ── Host build tools (shader codegen) ────────────────────────────────────
+if(CHRONON3D_ENABLE_VULKAN)
+    add_subdirectory(tools/shaders)
+endif()
 
 add_subdirectory(src)
 
@@ -226,6 +235,7 @@ endif()
 # against chronon3d_cli_render and must see that target during configuration.
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
+    add_subdirectory(apps/chronon3d_daemon)
 endif()
 
 # Standalone benchmark CLI.
