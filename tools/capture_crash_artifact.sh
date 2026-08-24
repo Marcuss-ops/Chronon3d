@@ -11,6 +11,37 @@ shift
 [[ $# -gt 0 ]] || { echo "command required" >&2; exit 2; }
 mkdir -p "$out"
 printf '%s\n' "$*" > "$out/command.txt"
+python3 - "$out" "$@" <<'PY'
+import datetime
+import json
+import os
+import platform
+import subprocess
+import sys
+
+out = sys.argv[1]
+command = sys.argv[2:]
+try:
+    git_sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
+    ).strip()
+except (OSError, subprocess.CalledProcessError):
+    git_sha = None
+
+metadata = {
+    "schema_version": 1,
+    "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "pid": os.getpid(),
+    "cwd": os.getcwd(),
+    "git_sha": git_sha,
+    "platform": platform.platform(),
+    "python": platform.python_version(),
+    "command": command,
+}
+with open(os.path.join(out, "metadata.json"), "w", encoding="utf-8") as handle:
+    json.dump(metadata, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
 {
     date -u +%Y-%m-%dT%H:%M:%SZ
     uname -a
