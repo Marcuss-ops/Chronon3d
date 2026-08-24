@@ -23,11 +23,13 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
+      - name: Restore persistent fuzz corpus
+        uses: actions/cache@v4
         with:
-          name: chronon3d-fuzz-corpus
           path: build/fuzz-persistent-corpus
+          key: ${{ runner.os }}-chronon3d-fuzz-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-chronon3d-fuzz-${{ github.ref_name }}-
 
       - name: Install Clang
         run: |
