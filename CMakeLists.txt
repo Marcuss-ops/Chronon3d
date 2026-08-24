@@ -54,7 +54,7 @@ option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
 option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)
 option(CHRONON3D_BUILD_DIAGNOSTICS "Build diagnostic/debug compositions (tests, calibrations, A/B)" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
-option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz)" ON)
+option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz + ICU boundaries)" ON)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event backend)" OFF)
@@ -76,6 +76,24 @@ option(CHRONON3D_ENABLE_CRASH_HANDLER
        "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
 option(CHRONON3D_ENABLE_DEV_WATCH
        "Enable file-system watch mode for development (efsw) — CLI dev only" OFF)
+option(CHRONON3D_BUILD_SVGPP_SPIKE
+       "Build the isolated SVG++ path-importer feasibility spike" OFF)
+
+find_package(boost_spirit CONFIG REQUIRED)
+find_package(boost_math CONFIG REQUIRED)
+include(FetchContent)
+FetchContent_Declare(
+    svgpp
+    URL https://github.com/svgpp/svgpp/archive/refs/tags/v1.3.1.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(svgpp)
+FetchContent_GetProperties(svgpp)
+add_library(chronon3d_svgpp_headers INTERFACE)
+target_include_directories(chronon3d_svgpp_headers INTERFACE
+    "${svgpp_SOURCE_DIR}/include"
+)
+target_link_libraries(chronon3d_svgpp_headers INTERFACE Boost::spirit Boost::math)
 
 if(CHRONON3D_DEV_SPLIT_DWARF AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
@@ -159,6 +177,7 @@ find_package(zstd CONFIG REQUIRED)
 if(CHRONON3D_ENABLE_TEXT)
     find_package(freetype CONFIG REQUIRED)
     find_package(harfbuzz CONFIG REQUIRED)
+    find_package(ICU REQUIRED COMPONENTS uc i18n)
 endif()
 
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -223,6 +242,10 @@ if(CHRONON3D_ENABLE_VULKAN)
 endif()
 
 add_subdirectory(src)
+
+if(CHRONON3D_BUILD_SVGPP_SPIKE)
+    add_subdirectory(tools/spikes/svgpp)
+endif()
 
 # 10. Content Generation (optional — proofs/demos, not core engine)
 if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)

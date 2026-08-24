@@ -1,0 +1,22 @@
+// ---------------------------------------------------------------------------
+// Generated from schemas/*.v1.schema.json at configure time.
+// ---------------------------------------------------------------------------
+#pragma once
+
+#include <string_view>
+
+namespace chronon3d::ipc::detail {
+
+inline constexpr std::string_view kCompositionV1Schema = R"CHRONON3D_SCHEMA(
+@CHRONON3D_COMPOSITION_SCHEMA_JSON@
+)CHRONON3D_SCHEMA";
+
+inline constexpr std::string_view kRenderPlanV1Schema = R"CHRONON3D_SCHEMA(
+@CHRONON3D_RENDER_PLAN_SCHEMA_JSON@
+)CHRONON3D_SCHEMA";
+
+inline constexpr std::string_view kRenderSettingsV1Schema = R"CHRONON3D_SCHEMA(
+@CHRONON3D_RENDER_SETTINGS_SCHEMA_JSON@
+)CHRONON3D_SCHEMA";
+
+} // namespace chronon3d::ipc::detail

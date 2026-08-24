@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chronon3d.dev/schemas/chronon.composition.v1.schema.json",
+  "title": "Chronon3D Composition Descriptor V1",
+  "description": "Structural contract for CreateCompositionRequest.descriptor_json. Registry lookup, asset resolution and compilation remain daemon-side semantic checks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "id"],
+  "properties": {
+    "schema": {
+      "const": "chronon.composition"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable composition descriptor id. The daemon must also verify that it matches the enclosing IPC composition_id."
+    },
+    "category": {
+      "type": "string"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7680
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4320
+    },
+    "fps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 240000
+        },
+        "denominator": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1001
+        }
+      }
+    },
+    "duration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000,
+      "description": "Composition duration in frames."
+    }
+  }
+}

@@ -15,6 +15,8 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 
+#include "contract_validator_registry.hpp"
+
 #include <memory>
 #include <mutex>
 #include <string>
@@ -34,8 +36,9 @@ struct SessionComposition {
 /// CompositionRegistry when available for descriptor resolution.
 class CompositionSession {
 public:
-    explicit CompositionSession(RenderEngine& engine)
-        : m_engine(&engine) {}
+    explicit CompositionSession(RenderEngine& engine,
+                                const ContractValidatorRegistry& validators)
+        : m_engine(&engine), m_validators(&validators) {}
 
     void create_composition(std::string_view composition_id,
                             std::string_view descriptor_json);
@@ -49,6 +52,7 @@ public:
 
 private:
     RenderEngine* m_engine;
+    const ContractValidatorRegistry* m_validators;
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, SessionComposition> m_compositions;
 };

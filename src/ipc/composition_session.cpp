@@ -35,6 +35,13 @@ void CompositionSession::create_composition(std::string_view composition_id,
     }
 
     auto doc = nlohmann::json::parse(descriptor_json);
+    ContractValidationError validation_error;
+    if (!m_validators->validate(
+            ContractId::CompositionV1, doc, &validation_error)) {
+        throw std::invalid_argument(
+            "CreateComposition: " + validation_error.contract + ": " +
+            validation_error.message);
+    }
 
     CompositionDescriptor descriptor;
     descriptor.id       = doc.value("id", std::string(composition_id));

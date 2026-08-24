@@ -8,6 +8,7 @@
 
 #include <chronon3d/text/single_line_composer.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
+#include "src/text/boundary_resolver/text_boundary_resolver.hpp"
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -85,6 +86,7 @@ TEST_CASE("UnicodeLineBreak: CJK ideographs wrap without whitespace") {
 
     ParagraphStyle style;
     style.composer = ParagraphComposer::SingleLine;
+    style.language = "zh";
     auto layout = compose_single_line_paragraph(run, 140.0f, style, text);
 
     CHECK(layout.lines.size() >= 2);
@@ -101,6 +103,7 @@ TEST_CASE("UnicodeLineBreak: CJK opening bracket prevents break after") {
 
     ParagraphStyle style;
     style.kinsoku = true;  // kinsoku enforces no-break-after opening bracket
+    style.language = "ja";
     auto layout = compose_single_line_paragraph(run, 50.0f, style, text);
 
     CHECK(layout.lines.size() == 1);
@@ -118,6 +121,7 @@ TEST_CASE("UnicodeLineBreak: Thai text wraps without whitespace") {
     auto run = make_test_run(std::vector<float>(14, 30.0f), text);
 
     ParagraphStyle style;
+    style.language = "th";
     auto layout = compose_single_line_paragraph(run, 150.0f, style, text);
 
     CHECK(layout.lines.size() >= 2);
@@ -133,6 +137,7 @@ TEST_CASE("UnicodeLineBreak: Devanagari text wraps without whitespace") {
     auto run = make_test_run(std::vector<float>(10, 30.0f), text);
 
     ParagraphStyle style;
+    style.language = "hi";
     auto layout = compose_single_line_paragraph(run, 120.0f, style, text);
 
     CHECK(layout.lines.size() >= 2);
@@ -150,6 +155,7 @@ TEST_CASE("UnicodeLineBreak: Arabic shapes as a single run and wraps") {
     auto run = make_test_run(std::vector<float>(10, 35.0f), text);
 
     ParagraphStyle style;
+    style.language = "ar";
     auto layout = compose_single_line_paragraph(run, 140.0f, style, text);
 
     CHECK(layout.lines.size() >= 2);
@@ -161,6 +167,7 @@ TEST_CASE("UnicodeLineBreak: Hebrew shapes as a single run and wraps") {
     auto run = make_test_run(std::vector<float>(8, 35.0f), text);
 
     ParagraphStyle style;
+    style.language = "he";
     auto layout = compose_single_line_paragraph(run, 140.0f, style, text);
 
     CHECK(layout.lines.size() >= 2);
@@ -201,6 +208,32 @@ TEST_CASE("UnicodeLineBreak: max_lines truncates and records ellipsis") {
     CHECK(layout.lines.size() == 2);
     CHECK(layout.truncated == true);
     CHECK(layout.rendered_ellipsis == "...");
+}
+
+TEST_CASE("IcuBoundaryResolver: returns UTF-8 grapheme boundaries") {
+    std::string text = "A";
+    text += "\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7";
+    text += "B";
+
+    text::boundary::IcuBoundaryResolver resolver;
+    const auto map = resolver.resolve(text, text::boundary::TextBoundaryOptions{"en"});
+
+    CHECK(map.is_grapheme_boundary(0));
+    CHECK(map.is_grapheme_boundary(text.size()));
+    CHECK(map.grapheme_boundaries.size() == 4);
+    CHECK_FALSE(map.is_grapheme_boundary(1 + 4));
+}
+
+TEST_CASE("IcuBoundaryResolver: returns word and line boundaries in UTF-8 bytes") {
+    const std::string text = "one two";
+
+    text::boundary::IcuBoundaryResolver resolver;
+    const auto map = resolver.resolve(text, text::boundary::TextBoundaryOptions{"en"});
+
+    CHECK(map.is_word_boundary(3));
+    CHECK(map.is_word_boundary(4));
+    CHECK(map.is_line_break(4));
+    CHECK(map.is_line_break(text.size()));
 }
 
 TEST_CASE("UnicodeLineBreak: max_lines=0 does not truncate") {

@@ -392,6 +392,8 @@ for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0
         hwy) lcp="highway" ;;
         magic_enum) lcp="magic-enum" ;;
         nlohmann_json) lcp="nlohmann-json" ;;
+        boost_spirit) lcp="boost-spirit" ;;
+        boost_math) lcp="boost-math" ;;
         unofficial) lcp="sqlite3" ;;
         vulkanmemoryallocator) lcp="vulkan-memory-allocator" ;;
     esac

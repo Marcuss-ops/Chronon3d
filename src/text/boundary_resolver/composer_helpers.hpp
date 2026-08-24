@@ -16,7 +16,7 @@
 
 #include "../unicode/utf8_decoder.hpp"
 #include "../unicode/whitespace.hpp"
-#include "../unicode/line_break.hpp"
+#include "text_boundary_resolver.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -117,10 +117,16 @@ inline void apply_kinsoku(
 
 [[nodiscard]] inline std::vector<ShapedCluster> build_clusters(
     const PlacedGlyphRun& shaped,
-    std::string_view source_text
+    std::string_view source_text,
+    const ParagraphStyle& style
 ) {
     std::vector<ShapedCluster> clusters;
     clusters.reserve(shaped.clusters.size());
+
+    text::boundary::IcuBoundaryResolver boundary_resolver;
+    const auto boundary_map = boundary_resolver.resolve(
+        source_text,
+        text::boundary::TextBoundaryOptions{style.language});
 
     for (size_t i = 0; i < shaped.clusters.size(); ++i) {
         const auto& hb_cl = shaped.clusters[i];
@@ -139,20 +145,13 @@ inline void apply_kinsoku(
         sc.mandatory_break  = is_mandatory_break_codepoint(cp);
         sc.hyphenation_point = is_soft_hyphen_at(source_text, sc.source_byte_start);
 
-        // Default to existing whitespace/punctuation rule; extend with
-        // UAX#14-style line-break pair analysis for CJK / Thai / Devanagari
-        // / Arabic / Hebrew and punctuation kinsoku.
-        bool can_break =
-            sc.whitespace || sc.punctuation || sc.mandatory_break ||
-            sc.hyphenation_point || (i + 1 == shaped.clusters.size());
-
-        if (!can_break && i + 1 < shaped.clusters.size()) {
-            const char32_t next_cp =
-                decode_codepoint_at(source_text, shaped.clusters[i + 1].byte_offset);
-            const auto lb_before = text::unicode::line_break_class(cp);
-            const auto lb_after  = text::unicode::line_break_class(next_cp);
-            can_break = text::unicode::is_line_break_opportunity(lb_before, lb_after);
-        }
+        // ICU owns all standard line-break opportunities.  Chronon keeps
+        // only mandatory, soft-hyphen, and end-of-run semantics local to the
+        // composer; its unique responsibilities begin after this boundary.
+        const bool can_break =
+            sc.mandatory_break || sc.hyphenation_point ||
+            (i + 1 == shaped.clusters.size()) ||
+            boundary_map.is_line_break(sc.source_byte_end);
         sc.allowed_break_after = can_break;
 
         clusters.push_back(sc);

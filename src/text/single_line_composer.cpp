@@ -115,7 +115,7 @@ ParagraphLayout compose_single_line_paragraph(
     using namespace composer_internal;
 
     // ── Step 1: Build ShapedClusters ────────────────────────────────────
-    auto clusters = build_clusters(shaped, source_text);
+    auto clusters = build_clusters(shaped, source_text, style);
     // ── TEXT-PLY-01: kinsoku (CJK opening-bracket break protection) ─────
     apply_kinsoku(clusters, source_text, style);
     if (clusters.empty()) {
