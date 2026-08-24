@@ -22,7 +22,8 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/prepared_text.hpp>
-#include <chronon3d/text/resolve_text_placement.hpp>     // F2 — resolve_placement_origin for build-time semantic placement
+#include <chronon3d/text/resolve_text_placement.hpp>     // Canonical TextRun placement resolver
+#include <chronon3d/layout/layout_solver.hpp>              // Layer pin → Canvas conversion
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
 // NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public
@@ -163,24 +164,49 @@ Layer LayerBuilder::build() {
             // authoring and compiled construction.
             const PreparedText prepared =
                 text_internal::normalize_prepared_text(spec.params);
-            // The canonical resolver returns a canvas-space pin. The graph
-            // uses a canvas-centred layer basis, so convert the pin once here
-            // for both normal and tight TextRun producers.
+            // The resolver owns TextPlacement, anchor, and box-size
+            // semantics. Its layout_origin is Canvas-space; only the
+            // Canvas → layer basis conversion belongs at this boundary.
             const CanvasInfo canvas = CanvasInfo::from_dimensions(
                 m_screen_width, m_screen_height);
-            const Vec2 pin = resolve_placement_origin(
-                canvas, prepared.frame.size, prepared.frame.placement);
-            // A layer pin already supplies the canvas placement for this
-            // producer. An Absolute text placement inside that pinned layer
-            // is therefore local to the layer; subtracting the canvas half
-            // size here would apply the centering convention twice.
-            const bool layer_has_pin = m_layer.layout.pin.has_value();
-            node.world_transform.position = layer_has_pin &&
-                prepared.frame.placement.kind == TextPlacementKind::Absolute
-                ? Vec3{0.0f, 0.0f, 0.0f}
-                : Vec3{pin.x - canvas.width * 0.5f,
-                       pin.y - canvas.height * 0.5f,
-                       0.0f};
+            TextPlacement resolved_placement = prepared.frame.placement;
+            Vec2 layer_pin{0.0f, 0.0f};
+            if (m_layer.layout.pin.has_value()) {
+                layer_pin = anchor_position(
+                    *m_layer.layout.pin,
+                    static_cast<i32>(m_screen_width),
+                    static_cast<i32>(m_screen_height),
+                    m_layer.layout.margin);
+                if (resolved_placement.kind == TextPlacementKind::Absolute) {
+                    // Absolute is local to a pinned layer: lift its offset
+                    // into Canvas coordinates before the canonical resolver
+                    // computes the anchor-adjusted box origin.
+                    resolved_placement.offset += layer_pin;
+                }
+            }
+
+            const auto resolved = resolve_text_placement(
+                canvas,
+                prepared.frame.size,
+                resolved_placement,
+                prepared.frame.anchor);
+            Vec2 local_origin = resolved.layout_origin;
+
+            if (m_layer.layout.pin.has_value()) {
+                // The layer owns the Canvas pin; the node receives only the
+                // resolver's box origin relative to that pin.
+                local_origin -= layer_pin;
+            } else {
+                // The 2D graph basis is centered at (0,0), while the
+                // canonical resolver intentionally remains top-left Canvas.
+                local_origin -= Vec2{canvas.width * 0.5f, canvas.height * 0.5f};
+            }
+
+            node.world_transform.position = Vec3{
+                local_origin.x, local_origin.y, 0.0f};
+            // resolve_text_placement() already applied the box anchor to
+            // layout_origin. Keeping the node anchor zero prevents a second
+            // anchor subtraction in Transform::to_mat4().
             node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
