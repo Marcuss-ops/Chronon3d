@@ -30,7 +30,7 @@ un commit dedicato; `REMOVED` richiede anche una verifica post-rimozione.
 | Crash artifacts | Runtime owner | Structured artifacts replace unreproducible text-only crash reports | Artifact schema is stable and crash-handler tests validate metadata + backtrace | Ad-hoc stderr-only diagnostics and duplicate serializers | ACTIVE |
 | Vulkan debug/RenderDoc lane | Vulkan owner | Debug names and capture hooks are introduced for GPU diagnosis | Validation scene capture resolves named objects and produces a retained artifact | Per-call debug callbacks, opaque resource labels and temporary capture scripts | ACTIVE |
 | Hardening/build certification gates | Build owner | Automated gates replace manual release inspection | CI/nightly gates are green on a clean checkout and emit retained evidence | Duplicated shell checks, undocumented release checklist steps | ACTIVE |
-| SPIRV-Reflect include workaround | Shader owner | Current port target has non-canonical include layout | Upstream/port target exports the canonical include directory | Root CMake target-property workaround | ACTIVE |
+| SPIRV-Reflect include workaround | Shader owner | Current port target has non-canonical include layout | Upstream/port target exports the canonical include directory | Local `chronon3d_spirv_reflect_headers` wrapper and its explicit include-root lookup | ACTIVE |
 
 ## Template obbligatorio
 
