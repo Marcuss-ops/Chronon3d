@@ -1,0 +1,42 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: CodeQL / C++
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          queries: security-and-quality
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+
+      - name: Configure
+        run: cmake --preset linux-ci-lean-gate
+
+      - name: Build
+        run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline -j12
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:cpp
