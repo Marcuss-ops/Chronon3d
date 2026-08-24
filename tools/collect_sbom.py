@@ -22,6 +22,7 @@ def main() -> int:
     ap.add_argument("--vcpkg-root", required=True, type=pathlib.Path)
     ap.add_argument("--out", required=True, type=pathlib.Path)
     ap.add_argument("--project", default="Chronon3D")
+    ap.add_argument("--manifest", type=pathlib.Path, default=pathlib.Path("vcpkg.json"))
     ns = ap.parse_args()
 
     docs = sorted(ns.vcpkg_root.rglob("*.spdx.json"))
@@ -35,6 +36,29 @@ def main() -> int:
             sid = package.get("SPDXID") or package.get("name")
             if sid:
                 packages[sid] = package
+
+    # Some vcpkg installations do not emit SPDX documents for header-only or
+    # feature-resolved ports. Keep the manifest inventory visible instead of
+    # silently producing an incomplete release SBOM.
+    if ns.manifest.is_file():
+        manifest = json.loads(ns.manifest.read_text())
+        names = set()
+        for dependency in manifest.get("dependencies", []):
+            names.add(dependency if isinstance(dependency, str) else dependency.get("name"))
+        for feature in manifest.get("features", {}).values():
+            for dependency in feature.get("dependencies", []):
+                names.add(dependency if isinstance(dependency, str) else dependency.get("name"))
+        for name in sorted(n for n in names if n):
+            sid = f"SPDXRef-vcpkg-{name}"
+            packages.setdefault(sid, {
+                "SPDXID": sid,
+                "name": name,
+                "versionInfo": "UNKNOWN (declared by vcpkg manifest)",
+                "downloadLocation": "NOASSERTION",
+                "licenseConcluded": "NOASSERTION",
+                "licenseDeclared": "NOASSERTION",
+                "filesAnalyzed": False,
+            })
 
     created = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     document = {
