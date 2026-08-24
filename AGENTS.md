@@ -84,6 +84,36 @@ sintetica (stato + link al ticket).
 - Non committare build/, output/, artefatti, file generati.
 - Dopo ogni push: `git log -n 5 --oneline`.
 
+### Demolition Debt — ogni ingresso abilita un'uscita
+
+Ogni nuova dipendenza, bridge, compatibility path, parser o shim introdotto
+per una migrazione DEVE indicare anche cosa potrà essere rimosso. Non si
+accettano duplicazioni permanenti del tipo "nuovo sistema + vecchio sistema"
+senza una scheda di **Demolition Debt** nel ticket o nell'ADR collegato.
+
+La scheda DEVE contenere:
+
+1. **Owner** — chi mantiene il bridge e aggiorna la scheda.
+2. **Reason** — quale migrazione incompleta lo rende ancora necessario.
+3. **Exit condition** — condizione osservabile e misurabile per rimuoverlo.
+4. **Equivalence test/gate** — test che dimostra la parità del replacement.
+5. **Removal scope** — file, dipendenze, counter e flag da cancellare.
+6. **Status** — `ACTIVE`, `READY_TO_REMOVE` o `REMOVED`.
+
+La regola vale in particolare per:
+
+- fallback Vulkan verso CPU, immediate-submit compatibility path e counter `legacy_*`;
+- parser o scanner custom sostituiti da ICU, SVG++/XML parser o altro componente;
+- expression parser custom in attesa di un backend con parity certificata;
+- dipendenze non-core (Boost, validator, compressori, parser) introdotte per una sola feature;
+- stub, alias e shim di compatibilità.
+
+Quando l'exit condition è soddisfatta, la rimozione è un lavoro obbligatorio
+successivo, non un'opzione. Restano invece permanenti solo i componenti che
+esprimono policy o semantica Chronon — graph compiler, scheduler, resolver,
+determinism e allocazione fisica — e non implementazioni generiche già fornite
+da una dipendenza specializzata.
+
 ---
 
 ## Cache taxonomy (3 famiglie, nessuna altra)
