@@ -18,3 +18,10 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_ipc chronon3d_pipeline chronon3d_backend_software
     SOURCES ipc/test_contract_validator_registry.cpp
     LABELS ipc\;schema\;contract)
+
+chronon3d_add_test_suite(
+    NAME chronon3d_contract_validator_e2e_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_ipc chronon3d_pipeline chronon3d_backend_software
+    SOURCES ipc/test_contract_validator_e2e.cpp
+    LABELS ipc\;schema\;contract\;e2e)
