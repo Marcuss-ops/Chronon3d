@@ -56,6 +56,7 @@ option(CHRONON3D_BUILD_DIAGNOSTICS "Build diagnostic/debug compositions (tests, 
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz + ICU boundaries)" ON)
 option(CHRONON3D_ENABLE_SVG "Enable SVG path/document importing" ON)
+option(CHRONON3D_ENABLE_OCIO "Enable OpenColorIO colour-management transforms" OFF)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event backend)" OFF)
@@ -194,6 +195,9 @@ endif()
 
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
+if(CHRONON3D_ENABLE_OCIO)
+    find_package(OpenColorIO CONFIG REQUIRED)
+endif()
 
 if(CHRONON3D_ENABLE_VULKAN)
     find_package(Vulkan REQUIRED)

@@ -30,6 +30,9 @@ endif()
 if(CHRONON3D_ENABLE_DEV_WATCH)
     list(APPEND CHRONON3D_CORE_IMPL_SOURCES dev/watch_service.cpp)
 endif()
+if(CHRONON3D_ENABLE_OCIO)
+    list(APPEND CHRONON3D_CORE_IMPL_SOURCES color/ocio_color_transform.cpp)
+endif()
 
 add_library(chronon3d_core_impl OBJECT ${CHRONON3D_CORE_IMPL_SOURCES})
 target_include_directories(chronon3d_core_impl PUBLIC
@@ -59,4 +62,8 @@ if(CHRONON3D_ENABLE_DEV_WATCH)
     target_compile_definitions(chronon3d_core_impl PUBLIC
         CHRONON3D_ENABLE_DEV_WATCH
     )
+endif()
+if(CHRONON3D_ENABLE_OCIO)
+    target_link_libraries(chronon3d_core_impl PUBLIC OpenColorIO::OpenColorIO)
+    target_compile_definitions(chronon3d_core_impl PUBLIC CHRONON3D_ENABLE_OCIO)
 endif()
