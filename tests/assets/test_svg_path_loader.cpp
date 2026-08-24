@@ -50,10 +50,22 @@ TEST_CASE("SVG path parser supports relative commands") {
     CHECK(res.path.commands[3].p0.y == doctest::Approx(15.0f));
 }
 
-TEST_CASE("SVG path parser rejects unsupported commands") {
+TEST_CASE("SVG path importer converts elliptical arcs to cubic commands") {
     auto res = parse_svg_path_data("M 0 0 A 10 10 0 0 1 20 20");
+
+    REQUIRE(res.ok);
+    REQUIRE(res.path.commands.size() > 1);
+    CHECK(res.path.commands[0].type == PathCommandType::MoveTo);
+    CHECK(res.path.commands[1].type == PathCommandType::CubicTo);
+}
+
+TEST_CASE("SVG path importer preserves relative-command policy") {
+    auto res = parse_svg_path_data(
+        "M 10 10 l 5 0",
+        SvgPathLoadOptions{.support_relative_commands = false});
+
     CHECK_FALSE(res.ok);
-    CHECK_FALSE(res.error.empty());
+    CHECK(res.error == "Relative SVG path commands are disabled");
 }
 
 TEST_CASE("SVG path loader parses a minimal SVG file") {

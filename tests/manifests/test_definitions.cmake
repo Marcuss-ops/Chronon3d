@@ -71,4 +71,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     reference/capcut/CMakeLists.txt
     # Isolated alignment + auto-fit regression locks (TICKET-ISOLATED-ALIGNMENT-TESTS, FU07 verdict CapCut-grade §Fase 7)
     text/CMakeLists.txt
+    assets/CMakeLists.txt
+    ipc_schema_documents_tests.cmake
 )

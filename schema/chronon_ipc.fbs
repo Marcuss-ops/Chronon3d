@@ -47,7 +47,10 @@ enum IpcStatus : byte {
 /// RenderFrame calls.  Large payload — sent once per composition.
 table CreateCompositionRequest {
     composition_id: string (required);       // unique session identifier
-    descriptor_json: string (required);      // CompositionDescriptor JSON
+    // JSON document conforming to schemas/chronon.composition.v1.schema.json.
+    // Structural validation occurs at the daemon boundary; registry lookup,
+    // asset resolution and compilation remain semantic runtime checks.
+    descriptor_json: string (required);      // chronon.composition v1 JSON
     assets_root: string;                     // optional asset resolution root
 }
 

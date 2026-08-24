@@ -7,16 +7,16 @@
 // precomputed vectors.
 //
 // Anti-duplication invariants (per docs/ANTI_DUPLICATION_RULES.md):
-//   • Does NOT pull in <msdfgen>, <libtess2>, <unicode/ubidi.h>, or
-//     any third-party word-break / grapheme-cluster library.
-//   • Composes on existing UTF-8 decoder helpers where available.
+//   • ICU is the sole grapheme/word boundary authority; third-party Unicode
+//     types do not escape the internal boundary adapter.
+//   • Composes on existing UTF-8 decoder helpers for byte/codepoint mapping.
 //   • Bit-exact deterministic: no threads, no time, no PRNG.
 //
 // Algorithm (single-pass-per-level, no stale loops):
 //   Level 1  byte → codepoint       : utf-8 walk, each byte tagged with cp_idx
-//   Level 2  codepoint → grapheme   : GB simplified (GB1, GB2, GB9, GB11 ZWJ, GB999)
+//   Level 2  codepoint → grapheme   : ICU UAX#29 byte boundary mapping
 //   Level 3  grapheme → glyph       : map first-cp-of-grapheme → first-HB-cluster
-//   Level 4  glyph → word           : WB simplified (WB1, WB5a whitespace, WB999)
+//   Level 4  glyph → word           : ICU UAX#29 word segments + rule status
 //   Level 5  word → line            : from PlacedParagraphLayout.lines
 //   Level 6  line → paragraph       : 1-paragraph model (paragraph 0); follow-up
 //                                     to extend to multi-paragraph layout.
@@ -27,48 +27,16 @@
 
 #include "src/text/unicode/utf8_decoder.hpp"
 #include "src/text/unicode/whitespace.hpp"
+#include "text_boundary_resolver.hpp"
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 #include <utility>
 
 namespace chronon3d {
 
 namespace {
-
-// ── Codepoint classifiers (now consolidated to unicode/whitespace.hpp) ──
-//
-// The remaining inline helpers below are grapheme-cluster-break properties
-// (is_combining_mark, is_zwj, is_regional_indicator, is_extended_pictographic)
-// that are tightly coupled to the GB state machine in the constructor below.
-// They are single-call-site internal, kept inline until TICKET-081a (grapheme_break
-// extraction) lands as a follow-up commit.
-
-[[nodiscard]] inline bool is_combining_mark_cp(char32_t cp) noexcept {
-    if (cp >= 0x0300 && cp <= 0x036F) return true;
-    if (cp >= 0x0483 && cp <= 0x0489) return true;
-    if (cp >= 0x1AB0 && cp <= 0x1AFF) return true;
-    if (cp >= 0x1DC0 && cp <= 0x1DFF) return true;
-    if (cp >= 0x20D0 && cp <= 0x20FF) return true;
-    if (cp >= 0xFE20 && cp <= 0xFE2F) return true;
-    if (cp >= 0xFE00 && cp <= 0xFE0F) return true;
-    return false;
-}
-
-[[nodiscard]] inline bool is_zwj_cp(char32_t cp) noexcept {
-    return cp == 0x200D;
-}
-
-[[nodiscard]] inline bool is_regional_indicator_cp(char32_t cp) noexcept {
-    return cp >= 0x1F1E6 && cp <= 0x1F1FF;
-}
-
-[[nodiscard]] inline bool is_extended_pictographic_cp(char32_t cp) noexcept {
-    if (cp >= 0x1F000 && cp <= 0x1FFFF) return true;
-    if (cp == 0x00A9 || cp == 0x00AE) return true;
-    if (cp >= 0x2600 && cp <= 0x27BF) return true;
-    return false;  // conservative: SMP emoji + © ® + main emoji block.
-}
 
 // ── Binary-search helpers on monotonic forward vectors ────────────────
 //
@@ -145,119 +113,28 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
     }
 
     // ── Level 2: codepoint → grapheme ─────────────────────────────────
-    // Simplified UAX#29 GB rules with explicit ExtPict/ZWJ chain state
-    // machine so emoji ZWJ sequences (e.g. 👨‍👩‍👧) merge into one grapheme:
-    //
-    //   GB1+GB2: trivial (text start/end anchors).
-    //   GB9 (combining marks): attach to current grapheme.
-    //   GB11 (ZWJ emoji sequence): ExtPict Extend* ZWJ × ExtPict attaches
-    //     both the ZWJ and the following ExtPict to the existing cluster.
-    //   GB12/13 (RI pairs): even-positioned RI attaches to previous RI.
-    //   GB999 fallback: every other codepoint = own grapheme.
-    //
-    // The state machine tracks `InExtPict` (cluster anchored on ExtPict)
-    // vs `InExtPictZWJ` (cluster has consumed a ZWJ and is awaiting the
-    // next ExtPict) vs `None` (no special cluster, plain graphemes).
+    // ICU owns UAX#29 grapheme segmentation.  Convert its UTF-8 byte
+    // boundaries into the dense codepoint map consumed by TextUnitMap.
+    text::boundary::IcuBoundaryResolver boundary_resolver;
+    const auto boundary_map = boundary_resolver.resolve(utf8, {});
     cp_to_grapheme_.assign(codepoint_count_, InvalidIndex);
-    {
-        // Precompute cp values for fast access.
-        std::vector<char32_t> cp_at_idx(codepoint_count_, 0xFFFD);
-        for (u32 cp_i = 0; cp_i < codepoint_count_; ++cp_i) {
-            const u32 byte_idx = first_child_with_parent(byte_to_codepoint_, cp_i);
-            if (byte_idx != InvalidIndex) {
-                cp_at_idx[cp_i] =
-                    text::unicode::decode_codepoint_at(utf8, byte_idx);
-            }
+    grapheme_count_ = boundary_map.grapheme_boundaries.size() > 1
+        ? static_cast<u32>(boundary_map.grapheme_boundaries.size() - 1)
+        : 0;
+
+    for (u32 cp_i = 0; cp_i < codepoint_count_; ++cp_i) {
+        const u32 byte_idx = first_child_with_parent(byte_to_codepoint_, cp_i);
+        if (byte_idx == InvalidIndex || boundary_map.grapheme_boundaries.empty()) {
+            continue;
         }
-
-        enum class GraphemeState : u8 {
-            None,         // outside any special cluster
-            InExtPict,    // cluster anchored on ExtPict, no ZWJ yet
-            InExtPictZWJ, // cluster has consumed a ZWJ, awaiting next ExtPict
-        };
-        GraphemeState state = GraphemeState::None;
-
-        u32 my_grapheme_idx = 0;
-        for (u32 cp_i = 0; cp_i < codepoint_count_; ++cp_i) {
-            const char32_t cp = cp_at_idx[cp_i];
-
-            // Default: this cp belongs to the current grapheme_idx.
-            cp_to_grapheme_[cp_i] = my_grapheme_idx;
-
-            if (cp_i == 0) {
-                // First cp: state determined by whether cp is ExtPict.
-                state = is_extended_pictographic_cp(cp)
-                    ? GraphemeState::InExtPict
-                    : GraphemeState::None;
-                continue;
-            }
-
-            // GB9: combining marks attach — never advance grapheme.
-            if (is_combining_mark_cp(cp)) {
-                continue;
-            }
-
-            // GB11 (ZWJ): if we are mid-chain (InExtPict or InExtPictZWJ),
-            // ZWJ continues the chain and attaches to the same grapheme.
-            // Otherwise ZWJ is a stray and starts a new grapheme.
-            if (is_zwj_cp(cp)) {
-                if (state == GraphemeState::InExtPict ||
-                    state == GraphemeState::InExtPictZWJ) {
-                    state = GraphemeState::InExtPictZWJ;
-                } else {
-                    ++my_grapheme_idx;
-                    cp_to_grapheme_[cp_i] = my_grapheme_idx;
-                    state = GraphemeState::None;
-                }
-                continue;
-            }
-
-            // GB11 closure: ExtPict after InExtPictZWJ attaches (no break).
-            // Otherwise ExtPict starts a new grapheme.
-            if (is_extended_pictographic_cp(cp)) {
-                if (state == GraphemeState::InExtPictZWJ) {
-                    // GB11: do not break.  Stay in same grapheme; reset
-                    // chain to plain InExtPict (consumed the ZWJ).
-                    state = GraphemeState::InExtPict;
-                } else {
-                    ++my_grapheme_idx;
-                    cp_to_grapheme_[cp_i] = my_grapheme_idx;
-                    state = GraphemeState::InExtPict;
-                }
-                continue;
-            }
-
-            // GB12/13: Regional Indicator pairs.
-            if (is_regional_indicator_cp(cp) &&
-                cp_i >= 1 &&
-                is_regional_indicator_cp(cp_at_idx[cp_i - 1])) {
-                // Walk back to find start of current RI run.
-                u32 ri_count = 0;
-                for (u32 k = cp_i; k > 0; --k) {
-                    if (is_regional_indicator_cp(cp_at_idx[k - 1])) ++ri_count;
-                    else break;
-                }
-                if ((ri_count % 2) == 0) {
-                    // Even-indexed RI (0, 2, 4…) is the SECOND of a pair
-                    // → GB13 attaches to previous grapheme.
-                    continue;
-                }
-                // Odd-indexed RI → starts a new grapheme.
-                ++my_grapheme_idx;
-                cp_to_grapheme_[cp_i] = my_grapheme_idx;
-                state = GraphemeState::None;
-                continue;
-            }
-
-            // GB999: default break.
-            ++my_grapheme_idx;
-            cp_to_grapheme_[cp_i] = my_grapheme_idx;
-            state = GraphemeState::None;
+        const auto it = std::upper_bound(
+            boundary_map.grapheme_boundaries.begin(),
+            boundary_map.grapheme_boundaries.end(),
+            byte_idx);
+        if (it != boundary_map.grapheme_boundaries.begin()) {
+            cp_to_grapheme_[cp_i] = static_cast<u32>(
+                std::distance(boundary_map.grapheme_boundaries.begin(), it) - 1);
         }
-        // The state machine's initial index represents the first grapheme
-        // only when at least one codepoint was consumed. Empty input must
-        // remain an empty map at every level.
-        grapheme_count_ = codepoint_count_ == 0 ? 0 : my_grapheme_idx + 1;
     }
 
     // ── Level 3: grapheme → glyph ─────────────────────────────────────
@@ -286,52 +163,56 @@ TextUnitMap::TextUnitMap(std::string_view utf8,
     }
 
     // ── Level 4: glyph → word ─────────────────────────────────────────
-    //
-    // Simplified UAX#29 WB:
-    //   WB1: break at start/end.
-    //   WB5a: break AFTER whitespace (new word after a whitespace cluster).
-    //   WB999: contiguous non-whitespace glyphs share a word.
+    // ICU supplies the UAX#29 word segments and rule status.  Only segments
+    // classified as words receive dense indices; punctuation and whitespace
+    // remain attached to the nearest word for selector compatibility.
     glyph_to_word_.assign(glyph_count_, InvalidIndex);
     if (glyph_count_ > 0) {
+        std::vector<u32> byte_to_word(utf8.size(), InvalidIndex);
         u32 word_idx = 0;
-        bool in_word = false;
-        bool last_was_whitespace = true;  // start-of-text = whitespace boundary
-        for (u32 gi = 0; gi < glyph_count_; ++gi) {
-            const auto& cl = placed.clusters[gi];
-            const u32 cluster_byte = static_cast<u32>(cl.byte_offset);
-            const char32_t first_cp =
-                text::unicode::decode_codepoint_at(utf8, cluster_byte);
-            const bool is_ws = text::unicode::is_unicode_whitespace(first_cp);
+        for (const auto& segment : boundary_map.word_segments) {
+            if (!segment.is_word || segment.byte_start >= utf8.size()) continue;
+            const auto end = std::min(segment.byte_end, utf8.size());
+            for (std::size_t byte = segment.byte_start; byte < end; ++byte) {
+                byte_to_word[byte] = word_idx;
+            }
+            ++word_idx;
+        }
 
-            if (!is_ws && !in_word) {
-                // Start of a new word.
-                in_word = true;
-            }
-            if (is_ws && in_word) {
-                // Word closed.
-                ++word_idx;
-                in_word = false;
-            }
-            glyph_to_word_[gi] = in_word ? word_idx : (gi > 0 && !last_was_whitespace ? word_idx : 0);
-            last_was_whitespace = is_ws;
-        }
-        // For whitespace-only clusters: assign to the closest word (the
-        // most-recently-closed word for parseability).
-        // Simplification: each whitespace cluster is mapped to the
-        // closed word (`word_idx` here = count of words opened so far,
-        // so word_idx - 1 is the right one to attach whitespace gaps to).
+        word_count_ = word_idx;
         for (u32 gi = 0; gi < glyph_count_; ++gi) {
             const auto& cl = placed.clusters[gi];
-            const u32 cluster_byte = static_cast<u32>(cl.byte_offset);
-            const char32_t first_cp =
-                text::unicode::decode_codepoint_at(utf8, cluster_byte);
-            const bool is_ws = text::unicode::is_unicode_whitespace(first_cp);
-            if (is_ws && word_idx > 0) {
-                glyph_to_word_[gi] = word_idx - 1;
+            const std::size_t byte = std::min<std::size_t>(cl.byte_offset, utf8.size());
+            glyph_to_word_[gi] = byte < byte_to_word.size()
+                ? byte_to_word[byte] : InvalidIndex;
+        }
+
+        // Non-word clusters (spaces/punctuation) follow the preceding word,
+        // or the next word for leading separators.  This preserves the
+        // selector API's historical whitespace exclusion behavior without
+        // reimplementing word segmentation locally.
+        u32 previous_word = InvalidIndex;
+        for (u32 gi = 0; gi < glyph_count_; ++gi) {
+            if (glyph_to_word_[gi] != InvalidIndex) {
+                previous_word = glyph_to_word_[gi];
+            } else if (previous_word != InvalidIndex) {
+                glyph_to_word_[gi] = previous_word;
             }
         }
-        word_count_ = word_idx + (in_word ? 1 : 0);
-        if (word_count_ == 0 && glyph_count_ > 0) word_count_ = 1;
+        u32 next_word = InvalidIndex;
+        for (u32 gi = glyph_count_; gi > 0; --gi) {
+            const u32 index = gi - 1;
+            if (glyph_to_word_[index] != InvalidIndex) {
+                next_word = glyph_to_word_[index];
+            } else if (next_word != InvalidIndex) {
+                glyph_to_word_[index] = next_word;
+            }
+        }
+
+        if (word_count_ == 0) {
+            word_count_ = 1;
+            std::fill(glyph_to_word_.begin(), glyph_to_word_.end(), 0);
+        }
     } else {
         word_count_ = 0;
     }

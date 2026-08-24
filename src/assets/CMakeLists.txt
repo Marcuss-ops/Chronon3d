@@ -11,10 +11,14 @@ add_library(chronon3d_assets OBJECT
     render_preflight_validate.cpp
     render_preflight_helpers.cpp
     svg_path_loader.cpp
+    svg_importer.cpp
+    svgpp_parser_impl.cpp
 )
 set_target_properties(chronon3d_assets PROPERTIES UNITY_BUILD OFF)
 set_source_files_properties(
     prepared_asset_manifest.cpp
+    svg_importer.cpp
+    svgpp_parser_impl.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 # TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: link chronon3d_path_cache
@@ -32,4 +36,11 @@ target_link_libraries(chronon3d_assets PUBLIC
     chronon3d_registry
     chronon3d_path_cache
     nlohmann_json::nlohmann_json
+)
+target_link_libraries(chronon3d_assets PRIVATE
+    Boost::spirit
+    Boost::math
+)
+target_include_directories(chronon3d_assets PRIVATE
+    "${svgpp_SOURCE_DIR}/include"
 )

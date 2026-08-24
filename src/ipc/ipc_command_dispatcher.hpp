@@ -6,6 +6,7 @@
 
 #include "ipc_codec.hpp"
 #include "composition_session.hpp"
+#include "contract_validator_registry.hpp"
 
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -19,9 +20,12 @@ namespace chronon3d::ipc {
 
 class IpcCommandDispatcher {
 public:
-    explicit IpcCommandDispatcher(std::unique_ptr<RenderEngine> engine)
+    explicit IpcCommandDispatcher(
+        std::unique_ptr<RenderEngine> engine,
+        const ContractValidatorRegistry& validators = builtin_contract_validators())
         : m_engine(std::move(engine))
-        , m_session(std::make_unique<CompositionSession>(*m_engine))
+        , m_validators(&validators)
+        , m_session(std::make_unique<CompositionSession>(*m_engine, *m_validators))
     {}
 
     [[nodiscard]] IpcResponse dispatch(const IpcRequest& request) {
@@ -79,6 +83,7 @@ private:
     }
 
     std::unique_ptr<RenderEngine> m_engine;
+    const ContractValidatorRegistry* m_validators;
     std::unique_ptr<CompositionSession> m_session;
     std::atomic<std::uint64_t> m_frame_count{0};
     double m_total_render_ms{0.0};

@@ -60,7 +60,8 @@ add_library(chronon3d_text_core OBJECT
     text_scramble_helpers.cpp
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
-    unicode/line_break.cpp
+    boundary_resolver/text_boundary_resolver.cpp
+    boundary_resolver/icu_boundary_resolver.cpp
     boundary_resolver/text_unit_map.cpp
     boundary_resolver/text_unit_map_lookups.cpp
     internal/text_resolver_helpers.cpp
@@ -70,6 +71,7 @@ add_library(chronon3d_text_core OBJECT
 # anonymous-namespace helpers or intentionally distinct TextUnitMap models.
 set_source_files_properties(
     timed_text_document.cpp
+    boundary_resolver/icu_boundary_resolver.cpp
     boundary_resolver/text_unit_map.cpp
     boundary_resolver/text_unit_map_lookups.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
@@ -81,3 +83,5 @@ target_link_libraries(chronon3d_text_core
 )
 
 target_include_directories(chronon3d_text_core PRIVATE ${CMAKE_SOURCE_DIR})
+
+target_link_libraries(chronon3d_text_core PRIVATE ICU::uc ICU::i18n)
