@@ -146,23 +146,51 @@ target_include_directories(composition_descriptor_fuzz PRIVATE ${CMAKE_SOURCE_DI
 set_target_properties(composition_descriptor_fuzz PROPERTIES UNITY_BUILD OFF)
 
 # ── Regression tests ──────────────────────────────────────────────────
-# Each crash discovered by the fuzzer becomes a permanent regression test.
-# The fuzzer binary is invoked with exactly one crash input; a clean exit
-# (0) means the crash is still fixed, a sanitizer abort means it regressed.
+# Every crash discovered by a fuzzer becomes a permanent regression test.
+# Drop the crash input into tests/fuzz/regressions/<target>/ and CMake
+# auto-registers a CTest test that replays it once under ASan+UBSan.
+#
+# Semantics: a clean exit (0) = the crash is still fixed; a sanitizer abort
+# (non-zero) = the bug regressed and the test FAILS.
+#
+# Layout:
+#   regressions/ipc_codec/             → ipc_codec_fuzz
+#   regressions/maybe_expression/      → maybe_expression_fuzz
+#   regressions/composition_descriptor/ → composition_descriptor_fuzz
 #
 # These are registered as CTest tests even when CHRONON3D_BUILD_TESTS=OFF
-# because the fuzz target is a standalone build gate.
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/regressions/heap_overflow_decode_reply.bin")
-    add_test(
-        NAME ipc_fuzz_regression_decode_reply_heap_overflow
-        COMMAND $<TARGET_FILE:ipc_codec_fuzz>
-            "${CMAKE_CURRENT_SOURCE_DIR}/regressions/heap_overflow_decode_reply.bin"
-            -runs=1
-    )
-    set_tests_properties(ipc_fuzz_regression_decode_reply_heap_overflow PROPERTIES
-        LABELS "fuzz;regression"
-        # The original heap-buffer-overflow in IpcCodec::decode_reply was
-        # fixed by adding a flatbuffers::Verifier guard; this test now asserts
-        # the input no longer crashes (exit 0).
-    )
-endif()
+# because the fuzz targets are a standalone build gate.
+
+function(chronon3d_add_fuzz_regressions target_name regressions_subdir)
+    file(GLOB _inputs CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/regressions/${regressions_subdir}/*")
+    list(FILTER _inputs EXCLUDE REGEX "\\.gitkeep$")
+    foreach(_input IN LISTS _inputs)
+        # NAME_WE strips the extension (e.g. heap_overflow_decode_reply.bin
+        # → heap_overflow_decode_reply) for a clean test name.
+        get_filename_component(_input_name "${_input}" NAME_WE)
+        add_test(
+            NAME "fuzz_regression_${target_name}_${_input_name}"
+            COMMAND $<TARGET_FILE:${target_name}> "${_input}" -runs=1
+        )
+        set_tests_properties("fuzz_regression_${target_name}_${_input_name}"
+            PROPERTIES
+            LABELS "fuzz;fuzz-regression"
+        )
+    endforeach()
+endfunction()
+
+chronon3d_add_fuzz_regressions(ipc_codec_fuzz ipc_codec)
+chronon3d_add_fuzz_regressions(maybe_expression_fuzz maybe_expression)
+chronon3d_add_fuzz_regressions(composition_descriptor_fuzz composition_descriptor)
+
+# ── Aggregate target ───────────────────────────────────────────────────
+# Convenience target that runs every fuzz regression test via CTest.
+# Build it with:  cmake --build . --target fuzz_regressions
+add_custom_target(fuzz_regressions
+    COMMAND ${CMAKE_CTEST_COMMAND} -L fuzz-regression --output-on-failure
+    DEPENDS ipc_codec_fuzz maybe_expression_fuzz composition_descriptor_fuzz
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    USES_TERMINAL
+    COMMENT "Running fuzz regression corpus (ctest -L fuzz-regression)"
+)

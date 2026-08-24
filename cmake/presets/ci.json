@@ -115,6 +115,36 @@
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli"
       }
+    },
+    {
+      "name": "linux-fuzz",
+      "inherits": "base-linux",
+      "displayName": "Linux libFuzzer regressions (Clang + ASan/UBSan)",
+      "description": "Builds the three fuzz targets with Clang + -fsanitize=fuzzer,address,undefined and replays the committed regression corpus (tests/fuzz/regressions/).",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CHRONON3D_BUILD_FUZZERS": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_CLI_RENDER": "OFF",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_CRASH_HANDLER": "OFF",
+        "CHRONON3D_ENABLE_DEV_WATCH": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "OFF",
+        "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_VULKAN": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli"
+      }
     }
   ],
   "buildPresets": [
@@ -159,6 +189,12 @@
       "configurePreset": "linux-ci-cli-core-only",
       "targets": ["chronon3d_cli"],
       "jobs": 8
+    },
+    {
+      "name": "linux-fuzz",
+      "configurePreset": "linux-fuzz",
+      "targets": ["ipc_codec_fuzz", "maybe_expression_fuzz", "composition_descriptor_fuzz"],
+      "jobs": 8
     }
   ],
   "testPresets": [
@@ -190,6 +226,14 @@
     {
       "name": "linux-ci-render-image-contract-test",
       "configurePreset": "linux-ci-render-image-contract",
+      "output": {"outputOnFailure": true}
+    },
+    {
+      "name": "linux-fuzz-test",
+      "configurePreset": "linux-fuzz",
+      "filter": {
+        "include": {"label": "fuzz-regression"}
+      },
       "output": {"outputOnFailure": true}
     }
   ]

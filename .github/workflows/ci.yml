@@ -12,6 +12,7 @@
 #   7.  install-consumer-script   — Gate 6: tools/install_consumer_test.sh
 #   8.  sdk-product-certification — Gate 7: C/C++/Go/Rust/Python consumers (push)
 #   9.  trace-gates               — Gate 8: Perfetto correctness + overhead
+#   9b. fuzz-regressions          — Replay committed crash corpus (Clang + libFuzzer)
 #  10.  gate-status               — Machine-readable gate summary (P3-A)
 #  11.  full-validation           — Gate 6/heavy: full preset on critical paths
 #  12.  validate                  — Lint: bash syntax, CMake format, stale docs
@@ -284,12 +285,34 @@ jobs:
           CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache bash tools/check_trace_overhead.sh
 
   # ═══════════════════════════════════════════════════════════════════════
+  # 9b. Fuzz regressions — replay committed crash corpus under ASan/UBSan
+  #     Every crash found by the fuzzers is committed under tests/fuzz/regressions/
+  #     and replayed here as a permanent regression test (Clang + libFuzzer).
+  # ═══════════════════════════════════════════════════════════════════════
+  fuzz-regressions:
+    name: Fuzz regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Install Clang
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+      - run: cmake --preset linux-fuzz
+      - run: cmake --build --preset linux-fuzz
+      - run: ctest --preset linux-fuzz-test --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════
   # 10. Gate status summary (P3-A machine-readable JSON)
   # ═══════════════════════════════════════════════════════════════════════
   gate-status:
     name: Gate Status Summary
     if: ${{ !cancelled() }}
-    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, trace-gates]
+    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, trace-gates, fuzz-regressions]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -306,6 +329,7 @@ jobs:
               'architecture-check':     '${{ needs.architecture-check.result }}',
               'install-consumer-script':'${{ needs.install-consumer-script.result }}',
               'trace-gates':            '${{ needs.trace-gates.result }}',
+              'fuzz-regressions':       '${{ needs.fuzz-regressions.result }}',
           }
           passed = sum(1 for v in gates.values() if v == 'success')
           status = {
