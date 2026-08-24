@@ -66,6 +66,16 @@ namespace {
 
 // ── helpers ─────────────────────────────────────────────────────────────
 
+struct RendererFixture {
+    std::unique_ptr<runtime::RenderRuntime> runtime;
+    SoftwareRenderer renderer;
+
+    RendererFixture()
+        : runtime(runtime::RenderRuntime::create(
+              runtime::RuntimeConfig{Config{}, std::nullopt}).value())
+        , renderer(*runtime, Config{}) {}
+};
+
 // Build a fully-wired SoftwareBackendServices from a live SoftwareRenderer.
 // Mirrors `tests/helpers/test_utils.hpp::attach_software_backend`
 // but does NOT route through `make_software_backend(...).value()` — we're
@@ -112,8 +122,8 @@ bool source_contains(std::string_view needle) {
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("make_software_backend: accepts a valid services bundle and returns unique_ptr") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
+    RendererFixture fixture;
+    auto services = services_from_renderer(fixture.renderer);
 
     auto result = make_software_backend(std::move(services));
     REQUIRE(result.has_value());
@@ -192,8 +202,8 @@ TEST_CASE("make_software_backend: source contains Result::err release branch for
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("make_software_backend: null counters → Result::err(MissingCounters)") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
+    RendererFixture fixture;
+    auto services = services_from_renderer(fixture.renderer);
     services.counters = nullptr;
     auto r = make_software_backend(std::move(services));
     REQUIRE_FALSE(r.has_value());
@@ -202,8 +212,8 @@ TEST_CASE("make_software_backend: null counters → Result::err(MissingCounters)
 }
 
 TEST_CASE("make_software_backend: null settings → Result::err(MissingSettings)") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
+    RendererFixture fixture;
+    auto services = services_from_renderer(fixture.renderer);
     services.settings = nullptr;
     auto r = make_software_backend(std::move(services));
     REQUIRE_FALSE(r.has_value());
@@ -212,8 +222,8 @@ TEST_CASE("make_software_backend: null settings → Result::err(MissingSettings)
 }
 
 TEST_CASE("make_software_backend: empty framebuffer_pool → Result::err(MissingFramebufferPool)") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
+    RendererFixture fixture;
+    auto services = services_from_renderer(fixture.renderer);
     services.framebuffer_pool.reset();
     auto r = make_software_backend(std::move(services));
     REQUIRE_FALSE(r.has_value());
@@ -222,8 +232,8 @@ TEST_CASE("make_software_backend: empty framebuffer_pool → Result::err(Missing
 }
 
 TEST_CASE("make_software_backend: null asset_resolver → Result::err(MissingAssetResolver)") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
+    RendererFixture fixture;
+    auto services = services_from_renderer(fixture.renderer);
     services.asset_resolver = nullptr;
     auto r = make_software_backend(std::move(services));
     REQUIRE_FALSE(r.has_value());
@@ -232,8 +242,8 @@ TEST_CASE("make_software_backend: null asset_resolver → Result::err(MissingAss
 }
 
 TEST_CASE("make_software_backend: null text_resources → Result::err(MissingTextResources)") {
-    SoftwareRenderer renderer(Config{});
-    auto services = services_from_renderer(renderer);
+    RendererFixture fixture;
+    auto services = services_from_renderer(fixture.renderer);
     services.text_resources = nullptr;
     auto r = make_software_backend(std::move(services));
     REQUIRE_FALSE(r.has_value());
