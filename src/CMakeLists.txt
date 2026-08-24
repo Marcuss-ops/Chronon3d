@@ -95,6 +95,13 @@ endif()
 # ==============================================================================
 # Per-subsystem targets (ordered by dependency graph)
 # ==============================================================================
+if(CHRONON3D_ENABLE_IPC)
+    # Imported targets created in src/ipc are directory-scoped; declare the
+    # package here too because chronon3d_pipeline carries IPC OBJECT files
+    # to consumers in this parent directory.
+    find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
+endif()
+
 add_subdirectory(core)              # chronon3d_core_impl
 add_subdirectory(cache)             # chronon3d_cache
 add_subdirectory(effects)           # chronon3d_effects
@@ -121,7 +128,7 @@ add_subdirectory(animations)        # chronon3d_animations
 if(CHRONON3D_ENABLE_TEXT)
     add_subdirectory(text)              # chronon3d_text_core
 endif()
-if(CHRONON3D_BUILD_CLI)
+if(CHRONON3D_ENABLE_IPC)
     add_subdirectory(ipc)               # chronon3d_ipc (ADR-024: daemon IPC)
 endif()
 
@@ -179,6 +186,14 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
 )
+if(CHRONON3D_ENABLE_IPC)
+    # The IPC OBJECT files are exposed through the aggregate build interface;
+    # carry their non-transitive validator dependency to every in-tree
+    # consumer that receives those objects.
+    target_link_libraries(chronon3d_pipeline INTERFACE
+        nlohmann_json_schema_validator::validator
+    )
+endif()
 # ── OBJECT .o propagation for in-tree consumers ──────────────────────
 # CMake ≥3.12 supports target_link_libraries(INTERFACE objlib) but
 # OBJECT files do NOT reliably propagate through a chain of INTERFACE
