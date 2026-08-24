@@ -1,0 +1,291 @@
+// ---------------------------------------------------------------------------
+// schema/chronon_artifact.fbs — FlatBuffers schema for CompiledArtifactDescriptor
+//
+// This schema defines the stable, deterministic on-disk representation of a
+// compiled composition.  Every field is a pure value (integers, strings, byte
+// vectors) — NO raw pointers, NO VkHandle, NO GPU objects, NO backend-specific
+// resources.  Those are reconstructed at load time by re-resolving against the
+// live processor registry and backend.
+//
+// Pipeline:
+//   CompiledComposition
+//        ↓  serialize_to_flatbuffer()
+//   FlatBuffer bytes
+//        ↓  CacheCompressor::compress() (zstd)
+//   .zst file on disk
+//
+// Load:
+//   .zst file on disk
+//        ↓  CacheCompressor::decompress() (zstd)
+//   FlatBuffer bytes
+//        ↓  flatbuffers::Verifier (integrity check)
+//   Verified FlatBuffer
+//        ↓  version check
+//   Reconstituted CompiledArtifactDescriptor
+//        ↓  hydrate_into_runtime() (re-resolve processors, rebuild GPU resources)
+//   CompiledComposition ready for render
+//
+// Version: 1 (increment on breaking format changes)
+// ---------------------------------------------------------------------------
+
+namespace chronon3d.artifact;
+
+// ── Version envelope ──────────────────────────────────────────────────────
+
+/// Top-level envelope.  The verifier checks this first to reject
+/// incompatible or corrupt artifacts before any field access.
+table ArtifactHeader {
+    /// Format version — breaking changes bump this.  Loader rejects
+    /// any version it doesn't recognize.
+    format_version: uint32 = 1;
+
+    /// SHA-256 of the FlatBuffer content (excluding this field).
+    /// Computed at save time, verified at load time.
+    content_sha256: [uint8];
+
+    /// Git commit that produced this artifact (for debugging).
+    git_commit: string;
+
+    /// Wall-clock time when this artifact was created (Unix epoch ms).
+    created_at_ms: int64;
+}
+
+// ── Composition identity ──────────────────────────────────────────────────
+
+table CompositionId {
+    /// Stable fingerprint of the composition definition.
+    fingerprint: uint64;
+
+    /// Width × height the composition was compiled for.
+    width: int32;
+    height: int32;
+
+    /// Frame rate as numerator/denominator.
+    fps_num: uint32;
+    fps_den: uint32;
+
+    /// Total frame count.
+    duration: int64;
+
+    /// Execution mode at compile time.
+    execution_mode: uint8;  // SceneExecutionMode enum
+}
+
+// ── Compiled graph metadata ───────────────────────────────────────────────
+
+/// Unique instance identifier for the compiled graph (FNV-1a of stable node ids).
+table GraphIdentity {
+    instance_id: uint64;
+    structure_hash: uint64;
+
+    /// Registry generation and processor snapshot identity at compile time.
+    /// Used at load time to verify processor compatibility.
+    registry_generation: uint64;
+    processor_snapshot_identity: uint64;
+
+    /// Authored scene structure fingerprint.
+    authored_structure_fingerprint: uint64;
+}
+
+// ── Compiled node metadata ────────────────────────────────────────────────
+
+/// Stable metadata for one compiled node.  Reconstructed from this at load
+/// time by re-resolving processor handles against the live registry.
+table CompiledNodeMeta {
+    /// Stable identity components.
+    stable_node_id: uint64;
+    graph_instance_id: uint64;
+
+    /// Structural metadata (never changes per-frame).
+    kind: uint32;               // RenderGraphNodeKind enum
+    name: string;
+    layer_id: string;
+
+    /// Cache key bytes (XXH64 hash of the node's content identity).
+    cache_key: [uint8];
+
+    /// Shape type discriminator captured at compile time.
+    shape_type: int32;
+
+    /// Processor family/type identity (string key for re-resolution).
+    processor_id: string;
+
+    /// Is this node reachable in the compiled graph?
+    reachable: bool;
+
+    /// Is this node eligible for early-exit skip?
+    early_exit_skip: bool;
+
+    /// Did this node get lowered into a GPU layer batch?
+    lowered_into_batch: bool;
+
+    /// Topology edges (indices into the nodes vector).
+    inputs: [uint32];
+    consumers: [uint32];
+
+    /// Predicted bounding box (four i32 values: x, y, w, h).
+    predicted_bbox: [int32];
+}
+
+// ── Compiled operation metadata ──────────────────────────────────────────
+
+/// Stable description of a single compiled operation in the execution schedule.
+table CompiledOpMeta {
+    /// Index into the nodes vector identifying this operation's node.
+    node_index: uint32;
+
+    /// Input node indices.
+    inputs: [uint32];
+
+    /// Physical framebuffer slot this operation writes to.
+    output_physical_slot: uint32;
+
+    /// Offset and size into the frame parameter table.
+    parameter_offset: uint32;
+    parameter_size: uint32;
+
+    /// Is this operation part of a fused subgraph?
+    is_fused: bool;
+}
+
+// ── Layer batch metadata ──────────────────────────────────────────────────
+
+table LayerInstanceMeta {
+    node_index: uint32;
+    resource_index: uint32;
+    transform_index: uint32;
+    paint_index: uint32;
+    opacity: float;
+    dst_bounds: [int32];  // 4 × i32: x, y, w, h
+}
+
+table LayerBatchMeta {
+    member_nodes: [uint32];
+    instances: [LayerInstanceMeta];
+    root_node_index: uint32;
+    output_physical_slot: uint32;
+    is_gpu_fused: bool;
+}
+
+// ── Resource lifetime metadata ────────────────────────────────────────────
+
+table ResourceLifetimeMeta {
+    producer_node_index: uint32;
+    first_level: uint32;
+    last_level: uint32;
+    consumer_count: uint32;
+    can_release: bool;
+}
+
+// ── Ownership transfer metadata ───────────────────────────────────────────
+
+table OwnershipTransferMeta {
+    producer_node_index: uint32;
+    consumer_node_index: uint32;
+    transferable: bool;
+}
+
+// ── Physical framebuffer plan ────────────────────────────────────────────
+
+/// Stored as raw bytes — the frame data blob.
+/// At load time, decompress + verify, then pass to the runtime.
+/// If empty, no per-frame data was compiled.
+table FrameDataPayload {
+    /// Optional raw bytes of the frame parameter data.
+    data: [uint8];
+
+    /// Number of dynamic slots.
+    slot_count: uint32;
+}
+
+// ── Dynamic slot descriptor ──────────────────────────────────────────────
+
+table DynamicSlotMeta {
+    slot_id: uint32;
+    kind: uint8;
+    offset: uint32;
+    size: uint32;
+    owner_instance: uint32;
+}
+
+// ── Compiled frame program metadata ──────────────────────────────────────
+
+table FrameProgramMeta {
+    /// Topological schedule: level → list of node indices.
+    levels: [NodeIndexList];
+
+    /// Compiled operations in execution order.
+    ops: [CompiledOpMeta];
+
+    /// Layer batches for GPU-fused paths.
+    batches: [LayerBatchMeta];
+
+    /// Dynamic parameter slot descriptors.
+    slots: [DynamicSlotMeta];
+
+    /// Fully-recorded flag (all ops have compiled_execute).
+    fully_recorded: bool;
+
+    /// Has fused GPU passes.
+    has_fused_passes: bool;
+
+    /// Requires native GPU (no software fallback).
+    require_native_gpu: bool;
+
+    /// Interior node skip mask.
+    interior_skip: [bool];
+
+    /// Static bake passes.
+    static_bake_count: uint32;
+}
+
+// ── Helper: list of uint32 node indices ──────────────────────────────────
+
+table NodeIndexList {
+    indices: [uint32];
+}
+
+// ── Release-after-level schedule ─────────────────────────────────────────
+
+table ReleaseLevel {
+    node_indices: [uint32];
+}
+
+// ── Root artifact table ──────────────────────────────────────────────────
+
+/// The top-level compiled artifact descriptor.
+/// Everything below this is a pure value — no pointers, no handles.
+table CompiledArtifactDescriptor {
+    header: ArtifactHeader (required);
+    composition: CompositionId (required);
+    graph: GraphIdentity (required);
+
+    /// All compiled nodes in topological order.
+    nodes: [CompiledNodeMeta];
+
+    /// Compiled frame program (operations, batches, parameter slots).
+    program: FrameProgramMeta (required);
+
+    /// Resource lifetimes for transient node outputs.
+    lifetimes: [ResourceLifetimeMeta];
+
+    /// Generic ownership transfers.
+    ownership_transfers: [OwnershipTransferMeta];
+
+    /// Physical framebuffer allocation plan (raw bytes of the compiled plan).
+    physical_plan_data: [uint8];
+
+    /// Per-level release lists.
+    release_after_level: [ReleaseLevel];
+
+    /// Level consumer counts (one per level).
+    consumer_counts: [uint32];
+
+    /// Frame parameter payload (optional raw bytes).
+    parameter_payload: FrameDataPayload;
+
+    /// Compiled frame program flags.
+    program_skip_initial_clear: bool;
+}
+
+root_type CompiledArtifactDescriptor;
