@@ -1,0 +1,23 @@
+name: OpenColorIO certification
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  ocio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+      - name: Configure OpenColorIO lane
+        run: cmake --preset linux-ocio-certification
+      - name: Build OpenColorIO test target
+        run: cmake --build --preset linux-ocio-certification -j12
+      - name: Run OpenColorIO tests
+        run: ctest --preset linux-ocio-certification-test -R '^chronon3d_ocio_tests$' --output-on-failure
