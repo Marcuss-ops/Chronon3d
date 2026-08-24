@@ -1,0 +1,1 @@
+wiggle(3, 50) + sin(frame * 0.1) * 100

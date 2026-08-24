@@ -11,7 +11,9 @@
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <map>
@@ -21,6 +23,10 @@
 #include <system_error>
 #include <thread>
 #include <vector>
+
+#ifdef CHRONON3D_ENABLE_DEV_WATCH
+#include "src/core/dev/watch_service.hpp"
+#endif
 
 namespace chronon3d::cli {
 
@@ -70,6 +76,8 @@ std::string default_build_command(const std::filesystem::path& binary) {
            " --target chronon3d_cli";
 }
 
+#ifndef CHRONON3D_ENABLE_DEV_WATCH
+// Polling-only helpers — used by the non-efsw fallback path.
 std::map<std::filesystem::path, std::filesystem::file_time_type>
 snapshot_mtimes(const std::vector<std::filesystem::path>& roots) {
     std::map<std::filesystem::path, std::filesystem::file_time_type> snapshot;
@@ -110,6 +118,7 @@ bool mtimes_changed(
     }
     return false;
 }
+#endif  // CHRONON3D_ENABLE_DEV_WATCH
 
 int run_build(const std::string& command) {
     spdlog::info("🔨 Build: {}", command);
@@ -134,6 +143,17 @@ int run_render_subprocess(const std::filesystem::path& binary,
     spdlog::info("🖼  Render: {}", command.str());
     return std::system(command.str().c_str());
 }
+
+#ifdef CHRONON3D_ENABLE_DEV_WATCH
+// Plain-function signal trampoline (signal() requires a C function pointer).
+// Routes to the active WatchService::stop(), which is a bare atomic store.
+std::atomic<dev::WatchService*> g_active_watcher{nullptr};
+
+void watch_signal_handler(int) {
+    auto* w = g_active_watcher.load(std::memory_order_acquire);
+    if (w) w->stop();
+}
+#endif
 
 } // namespace
 
@@ -212,8 +232,6 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
         spdlog::info("   binary:      {}", binary.string());
         spdlog::info("   press Ctrl+C to stop");
 
-        auto previous = snapshot_mtimes(watch_paths);
-        spdlog::info("📸 Initial snapshot: {} files", previous.size());
         if (!watch.no_build && run_build(build_command) != 0) {
             ctx.exit_code = 1;
             return;
@@ -221,6 +239,49 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
         run_render_subprocess(binary, watch.comp_id, watch.frame,
                               watch.output, watch.props_file);
 
+#ifdef CHRONON3D_ENABLE_DEV_WATCH
+        // ── efsw-backed debounced watch (development mode ONLY) ──────────
+        // dev::WatchService provides recursive watching + debounce via efsw.
+        // The render authority is re-exec'd as a subprocess, so composition /
+        // AssetResolver / shader caches are naturally fresh — no parallel
+        // caches are created inside this integration.
+        {
+            dev::WatchService watcher;
+            for (const auto& p : watch_paths) {
+                std::error_code ec;
+                std::filesystem::path root =
+                    std::filesystem::is_directory(p, ec)
+                        ? p
+                        : (p.has_parent_path() ? p.parent_path()
+                                               : std::filesystem::path{"."});
+                watcher.add(root.string(), /*recursive=*/true);
+            }
+            watcher.set_debounce(std::chrono::milliseconds(watch.poll_ms));
+            watcher.on_change([&](const std::vector<std::string>& /*paths*/) {
+                spdlog::info("📝 Change detected — rebuilding + re-rendering");
+                if (!watch.no_build && run_build(build_command) != 0) return;
+                run_render_subprocess(binary, watch.comp_id, watch.frame,
+                                      watch.output, watch.props_file);
+            });
+
+            // Ctrl+C → clean shutdown via the signal-safe atomic store in
+            // WatchService::stop().
+            g_active_watcher.store(&watcher, std::memory_order_release);
+            const auto old_sigint = std::signal(SIGINT, watch_signal_handler);
+            const auto old_sigterm = std::signal(SIGTERM, watch_signal_handler);
+
+            spdlog::info("👁  efsw watch active (debounce {} ms)",
+                         watch.poll_ms);
+            watcher.start();
+
+            std::signal(SIGINT, old_sigint);
+            std::signal(SIGTERM, old_sigterm);
+            g_active_watcher.store(nullptr, std::memory_order_release);
+        }
+#else
+        // ── Polling fallback (no efsw) ─────────────────────────────────────
+        auto previous = snapshot_mtimes(watch_paths);
+        spdlog::info("📸 Initial snapshot: {} files", previous.size());
         while (true) {
             std::this_thread::sleep_for(std::chrono::milliseconds(watch.poll_ms));
             auto current = snapshot_mtimes(watch_paths);
@@ -233,6 +294,7 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
             run_render_subprocess(binary, watch.comp_id, watch.frame,
                                   watch.output, watch.props_file);
         }
+#endif
     });
 }
 

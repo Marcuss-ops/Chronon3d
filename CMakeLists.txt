@@ -69,6 +69,12 @@ option(CHRONON3D_DEV_SPLIT_DWARF
        "Use split DWARF debug information in developer builds" OFF)
 option(CHRONON3D_BUILD_TIME_TRACE
        "Emit Clang -ftime-trace JSON files for compile-time profiling" OFF)
+option(CHRONON3D_BUILD_FUZZERS
+       "Build libFuzzer targets for the IPC daemon boundary (Clang only)" OFF)
+option(CHRONON3D_ENABLE_CRASH_HANDLER
+       "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
+option(CHRONON3D_ENABLE_DEV_WATCH
+       "Enable file-system watch mode for development (efsw) — CLI dev only" OFF)
 
 if(CHRONON3D_DEV_SPLIT_DWARF AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
@@ -141,10 +147,13 @@ find_package(Stb REQUIRED)
 if(CHRONON3D_BUILD_CLI)
     find_package(CLI11 CONFIG REQUIRED)
 endif()
+find_package(flatbuffers CONFIG REQUIRED)
+find_program(CHRONON3D_FLATC flatc REQUIRED)
 find_package(hwy CONFIG REQUIRED)
 if(CHRONON3D_USE_BLEND2D)
     find_package(blend2d CONFIG REQUIRED)
 endif()
+find_package(zstd CONFIG REQUIRED)
 
 if(CHRONON3D_ENABLE_TEXT)
     find_package(freetype CONFIG REQUIRED)
@@ -173,6 +182,12 @@ endif()
 
 if(CHRONON3D_ENABLE_TELEMETRY)
     find_package(unofficial-sqlite3 CONFIG REQUIRED)
+endif()
+if(CHRONON3D_ENABLE_CRASH_HANDLER)
+    find_package(cpptrace CONFIG REQUIRED)
+endif()
+if(CHRONON3D_ENABLE_DEV_WATCH)
+    find_package(efsw CONFIG REQUIRED)
 endif()
 
 if(CHRONON3D_BUILD_BENCHMARKS)
@@ -264,6 +279,13 @@ if(CHRONON3D_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+# ── Fuzz targets (libFuzzer + ASAN/UBSAN, Clang only) ───────────────────
+# Requires CHRONON3D_BUILD_CLI because the IPC module (chronon3d_ipc) is
+# gated on it in src/CMakeLists.txt.
+if(CHRONON3D_BUILD_FUZZERS AND CHRONON3D_BUILD_CLI)
+    add_subdirectory(tests/fuzz)
+endif()
+
 # ── Install-boundary CI gate (TICKET-011) ─────────────────────────────────
 # Standalone consumer at `tests/install_consumer/` that uses ONLY the public
 # Chronon3D::SDK target namespaced alias.  The orchestrator script:
@@ -295,6 +317,39 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         LABELS "boundary;ci"
         ENVIRONMENT "CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE};CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH};SDK_BUILD=${CMAKE_BINARY_DIR};SDK_PREFIX=${CMAKE_BINARY_DIR}/install-consumer-prefix;CHRONON3D_INSTALL_TEST_PRESET=linux-ci-full-validation;CHRONON3D_INSTALL_TEST_FAST=1"
     )
+endif()
+
+# ── Visual Regression Gate (two-tier: EXACT_SHA + VISUAL_SCORE) ──────────
+# CI-facing gate that compares a rendered actual PNG against a reference golden.
+# Tier 1: SHA-256 of raw RGBA (exact pixel identity).
+# Tier 2: SSIM perceptual score (cross-hardware tolerance).
+#
+# The gate is registered unconditionally (like install_consumer_ci) and
+# SKIPs when the CI environment hasn't set VISUAL_GATE_ACTUAL / REFERENCE.
+# When both are set, the Python tool validates the pair and emits:
+#   EXACT_SHA:PASS/FAIL + VISUAL_SCORE:PASS/FAIL
+#
+# Artifacts (actual.png, reference.png, diff.png, score.json) are written
+# to test_renders/visual_gate/ on any FAIL.
+option(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE
+    "Register the two-tier visual regression CTest gate (requires Pillow + ImageMagick)" ON)
+if(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE)
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(
+            NAME chronon3d_visual_regression_gate
+            COMMAND ${Python3_EXECUTABLE}
+                "${CMAKE_SOURCE_DIR}/tools/visual_regression_gate.py"
+                --actual "$ENV{VISUAL_GATE_ACTUAL}"
+                --reference "$ENV{VISUAL_GATE_REFERENCE}"
+                --output-dir "${CMAKE_BINARY_DIR}/test_renders/visual_gate"
+        )
+        set_tests_properties(chronon3d_visual_regression_gate PROPERTIES
+            TIMEOUT 60
+            LABELS "gate;visual;ci"
+            SKIP_RETURN_CODE 2
+        )
+    endif()
 endif()
 
 # ── SDK Install / Export ─────────────────────────────────────────────────────

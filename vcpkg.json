@@ -17,7 +17,8 @@
     "xxhash",
     "highway",
     "nlohmann-json",
-    "magic-enum"
+    "magic-enum",
+    "zstd"
   ],
   "features": {
     "mesh": {
@@ -27,6 +28,14 @@
     "cli": {
       "description": "CLI application (CHRONON3D_BUILD_CLI)",
       "dependencies": ["cli11", "flatbuffers"]
+    },
+    "crash-handler": {
+      "description": "Crash handler with cpptrace stacktraces (CHRONON3D_ENABLE_CRASH_HANDLER)",
+      "dependencies": ["cpptrace"]
+    },
+    "dev-watch": {
+      "description": "File-system watch mode for development (CHRONON3D_ENABLE_DEV_WATCH) — efsw",
+      "dependencies": ["efsw"]
     },
     "blend2d": {
       "description": "Blend2D software rendering backend (CHRONON3D_USE_BLEND2D)",
