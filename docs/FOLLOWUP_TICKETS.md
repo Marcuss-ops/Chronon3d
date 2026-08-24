@@ -25,6 +25,7 @@
 
 ## Recently Closed (ultimi 3)
 
+- IPC heap-buffer-overflow in `decode_reply` — fuzzer (libFuzzer) → fix (Verifier) in `eabb6713a` → [TICKET-130](tickets/TICKET-130-IPC-HEAP-OVERFLOW-DECODE-REPLY.md)
 - `has_compiled_recorder` + `fully_recorded` fast-path (TICKET-VIDEO-COMPILER-ARCH-V1 Fase D/E) — 2026-08-22
 - Telemetry dead layer removed (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT) — 2026-08-22
 - `Sequential graph cache parity` DONE con `DIAGNOSTICS=OFF` (TICKET-SEQUENTIAL-CACHE-DIVERGENCE)
