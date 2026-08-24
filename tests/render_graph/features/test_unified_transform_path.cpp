@@ -23,16 +23,24 @@ using namespace chronon3d;
 using namespace chronon3d::test;
 
 namespace {
-std::string make_white_image_asset() {
+std::string make_diagnostic_image_asset() {
     const std::filesystem::path dir = "output/debug/render_graph_unified";
     std::filesystem::create_directories(dir);
-    const auto path = dir / "white_asset.png";
+    const auto path = dir / "diagnostic_asset_16x9.png";
     if (std::filesystem::exists(path)) {
         return path.string();
     }
 
-    Framebuffer fb(64, 64);
-    fb.clear(Color::white());
+    Framebuffer fb(16, 9);
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            const bool left = x < fb.width() / 2;
+            const bool top = y < fb.height() / 2;
+            fb.pixels_row(y)[x] = top
+                ? (left ? Color::red() : Color::green())
+                : (left ? Color::blue() : Color::white());
+        }
+    }
     CHECK(save_png(fb, path.string()));
     return path.string();
 }
@@ -70,7 +78,7 @@ RenderResult render_single_element_scene([[maybe_unused]] const std::string& typ
 } // namespace
 
 TEST_CASE("Unified transform path: Rect and Image share the same base layer matrix") {
-    const std::string white_image = make_white_image_asset();
+    const std::string diagnostic_image = make_diagnostic_image_asset();
 
     const int width = 640;
     const int height = 360;
@@ -113,9 +121,10 @@ TEST_CASE("Unified transform path: Rect and Image share the same base layer matr
                     });
                 } else if (type == "image") {
                     l.image("img", {
-                        .asset_path = white_image,
+                        .asset_path = diagnostic_image,
                         .size = {160.0f, 90.0f},
                         .pos = {0.0f, 0.0f, 0.0f},
+                        .fit = FitMode::Stretch,
                         .opacity = 1.0f
                     });
                 }
@@ -130,6 +139,24 @@ TEST_CASE("Unified transform path: Rect and Image share the same base layer matr
             CHECK(result.centroid.has_value());
             CHECK(result.bbox.has_value());
 
+            if (type == "image" && transform.name == "identity") {
+                // The asymmetric 16x9 fixture locks sampling orientation at
+                // four interior points. A symmetric image would not detect
+                // a flip or a 90-degree rotation even when the quad itself
+                // is in the correct location.
+                const Color top_left = result.fb->get_pixel(280, 157);
+                const Color top_right = result.fb->get_pixel(360, 157);
+                const Color bottom_left = result.fb->get_pixel(280, 202);
+                const Color bottom_right = result.fb->get_pixel(360, 202);
+                CHECK(top_left.r > 0.8f);
+                CHECK(top_left.g < 0.2f);
+                CHECK(top_right.g > 0.8f);
+                CHECK(bottom_left.b > 0.8f);
+                CHECK(bottom_right.r > 0.8f);
+                CHECK(bottom_right.g > 0.8f);
+                CHECK(bottom_right.b > 0.8f);
+            }
+
             const std::filesystem::path out = std::filesystem::path("output/debug/render_graph_unified") /
                                               ("base_matrix_" + transform.name + "_" + type + ".png");
             CHECK(save_png(*result.fb, out.string()));
@@ -139,7 +166,7 @@ TEST_CASE("Unified transform path: Rect and Image share the same base layer matr
 }
 
 TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected layer matrix") {
-    const std::string white_image = make_white_image_asset();
+    const std::string diagnostic_image = make_diagnostic_image_asset();
 
     Camera2_5D cam;
     cam.enabled = true;
@@ -163,9 +190,10 @@ TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected laye
             l.enable_3d();
             l.rotate({30.0f, 0.0f, 0.0f});
             l.image("img", {
-                .asset_path = white_image,
+                .asset_path = diagnostic_image,
                 .size = {160.0f, 90.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
+                .fit = FitMode::Stretch,
                 .opacity = 1.0f
             });
         }},

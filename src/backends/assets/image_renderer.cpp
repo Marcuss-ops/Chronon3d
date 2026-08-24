@@ -323,9 +323,19 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
     if (src_w <= 0 || src_h <= 0) return true;
 
-    // Scale mapping from sub_img space [0,0 -> src_w,src_h] to destination dst_rect
+    // Scale mapping from sub_img space [0,0 -> src_w,src_h] to destination dst_rect.
+    // RenderGraph may provide a tight destination surface whose pixels are
+    // local to `Framebuffer::origin_*`, while state.matrix remains in Canvas
+    // coordinates. Convert that basis exactly once at this Canvas → surface
+    // boundary; the sampler and compositor must only see surface-local
+    // coordinates.
     Vec2 scale = placement.dst_rect.size / Vec2(static_cast<float>(src_w), static_cast<float>(src_h));
-    Mat4 scaled_model = state.matrix
+    const Mat4 canvas_to_surface = glm::translate(
+        Mat4(1.0f),
+        Vec3{-static_cast<float>(fb.origin_x()),
+             -static_cast<float>(fb.origin_y()),
+             0.0f});
+    Mat4 scaled_model = canvas_to_surface * state.matrix
                       * glm::translate(Mat4(1.0f), Vec3(placement.dst_rect.origin, 0.0f))
                       * glm::scale(Mat4(1.0f), Vec3(scale, 1.0f));
 
