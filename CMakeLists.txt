@@ -62,6 +62,8 @@ option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
+option(CHRONON3D_ENABLE_IPC "Build the FlatBuffers IPC boundary" ON)
+option(CHRONON3D_BUILD_DAEMON "Build the persistent IPC daemon" ON)
 option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
 option(CHRONON3D_BUILD_FUZZERS "Build libFuzzer targets (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CUDA_INTEROP
@@ -72,8 +74,6 @@ option(CHRONON3D_BUILD_TIME_TRACE
        "Emit Clang -ftime-trace JSON files for compile-time profiling" OFF)
 option(CHRONON3D_REPRODUCIBLE_BUILD
        "Normalize source/debug paths for reproducible artifact comparisons" OFF)
-option(CHRONON3D_BUILD_FUZZERS
-       "Build libFuzzer targets for the IPC daemon boundary (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CRASH_HANDLER
        "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
 option(CHRONON3D_ENABLE_DEV_WATCH
@@ -296,6 +296,11 @@ endif()
 # against chronon3d_cli_render and must see that target during configuration.
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
+endif()
+if(CHRONON3D_BUILD_DAEMON)
+    if(NOT CHRONON3D_ENABLE_IPC)
+        message(FATAL_ERROR "CHRONON3D_BUILD_DAEMON requires CHRONON3D_ENABLE_IPC")
+    endif()
     add_subdirectory(apps/chronon3d_daemon)
 endif()
 
@@ -318,9 +323,8 @@ if(CHRONON3D_BUILD_TESTS)
 endif()
 
 # ── Fuzz targets (libFuzzer + ASAN/UBSAN, Clang only) ───────────────────
-# Requires CHRONON3D_BUILD_CLI because the IPC module (chronon3d_ipc) is
-# gated on it in src/CMakeLists.txt.
-if(CHRONON3D_BUILD_FUZZERS AND CHRONON3D_BUILD_CLI)
+# Fuzzers belong to the IPC boundary, not to the optional CLI.
+if(CHRONON3D_BUILD_FUZZERS AND CHRONON3D_ENABLE_IPC)
     add_subdirectory(tests/fuzz)
 endif()
 

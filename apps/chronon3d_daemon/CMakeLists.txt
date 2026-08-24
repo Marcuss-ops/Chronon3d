@@ -5,9 +5,7 @@
 # The daemon migrates the warm-render logic from apps/chronon3d_cli/daemon/
 # into a dedicated application boundary with zero CLI dependencies.
 
-option(CHRONON3D_BUILD_DAEMON "Build the persistent IPC daemon" ON)
-
-if(NOT CHRONON3D_BUILD_DAEMON OR NOT CHRONON3D_BUILD_CLI)
+if(NOT CHRONON3D_BUILD_DAEMON)
     return()
 endif()
 

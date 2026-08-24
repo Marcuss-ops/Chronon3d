@@ -1,3 +1,7 @@
+if(NOT CHRONON3D_ENABLE_IPC OR NOT TARGET chronon3d_ipc)
+    return()
+endif()
+
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 add_test(
