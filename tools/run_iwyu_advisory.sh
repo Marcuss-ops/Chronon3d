@@ -10,14 +10,20 @@ command -v include-what-you-use >/dev/null 2>&1 || {
 }
 out="${IWYU_REPORT:-iwyu-report.txt}"
 python3 - "$build_dir/compile_commands.json" "$out" <<'PY'
-import json, pathlib, subprocess, sys
+import json, pathlib, shlex, subprocess, sys
 commands = json.loads(pathlib.Path(sys.argv[1]).read_text())
 out = pathlib.Path(sys.argv[2])
 lines = []
 for entry in commands:
-    command = entry.get("command") or " ".join(entry.get("arguments", []))
+    raw = entry.get("arguments")
+    argv = list(raw) if raw else shlex.split(entry.get("command", ""))
+    if not argv:
+        continue
+    # compile_commands starts with the compiler executable. IWYU is the
+    # replacement driver, so retain every compiler argument after it.
+    command = argv[1:]
     try:
-        p = subprocess.run(["include-what-you-use", *command.split()[1:]], text=True,
+        p = subprocess.run(["include-what-you-use", *command], text=True,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         if p.stdout.strip():
             lines.append(f"## {entry.get('file', '<unknown>')}\n{p.stdout}")
