@@ -1,0 +1,22 @@
+name: CFI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  clang-cfi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CFI toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld ninja-build cmake
+      - name: Run CFI gate
+        run: tools/run_cfi_gate.sh
