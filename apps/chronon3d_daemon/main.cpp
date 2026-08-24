@@ -11,6 +11,10 @@
 #include "src/ipc/ipc_command_dispatcher.hpp"
 #include "src/ipc/unix_socket_transport.hpp"
 
+#ifdef CHRONON3D_ENABLE_CRASH_HANDLER
+#include "src/core/crash/crash_handler.hpp"
+#endif
+
 #include <cstdlib>
 #include <filesystem>
 #include <string>
@@ -60,6 +64,13 @@ graph::BackendPreference preference_from_string(std::string_view s) {
 int main(int argc, char* argv[]) {
     spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
 
+#ifdef CHRONON3D_ENABLE_CRASH_HANDLER
+    // Install the fatal crash handler FIRST — before any engine work.
+    // A library must never install signal handlers in a client process;
+    // the daemon is an application boundary, so it owns this decision.
+    chronon3d::crash::install();
+#endif
+
     const auto args = parse_args(argc, argv);
 
     spdlog::info("Chronon3D Daemon v0.1 (ADR-024 Level 1)");
@@ -82,7 +93,7 @@ int main(int argc, char* argv[]) {
 
     IpcCommandDispatcher dispatcher(std::move(engine));
 
-    const FrameHandler handler = [&dispatcher](const WireFrame& request) -> WireFrame {
+    const FrameHandler handler = [&dispatcher, &args](const WireFrame& request) -> WireFrame {
         auto decoded = IpcCodec::decode_request(request);
         if (!decoded) {
             return IpcCodec::encode_reply(0, IpcResponse{
@@ -96,7 +107,27 @@ int main(int argc, char* argv[]) {
                 IpcShutdownResult{4, "bye"}});
         }
 
+#ifdef CHRONON3D_ENABLE_CRASH_HANDLER
+        // Populate the thread-local crash context so a fatal signal during
+        // dispatch reports the composition being rendered.  The C-strings
+        // point into the decoded request, which lives through dispatch().
+        chronon3d::crash::CrashContext crash_ctx;
+        crash_ctx.backend = args.backend.c_str();
+        if (const auto* rf = std::get_if<IpcRenderFrame>(&req)) {
+            crash_ctx.composition_id = rf->composition_id.c_str();
+            crash_ctx.frame          = rf->frame_index;
+        } else if (const auto* cc = std::get_if<IpcCreateComposition>(&req)) {
+            crash_ctx.composition_id = cc->composition_id.c_str();
+        }
+        chronon3d::crash::set_crash_context(&crash_ctx);
+#endif
+
         const auto response = dispatcher.dispatch(req);
+
+#ifdef CHRONON3D_ENABLE_CRASH_HANDLER
+        chronon3d::crash::set_crash_context(nullptr);
+#endif
+
         return IpcCodec::encode_reply(msg_id, response);
     };
 

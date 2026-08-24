@@ -6,7 +6,7 @@
 # instead of leaking the source-tree path.
 # ==============================================================================
 
-add_library(chronon3d_core_impl OBJECT
+set(CHRONON3D_CORE_IMPL_SOURCES
     config.cpp
     cpu_budget.cpp
     profiling.cpp
@@ -23,6 +23,15 @@ add_library(chronon3d_core_impl OBJECT
     tracing/trace_session.cpp              # job-scoped TraceSession (pimpl)
     tracing/tracing_categories.cpp         # PERFETTO_TRACK_EVENT_STATIC_STORAGE (single TU)
 )
+
+if(CHRONON3D_ENABLE_CRASH_HANDLER)
+    list(APPEND CHRONON3D_CORE_IMPL_SOURCES crash/crash_handler.cpp)
+endif()
+if(CHRONON3D_ENABLE_DEV_WATCH)
+    list(APPEND CHRONON3D_CORE_IMPL_SOURCES dev/watch_service.cpp)
+endif()
+
+add_library(chronon3d_core_impl OBJECT ${CHRONON3D_CORE_IMPL_SOURCES})
 target_include_directories(chronon3d_core_impl PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -33,3 +42,21 @@ target_link_libraries(chronon3d_core_impl PUBLIC
     spdlog::spdlog_header_only
 )
 target_link_libraries(chronon3d_core_impl PUBLIC TBB::tbb)   # tbb::task_arena in execution_scheduler.hpp
+
+if(CHRONON3D_ENABLE_CRASH_HANDLER)
+    target_link_libraries(chronon3d_core_impl PUBLIC cpptrace::cpptrace)
+    # PUBLIC so consumers (daemon, CLI) see the feature guard consistently.
+    target_compile_definitions(chronon3d_core_impl PUBLIC
+        CHRONON3D_ENABLE_CRASH_HANDLER
+    )
+    # GIT_COMMIT stays PRIVATE — only crash_handler.cpp consumes it.
+    target_compile_definitions(chronon3d_core_impl PRIVATE
+        CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
+    )
+endif()
+if(CHRONON3D_ENABLE_DEV_WATCH)
+    target_link_libraries(chronon3d_core_impl PUBLIC efsw::efsw)
+    target_compile_definitions(chronon3d_core_impl PUBLIC
+        CHRONON3D_ENABLE_DEV_WATCH
+    )
+endif()
