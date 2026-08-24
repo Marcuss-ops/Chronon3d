@@ -21,8 +21,20 @@ def main() -> int:
     ns = ap.parse_args()
     files = [p for p in ns.root.rglob("*") if p.is_file()]
     total = sum(p.stat().st_size for p in files)
+    binaries = list(ns.binary or [])
+    if ns.max_dependencies is not None and not binaries:
+        # A dependency budget with no explicit binary must still measure the
+        # build. ELF magic is cheaper and more reliable than parsing `file`
+        # output, and avoids silently reporting dependencies=0.
+        binaries = []
+        for path in files:
+            header = path.read_bytes()[:18]
+            # ELF e_type at offset 16: ET_EXEC=2, ET_DYN=3.  Relocatable
+            # objects (ET_REL=1) are not valid inputs to ldd.
+            if len(header) >= 18 and header[:4] == b"\x7fELF" and header[16] in (2, 3):
+                binaries.append(path)
     dependency_names = set()
-    for binary in ns.binary or []:
+    for binary in binaries:
         try:
             output = subprocess.check_output(["ldd", str(binary)], text=True,
                                              stderr=subprocess.STDOUT)
@@ -35,7 +47,8 @@ def main() -> int:
             if fields and ("=>" in fields or fields[0].startswith("/")):
                 dependency_names.add(fields[0] if fields[0].startswith("/") else fields[2])
     metrics = {"root": str(ns.root), "files": len(files), "bytes": total,
-               "dependencies": len(dependency_names)}
+               "dependencies": len(dependency_names),
+               "dependency_binaries": [str(p) for p in binaries]}
     if ns.out:
         ns.out.write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n")
     print(json.dumps(metrics, sort_keys=True))
