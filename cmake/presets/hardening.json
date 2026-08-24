@@ -33,13 +33,25 @@
         "CMAKE_CXX_FLAGS": "-O2 -fvisibility=hidden -flto -fsanitize=cfi -fsanitize-cfi-cross-dso -fno-sanitize-trap=cfi",
         "CMAKE_EXE_LINKER_FLAGS": "-flto -fsanitize=cfi -fsanitize-cfi-cross-dso"
       }
+    },
+    {
+      "name": "linux-ocio-certification",
+      "inherits": "linux-hardened-release",
+      "displayName": "Linux OpenColorIO Certification",
+      "description": "OpenColorIO-backed colour transform certification lane.",
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_OCIO": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;tests;ocio"
+      }
     }
   ],
   "buildPresets": [
     {"name": "linux-hardened-release", "configurePreset": "linux-hardened-release", "targets": ["chronon3d_cli", "chronon3d_tests"], "jobs": 12},
-    {"name": "linux-cfi", "configurePreset": "linux-cfi", "targets": ["chronon3d_daemon"], "jobs": 12}
+    {"name": "linux-cfi", "configurePreset": "linux-cfi", "targets": ["chronon3d_daemon"], "jobs": 12},
+    {"name": "linux-ocio-certification", "configurePreset": "linux-ocio-certification", "targets": ["chronon3d_ocio_tests"], "jobs": 12}
   ],
   "testPresets": [
-    {"name": "linux-hardened-release-test", "configurePreset": "linux-hardened-release", "output": {"outputOnFailure": true}}
+    {"name": "linux-hardened-release-test", "configurePreset": "linux-hardened-release", "output": {"outputOnFailure": true}},
+    {"name": "linux-ocio-certification-test", "configurePreset": "linux-ocio-certification", "output": {"outputOnFailure": true}}
   ]
 }

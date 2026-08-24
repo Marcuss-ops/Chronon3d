@@ -17,7 +17,9 @@
 //   auto rgb = color::linear_to_output_rgb8(linear_color, options);
 //   // rgb.r, rgb.g, rgb.b are uint8_t ready for encoding.
 //
-// Future: add ACEScg, Display P3, and LUT-based transforms here.
+// Non-sRGB, display-specific and LUT-based transforms are provided by the
+// optional OpenColorIO adapter; this header remains the deterministic inline
+// sRGB/Rec709 output path.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/types/types.hpp>

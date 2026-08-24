@@ -7,6 +7,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     # + script linting). Dropped from registration by the slim top-level
     # orchestrator refactor (fd776350) and re-wired here.
     architecture_tests.cmake
+    ocio_tests.cmake
     core_tests.cmake
     backend_registry_tests.cmake
     shader_abi_tests.cmake

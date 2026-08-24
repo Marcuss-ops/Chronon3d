@@ -46,6 +46,10 @@
       "description": "SVG path/document importing (CHRONON3D_ENABLE_SVG)",
       "dependencies": ["boost-spirit", "boost-math"]
     },
+    "ocio": {
+      "description": "OpenColorIO colour-management transforms (CHRONON3D_ENABLE_OCIO)",
+      "dependencies": ["opencolorio"]
+    },
     "text": {
       "description": "Text rendering — FreeType + HarfBuzz + FriBidi + ICU + ZLIB (CHRONON3D_ENABLE_TEXT)",
       "dependencies": ["freetype", "harfbuzz", "fribidi", "icu", "zlib"]
