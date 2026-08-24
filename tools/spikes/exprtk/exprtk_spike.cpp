@@ -2,7 +2,20 @@
 #include <chronon3d/math/expression.hpp>   // custom recursive-descent parser
 #include <chronon3d/math/expression_types.hpp>
 
+#include <cmath>
 #include "exprtk.hpp"
+
+// Chronon's public expression contract predates ExprTk and defines modulo by
+// zero as 0.0 (division by zero remains +inf).  Specialize ExprTk's numeric
+// hook for the double-valued compiler before any parser templates instantiate;
+// this keeps the parity policy in the adapter instead of weakening production
+// tests or post-processing arbitrary NaNs.
+namespace exprtk::details::numeric {
+template <>
+inline double modulus<double>(const double lhs, const double rhs) {
+    return rhs == 0.0 ? 0.0 : std::fmod(lhs, rhs);
+}
+} // namespace exprtk::details::numeric
 
 #include <algorithm>
 #include <cctype>
