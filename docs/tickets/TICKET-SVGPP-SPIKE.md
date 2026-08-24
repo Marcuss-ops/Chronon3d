@@ -48,14 +48,14 @@ The feasibility result was promoted into the canonical asset path:
 
 - `src/assets/svg_importer.cpp` owns the SVG++ adapter and arc conversion.
 - `src/assets/svgpp_parser_impl.cpp` owns the explicit SVG++ template instantiation.
-- `src/assets/svg_path_loader.cpp` retains only file I/O and the existing narrow `<path d="...">` extraction.
+- `src/assets/svg_path_loader.cpp` retains file I/O and delegates XML traversal to Boost.PropertyTree before passing path data to SVG++.
 - `tests/assets/test_svg_path_loader.cpp` now locks arc conversion and relative-command policy.
 - `tests/assets/CMakeLists.txt` registers a focused loader suite.
 
 ## Dependency decision
 
-`svgpp` has no port in the repository's vcpkg catalog. The manifest now includes `boost-spirit` (which pulls the Boost Spirit header graph, 63 installed package entries in the isolated probe), while the spike fetches SVG++ `v1.3.1` through an OFF-by-default `CHRONON3D_BUILD_SVGPP_SPIKE` option. SVG++ is header-only and requires Boost; its documentation states that it has no link library, but the Boost.Spirit template graph is substantial.
+`svgpp` has no port in the repository's vcpkg catalog. The production importer fetches SVG++ `v1.3.1` and uses the Boost Spirit/Math header graph directly; the former isolated spike target has been removed after promotion.
 
 ## Decision
 
-**PASS for path-data replacement; PARTIAL for full SVG import.** SVG++ is now the canonical parser for path data, including `A/a` via SVG++ arc-to-cubic conversion. The file boundary now uses Boost.PropertyTree XML traversal to locate the first `<path>` `d` attribute; custom string scanning has been removed. Transforms, styles, basic shapes, and a larger corpus remain outside this path-only API and must be handled before claiming complete SVG document coverage.
+**PASS for path-data replacement; PARTIAL for full SVG import.** SVG++ is now the canonical parser for path data, including `A/a` via SVG++ arc-to-cubic conversion. The file boundary now uses Boost.PropertyTree XML traversal to locate the first `<path>` `d` attribute; custom string scanning and the temporary spike have been removed. Transforms, styles, basic shapes, and a larger corpus remain outside this path-only API and must be handled before claiming complete SVG document coverage.
