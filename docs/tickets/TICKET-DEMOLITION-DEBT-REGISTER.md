@@ -21,7 +21,7 @@ un commit dedicato; `REMOVED` richiede anche una verifica post-rimozione.
 | Vulkan `legacy_*` counters | Vulkan owner | Osservabilità della migrazione precedente | Fallback/legacy path rimosso e zero riferimenti confermato dal architecture gate | Counter, schema fields, reporters e test snapshot | ACTIVE |
 | SVG document boundary | Assets owner | API attuale importa il primo `<path>` soltanto | `SvgDocumentImporter` con corpus documentale, transforms/styles/shapes e parity test | Narrow file API e compat extraction assumptions | ACTIVE |
 | Custom expression parser | Animation owner | AE bindings richiedono backend replacement | Backend alternativo con parity del golden corpus e fuzz regression green | `ExpressionParser`, duplicate grammar helpers, parser-specific tests | ACTIVE |
-| `CHRONON3D_BUILD_SVGPP_SPIKE` | Assets owner | Spike promosso al path importer | Production SVG document scope deciso e spike/option non più necessari | Spike target, FetchContent-only wiring, option and ticket | ACTIVE |
+| SVG++ spike | Assets owner | Spike promosso al path importer | Production path tests and importer are canonical | Spike target, option, corpus runner and duplicate wiring | REMOVED |
 | Non-core dependency graph | Build owner | Feature dependencies may be promoted to global scope | Dependency audit has a feature for every non-core package and minimal preset verifies it | Global vcpkg entries, unused CMake `find_package` calls | ACTIVE |
 | SPIRV-Reflect include workaround | Shader owner | Current port target has non-canonical include layout | Upstream/port target exports the canonical include directory | Root CMake target-property workaround | ACTIVE |
 

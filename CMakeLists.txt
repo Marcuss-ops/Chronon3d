@@ -78,8 +78,6 @@ option(CHRONON3D_ENABLE_CRASH_HANDLER
        "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
 option(CHRONON3D_ENABLE_DEV_WATCH
        "Enable file-system watch mode for development (efsw) — CLI dev only" OFF)
-option(CHRONON3D_BUILD_SVGPP_SPIKE
-       "Build the isolated SVG++ path-importer feasibility spike" OFF)
 option(CHRONON3D_BUILD_EXPRTK_SPIKE
        "Build the isolated ExprTk expression compiler feasibility spike" OFF)
 
@@ -254,9 +252,6 @@ endif()
 
 add_subdirectory(src)
 
-if(CHRONON3D_BUILD_SVGPP_SPIKE)
-    add_subdirectory(tools/spikes/svgpp)
-endif()
 if(CHRONON3D_BUILD_EXPRTK_SPIKE)
     add_subdirectory(tools/spikes/exprtk)
 endif()
