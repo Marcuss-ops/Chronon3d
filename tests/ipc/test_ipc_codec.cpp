@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 #include "src/ipc/ipc_codec.hpp"
+#include "src/ipc/unix_socket_transport.hpp"
+#include <chronon3d/internal/testing/failure_injector.hpp>
 #include <vector>
 #include <random>
 
@@ -144,6 +146,49 @@ TEST_CASE("IPC decoder rejects corrupted and random payloads without crashing") 
         CHECK_NOTHROW(IpcCodec::decode_request(fuzz));
         CHECK_NOTHROW(IpcCodec::decode_reply(fuzz));
     }
+}
+
+TEST_CASE("LengthPrefixFraming handles framing bounds and malformed sockets") {
+    int sv[2];
+    REQUIRE(::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+
+    // 1. Valid frame transmission
+    WireFrame valid_payload = {0x01, 0x02, 0x03, 0x04};
+    CHECK(LengthPrefixFraming::write_frame(sv[0], valid_payload));
+    auto read_back = LengthPrefixFraming::read_frame(sv[1]);
+    REQUIRE(read_back.has_value());
+    CHECK(*read_back == valid_payload);
+
+    // 2. Reject 0-length frame
+    std::uint8_t zero_header[4] = {0, 0, 0, 0};
+    REQUIRE(::write(sv[0], zero_header, 4) == 4);
+    CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
+
+    // 3. Reject oversized frame (> 64 MiB)
+    std::uint8_t giant_header[4] = {0x05, 0x00, 0x00, 0x00}; // ~83 MiB
+    REQUIRE(::write(sv[0], giant_header, 4) == 4);
+    CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
+
+    // 4. Partial header on disconnect
+    std::uint8_t partial_hdr[2] = {0x00, 0x01};
+    REQUIRE(::write(sv[0], partial_hdr, 2) == 2);
+    ::close(sv[0]); // Disconnect client
+    CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
+    ::close(sv[1]);
+}
+
+TEST_CASE("LengthPrefixFraming fault injection fails one write and recovers") {
+    using chronon3d::testing::FailureInjector;
+    using chronon3d::testing::FailurePoint;
+    int sv[2];
+    REQUIRE(::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+    FailureInjector::fail_next(FailurePoint::SocketWrite);
+    CHECK_FALSE(LengthPrefixFraming::write_frame(sv[0], WireFrame{1, 2, 3}));
+    CHECK(LengthPrefixFraming::write_frame(sv[0], WireFrame{4, 5, 6}));
+    CHECK(LengthPrefixFraming::read_frame(sv[1]) == WireFrame{4, 5, 6});
+    FailureInjector::reset();
+    ::close(sv[0]);
+    ::close(sv[1]);
 }
 
 } // TEST_SUITE

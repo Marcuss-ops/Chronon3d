@@ -3,6 +3,7 @@
 #include <vk_mem_alloc.h>
 
 #include "vulkan_memory_manager.hpp"
+#include <chronon3d/internal/testing/failure_injector.hpp>
 
 #include <stdexcept>
 #include <string>
@@ -122,6 +123,10 @@ VulkanImageAllocation VulkanMemoryManager::create_image(
     const VkImageCreateInfo& image_info,
     VulkanMemoryClass memory_class)
 {
+    if (chronon3d::testing::FailureInjector::should_fail(
+            chronon3d::testing::FailurePoint::VulkanImageAllocation)) {
+        throw std::runtime_error("VulkanMemoryManager: injected image allocation failure");
+    }
     if (allocator_ == VK_NULL_HANDLE) {
         throw std::runtime_error("VulkanMemoryManager: create_image called on uninitialized allocator");
     }

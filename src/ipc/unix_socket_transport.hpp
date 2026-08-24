@@ -14,6 +14,7 @@
 #pragma once
 
 #include "ipc_transport.hpp"
+#include <chronon3d/internal/testing/failure_injector.hpp>
 
 #include <atomic>
 #include <cstring>
@@ -54,6 +55,8 @@ inline bool socket_read_exact(int fd, std::uint8_t* buf, std::size_t n) noexcept
 
 /// Write exactly `n` bytes to a stream socket.
 inline bool socket_write_exact(int fd, const std::uint8_t* buf, std::size_t n) noexcept {
+    if (chronon3d::testing::FailureInjector::should_fail(
+            chronon3d::testing::FailurePoint::SocketWrite)) return false;
     std::size_t done = 0;
     while (done < n) {
         const ssize_t w = ::send(fd, buf + done, n - done, MSG_NOSIGNAL);
