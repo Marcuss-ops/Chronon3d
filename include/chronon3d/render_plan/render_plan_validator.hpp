@@ -2,24 +2,9 @@
 // render_plan/render_plan_validator.hpp — JSON Schema validator for
 // `chronon.render-plan` v1 plans.
 //
-// Hand-rolled subset of JSON Schema Draft 2020-12.  Intentionally NOT a
-// full Draft 2020-12 implementation: only the keywords actually used by
-// `schemas/chronon.render-plan.v1.schema.json` are supported, so the
-// implementation stays tiny and grep-discoverable.  When the schema
-// evolves to use a keyword outside this subset, the FAIL-FAST
-// `validate_subschema` guard will emit a `GATE_FAIL`-style issue so the
-// next maintainer knows to extend the validator.
-//
-// Supported keywords (Draft 2020-12):
-//   - `type`  (object | array | integer | number | string | boolean | null)
-//   - `const` / `enum`
-//   - `required` (object-level list of property names)
-//   - `additionalProperties` (true | false — sealed)
-//   - `minLength`, `minimum`, `exclusiveMinimum`, `maximum`
-//   - `minItems`, `maxItems`
-//   - `properties` (nested), `items` (array element schema)
-//
-// Reference: schemas/chronon.render-plan.v1.schema.json
+// Structural validation is delegated to nlohmann-json-schema-validator.
+// The schema in `schemas/chronon.render-plan.v1.schema.json` is the sole
+// source of structural rules; runtime asset/backend checks remain semantic.
 //
 // Cat-3 contract: no SDK state, no asset access, no logging — pure
 // functions that walk the parsed JSON against the schema.  Side effect:
@@ -48,8 +33,7 @@ enum class ValidationIssueKind : std::uint8_t {
     StringTooShort,     ///< minLength violation
     ArrayTooShort,      ///< minItems violation
     ArrayTooLong,       ///< maxItems violation
-    UnsupportedKeyword, ///< schema uses a keyword this validator subset
-                        ///< doesn't implement (fail-loud extension hook)
+    UnsupportedKeyword, ///< retained for API compatibility with older callers
 };
 
 struct ValidationIssue {
