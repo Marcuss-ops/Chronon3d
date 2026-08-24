@@ -106,6 +106,9 @@ La regola vale in particolare per:
 - parser o scanner custom sostituiti da ICU, SVG++/XML parser o altro componente;
 - expression parser custom in attesa di un backend con parity certificata;
 - dipendenze non-core (Boost, validator, compressori, parser) introdotte per una sola feature;
+- validazione manuale duplicata da JSON Schema o da un contratto generato;
+- fault-injection, crash-artifact e debug GPU aggiunti come lane di certificazione;
+- gate di build, ABI, SBOM e riproducibilità che sostituiscono controlli manuali;
 - stub, alias e shim di compatibilità.
 
 Quando l'exit condition è soddisfatta, la rimozione è un lavoro obbligatorio
