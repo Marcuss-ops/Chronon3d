@@ -70,6 +70,8 @@ option(CHRONON3D_DEV_SPLIT_DWARF
        "Use split DWARF debug information in developer builds" OFF)
 option(CHRONON3D_BUILD_TIME_TRACE
        "Emit Clang -ftime-trace JSON files for compile-time profiling" OFF)
+option(CHRONON3D_REPRODUCIBLE_BUILD
+       "Normalize source/debug paths for reproducible artifact comparisons" OFF)
 option(CHRONON3D_BUILD_FUZZERS
        "Build libFuzzer targets for the IPC daemon boundary (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CRASH_HANDLER
@@ -104,6 +106,13 @@ endif()
 
 if(CHRONON3D_BUILD_TIME_TRACE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-ftime-trace>)
+endif()
+
+if(CHRONON3D_REPRODUCIBLE_BUILD AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:C,CXX>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>
+        $<$<COMPILE_LANGUAGE:C,CXX>:-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.>
+    )
 endif()
 
 # ── Optional heavy dependency: Blend2D ──────────────────────────────────
