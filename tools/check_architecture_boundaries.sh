@@ -385,7 +385,7 @@ for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0
              | sort -u); do
     [ -z "$pkg" ] && continue
     case "$pkg" in
-        Threads|EXPAT) continue ;;
+        Threads|EXPAT|Python3) continue ;;
     esac
     lcp=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
     case "$lcp" in
@@ -393,6 +393,7 @@ for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0
         magic_enum) lcp="magic-enum" ;;
         nlohmann_json) lcp="nlohmann-json" ;;
         unofficial) lcp="sqlite3" ;;
+        vulkanmemoryallocator) lcp="vulkan-memory-allocator" ;;
     esac
     if ! grep -qE "\"${lcp}\"" vcpkg.json 2>/dev/null; then
         miss="$miss $pkg"
