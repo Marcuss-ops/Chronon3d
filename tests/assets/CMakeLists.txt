@@ -2,6 +2,9 @@
 if(NOT CHRONON3D_BUILD_TESTS)
     return()
 endif()
+if(NOT CHRONON3D_ENABLE_SVG)
+    return()
+endif()
 
 chronon3d_add_test_suite(
     NAME chronon3d_svg_path_loader_tests

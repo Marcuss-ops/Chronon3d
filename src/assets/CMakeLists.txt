@@ -2,7 +2,7 @@
 # src/assets/CMakeLists.txt — chronon3d_assets
 # ==============================================================================
 
-add_library(chronon3d_assets OBJECT
+set(CHRONON3D_ASSET_SOURCES
     asset_resolver.cpp
     mesh_loader.cpp
     prepared_asset_manifest.cpp
@@ -10,17 +10,25 @@ add_library(chronon3d_assets OBJECT
     render_preflight_req.cpp
     render_preflight_validate.cpp
     render_preflight_helpers.cpp
-    svg_path_loader.cpp
-    svg_importer.cpp
-    svgpp_parser_impl.cpp
 )
+if(CHRONON3D_ENABLE_SVG)
+    list(APPEND CHRONON3D_ASSET_SOURCES
+        svg_path_loader.cpp
+        svg_importer.cpp
+        svgpp_parser_impl.cpp
+    )
+endif()
+add_library(chronon3d_assets OBJECT ${CHRONON3D_ASSET_SOURCES})
 set_target_properties(chronon3d_assets PROPERTIES UNITY_BUILD OFF)
-set_source_files_properties(
-    prepared_asset_manifest.cpp
-    svg_importer.cpp
-    svgpp_parser_impl.cpp
-    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
-)
+set_source_files_properties(prepared_asset_manifest.cpp PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON)
+if(CHRONON3D_ENABLE_SVG)
+    set_source_files_properties(
+        svg_importer.cpp
+        svgpp_parser_impl.cpp
+        PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
+    )
+endif()
 # TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: link chronon3d_path_cache
 # (the dedicated STATIC library defined in src/render_graph/CMakeLists.txt
 # that owns preflight/path_existence_map.cpp).  The consumer
@@ -37,10 +45,12 @@ target_link_libraries(chronon3d_assets PUBLIC
     chronon3d_path_cache
     nlohmann_json::nlohmann_json
 )
-target_link_libraries(chronon3d_assets PRIVATE
-    Boost::spirit
-    Boost::math
-)
-target_include_directories(chronon3d_assets PRIVATE
-    "${svgpp_SOURCE_DIR}/include"
-)
+if(CHRONON3D_ENABLE_SVG)
+    target_link_libraries(chronon3d_assets PRIVATE
+        Boost::spirit
+        Boost::math
+    )
+    target_include_directories(chronon3d_assets PRIVATE
+        "${svgpp_SOURCE_DIR}/include"
+    )
+endif()
