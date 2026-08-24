@@ -1,0 +1,40 @@
+name: ABI compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '31 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  libabigail:
+    name: libabigail / C ABI
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+
+      - name: Install libabigail
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y abigail-tools
+
+      - name: Configure hardened release
+        run: cmake --preset linux-hardened-release
+
+      - name: Build C ABI shared library
+        run: cmake --build --preset linux-hardened-release --target chronon3d_c -j12
+
+      - name: Compare ABI baseline
+        env:
+          ABI_SO: build/chronon/linux-hardened-release/src/libchronon3d_c.so
+          ABI_BASELINE: tools/sdk/chronon3d_c.abi
+        run: bash tools/sdk/check_abi_libabigail.sh
