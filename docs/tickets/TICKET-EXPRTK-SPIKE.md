@@ -1,7 +1,7 @@
 # TICKET-EXPRTK-SPIKE — Spike ExpressionEngine con ExprTk
 
 **Data**: 2026-08-24  
-**Stato**: SPIKE COMPLETATO — parity 129/130 (99,2%), un gap semantico noto
+**Stato**: SPIKE COMPLETATO — parity 130/130 (100%), policy modulo-zero allineata
 **Commit**: `main` (dual-run aggiornato 2026-08-24)
 
 ---
@@ -49,9 +49,9 @@ ExprTk: `v0.0.3`, header-only via `FetchContent`. Nessuna modifica a `vcpkg.json
 
 | Categoria | Count | % |
 |---|---|---|
-| **PASS** (valori identici) | 129 | 99,2% |
+| **PASS** (valori identici) | 130 | 100% |
 | **PARTIAL** (ExprTk compile error) | 0 | 0% |
-| **FAIL** (mismatch reale) | 1 | 0,8% |
+| **FAIL** (mismatch reale) | 0 | 0% |
 
 ### Dettaglio PASS (94 case)
 
@@ -77,11 +77,11 @@ Copertura completa per:
 | `layer('name').prop` | 2 | Placeholder namespaced e resolver preservato |
 | `undef_var` | 1 | Controllo post-bind degli identificatori non risolti |
 
-### Gap residuo (1 caso)
+### Gap residuo (risolto)
 
 | Test | Custom | ExprTk | Causa |
 |---|---|---|---|
-| `mod_zero` (`5 % 0`) | 0.0 | NaN | ExprTk implementa la semantica IEEE/fmod, mentre il parser Chronon mantiene il contratto storico `0.0` per divisore nullo. Va decisa e testata una policy prima della migrazione. |
+| `mod_zero` (`5 % 0`) | 0.0 | 0.0 | Adapter ExprTk specializza `numeric::modulus<double>` per il contratto storico Chronon. |
 
 ---
 
@@ -109,10 +109,10 @@ ExprTk non deve sapere cosa sia `thisComp.width` o `layer("Title").transform.pos
 
 ## Decisione
 
-**PROMISING** — ExprTk è tecnicamente fattibile come sostituto del recursive-descent parser. Il solo gap rimasto è la policy modulo-zero, che richiede una decisione di compatibilità prima della migrazione.
+**PROMISING** — ExprTk è tecnicamente fattibile come sostituto del recursive-descent parser; il corpus spike base è ora 130/130. La migrazione production resta subordinata al corpus esteso, alle funzioni AE non ancora coperte e al benchmark compile/eval.
 
 Prima di procedere alla migrazione completa servono:
-1. Decisione compatibile e testata sulla semantica modulo-zero
+1. ~~Decisione compatibile e testata sulla semantica modulo-zero~~ — DONE nel dual-run
 2. Parity test esteso con i test `test_expression.cpp` e `test_expression_extended.cpp` esistenti (seedRandom, wiggle, cross-layer, loopOut/loopIn)
 3. Test delle performance (compile time per espressione, eval time per frame vs custom parser)
 4. ADR per decisione architetturale
