@@ -1,8 +1,8 @@
 # TICKET-EXPRTK-SPIKE — Spike ExpressionEngine con ExprTk
 
 **Data**: 2026-08-24  
-**Stato**: SPIKE COMPLETATO — risultato PROMISING con gap noti  
-**Commit**: su `main`
+**Stato**: SPIKE COMPLETATO — parity 129/130 (99,2%), un gap semantico noto
+**Commit**: `main` (dual-run aggiornato 2026-08-24)
 
 ---
 
@@ -49,9 +49,9 @@ ExprTk: `v0.0.3`, header-only via `FetchContent`. Nessuna modifica a `vcpkg.json
 
 | Categoria | Count | % |
 |---|---|---|
-| **PASS** (valori identici) | 94 | 72% |
-| **PARTIAL** (ExprTk compile error, fix noto) | 30 | 23% |
-| **FAIL** (mismatch reale) | 6 | 5% |
+| **PASS** (valori identici) | 129 | 99,2% |
+| **PARTIAL** (ExprTk compile error) | 0 | 0% |
+| **FAIL** (mismatch reale) | 1 | 0,8% |
 
 ### Dettaglio PASS (94 case)
 
@@ -67,33 +67,28 @@ Copertura completa per:
 - Combinazioni: confronto + ternario, precedenza + logica, espressioni reali (`sin(time*2)*100+500`)
 - `div_zero` → `inf` consistente
 
-### Dettaglio PARTIAL (30 case — tutti fix noti)
+### Gap risolti dal dual-run aggiornato
 
 | Causa | N. case | Fix |
 |---|---|---|
-| `not` unario: `!0` → `not 0` ma ExprTk vuole `not(0)` | 6 | Cambiare preprocessor: `!` → `not(` + parentesi finale |
-| AE functions `linear`, `ease`, `easeIn`, `easeOut` | 9 | Registrare come custom functions in ExprTk |
-| `thisComp.*`, `thisLayer.*`, `thisProperty.*` | 12 | Bug nel preprocessor (gli identificatori `__comp_*` sono registrati ma il parsing fallisce — probabile conflitto con altre regole) |
-| `layer('name').prop` | 2 | Stesso bug del preprocessor |
-| `undef_var` | 1 | ExprTk compila sempre perché pre-registra tutti gli identificatori — semantica diversa ma prevedibile |
+| `!` unario | 6 | Preprocessing verso `not(...)` |
+| `linear`, `ease`, `easeIn`, `easeOut` | 9 | Funzioni vararg custom con semantica AE |
+| `thisComp.*`, `thisLayer.*`, `thisProperty.*` | 12 | Simboli namespaced `c3d_*`, senza collisioni ExprTk |
+| `layer('name').prop` | 2 | Placeholder namespaced e resolver preservato |
+| `undef_var` | 1 | Controllo post-bind degli identificatori non risolti |
 
-### Dettaglio FAIL (6 case — mismatch reali)
+### Gap residuo (1 caso)
 
 | Test | Custom | ExprTk | Causa |
 |---|---|---|---|
-| `mod_zero` (`5 % 0`) | NaN | 0.0 | ExprTk restituisce 0 per modulo zero |
-| `clamp_hi` (`clamp(5,0,3)`) | 3.0 | 5.0 | Ordine argomenti `clamp` diverso: AE usa `clamp(value, min, max)`, ExprTk usa `clamp(lo, hi, x)` |
-| `sign_neg` (`sign(-5)`) | -1.0 | 0.0 | `sign` non esiste in ExprTk; serve `sgn` |
-| `sign_pos` (`sign(5)`) | 1.0 | 0.0 | idem |
-| `PI` | 3.1416 | 0.0 | Registrazione costante fallisce dopo `add_variable` nello scan |
-| `E` | 2.7183 | 0.0 | idem |
+| `mod_zero` (`5 % 0`) | 0.0 | NaN | ExprTk implementa la semantica IEEE/fmod, mentre il parser Chronon mantiene il contratto storico `0.0` per divisore nullo. Va decisa e testata una policy prima della migrazione. |
 
 ---
 
 ## Analisi
 
 ### Cosa funziona bene
-- Il **72%** del corpus passa senza modifiche al preprocessor oltre `&&`/`||`/`!`/`deg2rad`
+- Il **99,2%** del corpus passa dopo l’adapter AE e il bind dei simboli
 - Il modello compile-once + update-variables-per-frame è valido: la `name→index map` funziona
 - Il preprocessor è corretto per le trasformazioni sintattiche di base
 - L'integrazione `FetchContent` non richiede dipendenze vcpkg
@@ -114,10 +109,10 @@ ExprTk non deve sapere cosa sia `thisComp.width` o `layer("Title").transform.pos
 
 ## Decisione
 
-**PROMISING** — ExprTk è tecnicamente fattibile come sostituto del recursive-descent parser. I 30 PARTIAL sono tutti fix deterministici e ben localizzati. I 6 FAIL sono edge case risolvibili con piccoli adattamenti.
+**PROMISING** — ExprTk è tecnicamente fattibile come sostituto del recursive-descent parser. Il solo gap rimasto è la policy modulo-zero, che richiede una decisione di compatibilità prima della migrazione.
 
 Prima di procedere alla migrazione completa servono:
-1. Fix dei gap elencati sopra
+1. Decisione compatibile e testata sulla semantica modulo-zero
 2. Parity test esteso con i test `test_expression.cpp` e `test_expression_extended.cpp` esistenti (seedRandom, wiggle, cross-layer, loopOut/loopIn)
 3. Test delle performance (compile time per espressione, eval time per frame vs custom parser)
 4. ADR per decisione architetturale

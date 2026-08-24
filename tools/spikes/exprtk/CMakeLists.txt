@@ -19,7 +19,7 @@ add_executable(chronon3d_exprtk_spike
 )
 target_link_libraries(chronon3d_exprtk_spike PRIVATE
     chronon3d_exprtk_headers
-    chronon3d_core  # for expression.hpp, expression_types.hpp
+    chronon3d_pipeline  # expression headers plus the runtime object closure
 )
 target_include_directories(chronon3d_exprtk_spike PRIVATE
     ${CMAKE_SOURCE_DIR}/include

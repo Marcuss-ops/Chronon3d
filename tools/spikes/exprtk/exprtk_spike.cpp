@@ -64,28 +64,52 @@ Preprocessed preprocess(std::string_view expr) {
         if (i + 1 < expr.size() && expr[i] == '&' && expr[i + 1] == '&') { out += " and "; i += 2; continue; }
         // ||
         if (i + 1 < expr.size() && expr[i] == '|' && expr[i + 1] == '|') { out += " or ";  i += 2; continue; }
-        // !  (not !=)
-        if (expr[i] == '!' && (i + 1 >= expr.size() || expr[i + 1] != '=')) { out += " not "; ++i; continue; }
+        // !  (not !=). ExprTk accepts `not(...)`, but not the AE-style
+        // prefix form. Consume one operand so the generated parentheses are
+        // unambiguous for both scalar and parenthesized predicates.
+        if (expr[i] == '!' && (i + 1 >= expr.size() || expr[i + 1] != '=')) {
+            out += "not(";
+            ++i;
+            while (i < expr.size() && std::isspace(static_cast<unsigned char>(expr[i]))) {
+                out += expr[i++];
+            }
+            if (i < expr.size() && expr[i] == '(') {
+                std::size_t depth = 0;
+                do {
+                    if (expr[i] == '(') ++depth;
+                    if (expr[i] == ')') --depth;
+                    out += expr[i++];
+                } while (i < expr.size() && depth != 0);
+            } else {
+                while (i < expr.size() &&
+                       (std::isalnum(static_cast<unsigned char>(expr[i]))
+                        || expr[i] == '_' || expr[i] == '.')) {
+                    out += expr[i++];
+                }
+            }
+            out += ')';
+            continue;
+        }
 
         // thisComp.xxx
         if (expr.substr(i, 9) == "thisComp.") {
             i += 9;
             size_t n; std::string m = extract_ident(expr.data() + i, expr.size() - i, n); i += n;
-            out += "__comp_" + m;
+            out += "c3d_comp_" + m;
             continue;
         }
         // thisLayer.xxx
         if (expr.substr(i, 10) == "thisLayer.") {
             i += 10;
             size_t n; std::string m = extract_ident(expr.data() + i, expr.size() - i, n); i += n;
-            out += "__layer_" + m;
+            out += "c3d_layer_" + m;
             continue;
         }
         // thisProperty.xxx
         if (expr.substr(i, 13) == "thisProperty.") {
             i += 13;
             size_t n; std::string m = extract_ident(expr.data() + i, expr.size() - i, n); i += n;
-            out += "__prop_" + m;
+            out += "c3d_prop_" + m;
             continue;
         }
 
@@ -107,7 +131,7 @@ Preprocessed preprocess(std::string_view expr) {
                            (std::isalnum(static_cast<unsigned char>(expr[rp])) || expr[rp] == '_' || expr[rp] == '.'))
                         ++rp;
                     std::string prop(expr.substr(ps, rp - ps));
-                    std::string sym = "__l_" + std::to_string(pp.layer_refs.size());
+                    std::string sym = "c3d_l_" + std::to_string(pp.layer_refs.size());
                     pp.layer_refs.push_back({std::move(lname), std::move(prop), sym});
                     out += sym;
                     i = rp;
@@ -122,6 +146,10 @@ Preprocessed preprocess(std::string_view expr) {
         if (i + 16 <= expr.size() && expr.substr(i, 16) == "degreesToRadians") { out += "deg2rad"; i += 16; continue; }
         // radiansToDegrees → rad2deg
         if (i + 16 <= expr.size() && expr.substr(i, 16) == "radiansToDegrees") { out += "rad2deg"; i += 16; continue; }
+
+        // AE builtins whose names or argument order differ from ExprTk.
+        if (expr.substr(i, 6) == "clamp(") { out += "c3d_clamp("; i += 6; continue; }
+        if (expr.substr(i, 5) == "sign(") { out += "c3d_sign("; i += 5; continue; }
 
         out += expr[i]; ++i;
     }
@@ -140,12 +168,13 @@ std::set<std::string> scan_identifiers(std::string_view expr) {
         "if","else","switch","case","default","while","for","repeat","until","break","continue","return",
         "abs","avg","ceil","clamp","equal","erf","erfc","exp","expm1","floor","frac",
         "log","log10","log1p","log2","logn","max","min","mul","ncdf","not_equal",
-        "root","round","roundn","sgn","sqrt","sum","swap","trunc",
+        "root","round","roundn","sgn","sqrt","sum","swap","trunc","pow",
         "sin","cos","tan","asin","acos","atan","atan2","sinh","cosh","tanh",
         "asinh","acosh","atanh","cot","csc","sec","sinc","hypot",
         "deg2rad","rad2deg","deg2grad","grad2deg",
         "in","like","ilike",
-        "inrange"
+        "inrange", "linear", "ease", "easeIn", "easeOut",
+        "PI", "E", "c3d_clamp", "c3d_sign",
     };
 
     size_t i = 0;
@@ -169,6 +198,44 @@ std::set<std::string> scan_identifiers(std::string_view expr) {
     return idents;
 }
 
+struct AeVarargFunction final : exprtk::ivararg_function<double> {
+    enum class Kind { Linear, Ease, EaseIn, EaseOut };
+    explicit AeVarargFunction(Kind kind) : m_kind(kind) {}
+
+    double operator()(const std::vector<double>& args) override {
+        if (args.size() < 3) return 0.0;
+        const double t = args[0];
+        double t_min = 0.0, t_max = 1.0, v_min = args[1], v_max = args[2];
+        if (args.size() >= 5) {
+            t_min = args[1]; t_max = args[2]; v_min = args[3]; v_max = args[4];
+        }
+        if (std::abs(t_max - t_min) < 1e-12) return v_min;
+        double f = std::clamp((t - t_min) / (t_max - t_min), 0.0, 1.0);
+        if (m_kind == Kind::Ease) f = f * f * (3.0 - 2.0 * f);
+        if (m_kind == Kind::EaseIn) f *= f;
+        if (m_kind == Kind::EaseOut) f = 1.0 - (1.0 - f) * (1.0 - f);
+        return v_min + f * (v_max - v_min);
+    }
+
+private:
+    Kind m_kind;
+};
+
+struct AeClampFunction final : exprtk::ifunction<double> {
+    AeClampFunction() : exprtk::ifunction<double>(3) {}
+    double operator()(const double& value, const double& minimum,
+                      const double& maximum) override {
+        return std::clamp(value, minimum, maximum);
+    }
+};
+
+struct AeSignFunction final : exprtk::ifunction<double> {
+    AeSignFunction() : exprtk::ifunction<double>(1) {}
+    double operator()(const double& value) override {
+        return value > 0.0 ? 1.0 : value < 0.0 ? -1.0 : 0.0;
+    }
+};
+
 // ── ExpressionCompiler ──────────────────────────────────────────────
 class ExpressionCompiler {
 public:
@@ -183,13 +250,18 @@ public:
         static const char* kStdNames[] = {
             "frame","time","fps","index","value","value0","value1","value2",
             "width","height","numLayers","inPoint","outPoint",
-            "__comp_width","__comp_height","__comp_numLayers",
-            "__layer_index","__layer_inPoint","__layer_outPoint",
-            "__layer_width","__layer_height","__layer_opacity","__layer_name",
-            "__prop_value","__prop_value0","__prop_value1","__prop_value2",
-            "__prop_name","__prop_index"
+            "c3d_comp_width","c3d_comp_height","c3d_comp_numLayers",
+            "c3d_layer_index","c3d_layer_inPoint","c3d_layer_outPoint",
+            "c3d_layer_width","c3d_layer_height","c3d_layer_opacity","c3d_layer_name",
+            "c3d_prop_value","c3d_prop_value0","c3d_prop_value1","c3d_prop_value2",
+            "c3d_prop_name","c3d_prop_index"
         };
         for (const auto* n : kStdNames) all_idents.insert(n);
+        for (const auto* n : kStdNames) m_known_names.insert(n);
+        m_known_names.insert("PI");
+        m_known_names.insert("E");
+        m_known_names.insert("true");
+        m_known_names.insert("false");
 
         // Add layer placeholders
         for (size_t li = 0; li < m_layer_refs.size(); ++li)
@@ -216,6 +288,13 @@ public:
 
         m_expression.register_symbol_table(m_symbol_table);
 
+        m_symbol_table.add_function("c3d_clamp", m_clamp);
+        m_symbol_table.add_function("c3d_sign", m_sign);
+        m_symbol_table.add_function("linear", m_linear);
+        m_symbol_table.add_function("ease", m_ease);
+        m_symbol_table.add_function("easeIn", m_ease_in);
+        m_symbol_table.add_function("easeOut", m_ease_out);
+
         exprtk::parser<double> parser;
         if (!parser.compile(pp.text, m_expression)) {
             m_error = true;
@@ -230,18 +309,19 @@ public:
         set("width", ctx.width); set("height", ctx.height);
         set("numLayers", ctx.num_layers);
         set("inPoint", ctx.in_point); set("outPoint", ctx.out_point);
-        set("__comp_width", ctx.width); set("__comp_height", ctx.height);
-        set("__comp_numLayers", ctx.num_layers);
-        set("__layer_index", ctx.index); set("__layer_inPoint", ctx.in_point);
-        set("__layer_outPoint", ctx.out_point);
-        set("__layer_width", ctx.width_0); set("__layer_height", ctx.height_0);
-        set("__layer_opacity", ctx.value);
-        set("__prop_value", ctx.value);
-        set("__prop_value0", ctx.value0);
-        set("__prop_value1", ctx.value1);
-        set("__prop_value2", ctx.value2);
+        set("c3d_comp_width", ctx.width); set("c3d_comp_height", ctx.height);
+        set("c3d_comp_numLayers", ctx.num_layers);
+        set("c3d_layer_index", ctx.index); set("c3d_layer_inPoint", ctx.in_point);
+        set("c3d_layer_outPoint", ctx.out_point);
+        set("c3d_layer_width", ctx.width_0); set("c3d_layer_height", ctx.height_0);
+        set("c3d_layer_opacity", ctx.value);
+        set("c3d_prop_value", ctx.value);
+        set("c3d_prop_value0", ctx.value0);
+        set("c3d_prop_value1", ctx.value1);
+        set("c3d_prop_value2", ctx.value2);
 
         for (size_t i = 0; i < m_layer_refs.size(); ++i) {
+            m_known_names.insert(m_layer_refs[i].placeholder);
             double r = ctx.layer_resolver
                 ? ctx.layer_resolver(m_layer_refs[i].layer_name, m_layer_refs[i].prop_path, ctx.time)
                 : std::numeric_limits<double>::quiet_NaN();
@@ -250,11 +330,20 @@ public:
     }
 
     void set_legacy_vars(const std::unordered_map<std::string, double>& vars) {
-        for (const auto& [k, v] : vars) set(k, v);
+        for (const auto& [k, v] : vars) {
+            m_known_names.insert(k);
+            set(k, v);
+        }
     }
 
     double evaluate() { return m_expression.value(); }
-    bool error() const { return m_error; }
+    bool error() const {
+        if (m_error) return true;
+        for (const auto& name : m_var_map) {
+            if (!m_known_names.count(name.first)) return true;
+        }
+        return false;
+    }
     const std::string& error_msg() const { return m_error_msg; }
 
 private:
@@ -267,7 +356,14 @@ private:
     exprtk::expression<double> m_expression;
     std::vector<double> m_vars;
     std::unordered_map<std::string, size_t> m_var_map;
+    std::set<std::string> m_known_names;
     double m_const_pi, m_const_e, m_const_true, m_const_false;
+    AeClampFunction m_clamp;
+    AeSignFunction m_sign;
+    AeVarargFunction m_linear{AeVarargFunction::Kind::Linear};
+    AeVarargFunction m_ease{AeVarargFunction::Kind::Ease};
+    AeVarargFunction m_ease_in{AeVarargFunction::Kind::EaseIn};
+    AeVarargFunction m_ease_out{AeVarargFunction::Kind::EaseOut};
     std::vector<LayerRef> m_layer_refs;
     bool m_error{false};
     std::string m_error_msg;
@@ -471,10 +567,10 @@ Result dual_run(const TestCase& tc) {
     // ExprTk
     double ev; bool eok;
     ExpressionCompiler compiler(tc.expression);
+    if (tc.uses_context) compiler.set_context(tc.ctx);
+    compiler.set_legacy_vars(tc.vars);
     eok = !compiler.error();
     if (eok) {
-        if (tc.uses_context) compiler.set_context(tc.ctx);
-        compiler.set_legacy_vars(tc.vars);
         ev = compiler.evaluate();
     } else {
         ev = -999.0;
