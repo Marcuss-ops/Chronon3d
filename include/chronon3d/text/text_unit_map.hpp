@@ -15,11 +15,9 @@
 // `std::nullopt` (caller-side) or `u32 `InvalidIndex`` sentinel (struct-side).
 //
 // Anti-duplication invariants:
-//   • UAX#29 GB rule coverage is a bounded subset (GB1, GB2, GB11 ZWJ emoji
-//     sequences, GB999 default break) — composes on the existing
-//     `chronon3d::detail::UAX#29` helpers where present.
-//   • UAX#29 WB rule coverage is also bounded (WB1, WB5a whitespace, WB999
-//     default no-break) — no external ICU/Boost import.
+//   • UAX#29 grapheme and word boundaries come from the canonical internal
+//     `TextBoundaryResolver` / ICU adapter; no local Unicode rule tables are
+//     maintained here.
 //   • GLYPH→WORD mapping composes on `PlacedGlyphRun::Cluster` byte ranges
 //     already computed by `FontEngine` HBB shaping — does NOT re-shape.
 //   • WORD→LINE / LINE→PARAGRAPH mapping composes on `PlacedParagraphLayout`

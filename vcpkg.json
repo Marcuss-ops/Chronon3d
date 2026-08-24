@@ -17,8 +17,11 @@
     "xxhash",
     "highway",
     "nlohmann-json",
+    "json-schema-validator",
     "magic-enum",
-    "zstd"
+    "zstd",
+    "boost-spirit",
+    "boost-math"
   ],
   "features": {
     "mesh": {
@@ -42,12 +45,8 @@
       "dependencies": ["blend2d"]
     },
     "text": {
-      "description": "Text rendering — FreeType + HarfBuzz + FriBidi + ZLIB (CHRONON3D_ENABLE_TEXT)",
-      "dependencies": ["freetype", "harfbuzz", "fribidi", "zlib"]
-    },
-    "icu-layout": {
-      "description": "ICU-backed line-breaking (CHRONON3D_USE_ICU) — ADR-009 feature; opt-in",
-      "dependencies": ["icu"]
+      "description": "Text rendering — FreeType + HarfBuzz + FriBidi + ICU + ZLIB (CHRONON3D_ENABLE_TEXT)",
+      "dependencies": ["freetype", "harfbuzz", "fribidi", "icu", "zlib"]
     },
     "text-3d": {
       "description": "Text 3D extrusion via libtess2 (CHRONON3D_ENABLE_TEXT_3D) — ADR-009 feature; opt-in",

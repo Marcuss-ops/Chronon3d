@@ -1,6 +1,6 @@
-# ADR-009 — Third-Party Text Dependencies (opt-in)
+# ADR-009 — Third-Party Text Dependencies and Unicode Boundary Authority
 
-- **Status:** Accepted (WIP — Phases 9 / 11 / 12 prerequisites)
+- **Status:** Accepted (ICU boundary migration completed; Phases 11 / 12 remain opt-in)
 - **Date:** 2026-06-23
 - **Deciders:** Core render / text team
 - **Tags:** text, dependencies, extension-points, vcpkg
@@ -31,19 +31,18 @@ The CPU-first / headless posture (`AGENTS.md` §Regole di lavoro,
 
 Hand-rolling the three libraries is years of work and a bug surface
 that would always trail the Unicode Consortium spec; for phases
-9 / 11 / 12 this is not a sustainable plan. The current
-`vcpkg.json` therefore does not contain any of these packages (the
-only text dependencies are `freetype`, `harfbuzz`, `fribidi`, `zlib`
-under the `text` feature).
+9 / 11 / 12 this is not a sustainable plan. ICU is now a required
+part of the `text` feature in `vcpkg.json`, while `libtess2` and
+`msdfgen` remain opt-in extension dependencies.
 
 ## Decision
 
-1. **Approve (opt-in)** the following vcpkg features in `vcpkg.json`:
+1. **Make ICU canonical for text.** The `text` feature in `vcpkg.json`
+   pulls `icu` directly. `IcuBoundaryResolver` is the sole authority
+   for grapheme / word / line segmentation in Phase 9, including CJK /
+   Thai / Lao / Khmer / Burmese line-breaking. The CMake text target
+   requires ICU whenever `CHRONON3D_ENABLE_TEXT=ON`; there is no custom    line-break fallback or separate optional ICU feature.
 
-   - **`icu-layout`** *(profile `global-text`)* — pulls `icu`.
-     Powers `IcuBoundaryResolver` for grapheme / word / line /
-     sentence segmentation in Phase 9, plus CJK / Thai / Lao / Khmer
-     / Burmese line-breaking.
    - **`text-3d`** *(profile `extended`)* — pulls `libtess2`.
      Powers `GlyphMeshBuilder` in Phase 11 — front / back / side
      faces + bevel via CPU tessellation of FreeType outlines.
@@ -71,14 +70,11 @@ under the `text` feature).
    - `clipper2`, `par_shapes`, `bgfx` — clip / morph / GPU helpers
      irrelevant until a future ADR pitches a concrete use-case.
 
-3. **Default OFF.** None of the three new vcpkg features is added to
-   `default-features` in `vcpkg.json`. Activation is **per CMake
-   preset** via `VCPKG_MANIFEST_FEATURES` — for example,
-   `linux-profile-extended` enables `text-3d` + `text-msdf`, and a
-   future `linux-profile-motion-icu` (or `global-text`-equivalent)
-   enables `icu-layout`. The `linux-profile-core` profile (49
-   packages per `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md`)
-   remains untouched.
+3. **Keep ICU scoped to text builds.** ICU is transitively installed by
+   the `text` feature and therefore present in the default text-enabled
+   profiles. The `linux-profile-core` profile keeps text disabled and
+   remains ICU-free; `text-3d` and `text-msdf` stay opt-in extension
+   features.
 
 4. **Scoped Gate-5 exemptions.** Update
    `tools/check_architecture_boundaries.sh` Check 11 to allow the
@@ -110,18 +106,17 @@ under the `text` feature).
   around mature libraries* rather than ground-up algorithm work.
   Reduces R&D effort, cuts bug surface, and yields industry-grade
   multilingual / 3D / MSDF quality.
-- **Positive.** Compile-time opt-in keeps the headless CPU-first
-  core slim (49 vcpkg packages per `linux-profile-core`);
-  dev / CI matrices that need advanced text ops use the matching
-  profile explicitly.
+- **Positive.** ICU remains absent from the text-disabled headless
+  core profile, while every text-enabled profile receives one consistent
+  Unicode implementation.
 - **Negative.** Tight adapter discipline is now an ongoing
   invariant. A leaky `#include <msdfgen/...>` outside
   `src/text/glyph_raster/` will fail Gate 5 on the PR.
 - **Negative.** Adoption expands binaries; tracked via
   `tools/measure_profile.sh` and reported in
   `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md`.
-- **Neutral.** Existing `text` feature (`freetype`, `harfbuzz`,
-  `fribidi`, `zlib`) and Blend2D / `mesh` feature are unaffected.
+- **Neutral.** Blend2D / `mesh` and the opt-in `text-3d` / `text-msdf`
+  features remain otherwise unaffected.
 
 ## Alternatives considered
 
@@ -139,22 +134,6 @@ under the `text` feature).
 
 ## Open follow-up gaps (tracked, not blocking this PR)
 
-- **CMakePresets wiring.** Decision #3 mandates activation via
-  `VCPKG_MANIFEST_FEATURES` per preset. As of this commit, no preset
-  in `CMakePresets.json` adds the new features to
-  `VCPKG_MANIFEST_FEATURES`. Tracked as a separate follow-up PR
-  mirroring the precedent in
-  `docs/ARCHIVE/stabilization-plan/08-dependency-profiles.md` (work item
-  "Allineare i preset non-profile ... rendere esplicite tutte le
-  feature in ogni preset"). Until that lands, the three features are
-  documented and vcpkg-installable, but no consumer of `vcpkg.json`
-  will activate them at configure time — opt-in by definition.
-- **CMake target definitions.** `CHRONON3D_USE_ICU`,
-  `CHRONON3D_ENABLE_TEXT_3D`, `CHRONON3D_ENABLE_TEXT_MSDF` are
-  referenced in `vcpkg.json` descriptions and the roadmap but not
-  yet declared in root `CMakeLists.txt` / `cmake/`. Tracked as
-  separate scope per `MIGRATION_TEXT_SPEC.md §1` (canonical
-  contract for opt-in flags).
 - **Visual Regression Harness fixtures.** The 16 scenario fixtures
   listed in `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` Phase 2
   do not yet include CJK / emoji / 3D / MSDF scenarios. Tracked in
