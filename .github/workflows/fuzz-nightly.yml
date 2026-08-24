@@ -1,0 +1,73 @@
+name: libFuzzer nightly campaign
+
+on:
+  schedule:
+    - cron: '41 2 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Seconds per target'
+        required: false
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: ASan UBSan coverage-guided campaign
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: chronon3d-fuzz-corpus
+          path: build/fuzz-persistent-corpus
+
+      - name: Install Clang
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+
+      - name: Configure and build fuzzers
+        run: |
+          cmake --preset linux-fuzz
+          cmake --build --preset linux-fuzz --target \
+            ipc_codec_fuzz maybe_expression_fuzz composition_descriptor_fuzz \
+            generate_ipc_fuzz_corpus -j12
+
+      - name: Run coverage-guided campaign
+        env:
+          FUZZ_SECONDS: ${{ inputs.seconds || '60' }}
+          FUZZ_ARTIFACT_DIR: build/fuzz-artifacts
+          IPC_FUZZ_BINARY: build/chronon/linux-fuzz/tests/fuzz/ipc_codec_fuzz
+          EXPRESSION_FUZZ_BINARY: build/chronon/linux-fuzz/tests/fuzz/maybe_expression_fuzz
+          DESCRIPTOR_FUZZ_BINARY: build/chronon/linux-fuzz/tests/fuzz/composition_descriptor_fuzz
+          IPC_FUZZ_CORPUS: build/chronon/linux-fuzz/tests/fuzz/corpus/ipc
+          EXPRESSION_FUZZ_CORPUS: build/fuzz-persistent-corpus/expression
+          DESCRIPTOR_FUZZ_CORPUS: build/fuzz-persistent-corpus/descriptor
+        run: |
+          mkdir -p build/fuzz-persistent-corpus/expression build/fuzz-persistent-corpus/descriptor
+          cp -an tests/fuzz/corpus/expression/. build/fuzz-persistent-corpus/expression/
+          cp -an tests/fuzz/corpus/descriptor/. build/fuzz-persistent-corpus/descriptor/
+          bash tools/run_fuzz_campaign.sh
+
+      - name: Upload persistent corpus and crash artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronon3d-fuzz-corpus
+          path: |
+            build/chronon/linux-fuzz/tests/fuzz/corpus
+            build/fuzz-persistent-corpus
+            build/fuzz-artifacts
+          retention-days: 14
