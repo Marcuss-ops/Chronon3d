@@ -9,6 +9,7 @@
 #include <chronon3d/text/single_line_composer.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
 #include "src/text/boundary_resolver/text_boundary_resolver.hpp"
+#include "src/text/unicode/whitespace.hpp"
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -234,6 +235,17 @@ TEST_CASE("IcuBoundaryResolver: returns word and line boundaries in UTF-8 bytes"
     CHECK(map.is_word_boundary(4));
     CHECK(map.is_line_break(4));
     CHECK(map.is_line_break(text.size()));
+}
+
+TEST_CASE("Icu whitespace adapter covers Unicode property and Chronon BOM policy") {
+    using chronon3d::text::unicode::is_unicode_whitespace;
+    CHECK(is_unicode_whitespace(U' '));
+    CHECK(is_unicode_whitespace(0x00A0));
+    CHECK(is_unicode_whitespace(0x2009));
+    CHECK(is_unicode_whitespace(0x3000));
+    CHECK(is_unicode_whitespace(0xFEFF));
+    CHECK_FALSE(is_unicode_whitespace(U'A'));
+    CHECK_FALSE(is_unicode_whitespace(0x200B));
 }
 
 TEST_CASE("UnicodeLineBreak: max_lines=0 does not truncate") {
