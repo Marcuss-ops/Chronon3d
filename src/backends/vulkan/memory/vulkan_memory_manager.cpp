@@ -65,6 +65,10 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
     const VkBufferCreateInfo& buffer_info,
     VulkanMemoryClass memory_class)
 {
+    if (chronon3d::testing::FailureInjector::should_fail(
+            chronon3d::testing::FailurePoint::VulkanBufferAllocation)) {
+        throw std::runtime_error("VulkanMemoryManager: injected buffer allocation failure");
+    }
     if (allocator_ == VK_NULL_HANDLE) {
         throw std::runtime_error("VulkanMemoryManager: create_buffer called on uninitialized allocator");
     }
