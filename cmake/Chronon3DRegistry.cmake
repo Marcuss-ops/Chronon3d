@@ -212,6 +212,8 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
     "magic_enum::magic_enum|magic_enum"
     "nlohmann_json::nlohmann_json|nlohmann_json"
     "xxHash::xxhash|xxHash"
+    "zstd::libzstd|zstd"
+    "flatbuffers::flatbuffers|flatbuffers"
 )
 
 # Auto-derive the find_dependency line block (consumed by

@@ -15,8 +15,24 @@
 #include "commands/cli_groups.hpp"
 #include "utils/process_start.hpp"
 
+#ifdef CHRONON3D_ENABLE_CRASH_HANDLER
+#include "src/core/crash/crash_handler.hpp"
+#endif
+
 int main(int argc, char** argv) {
     chronon3d::cli::record_process_start();
+
+#ifdef CHRONON3D_ENABLE_CRASH_HANDLER
+    // Optional dev-mode crash handler.  A library must NOT install signal
+    // handlers in a client process; the CLI is an app boundary, so it may —
+    // but only when the developer explicitly opts in (keeps default CLI
+    // behavior identical to before).
+    if (const char* env = std::getenv("CHRONON3D_DEV_CRASH_HANDLER")) {
+        if (env[0] == '1' || env[0] == 'y' || env[0] == 'Y') {
+            chronon3d::crash::install();
+        }
+    }
+#endif
 
     // ── Single concurrency budget ───────────────────────────────────────
     //
