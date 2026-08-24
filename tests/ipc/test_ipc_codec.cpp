@@ -191,4 +191,17 @@ TEST_CASE("LengthPrefixFraming fault injection fails one write and recovers") {
     ::close(sv[1]);
 }
 
+TEST_CASE("LengthPrefixFraming fault injection fails one read and recovers") {
+    using chronon3d::testing::FailureInjector;
+    using chronon3d::testing::FailurePoint;
+    int sv[2];
+    REQUIRE(::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+    REQUIRE(LengthPrefixFraming::write_frame(sv[0], WireFrame{1, 2, 3}));
+    FailureInjector::fail_next(FailurePoint::SocketRead);
+    CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
+    FailureInjector::reset();
+    ::close(sv[0]);
+    ::close(sv[1]);
+}
+
 } // TEST_SUITE

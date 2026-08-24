@@ -8,6 +8,8 @@ namespace chronon3d::testing {
 
 enum class FailurePoint : std::size_t {
     SocketWrite = 0,
+    SocketRead,
+    VulkanBufferAllocation,
     VulkanImageAllocation,
     Count,
 };

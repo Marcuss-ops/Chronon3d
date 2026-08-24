@@ -39,6 +39,8 @@ namespace detail {
 /// Read exactly `n` bytes from a stream socket.  Handles EINTR and partial
 /// reads.  Returns false on EOF or transport error.
 inline bool socket_read_exact(int fd, std::uint8_t* buf, std::size_t n) noexcept {
+    if (chronon3d::testing::FailureInjector::should_fail(
+            chronon3d::testing::FailurePoint::SocketRead)) return false;
     std::size_t done = 0;
     while (done < n) {
         const ssize_t r = ::recv(fd, buf + done, n - done, 0);
