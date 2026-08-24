@@ -34,6 +34,10 @@ public:
         close();
         m_names = Names{normalize(address)};
         m_owner = true;
+        // A crashed owner may leave named semaphores behind. Reset them
+        // before creating the new session so stale posts cannot fake frames.
+        ::sem_unlink(m_names.request.c_str());
+        ::sem_unlink(m_names.response.c_str());
         m_fd = ::shm_open(m_names.shm.c_str(), O_CREAT | O_RDWR, 0600);
         if (m_fd < 0) fail_errno("shm_open");
         if (::ftruncate(m_fd, static_cast<off_t>(sizeof(Region))) != 0) fail_errno("ftruncate");
