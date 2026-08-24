@@ -89,3 +89,19 @@ TEST_CASE("SVG path loader parses a minimal SVG file") {
     CHECK(res.path.commands[1].type == PathCommandType::LineTo);
     CHECK(res.path.commands[2].type == PathCommandType::Close);
 }
+
+TEST_CASE("SVG document importer preserves all path elements in document order") {
+    const std::string filename = "temp_test_document.svg";
+    {
+        std::ofstream out(filename);
+        out << R"(<svg><g><path d="M 0 0 L 1 1" /></g><path d="M 2 2 L 3 3" /></svg>)";
+    }
+
+    auto document = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+
+    REQUIRE(document.ok);
+    REQUIRE(document.paths.size() == 2);
+    CHECK(document.paths[0].commands[0].p0.x == doctest::Approx(0.0f));
+    CHECK(document.paths[1].commands[0].p0.x == doctest::Approx(2.0f));
+}
