@@ -55,6 +55,7 @@ option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demo
 option(CHRONON3D_BUILD_DIAGNOSTICS "Build diagnostic/debug compositions (tests, calibrations, A/B)" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz + ICU boundaries)" ON)
+option(CHRONON3D_ENABLE_SVG "Enable SVG path/document importing" ON)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event backend)" OFF)
@@ -81,21 +82,23 @@ option(CHRONON3D_ENABLE_DEV_WATCH
 option(CHRONON3D_BUILD_EXPRTK_SPIKE
        "Build the isolated ExprTk expression compiler feasibility spike" OFF)
 
-find_package(boost_spirit CONFIG REQUIRED)
-find_package(boost_math CONFIG REQUIRED)
-include(FetchContent)
-FetchContent_Declare(
-    svgpp
-    URL https://github.com/svgpp/svgpp/archive/refs/tags/v1.3.1.tar.gz
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(svgpp)
-FetchContent_GetProperties(svgpp)
-add_library(chronon3d_svgpp_headers INTERFACE)
-target_include_directories(chronon3d_svgpp_headers INTERFACE
-    "${svgpp_SOURCE_DIR}/include"
-)
-target_link_libraries(chronon3d_svgpp_headers INTERFACE Boost::spirit Boost::math)
+if(CHRONON3D_ENABLE_SVG)
+    find_package(boost_spirit CONFIG REQUIRED)
+    find_package(boost_math CONFIG REQUIRED)
+    include(FetchContent)
+    FetchContent_Declare(
+        svgpp
+        URL https://github.com/svgpp/svgpp/archive/refs/tags/v1.3.1.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(svgpp)
+    FetchContent_GetProperties(svgpp)
+    add_library(chronon3d_svgpp_headers INTERFACE)
+    target_include_directories(chronon3d_svgpp_headers INTERFACE
+        "${svgpp_SOURCE_DIR}/include"
+    )
+    target_link_libraries(chronon3d_svgpp_headers INTERFACE Boost::spirit Boost::math)
+endif()
 
 if(CHRONON3D_DEV_SPLIT_DWARF AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(

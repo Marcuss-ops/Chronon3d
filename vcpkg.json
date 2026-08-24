@@ -19,9 +19,7 @@
     "nlohmann-json",
     "json-schema-validator",
     "magic-enum",
-    "zstd",
-    "boost-spirit",
-    "boost-math"
+    "zstd"
   ],
   "features": {
     "mesh": {
@@ -43,6 +41,10 @@
     "blend2d": {
       "description": "Blend2D software rendering backend (CHRONON3D_USE_BLEND2D)",
       "dependencies": ["blend2d"]
+    },
+    "svg": {
+      "description": "SVG path/document importing (CHRONON3D_ENABLE_SVG)",
+      "dependencies": ["boost-spirit", "boost-math"]
     },
     "text": {
       "description": "Text rendering — FreeType + HarfBuzz + FriBidi + ICU + ZLIB (CHRONON3D_ENABLE_TEXT)",
@@ -86,5 +88,5 @@
       ]
     }
   },
-  "default-features": ["mesh", "cli", "blend2d", "text", "exr"]
+  "default-features": ["mesh", "cli", "blend2d", "text", "exr", "svg"]
 }
