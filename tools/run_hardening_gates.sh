@@ -14,9 +14,17 @@ mkdir -p "$out"
 
 python3 "$root/tools/check_reproducible_artifacts.py" "$build_a" "$build_b"
 python3 "$root/tools/collect_sbom.py" --vcpkg-root "$vcpkg_root" --out "$out/chronon3d-sbom.spdx.json"
-python3 "$root/tools/check_build_budget.py" "${BUILD_BUDGET_ROOT:-$build_a}" \
-    --max-bytes "${MAX_BUILD_BYTES:-2147483648}" \
-    --max-files "${MAX_BUILD_FILES:-250000}" --out "$out/build-metrics.json"
+budget_args=(
+    "$root/tools/check_build_budget.py" "${BUILD_BUDGET_ROOT:-$build_a}"
+    --max-bytes "${MAX_BUILD_BYTES:-2147483648}"
+    --max-files "${MAX_BUILD_FILES:-250000}"
+)
+if [[ -n "${BUILD_BINARY:-}" ]]; then budget_args+=(--binary "$BUILD_BINARY"); fi
+if [[ -n "${MAX_BUILD_DEPENDENCIES:-}" ]]; then
+    budget_args+=(--max-dependencies "$MAX_BUILD_DEPENDENCIES")
+fi
+budget_args+=(--out "$out/build-metrics.json")
+python3 "${budget_args[@]}"
 
 if [[ -n "${RESOURCE_PID:-}" ]]; then
     python3 "$root/tools/resource_audit.py" snapshot "$RESOURCE_PID" --out "$out/resources-before.json"
