@@ -2,31 +2,27 @@
 
 #include "svg_importer.hpp"
 
-#include <fstream>
-#include <sstream>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 #include <string>
 #include <string_view>
 
 namespace chronon3d::assets {
 namespace {
 
-std::optional<std::string> extract_first_path_d(std::string_view svg) {
-    const auto path_pos = svg.find("<path");
-    if (path_pos == std::string_view::npos) return std::nullopt;
-
-    const auto d_pos = svg.find("d=", path_pos);
-    if (d_pos == std::string_view::npos || d_pos + 2 >= svg.size()) {
-        return std::nullopt;
+std::optional<std::string> find_first_path_d(
+    const boost::property_tree::ptree& tree) {
+    for (const auto& [name, node] : tree) {
+        if (name == "path") {
+            if (auto d = node.get_optional<std::string>("<xmlattr>.d")) {
+                return *d;
+            }
+        }
+        if (auto nested = find_first_path_d(node)) {
+            return nested;
+        }
     }
-
-    const char quote = svg[d_pos + 2];
-    if (quote != '"' && quote != '\'') return std::nullopt;
-
-    const auto value_start = d_pos + 3;
-    const auto value_end = svg.find(quote, value_start);
-    if (value_end == std::string_view::npos) return std::nullopt;
-
-    return std::string(svg.substr(value_start, value_end - value_start));
+    return std::nullopt;
 }
 
 } // namespace
@@ -36,15 +32,15 @@ SvgPathLoadResult parse_svg_path_data(std::string_view d, SvgPathLoadOptions opt
 }
 
 SvgPathLoadResult load_svg_path_file(const std::string& filename, SvgPathLoadOptions options) {
-    std::ifstream in(filename);
-    if (!in) {
-        return {.path = {}, .ok = false, .error = "Cannot open SVG file"};
+    boost::property_tree::ptree document;
+    try {
+        boost::property_tree::read_xml(
+            filename, document,
+            boost::property_tree::xml_parser::trim_whitespace);
+    } catch (const boost::property_tree::xml_parser::xml_parser_error& e) {
+        return {.path = {}, .ok = false, .error = e.what()};
     }
-
-    std::stringstream ss;
-    ss << in.rdbuf();
-    const std::string svg = ss.str();
-    const auto d = extract_first_path_d(svg);
+    const auto d = find_first_path_d(document);
     if (!d) {
         return {.path = {}, .ok = false, .error = "No <path d=\"...\"> found"};
     }

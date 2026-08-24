@@ -58,4 +58,4 @@ The feasibility result was promoted into the canonical asset path:
 
 ## Decision
 
-**PASS for path-data replacement; PARTIAL for full SVG import.** SVG++ is now the canonical parser for path data, including `A/a` via SVG++ arc-to-cubic conversion. The remaining custom file boundary is limited to extracting the first `<path>` `d` attribute; XML traversal, transforms, styles, basic shapes, and a larger corpus remain outside this change and must be handled before claiming complete SVG document coverage.
+**PASS for path-data replacement; PARTIAL for full SVG import.** SVG++ is now the canonical parser for path data, including `A/a` via SVG++ arc-to-cubic conversion. The file boundary now uses Boost.PropertyTree XML traversal to locate the first `<path>` `d` attribute; custom string scanning has been removed. Transforms, styles, basic shapes, and a larger corpus remain outside this path-only API and must be handled before claiming complete SVG document coverage.
