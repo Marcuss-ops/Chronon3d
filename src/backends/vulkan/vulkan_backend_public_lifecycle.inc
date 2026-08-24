@@ -146,7 +146,7 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
         .queueFamilyIndex = m_queue_family};
     check(vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool),
           "vkCreateCommandPool");
-    m_impl = std::make_unique<Impl>(m_physical_device, m_device, m_queue,
+    m_impl = std::make_unique<Impl>(m_instance, m_physical_device, m_device, m_queue,
                                     m_queue_family, m_command_pool,
                                     m_calibrated_timestamps_supported);
 #else

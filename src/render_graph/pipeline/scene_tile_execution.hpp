@@ -12,6 +12,7 @@
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>   // PR 6.2 — root scope parameter
 #include "scene_internal.hpp"
+#include "tile_execution_policy.hpp"
 
 namespace chronon3d { class SoftwareRenderer; }
 
@@ -23,32 +24,11 @@ struct TileExecutionResult {
     uint64_t pixels_rendered{0};
 };
 
-// ── Tile coalescing ───────────────────────────────────────────────────────
-//
-// Merges adjacent dirty tiles into larger bounding boxes to reduce the
-// number of graph re-executions.  A moving object that spans 2×3 tiles
-// (6 re-executions) is coalesced into 1 execution — a 6× reduction in
-// graph overhead (cache evaluation, context cloning, schedule overhead).
-//
-// Algorithm: greedy row-wise merge.  Each row's dirty tiles become a
-// horizontal strip; vertically adjacent strips with the same x-range
-// are merged into a single region.
-//
-// Note: rows with non-contiguous dirty tiles (e.g. cols 0-1 and 4-5 dirty
-// but 2-3 clean) are merged into one wide region spanning cols 0-5.  This
-// may render clean pixels in the gap, trading a larger region for fewer
-// graph re-executions.  For typical contiguous-dirty workloads this is a
-// net win.
-
-[[nodiscard]] std::vector<raster::BBox> coalesce_dirty_tiles(
-    const raster::TileGrid& grid,
-    const raster::DirtyTileMask& mask);
-
 TileExecutionResult execute_dirty_tiles(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     SoftwareRenderer* sw_renderer,
-    const DirtyRectOutput& dirty_out,
+    const FrameExecutionPlan& execution_plan,
     Framebuffer& output_fb,
     i32 width,
     i32 height,

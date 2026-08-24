@@ -19,7 +19,7 @@
 #include "text_batch_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
-#include "vulkan_memory_arena.hpp"
+#include "memory/vulkan_memory_manager.hpp"
 #endif
 
 #include <array>
@@ -119,8 +119,7 @@ struct VulkanBackend::Impl {
     mutable std::recursive_mutex api_mutex;
     struct Image {
         VkImage image{VK_NULL_HANDLE};
-        VkDeviceMemory memory{VK_NULL_HANDLE};
-        VulkanAllocation allocation{};
+        VmaAllocation allocation{VK_NULL_HANDLE};
         VkImageView view{VK_NULL_HANDLE};
         VkFormat format{VK_FORMAT_R32G32B32A32_SFLOAT};
         std::uint32_t width{0};
@@ -273,21 +272,19 @@ struct VulkanBackend::Impl {
         // Written once per frame before vkQueueSubmit; the shaders read
         // from binding 0 (the legacy descriptor layout already exposes
         // storage images at 1-3, so binding 0 is free for a UBO).
-        VkBuffer params_buffer{VK_NULL_HANDLE};
-        VkDeviceMemory params_memory{VK_NULL_HANDLE};
-        void* mapped_params{nullptr};
-        VkDeviceSize params_capacity{0};
+        VulkanBufferAllocation params{};
     };
     static constexpr std::size_t kReplaySlotCount = 3;
     std::array<ReplaySlot, kReplaySlotCount> replay_slots{};
     bool replay_prepared{false};
     std::size_t replay_next_slot{0};
 
-    VkPhysicalDevice physical_device;
-    VkDevice device;
-    VkQueue queue;
-    std::uint32_t queue_family;
-    VkCommandPool command_pool;
+    VkInstance instance{VK_NULL_HANDLE};
+    VkPhysicalDevice physical_device{VK_NULL_HANDLE};
+    VkDevice device{VK_NULL_HANDLE};
+    VkQueue queue{VK_NULL_HANDLE};
+    std::uint32_t queue_family{0};
+    VkCommandPool command_pool{VK_NULL_HANDLE};
     // ── GPU→CPU timeline calibration (VK_EXT_calibrated_timestamps) ──────
     // Anchors the device timestamp domain to the Perfetto trace-clock domain
     // so GPU work can be drawn as real bars on the "Chronon Vulkan Queue"
@@ -315,9 +312,7 @@ struct VulkanBackend::Impl {
     VkPipelineLayout text_tile_bin_pipeline_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_raster_pipeline_layout{VK_NULL_HANDLE};
     GpuKernelRegistry kernel_registry{};
-    VkBuffer staging{VK_NULL_HANDLE};
-    VkDeviceMemory staging_memory{VK_NULL_HANDLE};
-    VkDeviceSize staging_capacity{0};
+    VulkanBufferAllocation staging{};
     // Device-local storage buffers for glyph instances. A frame can contain
     // multiple TextRun passes (watermark + subtitles); each pass gets its own
     // buffer so one in-command-buffer update can never overwrite data read by
@@ -326,37 +321,25 @@ struct VulkanBackend::Impl {
     static constexpr std::size_t kGlyphInstancePassesPerSlot = 64;
     static constexpr std::size_t kGlyphInstanceRingSize =
         FrameBatchState::kSlotCount * kGlyphInstancePassesPerSlot;
-    std::array<VkBuffer, kGlyphInstanceRingSize> glyph_instance_buffers{};
-    std::array<VkDeviceMemory, kGlyphInstanceRingSize> glyph_instance_memories{};
-    std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_capacities{};
+    std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> glyph_instance_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> glyph_instance_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_sizes{};
     // Device-local storage buffers for layer batch instances
-    std::array<VkBuffer, kGlyphInstanceRingSize> layer_instance_buffers{};
-    std::array<VkDeviceMemory, kGlyphInstanceRingSize> layer_instance_memories{};
-    std::array<VkDeviceSize, kGlyphInstanceRingSize> layer_instance_capacities{};
+    std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> layer_instance_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> layer_instance_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> layer_instance_sizes{};
     // Device-local storage buffers for text batch dynamic runs
-    std::array<VkBuffer, kGlyphInstanceRingSize> text_run_dynamic_buffers{};
-    std::array<VkDeviceMemory, kGlyphInstanceRingSize> text_run_dynamic_memories{};
-    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_capacities{};
+    std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_run_dynamic_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> text_run_dynamic_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_sizes{};
     // Per-pass tile binning buffers. Counts are reset with vkCmdFillBuffer;
     // both buffers stay device-local and are reused with the frame ring.
-    std::array<VkBuffer, kGlyphInstanceRingSize> text_tile_count_buffers{};
-    std::array<VkDeviceMemory, kGlyphInstanceRingSize> text_tile_count_memories{};
-    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_tile_count_capacities{};
-    std::array<VkBuffer, kGlyphInstanceRingSize> text_tile_index_buffers{};
-    std::array<VkDeviceMemory, kGlyphInstanceRingSize> text_tile_index_memories{};
-    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_tile_index_capacities{};
+    std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_count_buffers{};
+    std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_index_buffers{};
     struct UploadSlot {
-        VkBuffer buffer{VK_NULL_HANDLE};
-        VkDeviceMemory memory{VK_NULL_HANDLE};
+        VulkanBufferAllocation buffer_allocation{};
         VkCommandBuffer command_buffer{VK_NULL_HANDLE};
         VkFence fence{VK_NULL_HANDLE};
-        VkDeviceSize capacity{0};
         std::uint64_t ticket{0};
         bool in_flight{false};
     };
@@ -414,7 +397,7 @@ struct VulkanBackend::Impl {
     VkQueryPool timestamp_pool{VK_NULL_HANDLE};
     float timestamp_period_ns{0.0f};
     std::uint32_t timestamp_valid_bits{0};
-    VulkanMemoryArena memory_arena{};
+    VulkanMemoryManager memory_manager{};
     VulkanBackendStats stats{};
 #include "vulkan_backend_impl_lifecycle.inc"
     ~Impl() {
@@ -425,38 +408,22 @@ struct VulkanBackend::Impl {
         }
         destroy_image(dst);
         destroy_image(src);
-        if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
-        if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
+        if (staging.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(staging);
         for (std::size_t i = 0; i < kGlyphInstanceRingSize; ++i) {
-            if (glyph_instance_buffers[i] != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, glyph_instance_buffers[i], nullptr);
+            if (glyph_instance_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(glyph_instance_buffers[i]);
             }
-            if (glyph_instance_memories[i] != VK_NULL_HANDLE) {
-                vkFreeMemory(device, glyph_instance_memories[i], nullptr);
+            if (layer_instance_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(layer_instance_buffers[i]);
             }
-            if (layer_instance_buffers[i] != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, layer_instance_buffers[i], nullptr);
+            if (text_run_dynamic_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_run_dynamic_buffers[i]);
             }
-            if (layer_instance_memories[i] != VK_NULL_HANDLE) {
-                vkFreeMemory(device, layer_instance_memories[i], nullptr);
+            if (text_tile_count_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_tile_count_buffers[i]);
             }
-            if (text_run_dynamic_buffers[i] != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, text_run_dynamic_buffers[i], nullptr);
-            }
-            if (text_run_dynamic_memories[i] != VK_NULL_HANDLE) {
-                vkFreeMemory(device, text_run_dynamic_memories[i], nullptr);
-            }
-            if (text_tile_count_buffers[i] != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, text_tile_count_buffers[i], nullptr);
-            }
-            if (text_tile_count_memories[i] != VK_NULL_HANDLE) {
-                vkFreeMemory(device, text_tile_count_memories[i], nullptr);
-            }
-            if (text_tile_index_buffers[i] != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, text_tile_index_buffers[i], nullptr);
-            }
-            if (text_tile_index_memories[i] != VK_NULL_HANDLE) {
-                vkFreeMemory(device, text_tile_index_memories[i], nullptr);
+            if (text_tile_index_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_tile_index_buffers[i]);
             }
         }
         for (auto& slot : upload_slots) destroy_upload_slot(slot);
@@ -479,11 +446,8 @@ struct VulkanBackend::Impl {
             if (slot.fence != VK_NULL_HANDLE) {
                 vkDestroyFence(device, slot.fence, nullptr);
             }
-            if (slot.params_buffer != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, slot.params_buffer, nullptr);
-            }
-            if (slot.params_memory != VK_NULL_HANDLE) {
-                vkFreeMemory(device, slot.params_memory, nullptr);
+            if (slot.params.buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(slot.params);
             }
         }
         if (fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);

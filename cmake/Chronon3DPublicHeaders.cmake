@@ -305,7 +305,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
 
     # Non-internal closure for the remaining supported value types.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/lru_cache.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/text/text_rasterizer_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/core/node_identity.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/processor_handle.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scheduler/for_each_tile.hpp"
