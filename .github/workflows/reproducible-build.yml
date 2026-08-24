@@ -1,0 +1,38 @@
+name: Reproducible release artifact
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproducible:
+    name: two clean hardened C ABI builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+
+      - name: Rebuild and compare shipped artifact
+        run: |
+          bash tools/run_reproducible_build_gate.sh \
+            -DCHRONON3D_BUILD_TESTS=OFF \
+            -DCHRONON3D_BUILD_CLI=OFF \
+            -DCHRONON3D_ENABLE_VULKAN=OFF \
+            -DCHRONON3D_ENABLE_VIDEO=OFF \
+            -DCHRONON3D_ENABLE_TEXT=OFF \
+            -DCHRONON3D_ENABLE_SVG=OFF \
+            -DCHRONON3D_ENABLE_EXR=OFF \
+            -DCHRONON3D_ENABLE_OCIO=OFF
