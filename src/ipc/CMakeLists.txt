@@ -39,3 +39,21 @@ target_include_directories(chronon3d_ipc
 # Publish to the canonical registry
 set(CHRONON3D_IPC_GENERATED_DIR "${CHRONON3D_IPC_GENERATED_DIR}" CACHE INTERNAL
     "IPC FlatBuffers generated header directory")
+
+if(CHRONON3D_BUILD_FUZZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "CHRONON3D_BUILD_FUZZERS requires a Clang compiler with libFuzzer")
+    endif()
+    add_executable(chronon3d_ipc_fuzzer
+        fuzz/ipc_codec_fuzzer.cpp
+        $<TARGET_OBJECTS:chronon3d_ipc>
+    )
+    target_include_directories(chronon3d_ipc_fuzzer PRIVATE
+        "${CHRONON3D_IPC_GENERATED_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_SOURCE_DIR}"
+    )
+    target_link_libraries(chronon3d_ipc_fuzzer PRIVATE flatbuffers::flatbuffers)
+    target_compile_options(chronon3d_ipc_fuzzer PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(chronon3d_ipc_fuzzer PRIVATE -fsanitize=fuzzer,address,undefined)
+endif()

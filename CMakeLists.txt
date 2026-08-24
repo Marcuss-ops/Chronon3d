@@ -63,6 +63,7 @@ option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overl
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
 option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
 option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
+option(CHRONON3D_BUILD_FUZZERS "Build libFuzzer targets (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CUDA_INTEROP
        "Build the CUDA/Vulkan external-memory interop probe and bridge prerequisites" OFF)
 option(CHRONON3D_DEV_SPLIT_DWARF

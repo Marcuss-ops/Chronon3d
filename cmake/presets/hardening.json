@@ -1,0 +1,44 @@
+{
+  "version": 6,
+  "include": ["base.json"],
+  "configurePresets": [
+    {
+      "name": "linux-hardened-release",
+      "inherits": "base-linux",
+      "displayName": "Linux Hardened Release",
+      "description": "Production release with ELF hardening; CFI is provided as a separate Clang preset.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-O2 -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -fPIE",
+        "CMAKE_C_FLAGS": "-O2 -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -fPIE",
+        "CMAKE_EXE_LINKER_FLAGS": "-Wl,-z,relro,-z,now -pie",
+        "CMAKE_SHARED_LINKER_FLAGS": "-Wl,-z,relro,-z,now",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli;tests"
+      }
+    },
+    {
+      "name": "linux-cfi",
+      "inherits": "linux-hardened-release",
+      "displayName": "Linux Clang CFI",
+      "description": "Clang-only CFI lane for the long-lived daemon; requires LTO and a Clang toolchain.",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_CXX_FLAGS": "-O2 -fvisibility=hidden -flto -fsanitize=cfi -fsanitize-cfi-cross-dso -fno-sanitize-trap=cfi",
+        "CMAKE_EXE_LINKER_FLAGS": "-flto -fsanitize=cfi -fsanitize-cfi-cross-dso"
+      }
+    }
+  ],
+  "buildPresets": [
+    {"name": "linux-hardened-release", "configurePreset": "linux-hardened-release", "targets": ["chronon3d_cli", "chronon3d_tests"], "jobs": 12},
+    {"name": "linux-cfi", "configurePreset": "linux-cfi", "targets": ["chronon3d_daemon"], "jobs": 12}
+  ],
+  "testPresets": [
+    {"name": "linux-hardened-release-test", "configurePreset": "linux-hardened-release", "output": {"outputOnFailure": true}}
+  ]
+}
