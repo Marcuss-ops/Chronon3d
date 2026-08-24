@@ -19,6 +19,17 @@ enum LayerDeltaChange : std::uint32_t {
     LayerVisibility = 1u << 2,
     LayerGeometry = 1u << 3,
     LayerContent = 1u << 4,
+    // Additive semantic bits.  The first five values above are retained for
+    // compatibility with existing dirty-region consumers.
+    LayerStructure = 1u << 5,
+    LayerCamera = 1u << 6,
+    LayerPosition = 1u << 7,
+    LayerOpacity = 1u << 8,
+    LayerText = 1u << 9,
+    LayerColor = 1u << 10,
+    LayerImage = 1u << 11,
+    LayerEffects = 1u << 12,
+    LayerVideoSource = 1u << 13,
 };
 
 struct LayerDelta {
@@ -34,6 +45,22 @@ struct FrameDelta {
     std::vector<LayerDelta> changes;
     std::optional<raster::BBox> dirty_bounds;
     std::optional<raster::DirtyTileMask> dirty_tiles;
+
+    // Frame-level semantic summary.  These fields are intentionally additive
+    // to the original bounds-only result and are derived solely from changes.
+    bool scene_changed{false};
+    bool camera_changed{false};
+    bool structure_changed{false};
+    bool geometry_changed{false};
+    bool content_changed{false};
+    bool visibility_changed{false};
+    bool position_changed{false};
+    bool opacity_changed{false};
+    bool text_changed{false};
+    bool color_changed{false};
+    bool image_changed{false};
+    bool effects_changed{false};
+    bool video_source_changed{false};
 };
 
 /// Compiles layer state into one dirty-region decision for the frame.

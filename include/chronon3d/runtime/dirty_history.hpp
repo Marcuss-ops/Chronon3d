@@ -43,6 +43,19 @@
 
 namespace chronon3d {
 
+/// Content dimensions captured by the dirty-history producer.  These are
+/// presence bits, not change bits: FrameDeltaCompiler compares the matching
+/// fingerprints between frames and turns differences into LayerDeltaChange
+/// flags.  Keeping them on the history record makes the semantic diff
+/// available without teaching the compiler about scene/model internals.
+enum LayerSemanticKind : std::uint32_t {
+    SemanticText = 1u << 0,
+    SemanticColor = 1u << 1,
+    SemanticImage = 1u << 2,
+    SemanticEffects = 1u << 3,
+    SemanticVideoSource = 1u << 4,
+};
+
 /// Per-layer bounding box + diff state for dirty-rect tracking.
 ///
 /// Each active resolved layer produces one `LayerBBoxState` per frame.
@@ -61,6 +74,17 @@ struct LayerBBoxState {
     bool cache_static{false};
     bool uses_2_5d_projection{false};
     uint64_t content_hash{0};
+
+    // Optional semantic fingerprints.  They are additive so older producers
+    // that only fill content_hash retain the original coarse content diff.
+    std::uint64_t structure_hash{0};
+    std::uint64_t text_hash{0};
+    std::uint64_t color_hash{0};
+    std::uint64_t image_hash{0};
+    std::uint64_t effects_hash{0};
+    std::uint64_t video_source_hash{0};
+    std::uint32_t semantic_presence{0};
+    bool semantic_fingerprints_valid{false};
 };
 
 /// Per-frame dirty-rect / tiling / reuse telemetry.

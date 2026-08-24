@@ -19,7 +19,16 @@ bool VulkanBackend::requires_processor_snapshot() const noexcept {
 
 VulkanBackendStats VulkanBackend::stats() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return m_impl ? m_impl->stats : VulkanBackendStats{};
+    if (!m_impl) return VulkanBackendStats{};
+    auto s = m_impl->stats;
+    const auto vma_stats = m_impl->memory_manager.budget_stats();
+    s.vma_allocation_bytes = vma_stats.allocation_bytes;
+    s.vma_block_bytes = vma_stats.block_bytes;
+    s.vma_allocation_count = vma_stats.allocation_count;
+    s.vma_block_count = vma_stats.block_count;
+    s.vma_budget_bytes = vma_stats.budget_bytes;
+    s.vma_usage_bytes = vma_stats.usage_bytes;
+    return s;
 #else
     return {};
 #endif
@@ -143,6 +152,13 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("vkCmdDraw", m_impl->stats.vk_cmd_draw_count);
     out.emplace_back("descriptor_allocations", m_impl->stats.descriptor_allocations);
     out.emplace_back("barriers", m_impl->stats.barriers_emitted);
+    const auto vma_stats = m_impl->memory_manager.budget_stats();
+    out.emplace_back("vma_allocation_bytes", vma_stats.allocation_bytes);
+    out.emplace_back("vma_block_bytes", vma_stats.block_bytes);
+    out.emplace_back("vma_allocation_count", vma_stats.allocation_count);
+    out.emplace_back("vma_block_count", vma_stats.block_count);
+    out.emplace_back("vma_budget_bytes", vma_stats.budget_bytes);
+    out.emplace_back("vma_usage_bytes", vma_stats.usage_bytes);
 #else
     (void)out;
 #endif

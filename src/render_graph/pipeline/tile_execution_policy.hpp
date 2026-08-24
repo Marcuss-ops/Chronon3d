@@ -17,15 +17,22 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include "scene_internal.hpp"
+#include "scene_fingerprint.hpp"
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::effects {
     class EffectCatalog;
 }
+
+namespace chronon3d { class Framebuffer; }
 
 namespace chronon3d::graph {
 
@@ -52,20 +59,98 @@ struct TileDecision {
     std::string reason_if_disabled; // empty when enabled
 };
 
+/// Complete, backend-neutral execution contract for one frame.  It is the
+/// only result consumed by execution coordinators; no backend selects a path.
+struct FrameExecutionPlan {
+    FrameExecutionPath path{FrameExecutionPath::FullRgb};
+
+    bool decode{false};
+    bool render{true};
+    bool composite{true};
+    bool convert_to_rgb{false};
+    bool convert_to_yuv{false};
+    bool encode{false};
+
+    std::optional<raster::BBox> dirty_region;
+    std::optional<raster::DirtyTileMask> dirty_tiles;
+
+    // Canonical coalesced pixel-space regions produced by the resolver from
+    // FrameDeltaCompiler's dirty tile mask. The executor must consume these
+    // regions and never coalesce dirty_out a second time.
+    std::vector<raster::BBox> dirty_regions;
+
+    // SparseTiles renders into a fresh destination seeded from this previous
+    // surface, preserving clean pixels outside dirty_regions. The surface is
+    // backend-neutral; CpuRgbSurface is used by the current CPU fallback.
+    std::shared_ptr<runtime::RenderSurface> previous_surface;
+    bool copy_previous_surface{false};
+
+    std::string reason;
+
+    // Whether Clear/executor may restore the previous surface for the selected
+    // dirty execution. This is a resolver output, not a scene policy flag.
+    bool use_dirty_region{false};
+    bool force_full_frame_clear{false};
+
+    // Backend-neutral surface selected by this plan. It is populated for
+    // REUSE_SURFACE today; full/sparse paths acquire their concrete surface
+    // during execution. `reuse_surface` remains as the CPU compatibility view.
+    std::shared_ptr<runtime::RenderSurface> output_surface;
+
+    // Set only for REUSE_SURFACE. The caller may return this surface without
+    // building or executing a graph, while still performing a requested encode.
+    std::shared_ptr<Framebuffer> reuse_surface;
+
+    // Fingerprint state is carried forward from the early resolver phase so
+    // state commit and graph-cache hints use the same canonical decision.
+    FrameFingerprints frame_fingerprints{};
+    bool scene_structure_unchanged{false};
+    bool static_camera_changed{true};
+    bool scene_is_static{false};
+};
+
 /// ExecutionResolver decides the complete frame execution path before the
 /// backend runs it.  The implementation currently owns the tile/dirty-region
 /// gates as well as the full-frame fallback decision; backend code must only
 /// execute the returned decision.
 class ExecutionResolver {
 public:
-    /// Decide whether to use tile execution this frame.
-    ///
-    /// @param resolved      Resolved layer set for this frame.
-    /// @param settings      Current render settings.
-    /// @param dirty_out     Output of the dirty-rect phase (compute_dirty_rect).
-    /// @param dirty_ratio   Fraction of screen covered by dirty pixels (0..1).
-    /// @param sw_renderer   Renderer pointer (may be null).
-    /// @param frame         Current frame number.
+    /// Resolve the pre-dirty reuse candidates and carry their fingerprints into
+    /// the final plan.  This owns the existing resolved-scene and static-scene
+    /// fast paths; callers only inspect `reuse_surface`.
+    static FrameExecutionPlan resolve_early_reuse(
+        const RenderGraphContext& ctx,
+        const Scene& scene,
+        Frame frame,
+        int width,
+        int height,
+        SoftwareRenderer* sw_renderer);
+
+    /// Complete the plan after FrameDeltaCompiler has produced dirty output.
+    /// This owns empty-dirty reuse, sparse-tile selection, and full-frame
+    /// fallback, while preserving the existing policy gates and reasons.
+    [[nodiscard]] static std::vector<raster::BBox> coalesce_dirty_regions(
+        const raster::TileGrid& grid,
+        const raster::DirtyTileMask& mask);
+
+    static FrameExecutionPlan resolve(
+        FrameExecutionPlan plan,
+        const detail::LayerResolutionResult& resolved,
+        const Scene& scene,
+        const Camera2_5D& camera,
+        const RenderSettings& settings,
+        const detail::DirtyRectOutput& dirty_out,
+        double dirty_ratio,
+        SoftwareRenderer* sw_renderer,
+        Frame frame,
+        int width,
+        int height,
+        const effects::EffectCatalog* effect_catalog = nullptr,
+        bool encode_requested = false,
+        bool diagnostics_enabled = false);
+
+    /// Compatibility adapter for older tile-only callers.  New code should
+    /// consume FrameExecutionPlan directly.
     static TileDecision decide(
         const detail::LayerResolutionResult& resolved,
         const RenderSettings& settings,

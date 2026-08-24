@@ -1,6 +1,5 @@
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
-#include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -113,19 +112,6 @@ struct GlyphAtlasCache {
 };
 
 } // namespace detail
-
-// `chronon3d::hash_text_style` — relocated from `text_rasterizer_cache.cpp`.
-// Public ABI: declared in `<chronon3d/backends/text/text_rasterizer_utils.hpp>`
-// (test_text_cache_key.cpp compiles unchanged because only the implementation
-// moved; the declaration is preserved verbatim).
-uint64_t hash_text_style(
-    const TextShape& t,
-    float effective_size,
-    int padding,
-    const Mat4* transform
-) {
-    return graph::hash_text_style_full(t, effective_size, padding, transform);
-}
 
 // Per-instance cache API on TextRenderResources.  `raster_cache` is
 // allocated lazily on the first `set_raster_cache_capacity` call (called

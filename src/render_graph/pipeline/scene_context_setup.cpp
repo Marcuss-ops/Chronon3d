@@ -12,7 +12,7 @@
 //   * scheduler / session / catalog wiring
 //   * SoftwareRenderer sidecar threading from upstream callers
 //
-// Counterpart: scene_reuse_coordinator.cpp (Phases 1+2+3).
+// Counterpart: tile_execution_policy.cpp (canonical reuse-plan resolution).
 // ---------------------------------------------------------------------------
 
 #include "scene_context_setup.hpp"

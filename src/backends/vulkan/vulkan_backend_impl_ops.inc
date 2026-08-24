@@ -484,8 +484,8 @@
         ensure_glyph_instance_buffer(glyph_bytes, pass_slot);
         ensure_text_run_dynamic_buffer(run_bytes, pass_slot);
 
-        const VkBuffer glyph_buffer = glyph_instance_buffers[pass_slot];
-        const VkBuffer run_buffer = text_run_dynamic_buffers[pass_slot];
+        const VkBuffer glyph_buffer = glyph_instance_buffers[pass_slot].buffer;
+        const VkBuffer run_buffer = text_run_dynamic_buffers[pass_slot].buffer;
 
         std::uint64_t glyph_hash = 1469598103934665603ull;
         const auto* glyph_ptr = reinterpret_cast<const std::uint8_t*>(gpu_glyphs);
@@ -526,8 +526,8 @@
             const VkDeviceSize tile_index_bytes = tile_count_bytes * kMaxGlyphsPerTile;
             ensure_text_tile_buffer(tile_count_bytes, pass_slot, false);
             ensure_text_tile_buffer(tile_index_bytes, pass_slot, true);
-            const VkBuffer count_buffer = text_tile_count_buffers[pass_slot];
-            const VkBuffer index_buffer = text_tile_index_buffers[pass_slot];
+            const VkBuffer count_buffer = text_tile_count_buffers[pass_slot].buffer;
+            const VkBuffer index_buffer = text_tile_index_buffers[pass_slot].buffer;
             const auto bin_descriptors = allocate_text_tile_bin_descriptor_set();
             const auto raster_descriptors = allocate_text_tile_raster_descriptor_set();
             write_text_tile_bin_descriptors(bin_descriptors, glyph_buffer, run_buffer,
@@ -772,7 +772,7 @@
                     (frame_batch.pass_count % kGlyphInstancePassesPerSlot)
                 : 0;
             ensure_layer_instance_buffer(bytes, instance_slot);
-            const VkBuffer instance_buffer = layer_instance_buffers[instance_slot];
+            const VkBuffer instance_buffer = layer_instance_buffers[instance_slot].buffer;
 
             std::uint64_t instance_hash = 1469598103934665603ull;
             const auto* byte_ptr = reinterpret_cast<const std::uint8_t*>(gpu_instances);
@@ -834,24 +834,16 @@
     }
 
     void ensure_staging(VkDeviceSize bytes) {
-        if (staging_capacity >= bytes) return;
-        if (staging != VK_NULL_HANDLE) vkDestroyBuffer(device, staging, nullptr);
-        if (staging_memory != VK_NULL_HANDLE) vkFreeMemory(device, staging_memory, nullptr);
+        if (staging.size >= bytes) return;
+        if (staging.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(staging);
+        }
         const VkBufferCreateInfo info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &info, nullptr, &staging), "vkCreateBuffer(staging)");
+        staging = memory_manager.create_buffer(info, VulkanMemoryClass::HostUpload);
         ++stats.staging_allocations;
-        VkMemoryRequirements requirements{};
-        vkGetBufferMemoryRequirements(device, staging, &requirements);
-        const VkMemoryAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-            memory_type(requirements.memoryTypeBits,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
-        check(vkAllocateMemory(device, &allocation, nullptr, &staging_memory), "vkAllocateMemory(staging)");
-        check(vkBindBufferMemory(device, staging, staging_memory, 0), "vkBindBufferMemory");
-        staging_capacity = bytes;
     }
 
     // Grow (or create) the device-local glyph-instance storage buffer.  The
@@ -860,87 +852,45 @@
     // usage; device-local memory keeps the GPU read path on-card.
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index) {
         if (index >= kGlyphInstanceRingSize) index = 0;
-        if (glyph_instance_capacities[index] >= bytes) return;
-        if (glyph_instance_buffers[index] != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, glyph_instance_buffers[index], nullptr);
-        }
-        if (glyph_instance_memories[index] != VK_NULL_HANDLE) {
-            vkFreeMemory(device, glyph_instance_memories[index], nullptr);
+        if (glyph_instance_buffers[index].size >= bytes) return;
+        if (glyph_instance_buffers[index].buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(glyph_instance_buffers[index]);
         }
         const VkBufferCreateInfo info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &info, nullptr, &glyph_instance_buffers[index]),
-              "vkCreateBuffer(glyph instances)");
-        VkMemoryRequirements requirements{};
-        vkGetBufferMemoryRequirements(device, glyph_instance_buffers[index], &requirements);
-        const VkMemoryAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-        check(vkAllocateMemory(device, &allocation, nullptr, &glyph_instance_memories[index]),
-              "vkAllocateMemory(glyph instances)");
-        check(vkBindBufferMemory(device, glyph_instance_buffers[index], glyph_instance_memories[index], 0),
-              "vkBindBufferMemory(glyph instances)");
-        glyph_instance_capacities[index] = bytes;
+        glyph_instance_buffers[index] = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
         glyph_instance_hashes[index] = 0;
         glyph_instance_sizes[index] = 0;
     }
 
     void ensure_layer_instance_buffer(VkDeviceSize bytes, std::size_t index) {
         if (index >= kGlyphInstanceRingSize) index = 0;
-        if (layer_instance_capacities[index] >= bytes) return;
-        if (layer_instance_buffers[index] != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, layer_instance_buffers[index], nullptr);
-        }
-        if (layer_instance_memories[index] != VK_NULL_HANDLE) {
-            vkFreeMemory(device, layer_instance_memories[index], nullptr);
+        if (layer_instance_buffers[index].size >= bytes) return;
+        if (layer_instance_buffers[index].buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(layer_instance_buffers[index]);
         }
         const VkBufferCreateInfo info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &info, nullptr, &layer_instance_buffers[index]),
-              "vkCreateBuffer(layer instances)");
-        VkMemoryRequirements requirements{};
-        vkGetBufferMemoryRequirements(device, layer_instance_buffers[index], &requirements);
-        const VkMemoryAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-        check(vkAllocateMemory(device, &allocation, nullptr, &layer_instance_memories[index]),
-              "vkAllocateMemory(layer instances)");
-        check(vkBindBufferMemory(device, layer_instance_buffers[index], layer_instance_memories[index], 0),
-              "vkBindBufferMemory(layer instances)");
-        layer_instance_capacities[index] = bytes;
+        layer_instance_buffers[index] = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
         layer_instance_hashes[index] = 0;
         layer_instance_sizes[index] = 0;
     }
 
     void ensure_text_run_dynamic_buffer(VkDeviceSize bytes, std::size_t index) {
         if (index >= kGlyphInstanceRingSize) index = 0;
-        if (text_run_dynamic_capacities[index] >= bytes) return;
-        if (text_run_dynamic_buffers[index] != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, text_run_dynamic_buffers[index], nullptr);
-        }
-        if (text_run_dynamic_memories[index] != VK_NULL_HANDLE) {
-            vkFreeMemory(device, text_run_dynamic_memories[index], nullptr);
+        if (text_run_dynamic_buffers[index].size >= bytes) return;
+        if (text_run_dynamic_buffers[index].buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(text_run_dynamic_buffers[index]);
         }
         const VkBufferCreateInfo info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &info, nullptr, &text_run_dynamic_buffers[index]),
-              "vkCreateBuffer(text run dynamic)");
-        VkMemoryRequirements requirements{};
-        vkGetBufferMemoryRequirements(device, text_run_dynamic_buffers[index], &requirements);
-        const VkMemoryAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-        check(vkAllocateMemory(device, &allocation, nullptr, &text_run_dynamic_memories[index]),
-              "vkAllocateMemory(text run dynamic)");
-        check(vkBindBufferMemory(device, text_run_dynamic_buffers[index], text_run_dynamic_memories[index], 0),
-              "vkBindBufferMemory(text run dynamic)");
-        text_run_dynamic_capacities[index] = bytes;
+        text_run_dynamic_buffers[index] = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
         text_run_dynamic_hashes[index] = 0;
         text_run_dynamic_sizes[index] = 0;
     }
@@ -948,35 +898,18 @@
     void ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,
                                  bool indices) {
         if (index >= kGlyphInstanceRingSize) index = 0;
-        auto& buffer = indices ? text_tile_index_buffers[index]
-                               : text_tile_count_buffers[index];
-        auto& memory = indices ? text_tile_index_memories[index]
-                               : text_tile_count_memories[index];
-        auto& capacity = indices ? text_tile_index_capacities[index]
-                                 : text_tile_count_capacities[index];
-        if (capacity >= bytes) return;
-        if (buffer != VK_NULL_HANDLE) vkDestroyBuffer(device, buffer, nullptr);
-        if (memory != VK_NULL_HANDLE) vkFreeMemory(device, memory, nullptr);
+        auto& buffer_alloc = indices ? text_tile_index_buffers[index]
+                                     : text_tile_count_buffers[index];
+        if (buffer_alloc.size >= bytes) return;
+        if (buffer_alloc.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(buffer_alloc);
+        }
         const VkBufferCreateInfo info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &info, nullptr, &buffer),
-              indices ? "vkCreateBuffer(text tile indices)"
-                      : "vkCreateBuffer(text tile counts)");
-        VkMemoryRequirements requirements{};
-        vkGetBufferMemoryRequirements(device, buffer, &requirements);
-        const VkMemoryAllocateInfo allocation{
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-            memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-        check(vkAllocateMemory(device, &allocation, nullptr, &memory),
-              indices ? "vkAllocateMemory(text tile indices)"
-                      : "vkAllocateMemory(text tile counts)");
-        check(vkBindBufferMemory(device, buffer, memory, 0),
-              indices ? "vkBindBufferMemory(text tile indices)"
-                      : "vkBindBufferMemory(text tile counts)");
-        capacity = bytes;
+        buffer_alloc = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
     }
 
     static void transition(VkCommandBuffer command, VkImage image,
@@ -1115,10 +1048,7 @@
         };
         pack(source, 0);
         pack(destination, static_cast<std::size_t>(image_bytes));
-        void* mapped = nullptr;
-        check(vkMapMemory(device, staging_memory, 0, image_bytes * 2, 0, &mapped), "vkMapMemory(upload)");
-        std::memcpy(mapped, packed.data(), static_cast<std::size_t>(image_bytes * 2));
-        vkUnmapMemory(device, staging_memory);
+        std::memcpy(staging.mapped, packed.data(), static_cast<std::size_t>(image_bytes * 2));
 
         const VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
                                              VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
@@ -1132,8 +1062,8 @@
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         const VkBufferImageCopy source_copy{0, width, height, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {width, height, 1}};
         const VkBufferImageCopy destination_copy{image_bytes, width, height, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {width, height, 1}};
-        vkCmdCopyBufferToImage(command_buffer, staging, src.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &source_copy);
-        vkCmdCopyBufferToImage(command_buffer, staging, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &destination_copy);
+        vkCmdCopyBufferToImage(command_buffer, staging.buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &source_copy);
+        vkCmdCopyBufferToImage(command_buffer, staging.buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &destination_copy);
         transition(command_buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -1142,20 +1072,18 @@
         vkCmdDispatch(command_buffer, (width + 15) / 16, (height + 15) / 16, 1);
         transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         const VkBufferImageCopy output_copy{image_bytes * 2, width, height, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {width, height, 1}};
-        vkCmdCopyImageToBuffer(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1, &output_copy);
+        vkCmdCopyImageToBuffer(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &output_copy);
         transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         src.initialized = true;
         dst.initialized = true;
         submit();
 
-        check(vkMapMemory(device, staging_memory, image_bytes * 2, image_bytes, 0, &mapped), "vkMapMemory(readback)");
-        const float* output = static_cast<const float*>(mapped);
+        const float* output = static_cast<const float*>(staging.mapped) + (image_bytes * 2 / sizeof(float));
         for (int y = 0; y < destination.height(); ++y) {
             for (int x = 0; x < destination.width(); ++x) {
                 const std::size_t index = (static_cast<std::size_t>(y) * width + x) * 4;
                 destination.set_pixel(x, y, Color{output[index], output[index + 1], output[index + 2], output[index + 3]});
             }
         }
-        vkUnmapMemory(device, staging_memory);
     }
 };
