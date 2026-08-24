@@ -1,11 +1,14 @@
 #pragma once
 
 #include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::runtime {
@@ -107,6 +110,186 @@ struct SurfaceDesc {
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     std::size_t bytes{0};
     ColorMetadata color{};
+};
+
+/// Physical representation carried by a backend-neutral render plan.
+enum class RenderSurfaceKind : std::uint8_t {
+    CpuRgb,
+    GpuRgb,
+    GpuYuv,
+    External,
+};
+
+[[nodiscard]] constexpr bool is_rgb_surface_format(PixelFormat format) noexcept {
+    return format == PixelFormat::Rgba32Float ||
+           format == PixelFormat::Rgba8Unorm;
+}
+
+[[nodiscard]] constexpr bool is_yuv_surface_format(PixelFormat format) noexcept {
+    return format == PixelFormat::Nv12 || format == PixelFormat::P010;
+}
+
+[[nodiscard]] inline SurfaceDesc normalize_surface_desc(SurfaceDesc desc) noexcept {
+    if (desc.bytes == 0) {
+        desc.bytes = tight_surface_bytes(desc.format, desc.width, desc.height);
+    }
+    return desc;
+}
+
+/// Backend-neutral surface abstraction. It describes ownership and format
+/// without exposing Vulkan, CUDA, or encoder-specific types. Concrete storage
+/// remains owned by the corresponding backend or by the CPU fallback.
+class RenderSurface {
+public:
+    virtual ~RenderSurface() = default;
+
+    [[nodiscard]] virtual RenderSurfaceKind kind() const noexcept = 0;
+    [[nodiscard]] virtual const SurfaceDesc& desc() const noexcept = 0;
+    [[nodiscard]] virtual RenderSurfaceHandle handle() const noexcept = 0;
+
+    /// CPU surfaces override this to expose the retained Framebuffer fallback.
+    /// GPU and external surfaces intentionally return nullptr.
+    [[nodiscard]] virtual Framebuffer* cpu_framebuffer() noexcept { return nullptr; }
+    [[nodiscard]] virtual const Framebuffer* cpu_framebuffer() const noexcept {
+        return nullptr;
+    }
+
+    [[nodiscard]] virtual bool valid() const noexcept {
+        const auto& surface = desc();
+        return surface.width != 0 && surface.height != 0 &&
+               surface.format != PixelFormat::Unknown;
+    }
+};
+
+/// CPU RGB implementation and compatibility bridge for the existing
+/// high-precision Framebuffer. No second pixel store is introduced.
+class CpuRgbSurface final : public RenderSurface {
+public:
+    explicit CpuRgbSurface(std::shared_ptr<Framebuffer> framebuffer)
+        : m_framebuffer(std::move(framebuffer)),
+          m_desc(m_framebuffer
+              ? SurfaceDesc{
+                    static_cast<std::uint32_t>(m_framebuffer->width()),
+                    static_cast<std::uint32_t>(m_framebuffer->height()),
+                    PixelFormat::Rgba32Float,
+                    ResourceUsage::ColorAttachment,
+                    LifetimeClass::FrameTransient,
+                    m_framebuffer->size_bytes(),
+                    {}}
+              : SurfaceDesc{}) {}
+
+    [[nodiscard]] RenderSurfaceKind kind() const noexcept override {
+        return RenderSurfaceKind::CpuRgb;
+    }
+    [[nodiscard]] const SurfaceDesc& desc() const noexcept override {
+        return m_desc;
+    }
+    [[nodiscard]] RenderSurfaceHandle handle() const noexcept override {
+        return kInvalidRenderSurfaceHandle;
+    }
+    [[nodiscard]] Framebuffer* cpu_framebuffer() noexcept override {
+        return m_framebuffer.get();
+    }
+    [[nodiscard]] const Framebuffer* cpu_framebuffer() const noexcept override {
+        return m_framebuffer.get();
+    }
+    [[nodiscard]] bool valid() const noexcept override {
+        return m_framebuffer != nullptr && RenderSurface::valid();
+    }
+
+    [[nodiscard]] const std::shared_ptr<Framebuffer>& framebuffer() const noexcept {
+        return m_framebuffer;
+    }
+
+private:
+    std::shared_ptr<Framebuffer> m_framebuffer;
+    SurfaceDesc m_desc{};
+};
+
+/// GPU RGB contract. The logical handle is resolved by RenderSurfaceRegistry
+/// and the selected backend; this type owns no device resource.
+class GpuRgbSurface final : public RenderSurface {
+public:
+    GpuRgbSurface(RenderSurfaceHandle handle, SurfaceDesc desc)
+        : m_handle(handle), m_desc(normalize_surface_desc(std::move(desc))) {}
+
+    [[nodiscard]] RenderSurfaceKind kind() const noexcept override {
+        return RenderSurfaceKind::GpuRgb;
+    }
+    [[nodiscard]] const SurfaceDesc& desc() const noexcept override {
+        return m_desc;
+    }
+    [[nodiscard]] RenderSurfaceHandle handle() const noexcept override {
+        return m_handle;
+    }
+    [[nodiscard]] bool valid() const noexcept override {
+        return m_handle != kInvalidRenderSurfaceHandle &&
+               is_rgb_surface_format(m_desc.format) && RenderSurface::valid();
+    }
+
+private:
+    RenderSurfaceHandle m_handle{kInvalidRenderSurfaceHandle};
+    SurfaceDesc m_desc{};
+};
+
+/// GPU YUV contract for encoder-compatible NV12/P010 device surfaces.
+class GpuYuvSurface final : public RenderSurface {
+public:
+    GpuYuvSurface(RenderSurfaceHandle handle, SurfaceDesc desc)
+        : m_handle(handle), m_desc(normalize_surface_desc(std::move(desc))) {}
+
+    [[nodiscard]] RenderSurfaceKind kind() const noexcept override {
+        return RenderSurfaceKind::GpuYuv;
+    }
+    [[nodiscard]] const SurfaceDesc& desc() const noexcept override {
+        return m_desc;
+    }
+    [[nodiscard]] RenderSurfaceHandle handle() const noexcept override {
+        return m_handle;
+    }
+    [[nodiscard]] bool valid() const noexcept override {
+        return m_handle != kInvalidRenderSurfaceHandle &&
+               is_yuv_surface_format(m_desc.format) &&
+               (m_desc.width % 2u) == 0 && (m_desc.height % 2u) == 0 &&
+               RenderSurface::valid();
+    }
+
+private:
+    RenderSurfaceHandle m_handle{kInvalidRenderSurfaceHandle};
+    SurfaceDesc m_desc{};
+};
+
+/// External surface contract for imported/interoperable resources. The token
+/// is opaque and non-owning; its lifetime is controlled by the producer.
+class ExternalSurface final : public RenderSurface {
+public:
+    ExternalSurface(RenderSurfaceHandle handle, SurfaceDesc desc,
+                    std::uintptr_t external_token)
+        : m_handle(handle),
+          m_desc(normalize_surface_desc(std::move(desc))),
+          m_external_token(external_token) {}
+
+    [[nodiscard]] RenderSurfaceKind kind() const noexcept override {
+        return RenderSurfaceKind::External;
+    }
+    [[nodiscard]] const SurfaceDesc& desc() const noexcept override {
+        return m_desc;
+    }
+    [[nodiscard]] RenderSurfaceHandle handle() const noexcept override {
+        return m_handle;
+    }
+    [[nodiscard]] std::uintptr_t external_token() const noexcept {
+        return m_external_token;
+    }
+    [[nodiscard]] bool valid() const noexcept override {
+        return m_handle != kInvalidRenderSurfaceHandle &&
+               m_external_token != 0 && RenderSurface::valid();
+    }
+
+private:
+    RenderSurfaceHandle m_handle{kInvalidRenderSurfaceHandle};
+    SurfaceDesc m_desc{};
+    std::uintptr_t m_external_token{0};
 };
 
 /// Affine source mapping for a device-local transform. Coordinates are in

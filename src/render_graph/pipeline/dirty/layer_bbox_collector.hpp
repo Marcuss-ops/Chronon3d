@@ -25,6 +25,17 @@ struct LayerResolutionResult;
 
 /// Compute per-layer bboxes for all active resolved layers in parallel.
 /// Returns a map from layer name to LayerBBoxState for the current frame.
+/// Populate additive semantic fingerprints without changing the legacy
+/// bbox/content fields used by existing dirty-region callers.
+void populate_node_semantic_fingerprints(
+    const RenderNode& node,
+    LayerBBoxState& state);
+
+void populate_layer_semantic_fingerprints(
+    const Layer& layer,
+    SampleTime sample_time,
+    LayerBBoxState& state);
+
 [[nodiscard]] std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
     const RenderGraphContext& ctx,
     const LayerResolutionResult& resolved,

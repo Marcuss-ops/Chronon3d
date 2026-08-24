@@ -228,7 +228,6 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
     pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
-    pipeline/scene_reuse_coordinator.cpp # Azione 19 - Phases 1+2+3 coordinator extracted
     pipeline/scene_dirty.cpp
     pipeline/frame_delta_compiler.cpp
     pipeline/dirty/scroll_optimization.cpp
@@ -242,7 +241,6 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/tile_execution_coordinator.cpp
     pipeline/frame_timing_recorder.cpp
     pipeline/scene_fingerprint.cpp
-    pipeline/frame_reuse_policy.cpp
     pipeline/pool_preallocation.cpp
     pipeline/graph_cache_coordinator.cpp
     pipeline/frame_state_commit.cpp

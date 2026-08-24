@@ -67,4 +67,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
         LINK_TARGETS chronon3d_media_native chronon3d_core_impl
         SOURCES video/test_native_video_frame_decoder.cpp
     )
+    if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
+        target_include_directories(chronon3d_native_decoder_tests PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
+    endif()
 endif()

@@ -546,34 +546,15 @@
     // uniform block).  Capacity grows on demand but never shrinks.
 
     void ensure_replay_params_capacity(ReplaySlot& slot, VkDeviceSize bytes) {
-        if (slot.params_capacity >= bytes) return;
-        // Destroy old buffer if it exists.
-        if (slot.params_buffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, slot.params_buffer, nullptr);
-            vkFreeMemory(device, slot.params_memory, nullptr);
-            slot.mapped_params = nullptr;
+        if (slot.params.size >= bytes) return;
+        if (slot.params.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(slot.params);
         }
         const VkBufferCreateInfo buffer_info{
             VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0,
             bytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-        check(vkCreateBuffer(device, &buffer_info, nullptr, &slot.params_buffer),
-              "vkCreateBuffer(replay params)");
-        VkMemoryRequirements mem_reqs{};
-        vkGetBufferMemoryRequirements(device, slot.params_buffer, &mem_reqs);
-        const auto alloc = memory_arena.allocate(
-            mem_reqs, MemoryClass::HostVisible);
-        if (alloc.memory == VK_NULL_HANDLE) {
-            throw std::runtime_error("replay params allocation failed");
-        }
-        slot.params_memory = alloc.memory;
-        check(vkBindBufferMemory(device, slot.params_buffer,
-                                 slot.params_memory, alloc.offset),
-              "vkBindBufferMemory(replay params)");
-        check(vkMapMemory(device, slot.params_memory, 0, bytes, 0,
-                          &slot.mapped_params),
-              "vkMapMemory(replay params)");
-        slot.params_capacity = bytes;
+        slot.params = memory_manager.create_buffer(buffer_info, VulkanMemoryClass::HostUpload);
     }
 
     /// Open a replay slot for recording.  The caller records all commands
@@ -640,7 +621,7 @@
         // Write per-frame params into the persistently-mapped buffer.
         if (params && params_size > 0) {
             ensure_replay_params_capacity(slot, params_size);
-            std::memcpy(slot.mapped_params, params,
+            std::memcpy(slot.params.mapped, params,
                         static_cast<std::size_t>(params_size));
         }
         // Single submit of the pre-recorded command buffer.

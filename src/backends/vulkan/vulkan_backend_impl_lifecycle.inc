@@ -1,13 +1,13 @@
 // Vulkan Impl Vulkan Impl construction and initialization. Included inside VulkanBackend::Impl to keep
 // the private state definition single-source while separating responsibilities.
 
-    Impl(VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
+    Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
          std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported)
-        : physical_device(physical), device(logical), queue(graphics),
+        : instance(inst), physical_device(physical), device(logical), queue(graphics),
           queue_family(family), command_pool(pool),
-          calibrated_ts_supported(calibrated_timestamps_supported),
-          memory_arena(logical, physical) {
+          calibrated_ts_supported(calibrated_timestamps_supported) {
+        memory_manager.initialize(instance, physical_device, device);
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);
         stats.device_name = device_properties.deviceName;

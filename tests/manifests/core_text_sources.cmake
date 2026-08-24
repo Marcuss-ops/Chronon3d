@@ -4,7 +4,6 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     list(APPEND CORE_BLEND2D_TESTS
         text/test_text_layout.cpp
         text/test_text_bounds.cpp
-        text/test_text_cache_key.cpp
         text/test_text_style_presets.cpp
         text/test_font_engine.cpp
         text/test_text_quality_glyph.cpp

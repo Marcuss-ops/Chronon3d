@@ -24,6 +24,7 @@
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -35,6 +36,7 @@ TileExecutionResult execute_tile_or_fallback(
     const detail::LayerResolutionResult& resolved,
     const RenderSettings& settings,
     const detail::DirtyRectOutput& dirty_out,
+    const FrameExecutionPlan& execution_plan,
     double dirty_ratio,
     SoftwareRenderer* sw_renderer,
     Frame frame,
@@ -44,35 +46,31 @@ TileExecutionResult execute_tile_or_fallback(
 {
     TileExecutionResult result;
 
-    const TileDecision tile_decision = ExecutionResolver::decide(
-        resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame,
-        ctx.services.effect_catalog);
+    (void)resolved;
     result.use_tile_execution =
-        tile_decision.enabled &&
-        tile_decision.path == FrameExecutionPath::SparseTiles;
+        execution_plan.path == FrameExecutionPath::SparseTiles;
 
     if (ctx.policy.diagnostics_enabled && !result.use_tile_execution) {
         spdlog::info(
             "[tile-debug] frame={} tile_execution_skipped dirty_ratio={:.3f} threshold={} reason={}",
             static_cast<int>(frame), dirty_ratio,
-            settings.dirty.tile_dirty_ratio_threshold, tile_decision.reason_if_disabled);
+            settings.dirty.tile_dirty_ratio_threshold, execution_plan.reason);
     }
 
     if (result.use_tile_execution) {
         // ── Allocate final framebuffer ──────────────────────────────────
         {
             CHRONON_TRACE_SCOPE("chronon.frame", "tile_acquire");
-            const bool have_prev = sw_renderer &&
-                sw_renderer->buffer_ring().prev_framebuffer() &&
-                sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
-                sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
+            const auto* previous = execution_plan.copy_previous_surface &&
+                execution_plan.previous_surface
+                ? execution_plan.previous_surface->cpu_framebuffer()
+                : nullptr;
+            const bool have_prev = previous &&
+                previous->width() == width && previous->height() == height;
             if (have_prev) {
-                const auto previous = sw_renderer->buffer_ring().prev_framebuffer();
                 // Keep the pool-backed destination and copy directly row by
-                // row.  A temporary full-frame vector here was an avoidable
-                // steady-state heap allocation; tile rendering still needs
-                // an independent destination because every tile execution
-                // must retain the previous frame as its restore source.
+                // row. The resolver has already selected and described the
+                // preserved surface in the immutable execution plan.
                 result.fb = ctx.acquire_framebuffer(width, height, false);
                 for (int y = 0; y < height; ++y) {
                     std::copy(previous->pixels_row(y),
@@ -95,7 +93,7 @@ TileExecutionResult execute_tile_or_fallback(
             const int total_tiles = dirty_out.tile_grid
                 ? dirty_out.tile_grid->tile_count() : 0;
             const auto tile_result = detail::execute_dirty_tiles(
-                compiled, ctx, sw_renderer, dirty_out, *result.fb,
+                compiled, ctx, sw_renderer, execution_plan, *result.fb,
                 width, height, settings.dirty.parallel_tiles, root_scope);
             const int dirty_count = tile_result.dirty_count;
             const int clean_count = std::max(0, total_tiles - dirty_count);
@@ -140,19 +138,10 @@ TileExecutionResult execute_tile_or_fallback(
             }
         }
     } else {
-        // A cost-model rejection is a real execution-mode switch, not a
-        // dirty-region fallback.  Keeping dirty clipping enabled here would
-        // make a non-tiled execution render only the changed regions into a
-        // fresh framebuffer (especially when ping-pong is unavailable),
-        // leaving the untouched canvas transparent.  A rejected tile plan
-        // therefore has to use the ordinary full-frame contract.
-        if (tile_decision.reason_if_disabled == "cost_model_tile_slower") {
-            ctx.policy.dirty_rects_enabled = false;
-            ctx.policy.reuse_prev_framebuffer = false;
-            ctx.policy.skip_initial_clear = false;
-            ctx.node_exec.clip_rect.reset();
-            ctx.node_exec.dirty_rect.reset();
-        }
+        // Full-frame clear/dirty handling was already resolved into the plan
+        // before this coordinator was called. This branch only executes the
+        // selected FullRgb contract; it does not inspect reasons or choose a
+        // fallback policy.
 
         // ── Traditional single-pass execution ───────────────────────────
         {

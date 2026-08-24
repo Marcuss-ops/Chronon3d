@@ -3,6 +3,10 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
+#ifdef CHRONON3D_USE_BLEND2D
+class BLImage;
+#endif
+
 namespace chronon3d {
 
 // Premium material properties for text rendering.
@@ -99,5 +103,13 @@ struct TextMaterial {
         return m;
     }
 };
+
+#ifdef CHRONON3D_USE_BLEND2D
+struct TextScratchState;
+
+/// Apply the canonical text material to a rasterized text image in-place.
+void apply_text_material(BLImage& img, const TextMaterial& material,
+                         TextScratchState& scratch);
+#endif
 
 } // namespace chronon3d

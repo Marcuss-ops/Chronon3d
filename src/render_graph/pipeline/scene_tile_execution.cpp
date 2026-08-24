@@ -20,61 +20,6 @@
 
 namespace chronon3d::graph::detail {
 
-// ── Tile coalescing ───────────────────────────────────────────────────────
-// Merges adjacent dirty tiles into larger bounding boxes to reduce the
-// number of graph re-executions.  A moving object that spans 2×3 tiles
-// (6 re-executions) is coalesced into 1 execution — a 6× reduction in
-// graph overhead (cache evaluation, context cloning, schedule overhead).
-//
-// Algorithm: greedy row-wise merge.  Each row's dirty tiles become a
-// horizontal strip; vertically adjacent strips with the same x-range
-// are merged into a single region.
-//
-// Note: rows with non-contiguous dirty tiles (e.g. cols 0-1 and 4-5 dirty
-// but 2-3 clean) are merged into one wide region spanning cols 0-5.  This
-// may render clean pixels in the gap, trading a larger region for fewer
-// graph re-executions.  For typical contiguous-dirty workloads this is a
-// net win.
-
-[[nodiscard]] std::vector<raster::BBox> coalesce_dirty_tiles(
-    const raster::TileGrid& grid,
-    const raster::DirtyTileMask& mask)
-{
-    std::vector<raster::BBox> regions;
-    const int cols = grid.cols();
-    const int rows = grid.rows();
-
-    for (int ty = 0; ty < rows; ++ty) {
-        // Find the horizontal span of dirty tiles in this row.
-        int tx_min = cols, tx_max = -1;
-        for (int tx = 0; tx < cols; ++tx) {
-            if (mask.is_dirty(tx, ty)) {
-                tx_min = std::min(tx_min, tx);
-                tx_max = std::max(tx_max, tx);
-            }
-        }
-        if (tx_min > tx_max) continue;  // no dirty tiles in this row
-
-        // Build the pixel-space bounding box for this row's dirty span.
-        raster::BBox row_region = grid.tile_bounds(tx_min, ty);
-        row_region.x1 = grid.tile_bounds(tx_max, ty).x1;
-
-        // Try to merge vertically with the previous region.
-        if (!regions.empty()) {
-            raster::BBox& prev = regions.back();
-            if (prev.y1 == row_region.y0 &&
-                prev.x0 == row_region.x0 &&
-                prev.x1 == row_region.x1) {
-                prev.y1 = row_region.y1;  // extend vertically
-                continue;
-            }
-        }
-        regions.push_back(row_region);
-    }
-
-    return regions;
-}
-
 // ── Execute a single dirty region: set up clip context, run graph, copy to output.
 [[nodiscard]] static TileExecutionResult execute_single_dirty_region(
     CompiledFrameGraph& compiled,
@@ -87,6 +32,9 @@ namespace chronon3d::graph::detail {
     RenderGraphContext tile_ctx = ctx;
     tile_ctx.node_exec.clip_rect = region_bbox;
     tile_ctx.node_exec.dirty_rect = region_bbox;
+    // Per-tile execution must not recursively restore the previous surface;
+    // the parent FrameExecutionPlan already selected SparseTiles and the
+    // caller supplied the preserved destination framebuffer.
     tile_ctx.policy.reuse_prev_framebuffer = false;
     tile_ctx.policy.tile_execution_enabled = true;
     tile_ctx.node_exec.active_tile_clip = region_bbox;
@@ -156,22 +104,21 @@ TileExecutionResult execute_dirty_tiles(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     SoftwareRenderer* sw_renderer,
-    const DirtyRectOutput& dirty_out,
+    const FrameExecutionPlan& execution_plan,
     Framebuffer& output_fb,
     i32 width,
     i32 height,
     bool parallel,
     ExecutionScope& root_scope
 ) {
-    const auto& tile_grid = *dirty_out.tile_grid;
-    const auto& dirty_tiles = *dirty_out.dirty_tiles;
+    if (!execution_plan.dirty_tiles || execution_plan.dirty_regions.empty()) {
+        return TileExecutionResult{};
+    }
 
-    // ── Coalesce adjacent dirty tiles into larger regions ──────────────
-    // This reduces the number of full-graph re-executions.  For example,
-    // 6 adjacent dirty tiles become 1 region → 6× less graph overhead.
-    const auto regions = coalesce_dirty_tiles(tile_grid, dirty_tiles);
-
-    // Count original dirty tiles for accurate telemetry.
+    // The resolver has already coalesced the FrameDeltaCompiler tile mask.
+    // Execution consumes the immutable plan and must not recalculate it.
+    const auto& dirty_tiles = *execution_plan.dirty_tiles;
+    const auto& regions = execution_plan.dirty_regions;
     const int original_dirty = dirty_tiles.dirty_count();
     const int coalesced_count = static_cast<int>(regions.size());
 

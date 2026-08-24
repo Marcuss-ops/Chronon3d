@@ -1,14 +1,5 @@
 // Vulkan Impl resource, descriptor, and barrier helpers. Included inside VulkanBackend::Impl to keep
 // the private state definition single-source while separating responsibilities.
-    std::uint32_t memory_type(std::uint32_t bits, VkMemoryPropertyFlags required) const {
-        VkPhysicalDeviceMemoryProperties properties{};
-        vkGetPhysicalDeviceMemoryProperties(physical_device, &properties);
-        for (std::uint32_t i = 0; i < properties.memoryTypeCount; ++i) {
-            if ((bits & (1u << i)) &&
-                (properties.memoryTypes[i].propertyFlags & required) == required) return i;
-        }
-        throw std::runtime_error("Vulkan: no compatible memory type");
-    }
 
     void destroy_image(Image& target) {
         if (target.cuda_to_vulkan != VK_NULL_HANDLE) {
@@ -18,11 +9,14 @@
             vkDestroySemaphore(device, target.vulkan_to_cuda, nullptr);
         }
         if (target.view != VK_NULL_HANDLE) vkDestroyImageView(device, target.view, nullptr);
-        if (target.image != VK_NULL_HANDLE) vkDestroyImage(device, target.image, nullptr);
-        if (target.allocation.memory != VK_NULL_HANDLE) {
-            memory_arena.free(target.allocation);
-        } else if (target.memory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, target.memory, nullptr);
+        if (target.image != VK_NULL_HANDLE) {
+            VulkanImageAllocation img_alloc{
+                .image = target.image,
+                .allocation = target.allocation,
+                .size = 0,
+                .exportable = target.exportable
+            };
+            memory_manager.destroy_image(img_alloc);
         }
         target = {};
     }
@@ -32,8 +26,9 @@
             vkFreeCommandBuffers(device, command_pool, 1, &slot.command_buffer);
         }
         if (slot.fence != VK_NULL_HANDLE) vkDestroyFence(device, slot.fence, nullptr);
-        if (slot.buffer != VK_NULL_HANDLE) vkDestroyBuffer(device, slot.buffer, nullptr);
-        if (slot.memory != VK_NULL_HANDLE) vkFreeMemory(device, slot.memory, nullptr);
+        if (slot.buffer_allocation.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(slot.buffer_allocation);
+        }
         slot = {};
     }
 
@@ -50,17 +45,14 @@
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr, VK_IMAGE_LAYOUT_UNDEFINED};
         info.pNext = exportable ? &external_image : nullptr;
-        check(vkCreateImage(device, &info, nullptr, &target.image), "vkCreateImage");
-        VkMemoryRequirements requirements{};
-        vkGetImageMemoryRequirements(device, target.image, &requirements);
 
-        const MemoryClass mem_class = exportable
-            ? MemoryClass::ExternalExportable
-            : MemoryClass::DeviceLocal;
-        target.allocation = memory_arena.allocate(requirements, mem_class, exportable);
-        target.memory = target.allocation.memory;
+        const auto mem_class = exportable
+            ? VulkanMemoryClass::ExternalExportable
+            : VulkanMemoryClass::DeviceLocal;
+        const auto alloc = memory_manager.create_image(info, mem_class);
+        target.image = alloc.image;
+        target.allocation = alloc.allocation;
 
-        check(vkBindImageMemory(device, target.image, target.allocation.memory, target.allocation.offset), "vkBindImageMemory");
         const VkImageViewCreateInfo view{
             VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, nullptr, 0, target.image,
             VK_IMAGE_VIEW_TYPE_2D, format, {},
@@ -126,11 +118,15 @@
             !image_it->second.image.exportable) {
             throw std::invalid_argument("surface is not exportable to CUDA");
         }
+        const auto alloc_info = memory_manager.allocation_info(image_it->second.image.allocation);
+        if (alloc_info.offset != 0) {
+            throw std::runtime_error("External Vulkan allocation must be dedicated (offset == 0)");
+        }
         auto get_fd = reinterpret_cast<PFN_vkGetMemoryFdKHR>(
             vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
         if (!get_fd) throw std::runtime_error("vkGetMemoryFdKHR is unavailable");
         VkMemoryGetFdInfoKHR info{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
-        info.memory = image_it->second.image.memory;
+        info.memory = alloc_info.deviceMemory;
         info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
         int fd = -1;
         check(get_fd(device, &info, &fd), "vkGetMemoryFdKHR");

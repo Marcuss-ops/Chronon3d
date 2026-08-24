@@ -92,6 +92,13 @@ struct VulkanBackendStats {
     std::uint64_t text_batch_calls{0};
     std::uint64_t glyphs_processed{0};
     std::uint64_t legacy_text_run_surface_calls{0};
+    // VMA Memory Telemetry
+    std::uint64_t vma_allocation_bytes{0};
+    std::uint64_t vma_block_bytes{0};
+    std::uint64_t vma_allocation_count{0};
+    std::uint64_t vma_block_count{0};
+    std::uint64_t vma_budget_bytes{0};
+    std::uint64_t vma_usage_bytes{0};
 };
 
 /// Hardware descriptors returned by the backend-owned physical-device

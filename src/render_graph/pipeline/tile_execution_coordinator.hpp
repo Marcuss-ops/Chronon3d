@@ -10,7 +10,7 @@
 ///          Extracted from scene.cpp to keep the orchestrator clean.
 //
 // The coordinator replaces three inline blocks in scene.cpp:
-//   1. ExecutionResolver::decide() call + diagnostics logging
+//   1. FrameExecutionPlan diagnostics logging
 //   2. Tile execution path (allocate FB, execute tiles, update counters)
 //   3. Traditional fallback path (single-pass graph execute + tile fallback tracking)
 // ===========================================================================
@@ -19,6 +19,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>   // PR 6.2 — root scope parameter
 #include "scene_internal.hpp"
+#include "tile_execution_policy.hpp"
 #include <memory>
 
 namespace chronon3d {
@@ -43,6 +44,7 @@ struct TileExecutionResult {
     const detail::LayerResolutionResult& resolved,
     const RenderSettings& settings,
     const detail::DirtyRectOutput& dirty_out,
+    const FrameExecutionPlan& execution_plan,
     double dirty_ratio,
     SoftwareRenderer* sw_renderer,
     Frame frame,

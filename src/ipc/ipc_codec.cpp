@@ -106,6 +106,13 @@ WireFrame IpcCodec::encode_reply(std::uint64_t message_id,
 
 std::optional<std::pair<std::uint64_t, IpcRequest>>
 IpcCodec::decode_request(const WireFrame& frame) {
+    if (frame.empty()) return std::nullopt;
+
+    flatbuffers::Verifier verifier(frame.data(), frame.size());
+    if (!verifier.VerifyBuffer<IpcEnvelope>(nullptr)) {
+        return std::nullopt;
+    }
+
     const auto* env = flatbuffers::GetRoot<IpcEnvelope>(frame.data());
     if (!env) return std::nullopt;
 
@@ -147,6 +154,13 @@ IpcCodec::decode_request(const WireFrame& frame) {
 
 std::optional<std::pair<std::uint64_t, IpcResponse>>
 IpcCodec::decode_reply(const WireFrame& frame) {
+    if (frame.empty()) return std::nullopt;
+
+    flatbuffers::Verifier verifier(frame.data(), frame.size());
+    if (!verifier.VerifyBuffer<IpcReplyEnvelope>(nullptr)) {
+        return std::nullopt;
+    }
+
     const auto* env = flatbuffers::GetRoot<IpcReplyEnvelope>(frame.data());
     if (!env) return std::nullopt;
 

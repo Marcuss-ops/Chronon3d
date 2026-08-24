@@ -157,6 +157,14 @@ find_package(magic_enum CONFIG REQUIRED)
 if(CHRONON3D_ENABLE_VULKAN)
     find_package(Vulkan REQUIRED)
     find_package(unofficial-spirv-reflect CONFIG REQUIRED)
+    if(TARGET unofficial::spirv-reflect)
+        get_target_property(_spv_inc unofficial::spirv-reflect INTERFACE_INCLUDE_DIRECTORIES)
+        get_filename_component(_spv_root "${_spv_inc}" DIRECTORY)
+        set_property(TARGET unofficial::spirv-reflect APPEND PROPERTY
+            INTERFACE_INCLUDE_DIRECTORIES "${_spv_root}"
+        )
+    endif()
+    find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 endif()
 
 if(CHRONON3D_ENABLE_EXR)

@@ -288,26 +288,15 @@
 
     void ensure_upload_slot(UploadSlot& slot, VkDeviceSize bytes) {
         wait_upload_slot(slot);
-        if (slot.capacity < bytes) {
-            if (slot.buffer != VK_NULL_HANDLE) vkDestroyBuffer(device, slot.buffer, nullptr);
-            if (slot.memory != VK_NULL_HANDLE) vkFreeMemory(device, slot.memory, nullptr);
+        if (slot.buffer_allocation.size < bytes) {
+            if (slot.buffer_allocation.buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(slot.buffer_allocation);
+            }
             const VkBufferCreateInfo info{
                 VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-            check(vkCreateBuffer(device, &info, nullptr, &slot.buffer),
-                  "vkCreateBuffer(upload slot)");
+            slot.buffer_allocation = memory_manager.create_buffer(info, VulkanMemoryClass::HostUpload);
             ++stats.staging_allocations;
-            VkMemoryRequirements requirements{};
-            vkGetBufferMemoryRequirements(device, slot.buffer, &requirements);
-            const VkMemoryAllocateInfo allocation{
-                VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, requirements.size,
-                memory_type(requirements.memoryTypeBits,
-                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
-            check(vkAllocateMemory(device, &allocation, nullptr, &slot.memory),
-                  "vkAllocateMemory(upload slot)");
-            check(vkBindBufferMemory(device, slot.buffer, slot.memory, 0),
-                  "vkBindBufferMemory(upload slot)");
-            slot.capacity = bytes;
         }
         if (slot.command_buffer == VK_NULL_HANDLE) {
             const VkCommandBufferAllocateInfo command_info{
@@ -468,10 +457,7 @@
         }
         auto& slot = acquire_upload_slot(wait_for_completion);
         ensure_upload_slot(slot, bytes);
-        void* mapped = nullptr;
-        check(vkMapMemory(device, slot.memory, 0, bytes, 0, &mapped), "vkMapMemory(surface upload)");
-        std::memcpy(mapped, rgba.data(), static_cast<std::size_t>(bytes));
-        vkUnmapMemory(device, slot.memory);
+        std::memcpy(slot.buffer_allocation.mapped, rgba.data(), static_cast<std::size_t>(bytes));
         const VkCommandBufferBeginInfo begin{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
             VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
@@ -484,7 +470,7 @@
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         const VkBufferImageCopy copy{0, desc.width, desc.height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {desc.width, desc.height, 1}};
-        vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer, image.image,
+        vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer_allocation.buffer, image.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
         transition(slot.command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
@@ -529,19 +515,16 @@
         }
         auto& slot = acquire_upload_slot(wait_for_completion);
         ensure_upload_slot(slot, byte_count);
-        void* mapped = nullptr;
-        check(vkMapMemory(device, slot.memory, 0, byte_count, 0, &mapped), "vkMapMemory(surface region upload)");
         if (desc.format == runtime::PixelFormat::R8Unorm) {
             // Pack float→R8: clamp to [0,1], convert to uint8
-            auto* dst = static_cast<std::uint8_t*>(mapped);
+            auto* dst = static_cast<std::uint8_t*>(slot.buffer_allocation.mapped);
             for (std::size_t i = 0; i < rgba.size(); ++i) {
                 dst[i] = static_cast<std::uint8_t>(
                     std::clamp(rgba[i], 0.0f, 1.0f) * 255.0f + 0.5f);
             }
         } else {
-            std::memcpy(mapped, rgba.data(), static_cast<std::size_t>(byte_count));
+            std::memcpy(slot.buffer_allocation.mapped, rgba.data(), static_cast<std::size_t>(byte_count));
         }
-        vkUnmapMemory(device, slot.memory);
         const VkCommandBufferBeginInfo begin{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
             VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
@@ -554,7 +537,7 @@
             0, width, height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
             {x, y, 0}, {width, height, 1}};
-        vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer, image.image,
+        vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer_allocation.buffer, image.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
         transition(slot.command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
@@ -592,14 +575,11 @@
         const VkBufferImageCopy copy{0, image.width, image.height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {image.width, image.height, 1}};
         vkCmdCopyImageToBuffer(command_buffer, image.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1, &copy);
+                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &copy);
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
         submit();
         const auto readback_start = profiling::now();
-        void* mapped = nullptr;
-        check(vkMapMemory(device, staging_memory, 0, bytes, 0, &mapped), "vkMapMemory(surface download)");
-        std::memcpy(rgba.data(), mapped, static_cast<std::size_t>(bytes));
-        vkUnmapMemory(device, staging_memory);
+        std::memcpy(rgba.data(), staging.mapped, static_cast<std::size_t>(bytes));
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));
     }

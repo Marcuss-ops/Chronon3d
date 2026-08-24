@@ -3,9 +3,9 @@
 //
 // Phase map (extracted to focused TUs):
 //   0  scene_context_setup.cpp       — context + assets + camera + DebugConfig
-//   1-3 scene_reuse_coordinator.cpp  — reuse fb + fingerprints + static fast-path
+//   1-3 tile_execution_policy.cpp    — canonical reuse plan + fingerprints
 //   4-6  scene_dirty.cpp             — dirty rect + metrics
-//   7   frame_reuse_policy.cpp       — empty dirty-rect reuse
+//   7   tile_execution_policy.cpp    — empty dirty-rect reuse in plan
 //   8   graph_cache_coordinator.cpp  — build or reuse compiled graph
 //   9   tile_execution_coordinator.cpp — tile decision + execute + fb
 //   10  pool_preallocation.cpp       — preallocation
@@ -35,10 +35,9 @@
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include "scene_context_setup.hpp"        // Azione 19 — Phase 0 helper
-#include "scene_reuse_coordinator.hpp"    // Azione 19 — Phases 1+2+3 helper
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "scene_fingerprint.hpp"
-#include "frame_reuse_policy.hpp"
+#include "tile_execution_policy.hpp"
 #include "graph_cache_coordinator.hpp"
 #include "pool_preallocation.hpp"
 #include "frame_state_commit.hpp"
@@ -349,17 +348,17 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             return framebuffer;
         };
 
-    // ── 1-3. Resolved-scene reuse + Fingerprints + Static-scene fast-path ──
-    detail::ReuseEvaluation reuse_eval;
+    // ── 1-3. Canonical early execution-plan resolution ──
+    FrameExecutionPlan execution_plan;
     if (!isolated_temporal_sample) {
-        reuse_eval = detail::evaluate_early_reuse_phases(
+        execution_plan = ExecutionResolver::resolve_early_reuse(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
-        if (reuse_eval.fast_path_reuse_fb) {
+        if (execution_plan.reuse_surface) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);
             }
-            return finish_reused_native_frame(reuse_eval.fast_path_reuse_fb);
+            return finish_reused_native_frame(execution_plan.reuse_surface);
         }
     }
 
@@ -369,8 +368,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // ExecutionPlan cache that used to gate on this inside GraphExecutor;
     // the flag survives for the downstream coordinator (audit §9.4).
     ctx.policy.graph_structure_unchanged =
-        reuse_eval.scene_structure_unchanged &&
-        !reuse_eval.static_cam_changed;
+        execution_plan.scene_structure_unchanged &&
+        !execution_plan.static_camera_changed;
     // DOF changes post-composite payload and depth-tracking execution state.
     // Until cached-graph refresh updates that state atomically, rebuild this
     // graph path to preserve warm/cold byte determinism.
@@ -380,7 +379,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
 
     if (ctx.policy.diagnostics_enabled && !isolated_temporal_sample) {
         const auto& history = sw_renderer->frame_history();
-        const char* decision = reuse_eval.fast_path_reuse_fb
+        const char* decision = execution_plan.reuse_surface
             ? "early_reuse"
             : (ctx.policy.graph_structure_unchanged
                 ? "refresh_cached_candidate"
@@ -389,9 +388,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             "[graph-frame-diagnostic] frame={} static_fp={} active_at_fp={} "
             "structure_fp={} combined_fp={} cached_static_fp={} "
             "cached_active_at_fp={} cached_structure_fp={} decision={}",
-            static_cast<int>(frame), reuse_eval.frame_fp.static_fp,
-            reuse_eval.frame_fp.active_at_fp, reuse_eval.frame_fp.structure_fp,
-            reuse_eval.frame_fp.combined_fp,
+            static_cast<int>(frame), execution_plan.frame_fingerprints.static_fp,
+            execution_plan.frame_fingerprints.active_at_fp,
+            execution_plan.frame_fingerprints.structure_fp,
+            execution_plan.frame_fingerprints.combined_fp,
             history.prev_static_scene_fingerprint,
             history.prev_active_at_fingerprint,
             history.prev_graph_structure_fingerprint, decision);
@@ -440,7 +440,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     log_dirty_debug(isolated_temporal_sample ? nullptr : sw_renderer,
                     ctx.policy.diagnostics_enabled, dirty_out, frame);
     ctx.node_exec.dirty_rect = dirty_out.dirty_rect;
-    ctx.policy.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
 
     // A projected surface must be rendered with the complete source-space
     // clip contract. Dirty/tile clipping can truncate a moving text card even
@@ -453,18 +452,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             return layer.layer && layer.layer->active_at(frame) &&
                    (layer.layer->uses_2_5d_projection || layer.layer->is_native_3d());
         });
-    if (has_projected_surface) {
-        ctx.policy.reuse_prev_framebuffer = false;
-        ctx.policy.dirty_rects_enabled = false;
-        ctx.policy.tile_execution_enabled = false;
-    }
     native_source_upload_clip = has_projected_surface
         ? std::optional<raster::BBox>(raster::BBox{0, 0, width, height})
         : dirty_out.dirty_rect;
 
     if (effective_settings.dirty.enabled && !effective_settings.dirty.tiles_active()) {
-        ctx.policy.reuse_prev_framebuffer = false;
-        ctx.policy.dirty_rects_enabled = false;
         if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
             const auto& dirty = *dirty_out.dirty_rect;
             const auto area = static_cast<uint64_t>(std::max(0, dirty.x1 - dirty.x0)) *
@@ -474,21 +466,35 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         }
     }
 
-    // ── 7. Empty dirty-rect reuse ──
+    // ── 7. Complete canonical execution plan ──
     if (!isolated_temporal_sample) {
-        CHRONON_TRACE_SCOPE("chronon.frame", "dirty_fast_path_reuse");
-        const Camera2_5D& cam = ctx.frame_input.camera_2_5d;
-        auto reuse = evaluate_empty_dirty_reuse(
-            sw_renderer, scene, frame, cam, reuse_eval.frame_fp,
-            dirty_out, settings, width, height,
+        CHRONON_TRACE_SCOPE("chronon.frame", "execution_plan_resolve");
+        execution_plan = ExecutionResolver::resolve(
+            std::move(execution_plan), resolved, scene,
+            ctx.frame_input.camera_2_5d, effective_settings, dirty_out,
+            dirty_ratio, sw_renderer, frame, width, height,
+            ctx.services.effect_catalog,
+            ctx.policy.native_video_encode_surface !=
+                runtime::kInvalidRenderSurfaceHandle,
             ctx.policy.diagnostics_enabled);
-        if (reuse.can_reuse) {
+        ctx.policy.reuse_prev_framebuffer = execution_plan.use_dirty_region;
+        ctx.policy.dirty_rects_enabled = execution_plan.use_dirty_region;
+        ctx.policy.tile_execution_enabled =
+            execution_plan.path == FrameExecutionPath::SparseTiles;
+        if (execution_plan.force_full_frame_clear) {
+            ctx.policy.skip_initial_clear = false;
+            ctx.node_exec.clip_rect.reset();
+            ctx.node_exec.dirty_rect.reset();
+        }
+        if (execution_plan.reuse_surface) {
             sw_renderer->commit_prev_frame_state(
                 frame, resolved.camera.camera,
-                reuse.current_combined_fp, reuse.current_static_fp,
-                reuse.current_structure_fp, reuse.current_active_at_fp,
+                execution_plan.frame_fingerprints.combined_fp,
+                execution_plan.frame_fingerprints.static_fp,
+                execution_plan.frame_fingerprints.structure_fp,
+                execution_plan.frame_fingerprints.active_at_fp,
                 std::move(dirty_out.layer_bboxes));
-            return finish_reused_native_frame(reuse.framebuffer);
+            return finish_reused_native_frame(execution_plan.reuse_surface);
         }
     }
 
@@ -578,7 +584,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     }
     auto exec_result = execute_tile_or_fallback(
         ctx, graph_result.compiled,        resolved, effective_settings, dirty_out,
-
+        execution_plan,
         dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
         frame, width, height, root_scope);
     if (native_encode_batch_active) {
@@ -641,7 +647,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         commit_frame_state(
             sw_renderer, frame, ctx.frame_input.camera_2_5d,
             std::move(graph_result.compiled), exec_result.fb,
-            resolved, reuse_eval.frame_fp, dirty_out, width, height);
+            resolved, execution_plan.frame_fingerprints, dirty_out, width, height);
     }
 
     return exec_result.fb;
