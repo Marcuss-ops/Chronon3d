@@ -4,7 +4,6 @@
                    runtime::RenderSurfaceHandle source, BlendMode mode,
                    const std::optional<raster::BBox>& clip = std::nullopt,
                    bool replace = false) {
-        ++stats.legacy_composite_calls;
         auto& dst_image = resolve_image(destination);
         auto& src_image = resolve_image(source);
         if (!src_image.initialized ||
@@ -30,13 +29,7 @@
             ++stats.passes_executed;
             return;
         }
-        bind_descriptors(dst_image, src_image);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
-        record_composite(command_buffer, descriptor_set, dst_image, src_image,
-                         blend_mode, 1.0f, kIdentityTint, clip);
-        dst_image.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan composite requires an active frame batch");
     }
 
     void fill_rect(runtime::RenderSurfaceHandle destination,
@@ -58,18 +51,62 @@
             ++stats.passes_executed;
             return;
         }
-        bind_fill_rect_descriptors(dst_image);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst_image});
-        record_fill_rect(command_buffer, descriptor_set, dst_image, x0, y0, x1, y1, color);
-        dst_image.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan fill_rect requires an active frame batch");
+    }
+
+    void fill_solid_shape(runtime::RenderSurfaceHandle destination,
+                          std::int32_t x0, std::int32_t y0,
+                          std::int32_t x1, std::int32_t y1,
+                          const Vec4& shape, const Vec4& line,
+                          const Color& color) {
+        auto& dst_image = resolve_image(destination);
+        if (dst_image.width == 0 || dst_image.height == 0) {
+            throw std::invalid_argument("Vulkan shape fill references an empty surface");
+        }
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_fill_rect_descriptors(descriptors, dst_image);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image});
+            record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
+                             color, shape, line);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            ++stats.passes_executed;
+            return;
+        }
+        throw std::logic_error("Vulkan fill_solid_shape requires an active frame batch");
+    }
+
+    void fill_path(runtime::RenderSurfaceHandle destination,
+                   std::span<const Vec2> vertices, const Color& color) {
+        if (vertices.size() < 3 || vertices.size() > 8) {
+            throw std::invalid_argument("Vulkan path fill supports 3..8 vertices");
+        }
+        auto& dst_image = resolve_image(destination);
+        std::array<Vec2, 8> polygon{};
+        std::copy(vertices.begin(), vertices.end(), polygon.begin());
+        const Vec4 shape{4.0f, 0.0f, 0.0f, static_cast<float>(vertices.size())};
+        if (frame_batch.active) {
+            const auto descriptors = allocate_pass_descriptor_set();
+            write_fill_rect_descriptors(descriptors, dst_image);
+            const auto cmd = active_command_buffer();
+            emit_pass_sync(cmd, {&dst_image});
+            record_fill_rect(cmd, descriptors, dst_image, 0, 0,
+                             static_cast<std::int32_t>(dst_image.width),
+                             static_cast<std::int32_t>(dst_image.height),
+                             color, shape, Vec4{0.0f}, polygon);
+            dst_image.initialized = true;
+            ++frame_batch.pass_count;
+            ++stats.passes_executed;
+            return;
+        }
+        throw std::logic_error("Vulkan fill_path requires an active frame batch");
     }
 
     void transform(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source,
                    int offset_x, int offset_y, float opacity) {
-        ++stats.legacy_transform_calls;
         auto& dst_image = resolve_image(destination);
         auto& src_image = resolve_image(source);
         if (!src_image.initialized ||
@@ -88,19 +125,12 @@
             ++stats.passes_executed;
             return;
         }
-        bind_descriptors(dst_image, src_image);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
-        record_transform(command_buffer, descriptor_set, dst_image, src_image,
-                         offset_x, offset_y, opacity);
-        dst_image.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan transform requires an active frame batch");
     }
 
     void transform_affine(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle source,
                           const runtime::SurfaceAffineTransform& transform) {
-        ++stats.legacy_transform_calls;
         auto& dst_image = resolve_image(destination);
         auto& src_image = resolve_image(source);
         if (!src_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
@@ -118,13 +148,7 @@
             ++stats.passes_executed;
             return;
         }
-        bind_descriptors(dst_image, src_image);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
-        record_transform_affine(command_buffer, descriptor_set,
-                                dst_image, src_image, transform);
-        dst_image.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan affine transform requires an active frame batch");
     }
 
     void blur(runtime::RenderSurfaceHandle destination,
@@ -150,13 +174,7 @@
             ++stats.passes_executed;
             return;
         }
-        bind_descriptors(dst_image, src_image);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
-        record_blur(command_buffer, descriptor_set,
-                    dst_image, src_image, radius, horizontal);
-        dst_image.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan blur requires an active frame batch");
     }
 
     void glow(runtime::RenderSurfaceHandle destination,
@@ -209,25 +227,7 @@
             return;
         }
 
-        begin_command_buffer();
-        const auto horizontal_descriptor = ensure_glow_descriptor_set(0);
-        write_descriptors(horizontal_descriptor, horizontal, src);
-        const auto vertical_descriptor = ensure_glow_descriptor_set(1);
-        write_descriptors(vertical_descriptor, vertical, horizontal);
-        const auto composite_descriptor = ensure_glow_descriptor_set(2);
-        write_descriptors(composite_descriptor, dst, vertical);
-        emit_conservative_pass_sync(command_buffer, {&horizontal, &src});
-        record_blur(command_buffer, horizontal_descriptor,
-                    horizontal, src, radius, true);
-        emit_conservative_pass_sync(command_buffer, {&vertical, &horizontal});
-        record_blur(command_buffer, vertical_descriptor,
-                    vertical, horizontal, radius, false);
-        emit_conservative_pass_sync(command_buffer, {&dst, &vertical});
-        record_composite(command_buffer, composite_descriptor,
-                         dst, vertical, 1, intensity, tint_rgba);
-        horizontal.initialized = true;
-        vertical.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan glow requires an active frame batch");
     }
 
     void color_adjust(runtime::RenderSurfaceHandle destination,
@@ -253,13 +253,7 @@
             ++stats.passes_executed;
             return;
         }
-        bind_descriptors(dst, src);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst, &src});
-        record_color_adjust(command_buffer, descriptor_set,
-                            dst, src, brightness, contrast, tint, tint_amount);
-        dst.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan color_adjust requires an active frame batch");
     }
 
     void matte(runtime::RenderSurfaceHandle destination,
@@ -288,14 +282,7 @@
             ++stats.passes_executed;
             return;
         }
-        ensure_descriptor_set();
-        write_matte_descriptors(descriptor_set, dst, target_image, matte_image);
-        begin_command_buffer();
-        emit_conservative_pass_sync(command_buffer, {&dst, &target_image, &matte_image});
-        record_matte(command_buffer, descriptor_set,
-                     dst, target_image, matte_image, luma, inverted);
-        dst.initialized = true;
-        submit();
+        throw std::logic_error("Vulkan matte requires an active frame batch");
     }
 
     // GPU text-run primitive: lowered directly to canonical draw_text_batch.
@@ -311,7 +298,6 @@
         if (glyphs.empty()) {
             throw std::invalid_argument("Vulkan text run requires at least one glyph");
         }
-        ++stats.legacy_text_run_surface_calls;
 
         std::vector<runtime::GlyphStatic> static_glyphs;
         static_glyphs.reserve(glyphs.size());
@@ -615,28 +601,7 @@
             ++frame_batch.pass_count;
             ++stats.passes_executed;
         } else {
-            ensure_descriptor_set();
-            write_text_batch_descriptors(descriptor_set, dst_image, atlas_image, glyph_buffer, run_buffer);
-            begin_command_buffer();
-            emit_conservative_pass_sync(command_buffer, {&dst_image, &atlas_image});
-            if (glyph_updated) {
-                vkCmdUpdateBuffer(command_buffer, glyph_buffer, 0, glyph_bytes, gpu_glyphs);
-                glyph_instance_hashes[pass_slot] = glyph_hash;
-                glyph_instance_sizes[pass_slot] = glyph_bytes;
-            }
-            if (run_updated) {
-                vkCmdUpdateBuffer(command_buffer, run_buffer, 0, run_bytes, gpu_runs);
-                text_run_dynamic_hashes[pass_slot] = run_hash;
-                text_run_dynamic_sizes[pass_slot] = run_bytes;
-            }
-            record_text_batch(command_buffer, descriptor_set, dst_image,
-                              static_cast<std::int32_t>(glyphs.size()),
-                              static_cast<std::int32_t>(runs.size()),
-                              glyph_buffer, glyph_updated,
-                              run_buffer, run_updated,
-                              dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
-            dst_image.initialized = true;
-            submit();
+            throw std::logic_error("Vulkan text batch requires an active frame batch");
         }
     }
 
@@ -801,20 +766,7 @@
                 ++frame_batch.pass_count;
                 ++stats.passes_executed;
             } else {
-                ensure_descriptor_set();
-                write_layer_batch_descriptors(descriptor_set, dst_image, src_image, instance_buffer);
-                begin_command_buffer();
-                emit_conservative_pass_sync(command_buffer, {&dst_image, &src_image});
-                if (instance_updated) {
-                    vkCmdUpdateBuffer(command_buffer, instance_buffer, 0, bytes, gpu_instances);
-                    layer_instance_hashes[instance_slot] = instance_hash;
-                    layer_instance_sizes[instance_slot] = bytes;
-                }
-                record_layer_batch(command_buffer, descriptor_set, dst_image, static_cast<std::int32_t>(count),
-                                   instance_buffer, instance_updated,
-                                   dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
-                dst_image.initialized = true;
-                submit();
+                throw std::logic_error("Vulkan layer batch requires an active frame batch");
             }
 
             start_idx = end_idx;
@@ -843,6 +795,7 @@
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
         staging = memory_manager.create_buffer(info, VulkanMemoryClass::HostUpload);
+        if (debug_context) debug_context->set_buffer_name(staging.buffer, "Chronon3D.Buffer.Staging");
         ++stats.staging_allocations;
     }
 
@@ -861,6 +814,7 @@
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
         glyph_instance_buffers[index] = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
+        if (debug_context) debug_context->set_buffer_name(glyph_instance_buffers[index].buffer, "Chronon3D.Buffer.GlyphInstance");
         glyph_instance_hashes[index] = 0;
         glyph_instance_sizes[index] = 0;
     }
@@ -876,6 +830,7 @@
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
         layer_instance_buffers[index] = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
+        if (debug_context) debug_context->set_buffer_name(layer_instance_buffers[index].buffer, "Chronon3D.Buffer.LayerInstance");
         layer_instance_hashes[index] = 0;
         layer_instance_sizes[index] = 0;
     }
@@ -891,6 +846,7 @@
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
         text_run_dynamic_buffers[index] = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
+        if (debug_context) debug_context->set_buffer_name(text_run_dynamic_buffers[index].buffer, "Chronon3D.Buffer.TextRunDynamic");
         text_run_dynamic_hashes[index] = 0;
         text_run_dynamic_sizes[index] = 0;
     }
@@ -910,6 +866,7 @@
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
         buffer_alloc = memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
+        if (debug_context) debug_context->set_buffer_name(buffer_alloc.buffer, indices ? "Chronon3D.Buffer.TextTileIndex" : "Chronon3D.Buffer.TextTileCount");
     }
 
     static void transition(VkCommandBuffer command, VkImage image,

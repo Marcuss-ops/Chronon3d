@@ -4,7 +4,7 @@
     // Pre-allocate every physical surface from the compiler's interval-coloring
     // plan.  After this call, ensure_surface() performs direct slot lookup
     // instead of search/create/resize—zero vkCreateImage, zero vkCreateImageView,
-    // zero vkAllocateMemory in the frame hot loop.
+    // zero memory allocation in the frame hot loop.
     //
     // The pool-based fallback (ensure_surface without plan) remains for:
     //   - software/reference backends
@@ -30,9 +30,7 @@
         }
 
         // Pre-create every physical slot as a device-local RGBA32F image.
-        // The VulkanMemoryArena batches allocations, so even for many
-        // slots the actual vkAllocateMemory count stays low (arena-allocated
-        // chunks).
+        // VulkanMemoryManager (VMA) manages allocations efficiently.
         for (const auto& slot : resolved_slots) {
             const std::uint32_t w = slot.max_width > 0
                 ? static_cast<std::uint32_t>(slot.max_width)
@@ -86,6 +84,18 @@
             if (bound_slot == slot) return true;
         }
         return false;
+    }
+
+    void prune_unused_transient_slots() {
+        for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
+            if (slot_in_use(it->first) ||
+                it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
+                ++it;
+                continue;
+            }
+            destroy_image(it->second.image);
+            it = physical_surfaces.erase(it);
+        }
     }
 
     std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const {
@@ -296,6 +306,7 @@
                 VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
             slot.buffer_allocation = memory_manager.create_buffer(info, VulkanMemoryClass::HostUpload);
+            if (debug_context) debug_context->set_buffer_name(slot.buffer_allocation.buffer, "Chronon3D.Buffer.SurfaceUpload");
             ++stats.staging_allocations;
         }
         if (slot.command_buffer == VK_NULL_HANDLE) {
@@ -304,9 +315,11 @@
                 VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
             check(vkAllocateCommandBuffers(device, &command_info, &slot.command_buffer),
                   "vkAllocateCommandBuffers(upload slot)");
+            if (debug_context) debug_context->set_command_buffer_name(slot.command_buffer, "Chronon3D.CommandBuffer.SurfaceUploadSlot");
             const VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
             check(vkCreateFence(device, &fence_info, nullptr, &slot.fence),
                   "vkCreateFence(upload slot)");
+            if (debug_context) debug_context->set_fence_name(slot.fence, "Chronon3D.Fence.SurfaceUploadSlot");
         }
     }
 
@@ -319,6 +332,7 @@
         // Retain physical_surfaces[slot] so subsequent ensure_surface calls
         // can reuse the allocated physical surface without re-allocating memory!
         unplanned_surface_handles.erase(handle);
+        prune_unused_transient_slots();
         ++stats.surface_releases;
     }
 

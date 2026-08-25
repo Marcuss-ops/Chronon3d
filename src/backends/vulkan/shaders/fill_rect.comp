@@ -13,6 +13,12 @@ layout(binding = 0, rgba32f) uniform image2D dst_image;
 layout(push_constant) uniform FillRectParams {
     ivec4 rect;   // x0, y0, x1, y1 (half-open, destination pixel space)
     vec4 color;   // premultiplied RGBA to store
+    // x = primitive kind: 0 rectangle, 1 rounded rectangle, 2 ellipse,
+    //     3 line segment, 4 even-odd polygon.
+    // y/z = corner/ellipse radii, or line thickness, in destination pixels.
+    vec4 shape;
+    vec4 line;   // x0, y0, x1, y1 for primitive kind 3
+    vec2 vertices[8];
 } params;
 
 void main() {
@@ -21,5 +27,44 @@ void main() {
     ivec2 pixel = params.rect.xy + ivec2(gl_GlobalInvocationID.xy);
     if (pixel.x < params.rect.x || pixel.x >= params.rect.z ||
         pixel.y < params.rect.y || pixel.y >= params.rect.w) return;
+
+    vec2 p = vec2(pixel) + vec2(0.5);
+    vec2 min_corner = vec2(params.rect.xy);
+    vec2 max_corner = vec2(params.rect.zw);
+    vec2 size = max_corner - min_corner;
+    vec2 center = (min_corner + max_corner) * 0.5;
+    if (params.shape.x > 3.5) {
+        int count = clamp(int(params.shape.w), 3, 8);
+        bool inside = false;
+        for (int i = 0, j = count - 1; i < count; j = i++) {
+            vec2 a = params.vertices[i];
+            vec2 b = params.vertices[j];
+            bool crosses = ((a.y > p.y) != (b.y > p.y)) &&
+                (p.x < (b.x - a.x) * (p.y - a.y) /
+                    (b.y - a.y) + a.x);
+            if (crosses) inside = !inside;
+        }
+        if (!inside) return;
+    } else if (params.shape.x > 2.5) {
+        vec2 a = params.line.xy;
+        vec2 b = params.line.zw;
+        vec2 delta = b - a;
+        float length_squared = dot(delta, delta);
+        float t = length_squared > 0.000001
+            ? clamp(dot(p - a, delta) / length_squared, 0.0, 1.0)
+            : 0.0;
+        if (distance(p, mix(a, b, t)) > params.shape.y * 0.5) return;
+    } else if (params.shape.x > 1.5) {
+        vec2 radius = max(params.shape.yz, vec2(0.001));
+        vec2 normalized = (p - center) / radius;
+        if (dot(normalized, normalized) > 1.0) return;
+    } else if (params.shape.x > 0.5) {
+        vec2 radius = min(max(params.shape.yz, vec2(0.0)), size * 0.5);
+        vec2 q = abs(p - center) - (size * 0.5 - radius);
+        if (q.x > 0.0 && q.y > 0.0) {
+            vec2 normalized = q / max(radius, vec2(0.001));
+            if (dot(normalized, normalized) > 1.0) return;
+        }
+    }
     imageStore(dst_image, pixel, params.color);
 }
