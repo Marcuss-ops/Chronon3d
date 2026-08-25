@@ -1,5 +1,7 @@
 #include "frame_delta_compiler.hpp"
 
+#include "camera_change_policy.hpp"
+
 #include <algorithm>
 
 namespace chronon3d::graph::detail {
@@ -40,19 +42,17 @@ void mark_present_semantics(const LayerBBoxState& state, std::uint32_t& mask) no
     if (state.semantic_presence & SemanticVideoSource) mask |= LayerVideoSource;
 }
 
-} // namespace
-
-FrameDelta FrameDeltaCompiler::compile(
+FrameDelta compile_layer_delta(
     Frame frame,
     const std::unordered_map<std::string, LayerBBoxState>& current,
     const std::unordered_map<std::string, LayerBBoxState>& previous,
-    bool camera_changed,
+    bool camera_changed_value,
     int width,
     int height,
     const raster::TileGrid* tile_grid) {
     FrameDelta result;
     result.frame = frame;
-    result.camera_changed = camera_changed;
+    result.camera_changed = camera_changed_value;
     if (tile_grid) {
         result.dirty_tiles.emplace(*tile_grid);
     }
@@ -93,8 +93,6 @@ FrameDelta FrameDeltaCompiler::compile(
         const bool transform_changed = !same_matrix(curr.world_matrix, prev.world_matrix);
         const bool bounds_changed = !same_bbox(curr.bbox, prev.bbox);
         const bool position_delta = position_changed(curr.world_matrix, prev.world_matrix);
-        // LayerGeometry remains the broad, backwards-compatible transform /
-        // footprint bit. LayerPosition is the new precise sub-classification.
         const bool geometry_changed = transform_changed || bounds_changed;
         const bool opacity_changed = curr.opacity != prev.opacity;
 
@@ -131,7 +129,7 @@ FrameDelta FrameDeltaCompiler::compile(
         if (image_changed) mask |= LayerImage;
         if (effects_changed) mask |= LayerEffects;
         if (video_source_changed) mask |= LayerVideoSource;
-        if (camera_changed &&
+        if (camera_changed_value &&
             (curr.uses_2_5d_projection || prev.uses_2_5d_projection)) {
             mask |= LayerCamera;
         }
@@ -157,8 +155,6 @@ FrameDelta FrameDeltaCompiler::compile(
         }
     }
 
-    // The input maps are unordered, but the delta is part of the execution
-    // decision and must be stable for reproducible plans and telemetry.
     std::sort(result.changes.begin(), result.changes.end(),
               [](const LayerDelta& a, const LayerDelta& b) {
                   return a.instance_id < b.instance_id;
@@ -183,6 +179,119 @@ FrameDelta FrameDeltaCompiler::compile(
         result.video_source_changed |= (mask & LayerVideoSource) != 0;
     }
     result.scene_changed = result.camera_changed || !result.changes.empty();
+    return result;
+}
+
+FrameReuseEligibility compute_reuse_eligibility(
+    const FrameStateSnapshot& previous,
+    const FrameStateSnapshot& current) {
+    FrameReuseEligibility result;
+    result.camera_unchanged = !camera_changed(
+        current.camera,
+        previous.camera_valid ? &previous.camera : nullptr,
+        previous.camera_valid);
+
+    if (!previous.fingerprints_valid || !current.fingerprints_valid) {
+        result.reason = "fingerprints_unavailable";
+        return result;
+    }
+
+    const bool same_frame = previous.frame.integral() == current.frame.integral();
+    const bool sequential_frame =
+        current.frame.integral() == previous.frame.integral() + 1;
+    const bool frame_eligible = same_frame || sequential_frame;
+    const bool projected = previous.has_projected_surface ||
+                           current.has_projected_surface;
+    const bool combined_unchanged =
+        current.fingerprints.combined_fp != 0 &&
+        previous.fingerprints.combined_fp == current.fingerprints.combined_fp;
+    const bool static_unchanged =
+        previous.fingerprints.static_fp != 0 &&
+        previous.fingerprints.static_fp == current.fingerprints.static_fp;
+    const bool active_at_unchanged =
+        current.fingerprints.active_at_fp != 0 &&
+        previous.fingerprints.active_at_fp == current.fingerprints.active_at_fp;
+
+    result.structure_unchanged =
+        previous.fingerprints.static_fp != 0 &&
+        previous.fingerprints.structure_fp == current.fingerprints.structure_fp;
+
+    if (projected) {
+        result.reason = "projected_surface";
+    } else if (!current.has_previous_surface) {
+        result.reason = "missing_previous_surface";
+    } else if (!frame_eligible) {
+        result.reason = "non_sequential_previous_frame";
+    } else if (!result.camera_unchanged) {
+        result.reason = "camera_changed";
+    } else if (!combined_unchanged) {
+        result.reason = "combined_fingerprint_changed";
+    } else {
+        result.resolved_scene_reuse = true;
+        result.reason = {};
+    }
+
+    const bool static_frame_eligible = current.has_previous_surface &&
+        (same_frame || (current.scene_is_static && sequential_frame));
+    result.static_scene_reuse = !projected && static_frame_eligible &&
+        result.structure_unchanged && result.camera_unchanged &&
+        active_at_unchanged && static_unchanged;
+
+    if (result.resolved_scene_reuse || result.static_scene_reuse) {
+        result.reason = {};
+    } else if (result.reason.empty()) {
+        if (!result.structure_unchanged) {
+            result.reason = "structure_changed";
+        } else if (!active_at_unchanged) {
+            result.reason = "active_at_changed";
+        } else if (!static_unchanged) {
+            result.reason = "static_fingerprint_changed";
+        } else if (!current.scene_is_static) {
+            result.reason = "not_static_scene";
+        }
+    }
+
+    return result;
+}
+
+} // namespace
+
+bool FrameDeltaCompiler::camera_unchanged(
+    const Camera2_5D& current,
+    const Camera2_5D* previous,
+    bool previous_valid) {
+    return !camera_changed(current, previous, previous_valid);
+}
+
+FrameDelta FrameDeltaCompiler::compile(
+    Frame frame,
+    const std::unordered_map<std::string, LayerBBoxState>& current,
+    const std::unordered_map<std::string, LayerBBoxState>& previous,
+    bool camera_changed_value,
+    int width,
+    int height,
+    const raster::TileGrid* tile_grid) {
+    return compile_layer_delta(
+        frame, current, previous, camera_changed_value,
+        width, height, tile_grid);
+}
+
+FrameDelta FrameDeltaCompiler::compile_state(
+    const FrameStateSnapshot& previous,
+    const FrameStateSnapshot& current,
+    int width,
+    int height,
+    const raster::TileGrid* tile_grid) {
+    const bool changed = camera_changed(
+        current.camera,
+        previous.camera_valid ? &previous.camera : nullptr,
+        previous.camera_valid);
+    FrameDelta result = compile_layer_delta(
+        current.frame, current.layers, previous.layers, changed,
+        width, height, tile_grid);
+    result.reuse = compute_reuse_eligibility(previous, current);
+    result.camera_changed = changed;
+    result.scene_changed = result.scene_changed || changed;
     return result;
 }
 

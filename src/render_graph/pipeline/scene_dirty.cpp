@@ -72,9 +72,9 @@ DirtyRectOutput compute_dirty_rect(
             return layer.layer && layer.layer->active_at(frame) &&
                    layer.layer->uses_2_5d_projection;
         });
-    const bool cam_changed = camera_changed(
+    const bool cam_changed = FrameDeltaCompiler::camera_unchanged(
         cam25d, &sw_renderer->frame_history().prev_camera,
-        sw_renderer->frame_history().prev_camera_valid);
+        sw_renderer->frame_history().prev_camera_valid) == false;
     if (has_projected_25d_layer) {
         out.dirty_rect = raster::BBox{0, 0, width, height};
         out.use_dirty_rects = false;
@@ -105,6 +105,7 @@ DirtyRectOutput compute_dirty_rect(
             width,
             height,
             tiles_enabled ? &tile_grid : nullptr);
+        out.frame_delta = delta;
         out.dirty_rect = delta.dirty_bounds;
         if (delta.dirty_tiles) {
             tile_mask = std::move(*delta.dirty_tiles);
