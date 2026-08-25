@@ -61,9 +61,12 @@ TileExecutionResult execute_tile_or_fallback(
         // ── Allocate final framebuffer ──────────────────────────────────
         {
             CHRONON_TRACE_SCOPE("chronon.frame", "tile_acquire");
-            const auto* previous = execution_plan.copy_previous_surface &&
-                execution_plan.previous_surface
-                ? execution_plan.previous_surface->cpu_framebuffer()
+            const auto* previous = execution_plan.copy_previous_surface
+                ? (execution_plan.previous_framebuffer
+                       ? execution_plan.previous_framebuffer.get()
+                       : (execution_plan.previous_surface
+                              ? execution_plan.previous_surface->cpu_framebuffer()
+                              : nullptr))
                 : nullptr;
             const bool have_prev = previous &&
                 previous->width() == width && previous->height() == height;

@@ -1,5 +1,27 @@
 // Vulkan public surface and operation adapters. Included by the backend TU to preserve the
 // single public implementation while keeping each responsibility inspectable.
+template <typename Fn>
+graph::RenderOpResult VulkanBackend::run_batched_surface_op(Fn&& fn) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        const bool owns_batch = !m_impl->frame_batch.active;
+        if (owns_batch) begin_frame_batch();
+        fn();
+        if (owns_batch) end_frame_batch();
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)fn;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend: Vulkan support is disabled"});
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::create_surface(
     runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc) {
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -298,14 +320,9 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
             "VulkanBackend::composite_surfaces: only Normal/Add SourceOver is implemented"});
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->composite(destination, source, mode, clip);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -319,14 +336,9 @@ graph::RenderOpResult VulkanBackend::copy_surface(
     runtime::RenderSurfaceHandle source,
     const std::optional<raster::BBox>& clip) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->composite(destination, source, BlendMode::Normal, clip, true);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source; (void)clip;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -341,14 +353,9 @@ graph::RenderOpResult VulkanBackend::fill_rect_surface(
     std::int32_t x1, std::int32_t y1,
     const Color& color) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->fill_rect(destination, x0, y0, x1, y1, color);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1; (void)color;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -357,19 +364,47 @@ graph::RenderOpResult VulkanBackend::fill_rect_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
+    runtime::RenderSurfaceHandle destination,
+    std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
+    const Vec4& shape, const Vec4& line, const Color& color) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    return run_batched_surface_op([&] {
+        m_impl->fill_solid_shape(destination, x0, y0, x1, y1,
+                                 shape, line, color);
+    });
+#else
+    (void)destination; (void)x0; (void)y0; (void)x1; (void)y1;
+    (void)shape; (void)line; (void)color;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::fill_solid_shape_surface: Vulkan support is disabled"});
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::fill_path_surface(
+    runtime::RenderSurfaceHandle destination,
+    std::span<const Vec2> vertices, const Color& color) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    return run_batched_surface_op([&] {
+        m_impl->fill_path(destination, vertices, color);
+    });
+#else
+    (void)destination; (void)vertices; (void)color;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::fill_path_surface: Vulkan support is disabled"});
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::transform_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
     int offset_x, int offset_y, float opacity) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->transform(destination, source, offset_x, offset_y, opacity);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source; (void)offset_x; (void)offset_y; (void)opacity;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -383,14 +418,9 @@ graph::RenderOpResult VulkanBackend::transform_surface_affine(
     runtime::RenderSurfaceHandle source,
     const runtime::SurfaceAffineTransform& transform) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->transform_affine(destination, source, transform);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source; (void)transform;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -403,14 +433,9 @@ graph::RenderOpResult VulkanBackend::blur_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source, float radius, bool horizontal) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->blur(destination, source, radius, horizontal);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source; (void)radius; (void)horizontal;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -426,15 +451,10 @@ graph::RenderOpResult VulkanBackend::glow_surfaces(
     runtime::RenderSurfaceHandle scratch_vertical,
     float radius, float intensity, const Color& tint) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->glow(destination, source, scratch_horizontal, scratch_vertical,
                      radius, intensity, tint);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source; (void)scratch_horizontal;
     (void)scratch_vertical; (void)radius; (void)intensity; (void)tint;
@@ -449,14 +469,9 @@ graph::RenderOpResult VulkanBackend::color_adjust_surface(
     runtime::RenderSurfaceHandle source,
     float brightness, float contrast, const Color& tint, float tint_amount) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->color_adjust(destination, source, brightness, contrast, tint, tint_amount);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)source; (void)brightness; (void)contrast;
     (void)tint; (void)tint_amount;
@@ -472,14 +487,9 @@ graph::RenderOpResult VulkanBackend::matte_surface(
     runtime::RenderSurfaceHandle matte,
     bool luma, bool inverted) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->matte(destination, target, matte, luma, inverted);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)target; (void)matte; (void)luma; (void)inverted;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -493,14 +503,9 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface(
     runtime::RenderSurfaceHandle atlas,
     std::span<const runtime::GlyphInstance> glyphs) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->text_run_surface(destination, atlas, glyphs);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)atlas; (void)glyphs;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -517,15 +522,10 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
     const Color& highlight_color,
     bool highlight_enabled) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->text_run_surface(destination, atlas, glyphs, current_frame,
                                  highlight_color, highlight_enabled);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)atlas; (void)glyphs; (void)current_frame;
     (void)highlight_color; (void)highlight_enabled;
@@ -541,14 +541,9 @@ graph::RenderOpResult VulkanBackend::draw_text_batch(
     std::span<const runtime::TextRunDynamic> runs,
     std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->draw_text_batch(destination, glyphs, runs, atlas_pages);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)glyphs; (void)runs; (void)atlas_pages;
     return graph::RenderOpResult(graph::RenderBackendError{
@@ -564,15 +559,10 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
     std::span<const float> transforms,
     std::span<const float> paints) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    try {
-        std::lock_guard lock(m_impl->api_mutex);
+    return run_batched_surface_op([&] {
         m_impl->execute_layer_batch(destination, instances, resources,
                                      transforms, paints);
-        return graph::RenderOpResult(graph::RenderOpOutcome{});
-    } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
-    }
+    });
 #else
     (void)destination; (void)instances; (void)resources;
     (void)transforms; (void)paints;

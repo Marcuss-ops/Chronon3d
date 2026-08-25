@@ -2,6 +2,13 @@
 // single public implementation while keeping each responsibility inspectable.
 VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
 #ifdef CHRONON3D_ENABLE_VULKAN
+    m_debug_context = std::make_unique<VulkanDebugContext>();
+    const auto debug_config = VulkanDebugConfig::from_environment();
+    std::vector<const char*> enabled_layers;
+    std::vector<const char*> enabled_instance_extensions;
+    m_debug_context->configure_instance_requirements(
+        enabled_layers, enabled_instance_extensions, debug_config);
+
     const VkApplicationInfo app_info{
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pNext = nullptr,
@@ -10,17 +17,41 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
         .pEngineName = "Chronon3D",
         .engineVersion = VK_MAKE_VERSION(0, 1, 0),
         .apiVersion = VK_API_VERSION_1_2};
+    std::vector<VkValidationFeatureEnableEXT> validation_features;
+    if (debug_config.enable_sync_validation) {
+        validation_features.push_back(
+            VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
+    }
+    if (debug_config.enable_gpu_assisted) {
+        validation_features.push_back(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT);
+        validation_features.push_back(
+            VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
+    }
+    const bool validation_features_extension_enabled =
+        std::find(enabled_instance_extensions.begin(), enabled_instance_extensions.end(),
+                  VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME) !=
+        enabled_instance_extensions.end();
+    const VkValidationFeaturesEXT validation_features_info{
+        VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+        nullptr,
+        static_cast<std::uint32_t>(validation_features.size()),
+        validation_features.empty() ? nullptr : validation_features.data(),
+        0,
+        nullptr};
     const VkInstanceCreateInfo instance_info{
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = (validation_features.empty() || !validation_features_extension_enabled)
+            ? nullptr : &validation_features_info,
         .flags = 0,
         .pApplicationInfo = &app_info,
-        .enabledLayerCount = 0,
-        .ppEnabledLayerNames = nullptr,
-        .enabledExtensionCount = 0,
-        .ppEnabledExtensionNames = nullptr};
+        .enabledLayerCount = static_cast<std::uint32_t>(enabled_layers.size()),
+        .ppEnabledLayerNames = enabled_layers.empty() ? nullptr : enabled_layers.data(),
+        .enabledExtensionCount = static_cast<std::uint32_t>(enabled_instance_extensions.size()),
+        .ppEnabledExtensionNames = enabled_instance_extensions.empty() ? nullptr : enabled_instance_extensions.data()};
     check(vkCreateInstance(&instance_info, nullptr, &m_instance),
           "vkCreateInstance");
+
+    m_debug_context->initialize(m_instance, debug_config);
 
     std::uint32_t device_count = 0;
     check(vkEnumeratePhysicalDevices(m_instance, &device_count, nullptr),
@@ -146,9 +177,14 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
         .queueFamilyIndex = m_queue_family};
     check(vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool),
           "vkCreateCommandPool");
+    if (m_debug_context) {
+        m_debug_context->set_device(m_device);
+        m_debug_context->set_command_pool_name(m_command_pool, "Chronon3D.CommandPool.Main");
+    }
     m_impl = std::make_unique<Impl>(m_instance, m_physical_device, m_device, m_queue,
                                     m_queue_family, m_command_pool,
-                                    m_calibrated_timestamps_supported);
+                                    m_calibrated_timestamps_supported,
+                                    m_debug_context.get());
 #else
     throw std::runtime_error("Vulkan backend was not compiled");
 #endif
@@ -164,6 +200,7 @@ VulkanBackend::~VulkanBackend() {
         }
         vkDestroyDevice(m_device, nullptr);
     }
+    if (m_debug_context) m_debug_context->shutdown();
     if (m_instance != VK_NULL_HANDLE) vkDestroyInstance(m_instance, nullptr);
 #endif
 }
@@ -174,7 +211,6 @@ VulkanBackend::VulkanBackend(VulkanBackend&& other) noexcept {
 
 VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
     if (this == &other) return *this;
-    std::swap(m_draw_node_fallback, other.m_draw_node_fallback);
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::swap(m_impl, other.m_impl);
     std::swap(m_instance, other.m_instance);
@@ -183,6 +219,7 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
     std::swap(m_queue, other.m_queue);
     std::swap(m_command_pool, other.m_command_pool);
     std::swap(m_queue_family, other.m_queue_family);
+    std::swap(m_debug_context, other.m_debug_context);
 #else
     (void)other;
 #endif

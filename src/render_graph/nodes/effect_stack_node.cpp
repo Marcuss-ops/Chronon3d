@@ -15,7 +15,7 @@
 
 namespace chronon3d::graph {
 
-namespace {
+namespace native_effects {
 
 bool clip_covers_result(const std::optional<raster::BBox>& clip,
                         const Framebuffer& result) {
@@ -255,7 +255,7 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     return true;
 }
 
-} // namespace
+} // namespace native_effects
 
 std::optional<raster::BBox> EffectStackNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -399,9 +399,9 @@ NodeExecResult EffectStackNode::execute(
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
 
         };
-        if (!try_native_full_frame_blur(ctx, m_effects, *result, local_clip) &&
-            !try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
-            !try_native_full_frame_tint(ctx, m_effects, *result, local_clip)) {
+        if (!native_effects::try_native_full_frame_blur(ctx, m_effects, *result, local_clip) &&
+            !native_effects::try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
+            !native_effects::try_native_full_frame_tint(ctx, m_effects, *result, local_clip)) {
             ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
         }
         if (ctx.node_exec.counters) {

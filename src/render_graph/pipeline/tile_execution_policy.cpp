@@ -57,7 +57,7 @@ void record_surface_reuse(
 
 void set_full_rgb(
     FrameExecutionPlan& plan,
-    std::string reason,
+    std::string_view reason,
     bool force_full_frame_clear = false) {
     plan.path = FrameExecutionPath::FullRgb;
     plan.decode = false;
@@ -65,11 +65,12 @@ void set_full_rgb(
     plan.composite = true;
     plan.convert_to_rgb = false;
     plan.convert_to_yuv = false;
-    plan.reason = std::move(reason);
+    plan.reason = reason;
     plan.use_dirty_region = false;
     plan.force_full_frame_clear = force_full_frame_clear;
     plan.output_surface.reset();
     plan.previous_surface.reset();
+    plan.previous_framebuffer.reset();
     plan.copy_previous_surface = false;
     plan.dirty_regions.clear();
     plan.reuse_surface.reset();
@@ -78,20 +79,21 @@ void set_full_rgb(
 void set_reuse_surface(
     FrameExecutionPlan& plan,
     std::shared_ptr<Framebuffer> surface,
-    std::string reason) {
+    std::string_view reason) {
     plan.path = FrameExecutionPath::ReuseSurface;
     plan.decode = false;
     plan.render = false;
     plan.composite = false;
     plan.convert_to_rgb = false;
     plan.convert_to_yuv = false;
-    plan.output_surface = std::make_shared<runtime::CpuRgbSurface>(surface);
+    plan.output_surface.reset();
     plan.previous_surface.reset();
+    plan.previous_framebuffer.reset();
     plan.copy_previous_surface = false;
     plan.dirty_regions.clear();
     plan.reuse_surface = std::move(surface);
     plan.use_dirty_region = false;
-    plan.reason = std::move(reason);
+    plan.reason = reason;
 }
 
 void apply_sparse_or_full_decision(
@@ -137,8 +139,8 @@ void apply_sparse_or_full_decision(
         set_full_rgb(plan, "no_dirty_regions");
         return;
     }
-    plan.previous_surface = std::make_shared<runtime::CpuRgbSurface>(
-        sw_renderer->buffer_ring().prev_framebuffer());
+    plan.previous_framebuffer = sw_renderer->buffer_ring().prev_framebuffer();
+    plan.previous_surface.reset();
     plan.copy_previous_surface = true;
 
     const auto& cost = sw_renderer->dirty_telemetry();
@@ -358,7 +360,7 @@ TileDecision ExecutionResolver::decide(
     result.decode = plan.decode;
     result.composite = plan.composite;
     result.encode = plan.encode;
-    result.reason_if_disabled = result.enabled ? std::string{} : plan.reason;
+    result.reason_if_disabled = result.enabled ? std::string_view{} : plan.reason;
     return result;
 }
 
