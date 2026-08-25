@@ -29,7 +29,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    // Named-column INSERT: column order matches telemetry_schema.sql exactly (132 columns)
+    // Named-column INSERT: column order matches the canonical telemetry columns (131 columns)
     const char* sql =
         "INSERT OR REPLACE INTO render_runs ("
         "run_id, composition_id, output_path, success, error_code, error_message, "
@@ -55,7 +55,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "clearnode_restore_rect_count, clearnode_restore_pixels, clearnode_restore_bytes, "
         "clearnode_restore_full_frame_count, clearnode_restore_dirty_rect_count, clearnode_restore_noop_count, "
         "framebuffer_pool_clear_wall_ms, framebuffer_enqueue_wall_ms, "
-        "framebuffer_pool_empty_alloc, framebuffer_pool_miss_count_empty, "
+        "framebuffer_pool_empty_alloc, "
         "framebuffer_pool_best_fit_reuse, framebuffer_pool_exact_hit, framebuffer_buffer_returned_to_pool_count, "
         "framebuffer_pool_budget_bytes, framebuffer_pool_retained_bytes, "
         "framebuffer_pool_evicted_count, framebuffer_pool_evicted_bytes, "
@@ -93,7 +93,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?109, ?110, ?111, ?112, ?113, ?114, "
         "?115, ?116, ?117, ?118, ?119, ?120, ?121, ?122, ?123, ?124, "
         "?125, ?126, ?127, ?128, "
-        "?129, ?130, ?131, ?132"
+        "?129, ?130, ?131"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -165,7 +165,6 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_pool_clear_wall_ms,
         run.framebuffer_enqueue_wall_ms,
         run.framebuffer_pool_empty_alloc,
-        uint64_t{0},  // framebuffer_pool_miss_count_empty — legacy, merged into empty_alloc
         run.framebuffer_pool_best_fit_reuse,
         run.framebuffer_pool_exact_hit,
         run.framebuffer_buffer_returned_to_pool_count,

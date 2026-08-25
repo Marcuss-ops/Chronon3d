@@ -97,6 +97,11 @@ chronon3d_add_test_suite(
         scene/shapes/mask_tests.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_compile_definitions(chronon3d_renderer_core_tests PRIVATE
+        CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    )
+endif()
 
 # Blend2D-gated source (text_run_processor_tests transitively needs it)
 if(CHRONON3D_USE_BLEND2D)
