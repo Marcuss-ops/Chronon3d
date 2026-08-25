@@ -37,6 +37,10 @@ struct DirtyRectOutput {
     std::optional<raster::TileGrid> tile_grid;
     std::optional<raster::DirtyTileMask> dirty_tiles;
     bool use_dirty_tiles{false};
+
+    // Canonical prev/current result. Consumers must use this delta rather
+    // than reimplementing change detection or reuse heuristics.
+    std::optional<FrameDelta> frame_delta;
 };
 
 DirtyRectOutput compute_dirty_rect(
