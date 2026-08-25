@@ -39,6 +39,7 @@ def main() -> int:
         "cpptrace",
         "doctest",
         "efsw",
+        "flatbuffers",
         "freetype",
         "fribidi",
         "harfbuzz",

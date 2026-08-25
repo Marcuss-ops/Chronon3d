@@ -22,13 +22,17 @@
     "zstd"
   ],
   "features": {
+    "ipc": {
+      "description": "FlatBuffers IPC boundary (CHRONON3D_ENABLE_IPC)",
+      "dependencies": ["flatbuffers"]
+    },
     "mesh": {
       "description": "Mesh processing (CHRONON3D_ENABLE_MESH)",
       "dependencies": ["meshoptimizer"]
     },
     "cli": {
       "description": "CLI application (CHRONON3D_BUILD_CLI)",
-      "dependencies": ["cli11", "flatbuffers"]
+      "dependencies": ["cli11"]
     },
     "crash-handler": {
       "description": "Crash handler with cpptrace stacktraces (CHRONON3D_ENABLE_CRASH_HANDLER)",
@@ -92,5 +96,5 @@
       ]
     }
   },
-  "default-features": ["mesh", "cli", "blend2d", "text", "exr", "svg"]
+  "default-features": ["mesh", "cli", "blend2d", "text", "exr", "svg", "ipc"]
 }
