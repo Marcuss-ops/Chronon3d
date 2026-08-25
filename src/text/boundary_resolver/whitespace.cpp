@@ -2,7 +2,7 @@
 // Chronon adds U+FEFF because its text-unit contract treats a BOM as a
 // whitespace-only unit even though modern Unicode White_Space excludes it.
 
-#include "whitespace.hpp"
+#include "../unicode/whitespace.hpp"
 
 #include <unicode/uchar.h>
 

@@ -322,30 +322,6 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.passes_executed = value;
             } else if (name == "gpu_nodes") {
                 timings.gpu.gpu_nodes = value;
-            } else if (name == "software_fallback_nodes") {
-                timings.gpu.software_fallback_nodes = value;
-            } else if (name == "software_fallback_us") {
-                timings.gpu.software_fallback_us = value;
-            } else if (name == "fallback_draw_node") {
-                timings.gpu.fallback_draw_node = value;
-            } else if (name == "fallback_draw_image") {
-                timings.gpu.fallback_draw_image = value;
-            } else if (name == "fallback_draw_other") {
-                timings.gpu.fallback_draw_other = value;
-            } else if (name == "fallback_text_run") {
-                timings.gpu.fallback_text_run = value;
-            } else if (name == "fallback_composite") {
-                timings.gpu.fallback_composite = value;
-            } else if (name == "fallback_composite_dimensions") {
-                timings.gpu.fallback_composite_dimensions = value;
-            } else if (name == "fallback_composite_mode") {
-                timings.gpu.fallback_composite_mode = value;
-            } else if (name == "fallback_effect") {
-                timings.gpu.fallback_effect = value;
-            } else if (name == "fallback_blur") {
-                timings.gpu.fallback_blur = value;
-            } else if (name == "fallback_dof") {
-                timings.gpu.fallback_dof = value;
             }
         }
     }

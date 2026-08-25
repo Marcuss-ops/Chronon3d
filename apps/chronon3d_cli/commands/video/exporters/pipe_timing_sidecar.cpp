@@ -351,18 +351,6 @@ void write_frame_timing_sidecar(
     put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
     put_gpu_u64("passes_executed", timings.gpu.passes_executed);
     put_gpu_u64("gpu_nodes", timings.gpu.gpu_nodes);
-    put_gpu_u64("software_fallback_nodes", timings.gpu.software_fallback_nodes);
-    put_gpu_u64("software_fallback_us", timings.gpu.software_fallback_us);
-    put_gpu_u64("fallback_draw_node", timings.gpu.fallback_draw_node);
-    put_gpu_u64("fallback_draw_image", timings.gpu.fallback_draw_image);
-    put_gpu_u64("fallback_draw_other", timings.gpu.fallback_draw_other);
-    put_gpu_u64("fallback_text_run", timings.gpu.fallback_text_run);
-    put_gpu_u64("fallback_composite", timings.gpu.fallback_composite);
-    put_gpu_u64("fallback_composite_dimensions", timings.gpu.fallback_composite_dimensions);
-    put_gpu_u64("fallback_composite_mode", timings.gpu.fallback_composite_mode);
-    put_gpu_u64("fallback_effect", timings.gpu.fallback_effect);
-    put_gpu_u64("fallback_blur", timings.gpu.fallback_blur);
-    put_gpu_u64("fallback_dof", timings.gpu.fallback_dof);
     put_gpu_u64("gpu_native_surface_frames", timings.gpu.gpu_native_surface_frames);
     put_gpu_u64("gpu_native_encode_frames", timings.gpu.gpu_native_encode_frames);
     put_gpu_u64("gpu_surface_copy_frames", timings.gpu.gpu_surface_copy_frames);
@@ -400,12 +388,7 @@ void write_frame_timing_sidecar(
     put_gpu_u64("video_decode_framebuffer_wall_ms", timings.gpu.video_decode_framebuffer_wall_ms);
     std::string effective_backend = "unknown";
     if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
-        effective_backend = timings.gpu.software_fallback_nodes &&
-                *timings.gpu.software_fallback_nodes > 0
-            ? "hybrid" : "vulkan";
-    } else if (timings.gpu.software_fallback_nodes &&
-               *timings.gpu.software_fallback_nodes > 0) {
-        effective_backend = "software-fallback";
+        effective_backend = "vulkan";
     }
     gpu["effective_backend"] = effective_backend;
 

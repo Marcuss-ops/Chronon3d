@@ -78,18 +78,6 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_submissions;
     std::optional<std::uint64_t> passes_executed;
     std::optional<std::uint64_t> gpu_nodes;
-    std::optional<std::uint64_t> software_fallback_nodes;
-    std::optional<std::uint64_t> software_fallback_us;
-    std::optional<std::uint64_t> fallback_draw_node;
-    std::optional<std::uint64_t> fallback_draw_image;
-    std::optional<std::uint64_t> fallback_draw_other;
-    std::optional<std::uint64_t> fallback_text_run;
-    std::optional<std::uint64_t> fallback_composite;
-    std::optional<std::uint64_t> fallback_composite_dimensions;
-    std::optional<std::uint64_t> fallback_composite_mode;
-    std::optional<std::uint64_t> fallback_effect;
-    std::optional<std::uint64_t> fallback_blur;
-    std::optional<std::uint64_t> fallback_dof;
     std::optional<std::uint64_t> gpu_native_surface_frames;
     std::optional<std::uint64_t> gpu_native_encode_frames;
     std::optional<std::uint64_t> gpu_surface_copy_frames;

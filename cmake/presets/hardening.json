@@ -18,7 +18,7 @@
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;tests;ipc"
       }
     },
     {
@@ -41,7 +41,7 @@
       "description": "OpenColorIO-backed colour transform certification lane.",
       "cacheVariables": {
         "CHRONON3D_ENABLE_OCIO": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;tests;ocio"
+        "VCPKG_MANIFEST_FEATURES": "cli;tests;ocio;ipc"
       }
     }
   ],

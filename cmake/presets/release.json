@@ -17,7 +17,7 @@
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_DIAGNOSTICS": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "tests"
+        "VCPKG_MANIFEST_FEATURES": "tests;ipc"
       }
     },
     {
