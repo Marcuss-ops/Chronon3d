@@ -191,24 +191,25 @@ inline ScenarioMetrics compute_metrics(const Framebuffer& fb,
 
 constexpr int kVW = 800;
 constexpr int kVH = 600;
-// Resolve assets from the repository root so this suite is independent of the
-// process working directory (ctest runs from the build tree).
-inline const std::string kVFont = bundled_font_path("assets/fonts/Poppins-Bold.ttf");
+
+inline std::string vr_font_path() {
+    return bundled_font_path("assets/fonts/Inter-Bold.ttf");
+}
 
 inline TextDefinition make_opts(const std::string& text,
-                                   f32 size,
-                                   const Color& color,
-                                   Vec2 box = {kVW * 0.85f, kVH * 0.85f},
-                                   int max_lines = 0) {  // PR-A3 fix C: max_lines=0=unlimited; pass N to enable wrap
+                                f32 size,
+                                const Color& color,
+                                Vec2 box = {kVW * 0.85f, kVH * 0.85f},
+                                int max_lines = 0) {
     return TextDefinition{
         .content = {.value = text},
-        .style = {.font = {.font_path = kVFont,
-                           .font_family = "Poppins",
+        .style = {.font = {.font_path = vr_font_path(),
+                           .font_family = "Inter",
                            .font_weight = 700,
                            .font_size = size},
                   .color = color},
         .frame = {.size = box,
-                  .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+                  .placement = TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
                   .anchor = TextAnchor::Center,
                   .align = TextAlign::Center,
                   .vertical_align = VerticalAlign::Middle,

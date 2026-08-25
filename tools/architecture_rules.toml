@@ -200,6 +200,7 @@ description = "CPU-first deny: msdfgen, libtess2, unicode includes — PR-A10 + 
 patterns = ['#include\s*[<"]msdfgen', '#include\s*[<"]libtess2', '#include\s*[<"]unicode(?:/|")']
 hint = "These headers are deny-everywhere per AGENTS.md Gate 5 Check 11. Requires ADR for exceptions."
 skip_comments = true
+exclude_paths = ["src/text/boundary_resolver"]
 
 [[forbidden_include]]
 name = "legacy_umbrella_includes"

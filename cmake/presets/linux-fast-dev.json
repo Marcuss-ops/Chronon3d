@@ -29,7 +29,7 @@
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     }
   ],
