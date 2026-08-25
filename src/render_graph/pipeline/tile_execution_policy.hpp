@@ -56,7 +56,7 @@ struct TileDecision {
     bool decode{false};
     bool composite{true};
     bool encode{false};
-    std::string reason_if_disabled; // empty when enabled
+    std::string_view reason_if_disabled; // empty when enabled
 };
 
 /// Complete, backend-neutral execution contract for one frame.  It is the
@@ -83,9 +83,10 @@ struct FrameExecutionPlan {
     // surface, preserving clean pixels outside dirty_regions. The surface is
     // backend-neutral; CpuRgbSurface is used by the current CPU fallback.
     std::shared_ptr<runtime::RenderSurface> previous_surface;
+    std::shared_ptr<Framebuffer> previous_framebuffer;
     bool copy_previous_surface{false};
 
-    std::string reason;
+    std::string_view reason;
 
     // Whether Clear/executor may restore the previous surface for the selected
     // dirty execution. This is a resolver output, not a scene policy flag.

@@ -451,6 +451,23 @@ graph::RenderOpResult draw_packed_text_run(
     float current_frame,
     const Color& highlight_color,
     bool highlight_enabled) {
+    if (glyphs.empty()) {
+        return graph::RenderOpResult(graph::RenderOpOutcome{0});
+    }
+    // Validate glyph payloads before allocating or clearing a native surface.
+    // This keeps malformed input a deterministic InvalidInput result even when
+    // the destination has no backend surface yet.
+    for (const auto& glyph : glyphs) {
+        const auto pixels = glyph.pixels();
+        const std::size_t expected =
+            static_cast<std::size_t>(glyph.width) * glyph.height * 4;
+        if (glyph.width == 0 || glyph.height == 0 ||
+            pixels.size() != expected) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "draw_packed_text_run: glyph rgba size mismatch"});
+        }
+    }
     // TextRun output is an independent transparent surface. Avoid uploading
     // the CPU framebuffer before the glyph pass; this was a full-canvas
     // CPU->GPU transfer for every watermark/subtitle layer and frame.
@@ -460,7 +477,8 @@ graph::RenderOpResult draw_packed_text_run(
             "draw_packed_text_run: destination has no native surface support"});
     }
     const auto cleared = ctx.services.backend->fill_rect_surface(
-        destination.surface_handle(), 0, 0, destination.width(), destination.height(), Color{});
+        destination.surface_handle(), 0, 0, destination.width(), destination.height(),
+        Color::transparent());
     if (!cleared.ok()) return cleared;
     auto result = draw_packed_text_run_surface(
         ctx, destination.surface_handle(), glyphs, current_frame,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <span>
 
@@ -49,7 +50,16 @@ public:
                 .processor_snapshot = ctx.node_exec.processor_snapshot,
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
             };
-            ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+            const bool native =
+                native_effects::try_native_full_frame_blur(
+                    ctx, m_effects, *result, ctx.node_exec.clip_rect) ||
+                native_effects::try_native_full_frame_glow(
+                    ctx, m_effects, *result, ctx.node_exec.clip_rect) ||
+                native_effects::try_native_full_frame_tint(
+                    ctx, m_effects, *result, ctx.node_exec.clip_rect);
+            if (!native) {
+                ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+            }
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 ctx.node_exec.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.frame_input.width * ctx.frame_input.height), std::memory_order_relaxed);
