@@ -128,6 +128,8 @@ static std::optional<std::filesystem::path> discover_cli_binary() {
         "build/chronon3d_cli",
         "build/chronon/linux-content-dev/chronon3d_cli",
         "build/chronon/linux-fast-dev/chronon3d_cli",
+        "build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli",
+        "apps/chronon3d_cli/chronon3d_cli",
     };
     constexpr const char* kCwdEnv[] = {"PWD", "OLDPWD"};
     for (const char* var : kCwdEnv) {
@@ -436,7 +438,7 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
         INFO("run=" << run << " cmd=" << cmd.str() << " rc=" << rc);
         CHECK(rc == 0);
         const std::string hashes = (output_root / ("repeat_" + std::to_string(run) + ".hashes")).string();
-        const int sha_rc = sha256sum_via_system((frames_dir / "frame_%06d.png").string(), hashes);
+        const int sha_rc = sha256sum_via_system((frames_dir / "frame_*.png").string(), hashes);
         CHECK(sha_rc == 0);
         CHECK(std::filesystem::exists(hashes, ec));
     }

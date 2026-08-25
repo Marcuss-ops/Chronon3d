@@ -59,7 +59,7 @@ add_library(chronon3d_text_core OBJECT
     resolve_text_placement.cpp
     text_scramble_helpers.cpp
     unicode/utf8_decoder.cpp
-    unicode/whitespace.cpp
+    boundary_resolver/whitespace.cpp
     boundary_resolver/text_boundary_resolver.cpp
     boundary_resolver/icu_boundary_resolver.cpp
     boundary_resolver/text_unit_map.cpp

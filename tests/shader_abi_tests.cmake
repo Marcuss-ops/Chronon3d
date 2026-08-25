@@ -26,3 +26,12 @@ target_include_directories(chronon3d_shader_abi_consistency_tests
 # The embedded SPIR-V and ABI headers must exist before the test compiles.
 add_dependencies(chronon3d_shader_abi_consistency_tests
     chronon3d_shader_abi_headers)
+
+chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_debug_context_tests
+    TIER UNIT
+    SOURCES backends/test_vulkan_debug_context.cpp
+    LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan spdlog::spdlog
+)
+target_compile_definitions(chronon3d_vulkan_debug_context_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)

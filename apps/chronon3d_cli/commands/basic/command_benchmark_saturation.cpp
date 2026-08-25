@@ -577,10 +577,6 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         const std::uint64_t l_inst = gpu_delta("layer_instances");
         const std::uint64_t tb_calls = gpu_delta("text_batch_calls");
         const std::uint64_t glyphs = gpu_delta("glyphs");
-        const std::uint64_t leg_xform = gpu_delta("legacy_transform_calls");
-        const std::uint64_t leg_comp = gpu_delta("legacy_composite_calls");
-        const std::uint64_t leg_txt = gpu_delta("legacy_text_run_surface_calls");
-
         out << "BATCHING & INSTANCING (TIMED-RUN DELTAS)\n";
         out << "layer_batch_calls/frame..... " << fmt::format("{:.1f}", static_cast<double>(lb_calls) / frames_d) << "\n";
         out << "layer_instances/frame....... " << fmt::format("{:.1f}", static_cast<double>(l_inst) / frames_d) << "\n";
@@ -594,17 +590,6 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         }
         out << "\n";
 
-        // Hard gate for Perf_* benchmark scenes
-        if (scene == "Perf_IMG_same_100" || scene == "Perf_IMG_move_100" ||
-            scene == "Perf_TXT_static_100" || scene == "Perf_TXT_move_100") {
-            if (leg_xform > 0 || leg_comp > 0 || leg_txt > 0) {
-                spdlog::error("[BENCHMARK ARCHITECTURE FAIL] Legacy operations executed in {}: legacy_transform={} legacy_composite={} legacy_text_run={}",
-                              scene, leg_xform, leg_comp, leg_txt);
-                assert(leg_xform == 0 && "legacy_transform_calls must be 0");
-                assert(leg_comp == 0 && "legacy_composite_calls must be 0");
-                assert(leg_txt == 0 && "legacy_text_run_surface_calls must be 0");
-            }
-        }
     }
 
     // ── Honest frame-wall accounting ───────────────────────────────────

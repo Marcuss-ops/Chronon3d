@@ -328,6 +328,10 @@ class GateRunner:
 
         for pattern in patterns:
             matches = run_grep(pattern, scan_paths)
+            if exclusions := self._resolve_exclude_paths(rule):
+                matches = [m for m in matches
+                           if not any(re.search(e, m.split(":", 1)[0])
+                                      for e in exclusions)]
             if skip_comments:
                 # For include patterns, a match inside a comment is a comment
                 # ABOUT the forbidden include, not the include itself.
@@ -514,7 +518,7 @@ class GateRunner:
 
         for cmake_file in self.root.rglob("CMakeLists.txt"):
             parts = set(cmake_file.parts)
-            if parts & {"build", "out", ".git", "vcpkg_bootstrap", "vcpkg_installed"}:
+            if parts & {"build", "out", ".tmp", ".git", "vcpkg_bootstrap", "vcpkg_installed"}:
                 continue
             text = re.sub(r"#.*", "", cmake_file.read_text(encoding="utf-8"))
             for match in command_re.finditer(text):
