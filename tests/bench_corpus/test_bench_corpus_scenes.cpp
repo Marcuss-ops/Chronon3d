@@ -268,3 +268,55 @@ TEST_CASE("Bench corpus B11 Portrait1080x1920 sanity") {
 
     assert_bench_shape_count(comp, /*expected_min=*/1);
 }
+
+// ── Canonical Performance Baseline (BENCH-1/2/3/5) ───────────────────────
+// TICKET-PERF-BASELINE-V1 — the 4 NEW benchmark-class scenes.  Each case
+// locks name/width/height/duration + a minimum shape count at 3 frames
+// (Frame{0}, mid, end) exactly like the B00-B11 cases above. BENCH-4 is
+// the existing BenchB06_VideoOverlay1080p (no separate factory — the B06
+// test case above covers it).
+TEST_CASE("Bench corpus BENCH-1 Static sanity") {
+    auto comp = bench_canon1_static();
+    CHECK(comp.name() == "BenchCanon1_Static");
+    CHECK(comp.width() == 1920);
+    CHECK(comp.height() == 1080);
+    CHECK(comp.duration().integral() == 90);
+
+    // bg + deep_glow + logo (rounded_rect + text in ONE layer) = >= 3.
+    assert_bench_shape_count(comp, /*expected_min=*/3);
+}
+
+TEST_CASE("Bench corpus BENCH-2 Text sanity") {
+    auto comp = bench_canon2_text();
+    CHECK(comp.name() == "BenchCanon2_Text");
+    CHECK(comp.width() == 1920);
+    CHECK(comp.height() == 1080);
+    CHECK(comp.duration().integral() == 90);
+
+    // bg + deep_glow + subtitle + animated_title = >= 4 layers.
+    assert_bench_shape_count(comp, /*expected_min=*/4);
+}
+
+TEST_CASE("Bench corpus BENCH-3 MotionGraphics sanity") {
+    auto comp = bench_canon3_motion_graphics();
+    CHECK(comp.name() == "BenchCanon3_MotionGraphics");
+    CHECK(comp.width() == 1920);
+    CHECK(comp.height() == 1080);
+    CHECK(comp.duration().integral() == 90);
+
+    // bg + deep_glow + 24 dots = 26 layers (blur_band excluded in v1 —
+    // software-backend composite SEGV, TICKET-PERF-BASELINE-V1).
+    assert_bench_shape_count(comp, /*expected_min=*/26);
+}
+
+TEST_CASE("Bench corpus BENCH-5 Heavy sanity") {
+    auto comp = bench_canon5_heavy();
+    CHECK(comp.name() == "BenchCanon5_Heavy");
+    CHECK(comp.width() == 1920);
+    CHECK(comp.height() == 1080);
+    CHECK(comp.duration().integral() == 90);
+
+    // bg + deep_glow + band_bg + video_layer + lower_third + glow_accent
+    // + spinner = >= 7 layers.
+    assert_bench_shape_count(comp, /*expected_min=*/7);
+}

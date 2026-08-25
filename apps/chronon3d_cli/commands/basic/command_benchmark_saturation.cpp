@@ -21,7 +21,9 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include "../../utils/benchmark/benchmark_corpus.hpp"
 
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/simd/cpu_isa.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -233,7 +235,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                                   const std::string& scene, int duration_sec,
                                   const std::string& report_json,
                                   int motion_blur_mode,
-                                  int motion_blur_samples) {
+                                  int motion_blur_samples,
+                                  const std::string& backend) {
     // ── Resolve and compile the composition ────────────────────────────
     if (!registry.contains(scene)) {
         spdlog::error("Unknown composition: {}", scene);
@@ -262,8 +265,21 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     settings.motion_blur.samples = motion_blur_samples;
     settings.motion_blur.shutter_angle_deg = 180.0f;
     settings.motion_blur.shutter_phase_deg = -90.0f;
+    // backends: auto, software, or vulkan (strict). Mirror the render / video
+    // commands — the benchmark Saturation Report must be able to certify the
+    // GPU path (gpu_execute_us, VMA, submissions) against the CPU path.
+    std::optional<Config> renderer_config;
+    if (backend == "software") {
+        Config cfg;
+        cfg.set_backend_preference(graph::BackendPreference::Software);
+        renderer_config = std::move(cfg);
+    } else if (backend == "vulkan") {
+        Config cfg;
+        cfg.set_backend_preference(graph::BackendPreference::GPU);
+        renderer_config = std::move(cfg);
+    }
     auto renderer = create_renderer(
-        registry, settings, std::nullopt, std::filesystem::current_path());
+        registry, settings, std::move(renderer_config), std::filesystem::current_path());
 
     auto snapshot_gpu = [&]() {
         std::vector<std::pair<std::string, std::uint64_t>> ordered;
@@ -727,6 +743,38 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                 {"image_upload_bytes_per_frame", image_upload_bytes},
                 {"upload_time_us", nullptr},
                 {"upload_time_status", "NOT_INSTRUMENTED"}
+            }},
+            // TICKET-PERF-BASELINE-V1 — full GPU block (timed-run DELTAS,
+            // warm-up excluded). Every key is a gpu_delta("…") PER FRAME
+            // except the absolute VMA post-warmup snapshot (vma_*_bytes /
+            // vma_*_count are current allocations, not deltas).
+            {"gpu", {
+                {"vk_submissions_per_frame", gpu_delta("gpu_submissions") / frames_d},
+                {"passes_executed_per_frame", gpu_delta("passes_executed") / frames_d},
+                {"gpu_upload_count_per_frame", gpu_delta("gpu_upload_count") / frames_d},
+                {"gpu_upload_bytes_per_frame", gpu_delta("gpu_upload_bytes") / frames_d},
+                {"gpu_upload_full_surface_bytes_per_frame", gpu_delta("gpu_upload_full_surface_bytes") / frames_d},
+                {"gpu_upload_region_bytes_per_frame", gpu_delta("gpu_upload_region_bytes") / frames_d},
+                {"gpu_readback_bytes_per_frame", gpu_delta("gpu_readback_bytes") / frames_d},
+                {"gpu_submit_cpu_us_per_frame", gpu_delta("gpu_submit_cpu_us") / frames_d},
+                {"gpu_wait_cpu_us_per_frame", gpu_delta("gpu_wait_cpu_us") / frames_d},
+                {"frame_slot_wait_us_per_frame", gpu_delta("frame_slot_wait_us") / frames_d},
+                {"standalone_wait_us_per_frame", gpu_delta("standalone_wait_us") / frames_d},
+                {"frame_batch_drain_wait_us_per_frame", gpu_delta("frame_batch_drain_wait_us") / frames_d},
+                {"readback_us_per_frame", gpu_delta("readback_us") / frames_d},
+                {"gpu_execute_us_per_frame", gpu_delta("gpu_execute_us") / frames_d},
+                {"cpu_gpu_sync_us_per_frame", gpu_delta("cpu_gpu_sync_us") / frames_d},
+                {"vk_cmd_dispatch_per_frame", gpu_delta("vkCmdDispatch") / frames_d},
+                {"vk_cmd_draw_per_frame", gpu_delta("vkCmdDraw") / frames_d},
+                {"barriers_per_frame", gpu_delta("barriers") / frames_d},
+                {"descriptor_allocations_per_frame", gpu_delta("descriptor_allocations") / frames_d},
+                {"physical_surfaces_peak", gpu_delta("physical_surfaces_peak")},
+                {"vma_allocation_bytes_after", gpu_delta("vma_allocation_bytes")},
+                {"vma_block_bytes_after", gpu_delta("vma_block_bytes")},
+                {"vma_allocation_count_after", gpu_delta("vma_allocation_count")},
+                {"vma_block_count_after", gpu_delta("vma_block_count")},
+                {"vma_budget_bytes_after", gpu_delta("vma_budget_bytes")},
+                {"vma_usage_bytes_after", gpu_delta("vma_usage_bytes")}
             }},
             {"nested_costs", {
                 {"text_shape_us", text_shape_us},
