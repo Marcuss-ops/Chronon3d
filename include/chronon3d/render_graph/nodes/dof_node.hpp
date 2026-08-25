@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -109,7 +110,10 @@ public:
                 .processor_snapshot = ctx.node_exec.processor_snapshot,
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
             };
-            ctx.services.backend->apply_effect_stack(*result, dof_stack, dof_context);
+            if (!native_effects::try_native_full_frame_blur(
+                    ctx, dof_stack, *result, local_clip)) {
+                ctx.services.backend->apply_effect_stack(*result, dof_stack, dof_context);
+            }
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 uint64_t area = static_cast<uint64_t>(ctx.frame_input.width * ctx.frame_input.height);

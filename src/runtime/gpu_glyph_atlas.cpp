@@ -179,8 +179,10 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
     loc.uv_index = static_cast<std::uint16_t>(px | (py << 16));
     loc.atlas_x = static_cast<std::uint16_t>(px);
     loc.atlas_y = static_cast<std::uint16_t>(py);
-    loc.local_x = static_cast<std::int16_t>(px);
-    loc.local_y = static_cast<std::int16_t>(py);
+    // local_* are pen-relative placement metrics, not atlas coordinates.
+    // The latter are already carried by atlas_x/atlas_y and uv_index.
+    loc.local_x = static_cast<std::int16_t>(metrics.x_offset);
+    loc.local_y = static_cast<std::int16_t>(metrics.y_offset);
     loc.width = static_cast<std::uint16_t>(width);
     loc.height = static_cast<std::uint16_t>(height);
     loc.plane_left = static_cast<float>(metrics.x_offset);
