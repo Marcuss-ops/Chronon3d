@@ -235,7 +235,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                                   const std::string& scene, int duration_sec,
                                   const std::string& report_json = {},
                                   int motion_blur_mode = 0,
-                                  int motion_blur_samples = 8);
+                                  int motion_blur_samples = 8,
+                                  const std::string& backend = "auto");
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
                    const std::string& build_command = "",

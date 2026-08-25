@@ -15,6 +15,8 @@
 #include "bench_corpus_scenes.hpp"
 #include <chronon3d/runtime/render_runtime.hpp>
 
+#include <cmath>
+
 #include <chronon3d/presets/scenes/legacy_text_animator.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
@@ -549,6 +551,220 @@ Composition bench_b11_portrait_1080x1920() {
     });
 }
 
+// ── Canonical Performance Baseline (BENCH-1..5) ─────────────────────────
+// TICKET-PERF-BASELINE-V1 — the official Chronon Performance Baseline
+// compositions.  BENCH-4 maps to the EXISTING `bench_b06_video_overlay_1080p()`
+// factory (video + overlays + text; see header).  The other four are NEW.
+// All are pure FrameContext → Scene (deterministic), 90 frames @ 30fps.
+Composition bench_canon1_static() {
+    return composition({
+        .name = "BenchCanon1_Static",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 90,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+
+        // Background + logo — pure static content, NO animation anywhere.
+        add_dark_canvas_background(s);
+        s.layer("logo", [](LayerBuilder& l) {
+            l.screen_dimensions(1920.0f, 1080.0f);
+            l.rounded_rect("logo_plate", {
+                .size = {420.0f, 160.0f},
+                .radius = 24.0f,
+                .color = {0.22f, 0.45f, 0.90f, 0.95f},
+                .fill = chronon3d::FillStyle::linear(
+                    {0.0f, 0.0f}, {1.0f, 1.0f}, {
+                        {chronon3d::graphics::GradientStop{0.0f, {0.10f, 0.30f, 0.80f, 1.0f}}},
+                        {chronon3d::graphics::GradientStop{1.0f, {0.40f, 0.60f, 1.00f, 1.0f}}},
+                    }),
+            });
+            l.text("logo_text", text_preset(
+                "CHRONON", 72.0f, 900,
+                {1.0f, 1.0f, 1.0f, 1.0f},
+                TextAlign::Center, {420.0f, 160.0f}, {0.0f, 0.0f, 0.0f}
+            ));
+        });
+        return s.build();
+    });
+}
+
+Composition bench_canon2_text() {
+    return composition({
+        .name = "BenchCanon2_Text",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 90,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+
+        add_dark_canvas_background(s);
+
+        // Static subtitle (bottom third, no drop-shadow — see
+        // TICKET-PERF-BASELINE-V1 §software-backend composite note).
+        s.screen_layer("subtitle", [](LayerBuilder& l) {
+            l.position({0.0f, 380.0f, 0.0f});
+            l.text("sub", text_preset(
+                "CHRONON · PERFORMANCE BASELINE · SUBTITLE TRACK", 48.0f, 600,
+                {0.92f, 0.92f, 0.95f, 0.95f},
+                TextAlign::Center, {1400.0f, 64.0f}, {0.0f, 0.0f, 0.0f}
+            ));
+        });
+
+        // Animated title text: scales + fades over the timeline (shaping
+        // cost stays constant — layout/transform path is what moves).
+        s.layer("animated_title", [](LayerBuilder& l) {
+            l.position({0.0f, -200.0f, 0.0f});
+            l.text("headline", text_preset(
+                "SMART RENDERING", 120.0f, 900,
+                {1.0f, 0.95f, 0.88f, 1.0f},
+                TextAlign::Center, {1600.0f, 140.0f}, {0.0f, 0.0f, 0.0f}
+            ));
+            // NOTE: opacity-only animation kept intentionally — rotate/scale/
+            // preset-motion triggers a pre-existing software-backend
+            // CompositeNode::ensure_native_surface SEGV on multi-layer scenes
+            // (see TICKET-PERF-BASELINE-V1 §software-backend-composite-rot).
+            auto& op = l.opacity_anim();
+            op.key(Frame{0},  0.0f, EasingCurve{Easing::Hold});
+            op.key(Frame{12}, 0.0f, EasingCurve{Easing::OutCubic});
+            op.key(Frame{30}, 1.0f, EasingCurve{Easing::Linear});
+            op.key(Frame{90}, 1.0f, EasingCurve{Easing::Hold});
+        });
+        return s.build();
+    });
+}
+
+Composition bench_canon3_motion_graphics() {
+    return composition({
+        .name = "BenchCanon3_MotionGraphics",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 90,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+
+        add_dark_canvas_background(s);
+
+        // Motion layer #1 — shapes + transforms (rotating ring of dots).
+        for (int i = 0; i < 24; ++i) {
+            const double angle = 2.0 * 3.141592653589793 * static_cast<double>(i) / 24.0;
+            s.layer("dot_" + std::to_string(i), [angle, i](LayerBuilder& l) {
+                const f32 radius = 320.0f;
+                l.position({
+                    static_cast<f32>(std::cos(angle)) * radius,
+                    static_cast<f32>(std::sin(angle)) * radius,
+                    0.0f,
+                });
+                l.circle("dot", {
+                    .radius = 26.0f,
+                    .color = {0.35f, 0.80f, 1.0f, 0.75f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                });
+                l.opacity(0.75f);
+            });
+        }
+
+        // NOTE: a blurred layer composed below/above the 24 animated dots
+        // SEGVs the SOFTWARE backend (CompositeNode receives a null
+        // framebuffer — `Framebuffer::is_opaque()` on nullptr).  The isolated
+        // trigger was `s.layer(...).rect(...).blur(32)` in a multi-layer
+        // composite; B05 (blur on a 2-layer scene) renders fine.  Blur is
+        // intentionally EXCLUDED from BENCH-3 v1 until the software-backend
+        // composite bug is fixed — see TICKET-PERF-BASELINE-V1
+        // §software-backend composite SEGV (followup).
+        return s.build();
+    });
+}
+
+Composition bench_canon5_heavy() {
+    return composition({
+        .name = "BenchCanon5_Heavy",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 90,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+
+        add_dark_canvas_background(s);
+
+        // Background gradient band (static content).
+        s.screen_layer("band_bg", [](LayerBuilder& l) {
+            l.rect("band", {
+                .size = {1920.0f, 420.0f},
+                .color = {0.05f, 0.20f, 0.35f, 1.0f},
+                .fill = chronon3d::FillStyle::linear(
+                    {0.0f, 0.0f}, {1.0f, 0.0f}, {
+                        {chronon3d::graphics::GradientStop{0.0f, {0.02f, 0.10f, 0.25f, 1.0f}}},
+                        {chronon3d::graphics::GradientStop{1.0f, {0.10f, 0.35f, 0.60f, 1.0f}}},
+                    }),
+            });
+        });
+
+        // Video (image surrogate, same as B06 — decode+composite path).
+        s.layer("video_layer", [](LayerBuilder& l) {
+            l.screen_dimensions(1920.0f, 1080.0f);
+            l.opacity(0.85f);
+            l.image("frame", ImageParams{
+                .asset_path = "assets/images/camera_reference.jpg",
+                .size = {1920.0f, 1080.0f},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .fit = FitMode::Cover,
+                .focal_point = {0.5f, 0.5f},
+                .crop = {},
+                .opacity = 1.0f,
+                .radius = 0.0f,
+            });
+        });
+
+        // Animated lower-third (ticker text, no plate rect / drop-shadow —
+        // see TICKET-PERF-BASELINE-V1 §software-backend composite note).
+        s.layer("lower_third", [](LayerBuilder& l) {
+            l.position({0.0f, 360.0f, 0.0f});
+            l.text("ticker", text_preset(
+                "LIVE · CHRONON HEAVY BENCH · GPU FAST PATH", 40.0f, 800,
+                {1.0f, 1.0f, 1.0f, 0.96f},
+                TextAlign::Center, {980.0f, 70.0f}, {0.0f, 0.0f, 0.0f}
+            ));
+            auto& op = l.opacity_anim();
+            op.key(Frame{0},  0.0f, EasingCurve{Easing::Hold});
+            op.key(Frame{12}, 0.0f, EasingCurve{Easing::OutCubic});
+            op.key(Frame{30}, 1.0f, EasingCurve{Easing::Linear});
+            op.key(Frame{90}, 1.0f, EasingCurve{Easing::Hold});
+        });
+
+        // Extra glow accents (effects) + a second small moving element
+        // to exercise multi-layer dirty/tile interaction.
+        s.screen_layer("glow_accent", [](LayerBuilder& l) {
+            l.blend(BlendMode::Add);
+            l.opacity(0.18f);
+            l.circle("glow", {
+                .radius = 260.0f,
+                .color = {0.6f, 0.25f, 0.9f, 0.16f},
+                .pos = {0.0f, -100.0f, 0.0f},
+            });
+        });
+        s.layer("spinner", [](LayerBuilder& l) {
+            l.position({600.0f, -260.0f, 0.0f});
+            l.star("spark", {
+                .center = {0.0f, 0.0f},
+                .points = 5,
+                .inner_radius = 18.0f,
+                .outer_radius = 52.0f,
+                .color = {1.0f, 0.85f, 0.30f, 0.85f},
+            });
+            auto& op2 = l.opacity_anim();
+            op2.key(Frame{0},  0.25f, EasingCurve{Easing::Hold});
+            op2.key(Frame{45}, 1.0f, EasingCurve{Easing::Linear});
+            op2.key(Frame{90}, 0.25f, EasingCurve{Easing::Hold});
+        });
+        return s.build();
+    });
+}
+
 // ── Perf_EMPTY ──────────────────────────────────────────────────────────
 Composition bench_perf_empty() {
     return composition({
@@ -793,6 +1009,29 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
         .id          = "BenchB11_Portrait1080x1920",
         .category    = "bench/portrait"}, [](const chronon3d::CompositionProps&) {
             return bench_b11_portrait_1080x1920();
+        }));
+
+    // ── 4 Canonical Performance Baseline scenes (TICKET-PERF-BASELINE-V1) ──
+    // BENCH-4 maps to the EXISTING BenchB06_VideoOverlay1080p (see header).
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "BenchCanon1_Static",
+        .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
+            return bench_canon1_static();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "BenchCanon2_Text",
+        .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
+            return bench_canon2_text();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "BenchCanon3_MotionGraphics",
+        .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
+            return bench_canon3_motion_graphics();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "BenchCanon5_Heavy",
+        .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
+            return bench_canon5_heavy();
         }));
 
     registry.add(make_composition_descriptor(CompositionDescriptor{

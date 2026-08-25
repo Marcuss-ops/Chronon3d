@@ -10,6 +10,7 @@
 | Deprecated API | P1 | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
 | Test harness + WBH cert | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Benchmark + CPU budget | P1 | OPEN | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) + [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
+| Perf baseline v1 + SW composite blur SEGV | P1 | DONE/OPEN | [PERF-BASELINE-V1](tickets/TICKET-PERF-BASELINE-V1.md) — baseline lockata; fix blur-in-composite necessario per riabilitare BENCH-3 blur |
 | Cache key rot | P2 | OPEN | [NODE-CACHE-KEY-COLLAPSE-ROT](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | Tools / lint | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
