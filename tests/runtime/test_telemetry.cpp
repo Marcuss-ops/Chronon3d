@@ -7,9 +7,82 @@
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <fstream>
+#include <chrono>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+#include <sqlite3.h>
+#include <set>
+#endif
 using namespace chronon3d;
 
 using namespace chronon3d::telemetry;
+
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+TEST_CASE("SQLite telemetry: initializes the canonical render_runs schema and inserts a run") {
+    const auto db_path = std::filesystem::temp_directory_path() /
+        ("chronon3d-telemetry-schema-" + std::to_string(
+            static_cast<unsigned long long>(std::chrono::high_resolution_clock::now()
+                .time_since_epoch().count())) + ".sqlite");
+    std::filesystem::remove(db_path);
+
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+
+        RenderTelemetryRecord run;
+        run.run_id = "schema-contract-run";
+        run.composition_id = "schema-contract-composition";
+        run.success = true;
+        run.frames_total = 3;
+        run.frames_written = 3;
+        run.framebuffer_pool_empty_alloc = 7;
+        run.framebuffer_pool_best_fit_reuse = 11;
+
+        REQUIRE(store.write_render_run(run));
+    }
+
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.c_str(), &db) == SQLITE_OK);
+
+    sqlite3_stmt* columns_stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(
+        db, "PRAGMA table_info(render_runs);", -1, &columns_stmt, nullptr) == SQLITE_OK);
+    std::set<std::string> columns;
+    while (sqlite3_step(columns_stmt) == SQLITE_ROW) {
+        const auto* name = reinterpret_cast<const char*>(sqlite3_column_text(columns_stmt, 1));
+        if (name != nullptr) columns.emplace(name);
+    }
+    sqlite3_finalize(columns_stmt);
+
+    CHECK(columns.contains("framebuffer_pool_empty_alloc"));
+    CHECK(columns.contains("framebuffer_pool_best_fit_reuse"));
+    CHECK_FALSE(columns.contains("framebuffer_pool_miss_count_empty"));
+    CHECK_FALSE(columns.contains("framebuffer_pool_miss_count_best_fit"));
+    CHECK_FALSE(columns.contains("framebuffer_pool_miss_count_size_mismatch"));
+
+    sqlite3_stmt* run_stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(
+        db,
+        "SELECT run_id, composition_id, frames_total, frames_written, "
+        "framebuffer_pool_empty_alloc, framebuffer_pool_best_fit_reuse "
+        "FROM render_runs WHERE run_id = ?1;",
+        -1, &run_stmt, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_bind_text(
+        run_stmt, 1, "schema-contract-run", -1, SQLITE_STATIC) == SQLITE_OK);
+    REQUIRE(sqlite3_step(run_stmt) == SQLITE_ROW);
+    CHECK(std::string(reinterpret_cast<const char*>(sqlite3_column_text(run_stmt, 0))) ==
+          "schema-contract-run");
+    CHECK(std::string(reinterpret_cast<const char*>(sqlite3_column_text(run_stmt, 1))) ==
+          "schema-contract-composition");
+    CHECK(sqlite3_column_int(run_stmt, 2) == 3);
+    CHECK(sqlite3_column_int(run_stmt, 3) == 3);
+    CHECK(sqlite3_column_int(run_stmt, 4) == 7);
+    CHECK(sqlite3_column_int(run_stmt, 5) == 11);
+    sqlite3_finalize(run_stmt);
+
+    CHECK(sqlite3_close(db) == SQLITE_OK);
+    CHECK(std::filesystem::remove(db_path));
+}
+#endif
 
 TEST_CASE("Telemetry: System Info Queries") {
     std::string os = TelemetryManager::get_os_name();
