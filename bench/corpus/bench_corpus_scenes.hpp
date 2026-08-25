@@ -142,6 +142,24 @@ Composition bench_b10_random_frame_access();
 // Wrap content in a Composition for the registry add() signature.
 Composition bench_b11_portrait_1080x1920();
 
+// ── 4 Canonical Performance Baseline scenes (BenchCanon1/2/3/5) ────────
+// TICKET-PERF-BASELINE-V1 — official Chronon Performance Baseline
+// (BENCH-1..BENCH-5).  BENCH-4 is mapped to the EXISTING
+// `bench_b06_video_overlay_1080p()` factory (exact match: video + overlays
+// + text); no new composition is created for it (Cat-3 anti-dup).
+//
+// BENCH-1 Static          — background + logo, NO animation
+// BENCH-2 Text            — subtitles + animated text (shaping + layout)
+// BENCH-3 Motion Graphics — shapes + blur + transforms + glow
+// BENCH-5 Heavy           — video + text + effects + multiple layers
+//
+// Duration = 90 frames @30fps for all (3s realtime), matching the B00-B11
+// corpus convention.
+Composition bench_canon1_static();
+Composition bench_canon2_text();
+Composition bench_canon3_motion_graphics();
+Composition bench_canon5_heavy();
+
 // ── 6 Microbenchmark scenes (Perf_*) ─────────────────────────────────────
 Composition bench_perf_empty();
 Composition bench_perf_img_same_100();
