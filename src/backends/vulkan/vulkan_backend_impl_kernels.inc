@@ -165,7 +165,10 @@
                           const Image& destination,
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,
-                          const Color& color) {
+                          const Color& color,
+                          const Vec4& shape = Vec4{0.0f},
+                          const Vec4& line = Vec4{0.0f},
+                          const std::array<Vec2, 8>& vertices = {}) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::FillRect)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -173,7 +176,16 @@
         struct PushConstants {
             std::int32_t rect[4];
             float color[4];
-        } params{{x0, y0, x1, y1}, {color.r, color.g, color.b, color.a}};
+            float shape[4];
+            float line[4];
+            float vertices[16];
+        } params{{x0, y0, x1, y1}, {color.r, color.g, color.b, color.a},
+                 {shape.x, shape.y, shape.z, shape.w},
+                 {line.x, line.y, line.z, line.w}, {}};
+        for (std::size_t i = 0; i < vertices.size(); ++i) {
+            params.vertices[i * 2] = vertices[i].x;
+            params.vertices[i * 2 + 1] = vertices[i].y;
+        }
         vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         const auto rx0 = std::clamp(x0, 0, static_cast<std::int32_t>(destination.width));
@@ -555,6 +567,7 @@
             bytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
         slot.params = memory_manager.create_buffer(buffer_info, VulkanMemoryClass::HostUpload);
+        if (debug_context) debug_context->set_buffer_name(slot.params.buffer, "Chronon3D.Buffer.ReplayParams");
     }
 
     /// Open a replay slot for recording.  The caller records all commands
@@ -573,12 +586,14 @@
             check(vkAllocateCommandBuffers(device, &alloc_info,
                                            &slot.command_buffer),
                   "vkAllocateCommandBuffers(replay slot)");
+            if (debug_context) debug_context->set_command_buffer_name(slot.command_buffer, "Chronon3D.CommandBuffer.ReplaySlot");
         }
         if (slot.fence == VK_NULL_HANDLE) {
             const VkFenceCreateInfo fence_info{
                 VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
             check(vkCreateFence(device, &fence_info, nullptr, &slot.fence),
                   "vkCreateFence(replay slot)");
+            if (debug_context) debug_context->set_fence_name(slot.fence, "Chronon3D.Fence.ReplaySlot");
         }
         const VkCommandBufferBeginInfo begin{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
