@@ -1,5 +1,9 @@
 # Chronon3D — Current Status
 
+## Performance Baseline — 2026-08-25
+
+- **Chronon Performance Baseline ufficiale (BENCH-1..5) DONE**: 5 composition canoniche, runner suite, report GPU/CPU, budget LOCKED (p50/p95 ×1.4) e gate `tools/check_perf_baseline.sh` PASS 10/10 su `main@eb871240` (CPU/software; GPU-side budget da bloccare su macchina Vulkan). Dettaglio: [TICKET-PERF-BASELINE-V1](tickets/TICKET-PERF-BASELINE-V1.md).
+
 ## GPU checkpoint — 2026-08-19/20
 
 - GPU-native 1920x1080 960f watermark+subtitle: **4.11s** vs NVDEC→NVENC 2.53s (+62%), CPU 29%, `gpu_readback_bytes=0`, `fallback=0`, `effective_backend=vulkan`.
