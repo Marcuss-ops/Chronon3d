@@ -24,6 +24,8 @@ typedef struct CUctx_st *CUcontext;
 
 namespace chronon3d::backends::vulkan {
 
+class VulkanDebugContext;
+
 struct VulkanBackendStats {
     static constexpr std::size_t kUploadProducerCount =
         static_cast<std::size_t>(profiling::GpuUploadProducer::Count);
@@ -66,20 +68,6 @@ struct VulkanBackendStats {
     // the device exposes no timestamp support). This is the GPU execution
     // time, distinct from the CPU-side submit/wait metrics above.
     std::uint64_t gpu_execute_us{0};
-    // Compatibility bridge telemetry. These counters make the hybrid path
-    // explicit instead of silently presenting CPU work as Vulkan work.
-    std::uint64_t software_fallback_nodes{0};
-    std::uint64_t software_fallback_us{0};
-    std::uint64_t fallback_draw_node{0};
-    std::uint64_t fallback_draw_image{0};
-    std::uint64_t fallback_draw_other{0};
-    std::uint64_t fallback_text_run{0};
-    std::uint64_t fallback_composite{0};
-    std::uint64_t fallback_composite_dimensions{0};
-    std::uint64_t fallback_composite_mode{0};
-    std::uint64_t fallback_effect{0};
-    std::uint64_t fallback_blur{0};
-    std::uint64_t fallback_dof{0};
     // Detailed native Vulkan execution metrics
     std::uint64_t vk_cmd_dispatch_count{0};
     std::uint64_t vk_cmd_draw_count{0};
@@ -87,11 +75,8 @@ struct VulkanBackendStats {
     std::uint64_t barriers_emitted{0};
     std::uint64_t layer_batch_calls{0};
     std::uint64_t layer_instances_processed{0};
-    std::uint64_t legacy_transform_calls{0};
-    std::uint64_t legacy_composite_calls{0};
     std::uint64_t text_batch_calls{0};
     std::uint64_t glyphs_processed{0};
-    std::uint64_t legacy_text_run_surface_calls{0};
     // VMA Memory Telemetry
     std::uint64_t vma_allocation_bytes{0};
     std::uint64_t vma_block_bytes{0};
@@ -245,11 +230,6 @@ public:
         const LensModel&, const std::optional<raster::BBox>&) override;
     void draw_node(Framebuffer&, const RenderNode&, const RenderState&,
                    const Camera&, int, int) override;
-    /// Compatibility bridge for RenderNode shapes that have not yet migrated
-    /// to the native RenderSurface API. The selected backend remains Vulkan;
-    /// only the legacy node rasterisation is delegated to the canonical
-    /// software backend.
-    void set_draw_node_fallback(std::unique_ptr<graph::RenderBackend> fallback);
     void apply_effect_stack(Framebuffer&, const EffectStack&,
                             const effects::EffectExecutionContext&) override;
     void composite_layer(Framebuffer&, const Framebuffer&, BlendMode,
@@ -291,6 +271,15 @@ public:
     graph::RenderOpResult fill_rect_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, const Color&) override;
+    /// Native axis-aligned solid primitive fill. `primitive_kind` is 0 for
+    /// rectangles, 1 for rounded rectangles and 2 for ellipses; radii are in
+    /// destination pixels.
+    graph::RenderOpResult fill_solid_shape_surface(
+        runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
+        std::int32_t, std::int32_t, const Vec4& shape,
+        const Vec4& line, const Color&);
+    graph::RenderOpResult fill_path_surface(
+        runtime::RenderSurfaceHandle, std::span<const Vec2>, const Color&);
     graph::RenderOpResult transform_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         int, int, float) override;
@@ -366,14 +355,8 @@ public:
 #endif
 
 private:
-    std::unique_ptr<graph::RenderBackend> m_draw_node_fallback;
-    void record_software_fallback(
-        const char* reason,
-        std::chrono::steady_clock::time_point started) noexcept;
-    void record_fallback_counter(const char* reason,
-                                 std::uint64_t elapsed_us) noexcept;
-    void record_fallback_shape(bool image) noexcept;
-    void record_fallback_composite(bool dimensions) noexcept;
+    template <typename Fn>
+    graph::RenderOpResult run_batched_surface_op(Fn&& fn);
     void composite_legacy_surface(
         Framebuffer& destination, const Framebuffer& source, BlendMode mode,
         const std::optional<raster::BBox>& clip);
@@ -391,6 +374,7 @@ private:
     // for the Perfetto "Chronon Vulkan Queue" track (Fase 6); when false the
     // backend reports only CPU-side submit/fence-wait events.
     bool m_calibrated_timestamps_supported{false};
+    std::unique_ptr<VulkanDebugContext> m_debug_context;
 #endif
 };
 

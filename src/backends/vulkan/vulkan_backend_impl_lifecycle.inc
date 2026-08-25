@@ -3,10 +3,12 @@
 
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
          std::uint32_t family, VkCommandPool pool,
-         bool calibrated_timestamps_supported)
+         bool calibrated_timestamps_supported,
+         VulkanDebugContext* dbg_ctx = nullptr)
         : instance(inst), physical_device(physical), device(logical), queue(graphics),
           queue_family(family), command_pool(pool),
-          calibrated_ts_supported(calibrated_timestamps_supported) {
+          calibrated_ts_supported(calibrated_timestamps_supported),
+          debug_context(dbg_ctx) {
         memory_manager.initialize(instance, physical_device, device);
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);
@@ -35,6 +37,7 @@
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 5, bindings};
         check(vkCreateDescriptorSetLayout(device, &layout_info, nullptr, &descriptor_layout),
               "vkCreateDescriptorSetLayout");
+        if (debug_context) debug_context->set_descriptor_set_layout_name(descriptor_layout, "Chronon3D.DescriptorSetLayout.General");
 
         // One persistent set serves the single-pass operations; glow reuses
         // three additional sets so all three dispatches in its one command
@@ -51,14 +54,16 @@
             256, 2, pool_sizes};
         check(vkCreateDescriptorPool(device, &pool_info, nullptr, &descriptor_pool),
               "vkCreateDescriptorPool");
+        if (debug_context) debug_context->set_descriptor_pool_name(descriptor_pool, "Chronon3D.DescriptorPool.General");
 
         const VkPushConstantRange push_constants{
-            VK_SHADER_STAGE_COMPUTE_BIT, 0, 96};
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, 128};
         const VkPipelineLayoutCreateInfo pipeline_layout_info{
             VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1, &descriptor_layout,
             1, &push_constants};
         check(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline_layout),
               "vkCreatePipelineLayout");
+        if (debug_context) debug_context->set_pipeline_layout_name(pipeline_layout, "Chronon3D.PipelineLayout.General");
 
         const VkDescriptorSetLayoutBinding tile_bin_bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
@@ -71,6 +76,7 @@
         check(vkCreateDescriptorSetLayout(device, &tile_bin_layout_info, nullptr,
                                           &text_tile_bin_descriptor_layout),
               "vkCreateDescriptorSetLayout(text tile bin)");
+        if (debug_context) debug_context->set_descriptor_set_layout_name(text_tile_bin_descriptor_layout, "Chronon3D.DescriptorSetLayout.TextTileBin");
 
         const VkDescriptorSetLayoutBinding tile_raster_bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
@@ -85,6 +91,7 @@
         check(vkCreateDescriptorSetLayout(device, &tile_raster_layout_info, nullptr,
                                           &text_tile_raster_descriptor_layout),
               "vkCreateDescriptorSetLayout(text tile raster)");
+        if (debug_context) debug_context->set_descriptor_set_layout_name(text_tile_raster_descriptor_layout, "Chronon3D.DescriptorSetLayout.TextTileRaster");
 
         const VkPushConstantRange tile_bin_push{
             VK_SHADER_STAGE_COMPUTE_BIT, 0, 24};
@@ -94,6 +101,7 @@
         check(vkCreatePipelineLayout(device, &tile_bin_pipeline_layout_info, nullptr,
                                      &text_tile_bin_pipeline_layout),
               "vkCreatePipelineLayout(text tile bin)");
+        if (debug_context) debug_context->set_pipeline_layout_name(text_tile_bin_pipeline_layout, "Chronon3D.PipelineLayout.TextTileBin");
 
         const VkPushConstantRange tile_raster_push{
             VK_SHADER_STAGE_COMPUTE_BIT, 0, 28};
@@ -103,6 +111,7 @@
         check(vkCreatePipelineLayout(device, &tile_raster_pipeline_layout_info, nullptr,
                                      &text_tile_raster_pipeline_layout),
               "vkCreatePipelineLayout(text tile raster)");
+        if (debug_context) debug_context->set_pipeline_layout_name(text_tile_raster_pipeline_layout, "Chronon3D.PipelineLayout.TextTileRaster");
 
         const VkShaderModuleCreateInfo shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -128,6 +137,7 @@
             vkDestroyPipeline(device, composite_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected Composite pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(composite_pipeline, "Chronon3D.Pipeline.Composite");
 
         const VkShaderModuleCreateInfo transform_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -154,6 +164,7 @@
             vkDestroyPipeline(device, transform_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected Transform pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(transform_pipeline, "Chronon3D.Pipeline.Transform");
 
         const VkShaderModuleCreateInfo affine_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -180,6 +191,7 @@
             vkDestroyPipeline(device, affine_transform_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected AffineTransform pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(affine_transform_pipeline, "Chronon3D.Pipeline.AffineTransform");
 
         const VkShaderModuleCreateInfo blur_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -206,6 +218,7 @@
             vkDestroyPipeline(device, blur_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected Blur pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(blur_pipeline, "Chronon3D.Pipeline.Blur");
 
         const VkShaderModuleCreateInfo color_adjust_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -232,6 +245,7 @@
             vkDestroyPipeline(device, color_adjust_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected ColorAdjust pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(color_adjust_pipeline, "Chronon3D.Pipeline.ColorAdjust");
 
         const VkShaderModuleCreateInfo matte_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -258,6 +272,7 @@
             vkDestroyPipeline(device, matte_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected Matte pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(matte_pipeline, "Chronon3D.Pipeline.Matte");
 
         const VkShaderModuleCreateInfo text_run_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -284,6 +299,7 @@
             vkDestroyPipeline(device, text_run_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected TextRun pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(text_run_pipeline, "Chronon3D.Pipeline.TextRun");
 
         const VkShaderModuleCreateInfo fill_rect_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -310,6 +326,7 @@
             vkDestroyPipeline(device, fill_rect_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected FillRect pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(fill_rect_pipeline, "Chronon3D.Pipeline.FillRect");
 
         const VkShaderModuleCreateInfo layer_batch_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -336,6 +353,7 @@
             vkDestroyPipeline(device, layer_batch_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected LayerBatch pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(layer_batch_pipeline, "Chronon3D.Pipeline.LayerBatch");
 
         const VkShaderModuleCreateInfo text_batch_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -362,6 +380,7 @@
             vkDestroyPipeline(device, text_batch_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected TextBatch pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(text_batch_pipeline, "Chronon3D.Pipeline.TextBatch");
 
         const VkShaderModuleCreateInfo text_tile_bin_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -390,6 +409,7 @@
             vkDestroyPipeline(device, text_tile_bin_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected TextTileBin pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(text_tile_bin_pipeline, "Chronon3D.Pipeline.TextTileBin");
 
         const VkShaderModuleCreateInfo text_tile_raster_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -418,12 +438,14 @@
             vkDestroyPipeline(device, text_tile_raster_pipeline, nullptr);
             throw std::runtime_error("Vulkan kernel registry rejected TextTileRaster pipeline");
         }
+        if (debug_context) debug_context->set_pipeline_name(text_tile_raster_pipeline, "Chronon3D.Pipeline.TextTileRaster");
 
         const VkCommandBufferAllocateInfo command_info{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,
             VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
         check(vkAllocateCommandBuffers(device, &command_info, &command_buffer),
               "vkAllocateCommandBuffers");
+        if (debug_context) debug_context->set_command_buffer_name(command_buffer, "Chronon3D.CommandBuffer.Main");
         // Dedicated command buffers + fences + descriptor pools for the
         // frame-batch ring so batch recording never conflicts with the
         // standalone command buffer used by uploads, downloads and
@@ -435,11 +457,13 @@
         for (auto& slot_buffer : frame_batch.command_buffers) {
             check(vkAllocateCommandBuffers(device, &batch_command_info, &slot_buffer),
                   "vkAllocateCommandBuffers(frame batch slot)");
+            if (debug_context) debug_context->set_command_buffer_name(slot_buffer, "Chronon3D.CommandBuffer.FrameBatchSlot");
         }
         const VkFenceCreateInfo fence_info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
         for (auto& slot_fence : frame_batch.fences) {
             check(vkCreateFence(device, &fence_info, nullptr, &slot_fence),
                   "vkCreateFence(frame batch slot)");
+            if (debug_context) debug_context->set_fence_name(slot_fence, "Chronon3D.Fence.FrameBatchSlot");
         }
         for (auto& allocator : frame_batch.descriptor_allocators) {
             allocator.create(device, descriptor_layout);
@@ -451,6 +475,7 @@
             allocator.create(device, text_tile_raster_descriptor_layout, 2, 4);
         }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
+        if (debug_context) debug_context->set_fence_name(fence, "Chronon3D.Fence.Main");
         const VkSemaphoreTypeCreateInfo timeline_type{
             VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO, nullptr,
             VK_SEMAPHORE_TYPE_TIMELINE, 0};
@@ -458,6 +483,7 @@
             VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &timeline_type, 0};
         check(vkCreateSemaphore(device, &timeline_info, nullptr, &timeline_semaphore),
               "vkCreateSemaphore(timeline)");
+        if (debug_context) debug_context->set_semaphore_name(timeline_semaphore, "Chronon3D.Semaphore.Timeline");
 
         if (timestamp_valid_bits != 0) {
             const VkQueryPoolCreateInfo query_pool_info{
@@ -466,6 +492,7 @@
                 static_cast<std::uint32_t>(2 * FrameBatchState::kSlotCount), 0};
             check(vkCreateQueryPool(device, &query_pool_info, nullptr, &timestamp_pool),
                   "vkCreateQueryPool(timestamp)");
+            if (debug_context) debug_context->set_query_pool_name(timestamp_pool, "Chronon3D.QueryPool.Timestamp");
         }
 
         // VK_EXT_calibrated_timestamps: sample (device GPU timestamp, Perfetto
