@@ -5,9 +5,12 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 
+#include "scene_fingerprint.hpp"
+
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -39,6 +42,61 @@ struct LayerDelta {
     raster::BBox new_bounds{};
 };
 
+/// Canonical input bundle for the previous frame (the "PreviousFrameState"
+/// half of the delta compiler contract).  Every prev/current comparison in
+/// the runtime must flow through FrameDeltaCompiler; no pipeline phase
+/// computes its own diff of these fields.
+struct FrameStateSnapshot {
+    Frame frame{};
+
+    // Per-layer bbox + semantic fingerprints.  May be EMPTY in the early
+    // (pre-resolve) phase where only scene-level fingerprints are available.
+    std::unordered_map<std::string, LayerBBoxState> layers;
+
+    // Scene-level fingerprints (see scene_fingerprint.hpp).  Zero-invalid
+    // when the producer has no history / hashing is not available.
+    FrameFingerprints fingerprints{};
+    bool fingerprints_valid{false};
+
+    // Camera at the state's frame (by value; use camera_valid to gate).
+    Camera2_5D camera{};
+    bool camera_valid{false};
+
+    // Scene properties consumed by the reuse gate.
+    bool has_projected_surface{false};
+    // Whether a previous framebuffer exists with the same width/height.
+    bool has_previous_surface{false};
+    // Whether the scene content is static across frame indices.
+    bool scene_is_static{false};
+};
+
+/// Reuse analysis of PreviousFrameState vs CurrentFrameState.  This is the
+/// SINGLE authority for "can we skip work" — the execution resolver and the
+/// graph-cache coordinator consume these flags instead of re-comparing
+/// fingerprints themselves.
+struct FrameReuseEligibility {
+    // Fast path #1: resolved-scene reuse (combined fingerprint identical +
+    // camera unchanged + previous surface available + no projected layers
+    // + sequential frame adjacency).
+    bool resolved_scene_reuse{false};
+
+    // Fast path #2: static-scene reuse (structure/static/active-at
+    // fingerprints all unchanged + camera unchanged + eligible frame window).
+    bool static_scene_reuse{false};
+
+    // Graph topology unchanged — the compiled-graph cache may be refreshed
+    // instead of rebuilt.
+    bool structure_unchanged{false};
+
+    // Camera identical between the two states (policy from
+    // camera_change_policy.hpp, exposed here as the single sanctioned entry).
+    bool camera_unchanged{true};
+
+    // Stable snake_case token describing WHY reuse was rejected (first
+    // failing gate). "" when at least one reuse path is available.
+    std::string_view reason;
+};
+
 /// Result of the canonical current-vs-previous layer analysis.
 struct FrameDelta {
     Frame frame{};
@@ -46,7 +104,10 @@ struct FrameDelta {
     std::optional<raster::BBox> dirty_bounds;
     std::optional<raster::DirtyTileMask> dirty_tiles;
 
-    // Frame-level semantic summary.  These fields are intentionally additive
+    // Reuse eligibility derived from the same prev/current states.
+    FrameReuseEligibility reuse{};
+
+    // Frame-level semantic flags.  These fields are intentionally additive
     // to the original bounds-only result and are derived solely from changes.
     bool scene_changed{false};
     bool camera_changed{false};
@@ -78,6 +139,26 @@ public:
         int width,
         int height,
         const raster::TileGrid* tile_grid = nullptr);
+
+    /// FULL canonical entry: PreviousFrameState + CurrentFrameState →
+    /// FrameDelta (layer changes + dirty bounds/tiles + reuse eligibility
+    /// + camera diff).  Every prev/current comparison in the runtime must
+    /// route through this function (or `compile` for the layer-only
+    /// variant) — no pipeline owns its own diff logic.
+    [[nodiscard]] static FrameDelta compile_state(
+        const FrameStateSnapshot& previous,
+        const FrameStateSnapshot& current,
+        int width,
+        int height,
+        const raster::TileGrid* tile_grid = nullptr);
+
+    /// Single sanctioned prev/current camera comparison.  Mirrors
+    /// camera_change_policy::camera_changed() and is the only allowed
+    /// entry point for pipeline camera diffs.
+    [[nodiscard]] static bool camera_unchanged(
+        const Camera2_5D& current,
+        const Camera2_5D* previous,
+        bool previous_valid);
 };
 
 } // namespace chronon3d::graph::detail

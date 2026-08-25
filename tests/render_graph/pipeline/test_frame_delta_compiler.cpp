@@ -281,3 +281,108 @@ TEST_CASE("FrameDeltaCompiler keeps an unchanged frame clean") {
     REQUIRE(delta.dirty_tiles.has_value());
     CHECK(delta.dirty_tiles->dirty_count() == 0);
 }
+
+namespace {
+
+chronon3d::graph::detail::FrameStateSnapshot reuse_state(
+    chronon3d::Frame frame,
+    std::uint64_t static_fp,
+    std::uint64_t active_at_fp,
+    std::uint64_t structure_fp,
+    std::uint64_t combined_fp) {
+    chronon3d::graph::detail::FrameStateSnapshot state;
+    state.frame = frame;
+    state.fingerprints = chronon3d::graph::FrameFingerprints{
+        static_fp, active_at_fp, structure_fp, combined_fp};
+    state.fingerprints_valid = true;
+    state.has_previous_surface = true;
+    return state;
+}
+
+} // namespace
+
+TEST_CASE("FrameDeltaCompiler grants resolved reuse for identical sequential states") {
+    auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
+    auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+
+    const auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+
+    CHECK(delta.reuse.resolved_scene_reuse);
+    CHECK_FALSE(delta.reuse.static_scene_reuse);
+    CHECK(delta.reuse.structure_unchanged);
+    CHECK(delta.reuse.camera_unchanged);
+    CHECK(delta.reuse.reason.empty());
+}
+
+TEST_CASE("FrameDeltaCompiler rejects reuse when fingerprints or camera change") {
+    auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
+    auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 99);
+
+    auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+    CHECK_FALSE(delta.reuse.resolved_scene_reuse);
+    CHECK(delta.reuse.reason == "combined_fingerprint_changed");
+
+    current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+    current.camera.enabled = true;
+    current.camera.position.x = 10.0f;
+    delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+    CHECK_FALSE(delta.reuse.resolved_scene_reuse);
+    CHECK_FALSE(delta.reuse.camera_unchanged);
+    CHECK(delta.reuse.reason == "camera_changed");
+}
+
+TEST_CASE("FrameDeltaCompiler reports static-scene reuse independently of resolved reuse") {
+    auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
+    auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+    current.scene_is_static = true;
+
+    const auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+
+    CHECK(delta.reuse.resolved_scene_reuse);
+    CHECK(delta.reuse.static_scene_reuse);
+}
+
+TEST_CASE("FrameDeltaCompiler exposes semantic layer changes through the full state entry") {
+    auto previous_layer = layer(BBox{4, 8, 20, 24});
+    auto current_layer = previous_layer;
+    previous_layer.semantic_fingerprints_valid = true;
+    current_layer.semantic_fingerprints_valid = true;
+    previous_layer.semantic_presence = SemanticText | SemanticColor;
+    current_layer.semantic_presence = SemanticText | SemanticColor;
+    previous_layer.text_hash = 1;
+    current_layer.text_hash = 2;
+    previous_layer.color_hash = 3;
+    current_layer.color_hash = 4;
+
+    auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
+    auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+    previous.layers.emplace("caption", previous_layer);
+    current.layers.emplace("caption", current_layer);
+
+    const auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+
+    REQUIRE(delta.changes.size() == 1);
+    const auto mask = delta.changes.front().change_mask;
+    CHECK((mask & LayerText) != 0);
+    CHECK((mask & LayerColor) != 0);
+    CHECK(delta.text_changed);
+    CHECK(delta.color_changed);
+    REQUIRE(delta.dirty_bounds.has_value());
+    CHECK_FALSE(delta.dirty_bounds->is_empty());
+}
+
+TEST_CASE("FrameDeltaCompiler blocks reuse for projected surfaces and missing surfaces") {
+    auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
+    auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+    current.has_projected_surface = true;
+
+    auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+    CHECK_FALSE(delta.reuse.resolved_scene_reuse);
+    CHECK(delta.reuse.reason == "projected_surface");
+
+    current.has_projected_surface = false;
+    current.has_previous_surface = false;
+    delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+    CHECK_FALSE(delta.reuse.resolved_scene_reuse);
+    CHECK(delta.reuse.reason == "missing_previous_surface");
+}

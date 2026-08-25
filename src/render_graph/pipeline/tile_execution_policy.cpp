@@ -222,22 +222,52 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
                    (layer.uses_2_5d_projection || layer.is_native_3d());
         });
 
-    // Compute the fingerprints once and carry them in the plan.  This
-    // replaces the former coordinator's separate reuse-evaluation result.
+    // FrameDeltaCompiler is the sole authority for previous/current
+    // fingerprint and camera comparisons.  This phase has scene-level state;
+    // the resolved layer map is compiled later by the same authority through
+    // compute_dirty_rect().
     plan.frame_fingerprints = compute_frame_fingerprints(
         sw_renderer->scene_hasher(), scene, frame,
         ctx.services.registry_generation);
 
     const bool has_surface = has_matching_previous_surface(sw_renderer, width, height);
-    const bool frame_eligible = has_surface &&
-        (history.prev_frame == frame - 1 || history.prev_frame == frame);
-    const bool camera_moved = detail::camera_changed(
-        camera, &history.prev_camera, history.prev_camera_valid);
+    const bool previous_fingerprints_valid =
+        history.prev_scene_fingerprint != 0 ||
+        history.prev_static_scene_fingerprint != 0;
+    const bool scene_is_static = previous_fingerprints_valid &&
+        sw_renderer->scene_hasher().is_static_scene_at(scene, frame);
 
-    // Fast path #1: resolved-scene reuse. This intentionally retains the
-    // previous strict contract based on the combined fingerprint.
-    if (!has_projected_surface && frame_eligible && !camera_moved &&
-        history.prev_scene_fingerprint == plan.frame_fingerprints.combined_fp) {
+    detail::FrameStateSnapshot previous_state;
+    previous_state.frame = history.prev_frame;
+    previous_state.fingerprints = FrameFingerprints{
+        history.prev_static_scene_fingerprint,
+        history.prev_active_at_fingerprint,
+        history.prev_graph_structure_fingerprint,
+        history.prev_scene_fingerprint};
+    previous_state.fingerprints_valid = previous_fingerprints_valid;
+    previous_state.camera = history.prev_camera;
+    previous_state.camera_valid = history.prev_camera_valid;
+
+    detail::FrameStateSnapshot current_state;
+    current_state.frame = frame;
+    current_state.fingerprints = plan.frame_fingerprints;
+    current_state.fingerprints_valid = true;
+    current_state.camera = camera;
+    current_state.camera_valid = camera.enabled;
+    current_state.has_projected_surface = has_projected_surface;
+    current_state.has_previous_surface = has_surface;
+    current_state.scene_is_static = scene_is_static;
+
+    const auto reuse = detail::FrameDeltaCompiler::compile_state(
+        previous_state, current_state, width, height);
+
+    if (previous_fingerprints_valid) {
+        plan.scene_structure_unchanged = reuse.reuse.structure_unchanged;
+        plan.static_camera_changed = !reuse.reuse.camera_unchanged;
+        plan.scene_is_static = scene_is_static;
+    }
+
+    if (reuse.reuse.resolved_scene_reuse) {
         record_surface_reuse(
             sw_renderer, frame, camera,
             plan.frame_fingerprints.combined_fp,
@@ -250,28 +280,7 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         return plan;
     }
 
-    if (history.prev_static_scene_fingerprint != 0) {
-        plan.scene_structure_unchanged =
-            plan.frame_fingerprints.structure_fp ==
-            history.prev_graph_structure_fingerprint;
-        plan.static_camera_changed = camera_moved;
-        plan.scene_is_static =
-            sw_renderer->scene_hasher().is_static_scene_at(scene, frame);
-    }
-
-    // Fast path #2: static-scene reuse.
-    const bool static_frame_eligible = has_surface &&
-        (history.prev_frame == frame ||
-         (plan.scene_is_static && history.prev_frame == frame - 1));
-    const bool active_at_unchanged =
-        plan.frame_fingerprints.active_at_fp != 0 &&
-        plan.frame_fingerprints.active_at_fp ==
-            history.prev_active_at_fingerprint;
-    if (!has_projected_surface && static_frame_eligible &&
-        plan.scene_structure_unchanged && !plan.static_camera_changed &&
-        active_at_unchanged && history.prev_static_scene_fingerprint != 0 &&
-        plan.frame_fingerprints.static_fp ==
-            history.prev_static_scene_fingerprint) {
+    if (reuse.reuse.static_scene_reuse) {
         record_surface_reuse(
             sw_renderer, frame, camera,
             plan.frame_fingerprints.combined_fp,
