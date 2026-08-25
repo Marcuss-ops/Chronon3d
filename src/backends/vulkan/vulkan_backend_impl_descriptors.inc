@@ -52,12 +52,18 @@
         const auto alloc = memory_manager.create_image(info, mem_class);
         target.image = alloc.image;
         target.allocation = alloc.allocation;
+        if (debug_context) {
+            debug_context->set_image_name(target.image, exportable ? "Chronon3D.CudaExportableImage" : "Chronon3D.DeviceLocalImage");
+        }
 
         const VkImageViewCreateInfo view{
             VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, nullptr, 0, target.image,
             VK_IMAGE_VIEW_TYPE_2D, format, {},
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
         check(vkCreateImageView(device, &view, nullptr, &target.view), "vkCreateImageView");
+        if (debug_context) {
+            debug_context->set_image_view_name(target.view, exportable ? "Chronon3D.CudaExportableImageView" : "Chronon3D.DeviceLocalImageView");
+        }
         target.width = width;
         target.height = height;
         target.format = format;
@@ -74,6 +80,9 @@
         VkSemaphore semaphore = VK_NULL_HANDLE;
         check(vkCreateSemaphore(device, &info, nullptr, &semaphore),
               "vkCreateSemaphore(external CUDA interop)");
+        if (debug_context) {
+            debug_context->set_semaphore_name(semaphore, "Chronon3D.Semaphore.CudaInterop");
+        }
         return semaphore;
     }
 

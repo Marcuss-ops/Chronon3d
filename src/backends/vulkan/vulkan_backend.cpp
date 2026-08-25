@@ -20,6 +20,7 @@
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
 #include "memory/vulkan_memory_manager.hpp"
+#include "debug/vulkan_debug_context.hpp"
 #endif
 
 #include <array>
@@ -398,6 +399,7 @@ struct VulkanBackend::Impl {
     float timestamp_period_ns{0.0f};
     std::uint32_t timestamp_valid_bits{0};
     VulkanMemoryManager memory_manager{};
+    VulkanDebugContext* debug_context{nullptr};
     VulkanBackendStats stats{};
 #include "vulkan_backend_impl_lifecycle.inc"
     ~Impl() {
@@ -633,6 +635,10 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
                 sizeof(float) * 4};
         m_impl->bind_handle_to_slot(allocation.surface, allocation.physical_slot, desc);
     }
+    // Rebinding a plan can leave the pre-plan pool slots orphaned. They are
+    // not part of the compiled plan and must not inflate the physical-surface
+    // pool or survive the frame as hidden compatibility allocations.
+    m_impl->prune_unused_transient_slots();
 #else
     (void)plan;
     unsupported("begin_plan_batch");
