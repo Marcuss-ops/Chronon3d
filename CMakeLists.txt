@@ -6,6 +6,16 @@ project(Chronon3d
     LANGUAGES C CXX
 )
 
+# Keep compile parallelism high while preventing concurrent links from
+# exhausting the build host. Chronon3d has several large unity/static-library
+# consumers and the CLI/shared-library links can each require substantial
+# peak RSS. With Ninja this preserves `-j12..14` throughput for compilation
+# and allows only one memory-heavy link at a time.
+if(CMAKE_GENERATOR MATCHES "Ninja")
+    set_property(GLOBAL PROPERTY JOB_POOLS chronon3d_link_pool=1)
+    set(CMAKE_JOB_POOL_LINK chronon3d_link_pool)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -42,6 +52,12 @@ if(NOT CMAKE_CXX_LINKER_LAUNCHER)
         if(LLD_PROGRAM)
             message(STATUS "lld found: ${LLD_PROGRAM}")
             add_link_options("-fuse-ld=lld")
+        else()
+            find_program(GOLD_PROGRAM ld.gold)
+            if(GOLD_PROGRAM)
+                message(STATUS "gold found: ${GOLD_PROGRAM}")
+                add_link_options("-fuse-ld=gold")
+            endif()
         endif()
     endif()
 endif()
@@ -80,9 +96,6 @@ option(CHRONON3D_ENABLE_CRASH_HANDLER
        "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
 option(CHRONON3D_ENABLE_DEV_WATCH
        "Enable file-system watch mode for development (efsw) — CLI dev only" OFF)
-option(CHRONON3D_BUILD_EXPRTK_SPIKE
-       "Build the isolated ExprTk expression compiler feasibility spike" OFF)
-
 if(CHRONON3D_ENABLE_SVG)
     find_package(boost_spirit CONFIG REQUIRED)
     find_package(boost_math CONFIG REQUIRED)
@@ -179,8 +192,10 @@ find_package(Stb REQUIRED)
 if(CHRONON3D_BUILD_CLI)
     find_package(CLI11 CONFIG REQUIRED)
 endif()
-find_package(flatbuffers CONFIG REQUIRED)
-find_program(CHRONON3D_FLATC flatc REQUIRED)
+if(CHRONON3D_ENABLE_IPC)
+    find_package(flatbuffers CONFIG REQUIRED)
+    find_program(CHRONON3D_FLATC flatc REQUIRED)
+endif()
 find_package(hwy CONFIG REQUIRED)
 if(CHRONON3D_USE_BLEND2D)
     find_package(blend2d CONFIG REQUIRED)
@@ -221,6 +236,8 @@ if(CHRONON3D_ENABLE_VULKAN)
             target_include_directories(chronon3d_spirv_reflect_headers SYSTEM
                 INTERFACE "${CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT}"
             )
+        else()
+            message(FATAL_ERROR "Could not find spirv_reflect.h include root for unofficial::spirv-reflect")
         endif()
     endif()
     find_package(VulkanMemoryAllocator CONFIG REQUIRED)
@@ -272,10 +289,6 @@ if(CHRONON3D_ENABLE_VULKAN)
 endif()
 
 add_subdirectory(src)
-
-if(CHRONON3D_BUILD_EXPRTK_SPIKE)
-    add_subdirectory(tools/spikes/exprtk)
-endif()
 
 # 10. Content Generation (optional — proofs/demos, not core engine)
 if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
