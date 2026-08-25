@@ -25,6 +25,8 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
+        "CHRONON3D_ENABLE_IPC": "OFF",
+        "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "VCPKG_MANIFEST_FEATURES": "tests"
@@ -55,7 +57,7 @@
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     },
     {
@@ -75,7 +77,7 @@
         "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     },
     {
@@ -95,7 +97,7 @@
         "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     },
     {
@@ -117,7 +119,7 @@
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;telemetry;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;telemetry;tests;ipc"
       }
     },
     {
@@ -139,7 +141,7 @@
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;video"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;video;ipc"
       }
     }
   ],

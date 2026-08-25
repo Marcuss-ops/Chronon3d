@@ -23,6 +23,8 @@
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
+        "CHRONON3D_ENABLE_IPC": "OFF",
+        "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "32",
         "CHRONON3D_DEV_SPLIT_DWARF": "ON",
@@ -57,7 +59,7 @@
         "CHRONON3D_DEV_SPLIT_DWARF": "ON",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     }
   ]
