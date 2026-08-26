@@ -47,6 +47,7 @@ void record_dirty_telemetry(
     SoftwareRenderer* sw_renderer,
     const detail::DirtyRectOutput& dirty_out,
     bool use_tile_execution,
-    bool graph_reused);
+    bool graph_reused,
+    FrameExecutionPath path = FrameExecutionPath::FullRgb);
 
 } // namespace chronon3d::graph
