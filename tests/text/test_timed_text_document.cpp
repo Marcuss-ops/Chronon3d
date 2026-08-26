@@ -339,6 +339,103 @@ TEST_CASE("timed_text_from_json — auto-generated word breakdown when no words"
     CHECK(doc.cues[0].words[2].text == "words");
 }
 
+// ── ASS adapter tests ─────────────────────────────────────────────────
+
+// The canonical PipelineGen-generated ASS shape (CompileASSContent):
+// [Script Info] + [V4+ Styles] + [Events] with H:MM:SS.cc Dialogue rows.
+TEST_CASE("timed_text_from_ass — canonical PipelineGen single cue") {
+    const char* ass = R"([Script Info]
+Title: PipelineGen Auto Subtitles
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: vidrush-default,Arial,56,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,3,2,2,10,10,24,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.20,0:00:03.00,vidrush-default,,0,0,0,,Hello world
+)";
+
+    auto doc = timed_text_from_ass(ass);
+    REQUIRE(doc.cues.size() == 1);
+    CHECK(doc.source_format == "ass");
+    CHECK(doc.cues[0].start_s == doctest::Approx(1.2f));
+    CHECK(doc.cues[0].end_s == doctest::Approx(3.0f));
+    CHECK(doc.cues[0].text == "Hello world");
+    CHECK(doc.cues[0].source_id == "1");
+    // Auto-generated uniform-split word breakdown (SRT parity).
+    CHECK(doc.cues[0].words.size() == 2);
+    CHECK(doc.cues[0].words[0].text == "Hello");
+    CHECK(doc.cues[0].words[1].text == "world");
+    CHECK(doc.cues[0].word_timing_quality == WordTimingQuality::Estimated);
+}
+
+TEST_CASE("timed_text_from_ass — multiple cues with comma-containing text") {
+    const char* ass = R"([Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.20,0:00:03.00,vidrush-default,,0,0,0,,First cue, with comma
+Dialogue: 0,0:00:03.50,0:00:06.00,vidrush-default,,0,0,0,,Second cue
+)";
+
+    auto doc = timed_text_from_ass(ass);
+    REQUIRE(doc.cues.size() == 2);
+    CHECK(doc.cues[0].text == "First cue, with comma");
+    CHECK(doc.cues[0].start_s == doctest::Approx(1.2f));
+    CHECK(doc.cues[0].end_s == doctest::Approx(3.0f));
+    CHECK(doc.cues[0].source_id == "1");
+    CHECK(doc.cues[1].text == "Second cue");
+    CHECK(doc.cues[1].start_s == doctest::Approx(3.5f));
+    CHECK(doc.cues[1].end_s == doctest::Approx(6.0f));
+    CHECK(doc.cues[1].source_id == "2");
+}
+
+TEST_CASE("timed_text_from_ass — \\N line breaks and \\h hard space") {
+    const char* ass = R"([Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.20,0:00:04.00,vidrush-default,,0,0,0,,Line one\NLine two\hwith space
+)";
+
+    auto doc = timed_text_from_ass(ass);
+    REQUIRE(doc.cues.size() == 1);
+    CHECK(doc.cues[0].text == "Line one\nLine two with space");
+}
+
+TEST_CASE("timed_text_from_ass — reordered Format line is honored") {
+    const char* ass = R"([Events]
+Format: Layer, Text, End, Start, Style, Name, MarginL, MarginR, MarginV, Effect
+Dialogue: 0,Reordered fields,0:00:03.00,0:00:01.20,vidrush-default,,0,0,0,,
+)";
+
+    auto doc = timed_text_from_ass(ass);
+    REQUIRE(doc.cues.size() == 1);
+    CHECK(doc.cues[0].text == "Reordered fields");
+    CHECK(doc.cues[0].start_s == doctest::Approx(1.2f));
+    CHECK(doc.cues[0].end_s == doctest::Approx(3.0f));
+}
+
+TEST_CASE("timed_text_from_ass — empty input") {
+    auto doc = timed_text_from_ass("");
+    CHECK(doc.cues.empty());
+    CHECK(doc.source_format == "ass");
+}
+
+TEST_CASE("timed_text_from_ass — malformed input") {
+    // No [Events] section, no Dialogue rows, unparseable timestamps.
+    const char* ass = R"([Script Info]
+Title: Nothing here
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,garbage,garbage,vidrush-default,,0,0,0,,ignored
+)";
+    auto doc = timed_text_from_ass(ass);
+    CHECK(doc.cues.empty());
+}
+
 // ── Hash tests ──────────────────────────────────────────────────────────
 
 TEST_CASE("hash_timed_text_document — identical docs have same hash") {

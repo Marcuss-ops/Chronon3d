@@ -1,6 +1,7 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <chronon3d/render_plan/animation_intent.hpp>
+#include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/render_plan/visual_preset_materializer.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/prepared_text.hpp>
@@ -305,6 +306,8 @@ compile_render_plan(
                 subtitles[index] = presets::text::subtitle_from_vtt(raw);
             else if (layer.subtitle_format == SubtitleFormat::Json)
                 subtitles[index] = presets::text::subtitle_from_json(raw);
+            else if (layer.subtitle_format == SubtitleFormat::Ass)
+                subtitles[index] = presets::text::subtitle_from_ass(raw);
             else
                 subtitles[index] = presets::text::subtitle_from_srt(raw);
         }
@@ -548,10 +551,28 @@ compile_render_plan(
                             case LayerType::SubtitleTrack: {
                                 if (!subtitles[index])
                                     throw std::runtime_error("subtitle asset was not prepared");
+                                // Subtitle style parity with the text
+                                // materializer: layer.style.fill/shadow are
+                                // lowered with the SAME semantics (shared
+                                // resolve_subtitle_style + parse_hex_color),
+                                // so a custom subtitle color/shadow is
+                                // identical on the subtitle path and the
+                                // text path. Explicit layer font_size wins
+                                // over style.font_size, matching the text
+                                // materializer's precedence.
+                                std::optional<ResolvedSubtitleStyle> subtitle_style;
+                                if (layer.style)
+                                    subtitle_style = resolve_subtitle_style(*layer.style);
+                                float subtitle_font_size = 48.0f;
+                                if (layer.font_size) {
+                                    subtitle_font_size = *layer.font_size;
+                                } else if (subtitle_style && subtitle_style->font_size) {
+                                    subtitle_font_size = *subtitle_style->font_size;
+                                }
                                 authoring::Layer authoring_layer(builder, canvas);
                                 auto track = authoring_layer.subtitles(*subtitles[index]);
                                 track.preset(layer.preset.empty() ? "minimal_white" : layer.preset)
-                                    .font(layer.font, layer.font_size.value_or(48.0f))
+                                    .font(layer.font, subtitle_font_size)
                                     .box({layer.box_width.value_or(1800.0f),
                                           layer.box_height.value_or(200.0f)})
                                     // Burned subtitles follow the same lower
@@ -560,8 +581,14 @@ compile_render_plan(
                                     // important here because TextRun rendering
                                     // does not consume libass Alignment/MarginV.
                                     .place(chronon3d::TextPlacementKind::SafeAreaBottom)
-                                    .vertical_align(chronon3d::VerticalAlign::Bottom)
-                                    .build();
+                                    .vertical_align(chronon3d::VerticalAlign::Bottom);
+                                if (subtitle_style) {
+                                    if (subtitle_style->fill)
+                                        track.color(*subtitle_style->fill);
+                                    if (subtitle_style->shadow)
+                                        track.shadow(*subtitle_style->shadow);
+                                }
+                                track.build();
                                 break;
                             }
                         }

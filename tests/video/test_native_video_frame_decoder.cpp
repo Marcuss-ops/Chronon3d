@@ -44,6 +44,37 @@ void write_y4m(const std::filesystem::path& path, std::array<unsigned char, 6> p
 
 } // namespace
 
+TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") {
+    // The CUDA handoff (CudaNv12SurfaceCompositor::composite -> nv12_to_rgba)
+    // writes RGBA float4 — 16 bytes per pixel — into the imported Vulkan
+    // surface via surf2Dwrite, and the render graph samples that surface as
+    // an RGBA float storage image.  If the surface were sized from the
+    // decoded YUV format (Nv12: 1.5 B/px, P010: 3 B/px) those float4 writes
+    // would overrun the external allocation by ~5-10x and fault with
+    // CUDA_ERROR_ILLEGAL_ADDRESS at the handoff.  This pins the desc the
+    // decoder must produce: Rgba32Float with the allocation covering exactly
+    // the float4 view.
+    constexpr std::uint32_t width = 1280;
+    constexpr std::uint32_t height = 720;
+    const auto desc = chronon3d::media::native_decode_surface_desc(width, height);
+
+    CHECK(desc.width == width);
+    CHECK(desc.height == height);
+    CHECK(desc.format == chronon3d::runtime::PixelFormat::Rgba32Float);
+    CHECK(desc.usage == chronon3d::runtime::ResourceUsage::Storage);
+    CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::JobPersistent);
+    // float4 write view must fit exactly inside the external allocation.
+    CHECK(desc.bytes == static_cast<std::size_t>(width) * height * 16);
+    CHECK(desc.bytes ==
+          static_cast<std::size_t>(width) * height * sizeof(float) * 4);
+    // The regression this guards: a YUV-sized allocation is far smaller and
+    // cannot contain the same float4 write view.
+    CHECK(desc.bytes > chronon3d::runtime::tight_surface_bytes(
+                           chronon3d::runtime::PixelFormat::Nv12, width, height));
+    CHECK(desc.bytes > chronon3d::runtime::tight_surface_bytes(
+                           chronon3d::runtime::PixelFormat::P010, width, height));
+}
+
 TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
     FixtureDirectory fixtures;
     const auto source_a = fixtures.path / "a.y4m";

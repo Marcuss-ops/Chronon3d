@@ -50,6 +50,7 @@
 
 #include <chronon3d/registry/animator_resolver.hpp>   // registry::TextAnimatorSpec (snapshot copy target)
 #include <chronon3d/scene/builders/layer_builder.hpp> // LayerBuilder (friend mediation)
+#include <chronon3d/text/prepared_text.hpp>           // PreparedText (snapshot copy target)
 
 namespace chronon3d {
 namespace builders {
@@ -73,6 +74,11 @@ namespace testing {
     struct PendingRunSnapshot {
         std::string name;
         std::vector<chronon3d::TextAnimatorSpec> animators;
+        // Full lowered payload copy (style.color / style.shadows / font /
+        // frame ...). Added for the subtitle style-parity test: the test
+        // needs to read the emitted run's appearance (fill + shadow) after
+        // SubtitleTrackBuilder::build() commits it.
+        chronon3d::PreparedText text;
     };
 
     // ── Test-only inspector (friend-closed) ─────────────────────────────────
@@ -113,12 +119,13 @@ namespace testing {
             for (const auto &up : lb.m_text_runs) {
                 PendingRunSnapshot snap;
                 // pending entries own their PendingTextRun slot;
-                // the snapshot fully materialises `name` and
-                // `params.animators` so that reallocations of
+                // the snapshot fully materialises `name`, `params.animators`
+                // and `params.text` so that reallocations of
                 // `m_text_runs` cannot invalidate previously-read
                 // snapshots.
                 snap.name = std::string(up->name);
                 snap.animators = up->params.animation.animators;
+                snap.text = up->params;
                 out.push_back(std::move(snap));
             }
             return out;

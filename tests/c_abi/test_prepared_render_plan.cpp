@@ -3,6 +3,7 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <chrono>
@@ -182,6 +183,96 @@ TEST_CASE("prepared fingerprint changes when asset bytes change") {
     REQUIRE(modified);
     CHECK(original->fingerprint.content_digest != modified->fingerprint.content_digest);
     CHECK(original->fingerprint.request_digest != modified->fingerprint.request_digest);
+}
+
+// ── Subtitle style parity (resolve_subtitle_style) ──────────────────────────
+//
+// The SubtitleTrack compiler consumes layer.style with EXACTLY the semantics
+// of the text materializer: shared parse_hex_color (color_utils.hpp), same
+// shadow defaults (opacity 1.0 / blur 0.0 / offset (0,0) when absent), same
+// "absent → keep defaults" contract. These tests lock that parity.
+
+namespace {
+
+void check_color(const chronon3d::Color& got,
+                 float r, float g, float b, float a) {
+    CHECK(got.r == doctest::Approx(r).epsilon(0.0001f));
+    CHECK(got.g == doctest::Approx(g).epsilon(0.0001f));
+    CHECK(got.b == doctest::Approx(b).epsilon(0.0001f));
+    CHECK(got.a == doctest::Approx(a).epsilon(0.0001f));
+}
+
+} // namespace
+
+TEST_CASE("resolve_subtitle_style lowers fill with text-materializer hex semantics") {
+    chronon3d::render_plan::LayerStylePlan style;
+    style.fill = "#FFC107";
+
+    const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
+    REQUIRE(resolved.fill.has_value());
+    check_color(*resolved.fill, 1.0f, 0.7569f, 0.0275f, 1.0f);
+    CHECK_FALSE(resolved.shadow.has_value());
+    CHECK_FALSE(resolved.font_size.has_value());
+}
+
+TEST_CASE("resolve_subtitle_style keeps defaults when fill is unusable") {
+    chronon3d::render_plan::LayerStylePlan style;
+    style.fill = "not-a-hex";  // same guard the text materializer applies
+
+    const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
+    CHECK_FALSE(resolved.fill.has_value());
+}
+
+TEST_CASE("resolve_subtitle_style lowers shadow with materializer defaults") {
+    chronon3d::render_plan::LayerStylePlan style;
+    style.fill = "#FFFFFF";
+    chronon3d::render_plan::ShadowStyle shadow;
+    shadow.color = "#000000";
+    shadow.opacity = 0.6f;
+    shadow.blur = 14.0f;
+    shadow.offset = {0.0f, 8.0f};
+    shadow.offset_dimensions = 2;
+    style.shadow = shadow;
+
+    const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
+    REQUIRE(resolved.shadow.has_value());
+    const auto& got = *resolved.shadow;
+    CHECK(got.enabled);
+    check_color(got.color, 0.0f, 0.0f, 0.0f, 1.0f);
+    CHECK(got.opacity == doctest::Approx(0.6f));
+    CHECK(got.blur == doctest::Approx(14.0f));
+    CHECK(got.offset.x == doctest::Approx(0.0f));
+    CHECK(got.offset.y == doctest::Approx(8.0f));
+}
+
+TEST_CASE("resolve_subtitle_style shadow defaults match the text materializer") {
+    chronon3d::render_plan::LayerStylePlan style;
+    chronon3d::render_plan::ShadowStyle shadow;
+    shadow.color = "#000000";  // no opacity / blur / offset declared
+    style.shadow = shadow;
+
+    const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
+    REQUIRE(resolved.shadow.has_value());
+    const auto& got = *resolved.shadow;
+    CHECK(got.enabled);
+    CHECK(got.opacity == doctest::Approx(1.0f));  // absent → 1.0
+    CHECK(got.blur == doctest::Approx(0.0f));     // absent → 0.0
+    CHECK(got.offset.x == doctest::Approx(0.0f));
+    CHECK(got.offset.y == doctest::Approx(0.0f));
+}
+
+TEST_CASE("resolve_subtitle_style lowers font_size when positive and absent otherwise") {
+    chronon3d::render_plan::LayerStylePlan style;
+    style.font_size = 54.0f;
+    const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
+    REQUIRE(resolved.font_size.has_value());
+    CHECK(*resolved.font_size == doctest::Approx(54.0f));
+
+    chronon3d::render_plan::LayerStylePlan empty_style;
+    const auto empty = chronon3d::render_plan::resolve_subtitle_style(empty_style);
+    CHECK_FALSE(empty.font_size.has_value());
+    CHECK_FALSE(empty.fill.has_value());
+    CHECK_FALSE(empty.shadow.has_value());
 }
 
 TEST_CASE("prepared fingerprint includes schema, engine, and render settings") {

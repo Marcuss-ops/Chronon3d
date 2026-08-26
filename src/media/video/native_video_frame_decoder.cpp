@@ -217,26 +217,24 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     }
 
     if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
-        const auto pixel_format = (frame->format == AV_PIX_FMT_P010LE || frame->format == AV_PIX_FMT_P010BE)
-            ? runtime::PixelFormat::P010
-            : runtime::PixelFormat::Nv12;
-        const runtime::SurfaceDesc desc{
+        // The CUDA compositor (nv12_to_rgba) writes RGBA float4 — 16 bytes
+        // per pixel — into this imported surface and the graph samples it as
+        // an RGBA float storage image.  Sizing the surface from the decoded
+        // YUV format (Nv12/P010) under-allocates it ~5-10x and the float4
+        // writes fault with CUDA_ERROR_ILLEGAL_ADDRESS at the CUDA/Vulkan
+        // handoff; the surface must always be Rgba32Float.
+        auto desc = native_decode_surface_desc(
             static_cast<std::uint32_t>(frame->width),
-            static_cast<std::uint32_t>(frame->height),
-            pixel_format,
-            runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::JobPersistent,
-            runtime::tight_surface_bytes(pixel_format, static_cast<std::uint32_t>(frame->width), static_cast<std::uint32_t>(frame->height)),
-            runtime::ColorMetadata{
-                .matrix = (frame->colorspace == AVCOL_SPC_BT2020_NCL)
-                    ? runtime::ColorMatrix::Bt2020Ncl
-                    : ((frame->colorspace == AVCOL_SPC_BT470BG || frame->colorspace == AVCOL_SPC_SMPTE170M)
-                        ? runtime::ColorMatrix::Bt601
-                        : runtime::ColorMatrix::Bt709),
-                .range = (frame->color_range == AVCOL_RANGE_JPEG)
-                    ? runtime::ColorRange::Full
-                    : runtime::ColorRange::Limited,
-            }
+            static_cast<std::uint32_t>(frame->height));
+        desc.color = runtime::ColorMetadata{
+            .matrix = (frame->colorspace == AVCOL_SPC_BT2020_NCL)
+                ? runtime::ColorMatrix::Bt2020Ncl
+                : ((frame->colorspace == AVCOL_SPC_BT470BG || frame->colorspace == AVCOL_SPC_SMPTE170M)
+                    ? runtime::ColorMatrix::Bt601
+                    : runtime::ColorMatrix::Bt709),
+            .range = (frame->color_range == AVCOL_RANGE_JPEG)
+                ? runtime::ColorRange::Full
+                : runtime::ColorRange::Limited,
         };
         slot.surface = m_surface_registry->create(desc);
         if (slot.surface == runtime::kInvalidRenderSurfaceHandle ||
