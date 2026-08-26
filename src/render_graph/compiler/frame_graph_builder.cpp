@@ -819,6 +819,21 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
         }
     }
 
+    // Fused layer batches are executed by node_runner (which owns the
+    // framebuffer/cache lifecycle), not by execute_compiled_program.  The
+    // batch members are intentionally removed from `operations`, while the
+    // topology in `levels` still contains them.  Marking this program as
+    // fully_recorded would therefore make the compiled executor look up
+    // operations that do not exist (typically the first text overlay).
+    compiled.program.has_fused_passes = false;
+    for (const auto& batch : compiled.program.layer_batches) {
+        if (batch.is_gpu_fused && !batch.instances.empty() &&
+            batch.root_node != k_invalid_node) {
+            compiled.program.has_fused_passes = true;
+            break;
+        }
+    }
+
     // Maximal static island detection: find the highest static nodes whose consumers are NOT all static (or terminal roots)
     std::vector<bool> is_node_static(compiled.nodes.size(), false);
     for (const auto& level : compiled.levels) {
@@ -858,7 +873,9 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
     }
 
     // Compute fully_recorded
-    compiled.program.fully_recorded = !compiled.program.operations.empty();
+    compiled.program.fully_recorded =
+        !compiled.program.operations.empty() &&
+        !compiled.program.has_fused_passes;
     for (const auto& op : compiled.program.operations) {
         if (!op.has_compiled_execute() && !op.is_fused) {
             compiled.program.fully_recorded = false;
