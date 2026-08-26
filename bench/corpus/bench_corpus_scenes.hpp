@@ -158,6 +158,7 @@ Composition bench_b11_portrait_1080x1920();
 Composition bench_canon1_static();
 Composition bench_canon2_text();
 Composition bench_canon3_motion_graphics();
+Composition bench_canon4b_video_overlay_dynamic();
 Composition bench_canon5_heavy();
 
 // ── 6 Microbenchmark scenes (Perf_*) ─────────────────────────────────────

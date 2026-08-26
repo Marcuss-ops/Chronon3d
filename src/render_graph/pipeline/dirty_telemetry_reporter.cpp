@@ -74,13 +74,14 @@ void record_dirty_telemetry(
     SoftwareRenderer* sw_renderer,
     const detail::DirtyRectOutput& dirty_out,
     bool use_tile_execution,
-    bool graph_reused)
+    bool graph_reused,
+    FrameExecutionPath path)
 {
     if (!sw_renderer) return;
 
     sw_renderer->update_dirty_telemetry(
         dirty_out.use_dirty_rects, dirty_out.dirty_rect,
-        use_tile_execution, false, graph_reused);
+        use_tile_execution, false, graph_reused, path);
 }
 
 } // namespace chronon3d::graph

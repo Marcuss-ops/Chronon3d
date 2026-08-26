@@ -40,6 +40,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 
 namespace chronon3d {
 
@@ -108,6 +109,7 @@ struct DirtyHistory {
     bool last_tile_execution_used{false};
     bool last_fast_path_reused{false};
     bool last_graph_reused{false};
+    graph::FrameExecutionPath last_execution_path{graph::FrameExecutionPath::FullRgb};
 
     // Empirical execution-cost model.  The first samples are deliberately
     // observational: the policy needs at least two samples for each path

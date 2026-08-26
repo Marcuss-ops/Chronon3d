@@ -62,10 +62,10 @@
       }
     },
     {
-      "id": "BENCH-4",
-      "name": "Video",
-      "composition": "BenchB06_VideoOverlay1080p",
-      "content": "video + overlays + text",
+      "id": "BENCH-4A",
+      "name": "VideoOverlayStatic",
+      "composition": "BenchCanon4A_VideoOverlayStatic",
+      "content": "static video surrogate + overlays + text (CI/offline)",
       "resolution": "1920x1080",
       "fps": 30,
       "duration_frames": 90,
@@ -73,6 +73,22 @@
         "status": "LOCKED",
         "frame_p50_ms_max": 2.0,
         "frame_p95_ms_max": 6.5,
+        "gpu_execute_us_per_frame_max": null,
+        "gpu_readback_bytes_per_frame_max": null
+      }
+    },
+    {
+      "id": "BENCH-4B",
+      "name": "VideoOverlayDynamic",
+      "composition": "BenchCanon4B_VideoOverlayDynamic",
+      "content": "dynamic video stream + overlays + text (YUV certification)",
+      "resolution": "1920x1080",
+      "fps": 30,
+      "duration_frames": 90,
+      "budgets": {
+        "status": "LOCKED",
+        "frame_p50_ms_max": 200.0,
+        "frame_p95_ms_max": 250.0,
         "gpu_execute_us_per_frame_max": null,
         "gpu_readback_bytes_per_frame_max": null
       }
@@ -87,8 +103,8 @@
       "duration_frames": 90,
       "budgets": {
         "status": "LOCKED",
-        "frame_p50_ms_max": 600.0,
-        "frame_p95_ms_max": 2200.0,
+        "frame_p50_ms_max": 150.0,
+        "frame_p95_ms_max": 250.0,
         "gpu_execute_us_per_frame_max": null,
         "gpu_readback_bytes_per_frame_max": null
       }

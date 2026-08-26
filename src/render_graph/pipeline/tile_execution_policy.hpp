@@ -37,17 +37,6 @@ namespace chronon3d { class Framebuffer; }
 
 namespace chronon3d::graph {
 
-/// Canonical execution paths selected before backend execution.
-/// ExecutionResolver owns this choice; backends only execute the selected path.
-enum class FrameExecutionPath : std::uint8_t {
-    CopyGop,
-    ReuseSurface,
-    SparseTiles,
-    SparseYuv,
-    FullYuv,
-    FullRgb,
-};
-
 /// Result of a tile-execution policy decision.  When `enabled` is false,
 /// `reason_if_disabled` carries a stable snake_case token suitable for logs
 /// and metrics.

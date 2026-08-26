@@ -8,7 +8,28 @@
 
 namespace chronon3d::graph {
 
-enum class FrameExecutionPath : std::uint8_t;
+/// Canonical execution paths selected before backend execution.
+/// ExecutionResolver owns this choice; backends only execute the selected path.
+enum class FrameExecutionPath : std::uint8_t {
+    CopyGop,
+    ReuseSurface,
+    SparseTiles,
+    SparseYuv,
+    FullYuv,
+    FullRgb,
+};
+
+[[nodiscard]] constexpr std::string_view to_string(FrameExecutionPath path) noexcept {
+    switch (path) {
+        case FrameExecutionPath::CopyGop: return "CopyGop";
+        case FrameExecutionPath::ReuseSurface: return "ReuseSurface";
+        case FrameExecutionPath::SparseTiles: return "SparseTiles";
+        case FrameExecutionPath::SparseYuv: return "SparseYuv";
+        case FrameExecutionPath::FullYuv: return "FullYuv";
+        case FrameExecutionPath::FullRgb: return "FullRgb";
+    }
+    return "Unknown";
+}
 
 /// Backend-neutral descriptor for one untouched compressed GOP. It contains
 /// only packet/timing metadata; codec inspection remains in the video adapter.

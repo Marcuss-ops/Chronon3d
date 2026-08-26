@@ -765,6 +765,51 @@ Composition bench_canon5_heavy() {
     });
 }
 
+// ── BENCH-4B — Dynamic Video Overlay (Every frame changes) ───────────────
+Composition bench_canon4b_video_overlay_dynamic() {
+    return composition({
+        .name = "BenchCanon4B_VideoOverlayDynamic",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 90,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+
+        // Base video layer whose frame/transform mutates at every frame
+        // to certify dynamic decode / YUV surface path.
+        s.layer("video_stream", [](LayerBuilder& l) {
+            l.screen_dimensions(1920.0f, 1080.0f);
+            l.opacity(1.0f);
+            auto& pos = l.position_anim();
+            pos.key(Frame{0},  glm::vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear});
+            pos.key(Frame{90}, glm::vec3{20.0f, 10.0f, 0.0f}, EasingCurve{Easing::Linear});
+            l.image("frame", ImageParams{
+                .asset_path = "assets/images/camera_reference.jpg",
+                .size = {1920.0f, 1080.0f},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .fit = FitMode::Cover,
+                .focal_point = {0.5f, 0.5f},
+                .crop = {},
+                .opacity = 1.0f,
+                .radius = 0.0f,
+            });
+        });
+
+        // Text overlay on top of changing video
+        s.layer("overlay_text", [](LayerBuilder& l) {
+            l.position({0.0f, 380.0f, 0.0f});
+            l.text("caption", text_preset(
+                "CHRONON · YUV DYNAMIC STREAM", 64.0f, 800,
+                {1.0f, 1.0f, 1.0f, 1.0f},
+                TextAlign::Center, {1400.0f, 100.0f}, {0.0f, 0.0f, 0.0f}
+            ));
+            l.drop_shadow({0.0f, 8.0f}, {0.0f, 0.0f, 0.0f, 0.55f}, 18.0f);
+        });
+        return s.build();
+    });
+}
+
 // ── Perf_EMPTY ──────────────────────────────────────────────────────────
 Composition bench_perf_empty() {
     return composition({
@@ -1027,6 +1072,16 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
         .id          = "BenchCanon3_MotionGraphics",
         .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
             return bench_canon3_motion_graphics();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "BenchCanon4A_VideoOverlayStatic",
+        .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
+            return bench_b06_video_overlay_1080p();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "BenchCanon4B_VideoOverlayDynamic",
+        .category    = "bench/canon"}, [](const chronon3d::CompositionProps&) {
+            return bench_canon4b_video_overlay_dynamic();
         }));
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchCanon5_Heavy",
