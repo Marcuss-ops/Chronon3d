@@ -91,9 +91,11 @@
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             desc.width == 0 || desc.height == 0 ||
             (desc.format != runtime::PixelFormat::Rgba32Float &&
-             desc.format != runtime::PixelFormat::Rgba8Unorm)) {
+             desc.format != runtime::PixelFormat::Rgba8Unorm &&
+             desc.format != runtime::PixelFormat::Nv12 &&
+             desc.format != runtime::PixelFormat::P010)) {
             throw std::invalid_argument(
-                "CUDA external surface requires non-empty RGBA description");
+                "CUDA external surface requires non-empty supported description");
         }
         if (surface_bindings.contains(handle)) {
             throw std::invalid_argument("CUDA external surface handle already exists");
@@ -101,9 +103,7 @@
         const auto slot = next_slot++;
         auto& physical = physical_surfaces[slot];
         make_image(physical.image, desc.width, desc.height, true,
-                   desc.format == runtime::PixelFormat::Rgba8Unorm
-                       ? VK_FORMAT_B8G8R8A8_UNORM
-                       : VK_FORMAT_R32G32B32A32_SFLOAT);
+                   to_vk_format(desc.format));
         physical.image.cuda_to_vulkan = make_external_binary_semaphore();
         physical.image.vulkan_to_cuda = make_external_binary_semaphore();
         physical.desc = desc;
