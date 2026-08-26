@@ -357,6 +357,9 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     std::vector<double> reuse_frame_times;
     std::vector<double> sparse_frame_times;
     std::vector<double> full_rgb_frame_times;
+    std::vector<double> sparse_yuv_frame_times;
+    std::vector<double> full_yuv_frame_times;
+    std::vector<double> copy_gop_frame_times;
 
     int frame_index = 10; // continue from warmup
     while (true) {
@@ -366,12 +369,26 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         const double elapsed_ms = std::chrono::duration<double, std::milli>(frame_end - frame_start).count();
         frame_times_ms.push_back(elapsed_ms);
 
-        if (renderer->last_fast_path_reused()) {
-            reuse_frame_times.push_back(elapsed_ms);
-        } else if (renderer->dirty_telemetry().last_tile_execution_used) {
-            sparse_frame_times.push_back(elapsed_ms);
-        } else {
-            full_rgb_frame_times.push_back(elapsed_ms);
+        const auto decision = renderer->last_execution_decision();
+        switch (decision) {
+            case graph::FrameExecutionPath::ReuseSurface:
+                reuse_frame_times.push_back(elapsed_ms);
+                break;
+            case graph::FrameExecutionPath::SparseTiles:
+                sparse_frame_times.push_back(elapsed_ms);
+                break;
+            case graph::FrameExecutionPath::FullRgb:
+                full_rgb_frame_times.push_back(elapsed_ms);
+                break;
+            case graph::FrameExecutionPath::SparseYuv:
+                sparse_yuv_frame_times.push_back(elapsed_ms);
+                break;
+            case graph::FrameExecutionPath::FullYuv:
+                full_yuv_frame_times.push_back(elapsed_ms);
+                break;
+            case graph::FrameExecutionPath::CopyGop:
+                copy_gop_frame_times.push_back(elapsed_ms);
+                break;
         }
 
         ++frame_index;
@@ -513,6 +530,18 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     std::sort(sorted_full.begin(), sorted_full.end());
     const double full_p50 = sorted_full.empty() ? 0.0 : percentile(sorted_full, 0.50);
 
+    auto sorted_sparse_yuv = sparse_yuv_frame_times;
+    std::sort(sorted_sparse_yuv.begin(), sorted_sparse_yuv.end());
+    const double sparse_yuv_p50 = sorted_sparse_yuv.empty() ? 0.0 : percentile(sorted_sparse_yuv, 0.50);
+
+    auto sorted_full_yuv = full_yuv_frame_times;
+    std::sort(sorted_full_yuv.begin(), sorted_full_yuv.end());
+    const double full_yuv_p50 = sorted_full_yuv.empty() ? 0.0 : percentile(sorted_full_yuv, 0.50);
+
+    auto sorted_copy_gop = copy_gop_frame_times;
+    std::sort(sorted_copy_gop.begin(), sorted_copy_gop.end());
+    const double copy_gop_p50 = sorted_copy_gop.empty() ? 0.0 : percentile(sorted_copy_gop, 0.50);
+
     out << "THROUGHPUT & LATENCY\n";
     out << "throughput_fps.............. " << fmt::format("{:.1f}", fps) << "\n";
     out << "wall_frame_avg_ms........... " << fmt::format("{:.3f}", avg_frame_wall_us / 1000.0) << " ms\n";
@@ -534,9 +563,15 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     out << "FullRgb..................... " << full_rgb_frame_times.size() << " frames ("
         << fmt::format("{:.1f}", static_cast<double>(full_rgb_frame_times.size()) * 100.0 / frames_d)
         << " %, P50: " << fmt::format("{:.2f}", full_p50) << " ms)\n";
-    out << "FullYuv..................... 0 frames\n";
-    out << "SparseYuv................... 0 frames\n";
-    out << "CopyGop..................... 0 frames\n\n";
+    out << "SparseYuv................... " << sparse_yuv_frame_times.size() << " frames ("
+        << fmt::format("{:.1f}", static_cast<double>(sparse_yuv_frame_times.size()) * 100.0 / frames_d)
+        << " %, P50: " << fmt::format("{:.2f}", sparse_yuv_p50) << " ms)\n";
+    out << "FullYuv..................... " << full_yuv_frame_times.size() << " frames ("
+        << fmt::format("{:.1f}", static_cast<double>(full_yuv_frame_times.size()) * 100.0 / frames_d)
+        << " %, P50: " << fmt::format("{:.2f}", full_yuv_p50) << " ms)\n";
+    out << "CopyGop..................... " << copy_gop_frame_times.size() << " frames ("
+        << fmt::format("{:.1f}", static_cast<double>(copy_gop_frame_times.size()) * 100.0 / frames_d)
+        << " %, P50: " << fmt::format("{:.2f}", copy_gop_p50) << " ms)\n\n";
 
     out << "HARDWARE\n";
     if (perf.available == "true") {
@@ -810,9 +845,21 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                     {"ratio", static_cast<double>(full_rgb_frame_times.size()) / frames_d},
                     {"p50_ms", full_p50}
                 }},
-                {"FullYuv", {{"count", 0}, {"ratio", 0.0}, {"p50_ms", 0.0}}},
-                {"SparseYuv", {{"count", 0}, {"ratio", 0.0}, {"p50_ms", 0.0}}},
-                {"CopyGop", {{"count", 0}, {"ratio", 0.0}, {"p50_ms", 0.0}}}
+                {"SparseYuv", {
+                    {"count", sparse_yuv_frame_times.size()},
+                    {"ratio", static_cast<double>(sparse_yuv_frame_times.size()) / frames_d},
+                    {"p50_ms", sparse_yuv_p50}
+                }},
+                {"FullYuv", {
+                    {"count", full_yuv_frame_times.size()},
+                    {"ratio", static_cast<double>(full_yuv_frame_times.size()) / frames_d},
+                    {"p50_ms", full_yuv_p50}
+                }},
+                {"CopyGop", {
+                    {"count", copy_gop_frame_times.size()},
+                    {"ratio", static_cast<double>(copy_gop_frame_times.size()) / frames_d},
+                    {"p50_ms", copy_gop_p50}
+                }}
             }},
             {"utilization", {
                 {"cpu_percent", cpu_percent},

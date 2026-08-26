@@ -256,6 +256,7 @@ void SoftwareRenderer::mark_fast_path_reused(Frame frame, const Camera2_5D& cam,
     m_session.common.dirty_telemetry.last_tile_execution_used = false;
     m_session.common.dirty_telemetry.last_fast_path_reused = true;
     m_session.common.dirty_telemetry.last_graph_reused = false;
+    m_session.common.dirty_telemetry.last_execution_path = graph::FrameExecutionPath::ReuseSurface;
     m_session.common.frame_history.prev_frame = frame;
     m_session.common.frame_history.prev_scene_fingerprint = combined_fp;
     m_session.common.frame_history.prev_camera = cam;
@@ -301,12 +302,14 @@ void SoftwareRenderer::commit_prev_frame_state(Frame frame, const Camera2_5D& ca
 
 void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
                                                bool tile_execution_used, bool fast_path_reused,
-                                               bool graph_reused) {
+                                               bool graph_reused,
+                                               graph::FrameExecutionPath path) {
     m_session.common.dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
     m_session.common.dirty_telemetry.last_dirty_rect = rect;
     m_session.common.dirty_telemetry.last_tile_execution_used = tile_execution_used;
     m_session.common.dirty_telemetry.last_fast_path_reused = fast_path_reused;
     m_session.common.dirty_telemetry.last_graph_reused = graph_reused;
+    m_session.common.dirty_telemetry.last_execution_path = path;
 }
 
 // ── RenderRuntime forwarders (OOL — avoids pulling runtime/* headers) ────────

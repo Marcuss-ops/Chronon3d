@@ -43,7 +43,7 @@ OUTPUT_DIR="${CHRONON3D_BENCH_OUTPUT_DIR:-/tmp/chronon_perf}"
 CLI_BIN="${CHRONON3D_CLI:-${REPO_ROOT}/build/fast/apps/chronon3d_cli/chronon3d_cli}"
 MANIFEST="${REPO_ROOT}/bench/perf_baseline_v1.json"
 HOST_INFO="${REPO_ROOT}/tools/benchmark_host_info.sh"
-SELECTED="BENCH-1,BENCH-2,BENCH-3,BENCH-4,BENCH-5"
+SELECTED="BENCH-1,BENCH-2,BENCH-3,BENCH-4A,BENCH-4B,BENCH-5"
 MACHINE_ID="${CHRONON3D_BENCH_MACHINE:-unknown}"
 
 while [[ $# -gt 0 ]]; do

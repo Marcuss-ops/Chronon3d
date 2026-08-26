@@ -635,8 +635,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         }
     }
     record_dirty_telemetry(isolated_temporal_sample ? nullptr : sw_renderer, dirty_out,
-
-        exec_result.use_tile_execution, graph_result.graph_reused);
+        exec_result.use_tile_execution, graph_result.graph_reused,
+        execution_plan.path);
 
     // ── 13. Save state for next frame ──
     if (sw_renderer && !isolated_temporal_sample) {
