@@ -29,6 +29,11 @@ double compute_and_apply_dirty_metrics(
     if (counters) {
         counters->dirty_union_area_pixels.store(
             dirty_union_area_pixels, std::memory_order_relaxed);
+        if (dirty_union_area_pixels > 0) {
+            counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
+            counters->dirty_pixels.fetch_add(
+                dirty_union_area_pixels, std::memory_order_relaxed);
+        }
     }
 
     if (sw_renderer) {

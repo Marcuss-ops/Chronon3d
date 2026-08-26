@@ -41,6 +41,10 @@ struct DirtyRectOutput {
     // Canonical prev/current result. Consumers must use this delta rather
     // than reimplementing change detection or reuse heuristics.
     std::optional<FrameDelta> frame_delta;
+
+    // The resolver may reuse a previous surface only when this canonical
+    // delta proves that no layer or camera state changed.
+    bool frame_delta_clean{false};
 };
 
 DirtyRectOutput compute_dirty_rect(
