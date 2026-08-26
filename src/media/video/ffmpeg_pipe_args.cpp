@@ -17,7 +17,8 @@ namespace {
 
 [[nodiscard]] const char* codec_to_string(VideoCodec codec) noexcept {
     switch (codec) {
-        case VideoCodec::H264:  return "libx264";
+        case VideoCodec::H264:      return "libx264";
+        case VideoCodec::H264Nvenc: return "h264_nvenc";
         case VideoCodec::H265:  return "libx265";
         case VideoCodec::VP9:   return "libvpx-vp9";
         case VideoCodec::AV1:   return "libaom-av1";
@@ -98,8 +99,14 @@ std::vector<std::string> FfmpegPipeSinkInternal::build_argv(const VideoSinkConfi
     argv.push_back(codec_to_string(resolved_codec));
 
     // CRF / quality.
-    if (config.encoder.crf >= 0) {
+    // NVENC does not accept x264's CRF option. Use constant-quality QP
+    // instead; the pipe path still uploads CPU frames, while encoding runs
+    // on the NVIDIA hardware encoder.
+    if (config.encoder.crf >= 0 && resolved_codec != VideoCodec::H264Nvenc) {
         argv.push_back("-crf");
+        argv.push_back(std::to_string(config.encoder.crf));
+    } else if (resolved_codec == VideoCodec::H264Nvenc && config.encoder.crf >= 0) {
+        argv.push_back("-qp");
         argv.push_back(std::to_string(config.encoder.crf));
     }
 
