@@ -134,7 +134,17 @@ void apply_sparse_or_full_decision(
         bool unbounded_spatial_effect = false;
         for (const auto& resolved_layer : resolved.layers) {
             if (!resolved_layer.layer || !resolved_layer.layer->active_at(frame)) continue;
-            if (!detail::is_safe_for_dirty_rects(
+            bool layer_changed = true;
+            if (dirty_out.frame_delta) {
+                layer_changed = false;
+                for (const auto& change : dirty_out.frame_delta->changes) {
+                    if (std::string_view(change.instance_id) == std::string_view(resolved_layer.layer->name)) {
+                        layer_changed = true;
+                        break;
+                    }
+                }
+            }
+            if (layer_changed && !detail::is_safe_for_dirty_rects(
                     *resolved_layer.layer, false, effect_catalog)) {
                 unbounded_spatial_effect = true;
                 break;
