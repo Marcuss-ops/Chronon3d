@@ -432,6 +432,15 @@ TEST_CASE("FrameGraphCompiler - TextRun bypasses Shape processor validation") {
     CHECK(compiled.valid);
     REQUIRE(compiled.nodes.size() > text_id);
     CHECK(compiled.nodes[text_id].kind == RenderGraphNodeKind::TextRun);
+    CHECK_FALSE(compiled.nodes[text_id].lowered_into_batch);
+    bool text_has_standalone_operation = false;
+    for (const auto& operation : compiled.program.operations) {
+        if (operation.node == text_id) {
+            text_has_standalone_operation = true;
+            CHECK_FALSE(operation.is_fused);
+        }
+    }
+    CHECK(text_has_standalone_operation);
 }
 
 TEST_CASE("FrameGraphCompiler - rejects renderable without backend before execution") {
@@ -1407,5 +1416,4 @@ TEST_CASE("Invariant: 100 Image layers lower into 1 CompiledLayerBatch and 0 leg
     CHECK(count_legacy_transform_ops(compiled) == 0);
     CHECK(count_legacy_composite_ops(compiled) == 0);
 }
-
 
