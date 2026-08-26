@@ -37,6 +37,7 @@ foreach(_target IN ITEMS
         target_link_libraries(chronon3d_cli PRIVATE ${_target})
     endif()
 endforeach()
+target_link_libraries(chronon3d_cli PRIVATE chronon3d_cli_core)
 
 if(TARGET chronon3d_cli_render)
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_RENDER)

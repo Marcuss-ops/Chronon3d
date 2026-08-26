@@ -461,6 +461,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // ── 7. Complete canonical execution plan ──
     if (!isolated_temporal_sample) {
         CHRONON_TRACE_SCOPE("chronon.frame", "execution_plan_resolve");
+        const auto output_format = (ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle &&
+                                    ctx.services.surface_registry &&
+                                    ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface))
+            ? ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface)->desc.format
+            : runtime::PixelFormat::Rgba32Float;
+
         execution_plan = ExecutionResolver::resolve(
             std::move(execution_plan), resolved, scene,
             ctx.frame_input.camera_2_5d, effective_settings, dirty_out,
@@ -468,7 +474,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             ctx.services.effect_catalog,
             ctx.policy.native_video_encode_surface !=
                 runtime::kInvalidRenderSurfaceHandle,
-            ctx.policy.diagnostics_enabled);
+            ctx.policy.diagnostics_enabled,
+            output_format);
         ctx.policy.reuse_prev_framebuffer = execution_plan.use_dirty_region;
         ctx.policy.dirty_rects_enabled = execution_plan.use_dirty_region;
         ctx.policy.tile_execution_enabled =

@@ -114,6 +114,14 @@ set_source_files_properties(
 target_link_libraries(chronon3d_cli_render PRIVATE
     chronon3d_cli_video_export
 )
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_link_libraries(chronon3d_cli_render PRIVATE
+        chronon3d_ffmpeg_full chronon3d_media_native
+    )
+    target_compile_definitions(chronon3d_cli_render PRIVATE
+        CHRONON3D_ENABLE_NATIVE_FFMPEG
+    )
+endif()
 target_compile_definitions(chronon3d_cli_render PRIVATE
     CHRONON3D_HAS_CLI_VIDEO_EXPORT
 )
