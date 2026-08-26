@@ -354,6 +354,9 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     const auto start_time = Clock::now();
     std::vector<double> frame_times_ms;
     frame_times_ms.reserve(static_cast<std::size_t>(duration_sec) * 30); // estimate 30 fps
+    std::vector<double> reuse_frame_times;
+    std::vector<double> sparse_frame_times;
+    std::vector<double> full_rgb_frame_times;
 
     int frame_index = 10; // continue from warmup
     while (true) {
@@ -362,6 +365,14 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
         const auto frame_end = Clock::now();
         const double elapsed_ms = std::chrono::duration<double, std::milli>(frame_end - frame_start).count();
         frame_times_ms.push_back(elapsed_ms);
+
+        if (renderer->last_fast_path_reused()) {
+            reuse_frame_times.push_back(elapsed_ms);
+        } else if (renderer->dirty_telemetry().last_tile_execution_used) {
+            sparse_frame_times.push_back(elapsed_ms);
+        } else {
+            full_rgb_frame_times.push_back(elapsed_ms);
+        }
 
         ++frame_index;
 
@@ -490,16 +501,42 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     }
     out << "\n";
 
-    out << "THROUGHPUT\n";
-    out << "FPS......................... " << fmt::format("{:.1f}", fps) << "\n";
-    out << "Average frame............... " << fmt::format("{:.3f}", avg_frame_wall_us / 1000.0) << " ms\n";
-    out << "P50 frame................... " << fmt::format("{:.1f}", p50) << " ms\n";
-    out << "P95 frame................... " << fmt::format("{:.1f}", p95) << " ms\n";
-    out << "P99 frame................... " << fmt::format("{:.1f}", p99) << " ms\n";
-    out << "Total elapsed.............. " << fmt::format("{:.1f}", total_elapsed_sec) << " s\n";
+    auto sorted_reuse = reuse_frame_times;
+    std::sort(sorted_reuse.begin(), sorted_reuse.end());
+    const double reuse_p50 = sorted_reuse.empty() ? 0.0 : percentile(sorted_reuse, 0.50);
+
+    auto sorted_sparse = sparse_frame_times;
+    std::sort(sorted_sparse.begin(), sorted_sparse.end());
+    const double sparse_p50 = sorted_sparse.empty() ? 0.0 : percentile(sorted_sparse, 0.50);
+
+    auto sorted_full = full_rgb_frame_times;
+    std::sort(sorted_full.begin(), sorted_full.end());
+    const double full_p50 = sorted_full.empty() ? 0.0 : percentile(sorted_full, 0.50);
+
+    out << "THROUGHPUT & LATENCY\n";
+    out << "throughput_fps.............. " << fmt::format("{:.1f}", fps) << "\n";
+    out << "wall_frame_avg_ms........... " << fmt::format("{:.3f}", avg_frame_wall_us / 1000.0) << " ms\n";
+    out << "wall_frame_p50_ms........... " << fmt::format("{:.2f}", p50) << " ms\n";
+    out << "wall_frame_p95_ms........... " << fmt::format("{:.2f}", p95) << " ms\n";
+    out << "wall_frame_p99_ms........... " << fmt::format("{:.2f}", p99) << " ms\n";
+    out << "render_frame_avg_ms......... " << fmt::format("{:.3f}", static_cast<double>(delta_u64(post_graph_total_us, pre_graph_total_us)) / (frames_d * 1000.0)) << " ms\n";
+    out << "Total elapsed............... " << fmt::format("{:.1f}", total_elapsed_sec) << " s\n";
     out << "CPU utilization............. " << fmt::format("{:.1f}", cpu_percent) << " % (process aggregate)\n";
-    out << "Encode FPS.................. N/A (benchmark command is not video export)\n";
-    out << "\n";
+    out << "Encode FPS.................. N/A (benchmark command is not video export)\n\n";
+
+    out << "DECISION DISTRIBUTION\n";
+    out << "ReuseSurface................ " << reuse_frame_times.size() << " frames ("
+        << fmt::format("{:.1f}", static_cast<double>(reuse_frame_times.size()) * 100.0 / frames_d)
+        << " %, P50: " << fmt::format("{:.2f}", reuse_p50) << " ms)\n";
+    out << "SparseTiles................. " << sparse_frame_times.size() << " frames ("
+        << fmt::format("{:.1f}", static_cast<double>(sparse_frame_times.size()) * 100.0 / frames_d)
+        << " %, P50: " << fmt::format("{:.2f}", sparse_p50) << " ms)\n";
+    out << "FullRgb..................... " << full_rgb_frame_times.size() << " frames ("
+        << fmt::format("{:.1f}", static_cast<double>(full_rgb_frame_times.size()) * 100.0 / frames_d)
+        << " %, P50: " << fmt::format("{:.2f}", full_p50) << " ms)\n";
+    out << "FullYuv..................... 0 frames\n";
+    out << "SparseYuv................... 0 frames\n";
+    out << "CopyGop..................... 0 frames\n\n";
 
     out << "HARDWARE\n";
     if (perf.available == "true") {
@@ -746,11 +783,37 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                 {"shutter_phase_deg", -90.0}
             }},
             {"fps", fps},
+            {"throughput_fps", fps},
             {"average_frame_ms", avg_frame_wall_us / 1000.0},
+            {"wall_frame_avg_ms", avg_frame_wall_us / 1000.0},
+            {"wall_frame_p50_ms", p50},
+            {"wall_frame_p95_ms", p95},
+            {"wall_frame_p99_ms", p99},
+            {"render_frame_avg_ms", graph_total_us / 1000.0},
             {"p50_ms", p50},
             {"p95_ms", p95},
             {"p99_ms", p99},
             {"total_elapsed_sec", total_elapsed_sec},
+            {"decisions", {
+                {"ReuseSurface", {
+                    {"count", reuse_frame_times.size()},
+                    {"ratio", static_cast<double>(reuse_frame_times.size()) / frames_d},
+                    {"p50_ms", reuse_p50}
+                }},
+                {"SparseTiles", {
+                    {"count", sparse_frame_times.size()},
+                    {"ratio", static_cast<double>(sparse_frame_times.size()) / frames_d},
+                    {"p50_ms", sparse_p50}
+                }},
+                {"FullRgb", {
+                    {"count", full_rgb_frame_times.size()},
+                    {"ratio", static_cast<double>(full_rgb_frame_times.size()) / frames_d},
+                    {"p50_ms", full_p50}
+                }},
+                {"FullYuv", {{"count", 0}, {"ratio", 0.0}, {"p50_ms", 0.0}}},
+                {"SparseYuv", {{"count", 0}, {"ratio", 0.0}, {"p50_ms", 0.0}}},
+                {"CopyGop", {{"count", 0}, {"ratio", 0.0}, {"p50_ms", 0.0}}}
+            }},
             {"utilization", {
                 {"cpu_percent", cpu_percent},
                 {"gpu_percent", nullptr},
