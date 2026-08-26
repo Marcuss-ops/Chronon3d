@@ -16,7 +16,10 @@ bool GpuRuntime::initialize(std::uint32_t device_id) {
     if (cuInit(0) == CUDA_SUCCESS) {
         CUdevice dev{};
         if (cuDeviceGet(&dev, static_cast<int>(device_id)) == CUDA_SUCCESS) {
-            cuDevicePrimaryCtxSetFlags(dev, CU_CTX_SCHED_BLOCKING_SYNC);
+            // Keep the primary context compatible with FFmpeg's
+            // AV_CUDA_USE_PRIMARY_CONTEXT path. Do this before retaining it;
+            // changing flags after activation is rejected by the driver.
+            (void)cuDevicePrimaryCtxSetFlags(dev, CU_CTX_SCHED_BLOCKING_SYNC);
             CUcontext ctx{};
             if (cuDevicePrimaryCtxRetain(&ctx, dev) == CUDA_SUCCESS) {
                 cuCtxSetCurrent(ctx);

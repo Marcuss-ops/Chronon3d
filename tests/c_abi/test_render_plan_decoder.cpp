@@ -408,6 +408,39 @@ TEST_CASE("render plan decoder decodes the extended visual contract fields") {
     CHECK(layer.animation->exit_duration_frames->integral() == 6);
 }
 
+TEST_CASE("render plan decoder maps subtitle formats including ass") {
+    const auto subtitle_plan = [](const char* format) {
+        return nlohmann::json{
+            {"schema", "chronon.render-plan"},
+            {"version", 1},
+            {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
+                         {"duration_frames", 30}}},
+            {"layers", nlohmann::json::array({{
+                {"id", "subs"},
+                {"type", "subtitle_track"},
+                {"source", "subtitles.ass"},
+                {"format", format},
+            }})},
+            {"output", {{"path", "out.mp4"}}}};
+    };
+
+    auto srt = chronon3d::render_plan::decode_render_plan(subtitle_plan("srt"));
+    REQUIRE(srt.has_value());
+    CHECK(srt->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Srt);
+
+    auto vtt = chronon3d::render_plan::decode_render_plan(subtitle_plan("vtt"));
+    REQUIRE(vtt.has_value());
+    CHECK(vtt->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Vtt);
+
+    auto json_fmt = chronon3d::render_plan::decode_render_plan(subtitle_plan("json"));
+    REQUIRE(json_fmt.has_value());
+    CHECK(json_fmt->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Json);
+
+    auto ass = chronon3d::render_plan::decode_render_plan(subtitle_plan("ass"));
+    REQUIRE(ass.has_value());
+    CHECK(ass->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Ass);
+}
+
 TEST_CASE("render plan decoder keeps the minimal {preset, text} form compatible") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan"},

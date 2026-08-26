@@ -9,6 +9,7 @@
 #include <nvrtc.h>
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
 
 #include <stdexcept>
 #include <string>
@@ -320,6 +321,52 @@ extern "C" __global__ void rgba_surface_to_nv12_2x2(
   out_uv[uv + 1] = (unsigned char)fminf(fmaxf(roundf(
       (1.0f-a) * 128.0f + a * (128.0f + 224.0f * (0.5f*r - 0.4542f*g - 0.0458f*b))), 16.0f), 240.0f);
 }
+
+__device__ float4 overlay_load_u8(cudaSurfaceObject_t surface, int x, int y,
+                                  int width, int height) {
+  if (x < 0 || y < 0 || x >= width || y >= height) return make_float4(0, 0, 0, 0);
+  uchar4 value;
+  surf2Dread(&value, surface, x * (int)sizeof(uchar4), y);
+  return make_float4(value.x / 255.0f, value.y / 255.0f,
+                     value.z / 255.0f, value.w / 255.0f);
+}
+
+extern "C" __global__ void rgba_u8_surface_to_nv12_2x2(
+    cudaSurfaceObject_t fg_rgba,
+    unsigned char* out_y, int out_yp, unsigned char* out_uv, int out_uvp,
+    int width, int height) {
+  const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
+  const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
+  if (x >= width || y >= height) return;
+  const int x1 = min(x + 1, width - 1);
+  const int y1 = min(y + 1, height - 1);
+  const float4 f00 = overlay_load_u8(fg_rgba, x, y, width, height);
+  const float4 f10 = overlay_load_u8(fg_rgba, x1, y, width, height);
+  const float4 f01 = overlay_load_u8(fg_rgba, x, y1, width, height);
+  const float4 f11 = overlay_load_u8(fg_rgba, x1, y1, width, height);
+  const float4 fs[4] = {f00, f10, f01, f11};
+  const int xs[4] = {x, x1, x, x1};
+  const int ys[4] = {y, y, y1, y1};
+  for (int i = 0; i < 4; ++i) {
+    const float a = fminf(fmaxf(fs[i].w, 0.0f), 1.0f);
+    const float y_value = 16.0f + 219.0f * a *
+        (0.2126f * fs[i].x + 0.7152f * fs[i].y + 0.0722f * fs[i].z);
+    out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(
+        fmaxf(roundf(y_value), 16.0f), 235.0f);
+  }
+  const float a = (f00.w + f10.w + f01.w + f11.w) * 0.25f;
+  const float r = (f00.x*f00.w + f10.x*f10.w + f01.x*f01.w + f11.x*f11.w) /
+      fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
+  const float g = (f00.y*f00.w + f10.y*f10.w + f01.y*f01.w + f11.y*f11.w) /
+      fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
+  const float b = (f00.z*f00.w + f10.z*f10.w + f01.z*f01.w + f11.z*f11.w) /
+      fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
+  const int uv = (y >> 1) * out_uvp + x;
+  out_uv[uv] = (unsigned char)fminf(fmaxf(roundf(
+      (1.0f-a) * 128.0f + a * (128.0f + 224.0f * (-0.1146f*r - 0.3854f*g + 0.5f*b))), 16.0f), 240.0f);
+  out_uv[uv + 1] = (unsigned char)fminf(fmaxf(roundf(
+      (1.0f-a) * 128.0f + a * (128.0f + 224.0f * (0.5f*r - 0.4542f*g - 0.0458f*b))), 16.0f), 240.0f);
+}
 )CUDA";
 
 [[noreturn]] void fail(const char* operation, const std::string& detail) {
@@ -329,8 +376,16 @@ extern "C" __global__ void rgba_surface_to_nv12_2x2(
 void check_cuda(CUresult result, const char* operation) {
     if (result == CUDA_SUCCESS) return;
     const char* name = nullptr;
+    const char* description = nullptr;
     cuGetErrorName(result, &name);
-    fail(operation, name ? name : "CUDA error");
+    cuGetErrorString(result, &description);
+    std::string detail = name ? name : "CUDA error";
+    if (description && description != detail) {
+        detail += " (";
+        detail += description;
+        detail += ")";
+    }
+    fail(operation, detail);
 }
 
 void check_nvrtc(nvrtcResult result, const char* operation) {
@@ -387,15 +442,44 @@ std::string get_compiled_nv12_ptx() {
 
 } // namespace
 
+void CudaNv12SurfaceCompositor::warm_up(CUcontext context) {
+    if (!context) fail("CudaNv12SurfaceCompositor::warm_up", "null CUDA context");
+    check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent(warm_up)");
+    const std::string ptx = get_compiled_nv12_ptx();
+    CUmodule module = nullptr;
+    check_cuda(cuModuleLoadData(&module, ptx.c_str()),
+               "cuModuleLoadData(warm_up)");
+    check_cuda(cuModuleUnload(module), "cuModuleUnload(warm_up)");
+}
+
 CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
     const CudaExternalMemoryInfo& target, CUcontext context)
-    : context_(context) {
+    : context_(context), surface_u8_(target.cuda_array_format == 2) {
     if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
     const std::string ptx = get_compiled_nv12_ptx();
-    check_cuda(cuModuleLoadData(&module_, ptx.data()), "cuModuleLoadData");
+
+    // The native encoder shares FFmpeg's primary CUDA context.  Surface any
+    // earlier asynchronous failure before loading the compositor module so a
+    // stale context error cannot be misreported as a PTX loading failure.
+    const CUresult module_result = cuModuleLoadData(&module_, ptx.c_str());
+    if (module_result != CUDA_SUCCESS) {
+        const char* name = nullptr;
+        const char* description = nullptr;
+        cuGetErrorName(module_result, &name);
+        cuGetErrorString(module_result, &description);
+        std::string detail = name ? name : "CUDA error";
+        if (description) {
+            detail += " (";
+            detail += description;
+            detail += ")";
+        }
+        detail += "; arch=" CHRONON3D_NVRTC_ARCHITECTURE;
+        detail += "; ptx_bytes=" + std::to_string(ptx.size());
+        fail("cuModuleLoadData", detail);
+    }
     check_cuda(cuModuleGetFunction(&kernel_, module_, "nv12_to_rgba"),
                "cuModuleGetFunction");
     check_cuda(cuModuleGetFunction(&direct_nv12_kernel_, module_,
@@ -407,6 +491,9 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
     check_cuda(cuModuleGetFunction(&rgba_to_nv12_kernel_, module_,
                                    "rgba_surface_to_nv12_2x2"),
                "cuModuleGetFunction(rgba_surface_to_nv12_2x2)");
+    check_cuda(cuModuleGetFunction(&rgba_u8_to_nv12_kernel_, module_,
+                                   "rgba_u8_surface_to_nv12_2x2"),
+               "cuModuleGetFunction(rgba_u8_surface_to_nv12_2x2)");
     bridge_ = std::make_unique<CudaVulkanSurfaceBridge>(
         target, context_, stream_);
 }
@@ -553,7 +640,8 @@ bool CudaNv12SurfaceCompositor::composite_direct_nv12_batch(
 bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
     CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
     std::uint32_t width, std::uint32_t height, CUstream stream) {
-    if (!bridge_ || !rgba_to_nv12_kernel_ || !out_y || !out_uv ||
+    const CUfunction kernel = surface_u8_ ? rgba_u8_to_nv12_kernel_ : rgba_to_nv12_kernel_;
+    if (!bridge_ || !kernel || !out_y || !out_uv ||
         width == 0 || height == 0) return false;
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     const CUstream active = stream ? stream : stream_;
@@ -564,7 +652,7 @@ bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
     CUsurfObject surface = bridge_->surface_object();
     void* args[] = {&surface, &out_y, &out_yp, &out_uv, &out_uvp,
                     &width, &height};
-    check_cuda(cuLaunchKernel(rgba_to_nv12_kernel_, (width + 31) / 32,
+    check_cuda(cuLaunchKernel(kernel, (width + 31) / 32,
                               (height + 31) / 32, 1, 16, 16, 1, 0, active,
                               args, nullptr),
                "cuLaunchKernel(rgba_surface_to_nv12_2x2)");

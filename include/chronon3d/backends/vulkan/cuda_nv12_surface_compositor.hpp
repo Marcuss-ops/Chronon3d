@@ -29,6 +29,10 @@ struct CudaLayerResource {
 /// handles; the compositor writes CUDA NV12 planes directly when requested.
 class CudaNv12SurfaceCompositor final {
 public:
+    /// Compiles and loads the NVRTC module once on the supplied CUDA
+    /// context. This validates the driver/context before NVENC is opened.
+    static void warm_up(CUcontext context);
+
     CudaNv12SurfaceCompositor(
         const CudaExternalMemoryInfo& target,
         CUcontext context);
@@ -72,10 +76,12 @@ private:
     CUfunction direct_nv12_kernel_{nullptr};
     CUfunction direct_nv12_batch_kernel_{nullptr};
     CUfunction rgba_to_nv12_kernel_{nullptr};
+    CUfunction rgba_u8_to_nv12_kernel_{nullptr};
     CUdeviceptr layer_batch_buffer_{0};
     std::size_t layer_batch_capacity_{0};
     CUstream stream_{nullptr};
     bool first_write_{true};
+    bool surface_u8_{false};
     std::unique_ptr<CudaVulkanSurfaceBridge> bridge_;
 };
 
