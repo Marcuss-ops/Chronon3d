@@ -63,8 +63,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     chronon3d_add_test_suite(
         NAME chronon3d_native_decoder_tests
         TIER INTEGRATION
-        NO_PIPELINE
-        LINK_TARGETS chronon3d_media_native chronon3d_core_impl
+        LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
         SOURCES video/test_native_video_frame_decoder.cpp
     )
     if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
