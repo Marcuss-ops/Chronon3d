@@ -171,7 +171,10 @@ std::vector<std::uint8_t> serialize_to_flatbuffer(
     auto program = CreateFrameProgramMeta(
         builder,
         levels_vec, ops_vec, batches_vec, slots_vec,
-        fp ? fp->command_plan.pass_count() > 0 : false,  // fully_recorded
+        // v0.1 serializes metadata only; it does not serialize executable
+        // operations or levels.  Such an artifact can never safely enter the
+        // compiled executor, even when its command plan has passes.
+        false,  // fully_recorded
         false,  // has_fused_passes
         false,  // require_native_gpu
         builder.CreateVector(std::vector<bool>{}),  // interior_skip
