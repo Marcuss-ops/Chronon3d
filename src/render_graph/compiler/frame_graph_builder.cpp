@@ -696,23 +696,25 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             // operators; transforms/composites may extend an already valid
             // batch but can never create one on their own.
             const auto& graph_node = compiled.graph.node(node_id);
-            // MultiSourceNode has a legacy CPU compositor for mixed layers.
-            // It cannot be lowered to the image-only GPU batch when one of
-            // its items is TextRun; keep the whole node standalone so the
-            // text item reaches MultiSourceNode::execute().
+            // The current GPU layer batch executor accepts only Image
+            // payloads. MultiSourceNode also has a CPU compositor for mixed
+            // layers; keep every non-image payload standalone so rect/glow,
+            // text and video work cannot be lowered into an empty batch.
             const bool multi_source_is_image_only =
                 node_info.source_shape_types.empty() ||
-                std::none_of(
+                std::all_of(
                     node_info.source_shape_types.begin(),
                     node_info.source_shape_types.end(),
                     [](const int shape_type) {
-                        return shape_type == static_cast<int>(ShapeType::TextRun);
+                        return shape_type == static_cast<int>(ShapeType::Image);
                     });
+            const bool source_is_image =
+                node_info.shape_type == static_cast<int>(ShapeType::Image);
             const bool is_canonical_layer_source =
-                dynamic_cast<const SourceNode*>(&graph_node) != nullptr ||
+                (dynamic_cast<const SourceNode*>(&graph_node) != nullptr &&
+                 source_is_image) ||
                 (dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr &&
-                 multi_source_is_image_only) ||
-                dynamic_cast<const VideoNode*>(&graph_node) != nullptr;
+                 multi_source_is_image_only);
             const bool is_fusible_layer_node =
                 (is_canonical_layer_source &&
                  (node_info.kind == RenderGraphNodeKind::Source ||
