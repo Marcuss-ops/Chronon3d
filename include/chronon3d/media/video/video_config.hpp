@@ -59,6 +59,10 @@ enum class VideoCodec : uint8_t {
     /// H.264 / AVC (most compatible, good quality/size).
     H264 = 1,
 
+    /// H.264 through NVIDIA NVENC. Input frames may still arrive over the
+    /// CPU pipe; hardware acceleration applies to encoding.
+    H264Nvenc = 6,
+
     /// H.265 / HEVC (better compression, slower, less compatible).
     H265 = 2,
 
