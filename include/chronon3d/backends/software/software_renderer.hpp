@@ -113,6 +113,7 @@ public:
     [[nodiscard]] bool   last_tile_execution_used() const { return m_session.common.dirty_telemetry.last_tile_execution_used; }
     [[nodiscard]] bool   last_fast_path_reused() const    { return m_session.common.dirty_telemetry.last_fast_path_reused; }
     [[nodiscard]] bool   last_graph_reused() const        { return m_session.common.dirty_telemetry.last_graph_reused; }
+    [[nodiscard]] graph::FrameExecutionPath last_execution_decision() const { return m_session.common.dirty_telemetry.last_execution_path; }
     [[nodiscard]] int    last_layer_count() const         { return m_session.common.dirty_telemetry.last_layer_count; }
 
     // ── RenderRuntime forwarders (OOL — avoids pulling runtime/* headers) ──
@@ -177,7 +178,8 @@ public:
                                  std::unordered_map<std::string, LayerBBoxState>&&);
     void update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
                                 bool tile_execution_used, bool fast_path_reused,
-                                bool graph_reused);
+                                bool graph_reused,
+                                graph::FrameExecutionPath path = graph::FrameExecutionPath::FullRgb);
 
 private:
     void preflight_images(const Scene& scene);
