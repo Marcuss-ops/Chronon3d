@@ -60,7 +60,7 @@ struct DirtyRenderSettings {
     /// tile execution is skipped in favour of a single full-frame pass.
     /// Example: 0.30 → skip tile execution when >30% of the screen is dirty.
     /// Equivalent to the previous `tile_dirty_ratio_threshold`.
-    double tile_dirty_ratio_threshold{0.30};
+    double tile_dirty_ratio_threshold{0.50};
 
     /// True if any version of the dirty-rect optimization is enabled.
     [[nodiscard]] constexpr bool is_active() const noexcept {
