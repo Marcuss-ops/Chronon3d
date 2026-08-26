@@ -205,6 +205,8 @@
             case runtime::PixelFormat::Rgba32Float: return VK_FORMAT_R32G32B32A32_SFLOAT;
             case runtime::PixelFormat::Rgba8Unorm:  return VK_FORMAT_B8G8R8A8_UNORM;
             case runtime::PixelFormat::R8Unorm:     return VK_FORMAT_R8_UNORM;
+            case runtime::PixelFormat::Nv12:        return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+            case runtime::PixelFormat::P010:        return VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
             default: return VK_FORMAT_R32G32B32A32_SFLOAT;
         }
     }
@@ -214,6 +216,8 @@
             case runtime::PixelFormat::Rgba32Float: return 16;
             case runtime::PixelFormat::Rgba8Unorm:  return 4;
             case runtime::PixelFormat::R8Unorm:     return 1;
+            case runtime::PixelFormat::Nv12:        return 1;
+            case runtime::PixelFormat::P010:        return 2;
             default: return 16;
         }
     }
@@ -223,7 +227,9 @@
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             (desc.format != runtime::PixelFormat::Rgba32Float &&
              desc.format != runtime::PixelFormat::Rgba8Unorm &&
-             desc.format != runtime::PixelFormat::R8Unorm) ||
+             desc.format != runtime::PixelFormat::R8Unorm &&
+             desc.format != runtime::PixelFormat::Nv12 &&
+             desc.format != runtime::PixelFormat::P010) ||
             desc.width == 0 || desc.height == 0) {
             throw std::invalid_argument("Vulkan surface requires a valid non-empty description");
         }
@@ -231,9 +237,10 @@
         if (binding != surface_bindings.end()) {
             auto& physical = physical_surfaces.at(binding->second);
             if (physical.image.width != desc.width ||
-                physical.image.height != desc.height) {
+                physical.image.height != desc.height ||
+                physical.desc.format != desc.format) {
                 destroy_image(physical.image);
-                make_image(physical.image, desc.width, desc.height);
+                make_image(physical.image, desc.width, desc.height, false, to_vk_format(desc.format));
                 physical.desc = desc;
             }
             ensure_descriptor_set();
