@@ -142,10 +142,7 @@ NodeExecResult TextRunNode::execute(
     }
 
     if (m_cache_policy.reusable_across_frames() && m_cached_result &&
-        !ctx.frame_input.has_camera_2_5d &&
-        (!ctx.node_exec.clip_rect || (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
-                                      ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width &&
-                                      ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height))) {
+        !ctx.frame_input.has_camera_2_5d) {
         return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
     }
 

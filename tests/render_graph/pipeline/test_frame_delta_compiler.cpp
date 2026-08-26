@@ -4,6 +4,8 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <memory>
 #include <type_traits>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
 #include "../../../src/render_graph/pipeline/frame_delta_compiler.hpp"
 #include "../../../src/render_graph/pipeline/tile_execution_policy.hpp"
 
@@ -103,6 +105,117 @@ TEST_CASE("RenderSurface contracts preserve CPU fallback and typed formats") {
     CHECK_FALSE(GpuRgbSurface(15, yuv_desc).valid());
 }
 
+TEST_CASE("ExecutionDecision propagates through the canonical command plan") {
+    chronon3d::runtime::GpuCommandPlanner planner;
+    const chronon3d::graph::ExecutionDecision decision{
+        chronon3d::graph::FrameExecutionPath::ReuseSurface, "reuse_surface"};
+    planner.set_execution_decision(decision);
+
+    const auto command_plan = planner.build();
+
+    REQUIRE(command_plan.execution_decision.has_value());
+    CHECK(command_plan.execution_decision->reuses_surface());
+    CHECK(command_plan.execution_decision->reason == "reuse_surface");
+}
+
+TEST_CASE("ExecutionDecision propagates through CompiledFrameGraph") {
+    chronon3d::graph::CompiledFrameGraph compiled;
+    compiled.execution_decision = chronon3d::graph::ExecutionDecision{
+        chronon3d::graph::FrameExecutionPath::FullRgb, "scene_changed"};
+
+    REQUIRE(compiled.execution_decision.has_value());
+    CHECK(compiled.execution_decision->renders_full_rgb());
+    CHECK(compiled.execution_decision->reason == "scene_changed");
+}
+
+TEST_CASE("YUV command plan preserves NV12 and P010 format metadata") {
+    chronon3d::runtime::GpuCommandPlanner planner;
+    planner.yuv_overlay({1, 2, chronon3d::runtime::PixelFormat::Nv12,
+                         BBox{0, 0, 16, 16},
+                         chronon3d::runtime::YuvExecutionMode::Sparse});
+    const auto nv12 = planner.build();
+    REQUIRE(nv12.passes.passes.size() == 1);
+    const auto& nv12_pass = std::get<chronon3d::runtime::YuvOverlayPass>(
+        nv12.passes.passes.front().params);
+    CHECK(nv12_pass.format == chronon3d::runtime::PixelFormat::Nv12);
+    CHECK(nv12_pass.mode == chronon3d::runtime::YuvExecutionMode::Sparse);
+
+    chronon3d::runtime::GpuCommandPlanner p010_planner;
+    p010_planner.yuv_overlay({3, 4, chronon3d::runtime::PixelFormat::P010,
+                              std::nullopt,
+                              chronon3d::runtime::YuvExecutionMode::Full});
+    const auto p010 = p010_planner.build();
+    const auto& p010_pass = std::get<chronon3d::runtime::YuvOverlayPass>(
+        p010.passes.passes.front().params);
+    CHECK(p010_pass.format == chronon3d::runtime::PixelFormat::P010);
+    CHECK(p010_pass.mode == chronon3d::runtime::YuvExecutionMode::Full);
+}
+
+TEST_CASE("ExecutionResolver resolves YUV execution paths from a FrameDelta") {
+    chronon3d::graph::detail::DirtyRectOutput dirty;
+    dirty.frame_delta = chronon3d::graph::detail::FrameDelta{};
+    dirty.frame_delta->scene_changed = true;
+    dirty.use_dirty_tiles = true;
+    dirty.tile_grid = chronon3d::raster::TileGrid(32, 32, 16);
+    dirty.dirty_tiles = chronon3d::raster::DirtyTileMask(*dirty.tile_grid);
+    dirty.dirty_tiles->mark_tile(0, 0);
+    dirty.dirty_rect = BBox{0, 0, 16, 16};
+
+    auto plan = chronon3d::graph::ExecutionResolver::resolve(
+        {}, {}, chronon3d::Scene{}, chronon3d::Camera2_5D{},
+        chronon3d::RenderSettings{}, dirty, 0.25, nullptr,
+        chronon3d::Frame{1}, 32, 32, nullptr, false, false,
+        chronon3d::runtime::PixelFormat::Nv12);
+    CHECK(plan.path == chronon3d::graph::FrameExecutionPath::SparseYuv);
+    CHECK(plan.reason == "sparse_yuv_nv12");
+    REQUIRE(plan.dirty_regions.size() == 1);
+
+    dirty.use_dirty_tiles = false;
+    plan = chronon3d::graph::ExecutionResolver::resolve(
+        {}, {}, chronon3d::Scene{}, chronon3d::Camera2_5D{},
+        chronon3d::RenderSettings{}, dirty, 1.0, nullptr,
+        chronon3d::Frame{1}, 32, 32, nullptr, false, false,
+        chronon3d::runtime::PixelFormat::P010);
+    CHECK(plan.path == chronon3d::graph::FrameExecutionPath::FullYuv);
+    CHECK(plan.reason == "full_yuv_p010");
+}
+
+TEST_CASE("ExecutionResolver resolves initial ReuseSurface from a clean FrameDelta") {
+    chronon3d::graph::detail::FrameDelta delta;
+    delta.reuse.resolved_scene_reuse = true;
+
+    const auto decision = chronon3d::graph::ExecutionResolver::resolve_initial(delta);
+
+    CHECK(decision.path == chronon3d::graph::FrameExecutionPath::ReuseSurface);
+    CHECK(decision.reuses_surface());
+    CHECK_FALSE(decision.renders_full_rgb());
+    CHECK(decision.reason == "reuse_surface");
+}
+
+TEST_CASE("ExecutionResolver resolves changed FrameDelta to FullRgb") {
+    chronon3d::graph::detail::FrameDelta delta;
+    delta.scene_changed = true;
+    delta.content_changed = true;
+    delta.reuse.reason = "layer_delta_present";
+
+    const auto decision = chronon3d::graph::ExecutionResolver::resolve_initial(delta);
+
+    CHECK(decision.path == chronon3d::graph::FrameExecutionPath::FullRgb);
+    CHECK_FALSE(decision.reuses_surface());
+    CHECK(decision.renders_full_rgb());
+    CHECK(decision.reason == "scene_changed");
+}
+
+TEST_CASE("ExecutionResolver fails closed to FullRgb when reuse is not eligible") {
+    chronon3d::graph::detail::FrameDelta delta;
+    delta.reuse.reason = "missing_previous_surface";
+
+    const auto decision = chronon3d::graph::ExecutionResolver::resolve_initial(delta);
+
+    CHECK(decision.path == chronon3d::graph::FrameExecutionPath::FullRgb);
+    CHECK(decision.reason == "missing_previous_surface");
+}
+
 TEST_CASE("ExecutionResolver is the sole canonical frame-path resolver") {
     static_assert(std::is_same_v<chronon3d::graph::ExecutionResolver,
                                  chronon3d::graph::TileExecutionPolicy>);
@@ -172,10 +285,10 @@ TEST_CASE("FrameDeltaCompiler marks additions, removals, and tiles") {
         {"old", layer(BBox{0, 0, 16, 16})}};
     std::unordered_map<std::string, LayerBBoxState> current{
         {"new", layer(BBox{32, 32, 48, 48})}};
-    const TileGrid grid(64, 64, 16);
+    const TileGrid grid(128, 128, 16);
 
     const auto delta = FrameDeltaCompiler::compile(
-        chronon3d::Frame{8}, current, previous, false, 64, 64, &grid);
+        chronon3d::Frame{8}, current, previous, false, 128, 128, &grid);
 
     REQUIRE(delta.changes.size() == 2);
     CHECK((delta.changes[0].change_mask & LayerAdded) != 0);
@@ -266,6 +379,49 @@ TEST_CASE("FrameDeltaCompiler classifies semantic changes") {
     CHECK(delta.video_source_changed);
 }
 
+TEST_CASE("FrameDeltaCompiler propagates spatial damage spread to bounds and tiles") {
+    const TileGrid grid(128, 128, 16);
+    auto previous_layer = layer(BBox{48, 48, 64, 64});
+    auto current_layer = previous_layer;
+    current_layer.content_hash = 2;
+
+    chronon3d::graph::detail::FrameDeltaCompileOptions options;
+    options.full_frame_threshold = 0.0;
+    options.spatial_spread = [](std::string_view id) {
+        return id == "logo" ? 8.0 : 0.0;
+    };
+
+    const auto delta = FrameDeltaCompiler::compile(
+        chronon3d::Frame{10},
+        {{"logo", current_layer}},
+        {{"logo", previous_layer}},
+        false, 128, 128, &grid, options);
+
+    REQUIRE(delta.dirty_bounds.has_value());
+    CHECK(delta.dirty_bounds->x0 == 40);
+    CHECK(delta.dirty_bounds->y0 == 40);
+    CHECK(delta.dirty_bounds->x1 == 72);
+    CHECK(delta.dirty_bounds->y1 == 72);
+    REQUIRE(delta.dirty_tiles.has_value());
+    CHECK(delta.dirty_tiles->dirty_count() == 9);
+}
+
+TEST_CASE("FrameDeltaCompiler normalizes full-frame damage and tiles") {
+    const TileGrid grid(64, 64, 16);
+    const auto delta = FrameDeltaCompiler::compile(
+        chronon3d::Frame{10}, {}, {}, false, 64, 64, &grid,
+        chronon3d::graph::detail::FrameDeltaCompileOptions{.force_full_frame = true});
+
+    REQUIRE(delta.dirty_bounds.has_value());
+    CHECK(delta.full_frame_dirty);
+    CHECK(delta.dirty_bounds->x0 == 0);
+    CHECK(delta.dirty_bounds->y0 == 0);
+    CHECK(delta.dirty_bounds->x1 == 64);
+    CHECK(delta.dirty_bounds->y1 == 64);
+    REQUIRE(delta.dirty_tiles.has_value());
+    CHECK(delta.dirty_tiles->dirty_count() == grid.tile_count());
+}
+
 TEST_CASE("FrameDeltaCompiler keeps an unchanged frame clean") {
     const auto unchanged = layer(BBox{4, 8, 20, 24});
     std::unordered_map<std::string, LayerBBoxState> previous{{"plate", unchanged}};
@@ -312,6 +468,20 @@ TEST_CASE("FrameDeltaCompiler grants resolved reuse for identical sequential sta
     CHECK(delta.reuse.structure_unchanged);
     CHECK(delta.reuse.camera_unchanged);
     CHECK(delta.reuse.reason.empty());
+}
+
+TEST_CASE("FrameDeltaCompiler rejects reuse when a layer delta is present") {
+    auto previous_layer = layer(BBox{4, 8, 20, 24});
+    auto current_layer = previous_layer;
+    current_layer.content_hash = 9;
+    auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
+    auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+    previous.layers.emplace("caption", previous_layer);
+    current.layers.emplace("caption", current_layer);
+
+    const auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
+    CHECK_FALSE(delta.reuse.resolved_scene_reuse);
+    CHECK(delta.reuse.reason == "layer_delta_present");
 }
 
 TEST_CASE("FrameDeltaCompiler rejects reuse when fingerprints or camera change") {

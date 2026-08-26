@@ -247,6 +247,9 @@ void SoftwareRenderer::set_image_backend(std::shared_ptr<image::ImageBackend> ba
 // is enforced at one canonical site — easier to audit on session-telemetry
 // regressions (TICKET-118 cross-references this invariant).
 void SoftwareRenderer::mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
+    m_counters.fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);
+    m_counters.clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+    m_counters.graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
     m_session.common.dirty_telemetry.last_dirty_area_ratio = 0.0;
     m_session.common.dirty_telemetry.last_dirty_rect_enabled = false;
     m_session.common.dirty_telemetry.last_dirty_rect = std::nullopt;

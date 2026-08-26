@@ -45,6 +45,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
@@ -84,6 +88,34 @@ ProcStatusMetrics read_proc_status() {
         }
     }
     return m;
+}
+
+// Process CPU time used by the timed benchmark interval. This is a process
+// metric, unlike host-wide snapshots, and remains meaningful on multi-core
+// hosts because it reports aggregate CPU utilization (100% = one core).
+double read_process_cpu_seconds() {
+#if defined(__linux__)
+    std::ifstream in("/proc/self/stat");
+    std::string line;
+    if (!std::getline(in, line)) return 0.0;
+    const auto close_comm = line.rfind(')');
+    if (close_comm == std::string::npos) return 0.0;
+    std::istringstream fields(line.substr(close_comm + 2));
+    std::string field;
+    std::uint64_t utime = 0;
+    std::uint64_t stime = 0;
+    for (int index = 3; fields >> field; ++index) {
+        if (index == 14) utime = std::strtoull(field.c_str(), nullptr, 10);
+        if (index == 15) {
+            stime = std::strtoull(field.c_str(), nullptr, 10);
+            break;
+        }
+    }
+    const long ticks = sysconf(_SC_CLK_TCK);
+    return ticks > 0 ? static_cast<double>(utime + stime) / static_cast<double>(ticks) : 0.0;
+#else
+    return 0.0;
+#endif
 }
 
 // ── CPU model name from /proc/cpuinfo ───────────────────────────────────
@@ -303,6 +335,7 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     // work must never be divided by the timed-frame count.
     const auto* counters = renderer->counters();
     const auto proc_start = read_proc_status();
+    const double cpu_start_seconds = read_process_cpu_seconds();
     const uint64_t pre_alloc = counters->framebuffer_allocations.load(std::memory_order_relaxed);
     const uint64_t pre_copies = counters->full_frame_copies.load(std::memory_order_relaxed);
     const uint64_t pre_passes = counters->full_frame_passes.load(std::memory_order_relaxed);
@@ -346,6 +379,7 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
 
     // ── Post-run counters & proc state ─────────────────────────────────
     const auto proc_end = read_proc_status();
+    const double cpu_end_seconds = read_process_cpu_seconds();
     const uint64_t post_alloc = counters->framebuffer_allocations.load(std::memory_order_relaxed);
     const uint64_t post_copies = counters->full_frame_copies.load(std::memory_order_relaxed);
     const uint64_t post_passes = counters->full_frame_passes.load(std::memory_order_relaxed);
@@ -356,6 +390,11 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     const uint64_t post_text_layout_ms = counters->text_layout_wall_ms.load(std::memory_order_relaxed);
     const uint64_t post_asset_resolve_us = counters->image_resolve_wall_us.load(std::memory_order_relaxed);
     auto [gpu_post_ordered, gpu_post] = snapshot_gpu();
+
+    const auto gpu_absolute = [&](const std::string& name) -> std::uint64_t {
+        const auto it = gpu_post.find(name);
+        return it == gpu_post.end() ? 0 : it->second;
+    };
 
     const auto delta_u64 = [](std::uint64_t after, std::uint64_t before) {
         return after >= before ? after - before : std::uint64_t{0};
@@ -385,6 +424,9 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     std::sort(sorted.begin(), sorted.end());
 
     const double fps = static_cast<double>(total_frames) / total_elapsed_sec;
+    const double cpu_percent = total_elapsed_sec > 0.0
+        ? std::max(0.0, (cpu_end_seconds - cpu_start_seconds) / total_elapsed_sec * 100.0)
+        : 0.0;
     const double p50 = percentile(sorted, 0.50);
     const double p95 = percentile(sorted, 0.95);
     const double p99 = percentile(sorted, 0.99);
@@ -455,6 +497,8 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
     out << "P95 frame................... " << fmt::format("{:.1f}", p95) << " ms\n";
     out << "P99 frame................... " << fmt::format("{:.1f}", p99) << " ms\n";
     out << "Total elapsed.............. " << fmt::format("{:.1f}", total_elapsed_sec) << " s\n";
+    out << "CPU utilization............. " << fmt::format("{:.1f}", cpu_percent) << " % (process aggregate)\n";
+    out << "Encode FPS.................. N/A (benchmark command is not video export)\n";
     out << "\n";
 
     out << "HARDWARE\n";
@@ -707,6 +751,13 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
             {"p95_ms", p95},
             {"p99_ms", p99},
             {"total_elapsed_sec", total_elapsed_sec},
+            {"utilization", {
+                {"cpu_percent", cpu_percent},
+                {"gpu_percent", nullptr},
+                {"gpu_percent_status", "NOT_SAMPLED_BY_PROCESS"}
+            }},
+            {"encode_fps", nullptr},
+            {"encode_fps_status", "NOT_VIDEO_EXPORT"},
             {"setup", {
                 {"compile_us", compile_us},
                 {"prepare_us", nullptr},
@@ -768,13 +819,13 @@ int command_benchmark_saturation(const CompositionRegistry& registry, const CliC
                 {"vk_cmd_draw_per_frame", gpu_delta("vkCmdDraw") / frames_d},
                 {"barriers_per_frame", gpu_delta("barriers") / frames_d},
                 {"descriptor_allocations_per_frame", gpu_delta("descriptor_allocations") / frames_d},
-                {"physical_surfaces_peak", gpu_delta("physical_surfaces_peak")},
-                {"vma_allocation_bytes_after", gpu_delta("vma_allocation_bytes")},
-                {"vma_block_bytes_after", gpu_delta("vma_block_bytes")},
-                {"vma_allocation_count_after", gpu_delta("vma_allocation_count")},
-                {"vma_block_count_after", gpu_delta("vma_block_count")},
-                {"vma_budget_bytes_after", gpu_delta("vma_budget_bytes")},
-                {"vma_usage_bytes_after", gpu_delta("vma_usage_bytes")}
+                {"physical_surfaces_peak", gpu_absolute("physical_surfaces_peak")},
+                {"vma_allocation_bytes_after", gpu_absolute("vma_allocation_bytes")},
+                {"vma_block_bytes_after", gpu_absolute("vma_block_bytes")},
+                {"vma_allocation_count_after", gpu_absolute("vma_allocation_count")},
+                {"vma_block_count_after", gpu_absolute("vma_block_count")},
+                {"vma_budget_bytes_after", gpu_absolute("vma_budget_bytes")},
+                {"vma_usage_bytes_after", gpu_absolute("vma_usage_bytes")}
             }},
             {"nested_costs", {
                 {"text_shape_us", text_shape_us},

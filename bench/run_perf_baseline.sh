@@ -30,7 +30,7 @@
 #   CHRONON3D_BENCH_REPS      repetitions per benchmark      (default 3)
 # ═══════════════════════════════════════════════════════════════════════════
 
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -120,47 +120,67 @@ REPORT_TXT="$OUTPUT_DIR/perf_baseline_${COMMIT}.txt"
     echo
 } > "$REPORT_TXT"
 
-echo "{" > "$SUITE_OUT"
-echo "  \"schema\": \"chronon3d.perf_baseline.v1\"," >> "$SUITE_OUT"
-echo "  \"commit\": \"$COMMIT\"," >> "$SUITE_OUT"
-echo "  \"machine\": \"$MACHINE\"," >> "$SUITE_OUT"
-echo "  \"host\": $HOST_INNER," >> "$SUITE_OUT"
-echo "  \"runner\": \"bench/run_perf_baseline.sh\"," >> "$SUITE_OUT"
-echo "  \"timestamp_utc\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> "$SUITE_OUT"
-echo "  \"warmup_s\": $WARMUP," >> "$SUITE_OUT"
-echo "  \"duration_s\": $DURATION," >> "$SUITE_OUT"
-echo "  \"repetitions\": $REPETITIONS," >> "$SUITE_OUT"
-echo "  \"benchmarks\": {" >> "$SUITE_OUT"
-
-FIRST_BENCH=true
+BENCH_ENTRIES=()
 for b in $(echo "$SELECTED" | tr ',' ' '); do
     if [[ -z "${COMP_BY_ID[$b]:-}" ]]; then
         _warn "unknown bench id: $b (valid: ${!COMP_BY_ID[*]}) — skipping"
         continue
     fi
     COMP="${COMP_BY_ID[$b]}"
-    [[ "$FIRST_BENCH" == "true" ]] || echo "," >> "$SUITE_OUT"
-    FIRST_BENCH=false
-
     _info "== $b ($COMP): duration=${DURATION}s warmup=${WARMUP}s reps=${REPETITIONS} =="
     REP_JSON=""
     for ((r=1; r<=REPETITIONS; r++)); do
         _info "  repetition $r/$REPETITIONS"
         CUR="$OUTPUT_DIR/${b}_${COMMIT}_r${r}.json"
-        if ! "$CLI_BIN" benchmark --scene "$COMP" --duration "$DURATION" \
-               --saturation --report-json "$CUR" >> "$REPORT_TXT" 2>&1; then
-            _warn "benchmark failed for $b repetition $r (exit $?)"
-            continue
+        GPU_SAMPLES="$OUTPUT_DIR/${b}_${COMMIT}_r${r}.gpu_samples"
+        : > "$GPU_SAMPLES"
+        "$CLI_BIN" benchmark --scene "$COMP" --duration "$DURATION" \
+               --saturation --report-json "$CUR" --backend "${CHRONON3D_BENCH_BACKEND:-auto}" >> "$REPORT_TXT" 2>&1 &
+        BENCH_PID=$!
+        while kill -0 "$BENCH_PID" 2>/dev/null; do
+            if command -v nvidia-smi >/dev/null 2>&1; then
+                nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null \
+                    | awk 'NF { print $1; exit }' >> "$GPU_SAMPLES" || true
+            fi
+            sleep 1
+        done
+        if ! wait "$BENCH_PID"; then
+            _err "benchmark failed for $b repetition $r"
+            exit 1
         fi
         if [[ -f "$CUR" ]]; then
+            python3 - "$CUR" "$GPU_SAMPLES" <<'PY'
+import json
+import sys
+report_path, samples_path = sys.argv[1:]
+with open(report_path, encoding="utf-8") as fh:
+    report = json.load(fh)
+values = []
+with open(samples_path, encoding="utf-8") as fh:
+    for line in fh:
+        try:
+            values.append(float(line.strip()))
+        except ValueError:
+            pass
+utilization = report.setdefault("utilization", {})
+if values:
+    utilization["gpu_percent"] = sum(values) / len(values)
+    utilization["gpu_percent_status"] = "NVIDIA_SMI_INTERVAL_MEAN"
+else:
+    utilization["gpu_percent"] = None
+    utilization["gpu_percent_status"] = "NOT_AVAILABLE"
+with open(report_path, "w", encoding="utf-8") as fh:
+    json.dump(report, fh, indent=2)
+    fh.write("\n")
+PY
             REP_JSON="$CUR"
         fi
     done
     if [[ -z "$REP_JSON" ]]; then
-        _err "no valid saturation JSON for $b — skipping"
-        continue
+        _err "no valid saturation JSON for $b"
+        exit 1
     fi
-    echo "  \"$b\": $(cat "$REP_JSON")" >> "$SUITE_OUT"
+    BENCH_ENTRIES+=("$b|$REP_JSON")
 
     # Append a compact table line to the TXT report.
     python3 - "$b" "$REP_JSON" >> "$REPORT_TXT" <<'PY'
@@ -184,12 +204,39 @@ print(f"{bench_id}: p50={p50:.2f}ms p95={p95:.2f}ms fps={fps:.1f} "
 PY
 done
 
-echo "  }" >> "$SUITE_OUT"
-echo "}" >> "$SUITE_OUT"
+python3 - "$SUITE_OUT" "$COMMIT" "$MACHINE" "$HOST_INNER" "$WARMUP" "$DURATION" "$REPETITIONS" "${BENCH_ENTRIES[@]}" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
 
-# CPU%/GPU% annex is sampled AFTER the suite loop (see below).
+suite_path, commit, machine, host_json, warmup, duration, repetitions = sys.argv[1:8]
+entries = sys.argv[8:]
+benchmarks = {}
+for entry in entries:
+    bench_id, report_path = entry.split("|", 1)
+    with open(report_path, encoding="utf-8") as fh:
+        benchmarks[bench_id] = json.load(fh)
 
-# Validate the suite JSON parses (best-effort; missing benches tolerated).
+suite = {
+    "schema": "chronon3d.perf_baseline.v1",
+    "commit": commit,
+    "machine": machine,
+    "host": json.loads(host_json),
+    "runner": "bench/run_perf_baseline.sh",
+    "timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "warmup_s": int(warmup),
+    "duration_s": int(duration),
+    "repetitions": int(repetitions),
+    "benchmarks": benchmarks,
+}
+with open(suite_path, "w", encoding="utf-8") as fh:
+    json.dump(suite, fh, indent=2)
+    fh.write("\n")
+PY
+
+# Validate the suite JSON parses. Missing or failed benchmarks are fatal:
+# a partial suite is not a baseline.
+
 if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$SUITE_OUT"; then
     _err "suite JSON is not valid: $SUITE_OUT (parse error — see above)"
     exit 1
@@ -199,18 +246,39 @@ _info "per-bench reports + suite summary written to $OUTPUT_DIR"
 _info "suite JSON : $SUITE_OUT"
 _info "report TXT : $REPORT_TXT"
 
-# ── CPU%/GPU%/encode-fps best-effort annex ──────────────────────────────
-# CPU% is measured from /proc/self/stat deltas inside the CLI process the
-# runner cannot inject; we surface it as a host-level annex computed over
-# the whole suite (start/end /proc stat deltas of the runner itself).
-CPU_START="$(awk '{print $14+$15}' /proc/self/stat 2>/dev/null || echo 0)"
-CPU_START_TICKS="$(awk '{print $22}' /proc/uptime 2>/dev/null || echo 0)"
-if command -v nvidia-smi >/dev/null 2>&1; then
-    GPU_PCT="$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null | head -1 || echo "N/A")"
-else
-    GPU_PCT="N/A"
-fi
-_info "annex: GPU util (sampled once at end): ${GPU_PCT}%"
-_info "annex: encode-fps available via video-export .timing.json sidecars"
+# The saturation command records process CPU utilization in each report.
+# GPU utilization and encode FPS are explicitly null for this render-only
+# command; video-export timing sidecars remain the authority for encode FPS.
+python3 - "$SUITE_OUT" "$SELECTED" <<'PY'
+import json, sys
+path, selected = sys.argv[1:]
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+required = set(selected.split(","))
+actual = set(data.get("benchmarks", {}))
+missing = sorted(required - actual)
+if missing:
+    raise SystemExit("missing canonical benchmarks: " + ", ".join(missing))
+data["metric_contract"] = {
+    "frame_ms": "p50_ms/p95_ms/p99_ms",
+    "cpu_percent": "utilization.cpu_percent",
+    "gpu_percent": "utilization.gpu_percent (nvidia-smi interval mean or null)",
+    "gpu_execute_us": "gpu.gpu_execute_us_per_frame",
+    "gpu_wait_us": "gpu.gpu_wait_cpu_us_per_frame",
+    "uploads_per_frame": "gpu.gpu_upload_count_per_frame",
+    "upload_bytes_per_frame": "gpu.gpu_upload_bytes_per_frame",
+    "readback_bytes_per_frame": "gpu.gpu_readback_bytes_per_frame",
+    "vk_submissions_per_frame": "gpu.vk_submissions_per_frame",
+    "vma_allocations_after_warmup": "gpu.vma_allocation_count_after",
+    "physical_surfaces": "gpu.physical_surfaces_peak",
+    "peak_vram": "gpu.vma_usage_bytes_after",
+    "encode_fps": "null for render-only saturation; video timing sidecar required",
+}
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+PY
+_info "suite complete: selected canonical benchmarks present (${SELECTED})"
+_info "GPU utilization uses nvidia-smi interval means when available; encode FPS requires a video timing sidecar"
 
 exit 0

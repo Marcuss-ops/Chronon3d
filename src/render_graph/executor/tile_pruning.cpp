@@ -45,15 +45,7 @@ std::optional<raster::BBox> compute_dirty_clip(
     }
 
     if (ctx.node_exec.counters) {
-        if (predicted_bbox) {
-            const int w = std::max(0, clip->x1 - clip->x0);
-            const int h = std::max(0, clip->y1 - clip->y0);
-            ctx.node_exec.counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
-            ctx.node_exec.counters->dirty_pixels.fetch_add(
-                static_cast<uint64_t>(w) * static_cast<uint64_t>(h),
-                std::memory_order_relaxed
-            );
-        } else {
+        if (!predicted_bbox) {
             ctx.node_exec.counters->dirty_full_fallbacks.fetch_add(1, std::memory_order_relaxed);
             const auto reason = [&]() -> DirtyFallbackReason {
                 switch (node.kind()) {

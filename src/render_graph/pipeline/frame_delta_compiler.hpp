@@ -13,6 +13,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include <functional>
 
 namespace chronon3d::graph::detail {
 
@@ -68,6 +69,11 @@ struct FrameStateSnapshot {
     bool has_previous_surface{false};
     // Whether the scene content is static across frame indices.
     bool scene_is_static{false};
+
+    // True only when `layers` contains the authoritative current/previous
+    // layer state. Early scene-fingerprint resolution runs before layer
+    // resolution and must not infer dynamic-frame reuse from incomplete data.
+    bool layer_state_complete{true};
 };
 
 /// Reuse analysis of PreviousFrameState vs CurrentFrameState.  This is the
@@ -98,10 +104,31 @@ struct FrameReuseEligibility {
 };
 
 /// Result of the canonical current-vs-previous layer analysis.
+struct FrameDeltaCompileOptions {
+    // Conservative first-frame/projected-surface fallback. The compiler owns
+    // the resulting bounds and tile mask so callers cannot diverge.
+    bool force_full_frame{false};
+
+    // Optional policy-selected damage replacement (for example the exposed
+    // strip after a valid framebuffer scroll). It is normalized here and
+    // applied consistently to both dirty_bounds and dirty_tiles.
+    std::optional<raster::BBox> dirty_bounds_override;
+
+    // Large damage is cheaper and safer as one full-frame execution. A value
+    // <= 0 disables this normalization; the default is 50% of the canvas.
+    double full_frame_threshold{0.5};
+
+    // Optional per-layer spatial spread in pixels. The callback is evaluated
+    // only for changed layers and lets predictable blur/glow damage expand
+    // before bounds and tiles are emitted. No effect policy is duplicated here.
+    std::function<double(std::string_view)> spatial_spread;
+};
+
 struct FrameDelta {
     Frame frame{};
     std::vector<LayerDelta> changes;
     std::optional<raster::BBox> dirty_bounds;
+    bool full_frame_dirty{false};
     std::optional<raster::DirtyTileMask> dirty_tiles;
 
     // Reuse eligibility derived from the same prev/current states.
@@ -138,7 +165,8 @@ public:
         bool camera_changed,
         int width,
         int height,
-        const raster::TileGrid* tile_grid = nullptr);
+        const raster::TileGrid* tile_grid = nullptr,
+        const FrameDeltaCompileOptions& options = {});
 
     /// FULL canonical entry: PreviousFrameState + CurrentFrameState →
     /// FrameDelta (layer changes + dirty bounds/tiles + reuse eligibility
@@ -150,7 +178,8 @@ public:
         const FrameStateSnapshot& current,
         int width,
         int height,
-        const raster::TileGrid* tile_grid = nullptr);
+        const raster::TileGrid* tile_grid = nullptr,
+        const FrameDeltaCompileOptions& options = {});
 
     /// Single sanctioned prev/current camera comparison.  Mirrors
     /// camera_change_policy::camera_changed() and is the only allowed

@@ -104,16 +104,20 @@ void SoftwareRenderer::preflight_images(const Scene& scene) {
 /// `render_scene()` overloads are @deprecated thin wrappers.
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                                                      Frame frame) {
-    // Authoring compatibility adapter only: compile once at the boundary,
-    // then execute exclusively through the immutable compiled path.
-    auto compiled = chronon3d::compile_composition(
-        comp, CompositionCompileContext{});
-    if (!compiled) {
-        throw std::runtime_error(
-            "Composition compilation failed for '" + comp.name() +
-            "': " + compiled.error().message);
+    if (!m_session.common.authoring_compiled_composition ||
+        m_session.common.authoring_composition_name != comp.name()) {
+        auto compiled = chronon3d::compile_composition(
+            comp, CompositionCompileContext{});
+        if (!compiled) {
+            throw std::runtime_error(
+                "Composition compilation failed for '" + comp.name() +
+                "': " + compiled.error().message);
+        }
+        m_session.common.authoring_composition_name = comp.name();
+        m_session.common.authoring_compiled_composition =
+            std::make_shared<const CompiledComposition>(std::move(compiled).value());
     }
-    return render_compiled(std::move(compiled).value(), frame);
+    return render_compiled(*m_session.common.authoring_compiled_composition, frame);
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(

@@ -33,7 +33,12 @@ DirtyRectOutput compute_dirty_rect(
     DirtyRectOutput out;
 
     if (!sw_renderer) {
-        out.dirty_rect = raster::BBox{0, 0, width, height};
+        // No history exists without a renderer/session. Still publish the
+        // canonical full-frame delta so every consumer sees one authority.
+        out.frame_delta = FrameDeltaCompiler::compile(
+            frame, {}, {}, true, width, height);
+        out.frame_delta_clean = false;
+        out.dirty_rect = out.frame_delta->dirty_bounds;
         return out;
     }
 
@@ -56,7 +61,29 @@ DirtyRectOutput compute_dirty_rect(
                           sw_renderer->frame_history().prev_frame == frame - 1;
 
     if (!out.use_dirty_rects) {
-        out.dirty_rect = raster::BBox{0, 0, width, height};
+        const int effective_tile_size = settings.dirty.tile_size > 0 ? settings.dirty.tile_size : 256;
+        const bool tiles_enabled = settings.dirty.tiles_active();
+        raster::TileGrid tile_grid;
+        if (tiles_enabled) tile_grid = raster::TileGrid(width, height, effective_tile_size);
+        const bool has_previous_state =
+            sw_renderer->frame_history().prev_frame == frame - 1 &&
+            sw_renderer->buffer_ring().prev_framebuffer() != nullptr;
+        const bool cam_changed = FrameDeltaCompiler::camera_unchanged(
+            cam25d, &sw_renderer->frame_history().prev_camera,
+            sw_renderer->frame_history().prev_camera_valid) == false;
+        FrameDeltaCompileOptions options;
+        options.force_full_frame = !has_previous_state;
+        out.frame_delta = FrameDeltaCompiler::compile(
+            frame, out.layer_bboxes, sw_renderer->dirty_telemetry().previous_layers,
+            cam_changed, width, height, tiles_enabled ? &tile_grid : nullptr, options);
+        if (tiles_enabled) {
+            out.tile_grid = std::move(tile_grid);
+            out.dirty_tiles = out.frame_delta->dirty_tiles;
+            out.use_dirty_tiles = out.dirty_tiles && out.dirty_tiles->any();
+        }
+        out.frame_delta_clean = has_previous_state &&
+            !out.frame_delta->scene_changed && !out.frame_delta->camera_changed;
+        out.dirty_rect = out.frame_delta->dirty_bounds;
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->dirty_eval_wall_ms.fetch_add(
                 static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
@@ -66,6 +93,14 @@ DirtyRectOutput compute_dirty_rect(
     }
 
     // ── Tile-based dirty tracking setup ─────────────────────────────────
+    const int effective_tile_size = settings.dirty.tile_size > 0 ? settings.dirty.tile_size : 256;
+    const bool tiles_enabled = settings.dirty.tiles_active();
+    raster::TileGrid tile_grid;
+    raster::DirtyTileMask tile_mask;
+    if (tiles_enabled) {
+        tile_grid = raster::TileGrid(width, height, effective_tile_size);
+        tile_mask = raster::DirtyTileMask(tile_grid);
+    }
     const bool has_projected_25d_layer = std::any_of(
         resolved.layers.begin(), resolved.layers.end(),
         [frame](const ResolvedLayer& layer) {
@@ -76,18 +111,20 @@ DirtyRectOutput compute_dirty_rect(
         cam25d, &sw_renderer->frame_history().prev_camera,
         sw_renderer->frame_history().prev_camera_valid) == false;
     if (has_projected_25d_layer) {
-        out.dirty_rect = raster::BBox{0, 0, width, height};
+        const FrameDeltaCompileOptions options{.force_full_frame = true};
+        out.frame_delta = FrameDeltaCompiler::compile(
+            frame, out.layer_bboxes, sw_renderer->dirty_telemetry().previous_layers,
+            cam_changed, width, height, settings.dirty.tiles_active()
+                ? &tile_grid : nullptr, options);
+        if (settings.dirty.tiles_active()) {
+            out.tile_grid = std::move(tile_grid);
+            out.dirty_tiles = out.frame_delta->dirty_tiles;
+            out.use_dirty_tiles = out.dirty_tiles && out.dirty_tiles->any();
+        }
+        out.frame_delta_clean = false;
+        out.dirty_rect = out.frame_delta->dirty_bounds;
         out.use_dirty_rects = false;
         return out;
-    }
-
-    const int effective_tile_size = settings.dirty.tile_size > 0 ? settings.dirty.tile_size : 256;
-    const bool tiles_enabled = settings.dirty.tiles_active();
-    raster::TileGrid tile_grid;
-    raster::DirtyTileMask tile_mask;
-    if (tiles_enabled) {
-        tile_grid = raster::TileGrid(width, height, effective_tile_size);
-        tile_mask = raster::DirtyTileMask(tile_grid);
     }
 
     // ── Compile current-vs-previous layer delta ────────────────────────
@@ -97,6 +134,22 @@ DirtyRectOutput compute_dirty_rect(
     FrameDelta delta;
     {
         CHRONON_TRACE_SCOPE("chronon.frame", "dirty_rect_compute");
+        FrameDeltaCompileOptions options;
+        // Tile execution has its own measured cost threshold in
+        // ExecutionResolver; the compiler still owns all bounds/tile marking
+        // but does not preempt that resolver with the generic 50% fallback.
+        options.full_frame_threshold = 0.0;
+        options.spatial_spread = [&resolved, frame](std::string_view layer_id) {
+            for (const auto& resolved_layer : resolved.layers) {
+                if (!resolved_layer.layer || !resolved_layer.layer->active_at(frame) ||
+                    std::string_view(resolved_layer.layer->name) != layer_id) {
+                    continue;
+                }
+                return static_cast<double>(compute_layer_spatial_spread(
+                    *resolved_layer.layer));
+            }
+            return 0.0;
+        };
         delta = FrameDeltaCompiler::compile(
             frame,
             out.layer_bboxes,
@@ -104,8 +157,12 @@ DirtyRectOutput compute_dirty_rect(
             cam_changed,
             width,
             height,
-            tiles_enabled ? &tile_grid : nullptr);
+            tiles_enabled ? &tile_grid : nullptr,
+            options);
+        delta.full_frame_dirty = delta.full_frame_dirty ||
+            (cam_changed && has_projected_25d_layer);
         out.frame_delta = delta;
+        out.frame_delta_clean = !delta.scene_changed && !delta.camera_changed;
         out.dirty_rect = delta.dirty_bounds;
         if (delta.dirty_tiles) {
             tile_mask = std::move(*delta.dirty_tiles);
@@ -133,38 +190,31 @@ DirtyRectOutput compute_dirty_rect(
             if (tiles_enabled) {
                 tile_mask.mark_bbox(tile_grid, *scroll_rect);
             }
-        } else {
-            // ── Dirty rect overflow protection ─────────────────────
-            // When the dirty union exceeds 50% of the frame, reset to
-            // full-frame to avoid pathological expansion (105%+ overlap).
-            // Continuous animations cause progressive union growth;
-            // this threshold ensures we don't spend more time computing
-            // dirty rects than we save from rendering fewer pixels.
-            if (out.dirty_rect && !out.dirty_rect->is_empty()) {
-                const int dw = out.dirty_rect->x1 - out.dirty_rect->x0;
-                const int dh = out.dirty_rect->y1 - out.dirty_rect->y0;
-                const int64_t dirty_area = static_cast<int64_t>(dw) * dh;
-                const int64_t frame_area = static_cast<int64_t>(width) * height;
-                const int64_t half_frame = frame_area / 2;
-                if (dirty_area > half_frame) {
-                    out.dirty_rect = raster::BBox{0, 0, width, height};
-                }
-            }
         }
+        // Damage threshold normalization is owned by FrameDeltaCompiler.
+        // This branch only applies the scroll policy override above.
+
     }
 
     if (out.use_dirty_rects && out.dirty_rect) {
         if (out.dirty_rect->x0 <= 0 && out.dirty_rect->y0 <= 0 &&
             out.dirty_rect->x1 >= width && out.dirty_rect->y1 >= height) {
-            out.use_dirty_rects = false;
+            if (!tiles_enabled) {
+                out.use_dirty_rects = false;
+            }
         }
     }
 
     // ── Populate tile-based dirty output ────────────────────────────────
     if (tiles_enabled) {
         out.tile_grid = std::move(tile_grid);
+        // `delta.dirty_tiles` was moved into tile_mask above; use the
+        // canonical mask owner from this point onward.
         out.dirty_tiles = std::move(tile_mask);
-        out.use_dirty_tiles = out.use_dirty_rects && out.dirty_tiles->any();
+        // Tile eligibility is independent from the rectangular execution
+        // toggle: a full-frame dirty bounds result can still be represented
+        // canonically by an all-dirty tile mask and resolved as SparseTiles.
+        out.use_dirty_tiles = out.dirty_tiles && out.dirty_tiles->any();
 
         if (!out.dirty_tiles->any()) {
             out.use_dirty_tiles = false;

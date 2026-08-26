@@ -357,6 +357,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         if (execution_plan.reuse_surface) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
             }
             return finish_reused_native_frame(execution_plan.reuse_surface);
         }
@@ -456,16 +458,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         ? std::optional<raster::BBox>(raster::BBox{0, 0, width, height})
         : dirty_out.dirty_rect;
 
-    if (effective_settings.dirty.enabled && !effective_settings.dirty.tiles_active()) {
-        if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
-            const auto& dirty = *dirty_out.dirty_rect;
-            const auto area = static_cast<uint64_t>(std::max(0, dirty.x1 - dirty.x0)) *
-                static_cast<uint64_t>(std::max(0, dirty.y1 - dirty.y0));
-            ctx.node_exec.counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
-            ctx.node_exec.counters->dirty_pixels.fetch_add(area, std::memory_order_relaxed);
-        }
-    }
-
     // ── 7. Complete canonical execution plan ──
     if (!isolated_temporal_sample) {
         CHRONON_TRACE_SCOPE("chronon.frame", "execution_plan_resolve");
@@ -515,6 +507,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         ctx, scene, resolved, width, height,
         ctx.policy.graph_structure_unchanged,
         ctx.policy.diagnostics_enabled);
+    if (dirty_out.frame_delta) {
+        graph_result.compiled.execution_decision =
+            ExecutionResolver::resolve_initial(*dirty_out.frame_delta);
+    }
     ctx.policy.skip_initial_clear = graph_result.skip_initial_clear;
     const auto t_graph1 = profiling::now();
 

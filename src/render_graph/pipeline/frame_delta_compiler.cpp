@@ -49,7 +49,8 @@ FrameDelta compile_layer_delta(
     bool camera_changed_value,
     int width,
     int height,
-    const raster::TileGrid* tile_grid) {
+    const raster::TileGrid* tile_grid,
+    const FrameDeltaCompileOptions& options) {
     FrameDelta result;
     result.frame = frame;
     result.camera_changed = camera_changed_value;
@@ -60,8 +61,15 @@ FrameDelta compile_layer_delta(
     bool has_dirty = false;
     raster::BBox union_dirty{0, 0, 0, 0};
 
-    const auto add_dirty_bbox = [&](raster::BBox bbox) {
+    const auto add_dirty_bbox = [&](raster::BBox bbox, double spread = 0.0) {
         if (bbox.is_empty()) return;
+        if (spread > 0.0) {
+            const auto amount = static_cast<int>(std::ceil(spread));
+            bbox.x0 -= amount;
+            bbox.y0 -= amount;
+            bbox.x1 += amount;
+            bbox.y1 += amount;
+        }
         bbox.clip_to(width, height);
         if (bbox.is_empty()) return;
         if (!has_dirty) {
@@ -84,7 +92,8 @@ FrameDelta compile_layer_delta(
             std::uint32_t mask = LayerAdded | LayerStructure;
             mark_present_semantics(curr, mask);
             result.changes.push_back(LayerDelta{name, mask, raster::BBox{}, curr.bbox});
-            add_dirty_bbox(curr.bbox);
+            add_dirty_bbox(curr.bbox, options.spatial_spread
+                ? options.spatial_spread(name) : 0.0);
             continue;
         }
 
@@ -113,7 +122,7 @@ FrameDelta compile_layer_delta(
             curr.semantic_fingerprints_valid && prev.semantic_fingerprints_valid &&
             curr.structure_hash != prev.structure_hash;
         const bool content_changed =
-            !curr.cache_static || curr.opacity != prev.opacity ||
+            curr.opacity != prev.opacity ||
             curr.content_hash != prev.content_hash || semantic_content_changed ||
             structure_changed;
 
@@ -137,12 +146,16 @@ FrameDelta compile_layer_delta(
 
         result.changes.push_back(LayerDelta{name, mask, prev.bbox, curr.bbox});
         if (visibility_changed) {
-            add_dirty_bbox(curr.visible ? curr.bbox : prev.bbox);
+            add_dirty_bbox(curr.visible ? curr.bbox : prev.bbox,
+                           options.spatial_spread ? options.spatial_spread(name) : 0.0);
         } else if (geometry_changed) {
-            add_dirty_bbox(curr.bbox);
-            add_dirty_bbox(prev.bbox);
+            const auto spread = options.spatial_spread
+                ? options.spatial_spread(name) : 0.0;
+            add_dirty_bbox(curr.bbox, spread);
+            add_dirty_bbox(prev.bbox, spread);
         } else if (content_changed && curr.visible) {
-            add_dirty_bbox(curr.bbox);
+            add_dirty_bbox(curr.bbox, options.spatial_spread
+                ? options.spatial_spread(name) : 0.0);
         }
     }
 
@@ -151,7 +164,8 @@ FrameDelta compile_layer_delta(
             std::uint32_t mask = LayerRemoved | LayerStructure;
             mark_present_semantics(prev, mask);
             result.changes.push_back(LayerDelta{name, mask, prev.bbox, raster::BBox{}});
-            add_dirty_bbox(prev.bbox);
+            add_dirty_bbox(prev.bbox, options.spatial_spread
+                ? options.spatial_spread(name) : 0.0);
         }
     }
 
@@ -160,9 +174,36 @@ FrameDelta compile_layer_delta(
                   return a.instance_id < b.instance_id;
               });
 
-    result.dirty_bounds = has_dirty
-        ? std::optional<raster::BBox>{union_dirty}
-        : std::optional<raster::BBox>{raster::BBox{0, 0, 0, 0}};
+    auto full_frame = raster::BBox{0, 0, width, height};
+    if (options.force_full_frame) {
+        result.dirty_bounds = full_frame;
+        result.full_frame_dirty = true;
+        if (result.dirty_tiles) result.dirty_tiles->mark_all();
+    } else if (options.dirty_bounds_override.has_value()) {
+        auto override_bounds = *options.dirty_bounds_override;
+        override_bounds.clip_to(width, height);
+        result.dirty_bounds = override_bounds;
+        result.full_frame_dirty = override_bounds.x0 == 0 && override_bounds.y0 == 0 &&
+            override_bounds.x1 == width && override_bounds.y1 == height;
+        if (result.dirty_tiles) {
+            result.dirty_tiles->clear();
+            if (result.full_frame_dirty) result.dirty_tiles->mark_all();
+            else result.dirty_tiles->mark_bbox(*tile_grid, override_bounds);
+        }
+    } else if (has_dirty) {
+        result.dirty_bounds = union_dirty;
+        const auto frame_area = static_cast<double>(width) * static_cast<double>(height);
+        const auto dirty_area = static_cast<double>(union_dirty.x1 - union_dirty.x0) *
+            static_cast<double>(union_dirty.y1 - union_dirty.y0);
+        if (options.full_frame_threshold > 0.0 && frame_area > 0.0 &&
+            dirty_area > frame_area * options.full_frame_threshold) {
+            result.dirty_bounds = full_frame;
+            result.full_frame_dirty = true;
+            if (result.dirty_tiles) result.dirty_tiles->mark_all();
+        }
+    } else {
+        result.dirty_bounds = raster::BBox{0, 0, 0, 0};
+    }
 
     for (const auto& change : result.changes) {
         const auto mask = change.change_mask;
@@ -179,6 +220,11 @@ FrameDelta compile_layer_delta(
         result.video_source_changed |= (mask & LayerVideoSource) != 0;
     }
     result.scene_changed = result.camera_changed || !result.changes.empty();
+    if (result.camera_changed && !options.dirty_bounds_override.has_value()) {
+        result.dirty_bounds = full_frame;
+        result.full_frame_dirty = true;
+        if (result.dirty_tiles) result.dirty_tiles->mark_all();
+    }
     return result;
 }
 
@@ -270,10 +316,11 @@ FrameDelta FrameDeltaCompiler::compile(
     bool camera_changed_value,
     int width,
     int height,
-    const raster::TileGrid* tile_grid) {
+    const raster::TileGrid* tile_grid,
+    const FrameDeltaCompileOptions& options) {
     return compile_layer_delta(
         frame, current, previous, camera_changed_value,
-        width, height, tile_grid);
+        width, height, tile_grid, options);
 }
 
 FrameDelta FrameDeltaCompiler::compile_state(
@@ -281,15 +328,23 @@ FrameDelta FrameDeltaCompiler::compile_state(
     const FrameStateSnapshot& current,
     int width,
     int height,
-    const raster::TileGrid* tile_grid) {
+    const raster::TileGrid* tile_grid,
+    const FrameDeltaCompileOptions& options) {
     const bool changed = camera_changed(
         current.camera,
         previous.camera_valid ? &previous.camera : nullptr,
         previous.camera_valid);
     FrameDelta result = compile_layer_delta(
         current.frame, current.layers, previous.layers, changed,
-        width, height, tile_grid);
+        width, height, tile_grid, options);
     result.reuse = compute_reuse_eligibility(previous, current);
+    if (!result.changes.empty() || changed) {
+        result.reuse.resolved_scene_reuse = false;
+        result.reuse.static_scene_reuse = false;
+        if (result.reuse.reason.empty()) {
+            result.reuse.reason = changed ? "camera_changed" : "layer_delta_present";
+        }
+    }
     result.camera_changed = changed;
     result.scene_changed = result.scene_changed || changed;
     return result;
