@@ -96,6 +96,15 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
         "${CHRONON3D_NVRTC_LIBRARY_CLI}")
     target_compile_definitions(chronon3d_cli_video_export PRIVATE
         CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
+    # The compositor implementation is compiled into the media library, not
+    # the CLI export target.  Propagate the selected virtual architecture to
+    # that owner too; otherwise its source-level compute_75 fallback is used
+    # even when the CLI was configured for the actual GPU (for example
+    # compute_86 on an RTX A4000).
+    if(TARGET chronon3d_media_native)
+        target_compile_definitions(chronon3d_media_native PRIVATE
+            CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
+    endif()
 endif()
 
 target_sources(chronon3d_cli_render PRIVATE

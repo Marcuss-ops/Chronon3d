@@ -207,6 +207,7 @@ std::optional<BlendMode> blend_mode(const std::string& value) {
 SubtitleFormat subtitle_format(const std::string& value) {
     if (value == "vtt") return SubtitleFormat::Vtt;
     if (value == "json") return SubtitleFormat::Json;
+    if (value == "ass") return SubtitleFormat::Ass;
     return SubtitleFormat::Srt;
 }
 

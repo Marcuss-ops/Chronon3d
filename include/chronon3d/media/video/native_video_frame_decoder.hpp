@@ -45,6 +45,30 @@ extern "C" {
 
 namespace chronon3d::media {
 
+/// Surface description for the CUDA-interop decode handoff (the surface
+/// created by try_native_frame).
+///
+/// The CUDA side (CudaNv12SurfaceCompositor::composite -> nv12_to_rgba)
+/// writes RGBA float4 — 16 bytes per pixel — into the imported Vulkan
+/// surface via surf2Dwrite, and the render graph samples that surface as an
+/// RGBA float storage image.  The surface must therefore always be allocated
+/// as Rgba32Float.  Sizing it from the decoded YUV format (Nv12: 1.5 B/px,
+/// P010: 3 B/px) lets those float4 writes overrun the external allocation by
+/// ~5-10x and fault with CUDA_ERROR_ILLEGAL_ADDRESS at the CUDA/Vulkan
+/// handoff.
+[[nodiscard]] inline runtime::SurfaceDesc native_decode_surface_desc(
+    std::uint32_t width, std::uint32_t height) noexcept {
+    return runtime::SurfaceDesc{
+        width,
+        height,
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent,
+        runtime::tight_surface_bytes(
+            runtime::PixelFormat::Rgba32Float, width, height),
+    };
+}
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
 class NativeVideoFrameDecoder final : public MediaFrameProvider {

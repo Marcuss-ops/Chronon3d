@@ -704,7 +704,6 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             const bool is_fusible_layer_node =
                 (is_canonical_layer_source &&
                  (node_info.kind == RenderGraphNodeKind::Source ||
-                  node_info.kind == RenderGraphNodeKind::TextRun ||
                   node_info.kind == RenderGraphNodeKind::Video)) ||
                 (!current_fused_batch.empty() &&
                  (dynamic_cast<const TransformNode*>(&graph_node) != nullptr ||
