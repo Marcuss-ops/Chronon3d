@@ -54,7 +54,7 @@
           "start_frame": { "type": "integer", "minimum": 0 },
           "duration_frames": { "type": "integer", "minimum": 1 },
           "fit": { "enum": ["cover", "contain", "stretch", "none"] },
-          "format": { "enum": ["srt", "vtt", "json"] },
+          "format": { "enum": ["srt", "vtt", "json", "ass"] },
           "preset": { "type": "string" },
           "semantic_role": { "type": "string" },
           "anchor": {

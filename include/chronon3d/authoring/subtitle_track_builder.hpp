@@ -75,6 +75,14 @@ public:
         return *this;
     }
 
+    /// Set a drop shadow applied to every cue's text. The shadow replaces
+    /// the cue's shadow stack entirely (one enabled TextShadow), mirroring
+    /// how the text materializer lowers a plan `style.shadow` block.
+    SubtitleTrackBuilder& shadow(const TextShadow& value) {
+        shadow_ = value;
+        return *this;
+    }
+
     /// Set the layout box size for every cue.
     SubtitleTrackBuilder& box(const Vec2& size) {
         box_size_ = size;
@@ -154,6 +162,7 @@ private:
     std::string font_path_{"assets/fonts/Poppins-Bold.ttf"};
     float font_size_{48.0f};
     Color color_{1.0f, 1.0f, 1.0f, 1.0f};
+    std::optional<TextShadow> shadow_{std::nullopt};
     Vec2 box_size_{1400.0f, 200.0f};
     TextAlign align_{TextAlign::Center};
     TextPlacement placement_{TextPlacementKind::SafeAreaBottom};

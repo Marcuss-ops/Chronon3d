@@ -11,6 +11,7 @@
 #include <chronon3d/presets/text/text_presets_v1.hpp>
 #include <chronon3d/registry/style_resolver.hpp>
 #include <chronon3d/registry/visual_preset_registry.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>  // parse_hex_color (shared — no per-path drift)
 #include <chronon3d/render_plan/render_plan.hpp>  // LayerPlan (full definition)
 #include <chronon3d/text/text_placement.hpp>      // TextPlacementKind
 
@@ -24,26 +25,9 @@
 namespace chronon3d::render_plan {
 namespace {
 
-std::optional<chronon3d::Color> parse_hex_color(std::string_view value,
-                                                 float alpha = 1.0f) {
-    if (value.size() != 7 || value.front() != '#') return std::nullopt;
-    auto hex = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        return -1;
-    };
-    const int r1 = hex(value[1]), r2 = hex(value[2]);
-    const int g1 = hex(value[3]), g2 = hex(value[4]);
-    const int b1 = hex(value[5]), b2 = hex(value[6]);
-    if (r1 < 0 || r2 < 0 || g1 < 0 || g2 < 0 || b1 < 0 || b2 < 0)
-        return std::nullopt;
-    return chronon3d::Color{
-        static_cast<float>(r1 * 16 + r2) / 255.0f,
-        static_cast<float>(g1 * 16 + g2) / 255.0f,
-        static_cast<float>(b1 * 16 + b2) / 255.0f,
-        std::clamp(alpha, 0.0f, 1.0f)};
-}
+// parse_hex_color lives in color_utils.hpp — the SINGLE shared parser for
+// every style-consuming path (text materializer + subtitle track), so custom
+// colors are lowered identically everywhere.
 
 chronon3d::TextPlacementKind placement_kind(std::string_view type) {
     using K = chronon3d::TextPlacementKind;

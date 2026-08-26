@@ -19,7 +19,7 @@ namespace chronon3d::render_plan {
 
 enum class LayerType : std::uint8_t { Image, Video, Text, Color, SubtitleTrack };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
-enum class SubtitleFormat : std::uint8_t { Srt, Vtt, Json };
+enum class SubtitleFormat : std::uint8_t { Srt, Vtt, Json, Ass };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
 

@@ -13,6 +13,8 @@
 
 #include <tests/helpers/test_utils.hpp>
 
+#include "../support/layer_builder_inspection.hpp"
+
 #include <doctest/doctest.h>
 
 using namespace chronon3d;
@@ -320,6 +322,86 @@ TEST_CASE("SubtitleTrackBuilder can be instantiated and configured") {
 
     // Build should not throw for a valid preset and non-empty track.
     CHECK_NOTHROW(builder.build());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Style parity (color + shadow) — the SubtitleTrack compiler consumes
+// layer.style.fill / layer.style.shadow through these builder setters, so
+// this test locks that the emitted run carries EXACTLY the fill and shadow
+// the plan declared (same contract as the text materializer's lowering).
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("SubtitleTrackBuilder emits the configured fill and shadow on the active cue") {
+    // Build at a frame INSIDE the cue window (1.0s–3.0s at 30fps = frames
+    // 30–90), so build() actually commits a run.
+    LayerBuilder lb{"test_layer",
+                    SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 3.0f;
+    cue.text = "Hello";
+    track.cues.push_back(cue);
+
+    const Color fill{1.0f, 0.7569f, 0.0275f, 1.0f};  // #FFC107
+    TextShadow shadow;
+    shadow.enabled = true;
+    shadow.color = {0.0f, 0.0f, 0.0f, 1.0f};
+    shadow.opacity = 0.6f;
+    shadow.blur = 14.0f;
+    shadow.offset = {0.0f, 8.0f};
+
+    CHECK_NOTHROW(layer.subtitles(track)
+                       .preset("minimal_white")
+                       .color(fill)
+                       .shadow(shadow)
+                       .box({1400.0f, 200.0f})
+                       .build());
+
+    const auto runs =
+        chronon3d::builders::testing::LayerBuilderInspector::pending_runs(lb);
+    REQUIRE(runs.size() == 1);
+    CHECK(runs[0].name == "subtitle_cue_0");
+    CHECK(runs[0].text.style.color.r == doctest::Approx(fill.r));
+    CHECK(runs[0].text.style.color.g == doctest::Approx(fill.g));
+    CHECK(runs[0].text.style.color.b == doctest::Approx(fill.b));
+    CHECK(runs[0].text.style.color.a == doctest::Approx(fill.a));
+    REQUIRE(runs[0].text.style.shadows.size() == 1);
+    const auto& got = runs[0].text.style.shadows[0];
+    CHECK(got.enabled);
+    CHECK(got.opacity == doctest::Approx(shadow.opacity));
+    CHECK(got.blur == doctest::Approx(shadow.blur));
+    CHECK(got.offset.x == doctest::Approx(shadow.offset.x));
+    CHECK(got.offset.y == doctest::Approx(shadow.offset.y));
+    CHECK(got.color.r == doctest::Approx(shadow.color.r));
+    CHECK(got.color.g == doctest::Approx(shadow.color.g));
+    CHECK(got.color.b == doctest::Approx(shadow.color.b));
+}
+
+TEST_CASE("SubtitleTrackBuilder keeps the preset color when no shadow is set") {
+    LayerBuilder lb{"test_layer",
+                    SampleTime::from_frame_int(Frame{45}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 3.0f;
+    cue.text = "Hello";
+    track.cues.push_back(cue);
+
+    CHECK_NOTHROW(layer.subtitles(track).preset("minimal_white").build());
+
+    const auto runs =
+        chronon3d::builders::testing::LayerBuilderInspector::pending_runs(lb);
+    REQUIRE(runs.size() == 1);
+    CHECK(runs[0].text.style.shadows.empty());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

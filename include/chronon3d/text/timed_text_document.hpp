@@ -176,4 +176,12 @@ struct TimedTextDocument {
 /// All fields except "text", "start", "end" are optional.
 [[nodiscard]] TimedTextDocument timed_text_from_json(const std::string& raw);
 
+/// Parse ASS/SSA (Advanced SubStation Alpha) format into TimedTextDocument.
+/// Supports the canonical PipelineGen-generated shape: [Script Info],
+/// [V4+ Styles] (metadata-only), and [Events] with
+/// `Dialogue: <layer>,<start>,<end>,<style>,<name>,<marginL>,<marginR>,
+/// <marginV>,<effect>,<text>` rows, H:MM:SS.cc timestamps, and `\N`
+/// line breaks. Word timing is a uniform-split estimate (SRT parity).
+[[nodiscard]] TimedTextDocument timed_text_from_ass(const std::string& raw);
+
 } // namespace chronon3d
