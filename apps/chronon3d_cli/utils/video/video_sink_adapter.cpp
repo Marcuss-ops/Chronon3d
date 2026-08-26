@@ -20,9 +20,12 @@ chronon3d::media::video::VideoCodec
 VideoSinkEncoderAdapter::map_codec(const std::string& codec) {
     using media::video::VideoCodec;
 
-    // Hardware codecs are not available in CPU-only mode — warn and fall
-    // back to the equivalent software encoder.
-    if (codec == "h264_nvenc" || codec == "h264_amf" ||
+    if (codec == "h264_nvenc") {
+        return VideoCodec::H264Nvenc;
+    }
+    // Other hardware codecs are not available in this adapter yet — warn and
+    // fall back to the equivalent software encoder.
+    if (codec == "h264_amf" ||
         codec == "h264_qsv" || codec == "h264_videotoolbox") {
         spdlog::warn("[video_adapter] Hardware codec '{}' is unavailable in CPU-only mode; "
                       "falling back to libx264", codec);
