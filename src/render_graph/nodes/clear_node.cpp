@@ -53,7 +53,8 @@ NodeExecResult ClearNode::execute(
     bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer &&
         ctx.node_exec.ping_write.fb && sw_renderer &&
         sw_renderer->buffer_ring().prev_framebuffer();
-    const bool skip_clear = ctx.policy.skip_initial_clear && !use_dirty_rects;
+    const bool skip_clear = ctx.policy.skip_initial_clear ||
+        (use_dirty_rects && ctx.node_exec.clip_rect && ctx.node_exec.clip_rect->is_empty());
     const uint64_t clear_pixels = ctx.node_exec.clip_rect
         ? static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->x1 - ctx.node_exec.clip_rect->x0)) *
           static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->y1 - ctx.node_exec.clip_rect->y0))

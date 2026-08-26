@@ -498,6 +498,20 @@ public:
 
     /// Apply brightness/contrast/tint to native surfaces without a CPU
     /// readback. The source and destination may be distinct transient slots.
+    /// Composite a YUV-native overlay into an NV12/P010 destination. The
+    /// backend must update luma and chroma planes consistently; sparse mode
+    /// limits writes to the supplied dirty region.
+    virtual RenderOpResult yuv_overlay_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::PixelFormat /*format*/,
+        const std::optional<raster::BBox>& /*dirty_region*/,
+        runtime::YuvExecutionMode /*mode*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::yuv_overlay_surface: native YUV is not supported"});
+    }
+
     virtual RenderOpResult color_adjust_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,

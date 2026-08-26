@@ -89,6 +89,15 @@ readback) = null nel manifest: il gate li skippa esplicitamente (`[INFO]`)
 senza mai nascondere un FAIL. Da bloccarsi su macchina GPU quando il percorso
 Vulkan renderizza.
 
+## 5. Demolition Debt — FrameDeltaCompiler
+
+- **Owner**: Render Graph / runtime team.
+- **Reason**: il refactor introduce `FrameDeltaCompiler` come authority canonica, ma alcuni percorsi legacy conservano ancora adattatori e decisioni locali per compatibilità con dirty bounds, dirty tiles, riuso superficie e telemetria. Questi percorsi restano necessari finché l'intera pipeline non consuma esclusivamente il delta compilato.
+- **Exit condition**: tutti i consumer di dirty bounds, dirty tiles e reuse ricevono il risultato di `FrameDeltaCompiler`; non esistono più decisioni locali di cambiamento o riuso fuori dal percorso `FrameDeltaCompiler → ExecutionResolver`; i test di render graph e tile execution passano senza flag o fallback di compatibilità dedicati.
+- **Equivalence gate**: suite `FrameDeltaCompiler` completa, test `Dirty Tiles`, `TileParallel` e suite render-graph; confronto deterministico tra percorso legacy e percorso compilato su struttura, trasformazioni, testo, colore, immagini, effetti, video, dirty bounds, dirty tiles e decisione di riuso, con output e contatori equivalenti.
+- **Removal scope**: adattatori legacy in `src/render_graph/pipeline/scene_dirty.cpp`, policy duplicate in `src/render_graph/pipeline/tile_execution_policy.cpp`, wiring di compatibilità in `src/render_graph/pipeline/scene.cpp`/`scene_internal.hpp`, contatori e rami di fallback non più necessari in `tile_execution_coordinator.cpp`, oltre ai test e flag dedicati esclusivamente al percorso legacy.
+- **Status**: **ACTIVE**.
+
 ## Gate di verifica
 
 ```bash

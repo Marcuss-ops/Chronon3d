@@ -43,6 +43,12 @@ bool execute_pass(RenderBackend& backend, const GpuPass& pass) {
                     params.radius, params.intensity,
                     Color{params.tint[0], params.tint[1],
                           params.tint[2], params.tint[3]}).ok();
+            } else if constexpr (std::is_same_v<P, YuvOverlayPass>) {
+                return backend.yuv_overlay_surface(
+                    params.destination, params.source,
+                    params.format,
+                    params.dirty_region,
+                    params.mode).ok();
             } else if constexpr (std::is_same_v<P, ColorAdjustPass>) {
                 return backend.color_adjust_surface(
                     params.destination, params.source,

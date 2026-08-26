@@ -51,9 +51,9 @@ struct DirtyRenderSettings {
     /// Equivalent to the previous `enable_parallel_tiles`.
     bool parallel_tiles{true};
 
-    /// Tile size in pixels (e.g. 64, 128, 256).  0 = disabled.
+    /// Tile size in pixels (e.g. 64, 128, 256).  0 = auto (256).
     /// Equivalent to the previous `tile_size`.
-    int tile_size{0};
+    int tile_size{256};
 
     /// Maximum dirty ratio (0.0–1.0) that still enables tile execution.
     /// When the fraction of dirty screen pixels exceeds this threshold,
@@ -68,9 +68,9 @@ struct DirtyRenderSettings {
     }
 
     /// True if tile-based execution should be attempted given the current
-    /// settings.  Equivalent to `tile_size > 0 && use_bitmask && use_tiles`.
+    /// settings.
     [[nodiscard]] constexpr bool tiles_active() const noexcept {
-        return use_tiles && tile_size > 0 && use_bitmask;
+        return enabled && use_tiles && use_bitmask;
     }
 };
 
