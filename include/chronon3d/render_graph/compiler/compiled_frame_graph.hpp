@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
+#include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <cstdint>
 #include <memory>
@@ -238,6 +239,11 @@ struct CompiledFrameGraph {
     // explicitly excluded from aliasing.
     PhysicalFramebufferAllocationPlan physical_framebuffer_plan;
     CompiledFrameProgram program;
+
+    // Per-frame execution decision produced by the canonical
+    // FrameDeltaCompiler -> ExecutionResolver path. This is metadata only;
+    // topology and processor caches remain owned by this compiled graph.
+    std::optional<ExecutionDecision> execution_decision;
 
     // Optional prepared, domain-neutral per-frame parameter payload.  A
     // missing table is valid: the generic node.execute() fallback remains

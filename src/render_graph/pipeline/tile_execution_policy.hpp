@@ -20,6 +20,7 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include "scene_internal.hpp"
 #include "scene_fingerprint.hpp"
+#include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -86,6 +87,11 @@ struct FrameExecutionPlan {
     std::shared_ptr<Framebuffer> previous_framebuffer;
     bool copy_previous_surface{false};
 
+    // Packet-copy metadata for an untouched, boundary-aligned GOP. The
+    // encoder/muxer consumes this only after the same eligibility gates have
+    // been certified by ExecutionResolver.
+    std::optional<CopyGopPlan> copy_gop_plan;
+
     std::string_view reason;
 
     // Whether Clear/executor may restore the previous surface for the selected
@@ -116,6 +122,18 @@ struct FrameExecutionPlan {
 /// execute the returned decision.
 class ExecutionResolver {
 public:
+    /// Resolve the initial execution decision directly from the canonical
+    /// FrameDelta. This is intentionally limited to ReuseSurface and FullRgb;
+    /// sparse/YUV/GOP choices remain in the complete plan resolver.
+    [[nodiscard]] static ExecutionDecision resolve_initial(
+        const detail::FrameDelta& delta) noexcept;
+
+    /// Resolve the packet-copy fast path from canonical frame delta plus
+    /// packet-level evidence. No codec/container checks are duplicated here.
+    [[nodiscard]] static ExecutionDecision resolve_copy_gop(
+        const detail::FrameDelta& delta,
+        const CopyGopEligibility& eligibility) noexcept;
+
     /// Resolve the pre-dirty reuse candidates and carry their fingerprints into
     /// the final plan.  This owns the existing resolved-scene and static-scene
     /// fast paths; callers only inspect `reuse_surface`.
@@ -148,7 +166,9 @@ public:
         int height,
         const effects::EffectCatalog* effect_catalog = nullptr,
         bool encode_requested = false,
-        bool diagnostics_enabled = false);
+        bool diagnostics_enabled = false,
+        runtime::PixelFormat output_format = runtime::PixelFormat::Rgba32Float,
+        const std::optional<CopyGopEligibility>& copy_gop = std::nullopt);
 
     /// Compatibility adapter for older tile-only callers.  New code should
     /// consume FrameExecutionPlan directly.

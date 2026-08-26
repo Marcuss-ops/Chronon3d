@@ -179,6 +179,8 @@ struct RenderSession {
         std::make_unique<RenderErrorSlot>()};
 
     const CompiledComposition* prepared_composition{nullptr};
+    std::string authoring_composition_name{};
+    std::shared_ptr<const CompiledComposition> authoring_compiled_composition{nullptr};
 
     void clear_last_frame_error() {
         frame_error_slot->clear();

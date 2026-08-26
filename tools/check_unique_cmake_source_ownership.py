@@ -63,7 +63,7 @@ def source_path(raw: str, cmake_dir: Path) -> Path | None:
 def collect(root: Path) -> dict[Path, set[str]]:
     ownership: dict[Path, set[str]] = defaultdict(set)
     for cmake_file in root.rglob("CMakeLists.txt"):
-        if any(part in {"build", "out", ".git", "vcpkg_bootstrap", "vcpkg_installed"} for part in cmake_file.parts):
+        if any(part in {"build", "out", ".git", ".tmp", ".cache", "vcpkg_bootstrap", "vcpkg_installed"} for part in cmake_file.parts):
             continue
         text = strip_comments(cmake_file.read_text(encoding="utf-8"))
         for match in COMMAND_RE.finditer(text):

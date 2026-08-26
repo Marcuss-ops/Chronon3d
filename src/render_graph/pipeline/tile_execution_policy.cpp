@@ -10,6 +10,19 @@
 #include <utility>
 
 namespace chronon3d::graph {
+
+bool ExecutionDecision::reuses_surface() const noexcept {
+    return path == FrameExecutionPath::ReuseSurface;
+}
+
+bool ExecutionDecision::renders_full_rgb() const noexcept {
+    return path == FrameExecutionPath::FullRgb;
+}
+
+bool ExecutionDecision::copies_gop() const noexcept {
+    return path == FrameExecutionPath::CopyGop && copy_gop_plan.has_value();
+}
+
 namespace {
 
 bool has_matching_previous_surface(
@@ -74,6 +87,7 @@ void set_full_rgb(
     plan.copy_previous_surface = false;
     plan.dirty_regions.clear();
     plan.reuse_surface.reset();
+    plan.copy_gop_plan.reset();
 }
 
 void set_reuse_surface(
@@ -94,6 +108,7 @@ void set_reuse_surface(
     plan.reuse_surface = std::move(surface);
     plan.use_dirty_region = false;
     plan.reason = reason;
+    plan.copy_gop_plan.reset();
 }
 
 void apply_sparse_or_full_decision(
@@ -105,17 +120,34 @@ void apply_sparse_or_full_decision(
     const SoftwareRenderer* sw_renderer,
     Frame frame,
     const effects::EffectCatalog* effect_catalog) {
-    (void)settings;
-    (void)dirty_ratio;
+    if (dirty_ratio > settings.dirty.tile_dirty_ratio_threshold) {
+        set_full_rgb(plan, "dirty_ratio_too_high");
+        return;
+    }
 
     // This is the sole sparse/full policy. The coordinator only executes the
     // path selected here.
     if (detail::has_layer_with_spatial_effects(resolved, frame, effect_catalog)) {
-        set_full_rgb(plan, "spatial_effect_detected");
-        return;
+        // Predictable blur/glow spread is already expanded by
+        // FrameDeltaCompiler. Only effects whose damage cannot be bounded
+        // safely retain the full-frame fallback.
+        bool unbounded_spatial_effect = false;
+        for (const auto& resolved_layer : resolved.layers) {
+            if (!resolved_layer.layer || !resolved_layer.layer->active_at(frame)) continue;
+            if (!detail::is_safe_for_dirty_rects(
+                    *resolved_layer.layer, false, effect_catalog)) {
+                unbounded_spatial_effect = true;
+                break;
+            }
+        }
+        if (unbounded_spatial_effect) {
+            set_full_rgb(plan, "unbounded_spatial_effect");
+            return;
+        }
     }
     if (!dirty_out.use_dirty_tiles) {
-        set_full_rgb(plan, "dirty_rects_not_active");
+        set_full_rgb(plan, dirty_out.frame_delta && dirty_out.frame_delta->full_frame_dirty
+            ? "full_frame_delta" : "dirty_rects_not_active");
         return;
     }
     if (!sw_renderer || !sw_renderer->has_runtime()) {
@@ -145,7 +177,8 @@ void apply_sparse_or_full_decision(
 
     const auto& cost = sw_renderer->dirty_telemetry();
     if (cost.tile_cost_model_ready() &&
-        cost.tile_exec_ms_ewma > cost.full_frame_exec_ms_ewma * 1.10) {
+        cost.tile_exec_ms_ewma > cost.full_frame_exec_ms_ewma * 1.10 &&
+        dirty_ratio < 0.95) {
         set_full_rgb(plan, "cost_model_tile_slower", true);
         return;
     }
@@ -163,6 +196,44 @@ void apply_sparse_or_full_decision(
 }
 
 } // namespace
+
+ExecutionDecision ExecutionResolver::resolve_initial(
+    const detail::FrameDelta& delta) noexcept {
+    if (!delta.scene_changed && !delta.camera_changed &&
+        (delta.reuse.resolved_scene_reuse || delta.reuse.static_scene_reuse)) {
+        return ExecutionDecision{
+            FrameExecutionPath::ReuseSurface,
+            "reuse_surface"};
+    }
+
+    if (delta.camera_changed) {
+        return ExecutionDecision{FrameExecutionPath::FullRgb, "camera_changed"};
+    }
+    if (delta.scene_changed) {
+        return ExecutionDecision{FrameExecutionPath::FullRgb, "scene_changed"};
+    }
+    if (!delta.reuse.reason.empty()) {
+        return ExecutionDecision{FrameExecutionPath::FullRgb, delta.reuse.reason};
+    }
+    return ExecutionDecision{FrameExecutionPath::FullRgb, "reuse_not_eligible"};
+}
+
+ExecutionDecision ExecutionResolver::resolve_copy_gop(
+    const detail::FrameDelta& delta,
+    const CopyGopEligibility& eligibility) noexcept {
+    if (eligibility.eligible() && !delta.scene_changed &&
+        !delta.camera_changed && !delta.video_source_changed) {
+        return ExecutionDecision{
+            FrameExecutionPath::CopyGop,
+            "copy_gop",
+            eligibility.plan};
+    }
+    const auto reason = !eligibility.failure_reason.empty()
+        ? eligibility.failure_reason
+        : (delta.video_source_changed ? std::string_view{"video_source_changed"}
+                                       : std::string_view{"copy_gop_not_eligible"});
+    return ExecutionDecision{FrameExecutionPath::FullRgb, reason};
+}
 
 std::vector<raster::BBox> ExecutionResolver::coalesce_dirty_regions(
     const raster::TileGrid& grid,
@@ -257,6 +328,11 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
     current_state.has_projected_surface = has_projected_surface;
     current_state.has_previous_surface = has_surface;
     current_state.scene_is_static = scene_is_static;
+    // Layer maps are intentionally absent in this early phase. Dynamic
+    // reuse must wait for compute_dirty_rect(), which supplies the complete
+    // FrameDelta from resolved layer state.
+    current_state.layer_state_complete = false;
+    previous_state.layer_state_complete = false;
 
     const auto reuse = detail::FrameDeltaCompiler::compile_state(
         previous_state, current_state, width, height);
@@ -267,7 +343,7 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         plan.scene_is_static = scene_is_static;
     }
 
-    if (reuse.reuse.resolved_scene_reuse) {
+    if (reuse.reuse.resolved_scene_reuse || reuse.reuse.static_scene_reuse) {
         record_surface_reuse(
             sw_renderer, frame, camera,
             plan.frame_fingerprints.combined_fp,
@@ -280,7 +356,7 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         return plan;
     }
 
-    if (reuse.reuse.static_scene_reuse) {
+    if (reuse.reuse.static_scene_reuse && current_state.layer_state_complete) {
         record_surface_reuse(
             sw_renderer, frame, camera,
             plan.frame_fingerprints.combined_fp,
@@ -308,12 +384,33 @@ FrameExecutionPlan ExecutionResolver::resolve(
     int height,
     const effects::EffectCatalog* effect_catalog,
     bool encode_requested,
-    bool diagnostics_enabled) {
+    bool diagnostics_enabled,
+    runtime::PixelFormat output_format,
+    const std::optional<CopyGopEligibility>& copy_gop) {
     (void)scene;
     (void)camera;
     plan.dirty_region = dirty_out.dirty_rect;
     plan.dirty_tiles = dirty_out.dirty_tiles;
     plan.encode = encode_requested;
+
+    // CopyGop is evaluated before surface reuse because it replaces render and
+    // encode work with packet muxing for a certified untouched segment.
+    if (copy_gop && dirty_out.frame_delta) {
+        const auto decision = ExecutionResolver::resolve_copy_gop(
+            *dirty_out.frame_delta, *copy_gop);
+        if (decision.copies_gop()) {
+            plan.path = FrameExecutionPath::CopyGop;
+            plan.decode = false;
+            plan.render = false;
+            plan.composite = false;
+            plan.convert_to_rgb = false;
+            plan.convert_to_yuv = false;
+            plan.encode = true;
+            plan.copy_gop_plan = decision.copy_gop_plan;
+            plan.reason = decision.reason;
+            return plan;
+        }
+    }
 
     // An early reuse plan has already passed all fingerprint/camera checks.
     if (plan.path == FrameExecutionPath::ReuseSurface && plan.reuse_surface) {
@@ -323,7 +420,7 @@ FrameExecutionPlan ExecutionResolver::resolve(
     // Fast path #3: the dirty collector proved that the previous surface is
     // already complete. This is now a resolver decision, not a scene.cpp
     // policy branch.
-    if (sw_renderer && settings.dirty.enabled &&
+    if (sw_renderer && settings.dirty.enabled && dirty_out.frame_delta_clean &&
         dirty_out.dirty_rect && dirty_out.dirty_rect->is_empty() &&
         has_matching_previous_surface(sw_renderer, width, height)) {
         if (diagnostics_enabled) {
@@ -336,6 +433,32 @@ FrameExecutionPlan ExecutionResolver::resolve(
         set_reuse_surface(
             plan, sw_renderer->buffer_ring().prev_framebuffer(),
             "empty_dirty_region");
+        return plan;
+    }
+
+    const bool yuv_output = output_format == runtime::PixelFormat::Nv12 ||
+                            output_format == runtime::PixelFormat::P010;
+    if (yuv_output && dirty_out.frame_delta) {
+        if (!dirty_out.frame_delta->scene_changed &&
+            !dirty_out.frame_delta->camera_changed) {
+            plan.path = FrameExecutionPath::FullYuv;
+            plan.reason = output_format == runtime::PixelFormat::P010
+                ? "clean_yuv_p010" : "clean_yuv_nv12";
+            return plan;
+        }
+        if (dirty_out.use_dirty_tiles && dirty_out.tile_grid &&
+            dirty_out.dirty_tiles && dirty_out.dirty_tiles->any()) {
+            plan.path = FrameExecutionPath::SparseYuv;
+            plan.reason = output_format == runtime::PixelFormat::P010
+                ? "sparse_yuv_p010" : "sparse_yuv_nv12";
+            plan.dirty_regions = ExecutionResolver::coalesce_dirty_regions(
+                *dirty_out.tile_grid, *dirty_out.dirty_tiles);
+            plan.use_dirty_region = !plan.dirty_regions.empty();
+            if (plan.use_dirty_region) return plan;
+        }
+        plan.path = FrameExecutionPath::FullYuv;
+        plan.reason = output_format == runtime::PixelFormat::P010
+            ? "full_yuv_p010" : "full_yuv_nv12";
         return plan;
     }
 

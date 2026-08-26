@@ -19,6 +19,7 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
+#include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -29,6 +30,11 @@
 #include <vector>
 
 namespace chronon3d::runtime {
+
+enum class YuvExecutionMode : std::uint8_t {
+    Full,
+    Sparse,
+};
 
 enum class GpuPassKind : std::uint8_t {
     Composite = 0,
@@ -42,6 +48,7 @@ enum class GpuPassKind : std::uint8_t {
     LayerBatch = 8,
     Scale = 9,
     TextBatch = 10,
+    YuvOverlay = 11,
 };
 
 // ── Per-kind pass payloads ────────────────────────────────────────────────
@@ -130,6 +137,14 @@ struct ScalePass {
     float scale_y{1.0f};
 };
 
+struct YuvOverlayPass {
+    RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
+    RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
+    PixelFormat format{PixelFormat::Nv12};
+    std::optional<raster::BBox> dirty_region{};
+    YuvExecutionMode mode{YuvExecutionMode::Full};
+};
+
 struct TextBatchPass {
     RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
     std::vector<RenderSurfaceHandle> atlas_pages{};
@@ -140,7 +155,7 @@ struct TextBatchPass {
 using GpuPassParams = std::variant<
     CompositePass, TransformPass, AffineTransformPass, BlurPass,
     GlowPass, ColorAdjustPass, MattePass, FusedCompositePass, LayerBatchPass,
-    ScalePass, TextBatchPass>;
+    ScalePass, TextBatchPass, YuvOverlayPass>;
 
 struct GpuPass {
     GpuPassKind kind{GpuPassKind::Composite};
@@ -178,6 +193,10 @@ struct CommandPlan {
     ResourcePlan resources;
     BarrierPlan barriers;
     std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> dynamic_parameters;
+
+    // Optional per-frame decision from the canonical render-graph resolver.
+    // CommandPlan remains structural when this metadata is absent.
+    std::optional<::chronon3d::graph::ExecutionDecision> execution_decision;
 
     [[nodiscard]] std::size_t pass_count() const noexcept { return passes.size(); }
 };
@@ -243,6 +262,11 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
     out.push_back(p.source);
 }
 inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
+                                 const YuvOverlayPass& p) {
+    out.push_back(p.destination);
+    out.push_back(p.source);
+}
+inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const TextBatchPass& p) {
     out.push_back(p.destination);
     for (const auto& h : p.atlas_pages) {
@@ -261,6 +285,7 @@ inline RenderSurfaceHandle destination_of(const FusedCompositePass& p) { return 
 inline RenderSurfaceHandle destination_of(const LayerBatchPass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const ScalePass& p) { return p.destination; }
 inline RenderSurfaceHandle destination_of(const TextBatchPass& p) { return p.destination; }
+inline RenderSurfaceHandle destination_of(const YuvOverlayPass& p) { return p.destination; }
 
 inline std::vector<RenderSurfaceHandle> referenced_handles(const GpuPass& pass) {
     std::vector<RenderSurfaceHandle> handles;
@@ -282,6 +307,11 @@ inline RenderSurfaceHandle destination_handle(const GpuPass& pass) {
 /// non-overlapping lifetimes via the canonical ResourcePlanner.
 class GpuCommandPlanner {
 public:
+    void set_execution_decision(
+        std::optional<::chronon3d::graph::ExecutionDecision> decision) {
+        m_execution_decision = decision;
+    }
+
     void set_dynamic_parameters(
         std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> parameters) {
         m_dynamic_parameters = std::move(parameters);
@@ -302,6 +332,7 @@ public:
     void layer_batch(LayerBatchPass pass) { append(GpuPass{GpuPassKind::LayerBatch, std::move(pass)}); }
     void scale(ScalePass pass) { append(GpuPass{GpuPassKind::Scale, std::move(pass)}); }
     void text_batch(TextBatchPass pass) { append(GpuPass{GpuPassKind::TextBatch, std::move(pass)}); }
+    void yuv_overlay(YuvOverlayPass pass) { append(GpuPass{GpuPassKind::YuvOverlay, std::move(pass)}); }
 
     /// Attach an external parameter span to the most recently appended pass.
     /// The span is metadata only; the structural pass remains reusable across
@@ -336,6 +367,7 @@ public:
         }
         plan.resources = planner.build();
         plan.dynamic_parameters = m_dynamic_parameters;
+        plan.execution_decision = m_execution_decision;
 
         // Emit one transition per surface access so the backend can place
         // image barriers: a Read transition for every non-destination surface
@@ -386,6 +418,7 @@ private:
 
     std::vector<GpuPass> m_passes;
     std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> m_dynamic_parameters;
+    std::optional<::chronon3d::graph::ExecutionDecision> m_execution_decision;
     std::unordered_map<RenderSurfaceHandle, ResourceDesc> m_descs;
     std::unordered_map<RenderSurfaceHandle, SurfaceLiveness> m_liveness;
 };

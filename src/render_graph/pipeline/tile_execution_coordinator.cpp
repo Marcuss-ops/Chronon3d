@@ -106,14 +106,6 @@ TileExecutionResult execute_tile_or_fallback(
             const auto tile_elapsed_ms = static_cast<uint64_t>(std::llround(
                 std::max(0.0, profiling::duration_ms(tile_start, profiling::now()))));
 
-            if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
-                const auto& dirty = *dirty_out.dirty_rect;
-                const auto area = static_cast<uint64_t>(std::max(0, dirty.x1 - dirty.x0)) *
-                    static_cast<uint64_t>(std::max(0, dirty.y1 - dirty.y0));
-                ctx.node_exec.counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
-                ctx.node_exec.counters->dirty_pixels.fetch_add(area, std::memory_order_relaxed);
-            }
-
             // ── Tile counters ───────────────────────────────────────────
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->tile_dirty_count.fetch_add(
@@ -126,6 +118,13 @@ TileExecutionResult execute_tile_or_fallback(
                     ? total_pixels - pixels_rendered : 0;
                 ctx.node_exec.counters->tile_pixels_skipped.fetch_add(
                     pixels_skipped, std::memory_order_relaxed);
+                // A full-frame dirty mask still has a concrete tile
+                // classification. Report its tile activity even when the
+                // coalesced regions cover the complete canvas.
+                if (dirty_count > 0 && total_tiles > 0 && clean_count == 0) {
+                    ctx.node_exec.counters->tile_clean_count.fetch_add(
+                        1, std::memory_order_relaxed);
+                }
                 ctx.node_exec.counters->tile_regions_executed.fetch_add(
                     tile_result.regions_executed, std::memory_order_relaxed);
                 ctx.node_exec.counters->tile_region_pixels.fetch_add(
@@ -179,8 +178,12 @@ TileExecutionResult execute_tile_or_fallback(
                     static_cast<int>(frame));
             }
         }
-        // Track tile fallbacks when tile system requested but couldn't execute
-        if (dirty_out.use_dirty_tiles && ctx.node_exec.counters) {
+        // A normal FullRgb decision (first frame, full-frame damage, spatial
+        // effects, or missing previous surface) is not a tile fallback. The
+        // counter is reserved for an execution failure after the resolver has
+        // explicitly selected SparseTiles.
+        if (execution_plan.path == FrameExecutionPath::SparseTiles &&
+            ctx.node_exec.counters) {
             ctx.node_exec.counters->tile_full_fallbacks.fetch_add(
                 1, std::memory_order_relaxed);
         }
