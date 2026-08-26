@@ -8,11 +8,94 @@
 #include "gpu_text_run.hpp"
 #include "../native_surface.hpp"
 
+#include <chronon3d/core/profiling/profiling_context.hpp>
 #include <chronon3d/text/text_run_driver.hpp>   // update_text_run_shape_per_frame
 #include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <cstring>
+#include <vector>
+
 namespace chronon3d::graph::text_run {
+
+namespace {
+
+// Promote a CPU-rasterized text fallback without uploading an entire canvas.
+// TextRun producer framebuffers are cleared before rasterization, therefore
+// pixels outside actual_ink_bbox are known-transparent.  We materialize that
+// invariant on the GPU with one transparent clear and upload only the ink ROI.
+// If the backend cannot satisfy any step, the caller keeps the historical
+// full-surface promotion as its correctness fallback.
+[[nodiscard]] bool promote_text_fallback_region(
+    RenderGraphContext& ctx,
+    RenderBackend& backend,
+    Framebuffer& framebuffer,
+    const std::optional<raster::BBox>& ink_bbox) {
+    if (!ink_bbox || !ctx.services.surface_registry ||
+        !backend.supports_native_surfaces()) {
+        return false;
+    }
+
+    const auto& bbox = *ink_bbox;
+    const int local_x0 = std::clamp(
+        bbox.x0 - framebuffer.origin_x(), 0, framebuffer.width());
+    const int local_y0 = std::clamp(
+        bbox.y0 - framebuffer.origin_y(), 0, framebuffer.height());
+    const int local_x1 = std::clamp(
+        bbox.x1 - framebuffer.origin_x(), 0, framebuffer.width());
+    const int local_y1 = std::clamp(
+        bbox.y1 - framebuffer.origin_y(), 0, framebuffer.height());
+
+    if (!ensure_empty_native_surface(ctx, framebuffer)) {
+        return false;
+    }
+
+    // A region-only upload must still leave a semantically complete source
+    // surface because later native consumers are allowed to sample outside the
+    // current composite clip.  The CPU producer starts transparent, so mirror
+    // that state once on-device instead of transferring the full framebuffer.
+    const auto cleared = backend.fill_rect_surface(
+        framebuffer.surface_handle(),
+        0, 0, framebuffer.width(), framebuffer.height(),
+        Color{0.0f, 0.0f, 0.0f, 0.0f});
+    if (!cleared.ok()) {
+        release_native_surface(ctx, framebuffer);
+        return false;
+    }
+
+    if (local_x1 <= local_x0 || local_y1 <= local_y0) {
+        return true;  // no visible ink: transparent GPU surface is complete
+    }
+
+    const auto width = static_cast<std::uint32_t>(local_x1 - local_x0);
+    const auto height = static_cast<std::uint32_t>(local_y1 - local_y0);
+    std::vector<float> rgba(
+        static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4);
+    static_assert(sizeof(Color) == sizeof(float) * 4);
+    for (std::uint32_t y = 0; y < height; ++y) {
+        const Color* row = framebuffer.pixels_row(
+            local_y0 + static_cast<int>(y)) + local_x0;
+        std::memcpy(
+            rgba.data() + static_cast<std::size_t>(y) * width * 4,
+            row,
+            static_cast<std::size_t>(width) * sizeof(Color));
+    }
+
+    profiling::GpuUploadProducerScope upload_scope(
+        profiling::GpuUploadProducer::Text);
+    const auto uploaded = backend.upload_surface_region(
+        framebuffer.surface_handle(),
+        native_surface_desc(framebuffer.width(), framebuffer.height()),
+        local_x0, local_y0, width, height, rgba);
+    if (!uploaded.ok()) {
+        release_native_surface(ctx, framebuffer);
+        return false;
+    }
+    return true;
+}
+
+}  // namespace
 
 std::optional<NodeExecutionError> validate_execution(
     const RenderBackend* backend,
@@ -115,7 +198,14 @@ graph::RenderOpResult render_text_run_item(
     auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
     if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
         backend.supports_native_surfaces()) {
-        if (!ensure_native_surface(mutable_ctx, fb)) {
+        // The fallback framebuffer is transparent outside its actual ink.
+        // Promote only that region whenever the backend reports it.  This
+        // avoids 1280x720/1080p RGBA32F full-surface uploads for small text
+        // overlays while retaining ensure_native_surface() as the exact
+        // historical correctness fallback when the ROI path is unavailable.
+        if (!promote_text_fallback_region(
+                mutable_ctx, backend, fb, fallback.value().actual_ink_bbox) &&
+            !ensure_native_surface(mutable_ctx, fb)) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "TextRun fallback rendered but could not be uploaded to the native surface"});
