@@ -217,13 +217,27 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     }
 
     if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
+        const auto pixel_format = (frame->format == AV_PIX_FMT_P010LE || frame->format == AV_PIX_FMT_P010BE)
+            ? runtime::PixelFormat::P010
+            : runtime::PixelFormat::Nv12;
         const runtime::SurfaceDesc desc{
             static_cast<std::uint32_t>(frame->width),
             static_cast<std::uint32_t>(frame->height),
-            runtime::PixelFormat::Rgba32Float,
+            pixel_format,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
-            static_cast<std::size_t>(frame->width) * frame->height * sizeof(float) * 4};
+            runtime::tight_surface_bytes(pixel_format, static_cast<std::uint32_t>(frame->width), static_cast<std::uint32_t>(frame->height)),
+            runtime::ColorMetadata{
+                .matrix = (frame->colorspace == AVCOL_SPC_BT2020_NCL)
+                    ? runtime::ColorMatrix::Bt2020Ncl
+                    : ((frame->colorspace == AVCOL_SPC_BT470BG || frame->colorspace == AVCOL_SPC_SMPTE170M)
+                        ? runtime::ColorMatrix::Bt601
+                        : runtime::ColorMatrix::Bt709),
+                .range = (frame->color_range == AVCOL_RANGE_JPEG)
+                    ? runtime::ColorRange::Full
+                    : runtime::ColorRange::Limited,
+            }
+        };
         slot.surface = m_surface_registry->create(desc);
         if (slot.surface == runtime::kInvalidRenderSurfaceHandle ||
             !vulkan->create_cuda_external_surface(slot.surface, desc).ok()) {
