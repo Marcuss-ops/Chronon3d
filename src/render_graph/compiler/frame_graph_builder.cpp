@@ -685,7 +685,7 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             }
 
             // ── Layer batch construction with fusion ─────────────────────
-            // Source/TextRun/Video and downstream Transform/Composite nodes
+            // Source/Video and downstream Transform/Composite nodes
             // accumulate into a single CompiledLayerBatch until interrupted
             // by a non-fusible barrier node (blur, matte, etc.).
             // Layer fusion is a lowering step, not an enum-based shortcut.
@@ -696,10 +696,22 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             // operators; transforms/composites may extend an already valid
             // batch but can never create one on their own.
             const auto& graph_node = compiled.graph.node(node_id);
+            // MultiSourceNode has a legacy CPU compositor for mixed layers.
+            // It cannot be lowered to the image-only GPU batch when one of
+            // its items is TextRun; keep the whole node standalone so the
+            // text item reaches MultiSourceNode::execute().
+            const bool multi_source_is_image_only =
+                node_info.source_shape_types.empty() ||
+                std::none_of(
+                    node_info.source_shape_types.begin(),
+                    node_info.source_shape_types.end(),
+                    [](const int shape_type) {
+                        return shape_type == static_cast<int>(ShapeType::TextRun);
+                    });
             const bool is_canonical_layer_source =
                 dynamic_cast<const SourceNode*>(&graph_node) != nullptr ||
-                dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr ||
-                dynamic_cast<const TextRunNode*>(&graph_node) != nullptr ||
+                (dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr &&
+                 multi_source_is_image_only) ||
                 dynamic_cast<const VideoNode*>(&graph_node) != nullptr;
             const bool is_fusible_layer_node =
                 (is_canonical_layer_source &&
@@ -815,6 +827,61 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
             batch_op.output_physical_slot = batch.output_physical_slot;
             batch_op.is_fused = true;
             compiled.program.operations.push_back(std::move(batch_op));
+        }
+    }
+
+    // Every reachable node must have exactly one execution representation:
+    // either a standalone operation or ownership by a fused batch. This
+    // prevents a lowering mismatch from silently dropping visible work.
+    std::vector<const CompiledOperation*> operation_for_node(compiled.nodes.size(), nullptr);
+    for (const auto& op : compiled.program.operations) {
+        if (op.node >= operation_for_node.size()) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: execution program contains an invalid node " +
+                std::to_string(op.node));
+        }
+        if (operation_for_node[op.node] != nullptr) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: execution program contains duplicate operations for node " +
+                std::to_string(op.node));
+        }
+        operation_for_node[op.node] = &op;
+    }
+
+    std::vector<bool> fused_owner(compiled.nodes.size(), false);
+    for (const auto& batch : compiled.program.layer_batches) {
+        if (!batch.is_gpu_fused) continue;
+        if (batch.root_node >= operation_for_node.size() ||
+            operation_for_node[batch.root_node] == nullptr ||
+            !operation_for_node[batch.root_node]->is_fused) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: fused batch has no fused root operation");
+        }
+        for (const auto member : batch.member_nodes) {
+            if (member >= fused_owner.size() || fused_owner[member]) {
+                throw std::runtime_error(
+                    "FrameGraphCompiler: node belongs to multiple fused batches");
+            }
+            fused_owner[member] = true;
+        }
+    }
+
+    for (GraphNodeId node_id = 0; node_id < compiled.nodes.size(); ++node_id) {
+        const auto& info = compiled.nodes[node_id];
+        if (!info.reachable) continue;
+        const bool standalone = operation_for_node[node_id] != nullptr;
+        const bool fused = fused_owner[node_id];
+        if (standalone == fused) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: reachable node disappeared or has multiple "
+                "execution representations: node=" + std::to_string(node_id) +
+                " name='" + info.name + "' kind=" +
+                std::string(to_string(info.kind)));
+        }
+        if (info.lowered_into_batch != fused) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: lowered_into_batch metadata disagrees with "
+                "execution program for node " + std::to_string(node_id));
         }
     }
 
