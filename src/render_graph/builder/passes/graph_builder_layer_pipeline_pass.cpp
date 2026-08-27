@@ -272,7 +272,12 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             continue;
         }
 
-        if (cam25d.enabled && layer.uses_2_5d_projection) {
+        // Screen-space overlays are already in framebuffer coordinates and
+        // must stay on the regular 2D compositing path.  Sending them through
+        // the camera 2.5D bin can make later overlay layers participate in
+        // depth ordering even though their projection was intentionally
+        // disabled, causing visible subtitle/watermark work to disappear.
+        if (cam25d.enabled && layer.uses_2_5d_projection && !layer.screen_space) {
             LayerGraphItem item = make_layer_graph_item(resolved_layer, cam25d, rctx, is_static_val);
             current_3d_bin.push_back(item);
         } else {

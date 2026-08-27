@@ -128,7 +128,7 @@ inline Composition make_overlay_cert_1(FontEngine* font_engine) {
             });
 
             // Subtitle: BottomCenter, font 42, shadow, fade-in 5 frames.
-            s.layer("subtitle", [font_engine](LayerBuilder& l) {
+            s.screen_layer("subtitle", [font_engine](LayerBuilder& l) {
                 l.font_engine(font_engine);
                 l.drop_shadow(
                     Vec2{kOverlayCertShadowOffset, kOverlayCertShadowOffset},
@@ -157,7 +157,7 @@ inline Composition make_overlay_cert_1(FontEngine* font_engine) {
 
             // Watermark: TopRight (20 px margin), 180 px, opacity 0.85,
             // fade-in 8 frames.
-            s.layer("watermark", [](LayerBuilder& l) {
+            s.screen_layer("watermark", [](LayerBuilder& l) {
                 l.pin_to(Anchor::TopRight, kOverlayCertWatermarkMargin);
                 l.opacity(kOverlayCertWatermarkOpacity);
                 l.transition_in(overlay_cert_fade(kOverlayCertWatermarkFadeFrames));

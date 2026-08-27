@@ -20,6 +20,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/render_fixtures.hpp>
@@ -97,6 +98,7 @@ TEST_CASE("OverlayCert1: steady state renders headline subtitle watermark and sh
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width() == kOverlayCertWidth);
     REQUIRE(fb->height() == kOverlayCertHeight);
+    REQUIRE(save_png(*fb, ".tmp/overlay_cert_frame30.png"));
 
     std::ostringstream diag;
     diag << "headline lit=" << count_lit(*fb, kHeadlineRoi, kOverlayCertBackground)

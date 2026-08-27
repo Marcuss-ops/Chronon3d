@@ -1169,8 +1169,7 @@ void FrameGraphCompiler::validate_compiled_program_coverage(
                     "FrameGraphCompiler: fused batch references invalid node " +
                     std::to_string(node_id));
             }
-            if (node_id == batch.root_node &&
-                std::any_of(compiled.program.operations.begin(),
+            if (std::any_of(compiled.program.operations.begin(),
                             compiled.program.operations.end(),
                             [node_id](const CompiledOperation& operation) {
                                 return operation.node == node_id &&
