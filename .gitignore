@@ -131,3 +131,6 @@ tools/telemetry_dashboard/
 # ── Perfetto SDK + trace-gate build cache (CI-provisioned, not VCS) ──
 .perfetto-sdk/
 .trace-gate-cache/
+
+# Test output artifacts
+test_outputs/
