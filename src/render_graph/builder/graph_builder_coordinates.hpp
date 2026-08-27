@@ -291,8 +291,15 @@ inline TextRunPlacement resolve_text_run_placement(
     // therefore already box-local and must carry a zero anchor: applying
     // Transform::to_mat4() here consumes no placement semantics twice.
     out_opacity = item.transform.opacity * node.world_transform.opacity;
+    // LayerBuilder positions 2D text in the centered authoring basis
+    // (origin at the canvas center), while resolve_text_placement() returns
+    // the box origin in top-left Canvas coordinates.  Reconcile those bases
+    // exactly once here for non-projected text, including screen-space
+    // watermarks/subtitles.  Without this translation a centered box at
+    // x=960 is rasterized from x=-700 and is silently clipped at x=0.
+    const Mat4 canvas_center = implicit_canvas_center_matrix(ctx);
     return TextRunPlacement{
-        item.world_matrix * node.world_transform.to_mat4()};
+        canvas_center * item.world_matrix * node.world_transform.to_mat4()};
 }
 
 } // namespace chronon3d::graph::detail

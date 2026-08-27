@@ -184,6 +184,12 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
 )
+if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_NVRTC_LIBRARY)
+    # Vulkan is exposed to in-tree consumers as OBJECT files through this
+    # aggregate; carry NVRTC to the final executable that owns those objects.
+    target_link_libraries(chronon3d_pipeline INTERFACE
+        "${CHRONON3D_NVRTC_LIBRARY}")
+endif()
 if(CHRONON3D_ENABLE_IPC)
     # The IPC OBJECT files are exposed through the aggregate build interface;
     # carry their non-transitive validator dependency to every in-tree
