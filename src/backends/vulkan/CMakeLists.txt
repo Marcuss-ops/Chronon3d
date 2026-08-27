@@ -139,6 +139,7 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
 
     target_sources(chronon3d_backend_vulkan PRIVATE
         cuda_vulkan_surface_bridge.cpp
+        cuda_nv12_surface_compositor.cpp
         vulkan_cuda_frame_importer.cpp)
     target_include_directories(chronon3d_backend_vulkan
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
