@@ -236,6 +236,17 @@ Layer LayerBuilder::build() {
         }
     }
 
+    // Text materialization can conservatively mark a layer static when the
+    // text payload itself has no animators.  Layer animation is configured
+    // independently afterwards (for example opacity_anim() in benchmark
+    // scenes), so the final layer is dynamic whenever any evaluated
+    // transform property depends on time.  Leaving cache_static set here
+    // freezes the first transparent frame and makes an entire clip appear
+    // watermark-only even though the animation is authored correctly.
+    if (m_layer.anim_transform.is_time_dependent()) {
+        m_layer.cache_static = false;
+    }
+
     return std::move(m_layer);
 }
 
