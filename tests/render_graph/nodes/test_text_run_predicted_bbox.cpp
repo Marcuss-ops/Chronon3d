@@ -202,9 +202,7 @@ Composition build_unpinned_absolute_center_comp(SoftwareRenderer& renderer) {
         });
 }
 
-} // anonymous namespace
-
-// ── Regression lock ────────────────────────────────────────────────────
+// ── Anchor exactly-once probes (canvas 1920×1080) ──────────────────────────────
 // The Option A fix releases the TICKET-104 strip for Text-kind only
 // (see graph_builder_coordinates.hpp:88-92 BUG 1 citation block).
 // If a future commit re-merges the strip+replay path for Text-kind
@@ -322,20 +320,129 @@ TEST_CASE("Pinned absolute TextRun stays centered across animation boundary") {
     }
 }
 
-TEST_CASE("Unpinned absolute TextRun retains implicit-center removal") {
+// ── Anchor exactly-once probes (canvas 1920×1080) ──────────────────────
+// Canonical 5-pin × 3-anchor matrix.  Glyphs are laid out box-local;
+// resolve_text_placement() consumes the box anchor ONCE when it derives
+// layout_origin = pin − anchor_offset, and Transform::to_mat4() keeps
+// world_transform.anchor zeroed — see the ANCHOR EXACTLY-ONCE CONTRACT
+// block in src/scene/builders/layer_builder_text.cpp.
+//
+// Expected rendered ink centre is therefore a closed form:
+//   ink_center = pin + (box_size/2) − anchor_offset(anchor)
+// (alignment Center/Middle centres the ink inside the authored box, so
+// this holds regardless of font metrics).
+namespace {
+
+constexpr Vec2 k_anchor_box{400.0f, 120.0f};
+
+Composition build_anchor_probe_comp(
+    SoftwareRenderer& renderer,
+    const Vec2& pin,
+    TextAnchor anchor)
+{
+    return composition(
+        {.name = "TextRun/anchor_probe",
+         .width = 1920,
+         .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 1},
+        [&renderer, pin, anchor](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("probe", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text("probe", TextDefinition{
+                    .content = {.value = "AK"},
+                    .style = {
+                        .font = {
+                            .font_path = "assets/fonts/Poppins-Bold.ttf",
+                            .font_family = "Poppins",
+                            .font_weight = 700,
+                            .font_size = 48.0f,
+                        },
+                        .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                    },
+                    .frame = {
+                        .size = k_anchor_box,
+                        .placement = TextPlacement{TextPlacementKind::Absolute, pin},
+                        .anchor = anchor,
+                    },
+                });
+            });
+            return s.build();
+        });
+}
+
+Vec2 expected_ink_center(const Vec2& pin, TextAnchor anchor)
+{
+    Vec2 anchor_offset{};
+    switch (anchor) {
+        case TextAnchor::TopLeft:     break;
+        case TextAnchor::Center:      anchor_offset = Vec2{k_anchor_box * 0.5f}; break;
+        default:                      anchor_offset = k_anchor_box; break;
+    }
+    return pin + Vec2{k_anchor_box * 0.5f} - anchor_offset;
+}
+
+const char* anchor_label(TextAnchor anchor)
+{
+    switch (anchor) {
+        case TextAnchor::TopLeft: return "TopLeft";
+        case TextAnchor::Center:  return "Center";
+        default:                  return "BottomRight";
+    }
+}
+
+} // anonymous namespace
+
+TEST_CASE("Anchor exactly-once: 5 pins x 3 anchors land on closed-form pivot") {
+    struct ProbeCase {
+        const char* label;
+        Vec2 pin;
+    };
+    // Inset >= 480 px so every (pin, anchor) box stays fully on-canvas:
+    // clipping would corrupt the alpha-bbox pivot measurement.
+    const ProbeCase pins[] = {
+        {"TopLeft",     Vec2{480.0f, 330.0f}},
+        {"TopRight",    Vec2{1440.0f, 330.0f}},
+        {"Center",      Vec2{960.0f, 540.0f}},
+        {"BottomLeft",  Vec2{480.0f, 750.0f}},
+        {"BottomRight", Vec2{1440.0f, 750.0f}},
+    };
+    const TextAnchor anchors[] = {
+        TextAnchor::TopLeft,      // (0, 0)
+        TextAnchor::Center,       // (w/2, h/2)
+        TextAnchor::BottomRight,  // (w, h)
+    };
+
     auto renderer = test::make_renderer();
-    auto comp = build_unpinned_absolute_center_comp(renderer);
-    auto fb = renderer.render(comp, Frame{0});
-    REQUIRE(static_cast<bool>(fb));
 
-    const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
-    INFO("bbox: x0=", bbox.x0, " y0=", bbox.y0,
-         " x1=", bbox.x1, " y1=", bbox.y1);
-    CHECK_FALSE(bbox.empty());
+    for (const auto& pin_case : pins) {
+        for (const TextAnchor anchor : anchors) {
+            INFO("pin=", pin_case.label,
+                 " anchor=", anchor_label(anchor));
+            auto comp = build_anchor_probe_comp(
+                renderer, pin_case.pin, anchor);
+            auto fb = renderer.render(comp, Frame{0});
+            REQUIRE(static_cast<bool>(fb));
 
-    // The unpinned absolute branch deliberately strips the implicit center;
-    // this complementary lock prevents the pinned fix from changing that
-    // pre-existing placement contract.
-    const float center_x = (bbox.x0 + bbox.x1) * 0.5f;
-    CHECK(std::abs(center_x - 960.0f) > 100.0f);
+            const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+            CHECK_FALSE(bbox.empty());
+            CHECK(chronon3d::test::completeness::count_visible_pixels(*fb) > 50);
+
+            const Vec2 measured_center{
+                (bbox.x0 + bbox.x1) * 0.5f,
+                (bbox.y0 + bbox.y1) * 0.5f};
+            const Vec2 expected = expected_ink_center(pin_case.pin, anchor);
+
+            INFO("bbox: x0=", bbox.x0, " y0=", bbox.y0,
+                 " x1=", bbox.x1, " y1=", bbox.y1);
+            INFO("expected ink center: ", expected.x, ", ", expected.y);
+
+            // Exactly-once: moving the anchor moves the pivot by exactly
+            // one anchor_offset delta — never two.
+            CHECK(std::abs(measured_center.x - expected.x) <= 10.0f);
+            CHECK(std::abs(measured_center.y - expected.y) <= 12.0f);
+        }
+    }
 }

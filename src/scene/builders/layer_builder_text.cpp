@@ -219,12 +219,16 @@ Layer LayerBuilder::build() {
                 prepared, engine_for_shape, local_time, spec.animated_doc);
             if (shape) {
                 shape->placement_kind = prepared.frame.placement.kind;
-                node.world_transform.anchor = resolve_text_anchor(
-                    prepared.frame.anchor,
-                    // The transform pins the authored layout box; the ink
-                    // bounds already include alignment and must not become a
-                    // second anchor reference.
-                    prepared.frame.size);
+                // ANCHOR EXACTLY-ONCE CONTRACT:
+                // resolve_text_placement() already consumed the box anchor
+                // when it computed layout_origin (= pin − anchor_offset),
+                // and world_transform.anchor above stays {0,0,0} so
+                // Transform::to_mat4() must not subtract it again.
+                // Setting the transform anchor here re-applied T(−anchor)
+                // a second time, shifting the rendered ink by exactly
+                // −(box_size/2) for TextAnchor::Center (observed as the
+                // pinned-absolute off-center regression). Glyphs are
+                // box-local; the node matrix maps them directly.
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }
 #endif
