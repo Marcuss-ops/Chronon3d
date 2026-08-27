@@ -64,6 +64,16 @@ public:
     }
 };
 
+class FailingBackend final : public FakeBackend {
+public:
+    RenderOpResult draw_node(Framebuffer&, const RenderNode&, const RenderState&,
+                             const Camera&, int, int) override {
+        return RenderOpResult{RenderBackendError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "forced draw failure"}};
+    }
+};
+
 
 
 

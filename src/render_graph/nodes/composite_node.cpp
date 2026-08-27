@@ -181,6 +181,21 @@ NodeExecResult CompositeNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
+    // An upstream node can fail before this level is scheduled.  The
+    // executor still drains dependent nodes so the shared frame error can be
+    // observed consistently; never dereference a missing input while doing
+    // so.  Returning the latched upstream error preserves the original
+    // failure at the frame boundary instead of turning it into SIGSEGV.
+    if (inputs.size() >= 2 && (!inputs[0] || !inputs[1])) {
+        if (ctx.frame_error && ctx.frame_error->has_value()) {
+            return NodeExecResult{ctx.frame_error->value()};
+        }
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::InvalidInput,
+            "Composite",
+            "composite input framebuffer is missing"}};
+    }
+
     if (inputs.size() < 2) {
         // A pass-through composite is still a depth producer.  Some graph
         // shapes collapse the bottom input, but the remaining input retains
