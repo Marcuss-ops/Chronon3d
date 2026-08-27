@@ -160,7 +160,31 @@ LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
             effective_path,
             std::string(m_layer.name) + "/" + name);
     }
-    return shape(registry::shape_ids::Image, std::move(name), std::move(p));
+    const Vec2 half_size = p.size * 0.5f;
+    shape(registry::shape_ids::Image, std::move(name), std::move(p));
+
+    // A layer pin denotes the requested box edge/corner, while image nodes
+    // use their box centre as the local transform anchor.  Convert the pin
+    // to the centre position exactly once so TopRight means
+    // [canvas_width - margin - width, margin] rather than placing half the
+    // image outside the canvas.
+    if (m_layer.layout.pin.has_value() && !m_layer.nodes.empty()) {
+        Vec2 pin_to_center{0.0f, 0.0f};
+        switch (m_layer.layout.pin->anchor) {
+            case Anchor::TopLeft:      pin_to_center = { half_size.x,  half_size.y}; break;
+            case Anchor::TopCenter:    pin_to_center = { 0.0f,         half_size.y}; break;
+            case Anchor::TopRight:     pin_to_center = {-half_size.x,  half_size.y}; break;
+            case Anchor::MiddleLeft:   pin_to_center = { half_size.x,  0.0f}; break;
+            case Anchor::Center:       pin_to_center = { 0.0f,         0.0f}; break;
+            case Anchor::MiddleRight:  pin_to_center = {-half_size.x,  0.0f}; break;
+            case Anchor::BottomLeft:   pin_to_center = { half_size.x, -half_size.y}; break;
+            case Anchor::BottomCenter: pin_to_center = { 0.0f,        -half_size.y}; break;
+            case Anchor::BottomRight:  pin_to_center = {-half_size.x, -half_size.y}; break;
+        }
+        m_layer.nodes.back().world_transform.position.x += pin_to_center.x;
+        m_layer.nodes.back().world_transform.position.y += pin_to_center.y;
+    }
+    return *this;
 }
 
 LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
@@ -220,7 +244,9 @@ LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
             std::string(m_layer.name) + "/" + name);
     }
 
-    if (prepared.animation.animators.empty()) {
+    if (prepared.animation.animators.empty() &&
+        m_layer.transition_in.transition_id == "none" &&
+        m_layer.transition_out.transition_id == "none") {
         m_layer.cache_static = true;
     }
 

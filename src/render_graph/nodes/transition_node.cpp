@@ -126,7 +126,14 @@ NodeExecResult TransitionNode::execute(
     const i32 w = src->width();
     const i32 h = src->height();
 
-    auto out_fb = ctx.acquire_owned_fb(w, h, false);
+    // Preserve the canvas-space origin of tight producer surfaces.  A
+    // transition only changes pixel values; it must not rebase the surface
+    // to (0,0), otherwise screen-space TextRun/image overlays are composited
+    // at the local origin after the transition.
+    const raster::BBox output_bounds{
+        src->origin_x(), src->origin_y(),
+        src->origin_x() + w, src->origin_y() + h};
+    auto out_fb = ctx.acquire_owned_fb(w, h, false, output_bounds);
 
     if (m_spec.transition_id.empty()) {
         *out_fb = *src;

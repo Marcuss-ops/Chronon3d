@@ -6,6 +6,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <functional>
+#include <atomic>
 #include <string>
 #include <memory>
 #include <vector>
@@ -69,7 +70,8 @@ public:
                 std::uint64_t scene_content_fingerprint = 0)
         : m_spec(std::move(spec)),
           m_render(std::move(render)),
-          m_scene_content_fingerprint(scene_content_fingerprint) {}
+          m_scene_content_fingerprint(scene_content_fingerprint),
+          m_identity(s_next_identity.fetch_add(1, std::memory_order_relaxed)) {}
 
     [[nodiscard]] i32 width() const { return m_spec.width; }
     [[nodiscard]] i32 height() const { return m_spec.height; }
@@ -83,6 +85,8 @@ public:
     [[nodiscard]] std::uint64_t scene_content_fingerprint() const noexcept {
         return m_scene_content_fingerprint;
     }
+
+    [[nodiscard]] std::uint64_t identity() const noexcept { return m_identity; }
 
     /// Direct evaluation from a pre-built FrameContext.
     /// This is the natural V2 entry point: callers that already have a
@@ -164,6 +168,8 @@ private:
     //    inverse projection is retained.
     chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
     std::uint64_t m_scene_content_fingerprint{0};
+    inline static std::atomic_uint64_t s_next_identity{1};
+    std::uint64_t m_identity{0};
 
     CompositionSpec m_spec;
     SceneFunction m_render;
