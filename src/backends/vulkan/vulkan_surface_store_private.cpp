@@ -1,15 +1,8 @@
 // Vulkan Impl surface ownership and upload helpers. Included inside VulkanBackend::Impl to keep
 // the private state definition single-source while separating responsibilities.
 
-    // Pre-allocate every physical surface from the compiler's interval-coloring
-    // plan.  After this call, ensure_surface() performs direct slot lookup
-    // instead of search/create/resize—zero vkCreateImage, zero vkCreateImageView,
-    // zero memory allocation in the frame hot loop.
-    //
-    // The pool-based fallback (ensure_surface without plan) remains for:
-    //   - software/reference backends
-    //   - job-persistent assets (decoded images, text atlases)
-    //   - surfaces created outside the compiled graph path
+    // The compiler's interval plan owns CPU Framebuffer slots. Native Vulkan
+    // surfaces use the logical registry/store lifecycle below.
     void preallocate_plan_surfaces(
         std::uint32_t canvas_width,
         std::uint32_t canvas_height,
@@ -17,50 +10,18 @@
 
         if (canvas_width == 0 || canvas_height == 0 || plan.empty()) return;
 
-        // Resize the plan's slots with actual canvas dimensions.  The
-        // compiled plan is resolution-independent; max_width/max_height
-        // start at 0 and must be filled with real frame sizes.
-        std::vector<graph::FramebufferSlot> resolved_slots = plan.slots;
-        const auto frame_bytes = static_cast<std::size_t>(canvas_width) *
-            canvas_height * sizeof(float) * 4;  // RGBA32F
-
-        for (auto& slot : resolved_slots) {
-            if (slot.max_width < canvas_width) slot.max_width = canvas_width;
-            if (slot.max_height < canvas_height) slot.max_height = canvas_height;
-        }
-
-        // Pre-create every physical slot as a device-local RGBA32F image.
-        // VulkanMemoryManager (VMA) manages allocations efficiently.
-        for (const auto& slot : resolved_slots) {
-            const std::uint32_t w = slot.max_width > 0
-                ? static_cast<std::uint32_t>(slot.max_width)
-                : canvas_width;
-            const std::uint32_t h = slot.max_height > 0
-                ? static_cast<std::uint32_t>(slot.max_height)
-                : canvas_height;
-
-            if (w == 0 || h == 0) continue;
-
-            auto& physical = surfaces.physical_surfaces[slot.id];
-            if (physical.image.image != VK_NULL_HANDLE) {
-                destroy_image(physical.image);
-            }
-            make_image(physical.image, w, h, /*exportable=*/false);
-            physical.image.initialized = false;
-            physical.desc = runtime::SurfaceDesc{
-                w, h,
-                runtime::PixelFormat::Rgba32Float,
-                runtime::ResourceUsage::Storage,
-                runtime::LifetimeClass::FrameTransient,
-                frame_bytes};
-            ++stats.surface_creations;
-        }
-
-        // Remember the plan dimensions so ensure_surface can validate
-        // without searching.
-        plan_preallocated = true;
+        // The graph framebuffer plan owns CPU Framebuffer slots.  Native
+        // Vulkan surfaces are created through the logical surface registry
+        // and have a different lifetime/aliasing contract; importing every
+        // CPU interval slot here reserves hundreds of canvas-sized Vulkan
+        // aliases that the native node path never consumes.  Keep native
+        // allocation lazy and let ensure_surface() reuse the normal store.
+        plan_preallocated = false;
         plan_canvas_width = canvas_width;
         plan_canvas_height = canvas_height;
+        surfaces.prune_unused_slots();
+        return;
+
     }
 
     // When the plan is preallocated, ensure_surface is a direct binding
@@ -236,10 +197,11 @@
         const auto binding = surfaces.surface_bindings.find(handle);
         if (binding != surfaces.surface_bindings.end()) {
             auto& physical = surfaces.physical_surfaces.at(binding->second);
-            if (physical.image.width != desc.width ||
+            if (physical.image.image == VK_NULL_HANDLE ||
+                physical.image.width != desc.width ||
                 physical.image.height != desc.height ||
                 physical.desc.format != desc.format) {
-                destroy_image(physical.image);
+                if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
                 make_image(physical.image, desc.width, desc.height, false, to_vk_format(desc.format));
                 physical.desc = desc;
             }
@@ -379,6 +341,11 @@
                 }
                 ++stats.surface_releases;
             }
+            // Releasing a logical handle only removes its binding.  Destroy
+            // the now-orphaned transient backing images after the device-idle
+            // drain, otherwise every frame leaves another Vulkan image in the
+            // store even though the registry no longer owns it.
+            prune_unused_transient_slots();
             if (surfaces.physical_surfaces.size() > 32) {
                 spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={}",
                              surfaces.surface_bindings.size(), surfaces.physical_surfaces.size(),
@@ -437,6 +404,10 @@
                 }
                 ++stats.surface_releases;
             }
+            // All relevant submission fences were complete above, so it is
+            // now safe to reclaim the physical images whose logical handles
+            // were retired.
+            prune_unused_transient_slots();
         } catch (const std::exception& error) {
             spdlog::error("[vulkan] non-blocking transient retirement failed: {}", error.what());
         } catch (...) {

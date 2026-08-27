@@ -319,7 +319,11 @@ NodeExecResult TextRunNode::execute(
     }
 #endif
     if (m_cache_policy.reusable_across_frames() && fb &&
-        !ctx.frame_input.has_camera_2_5d) {
+        !ctx.frame_input.has_camera_2_5d &&
+        fb->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+        // Native handles are batch/frame scoped. Never retain one in the
+        // node cache: a later cache hit would resurrect a released Vulkan
+        // surface and silently drop the text layer from the next frame.
         m_cached_result = std::make_shared<Framebuffer>(*fb);
     }
 

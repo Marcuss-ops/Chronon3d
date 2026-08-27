@@ -609,6 +609,19 @@ NodeExecResult SourceNode::execute(
             m_node.shape.type() == ShapeType::Image &&
             detail::try_native_image(ctx, *fb, m_node, state);
         if (!native_filled && !native_image) {
+            // Generic Vulkan producers (circle, rounded rect, line, path)
+            // also have native implementations, but unlike the rect/image
+            // fast paths they materialize the surface inside draw_node().
+            // Ensure the destination exists before dispatch so the backend
+            // can select its native shape path instead of seeing a CPU-only
+            // framebuffer and reporting a misleading unsupported capability.
+            if (ctx.services.backend->supports_native_surfaces() &&
+                ctx.services.surface_registry && !ensure_native_surface(ctx, *fb)) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    m_name,
+                    "failed to materialize native source surface"};
+            }
             const auto draw_result = ctx.services.backend->draw_node(
                 *fb, m_node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
@@ -627,7 +640,10 @@ NodeExecResult SourceNode::execute(
         // Diagnostics: only log in debug mode without full-buffer pixel scanning
     }
     if (m_cache_policy.reusable_across_frames() && fb &&
-        !ctx.frame_input.has_camera_2_5d) {
+        !ctx.frame_input.has_camera_2_5d &&
+        fb->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+        // A cached CPU framebuffer must not carry a frame-scoped Vulkan
+        // handle into a later cache hit.
         m_cached_result = std::make_shared<Framebuffer>(*fb);
     }
     return NodeExecResult{std::move(fb)};

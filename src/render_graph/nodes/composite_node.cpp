@@ -112,7 +112,11 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
                           Framebuffer& source, BlendMode mode,
                           CompositeOperator op,
                           const std::optional<raster::BBox>& clip) {
-    if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
+    // Vulkan's surface compositor supports both the ordinary source-over
+    // path and additive overlays. Keeping Add on the CPU fallback would call
+    // composite_layer(), whose legacy contract intentionally rejects it.
+    if ((mode != BlendMode::Normal && mode != BlendMode::Add) ||
+        op != CompositeOperator::SourceOver) {
         return false;
     }
     const auto original_handle = destination.surface_handle();
