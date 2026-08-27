@@ -465,17 +465,14 @@ struct VulkanBackend::Impl {
                                         std::size_t slot,
                                         const runtime::SurfaceDesc& desc) {
             auto& physical = physical_surfaces[slot];
-            if (owner_->plan_preallocated && physical.image.image != VK_NULL_HANDLE) {
+            if (physical.image.image != VK_NULL_HANDLE && owner_->plan_preallocated) {
                 if (physical.image.width != desc.width || physical.image.height != desc.height) {
                     throw std::invalid_argument("Vulkan preallocated surface dimensions mismatch");
                 }
-            } else if (physical.image.image == VK_NULL_HANDLE ||
-                       physical.image.width != desc.width || physical.image.height != desc.height) {
-                if (physical.image.image != VK_NULL_HANDLE) owner_->destroy_image(physical.image);
-                owner_->make_image(physical.image, desc.width, desc.height, false,
-                                   to_vk_format(desc.format));
-                physical.image.initialized = false;
             }
+            // Binding a compiled allocation is metadata-only.  Image
+            // materialization is performed by ensure_surface() on first use,
+            // allowing unused interval slots to remain unallocated.
             physical.desc = desc;
             surface_bindings[handle] = slot;
             owner_->stats.physical_surfaces_peak = std::max(
@@ -766,6 +763,14 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
     begin_frame_batch();
+    // A previous frame may have kept its logical transient handles alive
+    // until the encoder package released them.  begin_frame_batch() has just
+    // waited for the ring slot that is about to be reused, so opportunistically
+    // retire completed bindings now, before this plan adds the next frame's
+    // aliases.  Without this boundary, plan-bound handles accumulated in the
+    // surface store and every CPU fallback allocated another full-size image
+    // until Vulkan ran out of device memory.
+    m_impl->retire_completed_frame_transient_surfaces();
     m_impl->frame_batch.sync_plan = &plan.barriers;
     // Bind every planned allocation to its physical slot, backing each slot
     // with exactly one VkImage.  Lifetime-disjoint handles that share a
@@ -782,10 +787,27 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         // while the registry/cache still returned the logical handle.
         if (m_impl->surface_is_job_persistent(allocation.surface)) continue;
         const auto& planned = plan.resources.slots[allocation.physical_slot];
+        // Physical slots are aliases, not descriptions of every logical
+        // resource assigned to them.  The slot table can legitimately carry
+        // the canvas-sized fallback dimensions, while a request is a tight
+        // producer surface (text/overlay).  Using the slot dimensions here
+        // promoted every aliased resource to a full 1920x1080 image and made
+        // long Vulkan exports exhaust device memory.  Bind with the logical
+        // request's real dimensions; the slot remains the alias identity.
+        runtime::ResourceDesc request_desc{};
+        if (allocation.request_index < plan.resources.requests.size()) {
+            request_desc = plan.resources.requests[allocation.request_index].desc;
+        }
+        const auto width = request_desc.width != 0 ? request_desc.width : planned.width;
+        const auto height = request_desc.height != 0 ? request_desc.height : planned.height;
+        const auto format = request_desc.format != runtime::PixelFormat::Unknown
+            ? request_desc.format : planned.format;
+        const auto usage = request_desc.usage != runtime::ResourceUsage::Generic
+            ? request_desc.usage : planned.usage;
         const runtime::SurfaceDesc desc{
-            planned.width, planned.height, planned.format,
-            planned.usage, runtime::LifetimeClass::FrameTransient,
-            static_cast<std::size_t>(planned.width) * planned.height *
+            width, height, format,
+            usage, runtime::LifetimeClass::FrameTransient,
+            static_cast<std::size_t>(width) * height *
                 sizeof(float) * 4};
         m_impl->bind_surface_to_slot(allocation.surface, allocation.physical_slot, desc);
     }
