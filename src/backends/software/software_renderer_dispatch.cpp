@@ -105,6 +105,7 @@ void SoftwareRenderer::preflight_images(const Scene& scene) {
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                                                      Frame frame) {
     if (!m_session.common.authoring_compiled_composition ||
+        m_session.common.authoring_composition_identity != comp.identity() ||
         m_session.common.authoring_composition_name != comp.name()) {
         auto compiled = chronon3d::compile_composition(
             comp, CompositionCompileContext{});
@@ -114,6 +115,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                 "': " + compiled.error().message);
         }
         m_session.common.authoring_composition_name = comp.name();
+        m_session.common.authoring_composition_identity = comp.identity();
         m_session.common.authoring_compiled_composition =
             std::make_shared<const CompiledComposition>(std::move(compiled).value());
     }
