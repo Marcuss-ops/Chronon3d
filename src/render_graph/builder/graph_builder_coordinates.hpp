@@ -265,9 +265,10 @@ inline TextRunPlacement resolve_text_run_placement(
     const auto& text_shape = node.shape.text_run_shape_handle().value;
     const bool explicit_canvas_placement =
         text_shape && text_shape->placement_kind != TextPlacementKind::Absolute;
+    const bool unpinned = !item.layer || !item.layer->layout.pin.has_value();
     const bool needs_canvas_center =
-        (!item.layer || !item.layer->layout.pin.has_value()) &&
-        !explicit_canvas_placement && item.layer && item.layer->transform.any();
+        unpinned && !explicit_canvas_placement && item.layer &&
+        (item.layer->screen_space || item.layer->transform.any());
     const Mat4 canvas_center = needs_canvas_center
         ? implicit_canvas_center_matrix(ctx)
         : Mat4(1.0f);
