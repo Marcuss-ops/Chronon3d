@@ -259,6 +259,18 @@ inline TextRunPlacement resolve_text_run_placement(
     const RenderGraphContext& ctx,
     f32& out_opacity
 ) {
+    // Unpinned 2D text is authored relative to the canvas centre.  Pinned
+    // layers have already received their anchor translation from the layout
+    // solver, so applying this translation to them would move them twice.
+    const auto& text_shape = node.shape.text_run_shape_handle().value;
+    const bool explicit_canvas_placement =
+        text_shape && text_shape->placement_kind != TextPlacementKind::Absolute;
+    const bool needs_canvas_center =
+        (!item.layer || !item.layer->layout.pin.has_value()) &&
+        !explicit_canvas_placement && item.layer && item.layer->transform.any();
+    const Mat4 canvas_center = needs_canvas_center
+        ? implicit_canvas_center_matrix(ctx)
+        : Mat4(1.0f);
     const bool needs_xform = layer_needs_render_transform(item, ctx);
     const bool use_local = ctx.policy.modular_coordinates
                         && needs_xform && !item.native_3d;
@@ -283,7 +295,7 @@ inline TextRunPlacement resolve_text_run_placement(
         // opacity.  TextRunNode receives only the node-local text transform,
         // matching the SourceNode local path and avoiding double application.
         out_opacity = node.world_transform.opacity;
-        return TextRunPlacement{node.world_transform.to_mat4()};
+        return TextRunPlacement{canvas_center * node.world_transform.to_mat4()};
     }
 
     // The canonical resolver consumes TextPlacement (pin + offset) and the
@@ -291,13 +303,9 @@ inline TextRunPlacement resolve_text_run_placement(
     // therefore already box-local and must carry a zero anchor: applying
     // Transform::to_mat4() here consumes no placement semantics twice.
     out_opacity = item.transform.opacity * node.world_transform.opacity;
-    // LayerBuilder positions 2D text in the centered authoring basis
-    // (origin at the canvas center), while resolve_text_placement() returns
-    // the box origin in top-left Canvas coordinates.  Reconcile those bases
-    // exactly once here for non-projected text, including screen-space
-    // watermarks/subtitles.  Without this translation a centered box at
-    // x=960 is rasterized from x=-700 and is silently clipped at x=0.
-    const Mat4 canvas_center = implicit_canvas_center_matrix(ctx);
+    // item.world_matrix is the canonical evaluated layer matrix for explicit
+    // and pinned placement.  Unpinned text additionally uses the centered
+    // authoring basis described above.
     return TextRunPlacement{
         canvas_center * item.world_matrix * node.world_transform.to_mat4()};
 }

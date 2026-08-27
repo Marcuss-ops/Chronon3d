@@ -196,7 +196,15 @@ RenderPreparationResult prepare_render_scene(
     // the runtime-owned GPU cache at the preparation barrier. Rendering then
     // only acquires the content-addressed resident handle and never performs
     // a per-frame decode or upload.
-    if (options.resources.prepare_images && renderer->runtime().backend_attached()) {
+    //
+    // CPU-only backends (SoftwareBackend) do not host native surfaces: the
+    // promotion cannot be performed there and must NOT fail the prepare
+    // barrier — the executor already degrades gracefully to the CPU image
+    // path (see node_runner's `if (!acquired.ok()) continue;`).  Gating on
+    // `supports_native_surfaces()` keeps the GPU promotion identical for
+    // Vulkan while unblocking software-only renders of image compositions.
+    if (options.resources.prepare_images && renderer->runtime().backend_attached() &&
+        renderer->runtime().backend().supports_native_surfaces()) {
         auto& cache = renderer->runtime().gpu_asset_cache();
         for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
             const auto image = renderer->runtime().image_cache().find(ref.path);
