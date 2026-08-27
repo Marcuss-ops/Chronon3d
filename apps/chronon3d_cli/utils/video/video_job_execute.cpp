@@ -19,7 +19,10 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     encoder.hardware_encoder = job.video_settings.hardware_encoder;
     encoder.encode_preset = job.video_settings.encode_preset;
     encoder.tune = job.video_settings.tune;
+    encoder.rate_control_mode = job.video_settings.rate_control_mode;
     encoder.crf = job.video_settings.crf;
+    encoder.qp = job.video_settings.qp;
+    encoder.bitrate = job.video_settings.bitrate;
     encoder.encoder_backend = job.video_settings.encoder_backend;
 
     PipeOptions pipe;

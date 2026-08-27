@@ -42,9 +42,11 @@ public:
                              const chronon3d::DepthOfFieldSettings&,
                              const chronon3d::LensModel&,
                              const std::optional<chronon3d::raster::BBox>&) override {}
-    void draw_node(chronon3d::Framebuffer&, const chronon3d::RenderNode&,
-                   const chronon3d::RenderState&, const chronon3d::Camera&,
-                   int, int) override {}
+    chronon3d::graph::RenderOpResult draw_node(
+        chronon3d::Framebuffer&, const chronon3d::RenderNode&,
+        const chronon3d::RenderState&, const chronon3d::Camera&, int, int) override {
+        return chronon3d::graph::RenderOpResult{chronon3d::graph::RenderOpOutcome{}};
+    }
     void apply_effect_stack(chronon3d::Framebuffer&, const chronon3d::EffectStack&,
                             const chronon3d::effects::EffectExecutionContext&) override {}
     void composite_layer(chronon3d::Framebuffer&, const chronon3d::Framebuffer&,

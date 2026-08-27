@@ -118,7 +118,10 @@ struct FfmpegPipeOptions {
     int width{0};
     int height{0};
     int fps{30};
+    std::string rate_control_mode{"crf"};
     int crf{18};
+    int qp{-1};
+    std::int64_t bitrate{0};
     std::string preset{"medium"};
     std::string codec{"libx264"};
     std::string hardware_encoder{"none"};

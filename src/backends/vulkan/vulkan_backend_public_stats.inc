@@ -83,6 +83,13 @@ void VulkanBackend::export_gpu_telemetry_counters(
                          m_impl->stats.upload_producer_region_count[index]);
     }
     out.emplace_back("gpu_readback_bytes", m_impl->stats.readback_bytes);
+    out.emplace_back("gpu_asset_cache_hits", m_impl->stats.gpu_asset_cache_hits);
+    out.emplace_back("gpu_asset_cache_misses", m_impl->stats.gpu_asset_cache_misses);
+    out.emplace_back("gpu_asset_cache_initial_uploads", m_impl->stats.gpu_asset_cache_initial_uploads);
+    out.emplace_back("gpu_asset_cache_initial_upload_bytes", m_impl->stats.gpu_asset_cache_initial_upload_bytes);
+    out.emplace_back("gpu_asset_cache_evictions", m_impl->stats.gpu_asset_cache_evictions);
+    out.emplace_back("gpu_asset_cache_evicted_bytes", m_impl->stats.gpu_asset_cache_evicted_bytes);
+    out.emplace_back("gpu_asset_cache_resident_bytes", m_impl->stats.gpu_asset_cache_resident_bytes);
     out.emplace_back("physical_surfaces_peak", m_impl->stats.physical_surfaces_peak);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
@@ -118,7 +125,7 @@ void VulkanBackend::export_gpu_telemetry_counters(
 
 std::size_t VulkanBackend::physical_surface_count() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return m_impl ? m_impl->physical_surfaces.size() : 0;
+    return m_impl ? m_impl->surface_physical_count() : 0;
 #else
     return 0;
 #endif
@@ -127,7 +134,7 @@ std::size_t VulkanBackend::physical_surface_count() const noexcept {
 const GpuKernelRegistry& VulkanBackend::kernel_registry() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     static const GpuKernelRegistry empty{};
-    return m_impl ? m_impl->kernel_registry : empty;
+    return m_impl ? m_impl->kernels.registry : empty;
 #else
     static const GpuKernelRegistry empty{};
     return empty;

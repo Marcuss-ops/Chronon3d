@@ -10,7 +10,7 @@
 // the ad-hoc visibility checks previously scattered across:
 //   - `src/render_graph/nodes/TextRunNode.cpp::predicted_bbox` (bbox contract)
 //   - `src/render_graph/executor/tile_pruning.hpp::compute_dirty_clip`
-//   - `tests/text_golden/text_clip/text_completeness.cpp` (assertion surface)
+//   - `tests/text_golden/text_clip/text_clip_bounds.cpp` (assertion surface)
 //   - `apps/chronon3d_cli/commands/text_inspect/` (FU09 forward-point)
 //   - `src/runtime/telemetry/` TEXT-AUDIT rows (FU10 forward-point)
 //   - `src/render_graph/preflight/` for property-based fuzz (FU11 forward-point)
@@ -104,7 +104,7 @@ enum class TextVisibilityStatus : u8 {
 /// 1. `TextRunNode::predicted_bbox` (FU03 call-site wiring — replaces the
 ///    ad-hoc empty/non-finite guard added in FU01)
 /// 2. `tile_pruning::compute_dirty_clip` (FU08 cross-pipeline parity)
-/// 3. `tests/text_golden/text_clip/text_completeness.cpp` — every TEST_CASE
+/// 3. `tests/text_golden/text_clip/text_clip_bounds.cpp` — every TEST_CASE
 ///    gets a new `CHECK(audit.predicted_contains_world)`
 ///    + `CHECK(audit.clip_contains_visible_ink)` (FU06 extension)
 /// 4. `chronon3d_cli inspect-text` JSON subcommand (FU09) per-node dump

@@ -48,7 +48,7 @@
 // (SHA256, RenderMetrics, ScopedParallelism, discover_cli_binary, ffmpeg_available,
 // sha256sum_via_system) — ZERO symbols exported to include/chronon3d/. Cat-3
 // forward-point: TICKET-TESTS-CLI-UTILS-EXTRACT to promote the 3 CLI precondition
-// helpers to a shared `<tests/cli/cli_test_utils.hpp>` header (mirror of the
+// helpers to a shared `<tests/helpers/test_utils.hpp>` header (mirror of the
 // parallel pattern shared between `tests/video/test_video_contracts.cpp` +
 // `tests/cli/test_video_adapter_e2e.cpp` per AGENTS.md Cat-3 anti-dup).
 //
@@ -111,7 +111,7 @@ constexpr int kCliExportCount = 3;          // Test 17.d §16 — 3 consecutive 
 
 // ───────────────────────── CLI precondition helpers ─────────────────────
 // Forward-point: TICKET-TESTS-CLI-UTILS-EXTRACT to promote these 3 helpers
-// to a shared `<tests/cli/cli_test_utils.hpp>` header (Cat-3 anti-dup — the
+// to a shared `<tests/helpers/test_utils.hpp>` header (Cat-3 anti-dup — the
 // parallel pattern already exists at `tests/video/test_video_contracts.cpp`).
 // For now, kept TU-local to honor AGENTS.md "Fare PR piccole e mirate".
 static std::optional<std::filesystem::path> discover_cli_binary() {

@@ -22,6 +22,7 @@ enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
 enum class SubtitleFormat : std::uint8_t { Srt, Vtt, Json, Ass };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
+enum class RateControlMode : std::uint8_t { Crf, ConstantQp, Bitrate };
 
 struct CanvasSpec {
     int width{0};
@@ -144,8 +145,10 @@ struct OutputSpec {
     std::string path;
     OutputFormat format{OutputFormat::Png};
     VideoCodec codec{VideoCodec::Auto};
+    RateControlMode rate_control{RateControlMode::Crf};
     std::int64_t bitrate{0};
     int crf{0};
+    int qp{-1};
     std::string profile_id;
 };
 

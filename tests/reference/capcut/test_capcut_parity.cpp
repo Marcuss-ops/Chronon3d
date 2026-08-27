@@ -21,9 +21,8 @@
 //   CHRONON3D_CAPCUT_RENDER_CURRENT=1  -> render/update current/ outputs even when
 //                                       reference/ is empty.
 //
-// Cat-3 minimal-surface: metric helpers inlined here (not extracted to
-// tests/visual/support/capcut_metrics.hpp yet). Forward-point: refactor to a
-// header-only shared module IF another test reuses these helpers.
+// Cat-3 minimal-surface: metric helpers are intentionally inlined here to
+// keep this active parity test self-contained; no shared fixture is required.
 
 #include <doctest/doctest.h>
 

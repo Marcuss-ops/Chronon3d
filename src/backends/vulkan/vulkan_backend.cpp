@@ -131,12 +131,7 @@ struct VulkanBackend::Impl {
         VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
     };
 
-    /// Per-frame descriptor set allocator, one per frame-batch ring slot.
-    /// Allocates one descriptor set per recorded pass from chunked pools
-    /// that grow geometrically (64, 128, 256, ...) when a frame exceeds the
-    /// current chunk.  reset() is called when the owning ring slot is
-    /// reused, returning every chunk to its initial state so the pools are
-    /// recycled across frames instead of reallocated.
+    /// Per-frame descriptor set allocator owned by VulkanDescriptorArena.
     class FrameDescriptorAllocator {
     public:
         static constexpr std::size_t kInitialChunkSets = 64;
@@ -226,27 +221,47 @@ struct VulkanBackend::Impl {
         std::size_t active_pool_{0};
     };
 
-    /// State of the frame-batch ring.  While active, surface operations
-    /// only record commands into the current slot's command buffer (never
-    /// submit); the single vkQueueSubmit for the frame happens in
-    /// submit_batch() called from end_frame_batch().  Each slot owns its own
-    /// command buffer, fence and descriptor allocator so begin_frame_batch()
-    /// waits ONLY on the fence of the slot it is about to reuse (never
-    /// vkDeviceWaitIdle per frame) and resets only that slot's allocator —
-    /// batches still in flight on the other slots keep their descriptor
-    /// sets valid.  The ring bounds CPU-GPU overlap: slot N is reused after
-    /// kSlotCount batches, so recording can run up to kSlotCount - 1 frames
-    /// ahead of GPU execution.
-    struct FrameBatchState {
+    class VulkanDescriptorArena {
+    public:
+        std::array<FrameDescriptorAllocator, 3> pass{};
+        std::array<FrameDescriptorAllocator, 3> text_tile_bin{};
+        std::array<FrameDescriptorAllocator, 3> text_tile_raster{};
+
+        void destroy() {
+            for (auto& allocator : pass) allocator.destroy();
+            for (auto& allocator : text_tile_bin) allocator.destroy();
+            for (auto& allocator : text_tile_raster) allocator.destroy();
+        }
+
+        void reset(std::size_t slot) {
+            pass[slot].reset();
+            text_tile_bin[slot].reset();
+            text_tile_raster[slot].reset();
+        }
+    };
+
+    VulkanDescriptorArena descriptor_arena{};
+
+    /// Frame command buffers/fences/timing are owned by the submission ring.
+    struct VulkanSubmissionRing {
         static constexpr std::size_t kSlotCount = 3;
         bool active{false};
         std::size_t next_slot{0};
         std::array<VkCommandBuffer, kSlotCount> command_buffers{};
         std::array<VkFence, kSlotCount> fences{};
         std::array<bool, kSlotCount> in_flight{};
-        std::array<FrameDescriptorAllocator, kSlotCount> descriptor_allocators{};
-        std::array<FrameDescriptorAllocator, kSlotCount> text_tile_bin_allocators{};
-        std::array<FrameDescriptorAllocator, kSlotCount> text_tile_raster_allocators{};
+        // Descriptor pools are owned by VulkanDescriptorArena; these aliases
+        // preserve the existing frame-batch access pattern during migration.
+        std::array<FrameDescriptorAllocator, kSlotCount>& descriptor_allocators;
+        std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_bin_allocators;
+        std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_raster_allocators;
+
+        VulkanSubmissionRing(VulkanDescriptorArena& arena)
+            : descriptor_allocators(arena.pass),
+              text_tile_bin_allocators(arena.text_tile_bin),
+              text_tile_raster_allocators(arena.text_tile_raster) {}
+        VulkanSubmissionRing(const VulkanSubmissionRing&) = delete;
+        VulkanSubmissionRing& operator=(const VulkanSubmissionRing&) = delete;
         std::vector<VkDescriptorSet> descriptor_sets;
         std::size_t pass_count{0};
         // When set, the batch is plan-driven: ops synchronize through this
@@ -254,7 +269,9 @@ struct VulkanBackend::Impl {
         // fallback.  pass_count doubles as the plan pass index: ops are
         // called in plan order and each op advances it by one.
         const runtime::BarrierPlan* sync_plan{nullptr};
-    };
+    } submission_ring{descriptor_arena};
+
+    using FrameBatchState = VulkanSubmissionRing;
 
     // ── Command-replay ring ───────────────────────────────────────────
     //
@@ -309,10 +326,32 @@ struct VulkanBackend::Impl {
     VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
     VkDescriptorSet descriptor_set{VK_NULL_HANDLE};
     std::array<VkDescriptorSet, 3> glow_descriptor_sets{};
-    VkPipelineLayout pipeline_layout{VK_NULL_HANDLE};
-    VkPipelineLayout text_tile_bin_pipeline_layout{VK_NULL_HANDLE};
-    VkPipelineLayout text_tile_raster_pipeline_layout{VK_NULL_HANDLE};
-    GpuKernelRegistry kernel_registry{};
+    class VulkanKernelStore {
+    public:
+        GpuKernelRegistry registry{};
+        VkPipelineLayout general_layout{VK_NULL_HANDLE};
+        VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
+        VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
+
+        void destroy(VkDevice device) noexcept {
+            for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
+                                  GpuKernelId::AffineTransform, GpuKernelId::Blur,
+                                  GpuKernelId::ColorAdjust, GpuKernelId::Matte,
+                                  GpuKernelId::TextRun, GpuKernelId::FillRect,
+                                  GpuKernelId::LayerBatch, GpuKernelId::TextBatch,
+                                  GpuKernelId::TextTileBin, GpuKernelId::TextTileRaster}) {
+                const auto handle = registry.resolve(id);
+                if (handle != 0) vkDestroyPipeline(device, reinterpret_cast<VkPipeline>(handle), nullptr);
+            }
+            registry = {};
+            if (general_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, general_layout, nullptr);
+            if (text_tile_bin_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, text_tile_bin_layout, nullptr);
+            if (text_tile_raster_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, text_tile_raster_layout, nullptr);
+            general_layout = VK_NULL_HANDLE;
+            text_tile_bin_layout = VK_NULL_HANDLE;
+            text_tile_raster_layout = VK_NULL_HANDLE;
+        }
+    } kernels;
     VulkanBufferAllocation staging{};
     // Device-local storage buffers for glyph instances. A frame can contain
     // multiple TextRun passes (watermark + subtitles); each pass gets its own
@@ -337,52 +376,179 @@ struct VulkanBackend::Impl {
     // both buffers stay device-local and are reused with the frame ring.
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_count_buffers{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_index_buffers{};
-    struct UploadSlot {
-        VulkanBufferAllocation buffer_allocation{};
-        VkCommandBuffer command_buffer{VK_NULL_HANDLE};
-        VkFence fence{VK_NULL_HANDLE};
-        std::uint64_t ticket{0};
-        bool in_flight{false};
-    };
-    static constexpr std::size_t kUploadSlotCount = 3;
-    std::array<UploadSlot, kUploadSlotCount> upload_slots{};
-    std::size_t next_upload_slot{0};
+    class VulkanUploadRing {
+    public:
+        struct UploadSlot {
+            VulkanBufferAllocation buffer_allocation{};
+            VkCommandBuffer command_buffer{VK_NULL_HANDLE};
+            VkFence fence{VK_NULL_HANDLE};
+            std::uint64_t ticket{0};
+            bool in_flight{false};
+        };
+        static constexpr std::size_t kSlotCount = 3;
+        std::array<UploadSlot, kSlotCount> slots{};
+        std::size_t next_slot{0};
+    } uploads;
     Image dst{};
     Image src{};
 
-    // ── Logical→physical surface ownership ───────────────────────────────
-    // A physical slot owns exactly one VkImage (PhysicalSurface); logical
-    // handles bind to slots, and several handles may bind the SAME slot when
-    // their lifetimes never overlap (plan-driven aliasing).  Ownership is
-    // therefore separated from identity: destroying a handle binding must
-    // never destroy a VkImage still referenced by another handle.
-    // resolve_image() is the single lookup path for every operation.
-    struct PhysicalSurface {
-        Image image;
-        runtime::SurfaceDesc desc{};
-    };
-    // slot → backing image (ownership lives here, exactly once per slot)
-    std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces;
-    // handle → slot (identity only; no ownership)
-    std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
+    // Surface identity, ownership, and lifecycle are isolated in the concrete
+    // store below. Other Impl responsibilities access it through the same
+    // member, preserving the existing private implementation boundary.
+    class VulkanSurfaceStore {
+    public:
+        struct PhysicalSurface {
+            Image image;
+            runtime::SurfaceDesc desc{};
+        };
+
+        // The store owns all logical-to-physical surface state. Its concrete
+        // type keeps surface ownership separate from backend orchestration.
+        std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces;
+        std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    std::unordered_set<std::size_t> cuda_ready_surfaces;
-    std::unordered_set<std::size_t> cuda_export_ready_surfaces;
+        std::unordered_set<std::size_t> cuda_ready_surfaces;
+        std::unordered_set<std::size_t> cuda_export_ready_surfaces;
 #endif
-    // Temporary native passes may release a logical handle while the active
-    // frame batch is still recording commands that reference its image. Keep
-    // the Vulkan binding alive until the batch has been submitted.
-    std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases;
-    std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles;
-    std::size_t next_slot{0};
-    // Last access kind per PHYSICAL SLOT within the current frame's
-    // plan-driven batch, consumed by emit_plan_pass_barriers() to derive the
-    // precise write→read / read→write / write→write memory dependencies.
-    // Keyed by slot (not by logical handle) because aliased handles share
-    // one image: the barrier chain must follow the image, not the identity.
-    // Cleared at begin_frame_batch(); conservative batches never touch it.
-    std::unordered_map<std::size_t, runtime::ResourceAccess> m_slot_last_access{};
-    FrameBatchState frame_batch{};
+        std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases;
+        std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles;
+        std::size_t next_slot{0};
+        std::unordered_map<std::size_t, runtime::ResourceAccess> slot_last_access{};
+
+        [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {
+            return surface_bindings.contains(handle);
+        }
+
+        [[nodiscard]] std::size_t physical_count() const noexcept {
+            return physical_surfaces.size();
+        }
+
+        void clear_access_state() noexcept { slot_last_access.clear(); }
+
+        [[nodiscard]] bool is_job_persistent(
+            runtime::RenderSurfaceHandle handle) const noexcept {
+            const auto binding = surface_bindings.find(handle);
+            if (binding == surface_bindings.end()) return false;
+            const auto physical = physical_surfaces.find(binding->second);
+            return physical != physical_surfaces.end() &&
+                   physical->second.desc.lifetime == runtime::LifetimeClass::JobPersistent;
+        }
+
+        Image& bind(runtime::RenderSurfaceHandle handle,
+                    std::size_t slot,
+                    const runtime::SurfaceDesc& desc) {
+            const auto previous = surface_bindings.find(handle);
+            if (previous != surface_bindings.end() && previous->second != slot) {
+                const auto old_slot = previous->second;
+                const auto old_it = physical_surfaces.find(old_slot);
+                const bool pinned = old_it != physical_surfaces.end() &&
+                                    old_it->second.image.initialized;
+                if (pinned) slot = old_slot;
+                else surface_bindings.erase(previous);
+            }
+            if (physical_surfaces.contains(slot) &&
+                physical_surfaces.at(slot).image.initialized) {
+                for (const auto& [bound_handle, bound_slot] : surface_bindings) {
+                    if (bound_handle != handle && bound_slot == slot) {
+                        slot = next_slot++;
+                        break;
+                    }
+                }
+            }
+            return bind_handle_to_slot_impl(handle, slot, desc);
+        }
+
+        void prune_unused_slots() { prune_unused_slots_impl(); }
+
+    private:
+        Image& bind_handle_to_slot_impl(runtime::RenderSurfaceHandle handle,
+                                        std::size_t slot,
+                                        const runtime::SurfaceDesc& desc) {
+            auto& physical = physical_surfaces[slot];
+            if (owner_->plan_preallocated && physical.image.image != VK_NULL_HANDLE) {
+                if (physical.image.width != desc.width || physical.image.height != desc.height) {
+                    throw std::invalid_argument("Vulkan preallocated surface dimensions mismatch");
+                }
+            } else if (physical.image.image == VK_NULL_HANDLE ||
+                       physical.image.width != desc.width || physical.image.height != desc.height) {
+                if (physical.image.image != VK_NULL_HANDLE) owner_->destroy_image(physical.image);
+                owner_->make_image(physical.image, desc.width, desc.height, false,
+                                   to_vk_format(desc.format));
+                physical.image.initialized = false;
+            }
+            physical.desc = desc;
+            surface_bindings[handle] = slot;
+            owner_->stats.physical_surfaces_peak = std::max(
+                owner_->stats.physical_surfaces_peak,
+                static_cast<std::uint64_t>(physical_surfaces.size()));
+            return physical.image;
+        }
+
+        void prune_unused_slots_impl() {
+            for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
+                bool in_use = false;
+                for (const auto& [handle, slot] : surface_bindings) {
+                    (void)handle;
+                    if (slot == it->first) { in_use = true; break; }
+                }
+                if (in_use || it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
+                    ++it;
+                    continue;
+                }
+                owner_->destroy_image(it->second.image);
+                it = physical_surfaces.erase(it);
+            }
+        }
+
+    public:
+        VulkanBackend::Impl* owner_{nullptr};
+
+    public:
+        // Final image ownership remains in the store. Impl supplies only
+        // the existing Vulkan destruction hook and retains backend teardown
+        // ordering for all non-surface resources.
+        void destroy_all(VulkanBackend::Impl& owner) noexcept;
+    } surfaces;
+
+    // Surface-store façade keeps backend call sites independent from the
+    // store's maps while preserving the existing private implementation.
+    void destroy_surface_images() noexcept {
+        surfaces.destroy_all(*this);
+    }
+
+    void defer_surface_release(runtime::RenderSurfaceHandle handle) {
+        surfaces.deferred_surface_releases.push_back(handle);
+    }
+
+    [[nodiscard]] bool surface_valid(runtime::RenderSurfaceHandle handle) const noexcept {
+        return surfaces.valid(handle);
+    }
+
+    [[nodiscard]] std::size_t surface_physical_count() const noexcept {
+        return surfaces.physical_count();
+    }
+
+    void clear_surface_access_state() noexcept {
+        surfaces.clear_access_state();
+    }
+
+    [[nodiscard]] bool surface_is_job_persistent(
+        runtime::RenderSurfaceHandle handle) const noexcept {
+        return surfaces.is_job_persistent(handle);
+    }
+
+    Image& bind_surface_to_slot(runtime::RenderSurfaceHandle handle,
+                                std::size_t slot,
+                                const runtime::SurfaceDesc& desc) {
+        return surfaces.bind(handle, slot, desc);
+    }
+
+    void prune_surface_slots() {
+        surfaces.prune_unused_slots();
+    }
+    // Compatibility alias; ownership is held by VulkanSubmissionRing.
+    VulkanSubmissionRing& frame_batch;
+
     // Command-batch state: while active, end_frame_batch() defers the single
     // submission it would otherwise perform and keeps recording into the SAME
     // command buffer, so N overlays (N frame batches) accumulate and are
@@ -401,13 +567,10 @@ struct VulkanBackend::Impl {
     VulkanMemoryManager memory_manager{};
     VulkanDebugContext* debug_context{nullptr};
     VulkanBackendStats stats{};
-#include "vulkan_backend_impl_lifecycle.inc"
+#include "vulkan_backend_lifecycle_private.cpp"
     ~Impl() {
         if (device != VK_NULL_HANDLE) vkDeviceWaitIdle(device);
-        for (auto& [slot, physical] : physical_surfaces) {
-            (void)slot;
-            destroy_image(physical.image);
-        }
+        surfaces.destroy_all(*this);
         destroy_image(dst);
         destroy_image(src);
         if (staging.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(staging);
@@ -428,10 +591,8 @@ struct VulkanBackend::Impl {
                 memory_manager.destroy_buffer(text_tile_index_buffers[i]);
             }
         }
-        for (auto& slot : upload_slots) destroy_upload_slot(slot);
-        for (auto& allocator : frame_batch.descriptor_allocators) {
-            allocator.destroy();
-        }
+        for (auto& slot : uploads.slots) destroy_upload_slot(slot);
+        descriptor_arena.destroy();
         for (auto& slot_fence : frame_batch.fences) {
             if (slot_fence != VK_NULL_HANDLE) vkDestroyFence(device, slot_fence, nullptr);
         }
@@ -454,28 +615,8 @@ struct VulkanBackend::Impl {
         }
         if (fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
         if (timeline_semaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timeline_semaphore, nullptr);
-        for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
-                              GpuKernelId::AffineTransform, GpuKernelId::Blur,
-                              GpuKernelId::ColorAdjust, GpuKernelId::Matte,
-                              GpuKernelId::TextRun, GpuKernelId::FillRect,
-                              GpuKernelId::LayerBatch, GpuKernelId::TextBatch,
-                              GpuKernelId::TextTileBin, GpuKernelId::TextTileRaster}) {
-            const auto handle = kernel_registry.resolve(id);
-            if (handle != 0) {
-                vkDestroyPipeline(device,
-                    reinterpret_cast<VkPipeline>(handle), nullptr);
-            }
-        }
-        for (auto& allocator : frame_batch.descriptor_allocators) allocator.destroy();
-        for (auto& allocator : frame_batch.text_tile_bin_allocators) allocator.destroy();
-        for (auto& allocator : frame_batch.text_tile_raster_allocators) allocator.destroy();
-        if (pipeline_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
-        if (text_tile_bin_pipeline_layout != VK_NULL_HANDLE) {
-            vkDestroyPipelineLayout(device, text_tile_bin_pipeline_layout, nullptr);
-        }
-        if (text_tile_raster_pipeline_layout != VK_NULL_HANDLE) {
-            vkDestroyPipelineLayout(device, text_tile_raster_pipeline_layout, nullptr);
-        }
+        kernels.destroy(device);
+        // Descriptor pools are destroyed by descriptor_arena.destroy().
         if (descriptor_pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
         if (descriptor_layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
         if (text_tile_bin_descriptor_layout != VK_NULL_HANDLE) {
@@ -487,10 +628,32 @@ struct VulkanBackend::Impl {
         if (timestamp_pool != VK_NULL_HANDLE) vkDestroyQueryPool(device, timestamp_pool, nullptr);
     }
 
-#include "vulkan_backend_impl_descriptors.inc"
-#include "vulkan_backend_impl_kernels.inc"
-#include "vulkan_backend_impl_surfaces.inc"
-#include "vulkan_backend_impl_ops.inc"
+#include "vulkan_descriptor_arena_private.cpp"
+#include "vulkan_surface_store_private.cpp"
+#include "vulkan_kernel_store_private.cpp"
+#include "vulkan_backend_operations_private.cpp"
+
+void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
+    VulkanBackend::Impl& owner) noexcept {
+    // The store is the sole owner of physical surface images. Impl remains
+    // responsible for the surrounding backend resources and invokes this
+    // first, after the device idle point, preserving the original teardown
+    // order for staging, rings, descriptors and pipelines.
+    for (auto& [slot, physical] : physical_surfaces) {
+        (void)slot;
+        owner.destroy_image(physical.image);
+    }
+    physical_surfaces.clear();
+    surface_bindings.clear();
+    deferred_surface_releases.clear();
+    unplanned_surface_handles.clear();
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    cuda_ready_surfaces.clear();
+    cuda_export_ready_surfaces.clear();
+#endif
+    slot_last_access.clear();
+    next_slot = 0;
+}
 #endif // CHRONON3D_ENABLE_VULKAN
 #include "vulkan_backend_public_lifecycle.inc"
 #include "vulkan_backend_public_stats.inc"
@@ -513,7 +676,7 @@ void VulkanBackend::begin_frame_batch() {
         m_impl->emit_command_batch_boundary();
         batch.pass_count = 0;
         batch.sync_plan = nullptr;
-        m_impl->m_slot_last_access.clear();
+        m_impl->clear_surface_access_state();
         batch.active = true;
         return;
     }
@@ -549,9 +712,7 @@ void VulkanBackend::begin_frame_batch() {
     // Every recorded pass owns a descriptor set from this slot's allocator;
     // resetting it now is safe because the slot's previous submission (the
     // only one referencing those sets) has completed.
-    batch.descriptor_allocators[slot].reset();
-    batch.text_tile_bin_allocators[slot].reset();
-    batch.text_tile_raster_allocators[slot].reset();
+    m_impl->descriptor_arena.reset(slot);
     const VkCommandBufferBeginInfo begin{
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr};
     check(vkResetCommandBuffer(batch.command_buffers[slot], 0),
@@ -570,7 +731,7 @@ void VulkanBackend::begin_frame_batch() {
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
     batch.sync_plan = nullptr;
-    m_impl->m_slot_last_access.clear();
+    m_impl->clear_surface_access_state();
     // The first frame of a command batch opened the buffer above; mark the
     // batch as started so subsequent frames take the soft-reset path.
     if (m_impl->command_batch_active) {
@@ -619,26 +780,19 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         // slot.  The old unconditional binding changed their lifetime to
         // FrameTransient, so end-of-job cleanup destroyed the Vulkan image
         // while the registry/cache still returned the logical handle.
-        const auto existing = m_impl->surface_bindings.find(allocation.surface);
-        if (existing != m_impl->surface_bindings.end()) {
-            const auto physical = m_impl->physical_surfaces.find(existing->second);
-            if (physical != m_impl->physical_surfaces.end() &&
-                physical->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
-                continue;
-            }
-        }
+        if (m_impl->surface_is_job_persistent(allocation.surface)) continue;
         const auto& planned = plan.resources.slots[allocation.physical_slot];
         const runtime::SurfaceDesc desc{
             planned.width, planned.height, planned.format,
             planned.usage, runtime::LifetimeClass::FrameTransient,
             static_cast<std::size_t>(planned.width) * planned.height *
                 sizeof(float) * 4};
-        m_impl->bind_handle_to_slot(allocation.surface, allocation.physical_slot, desc);
+        m_impl->bind_surface_to_slot(allocation.surface, allocation.physical_slot, desc);
     }
     // Rebinding a plan can leave the pre-plan pool slots orphaned. They are
     // not part of the compiled plan and must not inflate the physical-surface
     // pool or survive the frame as hidden compatibility allocations.
-    m_impl->prune_unused_transient_slots();
+    m_impl->prune_surface_slots();
 #else
     (void)plan;
     unsupported("begin_plan_batch");
@@ -656,8 +810,7 @@ void VulkanBackend::end_frame_batch() {
         batch.active = false;
         return;
     }
-    m_impl->submit_batch();
-    m_impl->flush_deferred_surface_releases();
+    m_impl->submit_batch();        m_impl->flush_deferred_surface_releases();
     batch.active = false;
 #else
     (void)0;  // no-op when the Vulkan backend is not compiled
@@ -673,8 +826,7 @@ void VulkanBackend::end_command_batch() {
         // single command buffer is still open and holds all N overlays.  One
         // vkQueueSubmit flushes the whole batch.
         m_impl->submit_batch();
-    }
-    m_impl->flush_deferred_surface_releases();
+    }        m_impl->flush_deferred_surface_releases();
     m_impl->frame_batch.active = false;
     m_impl->command_batch_active = false;
     m_impl->command_batch_started = false;

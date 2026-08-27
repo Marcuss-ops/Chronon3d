@@ -98,16 +98,26 @@ std::vector<std::string> FfmpegPipeSinkInternal::build_argv(const VideoSinkConfi
     argv.push_back("-c:v");
     argv.push_back(codec_to_string(resolved_codec));
 
-    // CRF / quality.
-    // NVENC does not accept x264's CRF option. Use constant-quality QP
-    // instead; the pipe path still uploads CPU frames, while encoding runs
-    // on the NVIDIA hardware encoder.
-    if (config.encoder.crf >= 0 && resolved_codec != VideoCodec::H264Nvenc) {
-        argv.push_back("-crf");
-        argv.push_back(std::to_string(config.encoder.crf));
-    } else if (resolved_codec == VideoCodec::H264Nvenc && config.encoder.crf >= 0) {
-        argv.push_back("-qp");
-        argv.push_back(std::to_string(config.encoder.crf));
+    // Rate control is explicit: never reinterpret CRF as NVENC QP.
+    switch (config.encoder.rate_control_mode) {
+        case RateControlMode::Crf:
+            if (config.encoder.crf >= 0) {
+                argv.push_back("-crf");
+                argv.push_back(std::to_string(config.encoder.crf));
+            }
+            break;
+        case RateControlMode::ConstantQp:
+            if (config.encoder.qp >= 0) {
+                argv.push_back("-qp");
+                argv.push_back(std::to_string(config.encoder.qp));
+            }
+            break;
+        case RateControlMode::Bitrate:
+            if (config.encoder.bitrate > 0) {
+                argv.push_back("-b:v");
+                argv.push_back(std::to_string(config.encoder.bitrate));
+            }
+            break;
     }
 
     // Preset.
@@ -120,12 +130,6 @@ std::vector<std::string> FfmpegPipeSinkInternal::build_argv(const VideoSinkConfi
     if (config.encoder.tune.has_value() && !config.encoder.tune->empty()) {
         argv.push_back("-tune");
         argv.push_back(*config.encoder.tune);
-    }
-
-    // Bitrate.
-    if (config.encoder.bitrate > 0) {
-        argv.push_back("-b:v");
-        argv.push_back(std::to_string(config.encoder.bitrate));
     }
 
     // Output (encoded) pixel format.

@@ -6,6 +6,9 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#endif
 
 #include <array>
 #include <filesystem>
@@ -74,6 +77,13 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
     CHECK(desc.bytes > chronon3d::runtime::tight_surface_bytes(
                            chronon3d::runtime::PixelFormat::P010, width, height));
 }
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+TEST_CASE("CUDA compositor exposes distinct NV12 and P010 conversion formats") {
+    CHECK(static_cast<int>(chronon3d::backends::vulkan::CudaYuvFormat::Nv12) !=
+          static_cast<int>(chronon3d::backends::vulkan::CudaYuvFormat::P010));
+}
+#endif
 
 TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
     FixtureDirectory fixtures;

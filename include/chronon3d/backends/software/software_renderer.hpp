@@ -88,8 +88,8 @@ public:
     void apply_per_pixel_dof(Framebuffer& fb, std::span<const float> depth,
         const DepthOfFieldSettings& dof, const LensModel& lens,
         const std::optional<raster::BBox>& clip);
-    void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-                   const Camera& camera, i32 width, i32 height);
+    graph::RenderOpResult draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
+                                    const Camera& camera, i32 width, i32 height);
     void apply_blur(Framebuffer& fb, f32 radius,
                     const std::optional<raster::BBox>& clip = std::nullopt);
     void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,

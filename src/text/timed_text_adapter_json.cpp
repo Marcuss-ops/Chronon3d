@@ -1,5 +1,7 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
+#include "timed_text_core.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -335,60 +337,20 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                     }
                     if (j.peek() == '}') j.next();
 
-                    // Auto-generate word breakdown if no words provided but text exists
-                    if (cue.words.empty() && !cue.text.empty() && cue.start_s < cue.end_s) {
-                        // Simple space-split
-                        size_t i = 0;
-                        int word_idx = 0;
-                        while (i < cue.text.size()) {
-                            while (i < cue.text.size() && (cue.text[i] == ' ' || cue.text[i] == '\t' || cue.text[i] == '\n')) ++i;
-                            if (i >= cue.text.size()) break;
-                            size_t start = i;
-                            while (i < cue.text.size() && cue.text[i] != ' ' && cue.text[i] != '\t' && cue.text[i] != '\n') ++i;
-                            std::string word_str = cue.text.substr(start, i - start);
-                            auto& words = cue.words;
-                            TimedWord tw;
-                            tw.text = word_str;
-                            // TICKET-TIMED-WORD-BINDING: byte offset comes
-                            // from the existing whitespace-split scan above
-                            // (`start` variable captures the byte position in
-                            // cue.text).
-                            tw.byte_start = start;
-                            tw.byte_end   = start + word_str.size();
-                            f32 dur = cue.end_s - cue.start_s;
-                            // We don't have per-word timings, so distribute evenly.
-                            // This will be refined once word count is known.
-                            tw.start_s = cue.start_s;
-                            tw.end_s = cue.end_s;
-                            tw.semantic_id = cue.source_id + "-word" + std::to_string(word_idx);
-                            words.push_back(tw);
-                            ++word_idx;
-                        }
-                        // Distribute evenly now that we know the count
-                        if (!cue.words.empty()) {
-                            f32 dur = cue.end_s - cue.start_s;
-                            f32 per_word = dur / static_cast<f32>(cue.words.size());
-                            for (size_t wi = 0; wi < cue.words.size(); ++wi) {
-                                cue.words[wi].start_s = cue.start_s + static_cast<f32>(wi) * per_word;
-                                cue.words[wi].end_s = cue.start_s + static_cast<f32>(wi + 1) * per_word;
-                            }
-                        }
+                    if (cue.words.empty() && !cue.text.empty() &&
+                        cue.start_s < cue.end_s) {
+                        // Shared uniform-split core. NOTE: the JSON fallback
+                        // historically split on SP/TAB/LF ONLY - no CR char -
+                        // so include_cr stays false to preserve byte behavior.
+                        textcore::attach_uniform_words(cue, cue.text,
+                            /*skip_angle_tags*/false, /*include_cr*/false);
                     }
 
-                    // TICKET-WORD-TIMING-QUALITY: classify per-cue
-                    // provenance.  Three-way decision driven by the two
-                    // upstream paths (source `words` array OR auto-fallback
-                    // uniform-split).  The queue guard below filters the
-                    // `None` borderline out for callers.
-                    if (words_from_source) {
-                        cue.word_timing_quality = WordTimingQuality::Authoritative;
-                    } else if (cue.words.empty()) {
-                        cue.word_timing_quality = WordTimingQuality::None;
-                    } else {
-                        cue.word_timing_quality = WordTimingQuality::Estimated;
-                    }
+                    // TICKET-WORD-TIMING-QUALITY: shared three-way provenance.
+                    cue.word_timing_quality =
+                        textcore::classify_quality(words_from_source, cue.words.size());
 
-                    if (cue.start_s >= 0.0f && cue.end_s > cue.start_s && !cue.text.empty()) {
+                    if (textcore::cue_is_valid(cue)) {
                         doc.cues.push_back(std::move(cue));
                     }
                 }
@@ -406,6 +368,7 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
         j.skip_whitespace();
     }
 
+    textcore::canonicalize_document(doc);
     return doc;
 }
 

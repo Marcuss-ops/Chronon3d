@@ -36,17 +36,45 @@ static_assert(sizeof(DirectYuvLayerHost) == 64);
 constexpr const char* kNv12Kernel = R"CUDA(
 extern "C" __global__ void nv12_to_rgba(
     const unsigned char* y, int yp, const unsigned char* uv, int uvp,
-    cudaSurfaceObject_t out, int width, int height) {
+    cudaSurfaceObject_t out, int width, int height,
+    float y_offset, float y_scale, float uv_offset, float uv_scale,
+    float r_v, float g_u, float g_v, float b_u) {
   const int x = (int)(blockIdx.x * blockDim.x + threadIdx.x);
   const int yy = (int)(blockIdx.y * blockDim.y + threadIdx.y);
   if (x >= width || yy >= height) return;
-  const float yf = ((float)y[yy * yp + x] - 16.0f) / 219.0f;
+  const float yf = ((float)y[yy * yp + x] - y_offset) * y_scale;
   const int uvx = x & ~1;
-  const float u = ((float)uv[(yy >> 1) * uvp + uvx] - 128.0f) / 224.0f;
-  const float v = ((float)uv[(yy >> 1) * uvp + uvx + 1] - 128.0f) / 224.0f;
-  float r = yf + 1.5748f * v;
-  float g = yf - 0.1873f * u - 0.4681f * v;
-  float b = yf + 1.8556f * u;
+  const float u = ((float)uv[(yy >> 1) * uvp + uvx] - uv_offset) * uv_scale;
+  const float v = ((float)uv[(yy >> 1) * uvp + uvx + 1] - uv_offset) * uv_scale;
+  float r = yf + r_v * v;
+  float g = yf + g_u * u + g_v * v;
+  float b = yf + b_u * u;
+  r = fminf(fmaxf(r, 0.0f), 1.0f);
+  g = fminf(fmaxf(g, 0.0f), 1.0f);
+  b = fminf(fmaxf(b, 0.0f), 1.0f);
+  surf2Dwrite(make_float4(r, g, b, 1.0f), out, x * (int)sizeof(float4), yy);
+}
+
+extern "C" __global__ void p010_to_rgba(
+    const unsigned short* y, int yp, const unsigned short* uv, int uvp,
+    cudaSurfaceObject_t out, int width, int height,
+    float y_offset, float y_scale, float uv_offset, float uv_scale,
+    float r_v, float g_u, float g_v, float b_u) {
+  const int x = (int)(blockIdx.x * blockDim.x + threadIdx.x);
+  const int yy = (int)(blockIdx.y * blockDim.y + threadIdx.y);
+  if (x >= width || yy >= height) return;
+
+  // P010 stores the 10-bit sample left-shifted by six in each 16-bit word.
+  // The luma/chroma code values use the same nominal video-range endpoints
+  // as 8-bit YUV, scaled by four: Y 64..940 and UV 64..960.
+  const float yf = ((float)(y[yy * (yp / 2) + x] >> 6) - y_offset) * y_scale;
+  const int uvx = x & ~1;
+  const int uv_row = (yy >> 1) * (uvp / 2);
+  const float u = ((float)(uv[uv_row + uvx] >> 6) - uv_offset) * uv_scale;
+  const float v = ((float)(uv[uv_row + uvx + 1] >> 6) - uv_offset) * uv_scale;
+  float r = yf + r_v * v;
+  float g = yf + g_u * u + g_v * v;
+  float b = yf + b_u * u;
   r = fminf(fmaxf(r, 0.0f), 1.0f);
   g = fminf(fmaxf(g, 0.0f), 1.0f);
   b = fminf(fmaxf(b, 0.0f), 1.0f);
@@ -481,7 +509,9 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
         fail("cuModuleLoadData", detail);
     }
     check_cuda(cuModuleGetFunction(&kernel_, module_, "nv12_to_rgba"),
-               "cuModuleGetFunction");
+               "cuModuleGetFunction(nv12_to_rgba)");
+    check_cuda(cuModuleGetFunction(&p010_kernel_, module_, "p010_to_rgba"),
+               "cuModuleGetFunction(p010_to_rgba)");
     check_cuda(cuModuleGetFunction(&direct_nv12_kernel_, module_,
                                    "nv12_composite_overlay_2x2"),
                "cuModuleGetFunction(nv12_composite_overlay_2x2)");
@@ -510,18 +540,32 @@ CudaNv12SurfaceCompositor::~CudaNv12SurfaceCompositor() {
 
 bool CudaNv12SurfaceCompositor::composite(
     CUdeviceptr y, int y_pitch, CUdeviceptr uv, int uv_pitch,
-    std::uint32_t width, std::uint32_t height, CUstream stream) {
-    if (!bridge_ || !kernel_ || !y || !uv || width == 0 || height == 0) return false;
+    std::uint32_t width, std::uint32_t height, CUstream stream,
+    CudaYuvFormat format, YuvToRgbParams params) {
+    const CUfunction kernel = format == CudaYuvFormat::P010 ? p010_kernel_ : kernel_;
+    if (!bridge_ || !kernel || !y || !uv || width == 0 || height == 0) return false;
     const auto started = std::chrono::steady_clock::now();
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     CUstream active = stream ? stream : stream_;
     if (!first_write_) bridge_->wait_for_vulkan(active);
-    void* args[] = {&y, &y_pitch, &uv, &uv_pitch, nullptr, &width, &height};
+    float y_offset = params.y_offset;
+    float y_scale = params.y_scale;
+    float uv_offset = params.uv_offset;
+    float uv_scale = params.uv_scale;
+    float r_v = params.r_v;
+    float g_u = params.g_u;
+    float g_v = params.g_v;
+    float b_u = params.b_u;
+    void* args[] = {&y, &y_pitch, &uv, &uv_pitch, nullptr, &width, &height,
+                        &y_offset, &y_scale, &uv_offset, &uv_scale,
+                        &r_v, &g_u, &g_v, &b_u};
     CUsurfObject surface = bridge_->surface_object();
     args[4] = &surface;
-    check_cuda(cuLaunchKernel(kernel_, (width + 15) / 16, (height + 15) / 16, 1,
+    check_cuda(cuLaunchKernel(kernel, (width + 15) / 16, (height + 15) / 16, 1,
                               16, 16, 1, 0, active, args, nullptr),
-               "cuLaunchKernel(nv12_to_rgba)");
+               format == CudaYuvFormat::P010
+                   ? "cuLaunchKernel(p010_to_rgba)"
+                   : "cuLaunchKernel(nv12_to_rgba)");
     bridge_->signal_for_vulkan(active);
     first_write_ = false;
     if (auto* counters = profiling::g_current_counters) {

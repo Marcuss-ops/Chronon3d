@@ -21,6 +21,8 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <limits>
+#include <cstdint>
 
 namespace chronon3d::cli {
 
@@ -121,9 +123,18 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
 
     video->add_option("--fps", args.video_settings.fps, "Output frame rate")
         ->check(CLI::Range(1, 240));
+    video->add_option("--rate-control", args.video_settings.rate_control_mode,
+                      "Rate control: crf, qp, or bitrate")
+        ->check(CLI::IsMember({"crf", "qp", "bitrate"}));
     video->add_option("--crf", args.video_settings.crf,
-                      "Encoder quality (0-51, lower is higher quality)")
+                      "Encoder CRF quality (0-51)")
         ->check(CLI::Range(0, 51));
+    video->add_option("--qp", args.video_settings.qp,
+                      "Encoder constant QP quality (0-63)")
+        ->check(CLI::Range(0, 63));
+    video->add_option("--bitrate", args.video_settings.bitrate,
+                      "Target bitrate in bits/second")
+        ->check(CLI::Range(static_cast<std::int64_t>(1), std::numeric_limits<std::int64_t>::max()));
     video->add_option("--codec", args.video_settings.codec,
                       "Video codec/encoder name");
     video->add_option("--encode-preset,--preset", args.video_settings.encode_preset,
@@ -333,7 +344,10 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     .encoder_backend = render_args.video_settings.encoder_backend,
                     .ffmpeg_mode = render_args.video_settings.ffmpeg_mode,
                     .encode_preset = render_args.video_settings.encode_preset,
-                    .crf = render_args.video_settings.crf},
+                    .rate_control_mode = render_args.video_settings.rate_control_mode,
+                    .crf = render_args.video_settings.crf,
+                    .qp = render_args.video_settings.qp,
+                    .bitrate = render_args.video_settings.bitrate},
                 render_args.trace_output, render_args.trace_level);
             return;
         }

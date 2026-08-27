@@ -1,16 +1,23 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
+#include "timed_text_core.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
-#include <sstream>
 #include <string_view>
+#include <vector>
 
 namespace chronon3d {
 namespace {
 
 // Parse "HH:MM:SS,mmm" or "HH:MM:SS.mmm" to seconds.
 // Returns negative on parse failure.
+//
+// NOTE: SRT word-splitting/timing rides the shared canonical
+// textcore::attach_uniform_words core (skip_tags=false, include_cr=true),
+// byte-compatible with the historical inline split_words() + uniform
+// distribution it replaced. See timed_text_core.hpp.
 f32 parse_srt_timestamp(std::string_view ts) {
     // Strip whitespace
     while (!ts.empty() && (ts.front() == ' ' || ts.front() == '\t')) ts.remove_prefix(1);
@@ -45,29 +52,6 @@ f32 parse_srt_timestamp(std::string_view ts) {
     return static_cast<f32>(hh) * 3600.0f + static_cast<f32>(mm) * 60.0f + ss;
 }
 
-// Split a string into words, preserving the original byte ranges.
-struct WordRange {
-    std::string_view word;
-    size_t offset;  // byte offset in the source string
-    size_t length;
-};
-
-std::vector<WordRange> split_words(std::string_view text) {
-    std::vector<WordRange> words;
-    size_t i = 0;
-    while (i < text.size()) {
-        // Skip whitespace
-        while (i < text.size() && (text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r')) ++i;
-        if (i >= text.size()) break;
-
-        size_t start = i;
-        // Consume non-whitespace
-        while (i < text.size() && text[i] != ' ' && text[i] != '\t' && text[i] != '\n' && text[i] != '\r') ++i;
-        words.push_back({text.substr(start, i - start), start, i - start});
-    }
-    return words;
-}
-
 } // namespace
 
 TimedTextDocument timed_text_from_srt(const std::string& raw) {
@@ -76,23 +60,10 @@ TimedTextDocument timed_text_from_srt(const std::string& raw) {
 
     if (raw.empty()) return doc;
 
-    std::string_view content(raw);
+    const std::string_view content(raw);
 
-    // Split into lines
-    std::vector<std::string_view> lines;
-    size_t pos = 0;
-    while (pos < content.size()) {
-        size_t eol = content.find('\n', pos);
-        if (eol == std::string_view::npos) {
-            lines.push_back(content.substr(pos));
-            break;
-        }
-        // Include up to but not including \r if present
-        size_t len = eol - pos;
-        if (len > 0 && content[eol - 1] == '\r') --len;
-        lines.push_back(content.substr(pos, len));
-        pos = eol + 1;
-    }
+    // Shared canonical line split (CRLF-tolerant), see timed_text_core.hpp.
+    const std::vector<std::string_view> lines = textcore::split_lines(content);
 
     size_t line_idx = 0;
     while (line_idx < lines.size()) {
@@ -129,38 +100,17 @@ TimedTextDocument timed_text_from_srt(const std::string& raw) {
         cue.text = cue_text;
         cue.source_id = std::string(index_line);
 
-        // Generate word breakdown
-        auto wranges = split_words(cue_text);
-        int word_idx = 0;
-        for (const auto& wr : wranges) {
-            TimedWord tw;
-            tw.text = std::string(wr.word);
-            // TICKET-TIMED-WORD-BINDING: byte offsets come straight from
-            // the split_words() helper which already captures UTF-8 byte
-            // ranges in the source string.
-            tw.byte_start = wr.offset;
-            tw.byte_end   = wr.offset + wr.length;
-            // Distribute word timings evenly across the cue duration
-            f32 cue_dur = end_s - start_s;
-            f32 word_dur = cue_dur / static_cast<f32>(wranges.size());
-            tw.start_s = start_s + static_cast<f32>(word_idx) * word_dur;
-            tw.end_s = start_s + static_cast<f32>(word_idx + 1) * word_dur;
-            tw.semantic_id = cue.source_id + "-word" + std::to_string(word_idx);
-            cue.words.push_back(std::move(tw));
-            ++word_idx;
-        }
-
-        // TICKET-WORD-TIMING-QUALITY: SRT format carries cue-level
-        // timing only; the per-word breakdown above is the uniform-split
-        // heuristic, so it is `Estimated` — usable for highlight
-        // animation but NEVER for source-of-truth sync.
-        cue.word_timing_quality = wranges.empty()
-            ? WordTimingQuality::None
-            : WordTimingQuality::Estimated;
+        // Word breakdown: shared uniform-timing canonical core. Byte offsets
+        // and timing are byte-compatible with the historical inline
+        // split_words() + per-word uniform distribution. SRT carries
+        // cue-level timing only, so provenance is Estimated.
+        textcore::attach_uniform_words(cue, cue_text,
+            /*skip_angle_tags*/false, /*include_cr*/true);
 
         doc.cues.push_back(std::move(cue));
     }
 
+    textcore::canonicalize_document(doc);
     return doc;
 }
 

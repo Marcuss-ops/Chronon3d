@@ -44,6 +44,7 @@ VideoSinkConfig make_default_config(VideoCodec codec = VideoCodec::H264,
     config.stream.submitted_format = submitted_format;
     config.encoder.codec = codec;
     config.encoder.encoded_pixel_format = encoded_format;
+    config.encoder.rate_control_mode = RateControlMode::Crf;
     config.encoder.crf = 23;
     config.output.container = container;
     config.output.overwrite = true;
@@ -211,8 +212,22 @@ TEST_CASE("build_argv: crf < 0 suppresses the -crf arg (passes through ffmpeg de
     CHECK_FALSE(contains_arg(argv, "-crf"));
 }
 
-TEST_CASE("build_argv: bitrate > 0 emits -b:v N kbps") {
+TEST_CASE("build_argv: QP mode emits -qp and suppresses CRF/bitrate") {
     auto config = make_default_config();
+    config.encoder.rate_control_mode = RateControlMode::ConstantQp;
+    config.encoder.crf = -1;
+    config.encoder.qp = 22;
+    const auto argv = FfmpegPipeSinkInternal::build_argv(config);
+    CHECK(contains_arg(argv, "-qp"));
+    CHECK(contains_arg(argv, "22"));
+    CHECK_FALSE(contains_arg(argv, "-crf"));
+    CHECK_FALSE(contains_arg(argv, "-b:v"));
+}
+
+TEST_CASE("build_argv: bitrate mode emits -b:v and suppresses quality options") {
+    auto config = make_default_config();
+    config.encoder.rate_control_mode = RateControlMode::Bitrate;
+    config.encoder.crf = -1;
     config.encoder.bitrate = 5'000'000;
 
     const auto argv = FfmpegPipeSinkInternal::build_argv(config);
