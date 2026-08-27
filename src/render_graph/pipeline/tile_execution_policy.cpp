@@ -36,6 +36,34 @@ bool has_matching_previous_surface(
     return previous->width() == width && previous->height() == height;
 }
 
+bool has_frame_dependent_content(const Scene& scene, Frame frame) {
+    for (const auto& transition : scene.clip_transitions()) {
+        if (transition.duration > 0 &&
+            frame >= transition.from &&
+            frame <= transition.from + transition.duration) {
+            return true;
+        }
+    }
+    for (const auto& layer : scene.layers()) {
+        if (!layer.active_at(frame)) continue;
+        const auto has_transition = [](const LayerTransitionSpec& spec) {
+            return !spec.transition_id.empty() && spec.transition_id != "none" &&
+                   spec.duration > 0.0;
+        };
+        if (has_transition(layer.transition_in) || has_transition(layer.transition_out) ||
+            layer.anim_transform.is_time_dependent() ||
+            (layer.kind == LayerKind::Video && layer.video_source)) {
+            return true;
+        }
+        for (const auto& node : layer.nodes) {
+            if (node.shape.type() != ShapeType::TextRun) continue;
+            const auto handle = node.shape.text_run_shape_handle();
+            if (handle.value && !handle.value->animators.empty()) return true;
+        }
+    }
+    return false;
+}
+
 void record_surface_reuse(
     SoftwareRenderer* sw_renderer,
     Frame frame,
@@ -432,6 +460,7 @@ FrameExecutionPlan ExecutionResolver::resolve(
     // policy branch.
     if (sw_renderer && settings.dirty.enabled && dirty_out.frame_delta_clean &&
         dirty_out.dirty_rect && dirty_out.dirty_rect->is_empty() &&
+        !has_frame_dependent_content(scene, frame) &&
         has_matching_previous_surface(sw_renderer, width, height)) {
         if (diagnostics_enabled) {
             spdlog::info("[dirty-debug] frame={} surface_reuse=1",

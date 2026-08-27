@@ -273,11 +273,17 @@ FrameReuseEligibility compute_reuse_eligibility(
     } else if (!combined_unchanged) {
         result.reason = "combined_fingerprint_changed";
     } else {
-        result.resolved_scene_reuse = true;
+        // An unchanged scene fingerprint does not imply unchanged pixels:
+        // transition/animation state is sampled by frame.  Sequential-frame
+        // reuse is therefore safe only after the scene has been classified
+        // as static; same-frame reuse remains valid for repeated evaluation.
+        result.resolved_scene_reuse = same_frame ||
+            (current.scene_is_static && sequential_frame);
         result.reason = {};
     }
 
     const bool static_frame_eligible = current.has_previous_surface &&
+        current.layer_state_complete && previous.layer_state_complete &&
         (same_frame || (current.scene_is_static && sequential_frame));
     result.static_scene_reuse = !projected && static_frame_eligible &&
         result.structure_unchanged && result.camera_unchanged &&
@@ -341,9 +347,7 @@ FrameDelta FrameDeltaCompiler::compile_state(
     if (!result.changes.empty() || changed) {
         result.reuse.resolved_scene_reuse = false;
         result.reuse.static_scene_reuse = false;
-        if (result.reuse.reason.empty()) {
-            result.reuse.reason = changed ? "camera_changed" : "layer_delta_present";
-        }
+        result.reuse.reason = changed ? "camera_changed" : "layer_delta_present";
     }
     result.camera_changed = changed;
     result.scene_changed = result.scene_changed || changed;
