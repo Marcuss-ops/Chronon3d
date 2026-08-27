@@ -474,7 +474,7 @@ jobs:
             libxcb-xinerama0 libxcb-xinput0 2>/dev/null || true
         continue-on-error: true
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4' }
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
       - run: cmake --preset linux-ci
       - run: cmake --build --preset linux-ci -j$(nproc)
       - name: Run ${{ matrix.golden.label }} tests
@@ -509,7 +509,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { submodules: recursive, lfs: true }
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4' }
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
       - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON
       - run: cmake --build build/chronon/linux-ci --target chronon3d_benchmarks --target chronon3d_scene_program_benchmarks -j$(nproc)
       - name: Run blend benchmark

@@ -42,6 +42,8 @@ namespace chronon3d {
 class DebugConfig {
 public:
     [[nodiscard]] bool glow()              const noexcept { return glow_; }
+    [[nodiscard]] bool text_clip_debug()  const noexcept { return text_clip_debug_; }
+    [[nodiscard]] bool proj_diag()        const noexcept { return proj_diag_; }
     [[nodiscard]] bool dump_alpha_mask()   const noexcept { return dump_alpha_mask_; }
     [[nodiscard]] bool dump_text_raster()  const noexcept { return dump_text_raster_; }
     [[nodiscard]] bool text_raster()       const noexcept { return text_raster_; }
@@ -52,8 +54,9 @@ private:
     bool glow_              = false;
     bool dump_alpha_mask_   = false;
     bool dump_text_raster_  = false;
-    bool text_raster_       = false;
-    bool text_bbox_         = false;
+    bool text_raster_       = false;    bool text_bbox_        = false;
+    bool text_clip_debug_  = false;
+    bool proj_diag_        = false;
 };
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -156,6 +159,19 @@ private:
 //  PathConfig — filesystem path overrides
 // ═════════════════════════════════════════════════════════════════════════
 
+class RuntimePathConfig {
+public:
+    [[nodiscard]] const std::string& assets_root() const noexcept { return assets_root_; }
+    [[nodiscard]] const std::string& telemetry_path() const noexcept { return telemetry_path_; }
+    [[nodiscard]] const std::string& cli_assets_root() const noexcept { return cli_assets_root_; }
+
+private:
+    friend class Config;
+    std::string assets_root_;
+    std::string telemetry_path_;
+    std::string cli_assets_root_;
+};
+
 class PathConfig {
 public:
     [[nodiscard]] const std::string& persistent_framebuffer_cache_dir() const noexcept {
@@ -224,6 +240,7 @@ public:
     [[nodiscard]] const CacheConfig&     cache()     const noexcept { return cache_; }
     [[nodiscard]] const SchedulerConfig& scheduler() const noexcept { return scheduler_; }
     [[nodiscard]] const PathConfig&      paths()     const noexcept { return paths_; }
+    [[nodiscard]] const RuntimePathConfig& runtime() const noexcept { return runtime_; }
     [[nodiscard]] const CpuBudget&       cpu_budget() const noexcept { return cpu_budget_; }
     [[nodiscard]] chronon3d::graph::BackendPreference backend_preference() const noexcept {
         return backend_preference_;
@@ -252,6 +269,7 @@ private:
     CacheConfig     cache_;
     SchedulerConfig scheduler_;
     PathConfig      paths_;
+    RuntimePathConfig runtime_;
     CpuBudget       cpu_budget_;
     chronon3d::graph::BackendPreference backend_preference_{
         chronon3d::graph::BackendPreference::Auto};

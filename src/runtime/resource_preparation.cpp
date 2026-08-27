@@ -20,6 +20,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/runtime/resource_preparation.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 
 #include <chrono>
 #include <optional>
@@ -169,11 +170,27 @@ ResourcePreparation::prepare(
                               return decode_image(r, resolver);
                           }, &prepared.diagnostics, &prepared.diagnostics.warnings);
                 if (!prepared_ok) continue;  // WarnAndSkip: missing asset — skip keyed map
+                const auto resolved = resolver.resolve(ref.path);
+                if (!resolved) continue;
+                const auto digest = assets::sha256_file(*resolved);
+                if (!digest) {
+                    if (options.failure_mode == PreparationOptions::FailureMode::FailLoud) {
+                        throw PreparationError{
+                            .code = PreparationError::Code::CorruptedAsset,
+                            .message = "image content digest failed: " + ref.path,
+                            .path = ref.path,
+                            .owner = ref.owner,
+                            .phase = "image",
+                        };
+                    }
+                    continue;
+                }
                 const auto [it, inserted] = prepared.images.emplace(ref.owner, PreparedImage{
                     .path   = ref.path,
                     .owner  = ref.owner,
                     .width  = 0,
-                    .height = 0
+                    .height = 0,
+                    .content_digest = *digest
                 });
                 if (inserted) ++prepared.diagnostics.images_decoded;
             }
@@ -322,11 +339,22 @@ ResourcePreparation::decode_image(
             .phase   = "image"
         };
     }
+    const auto digest = assets::sha256_file(*resolved);
+    if (!digest) {
+        return PreparationError{
+            .code = PreparationError::Code::CorruptedAsset,
+            .message = std::string("image content digest failed: ") + ref.path,
+            .path = ref.path,
+            .owner = ref.owner,
+            .phase = "image"
+        };
+    }
     return PreparedImage{
         .path   = ref.path,
         .owner  = ref.owner,
         .width  = 0,
-        .height = 0
+        .height = 0,
+        .content_digest = *digest
     };
 }
 

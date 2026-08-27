@@ -42,24 +42,32 @@
 #        from `${CMAKE_SOURCE_DIR}/vcpkg_bootstrap/...`.
 # ==============================================================================
 
-# Canonical path: this file lives at `<project>/cmake/`.  The canonical
-# vcpkg toolchain is at `<project>/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake`.
-set(CHRONON3D_VCPKG_TOOLCHAIN_FILE
-    "${CMAKE_CURRENT_LIST_DIR}/../vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake"
-    CACHE FILEPATH
-    "Chronon3d canonical vcpkg toolchain path. Single source of truth for all CMakePresets entries — DO NOT reference vcpkg_bootstrap/... or vcpkg_installed/... directly in preset JSONs.")
-
-# Sanity check: fail-fast at configure time if the canonical path is wrong
-# (e.g. vcpkg_bootstrap/ was moved and this wrapper was not updated).
-# Without this guard, the include() at the bottom silently produces a
-# confusing vcpkg error deep in find_package() calls.
-if(NOT EXISTS "${CHRONON3D_VCPKG_TOOLCHAIN_FILE}")
-    message(FATAL_ERROR
-        "CHRONON3D_VCPKG_TOOLCHAIN_FILE points to a non-existent path:\n"
-        "  ${CHRONON3D_VCPKG_TOOLCHAIN_FILE}\n"
-        "Either restore the vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake "
-        "artifact or update the canonical path in cmake/Chronon3DVcpkgToolchain.cmake.")
+# Resolve the real vcpkg toolchain in one place. An explicit cache override
+# wins, followed by VCPKG_ROOT (the canonical CI/workstation location), with
+# the repository-local bootstrap retained as the offline fallback.
+if(DEFINED CHRONON3D_VCPKG_TOOLCHAIN_FILE AND
+   NOT "${CHRONON3D_VCPKG_TOOLCHAIN_FILE}" STREQUAL "")
+    set(_chronon3d_vcpkg_toolchain "${CHRONON3D_VCPKG_TOOLCHAIN_FILE}")
+elseif(DEFINED ENV{VCPKG_ROOT} AND NOT "$ENV{VCPKG_ROOT}" STREQUAL "")
+    set(_chronon3d_vcpkg_toolchain
+        "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+else()
+    set(_chronon3d_vcpkg_toolchain
+        "${CMAKE_CURRENT_LIST_DIR}/../vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake")
 endif()
+
+# Sanity check: fail-fast at configure time if the resolved path is wrong.
+if(NOT EXISTS "${_chronon3d_vcpkg_toolchain}")
+    message(FATAL_ERROR
+        "Chronon3D vcpkg toolchain not found:\n"
+        "  ${_chronon3d_vcpkg_toolchain}\n"
+        "Set CHRONON3D_VCPKG_TOOLCHAIN_FILE or VCPKG_ROOT to a valid vcpkg installation.")
+endif()
+
+set(CHRONON3D_VCPKG_TOOLCHAIN_FILE
+    "${_chronon3d_vcpkg_toolchain}"
+    CACHE FILEPATH
+    "Resolved Chronon3D vcpkg toolchain path")
 
 # Consolidate `CMAKE_PREFIX_PATH` so find_package() can locate vcpkg-installed
 # packages for the current triplet without each preset JSON having to duplicate

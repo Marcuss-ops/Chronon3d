@@ -8,15 +8,23 @@ on:
     - cron: '0 4 * * 1'
   workflow_dispatch:
 
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
 jobs:
   clang-cfi:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: lukka/run-vcpkg@v11
+        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
       - name: Install CFI toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y clang lld ninja-build cmake
       - name: Run CFI gate
-        run: tools/run_cfi_gate.sh
+        run: bash tools/run_cfi_gate.sh

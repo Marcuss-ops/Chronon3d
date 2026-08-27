@@ -60,6 +60,11 @@ namespace chronon3d {
     X(glyph_cache_misses) \
     X(gpu_asset_cache_hits) \
     X(gpu_asset_cache_misses) \
+    X(gpu_asset_cache_initial_uploads) \
+    X(gpu_asset_cache_initial_upload_bytes) \
+    X(gpu_asset_cache_evictions) \
+    X(gpu_asset_cache_evicted_bytes) \
+    X(gpu_asset_cache_resident_bytes) \
     X(glow_cache_hits) \
     X(glow_cache_misses) \
     X(converted_frame_cache_hits) \

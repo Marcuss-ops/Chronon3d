@@ -30,12 +30,20 @@ enum class VideoContainer : std::uint8_t {
     WebM = 3,
 };
 
+enum class RateControlMode : std::uint8_t {
+    Crf = 0,
+    ConstantQp = 1,
+    Bitrate = 2,
+};
+
 /// Stable SDK-facing video encoder settings.
 struct VideoSettings {
     VideoCodec codec{VideoCodec::Auto};
     VideoContainer container{VideoContainer::Auto};
+    RateControlMode rate_control_mode{RateControlMode::Crf};
     std::int64_t bitrate{0};
     int crf{-1};
+    int qp{-1};
     bool overwrite{true};
 };
 

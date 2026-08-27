@@ -3,6 +3,7 @@
 #include "../../cli_context.hpp"
 #include "../../daemon/chronon_ipc.hpp"
 
+#include <cstdint>
 #include <string>
 #include <memory>
 
@@ -18,7 +19,10 @@ struct RenderPlanVideoOverrides {
     std::string encoder_backend;
     std::string ffmpeg_mode;
     std::string encode_preset;
+    std::string rate_control_mode;
     int crf{-1};
+    int qp{-1};
+    std::int64_t bitrate{0};
 };
 
 int run_render_plan_file(const CompositionRegistry& registry,

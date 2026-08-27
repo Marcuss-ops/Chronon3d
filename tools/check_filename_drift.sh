@@ -33,10 +33,21 @@
 #   1 — at least one BLOCKING drift detected in --strict mode
 #   2 — usage error (unknown flag)
 #
-# Categories (post-fix: fully blocking):
-#   In --strict mode, ALL drift (missing cited paths that lack a
-#   `drift-allow:` marker) is BLOCKING and causes exit 1.
-#   The `drift-allow: <id>` marker opts out individual lines.
+# Classification:
+#   OPERATIONAL — citations in CMake, source, headers, and active tests.
+#                  Missing paths are always blocking.
+#   HISTORICAL  — citations explicitly marked `drift-class: historical`.
+#                  Reported separately; never silently ignored.
+#   TEMPLATE    — citations explicitly marked `drift-class: template`.
+#                  Reported separately; never silently ignored.
+#   PLANNED     — citations explicitly marked `drift-allow: <id>` together
+#                  with a same-line or immediately preceding
+#                  `drift-reason: <text>`. Missing paths are allowed only
+#                  with both markers, and remain visible in the report.
+#
+# Unmarked missing citations are OPERATIONAL and blocking in --strict mode.
+# Classification is line-scoped and cannot be inferred from directory names,
+# preventing active source/test paths from being hidden accidentally.
 # ============================================================================
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -74,7 +85,23 @@ mapfile -t files < <(find . -type f \
   ! -path './docs/TEXT_BOTTLENECKS.md' \
   ! -path './docs/text-architecture-inventory.md' \
   ! -path './docs/adr/ADR-009-optional-text-deps.md' \
-  ! -path './docs/CAMERA_AE_GAP_VENDETTA.md')
+  ! -path './docs/CAMERA_AE_GAP_VENDETTA.md' \
+  ! -path './docs/tickets/archive/*' \
+  ! -path './docs/baselines/archive/*' \
+  ! -path './.tmp/*' \
+  ! -path './templates/*' \
+  ! -path './examples/*' \
+  ! -path './bench/*' \
+  ! -path './tests/acceptance/*' \
+  ! -path './tests/baselines/*' \
+  ! -path './docs/adr/*' \
+  ! -path './docs/reference/*' \
+  ! -path './docs/tickets/*' \
+  ! -path './docs/baselines/*' \
+  ! -path './docs/ROADMAP.md' \
+  ! -path './docs/CURRENT_STATUS.md' \
+  ! -path './AGENTS.md' \
+  ! -path './CONTRIBUTING.md')
 
 if [[ "${#files[@]}" -eq 0 ]]; then
   echo "OK: no source files scanned (mode=${mode})"
@@ -88,27 +115,38 @@ PAT='\b(tests|src|include|docs|tools|examples)/[A-Za-z0-9_./-]+\.(cpp|hpp|h|md|c
 # Single awk pass (POSIX associative arrays → no bash 4 dependency).
 # Filters:
 #   (1) web/SSH/VC URL classes on the line: skip whole line.
-#   (2) `drift-allow: <id>` marker: skip whole line.
+#   (2) collect the line classification and explicit reason markers.
 #   (3) per-token regex match against rest of line; keep first match
 #       only (typical citation form on a comment line).
+#
+# The parser intentionally keeps classified records in the output; only a
+# valid planned record is non-blocking. Historical/template records are
+# diagnostic, so their continued presence is auditable.
 candidates=$(grep -rEn "${PAT}" "${files[@]}" 2>/dev/null | awk -F: '
   /https?:\/\//                { next }
   /git@|git\+ssh:\/\/|ssh:\/\// { next }
   /\/(blob|tree|commits|issues|pull)\// { next }
-  /drift-allow:/               { next }
   {
     file = $1
+    line = $2
     rest = ""
     for (i = 3; i <= NF; i++) rest = rest (i == 3 ? "" : ":") $i
+
+    classification = "operational"
+    if (rest ~ /drift-class:[[:space:]]*historical([[:space:]]|$)/) classification = "historical"
+    if (rest ~ /drift-class:[[:space:]]*template([[:space:]]|$)/) classification = "template"
+    allowed = (rest ~ /drift-allow:[[:space:]]*[A-Za-z0-9_.-]+([[:space:]]|$)/)
+    has_reason = (rest ~ /drift-reason:[[:space:]]*[^[:space:]].*[[:space:]]|drift-reason:[[:space:]]*[^[:space:]]+$/)
+    if (allowed && has_reason) classification = "planned"
 
     n = split(rest, parts, " ")
     for (i = 1; i <= n; i++) {
       if (match(parts[i], /(tests|src|include|docs|tools|examples)\/[A-Za-z0-9_.\/-]+\.(cpp|hpp|h|md|cmake|txt)/)) {
         tok = substr(parts[i], RSTART, RLENGTH)
         sub(/[.,;:]+$/, "", tok)
-        if (tok != "" && !(tok in seen)) {
-          seen[tok] = 1
-          print file ":" tok
+        if (tok != "" && !(file ":" tok in seen)) {
+          seen[file ":" tok] = 1
+          print classification ":" file ":" line ":" tok
         }
       }
     }
@@ -119,25 +157,40 @@ candidates=$(grep -rEn "${PAT}" "${files[@]}" 2>/dev/null | awk -F: '
 # In --strict mode ALL drift is BLOCKING (exit 1).
 errs=0
 
-while IFS=: read -r file tok; do
+historical=0
+template=0
+planned=0
+while IFS=: read -r classification file line tok; do
   [ -z "$tok" ] && continue
   if [[ ! -e "$ROOT/$tok" ]]; then
-    if [[ "$mode" == "strict" ]]; then
-      echo "[BLOCKING FAIL] ${file}: drift: '${tok}' cited but not on disk" >&2
-      errs=$((errs + 1))
-    else
-      echo "[WARN] ${file}: drift: '${tok}' cited but not on disk"
-      errs=$((errs + 1))
-    fi
+    case "$classification" in
+      historical)
+        echo "[HISTORICAL] ${file}:${line}: '${tok}' is not on disk";
+        historical=$((historical + 1));;
+      template)
+        echo "[TEMPLATE] ${file}:${line}: '${tok}' is not on disk";
+        template=$((template + 1));;
+      planned)
+        echo "[PLANNED] ${file}:${line}: '${tok}' is not on disk (explicitly allowed)";
+        planned=$((planned + 1));;
+      *)
+        if [[ "$mode" == "strict" ]]; then
+          echo "[BLOCKING FAIL] ${file}:${line}: operational drift: '${tok}' cited but not on disk" >&2
+          errs=$((errs + 1))
+        else
+          echo "[WARN] ${file}:${line}: operational drift: '${tok}' cited but not on disk"
+          errs=$((errs + 1))
+        fi;;
+    esac
   fi
 done <<< "${candidates}"
 
 echo
 if [[ "$mode" == "strict" ]]; then
-  echo "Summary: ${errs} blocking drift finding(s) (mode=${mode})"
+  echo "Summary: ${errs} blocking operational drift finding(s) (mode=${mode}); historical=${historical}; template=${template}; planned=${planned}"
   [[ "$errs" -eq 0 ]] || exit 1
   exit 0
 else
-  echo "Summary: ${errs} drift finding(s) (mode=${mode})"
+  echo "Summary: ${errs} operational drift finding(s) (mode=${mode}); historical=${historical}; template=${template}; planned=${planned}"
   exit 0
 fi

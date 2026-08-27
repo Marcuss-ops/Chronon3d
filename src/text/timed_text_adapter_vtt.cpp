@@ -1,7 +1,7 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
-#include <algorithm>
-#include <cctype>
+#include "timed_text_core.hpp"
+
 #include <cstdlib>
 #include <string_view>
 
@@ -86,39 +86,19 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
 
     if (raw.empty()) return doc;
 
-    std::string_view content(raw);
+    const std::string_view content(raw);
 
-    // Split into lines
-    std::vector<std::string_view> lines;
-    size_t pos = 0;
-    while (pos < content.size()) {
-        size_t eol = content.find('\n', pos);
-        if (eol == std::string_view::npos) {
-            lines.push_back(content.substr(pos));
-            break;
-        }
-        size_t len = eol - pos;
-        if (len > 0 && content[eol - 1] == '\r') --len;
-        lines.push_back(content.substr(pos, len));
-        pos = eol + 1;
-    }
+    // Shared canonical line split (CRLF-tolerant), see timed_text_core.hpp.
+    const std::vector<std::string_view> lines = textcore::split_lines(content);
 
     size_t line_idx = 0;
 
     // Skip WEBVTT header
     if (line_idx < lines.size()) {
         std::string_view hdr(lines[line_idx]);
-        // Case-insensitive check for "WEBVTT"
-        if (hdr.size() >= 6) {
-            bool is_webvtt = true;
-            for (int i = 0; i < 6; ++i) {
-                if (std::toupper(static_cast<unsigned char>(hdr[i])) != "WEBVTT"[i]) {
-                    is_webvtt = false;
-                    break;
-                }
-            }
-            if (is_webvtt) {
-                ++line_idx;
+        // Case-insensitive check for "WEBVTT" (shared core helper).
+        if (textcore::starts_with_ci(hdr, "WEBVTT")) {
+            ++line_idx;
 
                 // Optional metadata after WEBVTT header until blank line or cue start
                 while (line_idx < lines.size() && !lines[line_idx].empty()) {
@@ -145,7 +125,6 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
                 }
             }
         }
-    }
 
     // Skip blank lines and style blocks after header
     while (line_idx < lines.size()) {
@@ -154,19 +133,13 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
 
         // Skip STYLE blocks
         std::string_view ll(lines[line_idx]);
-        if (ll.size() > 6) {
-            bool is_style = true;
-            for (int i = 0; i < 5; ++i) {
-                if (std::toupper(static_cast<unsigned char>(ll[i])) != "STYLE"[i]) {
-                    is_style = false;
-                    break;
-                }
-            }
-            if (is_style && (ll[5] == ':' || ll[5] == ' ')) {
-                // Skip until blank line
-                while (line_idx < lines.size() && !lines[line_idx].empty()) ++line_idx;
-                continue;
-            }
+        // "STYLE<space-or-colon>" starts a VTT style block (shared core
+        // helper for the case-insensitive keyword match).
+        if (ll.size() > 6 && textcore::starts_with_ci(ll, "STYLE") &&
+            (ll[5] == ':' || ll[5] == ' ')) {
+            // Skip until blank line
+            while (line_idx < lines.size() && !lines[line_idx].empty()) ++line_idx;
+            continue;
         }
 
         // Optional cue id (non-empty, non-timestamp line before timestamp)
@@ -176,19 +149,11 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
             cue_id = std::string(maybe_id);
             ++line_idx;
 
-            // Skip NOTE comments
-            if (cue_id.size() >= 4) {
-                bool is_note = true;
-                for (int i = 0; i < 4; ++i) {
-                    if (std::toupper(static_cast<unsigned char>(cue_id[i])) != "NOTE"[i]) {
-                        is_note = false;
-                        break;
-                    }
-                }
-                if (is_note) {
-                    while (line_idx < lines.size() && !lines[line_idx].empty()) ++line_idx;
-                    continue;
-                }
+            // Skip NOTE comments (shared core helper for the case-insensitive
+            // keyword match).
+            if (textcore::starts_with_ci(cue_id, "NOTE")) {
+                while (line_idx < lines.size() && !lines[line_idx].empty()) ++line_idx;
+                continue;
             }
         }
 
@@ -233,60 +198,16 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
         cue.end_s = end_s;
         cue.source_id = cue_id.empty() ? std::to_string(doc.cues.size()) : cue_id;
 
-        // Generate word breakdown
-        auto wranges = [&cue_text]() {
-            std::vector<std::pair<std::string, size_t>> wr;
-            size_t i = 0;
-            while (i < cue_text.size()) {
-                while (i < cue_text.size() && (cue_text[i] == ' ' || cue_text[i] == '\t' || cue_text[i] == '\n' || cue_text[i] == '\r')) ++i;
-                if (i >= cue_text.size()) break;
-                size_t start = i;
-                // Skip VTT tags first
-                std::string raw;
-                bool in_tag = false;
-                while (i < cue_text.size()) {
-                    if (cue_text[i] == '<') { in_tag = true; ++i; continue; }
-                    if (cue_text[i] == '>' && in_tag) { in_tag = false; ++i; continue; }
-                    if (!in_tag && (cue_text[i] == ' ' || cue_text[i] == '\t' || cue_text[i] == '\n' || cue_text[i] == '\r')) break;
-                    if (!in_tag) raw += cue_text[i];
-                    ++i;
-                }
-                if (!raw.empty()) wr.push_back({raw, start});
-            }
-            return wr;
-        }();
-
-        int word_idx = 0;
-        for (const auto& [word_text, offset] : wranges) {
-            TimedWord tw;
-            tw.text = word_text;
-            // TICKET-TIMED-WORD-BINDING: VTT lambda captures the byte
-            // offset of each word in cue_text; same UTF-8 byte semantics
-            // as SRT (strip_vtt_tags() above runs BEFORE this loop so
-            // byte ranges align with the displayed text).
-            tw.byte_start = offset;
-            tw.byte_end   = offset + word_text.size();
-            f32 cue_dur = end_s - start_s;
-            f32 word_dur = cue_dur / static_cast<f32>(wranges.size());
-            tw.start_s = start_s + static_cast<f32>(word_idx) * word_dur;
-            tw.end_s = start_s + static_cast<f32>(word_idx + 1) * word_dur;
-            tw.semantic_id = cue.source_id + "-word" + std::to_string(word_idx);
-            cue.words.push_back(std::move(tw));
-            ++word_idx;
-        }
-
-        // TICKET-WORD-TIMING-QUALITY: VTT format has cue-level timestamps
-        // and (rarely) inline `<00:00:01.000>word` cues; without explicit
-        // per-word timing in the source itself we always land on the
-        // uniform-split heuristic here.  Same `Estimated` semantics as
-        // SRT — animation only, never sync.
-        cue.word_timing_quality = wranges.empty()
-            ? WordTimingQuality::None
-            : WordTimingQuality::Estimated;
+        // Generate word breakdown via the shared uniform-timing core.
+        // Byte offsets still reference the TAGGED original line and word
+        // tokens exclude inline tags - historical VTT semantics preserved.
+        textcore::attach_uniform_words(cue, cue_text,
+            /*skip_angle_tags*/true, /*include_cr*/true);
 
         doc.cues.push_back(std::move(cue));
     }
 
+    textcore::canonicalize_document(doc);
     return doc;
 }
 

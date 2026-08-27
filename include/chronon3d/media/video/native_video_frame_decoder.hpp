@@ -16,14 +16,16 @@
 
 #include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
-#include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/media/video/native_frame_importer.hpp>
 
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+extern "C" {
+#include <libavutil/frame.h>
+}
 #endif
 
-#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -78,10 +80,9 @@ public:
     ~NativeVideoFrameDecoder() override;
 
     void set_counters(RenderCounters* counters) override { m_counters = counters; }
-    void set_native_gpu_context(
-        graph::RenderBackend* backend, runtime::RenderSurfaceRegistry* registry) override {
-        m_backend = backend;
-        m_surface_registry = registry;
+    void set_native_frame_importer(
+        std::shared_ptr<NativeFrameImporter> importer) override {
+        m_native_importer = std::move(importer);
     }
 
     /// Trace correlation context: stable per-job id mixed with the decoded
@@ -127,7 +128,9 @@ private:
         int64_t eof_target{-1};
         std::shared_ptr<Framebuffer> eof_frame;
         std::vector<uint8_t> rgba;
-        std::map<int64_t, std::shared_ptr<Framebuffer>> cache;
+        cache::LruCache<int64_t, std::shared_ptr<Framebuffer>> cache{
+            64, 1, cache::CapacityMode::Count
+        };
 
         static constexpr std::size_t kPrefetchCapacity = 4;
         struct PrefetchedFrame {
@@ -142,17 +145,7 @@ private:
         int64_t prefetch_inflight{-1};
         uint64_t prefetch_generation{0};
 
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        static constexpr std::size_t kNativeDecodeSlots = 4;
-        struct NativeDecodeSlot {
-            runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
-            std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor> compositor;
-        };
-        std::array<NativeDecodeSlot, kNativeDecodeSlots> native_slots;
-        std::size_t next_native_slot{0};
-        graph::RenderBackend* native_backend{nullptr};
-        runtime::RenderSurfaceRegistry* native_surface_registry{nullptr};
-#endif
+        std::unique_ptr<NativeFrameImportSession> native_import_session;
 
         ~Session();
         void start_prefetch_worker(NativeVideoFrameDecoder* decoder);
@@ -160,8 +153,7 @@ private:
 
     std::mutex m_mutex;
     RenderCounters* m_counters{nullptr};
-    graph::RenderBackend* m_backend{nullptr};
-    runtime::RenderSurfaceRegistry* m_surface_registry{nullptr};
+    std::shared_ptr<NativeFrameImporter> m_native_importer;
     std::atomic<std::uint64_t> m_trace_job_id{0};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 

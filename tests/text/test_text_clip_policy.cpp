@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_clip_policy.cpp — M1.8 §4A-ext / TICKET-SIMPLICITY-TEXT-CLIP-POLICY
 //
-// Extracted from `tests/text/test_pipeline_parity.cpp` per the §2 cleanup
+// Extracted from `tests/text/test_pipeline_parity_still.cpp` per the §2 cleanup
 // mandate (TICKET-SIMPLICITY-PARITY-EXTRACT).  Carries the 5-clip-rect
 // matrix: 7 pipeline variations × 5 `ClipVariant` (Baseline / Expanded /
 // Conservative / Full / Off) × 18 CHECKs = 630 CHECKs total.
@@ -11,10 +11,10 @@
 // Drop scope (intentionally NOT carried over from the source file):
 //   - #1-#7 single-canary tests (7 pipelines × default clip rect, 126 CHECKs).
 //     Synthetic, no clip-rect semantic content; superseded by
-//     `tests/text/test_pipeline_parity_real.cpp` (the 7-modulo
+//     `tests/text/support/pipeline_parity_harness.cpp` (the 7-modulo
 //     real-framebuffer-hash parity lock at §3).
 //   - #43-#44 invariance tests (tile pruning + diagnostics byte-exact).
-//     Forward-pointed to `tests/text/test_pipeline_parity_real.cpp::BruteDeterm-17`
+//     Forward-pointed to `tests/text/support/pipeline_parity_harness.cpp::BruteDeterm-17`
 //     and `tools/check_determinism.sh` per TICKET-DETERMINISM-BRUTE-17.
 //
 // Carried-over scope (this file):

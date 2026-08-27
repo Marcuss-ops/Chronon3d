@@ -35,9 +35,10 @@ public:
         return reinterpret_cast<renderer::EffectProcessor*>(1);
     }
 
-    void draw_node(Framebuffer&, const RenderNode&, const RenderState&,
-                   const Camera&, int, int) override {
+    RenderOpResult draw_node(Framebuffer&, const RenderNode&, const RenderState&,
+                             const Camera&, int, int) override {
         draw_node_called++;
+        return RenderOpResult{RenderOpOutcome{1}};
     }
 
     void apply_effect_stack(Framebuffer&, const EffectStack&,
@@ -62,6 +63,10 @@ public:
         // FakeBackend: no-op, just count calls
     }
 };
+
+
+
+
 
 TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend") {
     FakeBackend backend;
@@ -99,6 +104,30 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
 
     REQUIRE(out != nullptr);
     CHECK(backend.draw_node_called == 1);
+}
+
+TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame failure") {
+    FailingBackend backend;
+    cache::NodeCache cache;
+    SceneBuilder builder;
+    builder.rect("failing_rect", {.size = {50.0f, 50.0f}, .color = Color::red()});
+    Scene scene = builder.build();
+    RenderGraphContext ctx{
+        .frame_input = {.width = 64, .height = 64},
+        .services = {.backend = &backend, .node_cache = &cache}
+    };
+    auto graph = GraphBuilder::build(scene, ctx);
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
+        FrameGraphCompileOptions{ .run_optimizer = false });
+    GraphExecutor executor;
+    RenderSession session;
+    ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
+    auto scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
+    auto output = executor.execute_with_scope(compiled, ctx, scope, scheduler);
+    CHECK(output == nullptr);
+    REQUIRE(session.last_frame_error());
+    CHECK(session.last_frame_error()->backend_code == RenderBackendErrorCode::ExecutionFailure);
+    CHECK(session.last_frame_error()->message == "forced draw failure");
 }
 
 TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on backend") {

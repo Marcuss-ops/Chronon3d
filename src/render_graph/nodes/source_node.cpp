@@ -60,6 +60,10 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
         cached->gpu_rgba.size() * sizeof(float)};
     const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
     if (!acquired.ok()) return false;
+    if (ctx.policy.diagnostics_enabled && acquired.cache_hit) {
+        spdlog::debug("[gpu-asset-cache] static image '{}' reused resident handle={}",
+                      image.path, static_cast<std::uint64_t>(acquired.handle));
+    }
 
     const auto& source = *cached->fb_img;
 
@@ -605,10 +609,15 @@ NodeExecResult SourceNode::execute(
             m_node.shape.type() == ShapeType::Image &&
             detail::try_native_image(ctx, *fb, m_node, state);
         if (!native_filled && !native_image) {
-            // P0-1: draw_node() returns void — backend failures (e.g. missing
-            // processor-context, unsupported shape) are logged but cannot propagate
-            // to the executor.  Tracked for Phase C post-freeze.
-            ctx.services.backend->draw_node(*fb, m_node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
+            const auto draw_result = ctx.services.backend->draw_node(
+                *fb, m_node, state, ctx.frame_input.camera,
+                ctx.frame_input.width, ctx.frame_input.height);
+            if (!draw_result.ok()) {
+                return NodeExecResult{NodeExecutionError{
+                    draw_result.error().code,
+                    m_name,
+                    draw_result.error().message}};
+            }
         }
         // A fully opaque source becomes translucent when the layer opacity
         // is animated below one; keep the metadata truthful so CompositeNode

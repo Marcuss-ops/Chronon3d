@@ -149,11 +149,7 @@ graph::RenderOpResult VulkanBackend::release_surface(
         // active batch.  "Unplanned" only means that the barrier planner does
         // not know the handle; it must never shorten the Vulkan lifetime.
         if (m_impl->frame_batch.active || m_impl->command_batch_active) {
-            if (std::find(m_impl->deferred_surface_releases.begin(),
-                          m_impl->deferred_surface_releases.end(), handle) ==
-                m_impl->deferred_surface_releases.end()) {
-                m_impl->deferred_surface_releases.push_back(handle);
-            }
+            m_impl->defer_surface_release(handle);
             return graph::RenderOpResult(graph::RenderOpOutcome{});
         }
         m_impl->release_surface_now(handle);
@@ -175,7 +171,7 @@ bool VulkanBackend::is_native_surface_valid(
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl || handle == runtime::kInvalidRenderSurfaceHandle) return false;
     std::lock_guard lock(m_impl->api_mutex);
-    return m_impl->surface_bindings.contains(handle);
+    return m_impl->surface_valid(handle);
 #else
     (void)handle;
     return false;

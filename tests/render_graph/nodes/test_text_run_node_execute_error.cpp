@@ -179,6 +179,11 @@ public:
         }
     }
 
+    RenderOpResult draw_node(Framebuffer&, const RenderNode&, const RenderState&,
+                             const Camera&, int, int) override {
+        return RenderOpResult{RenderOpOutcome{}};
+    }
+
     // ── Concrete overrides for the remaining pure virtuals
     // Required so std::make_shared<FailureMockBackend>(...) can instantiate
     // the class.  P0-3 exercises only TextRunNode::execute(), so these

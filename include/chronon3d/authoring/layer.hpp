@@ -236,7 +236,7 @@ public:
     // Forwards to `LayerBuilder::font_engine(FontEngine*)`, mirroring the
     // authoring `Text::font_engine(*)` per-spec override (defined upstream
     // in `include/chronon3d/authoring/text.hpp`).  Resolution order at
-    // materialization (see `src/scene/builders/layer_builder.cpp:397` —
+    // materialization (see `src/scene/builders/layer_builder_core.cpp:397` —
     // `spec.font_engine ? spec.font_engine : m_font_engine`):
     //   1. PreparedText/PendingTextRun.font_engine bound via Text::font_engine(...)
     //   2. LayerBuilder.m_font_engine bound here.

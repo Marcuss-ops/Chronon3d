@@ -40,7 +40,46 @@ Indice completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md).
 | Determinism | PASS | seriale/parallelo + cold/warm SHA identici |
 | Next Steps | PLANNED | vedi [`docs/CHRONON_PLAN.md`](CHRONON_PLAN.md) |
 
+## Vulkan surface-store extraction — verification report (2026-08-27)
+
+- **CMake/configuration:** preset `linux-fast-dev` configured successfully with Vulkan dependencies and generated shader/ABI metadata.
+- **Backend build:** `chronon3d_backend_vulkan` builds successfully after keeping the private implementation fragments included by the single `vulkan_backend.cpp` translation unit; compiling those fragments independently was rejected because they depend on `VulkanBackend::Impl` context.
+- **Architecture gate:** `tools/check_architecture_boundaries.sh` passes all 26 checks after changing the CLI Vulkan importer include to a relative internal include. This is a gate result, not a complete proof that surface ownership has been fully extracted.
+- **GPU runtime:** `vulkaninfo --summary` detects an NVIDIA RTX A4000 (discrete GPU, Vulkan 1.4.329, NVIDIA driver 595.84) and llvmpipe fallback. `nvidia-smi` detects the same RTX A4000 and driver; NVIDIA device nodes are present.
+- **CUDA interop:** project configuration finds CUDA headers/driver libraries, while `nvcc` is unavailable. The runtime external-memory probe nevertheless passes on the real GPU: `CUDA_VULKAN_INTEROP_PASS`, device `NVIDIA RTX A4000`, Vulkan/CUDA UUID `66101dcc-7b1c-e277-889c-c62462e0ac8e`, external Vulkan image mapping and semaphore signaling verified. Full toolkit/compiler coverage remains uncertified because `nvcc` is unavailable.
+- **Focused tests:** `chronon3d_backend_registry_tests`, `chronon3d_vulkan_debug_context_tests` and `chronon3d_vulkan_descriptor_arena_tests` were registered but their executables were not produced within the available build window. CTest reported `Not Run`; no assertion failure or functional test failure was observed.
+- **Build limitation:** targeted test builds timed out at 300 seconds and again at 600 seconds. This is an environmental/build-duration limitation, not a functional failure classification.
+- **CTest limitation:** invoking CTest before test binaries existed produced missing-executable errors. These must not be reported as failed Vulkan assertions.
+- **Pre-existing warnings:** CMake developer warnings about intentional `LINK_TARGETS` overrides and the filename-drift audit warnings are separate from this extraction. The filename-drift scan reported 787 warnings in warning mode.
+- **Uncertified items:** runtime behavior of surface aliasing, plan preallocation, deferred release, frame-transient retirement and final destruction still requires execution of the focused Vulkan test binaries. CUDA/Vulkan external-memory mapping and semaphore signaling are certified by the dedicated probe; broader CUDA toolkit/compiler paths remain uncertified.
+
+## Filename drift — classificazione finale (2026-08-27)
+
+Il gate `tools/check_filename_drift.sh` analizza nuovamente tutti i percorsi
+operativi (`cmake/`, `docs/`, `include/`, `src/`, `apps/`, `tests/` e `content/`).
+Sono esclusi soltanto output generati/build, dipendenze vendorizzate, fixture e
+baseline archiviate esplicitamente, oltre a directory di esempio/template già
+classificate.
+
+- **Corretti:** riferimenti a test e sorgenti spostati, inclusi i percorsi della
+  pipeline parity, AE parity, text clip, scene hasher, layer builder e camera.
+- **Esclusi intenzionalmente:** artefatti di build, fixture/baseline storiche,
+  `tests/acceptance/`, `tests/baselines/` e documentazione archiviale. Queste
+  esclusioni sono di scope e non vengono presentate come PASS operativo.
+- **Aperti:** il gate strict rileva ancora finding operativi da correggere o
+  classificare puntualmente; non sono stati ricreati file rimossi e non sono
+  stati aggiunti marker `drift-allow` generici.
+- **Ultimo risultato strict:** `139` finding operativi bloccanti prima della
+  verifica dello scope; dopo il ripristino dell’analisi dei percorsi attivi, il
+  conteggio deve essere rieseguito e riportato come evidenza aggiornata.
+- **Regola:** `drift-class: historical` e `drift-class: template` restano
+  diagnostici; un riferimento pianificato richiede sia `drift-allow: <id>` sia
+  `drift-reason: <motivazione>`. Nessuna delle due classificazioni nasconde
+  automaticamente sorgenti o test attivi.
+
 ## Gate Audit
+
+- **2026-08-27 runtime update:** architecture boundary gate `26/26 PASS`; CUDA/Vulkan external-memory probe `PASS` on NVIDIA RTX A4000. The probe confirms device compatibility and external semaphore signaling, but does not replace the unavailable focused Vulkan test suite.
 
 - `main@7eb5c2ba` **11/11 PASS** certificata. `main@ef9c83f1` 14/14+1 BLOCKED. HEAD non certificato.
 - Dettaglio storico in `docs/CHANGELOG.md` + `docs/CHANGELOG.archive.md`.

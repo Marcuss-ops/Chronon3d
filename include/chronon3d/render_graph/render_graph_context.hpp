@@ -402,6 +402,10 @@ struct NodeExecutionContext {
     mutable FramebufferSlotView ping_write;
     mutable std::vector<Framebuffer*> reusable_inputs;
 
+    // Reusable CPU staging for text fallback ROI uploads. Capacity is retained
+    // across nodes/frames for this execution context and grows on demand.
+    mutable std::vector<float> text_upload_scratch;
+
     // Set by the executor for a compiler-assigned transient output. The
     // pointed-to OwnedFB remains owned by ExecutionState; node acquire calls
     // return a non-owning RendererOwned view so the slot survives node-state

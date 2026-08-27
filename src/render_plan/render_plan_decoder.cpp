@@ -397,8 +397,19 @@ std::optional<PlanDecodeError> validate_render_budget(
         return fail("canvas.fps", "frame rate must be positive");
     if (plan.output.bitrate < 0)
         return fail("output.bitrate", "bitrate cannot be negative");
-    if (plan.output.crf < 0 || plan.output.crf > 63)
-        return fail("output.crf", "CRF must be between 0 and 63");
+    if (plan.output.crf < 0 || plan.output.crf > 51)
+        return fail("output.crf", "CRF must be between 0 and 51");
+    if (plan.output.qp < -1 || plan.output.qp > 63)
+        return fail("output.qp", "QP must be between 0 and 63");
+    if (plan.output.rate_control == render_plan::RateControlMode::Crf &&
+        (plan.output.qp >= 0 || plan.output.bitrate > 0))
+        return fail("output.rate_control", "CRF mode cannot combine QP or bitrate");
+    if (plan.output.rate_control == render_plan::RateControlMode::ConstantQp &&
+        (plan.output.crf > 0 || plan.output.bitrate > 0 || plan.output.qp < 0))
+        return fail("output.rate_control", "QP mode requires only a valid QP value");
+    if (plan.output.rate_control == render_plan::RateControlMode::Bitrate &&
+        (plan.output.crf > 0 || plan.output.qp >= 0 || plan.output.bitrate <= 0))
+        return fail("output.rate_control", "bitrate mode requires only a positive bitrate");
     if (plan.layers.size() > budget.max_layers)
         return fail("layers", "render budget max_layers exceeded");
     const auto duration_value = plan.canvas.duration.integral();
@@ -548,6 +559,12 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.output.codec = video_codec(output.at("codec").get<std::string>());
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
+        plan.output.qp = output.value("qp", -1);
+        const auto rate_control = output.value("rate_control", "crf");
+        if (rate_control == "qp") plan.output.rate_control = render_plan::RateControlMode::ConstantQp;
+        else if (rate_control == "bitrate") plan.output.rate_control = render_plan::RateControlMode::Bitrate;
+        else if (rate_control == "crf") plan.output.rate_control = render_plan::RateControlMode::Crf;
+        else return PlanDecodeError{"output.rate_control", "must be crf, qp, or bitrate"};
         plan.output.profile_id = output.value("profile_id", std::string{});
         if (plan.output.profile_id == "velox-h264-1080p30-v1" &&
             (plan.canvas.width != 1920 || plan.canvas.height != 1080 || plan.canvas.fps != FrameRate{30, 1})) {

@@ -15,6 +15,24 @@ TEST_CASE("image writer detects output format from path") {
     CHECK(image_format_from_path("frame.jpg") == ImageFormat::Unknown);
 }
 
+TEST_CASE("PNG export rejects a GPU-authoritative framebuffer") {
+    Framebuffer fb(2, 2);
+    fb.set_surface_handle(runtime::RenderSurfaceHandle{1});
+    fb.mark_gpu_authoritative();
+    CHECK_FALSE(save_png(fb, "output/gpu_authoritative.png"));
+}
+
+TEST_CASE("Framebuffer residency reports CPU and synchronized GPU state") {
+    Framebuffer fb(2, 2);
+    CHECK(fb.residency() == SurfaceResidency::CpuOnly);
+    fb.set_surface_handle(runtime::RenderSurfaceHandle{1});
+    CHECK(fb.residency() == SurfaceResidency::CpuAndGpu);
+    fb.mark_gpu_authoritative();
+    CHECK(fb.residency() == SurfaceResidency::GpuOnly);
+    fb.mark_cpu_gpu_synchronized();
+    CHECK(fb.residency() == SurfaceResidency::CpuAndGpu);
+}
+
 TEST_CASE("save_image rejects unknown extension") {
     Framebuffer fb(2, 2);
     CHECK_FALSE(save_image(fb, "output/test_unknown_format.jpg"));

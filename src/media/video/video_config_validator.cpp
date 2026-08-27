@@ -134,9 +134,31 @@ ValidationResult validate_video_sink_config(
     if (enc.crf < -1 || enc.crf > 51) {
         return {false, "encoder.crf must be in [-1, 51] (-1 = codec default)"};
     }
-
+    if (enc.qp < -1 || enc.qp > 63) {
+        return {false, "encoder.qp must be in [-1, 63] (-1 = codec default)"};
+    }
     if (enc.bitrate < 0) {
-        return {false, "encoder.bitrate must be >= 0 (0 = let encoder choose)"};
+        return {false, "encoder.bitrate must be >= 0"};
+    }
+
+    switch (enc.rate_control_mode) {
+        case RateControlMode::Crf:
+            if (enc.qp >= 0 || enc.bitrate > 0) {
+                return {false, "CRF mode cannot be combined with QP or bitrate"};
+            }
+            break;
+        case RateControlMode::ConstantQp:
+            if (enc.crf >= 0 || enc.bitrate > 0) {
+                return {false, "ConstantQp mode cannot be combined with CRF or bitrate"};
+            }
+            if (enc.qp < 0) return {false, "ConstantQp mode requires encoder.qp"};
+            break;
+        case RateControlMode::Bitrate:
+            if (enc.crf >= 0 || enc.qp >= 0) {
+                return {false, "Bitrate mode cannot be combined with CRF or QP"};
+            }
+            if (enc.bitrate == 0) return {false, "Bitrate mode requires encoder.bitrate > 0"};
+            break;
     }
 
     // Resolve Auto codec before validating — the validator must check the

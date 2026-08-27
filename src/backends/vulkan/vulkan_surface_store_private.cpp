@@ -41,7 +41,7 @@
 
             if (w == 0 || h == 0) continue;
 
-            auto& physical = physical_surfaces[slot.id];
+            auto& physical = surfaces.physical_surfaces[slot.id];
             if (physical.image.image != VK_NULL_HANDLE) {
                 destroy_image(physical.image);
             }
@@ -79,7 +79,7 @@
 
     // True when at least one logical handle currently references `slot`.
     bool slot_in_use(std::size_t slot) const {
-        for (const auto& [handle, bound_slot] : surface_bindings) {
+        for (const auto& [handle, bound_slot] : surfaces.surface_bindings) {
             (void)handle;
             if (bound_slot == slot) return true;
         }
@@ -87,26 +87,26 @@
     }
 
     void prune_unused_transient_slots() {
-        for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
+        for (auto it = surfaces.physical_surfaces.begin(); it != surfaces.physical_surfaces.end();) {
             if (slot_in_use(it->first) ||
                 it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
                 ++it;
                 continue;
             }
             destroy_image(it->second.image);
-            it = physical_surfaces.erase(it);
+            it = surfaces.physical_surfaces.erase(it);
         }
     }
 
     std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const {
-        const auto it = surface_bindings.find(handle);
-        if (it == surface_bindings.end()) {
+        const auto it = surfaces.surface_bindings.find(handle);
+        if (it == surfaces.surface_bindings.end()) {
             throw std::invalid_argument(
                 "Vulkan surface handle " + std::to_string(handle) +
                 " is not bound to a physical slot (bindings=" +
-                std::to_string(surface_bindings.size()) +
-                ", physical_surfaces=" +
-                std::to_string(physical_surfaces.size()) + ")");
+                std::to_string(surfaces.surface_bindings.size()) +
+                ", surfaces.physical_surfaces=" +
+                std::to_string(surfaces.physical_surfaces.size()) + ")");
         }
         return it->second;
     }
@@ -114,8 +114,8 @@
     // The single resolve path: handle → slot → backing image.
     Image& resolve_image(runtime::RenderSurfaceHandle handle) {
         const auto slot = bound_slot(handle);
-        const auto physical_it = physical_surfaces.find(slot);
-        if (physical_it == physical_surfaces.end()) {
+        const auto physical_it = surfaces.physical_surfaces.find(slot);
+        if (physical_it == surfaces.physical_surfaces.end()) {
             throw std::invalid_argument("Vulkan physical slot has no backing image");
         }
         return physical_it->second.image;
@@ -128,12 +128,12 @@
     // pixels the frame still needs to sample.
     bool slot_has_initialized_occupant(std::size_t slot,
                                        runtime::RenderSurfaceHandle self) const {
-        const auto physical_it = physical_surfaces.find(slot);
-        if (physical_it == physical_surfaces.end() ||
+        const auto physical_it = surfaces.physical_surfaces.find(slot);
+        if (physical_it == surfaces.physical_surfaces.end() ||
             !physical_it->second.image.initialized) {
             return false;
         }
-        for (const auto& [handle, bound_slot] : surface_bindings) {
+        for (const auto& [handle, bound_slot] : surfaces.surface_bindings) {
             if (handle != self && bound_slot == slot) return true;
         }
         return false;
@@ -150,25 +150,25 @@
     Image& bind_handle_to_slot(runtime::RenderSurfaceHandle handle,
                                std::size_t slot,
                                const runtime::SurfaceDesc& desc) {
-        const auto previous = surface_bindings.find(handle);
-        if (previous != surface_bindings.end() && previous->second != slot) {
+        const auto previous = surfaces.surface_bindings.find(handle);
+        if (previous != surfaces.surface_bindings.end() && previous->second != slot) {
             const auto old_slot = previous->second;
-            const auto old_it = physical_surfaces.find(old_slot);
-            const bool pinned = old_it != physical_surfaces.end() &&
+            const auto old_it = surfaces.physical_surfaces.find(old_slot);
+            const bool pinned = old_it != surfaces.physical_surfaces.end() &&
                                 old_it->second.image.initialized;
             if (pinned) {
                 slot = old_slot;  // content stays where it is
             } else {
-                surface_bindings.erase(previous);
+                surfaces.surface_bindings.erase(previous);
             }
         }
         if (slot_has_initialized_occupant(slot, handle)) {
-            slot = next_slot++;  // never share pre-initialized content
+            slot = surfaces.next_slot++;  // never share pre-initialized content
         }
-        auto& physical = physical_surfaces[slot];
+        auto& physical = surfaces.physical_surfaces[slot];
         stats.physical_surfaces_peak = std::max(
             stats.physical_surfaces_peak,
-            static_cast<std::uint64_t>(physical_surfaces.size()));
+            static_cast<std::uint64_t>(surfaces.physical_surfaces.size()));
         // When the plan is preallocated, the image already exists with the
         // correct dimensions — no create, no resize.  Validate the invariant
         // and skip all Vulkan object creation.
@@ -184,7 +184,7 @@
                     std::to_string(desc.height));
             }
             physical.desc = desc;
-            surface_bindings[handle] = slot;
+            surfaces.surface_bindings[handle] = slot;
             return physical.image;
         }
         if (physical.image.image == VK_NULL_HANDLE ||
@@ -196,7 +196,7 @@
             physical.image.initialized = false;
         }
         physical.desc = desc;
-        surface_bindings[handle] = slot;
+        surfaces.surface_bindings[handle] = slot;
         return physical.image;
     }
 
@@ -233,9 +233,9 @@
             desc.width == 0 || desc.height == 0) {
             throw std::invalid_argument("Vulkan surface requires a valid non-empty description");
         }
-        const auto binding = surface_bindings.find(handle);
-        if (binding != surface_bindings.end()) {
-            auto& physical = physical_surfaces.at(binding->second);
+        const auto binding = surfaces.surface_bindings.find(handle);
+        if (binding != surfaces.surface_bindings.end()) {
+            auto& physical = surfaces.physical_surfaces.at(binding->second);
             if (physical.image.width != desc.width ||
                 physical.image.height != desc.height ||
                 physical.desc.format != desc.format) {
@@ -254,14 +254,14 @@
         // dedicated physical image for the whole job/daemon lifetime.
         if (desc.lifetime != runtime::LifetimeClass::JobPersistent) {
             // Unbound transient: alias an exact-match compatible unused physical slot first
-            for (auto& [slot, physical] : physical_surfaces) {
+            for (auto& [slot, physical] : surfaces.physical_surfaces) {
                 if (!slot_in_use(slot) && surface_compatible(physical.desc, desc)) {
                     ensure_descriptor_set();
                     return bind_handle_to_slot(handle, slot, desc);
                 }
             }
             // Next, reuse any unused physical slot (it will be resized by bind_handle_to_slot)
-            for (auto& [slot, physical] : physical_surfaces) {
+            for (auto& [slot, physical] : surfaces.physical_surfaces) {
                 if (!slot_in_use(slot) && physical.desc.lifetime != runtime::LifetimeClass::JobPersistent) {
                     ensure_descriptor_set();
                     return bind_handle_to_slot(handle, slot, desc);
@@ -269,10 +269,10 @@
             }
         }
         ensure_descriptor_set();
-        return bind_handle_to_slot(handle, next_slot++, desc);
+        return bind_handle_to_slot(handle, surfaces.next_slot++, desc);
     }
 
-    void wait_upload_slot(UploadSlot& slot) {
+    void wait_upload_slot(VulkanUploadRing::UploadSlot& slot) {
         if (!slot.in_flight) return;
         check(vkWaitForFences(device, 1, &slot.fence, VK_TRUE, UINT64_MAX),
               "vkWaitForFences(upload slot)");
@@ -280,30 +280,30 @@
         slot.in_flight = false;
     }
 
-    UploadSlot& acquire_upload_slot(bool wait_for_completion) {
+    VulkanUploadRing::UploadSlot& acquire_upload_slot(bool wait_for_completion) {
         // Synchronous callers retain the warmed first slot.  Asynchronous
         // callers rotate through the ring and only wait when all slots are
         // occupied, allowing several decoded assets to be queued together.
         if (wait_for_completion) {
-            wait_upload_slot(upload_slots[0]);
-            return upload_slots[0];
+            wait_upload_slot(uploads.slots[0]);
+            return uploads.slots[0];
         }
-        for (std::size_t attempt = 0; attempt < kUploadSlotCount; ++attempt) {
-            auto& slot = upload_slots[next_upload_slot];
-            next_upload_slot = (next_upload_slot + 1) % kUploadSlotCount;
+        for (std::size_t attempt = 0; attempt < VulkanUploadRing::kSlotCount; ++attempt) {
+            auto& slot = uploads.slots[uploads.next_slot];
+            uploads.next_slot = (uploads.next_slot + 1) % VulkanUploadRing::kSlotCount;
             if (!slot.in_flight) return slot;
             if (vkGetFenceStatus(device, slot.fence) == VK_SUCCESS) {
                 wait_upload_slot(slot);
                 return slot;
             }
         }
-        auto& oldest = upload_slots[next_upload_slot];
+        auto& oldest = uploads.slots[uploads.next_slot];
         wait_upload_slot(oldest);
-        next_upload_slot = (next_upload_slot + 1) % kUploadSlotCount;
+        uploads.next_slot = (uploads.next_slot + 1) % VulkanUploadRing::kSlotCount;
         return oldest;
     }
 
-    void ensure_upload_slot(UploadSlot& slot, VkDeviceSize bytes) {
+    void ensure_upload_slot(VulkanUploadRing::UploadSlot& slot, VkDeviceSize bytes) {
         wait_upload_slot(slot);
         if (slot.buffer_allocation.size < bytes) {
             if (slot.buffer_allocation.buffer != VK_NULL_HANDLE) {
@@ -331,22 +331,22 @@
     }
 
     void release_surface_now(runtime::RenderSurfaceHandle handle) {
-        const auto binding = surface_bindings.find(handle);
-        if (binding == surface_bindings.end()) return;
+        const auto binding = surfaces.surface_bindings.find(handle);
+        if (binding == surfaces.surface_bindings.end()) return;
         wait_for_pending();
         const auto slot = binding->second;
-        surface_bindings.erase(binding);
-        // Retain physical_surfaces[slot] so subsequent ensure_surface calls
+        surfaces.surface_bindings.erase(binding);
+        // Retain surfaces.physical_surfaces[slot] so subsequent ensure_surface calls
         // can reuse the allocated physical surface without re-allocating memory!
-        unplanned_surface_handles.erase(handle);
+        surfaces.unplanned_surface_handles.erase(handle);
         prune_unused_transient_slots();
         ++stats.surface_releases;
     }
 
     void flush_deferred_surface_releases() {
-        if (deferred_surface_releases.empty()) return;
-        auto pending = std::move(deferred_surface_releases);
-        deferred_surface_releases.clear();
+        if (surfaces.deferred_surface_releases.empty()) return;
+        auto pending = std::move(surfaces.deferred_surface_releases);
+        surfaces.deferred_surface_releases.clear();
         for (const auto handle : pending) release_surface_now(handle);
     }
 
@@ -358,31 +358,31 @@
             // driver and make daemon recovery appear hung.
             check(vkDeviceWaitIdle(device), "vkDeviceWaitIdle(transient cleanup)");
             std::vector<runtime::RenderSurfaceHandle> handles;
-            handles.reserve(surface_bindings.size());
-            for (const auto& [handle, slot] : surface_bindings) {
-                const auto it = physical_surfaces.find(slot);
-                if (it != physical_surfaces.end() &&
+            handles.reserve(surfaces.surface_bindings.size());
+            for (const auto& [handle, slot] : surfaces.surface_bindings) {
+                const auto it = surfaces.physical_surfaces.find(slot);
+                if (it != surfaces.physical_surfaces.end() &&
                     it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
-                    !unplanned_surface_handles.contains(handle)) {
+                    !surfaces.unplanned_surface_handles.contains(handle)) {
                     handles.push_back(handle);
                 }
             }
             for (const auto handle : handles) {
-                const auto binding = surface_bindings.find(handle);
-                if (binding == surface_bindings.end()) continue;
+                const auto binding = surfaces.surface_bindings.find(handle);
+                if (binding == surfaces.surface_bindings.end()) continue;
                 const auto slot = binding->second;
-                surface_bindings.erase(binding);
-                unplanned_surface_handles.erase(handle);
-                const auto it = physical_surfaces.find(slot);
-                if (it != physical_surfaces.end()) {
+                surfaces.surface_bindings.erase(binding);
+                surfaces.unplanned_surface_handles.erase(handle);
+                const auto it = surfaces.physical_surfaces.find(slot);
+                if (it != surfaces.physical_surfaces.end()) {
                     it->second.image.initialized = false;
                 }
                 ++stats.surface_releases;
             }
-            if (physical_surfaces.size() > 32) {
-                spdlog::warn("[vulkan] transient cleanup retained bindings={} physical_surfaces={} unplanned={}",
-                             surface_bindings.size(), physical_surfaces.size(),
-                             unplanned_surface_handles.size());
+            if (surfaces.physical_surfaces.size() > 32) {
+                spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={}",
+                             surfaces.surface_bindings.size(), surfaces.physical_surfaces.size(),
+                             surfaces.unplanned_surface_handles.size());
             }
         } catch (const std::exception& error) {
             spdlog::error("[vulkan] transient cleanup failed: {}", error.what());
@@ -408,7 +408,7 @@
                     return;
                 }
             }
-            for (const auto& upload : upload_slots) {
+            for (const auto& upload : uploads.slots) {
                 if (upload.in_flight &&
                     vkGetFenceStatus(device, upload.fence) != VK_SUCCESS) {
                     return;
@@ -416,23 +416,23 @@
             }
 
             std::vector<runtime::RenderSurfaceHandle> handles;
-            handles.reserve(surface_bindings.size());
-            for (const auto& [handle, slot] : surface_bindings) {
-                const auto it = physical_surfaces.find(slot);
-                if (it != physical_surfaces.end() &&
+            handles.reserve(surfaces.surface_bindings.size());
+            for (const auto& [handle, slot] : surfaces.surface_bindings) {
+                const auto it = surfaces.physical_surfaces.find(slot);
+                if (it != surfaces.physical_surfaces.end() &&
                     it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
-                    !unplanned_surface_handles.contains(handle)) {
+                    !surfaces.unplanned_surface_handles.contains(handle)) {
                     handles.push_back(handle);
                 }
             }
             for (const auto handle : handles) {
-                const auto binding = surface_bindings.find(handle);
-                if (binding == surface_bindings.end()) continue;
+                const auto binding = surfaces.surface_bindings.find(handle);
+                if (binding == surfaces.surface_bindings.end()) continue;
                 const auto slot = binding->second;
-                surface_bindings.erase(binding);
-                unplanned_surface_handles.erase(handle);
-                const auto it = physical_surfaces.find(slot);
-                if (it != physical_surfaces.end()) {
+                surfaces.surface_bindings.erase(binding);
+                surfaces.unplanned_surface_handles.erase(handle);
+                const auto it = surfaces.physical_surfaces.find(slot);
+                if (it != surfaces.physical_surfaces.end()) {
                     it->second.image.initialized = false;
                 }
                 ++stats.surface_releases;
@@ -444,7 +444,7 @@
         }
     }
 
-    std::uint64_t submit_upload(UploadSlot& slot, bool wait_for_completion) {
+    std::uint64_t submit_upload(VulkanUploadRing::UploadSlot& slot, bool wait_for_completion) {
         check(vkEndCommandBuffer(slot.command_buffer), "vkEndCommandBuffer(upload slot)");
         const auto signal_value = ++next_timeline_value;
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
@@ -475,6 +475,10 @@
         if (producer < stats.upload_producer_bytes.size()) {
             stats.upload_producer_bytes[producer] += bytes;
             stats.upload_producer_full_count[producer] += 1;
+            if (profiling::g_gpu_upload_producer == profiling::GpuUploadProducer::Image) {
+                stats.upload_producer_initial_count[producer] += 1;
+                stats.upload_producer_initial_bytes[producer] += bytes;
+            }
         }
         auto& slot = acquire_upload_slot(wait_for_completion);
         ensure_upload_slot(slot, bytes);
@@ -572,13 +576,13 @@
             &timeline_semaphore, &ticket};
         check(vkWaitSemaphores(device, &wait_info, UINT64_MAX),
               "vkWaitSemaphores(upload ticket)");
-        for (auto& slot : upload_slots) {
+        for (auto& slot : uploads.slots) {
             if (slot.in_flight && slot.ticket == ticket) wait_upload_slot(slot);
         }
     }
 
     void download(runtime::RenderSurfaceHandle handle, std::span<float> rgba) {
-        if (surface_bindings.count(handle) == 0) {
+        if (surfaces.surface_bindings.count(handle) == 0) {
             throw std::invalid_argument("Vulkan download references an uninitialized surface");
         }
         auto& image = resolve_image(handle);

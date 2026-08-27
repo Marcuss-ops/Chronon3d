@@ -79,6 +79,9 @@ set(CHRONON3D_VULKAN_ABI_HEADERS "${_chronon3d_shader_abi_headers}" CACHE INTERN
     "Vulkan shader ABI reflection headers")
 
 # ── Vulkan backend library ────────────────────────────────────────────────
+# The private implementation fragments are included by vulkan_backend.cpp and
+# must not be compiled as independent translation units. Keep the single TU
+# as the only source of Impl methods and lifecycle logic.
 add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend.cpp
     vulkan_legacy_fallback.cpp
@@ -135,7 +138,8 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         "Canonical CUDA driver library" FORCE)
 
     target_sources(chronon3d_backend_vulkan PRIVATE
-        cuda_vulkan_surface_bridge.cpp)
+        cuda_vulkan_surface_bridge.cpp
+        vulkan_cuda_frame_importer.cpp)
     target_include_directories(chronon3d_backend_vulkan
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
     target_link_libraries(chronon3d_backend_vulkan

@@ -1,4 +1,5 @@
 #include "native_av_encoder.hpp"
+#include "native_av_encoder_lifecycle.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
@@ -54,6 +55,15 @@ static const char* resolve_encoder_name(const FfmpegPipeOptions& opt) {
 // open
 // ---------------------------------------------------------------------------
 
+namespace {
+
+bool validate_encoder_options(const FfmpegPipeOptions& options) {
+    return options.width > 0 && options.height > 0 &&
+           options.fps > 0 && !options.output_path.empty();
+}
+
+} // namespace
+
 bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     if (fmt_ || codec_) {
         spdlog::error("[native_av] Encoder already open");
@@ -62,8 +72,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 
     open_complete_ = false;
 
-    if (options.width <= 0 || options.height <= 0 ||
-        options.fps <= 0 || options.output_path.empty()) {
+    if (!validate_encoder_options(options)) {
         spdlog::error("[native_av] Invalid encoder options (w={}, h={}, fps={}, path='{}')",
                       options.width, options.height, options.fps, options.output_path);
         return false;

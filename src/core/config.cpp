@@ -108,6 +108,8 @@ Config::Config() {
     debug_.dump_text_raster_ = env_bool("CHRONON_DEBUG_DUMP_TEXT_RASTER");
     debug_.text_raster_      = env_bool("CHRONON_DEBUG_TEXT_RASTER");
     debug_.text_bbox_        = env_bool("CHRONON_DEBUG_TEXT_BBOX");
+    debug_.text_clip_debug_  = env_bool("CHRONON3D_TEXT_CLIP_DEBUG");
+    debug_.proj_diag_        = env_bool("CHRONON3D_PROJ_DIAG");
 
     // ═══════════════════════════════════════════════════════════════════
     //  SchedulerConfig
@@ -207,6 +209,9 @@ Config::Config() {
     //  PathConfig
     // ═══════════════════════════════════════════════════════════════════
     paths_.persistent_framebuffer_cache_dir_ = env_string("CHRONON_PERSISTENT_FB_CACHE_DIR");
+    runtime_.assets_root_ = env_string("CHRONON3D_CLI_ASSETS_ROOT");
+    runtime_.telemetry_path_ = env_string("CHRONON3D_TELEMETRY_PATH");
+    runtime_.cli_assets_root_ = runtime_.assets_root_;
 }
 
 } // namespace chronon3d

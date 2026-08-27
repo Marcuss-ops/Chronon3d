@@ -28,7 +28,7 @@
 // (in tests/visual/ae_parity/, NOT in include/), reused by the CLI for
 // composition registration; the new file is compiled into the chronon3d_cli
 // target via apps/chronon3d_cli/CMakeLists.txt (same pattern as
-// tests/visual/ae_parity/ae_parity_scenes.cpp already used).
+// content/ae_parity/ae_cam_scenes.cpp already used).
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/timeline/composition.hpp>

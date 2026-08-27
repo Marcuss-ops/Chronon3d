@@ -30,7 +30,7 @@
 // emits the alpha_bbox + centroid invariants directly via the
 // canonical `alpha_bbox()` / `alpha_centroid()` helpers + the
 // `FrameMetrics` / `ChrononGlowFinalAE` compliance path used in
-// `tests/text/test_pipeline_parity_real.cpp::Fase 6 §5`.
+// `tests/text/support/pipeline_parity_harness.cpp::Fase 6 §5`.
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.
 // The test reuses the existing `LayerBuilder::opacity_timeline()`

@@ -21,7 +21,7 @@
         target = {};
     }
 
-    void destroy_upload_slot(UploadSlot& slot) {
+    void destroy_upload_slot(VulkanUploadRing::UploadSlot& slot) {
         if (slot.command_buffer != VK_NULL_HANDLE) {
             vkFreeCommandBuffers(device, command_pool, 1, &slot.command_buffer);
         }
@@ -97,33 +97,33 @@
             throw std::invalid_argument(
                 "CUDA external surface requires non-empty supported description");
         }
-        if (surface_bindings.contains(handle)) {
+        if (surfaces.surface_bindings.contains(handle)) {
             throw std::invalid_argument("CUDA external surface handle already exists");
         }
-        const auto slot = next_slot++;
-        auto& physical = physical_surfaces[slot];
+        const auto slot = surfaces.next_slot++;
+        auto& physical = surfaces.physical_surfaces[slot];
         make_image(physical.image, desc.width, desc.height, true,
                    to_vk_format(desc.format));
         physical.image.cuda_to_vulkan = make_external_binary_semaphore();
         physical.image.vulkan_to_cuda = make_external_binary_semaphore();
         physical.desc = desc;
-        surface_bindings.emplace(handle, slot);
+        surfaces.surface_bindings.emplace(handle, slot);
         // Encode surfaces are created outside the render graph and are fully
         // consumed by copy_surface_to_cuda_encoder before their release.
         // Mark them unplanned so the writer can reclaim them immediately even
         // while the render thread records the next frame batch.
-        unplanned_surface_handles.insert(handle);
+        surfaces.unplanned_surface_handles.insert(handle);
         ++stats.surface_creations;
     }
 
     CudaExternalMemoryInfo export_cuda_external_memory(
         runtime::RenderSurfaceHandle handle) const {
-        const auto binding = surface_bindings.find(handle);
-        if (binding == surface_bindings.end()) {
+        const auto binding = surfaces.surface_bindings.find(handle);
+        if (binding == surfaces.surface_bindings.end()) {
             throw std::invalid_argument("CUDA external surface handle is not bound");
         }
-        const auto image_it = physical_surfaces.find(binding->second);
-        if (image_it == physical_surfaces.end() ||
+        const auto image_it = surfaces.physical_surfaces.find(binding->second);
+        if (image_it == surfaces.physical_surfaces.end() ||
             !image_it->second.image.exportable) {
             throw std::invalid_argument("surface is not exportable to CUDA");
         }
@@ -176,8 +176,8 @@
 
     void prepare_cuda_surface_for_vulkan(runtime::RenderSurfaceHandle handle) {
         const auto slot = bound_slot(handle);
-        const auto it = physical_surfaces.find(slot);
-        if (it == physical_surfaces.end() || !it->second.image.exportable ||
+        const auto it = surfaces.physical_surfaces.find(slot);
+        if (it == surfaces.physical_surfaces.end() || !it->second.image.exportable ||
             it->second.image.cuda_to_vulkan == VK_NULL_HANDLE ||
             it->second.image.vulkan_to_cuda == VK_NULL_HANDLE) {
             throw std::invalid_argument("surface is not a CUDA external surface");
@@ -189,7 +189,7 @@
         // Vulkan operations must transition from GENERAL rather than treat
         // the imported image as undefined on the first composite.
         it->second.image.initialized = true;
-        cuda_ready_surfaces.insert(slot);
+        surfaces.cuda_ready_surfaces.insert(slot);
     }
 
     void copy_surface_to_cuda_encoder(runtime::RenderSurfaceHandle source,
@@ -197,8 +197,8 @@
                                       bool wait_for_completion) {
         const auto source_slot = bound_slot(source);
         const auto destination_slot = bound_slot(destination);
-        auto& src = physical_surfaces.at(source_slot).image;
-        auto& dst = physical_surfaces.at(destination_slot).image;
+        auto& src = surfaces.physical_surfaces.at(source_slot).image;
+        auto& dst = surfaces.physical_surfaces.at(destination_slot).image;
         if (!dst.exportable || dst.format != VK_FORMAT_B8G8R8A8_UNORM) {
             throw std::invalid_argument("CUDA encoder destination must be exportable B8G8R8A8");
         }
@@ -226,7 +226,7 @@
                    VK_IMAGE_LAYOUT_GENERAL);
         src.initialized = true;
         dst.initialized = true;
-        cuda_export_ready_surfaces.insert(destination_slot);
+        surfaces.cuda_export_ready_surfaces.insert(destination_slot);
         if (!record_in_frame_batch) submit(wait_for_completion);
     }
 #endif
@@ -483,11 +483,11 @@
                                     frame_batch.pass_count);
             for (const Image* image : images) {
                 bool unplanned = false;
-                for (const auto handle : unplanned_surface_handles) {
-                    const auto binding = surface_bindings.find(handle);
-                    if (binding == surface_bindings.end()) continue;
-                    const auto physical = physical_surfaces.find(binding->second);
-                    if (physical != physical_surfaces.end() &&
+                for (const auto handle : surfaces.unplanned_surface_handles) {
+                    const auto binding = surfaces.surface_bindings.find(handle);
+                    if (binding == surfaces.surface_bindings.end()) continue;
+                    const auto physical = surfaces.physical_surfaces.find(binding->second);
+                    if (physical != surfaces.physical_surfaces.end() &&
                         &physical->second.image == image) {
                         unplanned = true;
                         break;
@@ -511,7 +511,7 @@
     // per-boundary cost (once per overlay, not per pass).
     void emit_command_batch_boundary() {
         std::vector<VkImageMemoryBarrier> barriers;
-        for (auto& [slot, physical] : physical_surfaces) {
+        for (auto& [slot, physical] : surfaces.physical_surfaces) {
             (void)slot;
             if (!physical.image.initialized) continue;
             barriers.push_back(make_image_barrier(
@@ -543,17 +543,17 @@
         for (const auto& transition : plan.transitions) {
             if (transition.pass_index != pass_index) continue;
             if (transition.surface == runtime::kInvalidRenderSurfaceHandle) continue;
-            const auto binding = surface_bindings.find(transition.surface);
-            if (binding == surface_bindings.end()) continue;
+            const auto binding = surfaces.surface_bindings.find(transition.surface);
+            if (binding == surfaces.surface_bindings.end()) continue;
             const auto slot = binding->second;
-            const auto physical_it = physical_surfaces.find(slot);
-            if (physical_it == physical_surfaces.end()) continue;
+            const auto physical_it = surfaces.physical_surfaces.find(slot);
+            if (physical_it == surfaces.physical_surfaces.end()) continue;
             const auto& image = physical_it->second.image;
             const bool is_write =
                 transition.access == runtime::ResourceAccess::Write ||
                 transition.access == runtime::ResourceAccess::ReadWrite;
-            const auto prev_it = m_slot_last_access.find(slot);
-            if (prev_it != m_slot_last_access.end()) {
+            const auto prev_it = surfaces.slot_last_access.find(slot);
+            if (prev_it != surfaces.slot_last_access.end()) {
                 const bool prev_write =
                     prev_it->second == runtime::ResourceAccess::Write ||
                     prev_it->second == runtime::ResourceAccess::ReadWrite;
@@ -574,7 +574,7 @@
                     image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
                     VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT));
             }
-            m_slot_last_access[slot] = transition.access;
+            surfaces.slot_last_access[slot] = transition.access;
         }
         emit_barriers(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, barriers);

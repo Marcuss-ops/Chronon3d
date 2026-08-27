@@ -35,3 +35,19 @@ chronon3d_add_test_suite(
 )
 target_compile_definitions(chronon3d_vulkan_debug_context_tests
     PRIVATE CHRONON3D_ENABLE_VULKAN)
+
+chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_descriptor_arena_tests
+    TIER UNIT
+    SOURCES backends/test_vulkan_descriptor_arena.cpp
+    LINK_TARGETS Vulkan::Vulkan doctest::doctest)
+target_compile_definitions(chronon3d_vulkan_descriptor_arena_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)
+
+chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_submission_ring_tests
+    TIER INTEGRATION
+    SOURCES backends/test_vulkan_submission_ring.cpp
+    LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan spdlog::spdlog)
+target_compile_definitions(chronon3d_vulkan_submission_ring_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)

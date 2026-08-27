@@ -8,6 +8,7 @@
 #include "pip.hpp"
 
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <algorithm>
@@ -44,11 +45,6 @@ enum class VectorRasterizerDebugMode { Custom, Blend2D, Compare };
 
 namespace {
 [[nodiscard]] VectorRasterizerDebugMode current_vector_rasterizer_mode() {
-    const char* env = std::getenv("CHRONON3D_VECTOR_RASTERIZER_MODE");
-    if (!env || !*env) return VectorRasterizerDebugMode::Custom;
-    const std::string value(env);
-    if (value == "Blend2D") return VectorRasterizerDebugMode::Blend2D;
-    if (value == "Compare") return VectorRasterizerDebugMode::Compare;
     return VectorRasterizerDebugMode::Custom;
 }
 } // anonymous namespace

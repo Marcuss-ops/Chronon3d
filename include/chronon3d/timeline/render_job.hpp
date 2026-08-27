@@ -36,7 +36,10 @@ enum class RenderMode : std::uint8_t {
 /// Video-specific plain settings carried through the canonical request/job.
 struct VideoSettings {
     int         fps{30};
+    std::string rate_control_mode{"crf"};
     int         crf{16};
+    int         qp{-1};
+    std::int64_t bitrate{0};
     std::string codec{"auto"};
     std::string encode_preset{"slow"};
     std::string tune;

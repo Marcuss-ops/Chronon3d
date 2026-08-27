@@ -10,6 +10,7 @@
 /// settings their own identity, default values, and documentation.
 // ---------------------------------------------------------------------------
 
+#include <cstdint>
 #include <string>
 
 namespace chronon3d::cli {
@@ -31,8 +32,17 @@ struct EncoderOptions {
     /// Encoder tune parameter (e.g. "zerolatency", "film", "grain").
     std::string tune;
 
-    /// Rate-control CRF value (0–51, lower = better quality).
+    /// Rate-control mode: crf, qp, or bitrate.
+    std::string rate_control_mode{"crf"};
+
+    /// CRF value (0–51), used when rate_control_mode=crf.
     int crf{23};
+
+    /// Constant QP value (0–63), used when rate_control_mode=qp.
+    int qp{-1};
+
+    /// Target bitrate in bits/second, used when rate_control_mode=bitrate.
+    std::int64_t bitrate{0};
 
     /// Encoder backend: "native" (in-process libavcodec) or "pipe" (external ffmpeg).
     std::string encoder_backend{"native"};

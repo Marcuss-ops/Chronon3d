@@ -29,7 +29,7 @@
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public API in
 // include/chronon3d/; canonical composition() + SceneBuilder::layer()
 // + LayerBuilder::text_run(...).commit() pattern from
-// tests/text_golden/user_spec/01_text_basic_centered.cpp.  Pure
+// tests/text_golden/text_clip/text_clip_bounds.cpp.  Pure
 // software backend.  Framebuffer access via fb->pixels_row(y).
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -161,7 +161,7 @@ TEST_CASE("Clip 01 TextClip AscentNotCut 1920x1080") {
     // FontEngine), the rendered height is ~68px at 180pt.
     CHECK(bbox.x1 <= static_cast<int>(fb->width()) - 1);
 
-    // No-skip golden check (canonical text_completeness.cpp pattern).
+    // No-skip golden check (canonical text-clip golden pattern).
     // CHECK_FALSE(r.golden_missing) BEFORE the optional CHECK(r.passed)
     // makes the test fail-loud if the golden PNG is missing — the test
     // never silently passes when a golden is absent.
@@ -193,7 +193,7 @@ TEST_CASE("Clip 02 TextClip RightEdgeNotCut 1920x1080") {
     CHECK_FALSE(bbox.empty());
     CHECK(bbox.x1 <= static_cast<int>(fb->width()) - 1);
 
-    // No-skip golden check (canonical text_completeness.cpp pattern).
+    // No-skip golden check (canonical text-clip golden pattern).
     auto r = verify_golden(*fb, "text_clip_02_right_edge_not_cut",
                            make_clip_config("clip_02"));
     CHECK_FALSE(r.golden_missing);
@@ -221,7 +221,7 @@ TEST_CASE("Clip 03 TextClip Scale130NotCut 1920x1080") {
          " x0=", bbox.x0, " y0=", bbox.y0,
          " x1=", bbox.x1, " y1=", bbox.y1);
 
-    // No-skip golden check FIRST (canonical text_completeness.cpp pattern).
+    // No-skip golden check FIRST (canonical text-clip golden pattern).
     // Placed BEFORE the empty-bbox soft-skip so the no-skip rule is enforced
     // regardless of bbox state: a missing golden is a test failure even when
     // the known renderer limitation produces an empty bbox.
@@ -291,7 +291,7 @@ TEST_CASE("Clip 04 TextClip ShadowNotCut 1920x1080") {
     // Shadow extends the bbox downward (offset.y = 40, blur = 30 => ~70 px).
     CHECK(bbox.y1 >= bbox_no_shadow.y1);
 
-    // No-skip golden check (canonical text_completeness.cpp pattern).
+    // No-skip golden check (canonical text-clip golden pattern).
     auto r = verify_golden(*fb, "text_clip_04_shadow_not_cut",
                            make_clip_config("clip_04"));
     CHECK_FALSE(r.golden_missing);
@@ -341,7 +341,7 @@ TEST_CASE("Clip 05 TextClip GlowNotCut 1920x1080") {
     CHECK(bbox.height() >= bbox_no_glow.height());
     CHECK(bbox.width()  >= bbox_no_glow.width());
 
-    // No-skip golden check (canonical text_completeness.cpp pattern).
+    // No-skip golden check (canonical text-clip golden pattern).
     auto r = verify_golden(*fb, "text_clip_05_glow_not_cut",
                            make_clip_config("clip_05"));
     CHECK_FALSE(r.golden_missing);

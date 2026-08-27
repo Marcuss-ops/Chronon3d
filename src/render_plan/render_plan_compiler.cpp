@@ -191,8 +191,10 @@ RenderJobFingerprint render_job_fingerprint(
         if (include_output_settings) {
             hash.add_enum(request_plan.output.format)
                 .add_enum(request_plan.output.codec)
+                .add(static_cast<int>(request_plan.output.rate_control))
                 .add(request_plan.output.bitrate)
                 .add(request_plan.output.crf)
+                .add(request_plan.output.qp)
                 .add(request_plan.output.profile_id);
         }
         return std::to_string(hash.finish());

@@ -3,7 +3,7 @@
 //
 // 128 explicit sentinel constants (16 presets × 8 each: 4 timestamps ×
 // 2 aspect ratios).  Mechanical split-off from
-// tests/text/test_text_preset_visual.cpp (formerly 248–440 LOC).  // drift-allow: stale-ref
+// tests/test_text_preset_registry.cpp (formerly 248–440 LOC).  // drift-allow: stale-ref
 //
 // Per user spec: `i sentinels sono in file dati (non logica test)`.
 // This header holds ONLY constexpr uint64_t data + header comments.
@@ -87,7 +87,7 @@ inline constexpr std::uint64_t kRefTextPresScaleIn_916_F030 = 0x1C7A03DA4E64D649
 inline constexpr std::uint64_t kRefTextPresScaleIn_916_F040 = 0x1C7A03DA4E64D649ULL;
 
 // TrackingClose — AGENT 2 / TICKET-A2 reset (resolver-driven, see explainer
-// in tests/text/test_text_preset_reveal.cpp caption above each emit_preset_gate).
+// in tests/text/test_text_style_presets.cpp caption above each emit_preset_gate).
 inline constexpr std::uint64_t kRefTextPresTrackingClose_169_F000 = 0xDEADBEEFDEADBEEFULL;
 inline constexpr std::uint64_t kRefTextPresTrackingClose_169_F020 = 0xDEADBEEFDEADBEEFULL;
 inline constexpr std::uint64_t kRefTextPresTrackingClose_169_F030 = 0xDEADBEEFDEADBEEFULL;
