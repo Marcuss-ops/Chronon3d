@@ -178,8 +178,9 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         find_library(CHRONON3D_NVRTC_LIBRARY
             NAMES nvrtc libnvrtc.so libnvrtc-chronon.so
             HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
-                  "/home/pierone"
-            PATH_SUFFIXES lib64 lib lib/x64)
+                  "/usr/local/cuda-13.0" "/home/pierone"
+            PATH_SUFFIXES lib64 lib lib/x64
+                          targets/x86_64-linux/lib)
         if(NOT CHRONON3D_NVRTC_LIBRARY)
             foreach(_chronon3d_cuda_root IN ITEMS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}")
                 if(_chronon3d_cuda_root)
@@ -213,6 +214,13 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
                 "${CHRONON3D_NVRTC_LIBRARY}")
         endif()
         if(CHRONON3D_NVRTC_INCLUDE_DIR AND CHRONON3D_NVRTC_LIBRARY)
+            # The Vulkan backend is an OBJECT library, so its private link
+            # interface does not reach the final CLI link line. Publish the
+            # NVRTC dependency through the canonical engine interface too.
+            target_link_libraries(chronon3d INTERFACE
+                "${CHRONON3D_NVRTC_LIBRARY}")
+            target_link_libraries(chronon3d_backend_vulkan PUBLIC
+                "${CHRONON3D_NVRTC_LIBRARY}")
             add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench
                 "${CMAKE_SOURCE_DIR}/tools/cuda_nvdec_nvenc_overlay_bench.cpp")
             target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench

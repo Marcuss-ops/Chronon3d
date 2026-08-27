@@ -473,7 +473,13 @@ struct EvaluatedSourcePlacement {
         .is_static = is_static,
     };
 
-    if (ctx.frame_input.has_camera_2_5d && layer.uses_2_5d_projection) {
+    // Screen-space layers are already expressed in framebuffer coordinates;
+    // they must never enter the camera projection path.  In particular this
+    // keeps static subtitle/watermark overlays out of the projected tight
+    // surface branch, where their canvas-space origin would be interpreted as
+    // a local surface origin and clipped at the left edge.
+    if (ctx.frame_input.has_camera_2_5d && layer.uses_2_5d_projection &&
+        !layer.screen_space) {
         const auto projected = project_layer_2_5d(
             resolved_layer.world_transform,
             resolved_layer.world_matrix,
