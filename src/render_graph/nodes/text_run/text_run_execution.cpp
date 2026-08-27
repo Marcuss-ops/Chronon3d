@@ -166,19 +166,11 @@ graph::RenderOpResult render_text_run_item(
     TextRunShape local_shape = source_shape;
     chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
 
+    // Single matrix authority: identical input to predicted_bbox().
+    // The tight-surface local basis (T(-surface_origin)) is owned by
+    // build_world_matrix itself so rasterization and bbox sampling can
+    // never diverge.
     glm::mat4 world_matrix = build_world_matrix(ctx, placement);
-    if (placement.tight_surface) {
-        // The producer framebuffer is a local [0,size) raster surface. Its
-        // rasterizer already applies the run-local offset while composing the
-        // glyph image, so the producer must only translate the authored local
-        // origin into that surface. Applying node.world_transform here would
-        // transform the text once in the producer and again in TransformNode.
-        world_matrix = glm::translate(
-            glm::mat4(1.0f),
-            glm::vec3(-placement.surface_origin.x,
-                      -placement.surface_origin.y,
-                      0.0f));
-    }
     auto& mutable_ctx = const_cast<RenderGraphContext&>(ctx);
     auto native = draw_cached_text_run(
         mutable_ctx, fb, local_shape, world_matrix, opacity);
