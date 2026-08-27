@@ -326,7 +326,8 @@ namespace chronon3d::renderer::text_run_stages {
     //         surface_top  <  0              ==> ascender clipped above
     //         surface_bottom >  ss_img_h     ==> descender clipped below
     //         last_glyph surface_right > ss_img_w ==> right-edge clipped
-    const bool kClipDebugEnabled = rctx.config && rctx.config->debug().text_clip_debug();
+    const bool kClipDebugEnabled = rctx.debug_config &&
+        rctx.debug_config->text_clip_debug();
     if (kClipDebugEnabled) {
         spdlog::warn(
             "[text-clip-debug] text='{}' "
