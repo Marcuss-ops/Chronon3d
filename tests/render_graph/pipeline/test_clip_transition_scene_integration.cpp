@@ -22,7 +22,8 @@ namespace {
 Composition make_clip_transition_comp(ClipTransitionKind kind,
                                       Frame from = Frame{0},
                                       Frame duration = Frame{30}) {
-    return composition({.width = 256, .height = 256, .duration = 60},
+    return composition({.width = 256, .height = 256,
+                        .frame_rate = FrameRate{30, 1}, .duration = 60},
         [kind, from, duration](const FrameContext& ctx) {
             SceneBuilder s(ctx);
 
