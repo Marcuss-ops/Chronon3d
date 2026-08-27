@@ -487,6 +487,7 @@ chronon3d::graph::detail::FrameStateSnapshot reuse_state(
         static_fp, active_at_fp, structure_fp, combined_fp};
     state.fingerprints_valid = true;
     state.has_previous_surface = true;
+    state.layer_state_complete = false;
     return state;
 }
 
@@ -495,6 +496,7 @@ chronon3d::graph::detail::FrameStateSnapshot reuse_state(
 TEST_CASE("FrameDeltaCompiler grants resolved reuse for identical sequential states") {
     auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
     auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
+    current.scene_is_static = true;
 
     const auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
 
@@ -540,6 +542,8 @@ TEST_CASE("FrameDeltaCompiler reports static-scene reuse independently of resolv
     auto previous = reuse_state(chronon3d::Frame{10}, 11, 12, 13, 14);
     auto current = reuse_state(chronon3d::Frame{11}, 11, 12, 13, 14);
     current.scene_is_static = true;
+    previous.layer_state_complete = true;
+    current.layer_state_complete = true;
 
     const auto delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
 

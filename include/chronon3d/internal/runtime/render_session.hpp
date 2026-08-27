@@ -79,6 +79,7 @@
 
 namespace chronon3d {
 
+class Composition;
 struct CompiledComposition;
 namespace graph {
 struct NodeExecutionError;
@@ -180,6 +181,11 @@ struct RenderSession {
 
     const CompiledComposition* prepared_composition{nullptr};
     std::string authoring_composition_name{};
+    // The authoring callback may capture different scene state while keeping
+    // the same display name. Name-only reuse would render the first compiled
+    // composition for every later object (notably breaking depth-dependent
+    // tests and generated clips).
+    std::uint64_t authoring_composition_identity{0};
     std::shared_ptr<const CompiledComposition> authoring_compiled_composition{nullptr};
 
     void clear_last_frame_error() {
