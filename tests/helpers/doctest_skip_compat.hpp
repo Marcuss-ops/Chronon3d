@@ -11,7 +11,7 @@
 //   this project tracks a doctest version older than 2.4.0, where
 //   `SKIP` is missing from `<doctest/doctest.h>` even though
 //   `DOCTEST_SKIP` works correctly. The compile failure at
-//   `tests/text/test_pipeline_parity_real.cpp:455` is a symptom of this
+//   `tests/text/support/pipeline_parity_harness.cpp:455` is a symptom of this
 //   version drift: the test uses the newer `SKIP("…")` form while the
 //   installed doctest only exposes the older `DOCTEST_SKIP` macro.
 //
@@ -78,12 +78,12 @@
 //   the actual compile + test execution verification must happen on a
 //   working build host with the vcpkg glm/magic_enum env (not this
 //   VPS). The ticket closes once a working build host confirms the
-//   compile of `tests/text/test_pipeline_parity_real.cpp` succeeds
+//   compile of `tests/text/support/pipeline_parity_harness.cpp` succeeds
 //   without the `'SKIP was not declared in this scope'` error.
 //
 // Highest-risk call site (verified-first on working build host)
 // ──────────────────────────────────────────────────────────────
-//   `tests/text/test_pipeline_parity_real.cpp:455` uses a stream
+//   `tests/text/support/pipeline_parity_harness.cpp:455` uses a stream
 //   expression:
 //     SKIP("TICKET-DOCTEST-SKIP-ROT: chronon3d_cli not built at " << get_cli_path()
 //          << " — pre-existing build rot blocks the test");
@@ -94,7 +94,7 @@
 //   installed `doctest`'s `DOCTEST_SKIP` macro natively handles
 //   stream-expressions (via `ContextScope::stringify() << ...` or
 //   similar). The two simpler call sites
-//   (`tests/text/test_pipeline_parity_real.cpp:241` + `:452`)
+//   (`tests/text/support/pipeline_parity_harness.cpp:241` + `:452`)
 //   pass plain string literals, so they are unaffected by this
 //   risk; ONLY line 455 is in the stream-expression risk envelope.
 //

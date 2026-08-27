@@ -286,9 +286,10 @@ inline TextRunPlacement resolve_text_run_placement(
         return TextRunPlacement{node.world_transform.to_mat4()};
     }
 
-    // The layer resolver already owns Canvas centering, layer pins, and
-    // parent transforms. The text resolver owns the node-local box matrix.
-    // Their product is the only TextRun placement composition.
+    // The canonical resolver consumes TextPlacement (pin + offset) and the
+    // box anchor before this graph-level lowering. The node transform is
+    // therefore already box-local and must carry a zero anchor: applying
+    // Transform::to_mat4() here consumes no placement semantics twice.
     out_opacity = item.transform.opacity * node.world_transform.opacity;
     return TextRunPlacement{
         item.world_matrix * node.world_transform.to_mat4()};

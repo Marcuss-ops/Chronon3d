@@ -184,9 +184,9 @@ std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
     return std::nullopt;
 }
 
-void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
-                                 const RenderState& state,
-                                 const Camera& camera, int width, int height) {
+graph::RenderOpResult SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
+                                                  const RenderState& state,
+                                                  const Camera& camera, int width, int height) {
     CHRONON_TRACE_SCOPE("chronon.node", "backend_draw_node");
     // Compiled graphs carry an immutable processor handle plus the owning
     // snapshot in RenderState. Resolve the pointer only for this dispatch.
@@ -207,10 +207,13 @@ void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
             // Canonical TextRun integration is via TextRunNode →
             // draw_text_run(...).  draw_node() reaching this shape
             // is a defensive no-op; silent to avoid log spam.
-            return;
+            return graph::RenderOpResult(graph::RenderOpOutcome{});
         }
-        spdlog::error("SoftwareBackend::draw_node: no processor registered for shape type {}", static_cast<int>(node.shape.type()));
-        return;
+        const std::string message = "no processor registered for shape type " +
+            std::to_string(static_cast<int>(node.shape.type()));
+        spdlog::error("SoftwareBackend::draw_node: {}", message);
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput, message});
     }
     if (m_counters) {
         m_counters->pixels_touched.fetch_add(
@@ -218,6 +221,7 @@ void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
             std::memory_order_relaxed);
     }
     processor->draw(m_proc_ctx, fb, node, state, camera, width, height);
+    return graph::RenderOpResult(graph::RenderOpOutcome{1});
 }
 
 // ── capabilities ──────────────────────────────────────────────────────────

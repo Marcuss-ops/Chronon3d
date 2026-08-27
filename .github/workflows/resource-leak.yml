@@ -7,6 +7,11 @@ on:
     - cron: '47 4 * * 3'
   workflow_dispatch:
 
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
 jobs:
   daemon-resource-leak:
     name: daemon / fd-mmap-thread certification
@@ -19,7 +24,7 @@ jobs:
 
       - uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure hardened release
         run: cmake --preset linux-hardened-release

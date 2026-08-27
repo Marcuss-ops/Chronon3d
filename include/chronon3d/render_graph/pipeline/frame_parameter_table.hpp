@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <functional>
 #include <span>
 #include <stdexcept>
@@ -20,6 +21,18 @@ namespace chronon3d::graph {
 struct FrameParameterSlice {
     std::uint32_t offset{0};
     std::uint32_t size{0};
+};
+
+struct ParameterPatch {
+    std::uint32_t slot_id{0};
+    std::uint32_t offset{0};
+    std::vector<std::byte> value;
+};
+
+struct ParameterPatchSet {
+    std::vector<ParameterPatch> patches;
+
+    [[nodiscard]] bool empty() const noexcept { return patches.empty(); }
 };
 
 class FrameParameterWriter {
@@ -100,6 +113,13 @@ public:
     [[nodiscard]] std::size_t frame_count() const noexcept { return m_frame_count; }
     [[nodiscard]] std::size_t size_bytes() const noexcept { return m_storage.size(); }
     [[nodiscard]] std::size_t capacity_bytes() const noexcept { return m_storage.capacity(); }
+
+    void patch(std::uint32_t offset, std::span<const std::byte> value) {
+        if (static_cast<std::size_t>(offset) + value.size() > m_storage.size()) {
+            throw std::out_of_range("FrameParameterTable::patch range out of bounds");
+        }
+        std::copy(value.begin(), value.end(), m_storage.begin() + offset);
+    }
 
 private:
     std::vector<std::byte> m_storage;

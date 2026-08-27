@@ -180,7 +180,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // registration in builtin_processors.cpp; step 4 (P1-7 Chore 1
 // commit A) deleted the legacy `software_text_processor` directory
 // tree wholesale (8 files).  Step 5 (next chore) deletes the legacy
-// rasterizer infrastructure (`src/backends/text/text_rasterizer_render.cpp`
+// rasterizer infrastructure (`src/backends/text/text_render_resources_cache.cpp`
 // + `Blend2DResources` + `FtGlyphPathBuilder` + `rasterize_text_to_bl_image`).
 //
 // Back-compat: existing 3-arg callers `text(res, name, TextDefaults)`

@@ -164,10 +164,15 @@ TEST_CASE("CertTitle text bbox is centred on 1920x1080 canvas") {
     CHECK(bbox.y0 >= 0);
     CHECK(bbox.y1 <= 1080);
 
-    // Y-centre must be within 10 px of canvas centre.
-    // X-centre check is SKIPPED — known renderer bug (BUG 1: text X position
-    // offset in modular-graph mode).  At {960,540} on 1920×1080 the observed
-    // X centre is ~302 instead of 960.  Re-enable when the renderer is fixed.
+    // Centre must be within tolerance of canvas centre on BOTH axes.
+    // X-centre check UN-SKIPPED: the BUG-1 double anchor consumption was
+    // fixed by the ANCHOR EXACTLY-ONCE CONTRACT in layer_builder_text.cpp
+    // (resolve_text_placement consumes the box anchor once; the node
+    // transform anchor stays {0,0}).  The 5-pin × 3-anchor matrix in
+    // tests/render_graph/nodes/test_text_run_predicted_bbox.cpp proves the
+    // identical Absolute{960,540}+Center chain lands at 960 ±10 px.
+    const float cx = (bbox.x0 + bbox.x1) * 0.5f;
+    CHECK(std::abs(cx - 960.0f) <= 10.0f);
     const float cy = (bbox.y0 + bbox.y1) * 0.5f;
     CHECK(std::abs(cy - 540.0f) <= 10.0f);
 }

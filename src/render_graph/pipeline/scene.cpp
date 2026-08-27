@@ -65,8 +65,17 @@ void synchronize_native_output(RenderGraphContext& ctx,
         framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return;
     }
+    // A native encode surface is the authoritative output contract for
+    // Vulkan+NVENC. Never read it back merely because the public API also
+    // returns a CPU framebuffer; the encoder consumes the device surface.
+    if (ctx.policy.native_video_encode_surface !=
+        runtime::kInvalidRenderSurfaceHandle) {
+        framebuffer->mark_gpu_authoritative();
+        return;
+    }
     if (ctx.services.backend->supports_native_video_surface() &&
         ctx.policy.retain_native_surface_for_video) {
+        framebuffer->mark_gpu_authoritative();
         return;
     }
     if (ctx.policy.disable_pixel_readback) {
@@ -102,6 +111,7 @@ void synchronize_native_output(RenderGraphContext& ctx,
         (void)ctx.services.surface_registry->release(framebuffer->surface_handle());
     }
     framebuffer->clear_surface_handle();
+    framebuffer->mark_cpu_gpu_synchronized();
 }
 
 } // namespace

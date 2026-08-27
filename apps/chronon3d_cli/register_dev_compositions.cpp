@@ -15,7 +15,7 @@
 //   - AnimTypewriterGlowNoGlow              (tests/visual/glow_ab/glow_ab_compositions.hpp)
 //   - CameraTruthTest                       (tests/visual/camera_truth/camera_truth_test.hpp)
 //   - CameraTruthOrbit                      (tests/visual/camera_truth/camera_truth_orbit.hpp)
-//   - AE_CAM_01..10                         (tests/visual/ae_parity/ae_parity_scenes.hpp)
+//   - AE_CAM_01..10                         (content/ae_parity/ae_cam_scenes.hpp)
 //   - ae_08_glow_pulse / ae_10_scale_pop /  (tests/visual/ae_parity/ae_parity_compositions.hpp)
 //     ae_12_random_character_jitter /
 //     ae_14_multiline_landscape /
@@ -39,7 +39,7 @@
 #include "tests/text/pipeline_parity_canary.hpp"
 // .cpp-compiled factories (compiled into chronon3d_cli_dev per CMakeLists).
 // Azione 17 — `make_ae_cam_01..10_*()` factory functions relocated from
-// tests/visual/ae_parity/ae_parity_scenes.hpp to content/ae_parity/ae_cam_scenes.hpp
+// content/ae_parity/ae_cam_scenes.hpp to content/ae_parity/ae_cam_scenes.hpp
 // (production-side namespace, DEV-only gating per TICKET-CLI-ISOLATE-RUNTIME-DEV).
 #include "content/ae_parity/ae_cam_scenes.hpp"
 #include "tests/visual/ae_parity/ae_parity_compositions.hpp"
@@ -60,7 +60,7 @@ namespace chronon3d {
 
 void register_dev_compositions(CompositionRegistry& registry) {
     // (1) PipelineParityCanary — real pipeline parity canary for
-    // tests/text/test_pipeline_parity_real.cpp to compare SDK/CLI/video.
+    // tests/text/support/pipeline_parity_harness.cpp to compare SDK/CLI/video.
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id = "PipelineParityCanary"}, [](const CompositionProps& p) { return test::make_pipeline_parity_canary(p); }));
 

@@ -136,6 +136,10 @@ struct CompiledSceneProgram {
 
     bool valid{false};
 
+    void apply_parameter_patches(const ParameterPatchSet& patches) {
+        frame_graph.apply_parameter_patches(patches);
+    }
+
     [[nodiscard]] bool empty() const {
         return !valid || frame_graph.empty();
     }

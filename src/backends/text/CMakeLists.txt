@@ -9,6 +9,7 @@ add_library(chronon3d_backend_text OBJECT
     font_engine_placed_run.cpp        # resolve_placed_glyph_run
     typewriter_layout_cache.cpp       # per-runtime typewriter layout cache
     bidi_segmenter.cpp
+    text_layout_inline.cpp
     glyph_atlas.cpp                   # canonical impl in resources/glyph_atlas.cpp
     text_render_resources.cpp         # per-renderer text resources
     text_render_resources_cache.cpp   # raster/glyph cache implementation

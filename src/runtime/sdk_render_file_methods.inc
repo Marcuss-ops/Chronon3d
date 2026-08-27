@@ -78,8 +78,11 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     config.stream.frame_rate_den = request.frame_rate.denominator;
     config.stream.submitted_format = media::video::PixelFormat::RGBA8;
     config.encoder.codec = convert_codec(request.video.codec);
+    config.encoder.rate_control_mode = static_cast<media::video::RateControlMode>(
+        request.video.rate_control_mode);
     config.encoder.bitrate = request.video.bitrate;
     config.encoder.crf = request.video.crf;
+    config.encoder.qp = request.video.qp;
     const auto temp_path = request.output_path.string() + ".chronon.tmp." +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
         request.output_path.extension().string();

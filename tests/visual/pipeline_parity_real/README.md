@@ -2,7 +2,7 @@
 
 This directory is reserved for the **PNG-hash-of-hash regression golden**
 that locks the byte-exact output of the pipeline-parity real test
-(`tests/text/test_pipeline_parity_real.cpp`) against unintended drift.
+(`tests/text/support/pipeline_parity_harness.cpp`) against unintended drift.
 
 ## Status
 
@@ -40,6 +40,6 @@ CHRONON3D_UPDATE_GOLDENS=1 ctest -R pipeline_parity_real
 
 ## Related
 
-  * Test: `tests/text/test_pipeline_parity_real.cpp`
+  * Test: `tests/text/support/pipeline_parity_harness.cpp`
   * Test cmake: `tests/pipeline_parity_real_tests.cmake`
   * Canary: `tests/text/pipeline_parity_canary.hpp`

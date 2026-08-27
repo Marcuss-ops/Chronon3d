@@ -4,10 +4,10 @@
 // TICKET-AE-PARITY-FLOOR-DASHBOARD — Composition factory implementations
 // (5 functions) extracted from the test build_landscape/build_portrait
 // patterns at:
-//   tests/text_golden/ae_parity/ae_08_glow_pulse.cpp
-//   tests/text_golden/ae_parity/ae_10_scale_pop.cpp
-//   tests/text_golden/ae_parity/ae_12_random_character_jitter.cpp
-//   tests/text_golden/ae_parity/ae_14_multiline_9_16.cpp
+//   tests/visual/ae_parity/ae_glow_smoke.cpp
+//   tests/visual/ae_parity/ae_glow_position_drift.cpp
+//   tests/visual/ae_parity/ae_parity_tests.cpp
+//   tests/visual/ae_parity/ae_parity_tests.cpp
 //   tests/text_golden/motion_blur_text/motion_blur_text_scene.cpp
 //
 // Each factory mirrors the corresponding test file's build_landscape path

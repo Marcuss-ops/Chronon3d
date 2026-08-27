@@ -10,6 +10,11 @@
 #include <chronon3d/runtime/render_preparation.hpp>
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include "../../../../../src/backends/vulkan/vulkan_cuda_frame_importer.hpp"
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <cuda.h>
+#endif
 
 #include <spdlog/spdlog.h>
 #include <filesystem>
@@ -344,8 +349,15 @@ RenderLoopOutput run_pipe_export_loop(
     // when CHRONON3D_ENABLE_NATIVE_FFMPEG is off.
     auto native_decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
     native_decoder->set_counters(session.renderer->counters());
-    native_decoder->set_native_gpu_context(
-        &session.renderer->backend(), &session.renderer->runtime().surface_registry());
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer->backend())) {
+        CUcontext cuda_context = nullptr;
+        (void)cuCtxGetCurrent(&cuda_context);
+        auto importer = std::make_shared<backends::vulkan::VulkanCudaFrameImporter>(
+            *vulkan, session.renderer->runtime().surface_registry(), cuda_context);
+        native_decoder->set_native_frame_importer(std::move(importer));
+    }
+#endif
     native_decoder->set_trace_job_id(session.trace_job_id);
     media::MediaFrameProvider* video_decoder = native_decoder.get();
 

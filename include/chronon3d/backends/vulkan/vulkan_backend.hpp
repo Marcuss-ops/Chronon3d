@@ -41,6 +41,8 @@ struct VulkanBackendStats {
     std::array<std::uint64_t, kUploadProducerCount> upload_producer_bytes{};
     std::array<std::uint64_t, kUploadProducerCount> upload_producer_full_count{};
     std::array<std::uint64_t, kUploadProducerCount> upload_producer_region_count{};
+    std::array<std::uint64_t, kUploadProducerCount> upload_producer_initial_count{};
+    std::array<std::uint64_t, kUploadProducerCount> upload_producer_initial_bytes{};
     std::uint64_t readback_calls{0};
     std::uint64_t readback_bytes{0};
     std::uint64_t physical_surfaces_peak{0};
@@ -84,6 +86,13 @@ struct VulkanBackendStats {
     std::uint64_t vma_block_count{0};
     std::uint64_t vma_budget_bytes{0};
     std::uint64_t vma_usage_bytes{0};
+    std::uint64_t gpu_asset_cache_hits{0};
+    std::uint64_t gpu_asset_cache_misses{0};
+    std::uint64_t gpu_asset_cache_initial_uploads{0};
+    std::uint64_t gpu_asset_cache_initial_upload_bytes{0};
+    std::uint64_t gpu_asset_cache_evictions{0};
+    std::uint64_t gpu_asset_cache_evicted_bytes{0};
+    std::uint64_t gpu_asset_cache_resident_bytes{0};
 };
 
 /// Hardware descriptors returned by the backend-owned physical-device
@@ -228,8 +237,8 @@ public:
     void apply_per_pixel_dof(
         Framebuffer&, std::span<const float>, const DepthOfFieldSettings&,
         const LensModel&, const std::optional<raster::BBox>&) override;
-    void draw_node(Framebuffer&, const RenderNode&, const RenderState&,
-                   const Camera&, int, int) override;
+    graph::RenderOpResult draw_node(Framebuffer&, const RenderNode&, const RenderState&,
+                                    const Camera&, int, int) override;
     void apply_effect_stack(Framebuffer&, const EffectStack&,
                             const effects::EffectExecutionContext&) override;
     void composite_layer(Framebuffer&, const Framebuffer&, BlendMode,

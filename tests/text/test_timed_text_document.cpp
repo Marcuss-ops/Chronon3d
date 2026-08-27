@@ -436,6 +436,84 @@ Dialogue: 0,garbage,garbage,vidrush-default,,0,0,0,,ignored
     CHECK(doc.cues.empty());
 }
 
+// ── Canonical IR equivalence across formats ─────────────────────────────
+//
+// The three line/serialized subtitle formats below describe the SAME
+// semantic cue ("Hello world", 1.0s → 4.0s, uniform-split Estimated words).
+// After parsing, the canonical TimedTextDocument CUE CORE must be
+// identical regardless of source format — only format-identity fields
+// (source_id, source_format) may differ. This validates that each adapter
+// owns only its format syntax and converges on the shared canonical IR.
+
+namespace {
+
+// Compare everything EXCEPT format-identity fields (source_id,
+// source_format), which legitimately differ per format (SRT index vs VTT
+// id vs JSON id). We compare field-by-field instead of relying on the
+// defaulted TimedCue::operator== because that defaulted comparison drags
+// std::optional<TimedCueStyle> through GCC 11's synthesized operator==,
+// which does not instantiate cleanly.
+bool same_cue_core(const TimedCue& a, const TimedCue& b) {
+    if (a.speaker != b.speaker || a.start_s != b.start_s || a.end_s != b.end_s ||
+        a.text != b.text || a.word_timing_quality != b.word_timing_quality)
+        return false;
+    if (a.words.size() != b.words.size()) return false;
+    for (std::size_t i = 0; i < a.words.size(); ++i) {
+        const auto& wa = a.words[i];
+        const auto& wb = b.words[i];
+        // Exclude semantic_id: it is derived from the format-identity
+        // source_id ("1-wordN" vs "c1-wordN"), so it legitimately differs
+        // across formats. Everything else is canonical content.
+        if (wa.text != wb.text || wa.start_s != wb.start_s ||
+            wa.end_s != wb.end_s ||
+            wa.byte_start != wb.byte_start || wa.byte_end != wb.byte_end)
+            return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+TEST_CASE("timed_text equivalence — SRT/VTT/JSON same cue → same canonical IR") {
+    const char* srt = R"(1
+00:00:01,000 --> 00:00:04,000
+Hello world
+
+)";
+
+    const char* vtt = R"(WEBVTT
+
+00:00:01.000 --> 00:00:04.000
+Hello world
+
+)";
+
+    const char* json = R"({
+  "cues": [
+    {"id": "c1", "start": 1.0, "end": 4.0, "text": "Hello world"}
+  ]
+})";
+
+    auto srt_doc = timed_text_from_srt(srt);
+    auto vtt_doc = timed_text_from_vtt(vtt);
+    auto json_doc = timed_text_from_json(json);
+
+    REQUIRE(srt_doc.cues.size() == 1);
+    REQUIRE(vtt_doc.cues.size() == 1);
+    REQUIRE(json_doc.cues.size() == 1);
+
+    // The three formats converge on the same semantic cue core.
+    REQUIRE(same_cue_core(srt_doc.cues[0], vtt_doc.cues[0]));
+    REQUIRE(same_cue_core(json_doc.cues[0], vtt_doc.cues[0]));
+
+    // Sanity: the canonical core really carries the word breakdown generated
+    // by the SHARED uniform-timing pipeline (not just empty cues).
+    CHECK(srt_doc.cues[0].words.size() == 2);
+    CHECK(srt_doc.cues[0].words[0].text == "Hello");
+    CHECK(srt_doc.cues[0].words[1].text == "world");
+    CHECK(srt_doc.cues[0].word_timing_quality == WordTimingQuality::Estimated);
+}
+
 // ── Hash tests ──────────────────────────────────────────────────────────
 
 TEST_CASE("hash_timed_text_document — identical docs have same hash") {
