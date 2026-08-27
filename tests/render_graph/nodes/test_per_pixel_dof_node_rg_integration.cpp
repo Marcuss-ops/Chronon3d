@@ -30,7 +30,11 @@ Composition make_dof_scene(bool far_bar) {
     return composition({.width = 256, .height = 256, .duration = 1},
         [far_bar](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true).dof(DepthOfFieldSettings{
+            s.camera().enable(true)
+                .position({0.0f, 0.0f, -1000.0f})
+                .zoom(1000.0f)
+                .look_at({0.0f, 0.0f, 0.0f})
+                .dof(DepthOfFieldSettings{
                 .enabled = true,
                 .focus_z = 0.0f,
                 .aperture = 0.05f,
@@ -40,7 +44,7 @@ Composition make_dof_scene(bool far_bar) {
                 l.fill(Color{0.05f, 0.07f, 0.10f, 1.0f});
             });
             s.layer("lines", [far_bar](LayerBuilder& l) {
-                l.position({0.0f, 0.0f, far_bar ? -800.0f : 0.0f});
+                l.enable_3d(true).position({0.0f, 0.0f, far_bar ? -800.0f : 0.0f});
                 for (int i = 0; i < 8; ++i) {
                     l.rect("r" + std::to_string(i), {
                         .size = {200.0f, 1.5f},

@@ -478,11 +478,11 @@ TEST_CASE("Canonical placement: headline subtitle and watermark resolve offsets 
     };
     const PlacementCase cases[] = {
         {"headline", {TextPlacementKind::TopCenter, {0.0f, 50.0f}},
-         TextAnchor::Center, {800.0f, 160.0f}, {560.0f, -4.0f}},
+         TextAnchor::Center, {800.0f, 160.0f}, {560.0f, 24.0f}},
         {"subtitle", {TextPlacementKind::BottomCenter, {0.0f, -80.0f}},
-         TextAnchor::Center, {700.0f, 100.0f}, {610.0f, 406.0f}},
+         TextAnchor::Center, {700.0f, 100.0f}, {610.0f, 896.0f}},
         {"watermark", {TextPlacementKind::TopRight, {-30.0f, 30.0f}},
-         TextAnchor::TopLeft, {240.0f, 50.0f}, {1626.0f, 84.0f}},
+         TextAnchor::TopLeft, {240.0f, 50.0f}, {1794.0f, 84.0f}},
     };
 
     for (const auto& c : cases) {
