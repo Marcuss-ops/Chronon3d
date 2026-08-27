@@ -782,8 +782,11 @@ void lower_layer_batches(CompiledFrameGraph& compiled) {
             if (member_id >= compiled.nodes.size()) continue;
             compiled.nodes[member_id].lowered_into_batch = true;
             compiled.nodes[member_id].execution_owner = ExecutionOwner::Fused;
-            compiled.nodes[member_id].elimination_reason =
-                EliminationReason::FusedIntoBatch;
+            // NO elimination_reason here: batch members DO have an execution
+            // representation (the fused batch / its root operation), so they
+            // are not "legally eliminated".  Setting FusedIntoBatch made
+            // validate_compiled_program_coverage count two owners (fused +
+            // eliminated) and reject every fused image layer.
             const auto& info = compiled.nodes[member_id];
 
             const bool is_source =
@@ -878,6 +881,7 @@ void validate_operation_coverage(CompiledFrameGraph& compiled) {
     }
 
     std::vector<bool> fused_owner(compiled.nodes.size(), false);
+    std::vector<bool> fused_root(compiled.nodes.size(), false);
     for (const auto& batch : compiled.program.layer_batches) {
         if (!batch.is_gpu_fused) continue;
         if (batch.root_node >= operation_for_node.size() ||
@@ -886,7 +890,16 @@ void validate_operation_coverage(CompiledFrameGraph& compiled) {
             throw std::runtime_error(
                 "FrameGraphCompiler: fused batch has no fused root operation");
         }
+        // The batch ROOT carries the single fused operation (see
+        // emit_fused_batch_operations): it owns the batch, it is not a
+        // member of it.  Counting the root as a fused member would make
+        // its coverage look like "operation + batch ownership" and trip
+        // the exactly-one-representation invariant below for every fused
+        // batch whose last member is a Composite (the common image-layer
+        // shape Source→Transform→Composite).
+        fused_root[batch.root_node] = true;
         for (const auto member : batch.member_nodes) {
+            if (member == batch.root_node) continue;
             if (member >= fused_owner.size() || fused_owner[member]) {
                 throw std::runtime_error(
                     "FrameGraphCompiler: node belongs to multiple fused batches");
@@ -900,6 +913,26 @@ void validate_operation_coverage(CompiledFrameGraph& compiled) {
         if (!info.reachable) continue;
         const bool standalone = operation_for_node[node_id] != nullptr;
         const bool fused = fused_owner[node_id];
+        const bool is_fused_root = fused_root[node_id];
+        if (is_fused_root) {
+            // The root's standalone operation IS the fused batch op; it must
+            // not also be owned as a member.  lowered_into_batch stays true
+            // so node_runner routes the batch (Phase B) and never builds a
+            // second standalone representation.
+            if (!standalone || fused) {
+                throw std::runtime_error(
+                    "FrameGraphCompiler: fused batch root has invalid execution "
+                    "representations: node=" + std::to_string(node_id) +
+                    " name='" + info.name + "' kind=" +
+                    std::string(to_string(info.kind)));
+            }
+            if (!info.lowered_into_batch) {
+                throw std::runtime_error(
+                    "FrameGraphCompiler: fused batch root was not lowered for "
+                    "node " + std::to_string(node_id));
+            }
+            continue;
+        }
         if (standalone == fused) {
             throw std::runtime_error(
                 "FrameGraphCompiler: reachable node disappeared or has multiple "
@@ -1135,6 +1168,19 @@ void FrameGraphCompiler::validate_compiled_program_coverage(
                 throw std::runtime_error(
                     "FrameGraphCompiler: fused batch references invalid node " +
                     std::to_string(node_id));
+            }
+            if (node_id == batch.root_node &&
+                std::any_of(compiled.program.operations.begin(),
+                            compiled.program.operations.end(),
+                            [node_id](const CompiledOperation& operation) {
+                                return operation.node == node_id &&
+                                       operation.is_fused;
+                            })) {
+                // The root carries the fused batch operation (counted above);
+                // counting it again as a member would claim two owners. Some
+                // hand-built validation fixtures omit that root operation,
+                // in which case the batch membership is the owner.
+                continue;
             }
             ++fused_count[node_id];
         }
