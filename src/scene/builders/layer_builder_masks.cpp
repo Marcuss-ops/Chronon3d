@@ -68,11 +68,21 @@ LayerBuilder& LayerBuilder::track_matte_luma_inverted(std::string src) {
 // ── Transitions ───────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::transition_in(LayerTransitionSpec spec) {
+    // A layer transition changes the rendered pixels over time.  This must
+    // override the text builder's conservative static-content classification;
+    // otherwise a text layer is cached at frame 0 (transparent during its
+    // fade-in) and never becomes visible on later frames.
+    if (!spec.transition_id.empty() && spec.transition_id != "none") {
+        m_layer.cache_static = false;
+    }
     m_layer.transition_in = std::move(spec);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::transition_out(LayerTransitionSpec spec) {
+    if (!spec.transition_id.empty() && spec.transition_id != "none") {
+        m_layer.cache_static = false;
+    }
     m_layer.transition_out = std::move(spec);
     return *this;
 }
