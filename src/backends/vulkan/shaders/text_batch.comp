@@ -70,26 +70,25 @@ void main() {
         float sx = (run.sx != 0.0) ? run.sx : 1.0;
         float sy = (run.sy != 0.0) ? run.sy : 1.0;
 
-        float origin_x = run.tx + g.plane_left * sx;
-        float origin_y = run.ty + g.plane_top * sy;
-        float plane_w = (g.plane_right - g.plane_left) * sx;
-        float plane_h = (g.plane_bottom - g.plane_top) * sy;
-
         uint atlas_x = g.atlas_pos & 0xFFFFu;
         uint atlas_y = (g.atlas_pos >> 16u) & 0xFFFFu;
         uint atlas_w = g.atlas_size & 0xFFFFu;
         uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
 
-        if (plane_w <= 0.0) plane_w = float(atlas_w) * sx;
-        if (plane_h <= 0.0) plane_h = float(atlas_h) * sy;
-
-        if (float(pixel.x) >= origin_x && float(pixel.x) < origin_x + plane_w &&
-            float(pixel.y) >= origin_y && float(pixel.y) < origin_y + plane_h) {
-            
-            vec2 norm = (vec2(pixel) - vec2(origin_x, origin_y)) / vec2(plane_w, plane_h);
-            norm = clamp(norm, vec2(0.0), vec2(1.0));
-            vec2 sample_pos = vec2(float(atlas_x), float(atlas_y)) + norm * vec2(float(atlas_w), float(atlas_h));
-            ivec2 atlas_coord = ivec2(clamp(sample_pos, vec2(float(atlas_x)), vec2(float(atlas_x + atlas_w - 1u), float(atlas_y + atlas_h - 1u))));
+        // The graph's GlyphInstance contract defines dst_x/dst_y as the
+        // top-left of the bitmap quad.  Sample it with the same integer
+        // mapping as the validated text_run kernel; deriving a second plane
+        // rectangle here caused glyphs to collapse into vertical strips when
+        // plane metrics and bitmap extents differed by a subpixel.
+        ivec2 local = pixel - ivec2(round(run.tx), round(run.ty));
+        ivec2 scaled_size = ivec2(ceil(vec2(atlas_w, atlas_h) * vec2(sx, sy)));
+        if (local.x >= 0 && local.y >= 0 &&
+            local.x < scaled_size.x && local.y < scaled_size.y &&
+            atlas_w > 0u && atlas_h > 0u) {
+            ivec2 sample_offset = ivec2(floor(vec2(local) / vec2(sx, sy)));
+            sample_offset = clamp(sample_offset, ivec2(0),
+                                  ivec2(atlas_w, atlas_h) - ivec2(1));
+            ivec2 atlas_coord = ivec2(atlas_x, atlas_y) + sample_offset;
 
             vec4 sample_val = imageLoad(atlas_image, atlas_coord);
             uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
