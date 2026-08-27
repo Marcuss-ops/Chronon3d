@@ -33,6 +33,7 @@ set(CORE_TEST_SOURCES
     core/math/test_frustum_culling.cpp
     core/geometry/test_geometry.cpp
     text/test_text_placement_resolver.cpp
+    text/test_timed_text_equivalence.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
     core/animation/test_deterministic_random.cpp
@@ -101,6 +102,7 @@ set(CORE_TEST_SOURCES
     runtime/test_camera_session_cache_failed_no_commit.cpp
     runtime/test_render_runtime_isolation.cpp
     runtime/test_resource_preparation.cpp
+    runtime/test_gpu_asset_cache_content_addressed.cpp
     runtime/test_prepared_render_job.cpp
     runtime/test_prepared_render_job_allocations.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp

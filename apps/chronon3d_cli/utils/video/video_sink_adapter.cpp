@@ -98,6 +98,7 @@ bool VideoSinkEncoderAdapter::build_sink_config(
 {
     using media::video::VideoCodec;
     using media::video::VideoContainer;
+    using media::video::RateControlMode;
 
     // ── Stream config ──────────────────────────────────────────────────
     config.stream.width            = opts.width;
@@ -110,15 +111,31 @@ bool VideoSinkEncoderAdapter::build_sink_config(
     // For RawFile sink: override codec to Uncompressed + container to Raw.
     if (sink_type_ == VideoSinkType::RawFile) {
         config.encoder.codec = VideoCodec::Uncompressed;
-        config.encoder.crf   = -1;
+        config.encoder.rate_control_mode = RateControlMode::Bitrate;
+        config.encoder.crf = -1;
+        config.encoder.qp = -1;
         config.encoder.bitrate = 0;
     } else {
         const auto container = detect_container(opts.output_path);
         auto raw_codec = map_codec(opts.codec);
         // Resolve Auto to a concrete codec based on container.
         config.encoder.codec = media::video::resolve_auto_codec(raw_codec, container);
-        config.encoder.crf      = opts.crf;
-        config.encoder.bitrate  = 0;  // CLI doesn't set bitrate (CRF-based)
+        if (opts.rate_control_mode == "qp") {
+            config.encoder.rate_control_mode = RateControlMode::ConstantQp;
+            config.encoder.qp = opts.qp;
+            config.encoder.crf = -1;
+            config.encoder.bitrate = 0;
+        } else if (opts.rate_control_mode == "bitrate") {
+            config.encoder.rate_control_mode = RateControlMode::Bitrate;
+            config.encoder.bitrate = opts.bitrate;
+            config.encoder.crf = -1;
+            config.encoder.qp = -1;
+        } else {
+            config.encoder.rate_control_mode = RateControlMode::Crf;
+            config.encoder.crf = opts.crf;
+            config.encoder.qp = -1;
+            config.encoder.bitrate = 0;
+        }
         config.encoder.preset   = opts.preset;
         config.encoder.tune     = opts.tune.empty()
             ? std::nullopt

@@ -22,6 +22,7 @@ add_library(chronon3d_text_core OBJECT
     text_document.cpp
     text_document_builder.cpp
     timed_text_document.cpp
+    timed_text_core.cpp
     timed_text_adapter_srt.cpp
     timed_text_adapter_vtt.cpp
     timed_text_adapter_json.cpp

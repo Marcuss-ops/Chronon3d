@@ -87,6 +87,12 @@ public:
         std::uint64_t registry_generation = 0
     );
 
+    /// Validates the lossless execution coverage contract. Every reachable
+    /// work-producing node must have exactly one owner: standalone, fused, or
+    /// an explicit legal elimination reason.
+    static void validate_compiled_program_coverage(
+        const CompiledFrameGraph& compiled);
+
 private:
     void build_execution_levels(
         RenderGraph& graph,

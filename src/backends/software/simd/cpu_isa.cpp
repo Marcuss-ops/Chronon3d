@@ -90,6 +90,25 @@ bool CpuCapabilities::supports(CpuIsa isa) const noexcept {
     return false;
 }
 
+namespace {
+CpuCapabilities detect_cpu_capabilities_from_environment(const char* forced) noexcept {
+    CpuCapabilities caps{};
+    if (forced) {
+        CpuIsa forced_isa{};
+        if (parse_cpu_isa(forced, forced_isa)) {
+            switch (forced_isa) {
+                case CpuIsa::Scalar: return caps;
+                case CpuIsa::SSE42: caps.has_sse42 = true; caps.highest_isa = CpuIsa::SSE42; return caps;
+                case CpuIsa::AVX2: caps.has_sse42 = true; caps.has_avx2 = true; caps.highest_isa = CpuIsa::AVX2; return caps;
+                case CpuIsa::AVX512: caps.has_sse42 = true; caps.has_avx2 = true; caps.has_avx512 = true; caps.highest_isa = CpuIsa::AVX512; return caps;
+                case CpuIsa::NEON: caps.has_neon = true; caps.highest_isa = CpuIsa::NEON; return caps;
+            }
+        }
+    }
+    return caps;
+}
+}
+
 CpuCapabilities detect_cpu_capabilities() noexcept {
     CpuCapabilities caps{};
 

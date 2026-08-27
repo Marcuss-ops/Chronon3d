@@ -125,7 +125,7 @@ static const BindingInfo* find_binding(const ShaderAbi& abi,
 // ── Descriptor layout expectations ──────────────────────────────────────
 //
 // The Vulkan backend uses a shared descriptor-set layout for most kernels
-// (see vulkan_backend_impl_lifecycle.inc):
+// (see vulkan_backend_lifecycle_private.cpp):
 //   binding 0 = destination storage image
 //   binding 1 = source / atlas storage image
 //   binding 2 = matte storage image (matte kernel only)

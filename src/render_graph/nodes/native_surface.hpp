@@ -139,6 +139,7 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         return false;
     }
     framebuffer.set_surface_handle(handle);
+    framebuffer.mark_cpu_gpu_synchronized();
     return true;
 }
 
@@ -174,6 +175,7 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
         return false;
     }
     framebuffer.set_surface_handle(handle);
+    framebuffer.mark_gpu_authoritative();
     return true;
 }
 

@@ -37,6 +37,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/assets/asset_manifest.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -110,6 +111,7 @@ struct PreparedImage {
     std::string          owner;
     std::int32_t         width{0};
     std::int32_t         height{0};
+    assets::ContentDigest content_digest{};
 };
 
 struct PreparedVideoMetadata {

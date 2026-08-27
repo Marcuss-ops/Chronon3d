@@ -129,7 +129,9 @@ Vec2 resolve_placement_origin(
             return placement.offset;
     }
 
-    // Apply user-specified offset (additive).
+    // Apply the offset exactly once. Absolute uses the offset as its pin
+    // point above; every semantic placement treats it as a canvas-space
+    // delta (positive X right, positive Y down).
     pin += placement.offset;
     return pin;
 }
@@ -187,7 +189,8 @@ ResolvedTextPlacement resolve_text_placement(
 
     // Step 4: Compose world_matrix.
     // The world matrix transforms from Box coords (0,0 → box_size)
-    // to Canvas coords at the resolved origin.
+    // to Canvas coords at the resolved origin. Anchor and offset have both
+    // already been consumed above; neither is applied by this matrix again.
     const Vec3 translation(origin.x, origin.y, 0.0f);
     result.world_matrix = layer_matrix * glm::translate(Mat4(1.0f), translation);
 

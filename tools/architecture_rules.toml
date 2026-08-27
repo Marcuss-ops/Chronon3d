@@ -69,6 +69,71 @@ description = "V2 AssetPreflight stubs RETIRED — Phase A1 close-out"
 paths = ["include/chronon3d/assets/asset_readiness_v2.hpp"]
 hint = "Phase A1 retired these always-green stubs."
 
+[[forbidden_path]]
+name = "retired_vulkan_backend_impl_includes"
+description = "Legacy VulkanBackend::Impl include fragments"
+paths = [
+    "src/backends/vulkan/vulkan_backend_impl_lifecycle.inc",
+    "src/backends/vulkan/vulkan_backend_impl_descriptors.inc",
+    "src/backends/vulkan/vulkan_backend_impl_surfaces.inc",
+    "src/backends/vulkan/vulkan_backend_impl_kernels.inc",
+    "src/backends/vulkan/vulkan_backend_impl_ops.inc",
+]
+hint = "Use concrete private Vulkan ownership units instead of legacy Impl fragments."
+
+[[forbidden_include]]
+name = "retired_vulkan_backend_impl_include_directive"
+description = "Legacy VulkanBackend::Impl .inc directives must not return"
+patterns = ['#include\\s*[<\"]vulkan_backend_impl_[^>\"]+\\.inc[>\"]']
+scan_paths = ["src/backends/vulkan", "include/chronon3d/backends/vulkan", "tests"]
+hint = "Keep Vulkan ownership and operations in concrete private units; do not restore textual Impl fragments."
+skip_comments = true
+
+[[boundary]]
+name = "vulkan_surface_ownership_is_store_only"
+description = "Surface maps and lifecycle state belong only to VulkanSurfaceStore"
+scan_paths = ["src/backends/vulkan/vulkan_backend.cpp"]
+forbidden_patterns = [
+    "physical_surfaces\\s*;",
+    "surface_bindings\\s*;",
+    "deferred_surface_releases\\s*;",
+    "unplanned_surface_handles\\s*;"
+]
+hint = "Surface ownership must remain in VulkanSurfaceStore, not be duplicated in backend orchestration."
+
+[[boundary]]
+name = "vulkan_descriptor_ownership_is_arena_only"
+description = "Frame descriptor allocator arrays belong only to VulkanDescriptorArena"
+scan_paths = ["src/backends/vulkan/vulkan_backend.cpp"]
+forbidden_patterns = [
+    "descriptor_allocators\\s*;",
+    "text_tile_bin_allocators\\s*;",
+    "text_tile_raster_allocators\\s*;"
+]
+hint = "Descriptor allocator ownership must remain in VulkanDescriptorArena."
+
+[[boundary]]
+name = "vulkan_submission_ownership_is_ring_only"
+description = "Frame fences and command buffers belong only to VulkanSubmissionRing"
+scan_paths = ["src/backends/vulkan"]
+forbidden_patterns = [
+    "std::array<VkFence,\\s*3>\\s+fences",
+    "std::array<VkCommandBuffer,\\s*3>\\s+command_buffers"
+]
+hint = "Frame submission resources must remain owned by VulkanSubmissionRing."
+
+[[boundary]]
+name = "vulkan_kernel_ownership_is_store_only"
+description = "Kernel registry and pipeline layouts belong only to VulkanKernelStore"
+scan_paths = ["src/backends/vulkan"]
+forbidden_patterns = [
+    "GpuKernelRegistry\\s+kernel_registry",
+    "VkPipelineLayout\\s+pipeline_layout",
+    "VkPipelineLayout\\s+text_tile_bin_pipeline_layout",
+    "VkPipelineLayout\\s+text_tile_raster_pipeline_layout"
+]
+hint = "Kernel and pipeline ownership must remain in VulkanKernelStore."
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FORBIDDEN SYMBOL — symbol patterns that must NOT appear in source code
 # ═══════════════════════════════════════════════════════════════════════════════

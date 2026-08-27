@@ -4,6 +4,7 @@
 
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
+#include <chronon3d/backends/vulkan/cuda_yuv_conversion.hpp>
 
 #include <cuda.h>
 
@@ -12,6 +13,11 @@
 #include <span>
 
 namespace chronon3d::backends::vulkan {
+
+enum class CudaYuvFormat : std::uint8_t {
+    Nv12,
+    P010,
+};
 
 /// CUDA address table for the resources referenced by a GpuLayerBatch.
 /// `rgba` points to device-local float4 pixels; no host pixel storage is
@@ -42,7 +48,9 @@ public:
     CudaNv12SurfaceCompositor& operator=(const CudaNv12SurfaceCompositor&) = delete;
 
     bool composite(CUdeviceptr y, int y_pitch, CUdeviceptr uv, int uv_pitch,
-                   std::uint32_t width, std::uint32_t height, CUstream stream);
+                   std::uint32_t width, std::uint32_t height, CUstream stream,
+                   CudaYuvFormat format = CudaYuvFormat::Nv12,
+                   YuvToRgbParams params = {});
 
     /// Direct NV12 overlay compositor without intermediate RGB surfaces
     bool composite_direct_nv12(
@@ -73,6 +81,7 @@ private:
     CUcontext context_{nullptr};
     CUmodule module_{nullptr};
     CUfunction kernel_{nullptr};
+    CUfunction p010_kernel_{nullptr};
     CUfunction direct_nv12_kernel_{nullptr};
     CUfunction direct_nv12_batch_kernel_{nullptr};
     CUfunction rgba_to_nv12_kernel_{nullptr};

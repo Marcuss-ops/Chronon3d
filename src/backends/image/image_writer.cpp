@@ -62,6 +62,13 @@ ImageFormat image_format_from_path(const std::string& path) {
 
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     CHRONON_TRACE_SCOPE("chronon.io", "write_png");
+    // PNG is a CPU consumer. The render pipeline performs the explicit
+    // GPU→CPU synchronization at its output boundary; reject a GPU-only
+    // framebuffer here rather than silently exporting stale CPU shadow data.
+    if (framebuffer.residency() == SurfaceResidency::GpuOnly) {
+        spdlog::error("save_png: framebuffer is GPU-authoritative; explicit readback required before PNG export");
+        return false;
+    }
     // Use lower compression (2 vs default 8) for ~3x faster encoding.
     // Thread-local to prevent race condition on stbi's global variable
     // when multiple frames are exported in parallel.

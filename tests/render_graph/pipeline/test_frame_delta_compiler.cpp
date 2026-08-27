@@ -1,4 +1,6 @@
 #include <doctest/doctest.h>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
@@ -27,6 +29,39 @@ using chronon3d::graph::detail::LayerColor;
 using chronon3d::graph::detail::LayerImage;
 using chronon3d::graph::detail::LayerEffects;
 using chronon3d::graph::detail::LayerVideoSource;
+using chronon3d::graph::CompiledFrameGraph;
+using chronon3d::graph::FrameParameterTable;
+using chronon3d::graph::FrameParameterWriter;
+using chronon3d::graph::ParameterPatch;
+using chronon3d::graph::ParameterPatchSet;
+
+TEST_CASE("CompiledFrameGraph applies ParameterPatchSet without topology changes") {
+    CompiledFrameGraph compiled;
+    auto table = std::make_shared<FrameParameterTable>();
+    table->warm_up(1, sizeof(std::uint32_t));
+    table->sample(chronon3d::Frame{0}, [](FrameParameterWriter& writer) {
+        const std::uint32_t value = 1;
+        writer.write(value);
+    });
+    compiled.prepared_parameters = table;
+    compiled.nodes.resize(1);
+    compiled.nodes[0].name = "stable-node";
+    compiled.nodes[0].reachable = true;
+
+    const auto original_name = compiled.nodes[0].name;
+    ParameterPatchSet patches;
+    patches.patches.push_back(ParameterPatch{
+        .slot_id = 0,
+        .offset = 0,
+        .value = {std::byte{0x2A}, std::byte{0}, std::byte{0}, std::byte{0}}});
+    compiled.apply_parameter_patches(patches);
+
+    CHECK(compiled.nodes[0].name == original_name);
+    const auto bytes = compiled.prepared_parameters->bytes(0, sizeof(std::uint32_t));
+    std::uint32_t value = 0;
+    std::memcpy(&value, bytes.data(), sizeof(value));
+    CHECK(value == 42u);
+}
 using chronon3d::SemanticText;
 using chronon3d::SemanticColor;
 using chronon3d::SemanticImage;

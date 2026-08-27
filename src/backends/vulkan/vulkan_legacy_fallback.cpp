@@ -321,17 +321,18 @@ void VulkanBackend::apply_per_pixel_dof(
     unsupported("apply_per_pixel_dof");
 }
 
-void VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
-                              const RenderState& state, const Camera& camera,
-                              int width, int height) {
-    if (try_native_path_fill(*this, framebuffer, node, state)) return;
-    if (try_native_path_stroke(*this, framebuffer, node, state)) return;
-    if (try_native_solid_rect(*this, framebuffer, node, state)) return;
+graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
+                                               const RenderState& state, const Camera& camera,
+                                               int width, int height) {
+    if (try_native_path_fill(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
+    if (try_native_path_stroke(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
+    if (try_native_solid_rect(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
     (void)camera; (void)width; (void)height;
-    throw std::runtime_error(
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::draw_node: no legacy-node fallback attached; node='" +
         std::string(node.name) + "' shape_type=" +
-        std::to_string(static_cast<int>(node.shape.type())));
+        std::to_string(static_cast<int>(node.shape.type()))});
 }
 
 void VulkanBackend::apply_effect_stack(

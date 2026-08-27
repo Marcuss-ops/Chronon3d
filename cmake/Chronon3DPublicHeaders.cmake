@@ -179,7 +179,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
     # External consumers MUST NOT see this type.  The session lives in the
     # per-frame evaluation hot path and is owned by the OPP renderer.
-    # "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_session.hpp"  # HIDDEN
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/scene/camera/v1/camera_session.hpp"  # HIDDEN
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_trajectory.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/evaluated_projection.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera.hpp"

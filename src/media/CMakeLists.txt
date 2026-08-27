@@ -20,7 +20,6 @@ if(CHRONON3D_ENABLE_VIDEO)
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         add_library(chronon3d_media_native STATIC
             video/native_video_frame_decoder.cpp
-            ${CMAKE_SOURCE_DIR}/src/backends/vulkan/cuda_nv12_surface_compositor.cpp
         )
         target_include_directories(chronon3d_media_native PRIVATE
             ${CMAKE_SOURCE_DIR}

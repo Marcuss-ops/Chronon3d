@@ -34,6 +34,9 @@ chronon3d_add_test_suite(
             video/test_ffmpeg_pipe_sink_edge.cpp
             video/test_frame_rate_video_validation.cpp
             video/reference_yuv_converter.cpp
+            video/test_yuv_conversion_params.cpp
+            video/test_native_frame_importer.cpp
+            video/test_cuda_p010_conversion.cpp
             cli/test_video_adapter_e2e.cpp
             ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_sink_adapter.cpp
 )
@@ -66,6 +69,23 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
         LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
         SOURCES video/test_native_video_frame_decoder.cpp
     )
+
+    if(CHRONON3D_ENABLE_CUDA_INTEROP AND TARGET chronon3d_media_native AND
+       CHRONON3D_CUDA_INCLUDE_DIR AND CHRONON3D_NVRTC_INCLUDE_DIR AND
+       CHRONON3D_NVRTC_LIBRARY)
+        # GPU conversion contract: this executable is opt-in at runtime and
+        # skips cleanly when no CUDA/Vulkan device is available.
+        chronon3d_add_test_suite(
+            NAME chronon3d_cuda_p010_conversion_tests
+            TIER INTEGRATION
+            LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
+            SOURCES video/test_cuda_p010_conversion.cpp
+        )
+        target_include_directories(chronon3d_cuda_p010_conversion_tests PRIVATE
+            "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CHRONON3D_NVRTC_INCLUDE_DIR}")
+        target_link_libraries(chronon3d_cuda_p010_conversion_tests PRIVATE
+            "${CHRONON3D_CUDA_DRIVER_LIBRARY}" "${CHRONON3D_NVRTC_LIBRARY}")
+    endif()
     if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
         target_include_directories(chronon3d_native_decoder_tests PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
     endif()

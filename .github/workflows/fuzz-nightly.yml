@@ -13,6 +13,11 @@ on:
 permissions:
   contents: read
 
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
 jobs:
   fuzz:
     name: ASan UBSan coverage-guided campaign
@@ -38,7 +43,7 @@ jobs:
 
       - uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: cb2981c4e03d421fa03b9bb5044cd1986180e7e4
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure and build fuzzers
         run: |

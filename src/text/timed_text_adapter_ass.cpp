@@ -1,5 +1,7 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
+#include "timed_text_core.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -63,25 +65,7 @@ f32 ass_parse_timestamp(std::string_view ts) {
         + static_cast<f32>(whole_s) + static_cast<f32>(centis) / 100.0f;
 }
 
-// Split a string into words, preserving the original byte ranges (SRT parity).
-struct ass_word_range {
-    std::string_view word;
-    std::size_t offset;
-    std::size_t length;
-};
-
-std::vector<ass_word_range> ass_split_words(std::string_view text) {
-    std::vector<ass_word_range> words;
-    std::size_t i = 0;
-    while (i < text.size()) {
-        while (i < text.size() && (text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r')) ++i;
-        if (i >= text.size()) break;
-        const std::size_t start = i;
-        while (i < text.size() && text[i] != ' ' && text[i] != '\t' && text[i] != '\n' && text[i] != '\r') ++i;
-        words.push_back({text.substr(start, i - start), start, i - start});
-    }
-    return words;
-}
+// Word splitting lives in the shared textcore pipeline (see timed_text_core.hpp).
 
 // Resolve ASS escape sequences inside Dialogue text: \N (and \n) are line
 // breaks, \h is a hard space. Any remaining backslash sequences are kept
@@ -116,20 +100,8 @@ TimedTextDocument timed_text_from_ass(const std::string& raw) {
 
     if (raw.empty()) return doc;
 
-    // Split into lines (strip trailing \r, SRT-adapter parity).
-    std::vector<std::string_view> lines;
-    std::size_t pos = 0;
-    while (pos < raw.size()) {
-        const std::size_t eol = raw.find('\n', pos);
-        if (eol == std::string::npos) {
-            lines.push_back(std::string_view(raw).substr(pos));
-            break;
-        }
-        std::size_t len = eol - pos;
-        if (len > 0 && raw[eol - 1] == '\r') --len;
-        lines.push_back(std::string_view(raw).substr(pos, len));
-        pos = eol + 1;
-    }
+    // Shared canonical line split (CRLF-tolerant), see timed_text_core.hpp.
+    const std::vector<std::string_view> lines = textcore::split_lines(raw);
 
     // Event field order defaults to the ASS standard
     // (Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect,
@@ -197,30 +169,15 @@ TimedTextDocument timed_text_from_ass(const std::string& raw) {
         if (have_format && !fields[static_cast<std::size_t>(idx_style)].empty())
             cue.speaker = std::string(fields[static_cast<std::size_t>(idx_style)]);
 
-        // Word breakdown: uniform-split heuristic, SRT parity. ASS carries
-        // cue-level timing only, so the per-word timing is Estimated.
-        const auto wranges = ass_split_words(cue_text);
-        const f32 cue_dur = end_s - start_s;
-        const f32 word_dur = cue_dur / static_cast<f32>(std::max<std::size_t>(1, wranges.size()));
-        int word_idx = 0;
-        for (const auto& wr : wranges) {
-            TimedWord tw;
-            tw.text = std::string(wr.word);
-            tw.byte_start = wr.offset;
-            tw.byte_end = wr.offset + wr.length;
-            tw.start_s = start_s + static_cast<f32>(word_idx) * word_dur;
-            tw.end_s = start_s + static_cast<f32>(word_idx + 1) * word_dur;
-            tw.semantic_id = cue.source_id + "-word" + std::to_string(word_idx);
-            cue.words.push_back(std::move(tw));
-            ++word_idx;
-        }
-        cue.word_timing_quality = wranges.empty()
-            ? WordTimingQuality::None
-            : WordTimingQuality::Estimated;
+        // Word breakdown: shared uniform-timing core (SRT parity kept).
+        // ASS carries cue-level timing only, so provenance is Estimated.
+        textcore::attach_uniform_words(cue, cue_text,
+            /*skip_angle_tags*/false, /*include_cr*/true);
 
         doc.cues.push_back(std::move(cue));
     }
 
+    textcore::canonicalize_document(doc);
     return doc;
 }
 

@@ -210,9 +210,9 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 
 // ── Shape dispatch ───────────────────────────────────────────────────────────
 
-void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
-                                 const RenderState& state, const Camera& camera, i32 width,
-                                 i32 height) {
+graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
+                                                  const RenderState& state, const Camera& camera, i32 width,
+                                                  i32 height) {
     CHRONON_TRACE_SCOPE("chronon.node", "draw_node");
     m_counters.pixels_touched.fetch_add(clipped_area(width, height, to_local_clip(fb, state.clip_rect)), std::memory_order_relaxed);
     // The backend owns the immutable processor snapshot and refreshes it only
@@ -221,8 +221,10 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     const auto snapshot = m_runtime->backend().processor_snapshot();
     const auto processor = snapshot->shape_shared(snapshot->shape_handle(node.shape.type()));
     if (!processor) {
-        spdlog::error("No processor registered for shape type");
-        return;
+        const std::string message = "No processor registered for shape type";
+        spdlog::error("{}", message);
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::InvalidInput, message});
     }
     processor->draw(make_processor_context(this), fb, node, state, camera, width, height);
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
@@ -230,6 +232,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);
     }
 #endif
+    return graph::RenderOpResult(graph::RenderOpOutcome{1});
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {

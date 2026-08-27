@@ -7,8 +7,11 @@
          VulkanDebugContext* dbg_ctx = nullptr)
         : instance(inst), physical_device(physical), device(logical), queue(graphics),
           queue_family(family), command_pool(pool),
+          submission_ring(descriptor_arena),
+          frame_batch(submission_ring),
           calibrated_ts_supported(calibrated_timestamps_supported),
           debug_context(dbg_ctx) {
+        surfaces.owner_ = this;
         memory_manager.initialize(instance, physical_device, device);
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);
@@ -61,9 +64,9 @@
         const VkPipelineLayoutCreateInfo pipeline_layout_info{
             VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1, &descriptor_layout,
             1, &push_constants};
-        check(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline_layout),
+        check(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &kernels.general_layout),
               "vkCreatePipelineLayout");
-        if (debug_context) debug_context->set_pipeline_layout_name(pipeline_layout, "Chronon3D.PipelineLayout.General");
+        if (debug_context) debug_context->set_pipeline_layout_name(kernels.general_layout, "Chronon3D.PipelineLayout.General");
 
         const VkDescriptorSetLayoutBinding tile_bin_bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
@@ -99,9 +102,9 @@
             VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1,
             &text_tile_bin_descriptor_layout, 1, &tile_bin_push};
         check(vkCreatePipelineLayout(device, &tile_bin_pipeline_layout_info, nullptr,
-                                     &text_tile_bin_pipeline_layout),
+                                     &kernels.text_tile_bin_layout),
               "vkCreatePipelineLayout(text tile bin)");
-        if (debug_context) debug_context->set_pipeline_layout_name(text_tile_bin_pipeline_layout, "Chronon3D.PipelineLayout.TextTileBin");
+        if (debug_context) debug_context->set_pipeline_layout_name(kernels.text_tile_bin_layout, "Chronon3D.PipelineLayout.TextTileBin");
 
         const VkPushConstantRange tile_raster_push{
             VK_SHADER_STAGE_COMPUTE_BIT, 0, 28};
@@ -109,9 +112,9 @@
             VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1,
             &text_tile_raster_descriptor_layout, 1, &tile_raster_push};
         check(vkCreatePipelineLayout(device, &tile_raster_pipeline_layout_info, nullptr,
-                                     &text_tile_raster_pipeline_layout),
+                                     &kernels.text_tile_raster_layout),
               "vkCreatePipelineLayout(text tile raster)");
-        if (debug_context) debug_context->set_pipeline_layout_name(text_tile_raster_pipeline_layout, "Chronon3D.PipelineLayout.TextTileRaster");
+        if (debug_context) debug_context->set_pipeline_layout_name(kernels.text_tile_raster_layout, "Chronon3D.PipelineLayout.TextTileRaster");
 
         const VkShaderModuleCreateInfo shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -125,13 +128,13 @@
             VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
             shader, "main", nullptr};
         const VkComputePipelineCreateInfo pipeline_info{
-            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0, stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0, stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline composite_pipeline = VK_NULL_HANDLE;
         const VkResult pipeline_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &composite_pipeline);
         vkDestroyShaderModule(device, shader, nullptr);
         check(pipeline_result, "vkCreateComputePipelines");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::Composite,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(composite_pipeline))) {
             vkDestroyPipeline(device, composite_pipeline, nullptr);
@@ -152,13 +155,13 @@
             transform_shader, "main", nullptr};
         const VkComputePipelineCreateInfo transform_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            transform_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            transform_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline transform_pipeline = VK_NULL_HANDLE;
         const VkResult transform_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &transform_pipeline_info, nullptr, &transform_pipeline);
         vkDestroyShaderModule(device, transform_shader, nullptr);
         check(transform_result, "vkCreateComputePipelines(transform)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::Transform,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(transform_pipeline))) {
             vkDestroyPipeline(device, transform_pipeline, nullptr);
@@ -179,13 +182,13 @@
             affine_shader, "main", nullptr};
         const VkComputePipelineCreateInfo affine_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            affine_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            affine_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline affine_transform_pipeline = VK_NULL_HANDLE;
         const VkResult affine_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &affine_pipeline_info, nullptr, &affine_transform_pipeline);
         vkDestroyShaderModule(device, affine_shader, nullptr);
         check(affine_result, "vkCreateComputePipelines(affine transform)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::AffineTransform,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(affine_transform_pipeline))) {
             vkDestroyPipeline(device, affine_transform_pipeline, nullptr);
@@ -206,13 +209,13 @@
             blur_shader, "main", nullptr};
         const VkComputePipelineCreateInfo blur_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            blur_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            blur_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline blur_pipeline = VK_NULL_HANDLE;
         const VkResult blur_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &blur_pipeline_info, nullptr, &blur_pipeline);
         vkDestroyShaderModule(device, blur_shader, nullptr);
         check(blur_result, "vkCreateComputePipelines(blur)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::Blur,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(blur_pipeline))) {
             vkDestroyPipeline(device, blur_pipeline, nullptr);
@@ -233,13 +236,13 @@
             color_adjust_shader, "main", nullptr};
         const VkComputePipelineCreateInfo color_adjust_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            color_adjust_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            color_adjust_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline color_adjust_pipeline = VK_NULL_HANDLE;
         const VkResult color_adjust_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &color_adjust_pipeline_info, nullptr, &color_adjust_pipeline);
         vkDestroyShaderModule(device, color_adjust_shader, nullptr);
         check(color_adjust_result, "vkCreateComputePipelines(color adjust)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::ColorAdjust,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(color_adjust_pipeline))) {
             vkDestroyPipeline(device, color_adjust_pipeline, nullptr);
@@ -260,13 +263,13 @@
             matte_shader, "main", nullptr};
         const VkComputePipelineCreateInfo matte_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            matte_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            matte_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline matte_pipeline = VK_NULL_HANDLE;
         const VkResult matte_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &matte_pipeline_info, nullptr, &matte_pipeline);
         vkDestroyShaderModule(device, matte_shader, nullptr);
         check(matte_result, "vkCreateComputePipelines(matte)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::Matte,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(matte_pipeline))) {
             vkDestroyPipeline(device, matte_pipeline, nullptr);
@@ -287,13 +290,13 @@
             text_run_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_run_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            text_run_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            text_run_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_run_pipeline = VK_NULL_HANDLE;
         const VkResult text_run_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &text_run_pipeline_info, nullptr, &text_run_pipeline);
         vkDestroyShaderModule(device, text_run_shader, nullptr);
         check(text_run_result, "vkCreateComputePipelines(text run)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::TextRun,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_run_pipeline))) {
             vkDestroyPipeline(device, text_run_pipeline, nullptr);
@@ -314,13 +317,13 @@
             fill_rect_shader, "main", nullptr};
         const VkComputePipelineCreateInfo fill_rect_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            fill_rect_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            fill_rect_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline fill_rect_pipeline = VK_NULL_HANDLE;
         const VkResult fill_rect_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &fill_rect_pipeline_info, nullptr, &fill_rect_pipeline);
         vkDestroyShaderModule(device, fill_rect_shader, nullptr);
         check(fill_rect_result, "vkCreateComputePipelines(fill rect)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::FillRect,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(fill_rect_pipeline))) {
             vkDestroyPipeline(device, fill_rect_pipeline, nullptr);
@@ -341,13 +344,13 @@
             layer_batch_shader, "main", nullptr};
         const VkComputePipelineCreateInfo layer_batch_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            layer_batch_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            layer_batch_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline layer_batch_pipeline = VK_NULL_HANDLE;
         const VkResult layer_batch_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &layer_batch_pipeline_info, nullptr, &layer_batch_pipeline);
         vkDestroyShaderModule(device, layer_batch_shader, nullptr);
         check(layer_batch_result, "vkCreateComputePipelines(layer batch)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::LayerBatch,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(layer_batch_pipeline))) {
             vkDestroyPipeline(device, layer_batch_pipeline, nullptr);
@@ -368,13 +371,13 @@
             text_batch_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_batch_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            text_batch_stage, pipeline_layout, VK_NULL_HANDLE, -1};
+            text_batch_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_batch_pipeline = VK_NULL_HANDLE;
         const VkResult text_batch_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &text_batch_pipeline_info, nullptr, &text_batch_pipeline);
         vkDestroyShaderModule(device, text_batch_shader, nullptr);
         check(text_batch_result, "vkCreateComputePipelines(text batch)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::TextBatch,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_batch_pipeline))) {
             vkDestroyPipeline(device, text_batch_pipeline, nullptr);
@@ -396,14 +399,14 @@
             text_tile_bin_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_tile_bin_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            text_tile_bin_stage, text_tile_bin_pipeline_layout, VK_NULL_HANDLE, -1};
+            text_tile_bin_stage, kernels.text_tile_bin_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_tile_bin_pipeline = VK_NULL_HANDLE;
         const VkResult text_tile_bin_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &text_tile_bin_pipeline_info, nullptr,
             &text_tile_bin_pipeline);
         vkDestroyShaderModule(device, text_tile_bin_shader, nullptr);
         check(text_tile_bin_result, "vkCreateComputePipelines(text tile bin)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::TextTileBin,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_tile_bin_pipeline))) {
             vkDestroyPipeline(device, text_tile_bin_pipeline, nullptr);
@@ -425,14 +428,14 @@
             text_tile_raster_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_tile_raster_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            text_tile_raster_stage, text_tile_raster_pipeline_layout, VK_NULL_HANDLE, -1};
+            text_tile_raster_stage, kernels.text_tile_raster_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_tile_raster_pipeline = VK_NULL_HANDLE;
         const VkResult text_tile_raster_result = vkCreateComputePipelines(
             device, VK_NULL_HANDLE, 1, &text_tile_raster_pipeline_info, nullptr,
             &text_tile_raster_pipeline);
         vkDestroyShaderModule(device, text_tile_raster_shader, nullptr);
         check(text_tile_raster_result, "vkCreateComputePipelines(text tile raster)");
-        if (!kernel_registry.register_kernel(
+        if (!kernels.registry.register_kernel(
                 GpuKernelId::TextTileRaster,
                 reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_tile_raster_pipeline))) {
             vkDestroyPipeline(device, text_tile_raster_pipeline, nullptr);
@@ -465,13 +468,13 @@
                   "vkCreateFence(frame batch slot)");
             if (debug_context) debug_context->set_fence_name(slot_fence, "Chronon3D.Fence.FrameBatchSlot");
         }
-        for (auto& allocator : frame_batch.descriptor_allocators) {
+        for (auto& allocator : descriptor_arena.pass) {
             allocator.create(device, descriptor_layout);
         }
-        for (auto& allocator : frame_batch.text_tile_bin_allocators) {
+        for (auto& allocator : descriptor_arena.text_tile_bin) {
             allocator.create(device, text_tile_bin_descriptor_layout, 0, 4);
         }
-        for (auto& allocator : frame_batch.text_tile_raster_allocators) {
+        for (auto& allocator : descriptor_arena.text_tile_raster) {
             allocator.create(device, text_tile_raster_descriptor_layout, 2, 4);
         }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");

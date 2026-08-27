@@ -91,6 +91,12 @@ enum class VideoContainer : uint8_t {
     Raw = 3,
 };
 
+enum class RateControlMode : uint8_t {
+    Crf,
+    ConstantQp,
+    Bitrate,
+};
+
 /// Encoder quality / codec settings.
 /// Selected at planning time and read-only during encoding.
 struct VideoEncoderConfig {
@@ -104,12 +110,18 @@ struct VideoEncoderConfig {
     /// Encoder tune parameter (e.g. "zerolatency", "film", "grain").
     std::optional<std::string> tune;
 
-    /// Target bitrate in bits/second.  0 = let encoder choose (CRF/VBR).
-    std::int64_t bitrate{0};
+    /// Rate-control policy. Exactly one quality/bitrate field is interpreted.
+    RateControlMode rate_control_mode{RateControlMode::Crf};
 
-    /// CRF / quality value (0–51, lower = better quality).
+    /// CRF value (0–51, lower = better quality). Used in Crf mode.
     /// -1 = use codec default.
     int crf{-1};
+
+    /// Constant QP value (0–63). Used in ConstantQp mode.
+    int qp{-1};
+
+    /// Target bitrate in bits/second. Used in Bitrate mode.
+    std::int64_t bitrate{0};
 
     /// Pixel format for the encoded output stream (e.g. YUV420P).
     /// This is the pixel format written into the final container, distinct

@@ -12,6 +12,7 @@ chronon3d_add_test_suite(
             cache/test_cache_policy.cpp
             cache/test_persistent_framebuffer_store.cpp
             cache/test_lru_cache.cpp
+            cache/test_native_video_decoder_lru.cpp
             cache/test_lru_extensions.cpp
             cache/test_frame_cache.cpp
             # Fix #3 (post-FASE-18 review) -- standalone test for FASE 18's

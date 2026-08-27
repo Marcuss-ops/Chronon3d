@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,20 @@ struct SceneBindingMetadata {
     uint16_t effect_count{0};
 
     [[nodiscard]] bool has_binding() const { return active; }
+};
+
+enum class ExecutionOwner : std::uint8_t {
+    None,
+    Standalone,
+    Fused,
+};
+
+enum class EliminationReason : std::uint8_t {
+    None,
+    StaticBake,
+    FusedIntoBatch,
+    DeadNode,
+    EarlyExit,
 };
 
 struct CompiledNodeInfo {
@@ -74,6 +89,8 @@ struct CompiledNodeInfo {
     bool reachable{false};
     bool early_exit_skip{false};
     bool lowered_into_batch{false};
+    ExecutionOwner execution_owner{ExecutionOwner::None};
+    EliminationReason elimination_reason{EliminationReason::None};
 
     std::optional<raster::BBox> predicted_bbox;
 
@@ -249,6 +266,24 @@ struct CompiledFrameGraph {
     // missing table is valid: the generic node.execute() fallback remains
     // authoritative for graphs that have not opted into preparation yet.
     std::shared_ptr<const FrameParameterTable> prepared_parameters;
+    std::vector<FrameParameterSlice> parameter_bindings;
+
+    void set_parameter_bindings(std::vector<FrameParameterSlice> bindings) {
+        parameter_bindings = std::move(bindings);
+    }
+
+    /// Apply dynamic values to the prepared parameter storage without
+    /// rebuilding graph topology or processor bindings.
+    void apply_parameter_patches(const ParameterPatchSet& patches) {
+        if (!prepared_parameters) {
+            throw std::logic_error("CompiledFrameGraph has no prepared parameter table");
+        }
+        auto mutable_table = std::make_shared<FrameParameterTable>(*prepared_parameters);
+        for (const auto& patch : patches.patches) {
+            mutable_table->patch(patch.offset, patch.value);
+        }
+        prepared_parameters = std::move(mutable_table);
+    }
 
     std::vector<bool> early_exit_skip;
     bool skip_initial_clear{false};

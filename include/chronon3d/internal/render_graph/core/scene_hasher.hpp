@@ -17,7 +17,7 @@ namespace chronon3d::graph {
  * P4: Instead of hashing the entire scene every frame, we compute 
  * per-layer hashes and combine them. If a layer is static, we reuse its hash.
  *
- * Implementation bodies moved to src/render_graph/scene_hasher.cpp
+ * Implementation bodies moved to src/render_graph/core/scene_hasher.cpp
  * to break a circular include dependency (scene.hpp -> camera_program.hpp ->
  * render_session.hpp -> scene_hasher.hpp -> scene.hpp blocked by #pragma once,
  * leaving Scene incomplete).  See TICKET-BUILD-ROT-CASCADE-CAMERA surface B.

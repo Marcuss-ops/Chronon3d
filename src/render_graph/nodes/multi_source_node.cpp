@@ -331,11 +331,6 @@ NodeExecResult MultiSourceNode::execute(
 #endif
 
             // ── regular (non-text-run) item ───────────────────────
-            // P0-1 note: draw_node() returns void — errors inside the backend
-            // (e.g. missing processor-context) are logged but cannot be surfaced
-            // to the executor.  Changing draw_node's signature to Result<>
-            // requires a coordinated API/ABI change across SoftwareRenderer,
-            // SoftwareBackend, and all test backends — deferred to Phase C.
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;
@@ -377,7 +372,15 @@ NodeExecResult MultiSourceNode::execute(
         const bool native_image = item.node->shape.type() == ShapeType::Image &&
             detail::try_native_image(ctx, *fb, *item.node, state);
         if (!native_image) {
-            ctx.services.backend->draw_node(*fb, *item.node, state, ctx.frame_input.camera, ctx.frame_input.width, ctx.frame_input.height);
+            const auto draw_result = ctx.services.backend->draw_node(
+                *fb, *item.node, state, ctx.frame_input.camera,
+                ctx.frame_input.width, ctx.frame_input.height);
+            if (!draw_result.ok()) {
+                return NodeExecResult{NodeExecutionError{
+                    draw_result.error().code,
+                    m_name,
+                    draw_result.error().message}};
+            }
         }
 
         if (ctx.policy.diagnostics_enabled) {

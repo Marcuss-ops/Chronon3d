@@ -132,8 +132,10 @@
         "format": { "enum": ["png", "mp4", "mkv", "webm"] },
         "codec": { "enum": ["auto", "h264", "h265", "vp9", "av1"] },
         "profile_id": { "type": "string", "minLength": 1 },
-        "bitrate": { "type": "integer", "minimum": 0 },
-        "crf": { "type": "integer", "minimum": 0, "maximum": 63 }
+        "rate_control": { "enum": ["crf", "qp", "bitrate"] },
+        "bitrate": { "type": "integer", "minimum": 1 },
+        "crf": { "type": "integer", "minimum": 0, "maximum": 51 },
+        "qp": { "type": "integer", "minimum": 0, "maximum": 63 }
       }
     }
   }

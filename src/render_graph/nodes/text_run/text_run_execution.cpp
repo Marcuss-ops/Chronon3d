@@ -70,8 +70,8 @@ namespace {
 
     const auto width = static_cast<std::uint32_t>(local_x1 - local_x0);
     const auto height = static_cast<std::uint32_t>(local_y1 - local_y0);
-    std::vector<float> rgba(
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4);
+    auto& rgba = ctx.node_exec.text_upload_scratch;
+    rgba.resize(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4);
     static_assert(sizeof(Color) == sizeof(float) * 4);
     for (std::uint32_t y = 0; y < height; ++y) {
         const Color* row = framebuffer.pixels_row(

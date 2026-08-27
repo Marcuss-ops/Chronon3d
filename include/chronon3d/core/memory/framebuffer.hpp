@@ -50,6 +50,12 @@ constexpr size_t k_colors_per_cache_line = k_cache_line_bytes / k_color_size;  /
     return width + static_cast<i32>(k_colors_per_cache_line) - remainder;
 }
 
+enum class SurfaceResidency : std::uint8_t {
+    CpuOnly,
+    GpuOnly,
+    CpuAndGpu,
+};
+
 class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height)
@@ -91,6 +97,7 @@ public:
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_cpu_authoritative(other.m_cpu_authoritative),
           // Native video surfaces are registry-owned GPU resources. Copies
           // of a read-only video source keep the logical handle so the graph
           // does not re-upload the CPU shadow framebuffer.
@@ -103,6 +110,7 @@ public:
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_cpu_authoritative(other.m_cpu_authoritative),
           m_surface_handle(other.m_surface_handle) {
         move_pixels_from(std::move(other));
     }
@@ -140,6 +148,7 @@ public:
             framebuffer_clear_strided(ptr, m_allocated_width, 0, 0, m_width, m_height, color);
         }
         m_opaque = color.a >= 0.999f;
+        m_cpu_authoritative = true;
         // Only claim "content cleared" when the color is actually transparent.
         m_content_cleared =
             (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f);
@@ -174,6 +183,7 @@ public:
     void set_pixel(i32 x, i32 y, const Color& color) {
         if (x < 0 || x >= m_width || y < 0 || y >= m_height) return;
         data()[static_cast<usize>(y) * m_allocated_width + x] = color;
+        m_cpu_authoritative = true;
     }
 
     [[nodiscard]] Color get_pixel(i32 x, i32 y) const {
@@ -258,6 +268,17 @@ public:
     [[nodiscard]] runtime::RenderSurfaceHandle surface_handle() const noexcept {
         return m_surface_handle;
     }
+    [[nodiscard]] SurfaceResidency residency() const noexcept {
+        if (m_surface_handle == runtime::kInvalidRenderSurfaceHandle) {
+            return SurfaceResidency::CpuOnly;
+        }
+        return m_cpu_authoritative
+            ? SurfaceResidency::CpuAndGpu
+            : SurfaceResidency::GpuOnly;
+    }
+    void mark_cpu_authoritative() noexcept { m_cpu_authoritative = true; }
+    void mark_gpu_authoritative() noexcept { m_cpu_authoritative = false; }
+    void mark_cpu_gpu_synchronized() noexcept { m_cpu_authoritative = true; }
     void set_surface_handle(runtime::RenderSurfaceHandle handle) noexcept {
         m_surface_handle = handle;
     }
@@ -285,6 +306,7 @@ public:
         swap(m_content_cleared,  other.m_content_cleared);
         swap(m_key_digest,       other.m_key_digest);
         swap(m_surface_handle,   other.m_surface_handle);
+        swap(m_cpu_authoritative, other.m_cpu_authoritative);
         swap(m_owns_pixels,      other.m_owns_pixels);
         swap(m_pixels,           other.m_pixels);
         swap(m_external_pixels,  other.m_external_pixels);
@@ -311,6 +333,7 @@ private:
     u64 m_key_digest{0};
     runtime::RenderSurfaceHandle m_surface_handle{
         runtime::kInvalidRenderSurfaceHandle};
+    bool m_cpu_authoritative{true};
 
     friend void swap(Framebuffer& a, Framebuffer& b) noexcept {
         a.swap_contents(b);
@@ -372,6 +395,7 @@ private:
         m_external_pixels = nullptr;
         m_key_digest = 0;
         m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
+        m_cpu_authoritative = true;
         m_content_cleared = false;
     }
 

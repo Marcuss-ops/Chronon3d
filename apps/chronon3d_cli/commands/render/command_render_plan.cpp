@@ -109,6 +109,10 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             ? static_cast<int>(std::lround(prepared.canvas.fps.fps()))
             : static_cast<int>(args.fps_num / args.fps_den);
         request.video_settings.codec = codec_name(prepared.output.codec);
+        request.video_settings.rate_control_mode = prepared.output.rate_control == render_plan::RateControlMode::ConstantQp ? "qp" :
+            (prepared.output.rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");
+        request.video_settings.qp = prepared.output.qp;
+        request.video_settings.bitrate = prepared.output.bitrate;
         if (!args.video.codec.empty()) request.video_settings.codec = args.video.codec;
         if (!args.video.hardware_encoder.empty())
             request.video_settings.hardware_encoder = args.video.hardware_encoder;
@@ -116,13 +120,18 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             request.video_settings.encoder_backend = args.video.encoder_backend;
         if (!args.video.ffmpeg_mode.empty())
             request.video_settings.ffmpeg_mode = args.video.ffmpeg_mode;
-        // Encoder overrides: CLI flags win, then the plan's explicit crf,
-        // then the engine default.
-        if (args.video.crf >= 0) {
+        // Rate-control overrides are explicit; legacy CRF remains accepted
+        // only as the CRF-mode value at this boundary.
+        if (!args.video.rate_control_mode.empty()) {
+            request.video_settings.rate_control_mode = args.video.rate_control_mode;
             request.video_settings.crf = args.video.crf;
+            request.video_settings.qp = args.video.qp;
+            request.video_settings.bitrate = args.video.bitrate;
         } else if (args.crf >= 0) {
+            request.video_settings.rate_control_mode = "crf";
             request.video_settings.crf = args.crf;
         } else if (prepared.output.crf > 0 && prepared.output.crf <= 51) {
+            request.video_settings.rate_control_mode = "crf";
             request.video_settings.crf = prepared.output.crf;
         }
         if (!args.video.encode_preset.empty()) {
@@ -248,7 +257,10 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         video.encoder_backend = request.value("encoder_backend", "");
         video.ffmpeg_mode = request.value("ffmpeg_mode", "");
         video.encode_preset = request.value("encode_preset", "");
+        video.rate_control_mode = request.value("rate_control_mode", "");
         video.crf = request.value("crf", -1);
+        video.qp = request.value("qp", -1);
+        video.bitrate = request.value("bitrate", std::int64_t{0});
         if (plan_path.empty()) {
             return ipc::Reply{ipc::Status::BadRequest,
                               "RENDER_JOB requires a plan_path"};
@@ -292,6 +304,10 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--end-frame", state->end_frame, "Last frame, inclusive");
     command->add_option("--fps-num", state->fps_num, "Frame-rate numerator");
     command->add_option("--fps-den", state->fps_den, "Frame-rate denominator");
+    command->add_option("--rate-control", state->video.rate_control_mode, "Rate control: crf, qp, or bitrate")
+        ->check(CLI::IsMember({"crf", "qp", "bitrate"}));
+    command->add_option("--qp", state->video.qp, "Encoder QP override (0-63)");
+    command->add_option("--bitrate", state->video.bitrate, "Encoder bitrate override in bits/second");
     command->add_option("--crf", state->crf, "Encoder CRF override (0-51; default = engine default)");
     command->add_option("--encode-preset", state->encode_preset, "x264 preset override (e.g. medium, veryfast)");
     command->add_option("--trace", state->trace_output,

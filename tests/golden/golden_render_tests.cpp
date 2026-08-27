@@ -31,7 +31,7 @@ bool colors_near(const Color& c1, const Color& c2, float tolerance = 0.05f) {
 }
 
 // Canonical GoldenTestConfig for the Tests 17.1-17.8 surface.
-// Threshold values mirror tests/text_golden/user_spec/01_text_basic_centered.cpp
+// Threshold values mirror tests/text_golden/text_clip/text_clip_bounds.cpp
 // (text rendering can have minor pixel-level variations across host/compiler).
 GoldenTestConfig make_golden_config() {
     GoldenTestConfig cfg;

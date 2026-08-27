@@ -15,14 +15,13 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/media/video/native_frame_importer.hpp>
 
 #include <memory>
 #include <string>
 
 namespace chronon3d {
 struct RenderCounters;
-namespace runtime { class RenderSurfaceRegistry; }
-namespace graph { class RenderBackend; }
 }
 
 namespace chronon3d::media {
@@ -37,8 +36,8 @@ public:
     /// Optional native GPU output context. Providers that can expose a
     /// backend-owned surface may use it; the default keeps CPU providers
     /// source-compatible.
-    virtual void set_native_gpu_context(
-        ::chronon3d::graph::RenderBackend*, ::chronon3d::runtime::RenderSurfaceRegistry*) {}
+    virtual void set_native_frame_importer(
+        std::shared_ptr<NativeFrameImporter> /*importer*/) {}
 
     /// Decode a single frame from the source identified by `path`.
     /// Output dimensions are suggested via `width`/`height`; implementations

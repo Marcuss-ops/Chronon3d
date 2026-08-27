@@ -931,7 +931,7 @@
         // destroying a surface, and an asynchronous upload may still be
         // copying into it; draining these slots closes the use-after-free
         // where an in-flight VkImage was destroyed before its copy completed.
-        for (auto& slot : upload_slots) {
+        for (auto& slot : uploads.slots) {
             wait_upload_slot(slot);
         }
     }
@@ -944,18 +944,18 @@
         std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
         std::vector<std::uint64_t> signal_values{signal_value};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        for (const auto physical_slot : cuda_ready_surfaces) {
-            const auto it = physical_surfaces.find(physical_slot);
-            if (it == physical_surfaces.end()) continue;
+        for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
+            const auto it = surfaces.physical_surfaces.find(physical_slot);
+            if (it == surfaces.physical_surfaces.end()) continue;
             wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
             wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
         }
-        for (const auto physical_slot : cuda_export_ready_surfaces) {
-            if (cuda_ready_surfaces.contains(physical_slot)) continue;
-            const auto it = physical_surfaces.find(physical_slot);
-            if (it == physical_surfaces.end()) continue;
+        for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
+            if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
+            const auto it = surfaces.physical_surfaces.find(physical_slot);
+            if (it == surfaces.physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
         }
@@ -976,8 +976,8 @@
         ++stats.submissions;
         pending_timeline_value = signal_value;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        cuda_ready_surfaces.clear();
-        cuda_export_ready_surfaces.clear();
+        surfaces.cuda_ready_surfaces.clear();
+        surfaces.cuda_export_ready_surfaces.clear();
 #endif
         if (wait_for_completion) wait_for_pending();
         return signal_value;
@@ -1024,8 +1024,8 @@
         transition(command_buffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Composite)));
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, kernels.general_layout, 0, 1, &descriptor_set, 0, nullptr);
         vkCmdDispatch(command_buffer, (width + 15) / 16, (height + 15) / 16, 1);
         transition(command_buffer, dst.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         const VkBufferImageCopy output_copy{image_bytes * 2, width, height, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {width, height, 1}};

@@ -66,6 +66,9 @@ struct GpuAssetCacheStats {
     std::size_t evictions{0};
     std::size_t upload_bytes{0};
     std::size_t resident_bytes{0};
+    std::size_t initial_uploads{0};
+    std::size_t initial_upload_bytes{0};
+    std::size_t evicted_bytes{0};
 };
 
 /// Engine-local cache for decoded assets promoted to device-local surfaces.

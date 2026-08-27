@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // tests/text/visual/text_visual_fixture.hpp — Phase-2.1 P0 split
 //
-// Phase-2.1 mechanical split of tests/text/test_text_preset_visual.cpp  // drift-allow: stale-ref
+// Phase-2.1 mechanical split of tests/test_text_preset_registry.cpp  // drift-allow: stale-ref
 // (898 LOC, 128 sentinels).  Fixture header owns ONLY the composition-
 // building + frame-render + gate-emission orchestration; the metric POD,
 // hash/ink computation, and VisualExpectation enum live in `text_visual_
@@ -23,11 +23,11 @@
 //                                        only — no test logic).
 //
 // Companion test TUs (4 split files + 1 placeholder):
-//   tests/text/test_text_preset_reveal.cpp       (10 Reveal presets)
-//   tests/text/test_text_preset_emphasis.cpp     (4  Emphasis presets)
-//   tests/text/test_text_preset_subtitle.cpp     (2 Subtitle presets +
+//   tests/text/test_text_style_presets.cpp       (10 Reveal presets)
+//   tests/text/test_lightweight_emphasis_animators.cpp     (4  Emphasis presets)
+//   tests/text/test_subtitle_productive.cpp     (2 Subtitle presets +
 //                                                  2 e2e pipelines)
-//   tests/text/test_text_preset_cinematic.cpp    (placeholder for
+//   tests/text/test_text_style_presets.cpp    (placeholder for
 //                                                  the cinematic tier
 //                                                  (caption_box,
 //                                                  glow_pulse,

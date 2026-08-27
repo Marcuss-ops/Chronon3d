@@ -129,8 +129,8 @@ public:
     int composite_layer_called{0};
     int apply_blur_called{0};
 
-    void draw_node(Framebuffer& fb, const RenderNode& /*node*/, const RenderState& state,
-                   const Camera& /*camera*/, int width, int height) override {
+    RenderOpResult draw_node(Framebuffer& fb, const RenderNode& /*node*/, const RenderState& state,
+                             const Camera& /*camera*/, int width, int height) override {
         draw_node_called++;
         const std::uint64_t layer_id = fnv1a64(state.layer_id);
         // 32x32 tile fill — each tile writes a deterministic colour
@@ -148,6 +148,7 @@ public:
                 fb.set_pixel(tx, ty, Color{r, g, b, 1.0f});
             }
         }
+        return RenderOpResult{RenderOpOutcome{1}};
     }
 
     void apply_effect_stack(Framebuffer&, const EffectStack&,

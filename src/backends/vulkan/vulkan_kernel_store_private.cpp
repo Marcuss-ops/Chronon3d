@@ -6,9 +6,9 @@
                           const float tint[4],
                           const std::optional<raster::BBox>& clip = std::nullopt) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Composite)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Composite)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t blend_mode;
             float source_scale;
@@ -40,7 +40,7 @@
                                    y0, static_cast<std::int32_t>(destination.height));
         params.dispatch_origin[0] = x0;
         params.dispatch_origin[1] = y0;
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
@@ -51,16 +51,16 @@
                           const Image& destination, const Image& source,
                           int offset_x, int offset_y, float opacity) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Transform)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Transform)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t offset_x;
             std::int32_t offset_y;
             float opacity;
             float padding;
         } push{offset_x, offset_y, opacity, 0.0f};
-        vkCmdPushConstants(command, pipeline_layout,
+        vkCmdPushConstants(command, kernels.general_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
@@ -71,9 +71,9 @@
                                  const Image& destination, const Image& source,
                                  runtime::SurfaceAffineTransform transform) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::AffineTransform)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::AffineTransform)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
 
         std::int32_t x0 = 0;
         std::int32_t y0 = 0;
@@ -95,7 +95,7 @@
         transform.dispatch_origin_x = x0;
         transform.dispatch_origin_y = y0;
 
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(transform), &transform);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
@@ -106,14 +106,14 @@
                      const Image& destination, const Image& source,
                      float radius, bool horizontal) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Blur)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Blur)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             float radius;
             std::int32_t horizontal;
         } params{radius, horizontal ? 1 : 0};
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
@@ -125,9 +125,9 @@
                              float brightness, float contrast,
                              const Color& tint, float tint_amount) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::ColorAdjust)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::ColorAdjust)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             float brightness;
             float contrast;
@@ -136,7 +136,7 @@
             float tint[4];
         } params{brightness, contrast, tint_amount, 0.0f,
                  {tint.r, tint.g, tint.b, tint.a}};
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
@@ -147,14 +147,14 @@
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::Matte)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Matte)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t luma;
             std::int32_t inverted;
         } params{luma ? 1 : 0, inverted ? 1 : 0};
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
@@ -170,9 +170,9 @@
                           const Vec4& line = Vec4{0.0f},
                           const std::array<Vec2, 8>& vertices = {}) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::FillRect)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::FillRect)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t rect[4];
             float color[4];
@@ -186,7 +186,7 @@
             params.vertices[i * 2] = vertices[i].x;
             params.vertices[i * 2 + 1] = vertices[i].y;
         }
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         const auto rx0 = std::clamp(x0, 0, static_cast<std::int32_t>(destination.width));
         const auto ry0 = std::clamp(y0, 0, static_cast<std::int32_t>(destination.height));
@@ -236,9 +236,9 @@
                                  0, nullptr, 1, &barrier, 0, nullptr);
         }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::TextRun)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::TextRun)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t glyph_count;
             float current_frame;
@@ -259,7 +259,7 @@
                                    static_cast<std::int32_t>(destination.height));
         params.dispatch_origin[0] = x0;
         params.dispatch_origin[1] = y0;
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
@@ -292,9 +292,9 @@
                                  0, nullptr, 1, &barrier, 0, nullptr);
         }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::LayerBatch)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::LayerBatch)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t instance_count;
             std::int32_t padding0;
@@ -310,7 +310,7 @@
                                    static_cast<std::int32_t>(destination.height));
         params.dispatch_origin[0] = x0;
         params.dispatch_origin[1] = y0;
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
@@ -363,9 +363,9 @@
                                  0, nullptr, 1, &barrier, 0, nullptr);
         }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(GpuKernelId::TextBatch)));
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::TextBatch)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::int32_t glyph_count;
             std::int32_t run_count;
@@ -381,7 +381,7 @@
                                    static_cast<std::int32_t>(destination.height));
         params.dispatch_origin[0] = x0;
         params.dispatch_origin[1] = y0;
-        vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,
                       (y1 - y0 + 15) / 16, 1);
@@ -393,10 +393,10 @@
                               std::int32_t tiles_y, std::int32_t max_glyphs_per_tile,
                               std::int32_t dst_width, std::int32_t dst_height) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(
                               GpuKernelId::TextTileBin)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                text_tile_bin_pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.text_tile_bin_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::uint32_t glyph_count;
             std::uint32_t tiles_x;
@@ -407,7 +407,7 @@
         } params{static_cast<std::uint32_t>(glyph_count), static_cast<std::uint32_t>(tiles_x),
                  static_cast<std::uint32_t>(tiles_y), static_cast<std::uint32_t>(max_glyphs_per_tile),
                  static_cast<std::uint32_t>(dst_width), static_cast<std::uint32_t>(dst_height)};
-        vkCmdPushConstants(command, text_tile_bin_pipeline_layout,
+        vkCmdPushConstants(command, kernels.text_tile_bin_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(params), &params);
         vkCmdDispatch(command, (static_cast<std::uint32_t>(glyph_count) + 63) / 64, 1, 1);
         ++stats.vk_cmd_dispatch_count;
@@ -418,10 +418,10 @@
                                  std::int32_t max_glyphs_per_tile,
                                  const Image& destination, const Image& atlas) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernel_registry.resolve(
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(
                               GpuKernelId::TextTileRaster)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                text_tile_raster_pipeline_layout, 0, 1, &descriptors, 0, nullptr);
+                                kernels.text_tile_raster_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             std::uint32_t tiles_x;
             std::uint32_t tiles_y;
@@ -434,7 +434,7 @@
                  static_cast<std::uint32_t>(max_glyphs_per_tile), destination.width,
                  destination.height, 1.0f / static_cast<float>(atlas.width),
                  1.0f / static_cast<float>(atlas.height)};
-        vkCmdPushConstants(command, text_tile_raster_pipeline_layout,
+        vkCmdPushConstants(command, kernels.text_tile_raster_layout,
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(params), &params);
         vkCmdDispatch(command, static_cast<std::uint32_t>(tiles_x),
                       static_cast<std::uint32_t>(tiles_y), 1);
@@ -500,21 +500,21 @@
         std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
         std::vector<std::uint64_t> signal_values{signal_value};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        for (const auto physical_slot : cuda_ready_surfaces) {
-            const auto it = physical_surfaces.find(physical_slot);
-            if (it == physical_surfaces.end()) continue;
+        for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
+            const auto it = surfaces.physical_surfaces.find(physical_slot);
+            if (it == surfaces.physical_surfaces.end()) continue;
             wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
             wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
         }
-        for (const auto physical_slot : cuda_export_ready_surfaces) {
+        for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
             // A reused surface is already waiting on CUDA completion above;
             // that path also emits the single Vulkan->CUDA release signal.
             // Do not signal the same binary semaphore twice in one submit.
-            if (cuda_ready_surfaces.contains(physical_slot)) continue;
-            const auto it = physical_surfaces.find(physical_slot);
-            if (it == physical_surfaces.end()) continue;
+            if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
+            const auto it = surfaces.physical_surfaces.find(physical_slot);
+            if (it == surfaces.physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
         }
@@ -538,8 +538,8 @@
         ++stats.submissions;
         frame_batch.in_flight[slot] = true;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        cuda_ready_surfaces.clear();
-        cuda_export_ready_surfaces.clear();
+        surfaces.cuda_ready_surfaces.clear();
+        surfaces.cuda_export_ready_surfaces.clear();
 #endif
         frame_batch.pass_count = 0;
         frame_batch.next_slot = (slot + 1) % FrameBatchState::kSlotCount;

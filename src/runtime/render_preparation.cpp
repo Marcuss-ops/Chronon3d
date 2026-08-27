@@ -5,6 +5,7 @@
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <algorithm>
@@ -185,10 +186,52 @@ RenderPreparationResult prepare_render_scene(
                 it != result.prepared_assets->images.end()) {
                 it->second.width = image->width;
                 it->second.height = image->height;
+                it->second.content_digest = image->gpu_key.content_digest;
             }
         }
     }
     const ImageCounterSnapshot image_after = snapshot_image_counters(*renderer->counters());
+
+    // Promote every prepared static image (logos and image backgrounds) to
+    // the runtime-owned GPU cache at the preparation barrier. Rendering then
+    // only acquires the content-addressed resident handle and never performs
+    // a per-frame decode or upload.
+    if (options.resources.prepare_images && renderer->runtime().backend_attached()) {
+        auto& cache = renderer->runtime().gpu_asset_cache();
+        for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
+            const auto image = renderer->runtime().image_cache().find(ref.path);
+            if (!image || !image->valid() || image->gpu_rgba.empty()) {
+                continue;
+            }
+            const auto& key = image->gpu_key;
+            if (key.content_digest == assets::ContentDigest{}) {
+                result.preparation_error = PreparationError{
+                    .code = PreparationError::Code::CorruptedAsset,
+                    .message = "static image has no content-addressed GPU key: " + ref.path,
+                    .path = ref.path,
+                    .owner = ref.owner,
+                    .phase = "gpu-image",
+                };
+                return result;
+            }
+            const runtime::SurfaceDesc desc{
+                key.width, key.height, key.format,
+                runtime::ResourceUsage::Storage,
+                runtime::LifetimeClass::JobPersistent,
+                image->gpu_rgba.size() * sizeof(float)};
+            const auto acquired = cache.acquire(key, desc, image->gpu_rgba);
+            if (!acquired.ok()) {
+                result.preparation_error = PreparationError{
+                    .code = PreparationError::Code::CorruptedAsset,
+                    .message = "static image GPU promotion failed: " + ref.path,
+                    .path = ref.path,
+                    .owner = ref.owner,
+                    .phase = "gpu-image",
+                };
+                return result;
+            }
+        }
+    }
 
     result.timings.asset_decode_ms =
         profiling::duration_ms(decode_t0, profiling::now());

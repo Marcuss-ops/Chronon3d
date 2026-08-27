@@ -5,7 +5,7 @@
 //
 // NodeMemoryMetrics and NodeStatsReporter are intentionally small public
 // value/reporting types. Runtime-only RAII tracking lives in
-// src/render_graph/executor/node_memory_tracker.hpp so the SDK header does
+// include/chronon3d/internal/render_graph/node_memory_tracker.hpp so the SDK header does
 // not expose renderer-internal lifetime machinery.
 // ============================================================================
 

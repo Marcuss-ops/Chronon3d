@@ -22,6 +22,7 @@
 #include "text_run_stages.hpp"
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/core/config.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -325,10 +326,7 @@ namespace chronon3d::renderer::text_run_stages {
     //         surface_top  <  0              ==> ascender clipped above
     //         surface_bottom >  ss_img_h     ==> descender clipped below
     //         last_glyph surface_right > ss_img_w ==> right-edge clipped
-    static const bool kClipDebugEnabled = []() {
-        const char* env = std::getenv("CHRONON3D_TEXT_CLIP_DEBUG");
-        return env != nullptr && env[0] != '\0' && env[0] != '0';
-    }();
+    const bool kClipDebugEnabled = rctx.config && rctx.config->debug().text_clip_debug();
     if (kClipDebugEnabled) {
         spdlog::warn(
             "[text-clip-debug] text='{}' "

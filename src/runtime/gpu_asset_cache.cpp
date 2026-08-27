@@ -28,11 +28,15 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
         return {kInvalidRenderSurfaceHandle, false, "GPU asset key and surface description disagree"};
     }
     if (desc.bytes == 0) {
-        desc.bytes = static_cast<std::size_t>(desc.width) * desc.height * sizeof(float) * 4;
+        desc.bytes = tight_surface_bytes(desc.format, desc.width, desc.height);
     }
     if (rgba.size_bytes() != desc.bytes) {
         return {kInvalidRenderSurfaceHandle, false, "GPU asset upload size does not match surface"};
     }
+    // Static assets are deliberately job-persistent: the logical handle and
+    // its device allocation survive frame-local surface cleanup and can be
+    // reused by every frame (and every job sharing this runtime cache).
+    desc.lifetime = LifetimeClass::JobPersistent;
     if (m_budget_bytes != 0 && desc.bytes > m_budget_bytes) {
         return {kInvalidRenderSurfaceHandle, false, "GPU asset exceeds cache budget"};
     }
@@ -50,14 +54,24 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
             } else {
                 m_resident_bytes = 0;
             }
+            ++m_stats.evictions;
+            const auto evicted_bytes = it->second.bytes;
+            m_stats.evicted_bytes += evicted_bytes;
             m_entries.erase(it);
             m_stats.resident_bytes = m_resident_bytes;
+            if (profiling::g_current_counters) {
+                auto* counters = profiling::g_current_counters;
+                counters->gpu_asset_cache_evictions.fetch_add(1, std::memory_order_relaxed);
+                counters->gpu_asset_cache_evicted_bytes.fetch_add(
+                    evicted_bytes, std::memory_order_relaxed);
+            }
         } else {
         m_lru.splice(m_lru.end(), m_lru, it->second.lru_position);
         it->second.lru_position = std::prev(m_lru.end());
         ++m_stats.hits;
         if (profiling::g_current_counters) {
-            profiling::g_current_counters->gpu_asset_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            auto* counters = profiling::g_current_counters;
+            counters->gpu_asset_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
         return {it->second.handle, true, {}};
         }
@@ -84,7 +98,19 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
     m_entries.emplace(key, Entry{handle, desc.bytes, std::prev(m_lru.end())});
     m_resident_bytes += desc.bytes;
     m_stats.resident_bytes = m_resident_bytes;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_asset_cache_resident_bytes.store(
+            m_resident_bytes, std::memory_order_relaxed);
+    }
     m_stats.upload_bytes += desc.bytes;
+    ++m_stats.initial_uploads;
+    m_stats.initial_upload_bytes += desc.bytes;
+    if (profiling::g_current_counters) {
+        auto* counters = profiling::g_current_counters;
+        counters->gpu_asset_cache_initial_uploads.fetch_add(1, std::memory_order_relaxed);
+        counters->gpu_asset_cache_initial_upload_bytes.fetch_add(
+            desc.bytes, std::memory_order_relaxed);
+    }
     evict_to_budget_locked();
     return {handle, false, {}};
 }
@@ -96,11 +122,23 @@ void GpuAssetCache::evict_to_budget_locked() {
         const auto it = m_entries.find(key);
         if (it == m_entries.end()) continue;
         release_handle(it->second.handle);
-        m_resident_bytes -= it->second.bytes;
+        const auto evicted_bytes = it->second.bytes;
+        m_resident_bytes -= evicted_bytes;
+        m_stats.evicted_bytes += evicted_bytes;
         m_entries.erase(it);
         ++m_stats.evictions;
+        if (profiling::g_current_counters) {
+            auto* counters = profiling::g_current_counters;
+            counters->gpu_asset_cache_evictions.fetch_add(1, std::memory_order_relaxed);
+            counters->gpu_asset_cache_evicted_bytes.fetch_add(
+                evicted_bytes, std::memory_order_relaxed);
+        }
     }
     m_stats.resident_bytes = m_resident_bytes;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_asset_cache_resident_bytes.store(
+            m_resident_bytes, std::memory_order_relaxed);
+    }
 }
 
 void GpuAssetCache::release_handle(RenderSurfaceHandle handle) noexcept {
@@ -118,6 +156,10 @@ void GpuAssetCache::clear() noexcept {
     m_lru.clear();
     m_resident_bytes = 0;
     m_stats.resident_bytes = 0;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_asset_cache_resident_bytes.store(
+            0, std::memory_order_relaxed);
+    }
 }
 
 void GpuAssetCache::set_budget_bytes(std::size_t budget_bytes) noexcept {
