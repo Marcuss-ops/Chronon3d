@@ -211,8 +211,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         runtime::RenderPreparationOptions{
                             .warmup_renderer = true,
                             .warmup = runtime::RendererWarmupOptions{
-                                .width = compiled.definition->composition.width,
-                                .height = compiled.definition->composition.height,
+                                .width = compiled.composition->width(),
+                                .height = compiled.composition->height(),
                                 .framebuffer_count = opts.warmup.warmup_framebuffers,
                                 .preallocate_framebuffers = true,
                                 .touch_memory = true,

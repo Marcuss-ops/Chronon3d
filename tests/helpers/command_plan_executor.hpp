@@ -1,8 +1,11 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// render_graph/executor/command_plan_executor.hpp
+// tests/helpers/command_plan_executor.hpp
 //
+// TEST-ONLY declaration for the backend adapter for the runtime GPU
+// CommandPlan. It is not part
+// of the production GraphExecutor call graph; see docs/EXECUTOR_OWNERSHIP.md.
 // Backend-neutral executor for the runtime GPU CommandPlan.  It plays the
 // frame orchestrator role for a compiled plan:
 //
@@ -23,6 +26,7 @@
 namespace chronon3d::runtime {
 
 /// Execute a backend-neutral CommandPlan on a batching-capable backend.
+/// Test/readiness harness API; production rendering uses GraphExecutor.
 ///
 /// Steps, in order:
 ///   1. bind_plan_slots(plan.resources, registry) — propagates the physical

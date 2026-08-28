@@ -213,10 +213,10 @@ Result<RenderJob, RenderJobError> resolve_render_request(
         job.comp_id = std::move(request.comp_id);
         job.compiled = std::move(compiled);
         job.metadata = CompositionMetadata{
-            .width = job.compiled->definition->composition.width,
-            .height = job.compiled->definition->composition.height,
-            .fps = job.compiled->definition->composition.frame_rate,
-            .duration = job.compiled->definition->composition.duration,
+            .width = job.compiled->composition->width(),
+            .height = job.compiled->composition->height(),
+            .fps = job.compiled->composition->frame_rate(),
+            .duration = job.compiled->composition->duration(),
         };
         if (resolved && resolved->metadata) job.metadata = *resolved->metadata;
         job.mode = request.mode;

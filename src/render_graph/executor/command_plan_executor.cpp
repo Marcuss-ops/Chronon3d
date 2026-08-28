@@ -1,4 +1,9 @@
-#include <chronon3d/render_graph/executor/command_plan_executor.hpp>
+// ABI-compatible legacy adapter. Its declaration is test-only; this TU keeps
+// the exported symbol available without exposing an executor header under
+// include/chronon3d/. See docs/EXECUTOR_OWNERSHIP.md.
+#include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/gpu_command_plan.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 
 #include <spdlog/spdlog.h>
 

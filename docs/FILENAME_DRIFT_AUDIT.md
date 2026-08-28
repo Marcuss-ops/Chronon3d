@@ -1,0 +1,64 @@
+# Filename drift audit
+
+## Policy
+
+`tools/check_filename_drift.sh` remains **warn-only** while the inventory is
+being corrected. The blocking mode must not be re-enabled until the remaining
+operational count is below the agreed threshold (target: `<10`).
+
+A missing citation is classified on its source line:
+
+- `operational`: real active source/test/CMake reference; fix the reference.
+- `historical`: retained historical evidence; mark `drift-class: historical`.
+- `template`: example/template wording; mark `drift-class: template`.
+- `third-party`: external/generated/vendor reference; mark `drift-class: third-party`.
+- `false-positive`: parser match that is not a repository path; mark
+  `drift-class: false-positive` and explain why.
+- `planned`: future path; requires `drift-allow: <id>` and `drift-reason:`.
+
+Classification never creates a missing file and must not be used for active
+includes, CMake sources, or executable test paths.
+
+## Audit snapshot — 2026-08-28
+
+The warn-only scan found **116 operational findings**. The findings are
+primarily stale documentation/source citations and a smaller set of active
+CMake/include references. No finding was hidden with a generic allow marker.
+
+### Correction batches
+
+1. Correct active source/CMake/include/test citations with `git mv` history
+   where the referenced artifact was renamed, or replace the citation with the
+   canonical current path.
+2. Classify historical and template documentation lines explicitly.
+3. Classify parser false positives such as `include/...` prose only when they
+   are demonstrably not paths.
+4. Classify third-party/generated references only where ownership is outside
+   this repository.
+5. Re-run the audit after each batch and keep the count visible.
+
+### Current examples requiring correction or classification
+
+The raw inventory is maintained in the gate output. Do not cite missing paths
+inside this audit document itself: examples belong in the terminal report and
+canonical ticket, not in a scanned path-like line. The first correction batch
+must resolve active references such as stale CMake sources and includes before
+any historical/template classification is applied.
+
+Examples from the initial inventory requiring investigation are:
+
+- stale `src/text/internal/composer_helpers.hpp` citations;
+- stale generated SDK path `src/c_api/chronon3d_version.hpp`;
+- missing showcase/AE parity test paths referenced by active CMake;
+- old `docs/CHANGELOG.md`, baseline, roadmap and ticket citations.
+
+## Blocking reactivation
+
+Re-enable `--strict` only after:
+
+```text
+operational findings < 10
+all active CMake/include/test citations exist
+historical/template/third-party/false-positive lines are explicitly tagged
+planned references have allow + reason
+```

@@ -207,13 +207,13 @@ NativeSurfacePrep prepare_frame(
         ctx.native_encode_surfaces[prep.interop_slot];
     if (persistent_native_surface == runtime::kInvalidRenderSurfaceHandle) {
         const runtime::SurfaceDesc encode_desc{
-            static_cast<std::uint32_t>(ctx.compiled.definition->composition.width),
-            static_cast<std::uint32_t>(ctx.compiled.definition->composition.height),
+            static_cast<std::uint32_t>(ctx.compiled.composition->width()),
+            static_cast<std::uint32_t>(ctx.compiled.composition->height()),
             runtime::PixelFormat::Rgba8Unorm,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::FrameTransient,
-            static_cast<std::size_t>(ctx.compiled.definition->composition.width) *
-                ctx.compiled.definition->composition.height * 4};
+            static_cast<std::size_t>(ctx.compiled.composition->width()) *
+                ctx.compiled.composition->height() * 4};
         persistent_native_surface = surface_registry->create(encode_desc);
         const auto created = ctx.backend.create_video_encode_surface(
             persistent_native_surface, encode_desc);
@@ -235,13 +235,13 @@ NativeSurfacePrep prepare_frame(
         auto& persistent_source = ctx.native_source_surfaces[prep.interop_slot];
         if (persistent_source == runtime::kInvalidRenderSurfaceHandle) {
             const runtime::SurfaceDesc source_desc{
-                static_cast<std::uint32_t>(ctx.compiled.definition->composition.width),
-                static_cast<std::uint32_t>(ctx.compiled.definition->composition.height),
+                static_cast<std::uint32_t>(ctx.compiled.composition->width()),
+                static_cast<std::uint32_t>(ctx.compiled.composition->height()),
                 runtime::PixelFormat::Rgba32Float,
                 runtime::ResourceUsage::Storage,
                 runtime::LifetimeClass::JobPersistent,
-                static_cast<std::size_t>(ctx.compiled.definition->composition.width) *
-                    ctx.compiled.definition->composition.height * sizeof(float) * 4};
+                static_cast<std::size_t>(ctx.compiled.composition->width()) *
+                    ctx.compiled.composition->height() * sizeof(float) * 4};
             persistent_source = surface_registry->create(source_desc);
             const auto created = ctx.backend.create_surface(persistent_source, source_desc);
             if (!created.ok()) {

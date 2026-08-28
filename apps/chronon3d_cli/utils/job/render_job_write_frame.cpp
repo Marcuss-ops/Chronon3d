@@ -123,7 +123,7 @@ bool write_render_frame(const CompiledComposition& compiled,
         const auto structured = renderer.session().last_frame_error();
         if (structured) {
             print_render_error(*structured,
-                               compiled.definition->composition.name, frame);
+                               compiled.composition->name(), frame);
         } else {
             print_render_error(
                 graph::NodeExecutionError{
@@ -131,7 +131,7 @@ bool write_render_frame(const CompiledComposition& compiled,
                     "render",
                     "renderer returned a null framebuffer without a structured node error"
                 },
-                compiled.definition->composition.name,
+                compiled.composition->name(),
                 frame);
         }
         ok = false;
@@ -154,7 +154,7 @@ bool write_render_frame(const CompiledComposition& compiled,
 
     const double encode_ms = write_frame_to_disk(
         fb, frame, range, output_pattern,
-        compiled.definition->composition.name, cache_hit, dirty_ratio,
+        compiled.composition->name(), cache_hit, dirty_ratio,
         render_ms, prog_cache_cap, ok, telemetry_frames, total_encode_ms,
         frames_written);
 

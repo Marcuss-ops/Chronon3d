@@ -153,8 +153,9 @@ void apply_sparse_or_full_decision(
         return;
     }
 
-    // This is the sole sparse/full policy. The coordinator only executes the
-    // path selected here.
+    // Canonical tile-prune authority: this is the only sparse/full policy.
+    // FrameDeltaCompiler owns calculation of bounds/mask; the coordinator only
+    // executes the immutable result and node_runner only applies per-node clip.
     if (detail::has_layer_with_spatial_effects(resolved, frame, effect_catalog)) {
         // Predictable blur/glow spread is already expanded by
         // FrameDeltaCompiler. Only effects whose damage cannot be bounded
@@ -203,6 +204,8 @@ void apply_sparse_or_full_decision(
         return;
     }
 
+    // Coalescing is part of the canonical resolver decision and is performed
+    // exactly once before the coordinator receives the plan.
     plan.dirty_regions = ExecutionResolver::coalesce_dirty_regions(
         *dirty_out.tile_grid, *dirty_out.dirty_tiles);
     if (plan.dirty_regions.empty()) {
@@ -455,9 +458,7 @@ FrameExecutionPlan ExecutionResolver::resolve(
         return plan;
     }
 
-    // Fast path #3: the dirty collector proved that the previous surface is
-    // already complete. This is now a resolver decision, not a scene.cpp
-    // policy branch.
+    // Empty-damage reuse is also resolved here; coordinators never infer it.
     if (sw_renderer && settings.dirty.enabled && dirty_out.frame_delta_clean &&
         dirty_out.dirty_rect && dirty_out.dirty_rect->is_empty() &&
         !has_frame_dependent_content(scene, frame) &&
