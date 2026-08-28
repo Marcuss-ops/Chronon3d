@@ -574,6 +574,10 @@ bool CudaNv12SurfaceCompositor::composite(
         counters->cuda_composite_frames.fetch_add(1, std::memory_order_relaxed);
         counters->cuda_composite_wall_us.fetch_add(
             static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
+        // Zero-copy gate 3: every NV12/P010→RGBA kernel launch is a decoded
+        // frame that left the native YUV domain.  The direct-YUV path
+        // (composite_direct_nv12*) keeps this counter at zero.
+        counters->nv12_to_rgba_frames.fetch_add(1, std::memory_order_relaxed);
     }
     return true;
 }
@@ -702,6 +706,11 @@ bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
                "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
     bridge_->signal_for_vulkan(active);
     first_write_ = false;
+    if (auto* counters = profiling::g_current_counters) {
+        // Zero-copy gate 4: every RGBA→NV12 kernel launch is an encoder
+        // staging conversion.  composite_direct_nv12* keeps this at zero.
+        counters->rgba_to_nv12_frames.fetch_add(1, std::memory_order_relaxed);
+    }
     return true;
 }
 

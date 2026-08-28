@@ -232,6 +232,13 @@ namespace chronon3d::backends::vulkan {
         src.initialized = true;
         dst.initialized = true;
         surfaces.cuda_export_ready_surfaces.insert(destination_slot);
+        // Zero-copy gate 6: this vkCmdBlitImage is the D2D Vulkan→CUDA
+        // surface copy.  The direct-YUV encode handoff (composite_direct_
+        // nv12*) renders the overlay into the CUDA-visible surface without
+        // this copy and keeps the counter at zero.
+        if (auto* counters = profiling::g_current_counters) {
+            counters->gpu_surface_copy_frames.fetch_add(1, std::memory_order_relaxed);
+        }
         if (!record_in_frame_batch) submit(wait_for_completion);
     }
 #endif

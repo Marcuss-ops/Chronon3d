@@ -80,6 +80,8 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_nodes;
     std::optional<std::uint64_t> gpu_native_surface_frames;
     std::optional<std::uint64_t> gpu_native_encode_frames;
+    std::optional<std::uint64_t> nv12_to_rgba_frames;
+    std::optional<std::uint64_t> rgba_to_nv12_frames;
     std::optional<std::uint64_t> gpu_surface_copy_frames;
     std::optional<std::uint64_t> cpu_pixel_readback_count;
     std::optional<std::uint64_t> cpu_pixel_readback_bytes;

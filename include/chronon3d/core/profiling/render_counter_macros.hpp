@@ -364,6 +364,8 @@ namespace chronon3d {
     X(pipe_backpressure_wait_wall_us) \
     X(gpu_native_surface_frames) \
     X(gpu_native_encode_frames) \
+    X(nv12_to_rgba_frames) \
+    X(rgba_to_nv12_frames) \
     X(gpu_surface_copy_frames) \
     X(cpu_pixel_readback_count) \
     X(cpu_pixel_readback_bytes) \
