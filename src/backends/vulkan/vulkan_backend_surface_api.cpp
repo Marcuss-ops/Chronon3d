@@ -1,5 +1,29 @@
-// Vulkan public surface and operation adapters. Included by the backend TU to preserve the
-// single public implementation while keeping each responsibility inspectable.
+// vulkan_backend_surface_api.cpp — VulkanBackend public surface and operation
+// adapters (create/upload/download/release, composite/blur/… wrappers), the
+// legacy Framebuffer composite adapter, and the make_vulkan_backend factory.
+// Each adapter is a thin batched wrapper over the Impl ops in
+// vulkan_backend_operations_private.cpp, so touching this TU never recompiles
+// the kernel recording, descriptor or surface-store code.
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include "vulkan_backend_impl.hpp"
+#endif
+
+#include <cstring>
+#include <memory>
+#include <optional>
+#include <span>
+#include <stdexcept>
+
+namespace chronon3d::backends::vulkan {
+
 template <typename Fn>
 graph::RenderOpResult VulkanBackend::run_batched_surface_op(Fn&& fn) {
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -580,5 +604,28 @@ void VulkanBackend::preallocate_plan_surfaces(
 #endif
 }
 
+void VulkanBackend::composite_legacy_surface(
+    Framebuffer& destination, const Framebuffer& source, BlendMode mode,
+    const std::optional<raster::BBox>& clip) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const auto result = run_batched_surface_op([&] {
+        m_impl->composite(destination.surface_handle(), source.surface_handle(), mode, clip);
+    });
+    if (!result.ok()) {
+        throw std::runtime_error(result.error().message);
+    }
+#else
+    (void)destination;
+    (void)source;
+    (void)mode;
+    (void)clip;
+    unsupported("composite_layer");
+#endif
+}
+
 std::unique_ptr<graph::RenderBackend> make_vulkan_backend(
     std::uint32_t device_index) {
+    return std::make_unique<VulkanBackend>(device_index);
+}
+
+} // namespace chronon3d::backends::vulkan

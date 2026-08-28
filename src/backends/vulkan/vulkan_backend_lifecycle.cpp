@@ -1,5 +1,29 @@
-// Vulkan public backend construction and move lifecycle. Included by the backend TU to preserve the
-// single public implementation while keeping each responsibility inspectable.
+// vulkan_backend_lifecycle.cpp — VulkanBackend public construction and move
+// lifecycle (constructor, destructor, move).  Impl construction itself lives
+// in vulkan_backend_lifecycle_private.cpp; this TU owns only the public
+// wrapper so touching backend construction recompiles just this file.
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include "vulkan_backend_impl.hpp"
+#endif
+
+#include <algorithm>
+#include <cstring>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace chronon3d::backends::vulkan {
+
 VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     m_debug_context = std::make_unique<VulkanDebugContext>();
@@ -225,3 +249,5 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
 #endif
     return *this;
 }
+
+} // namespace chronon3d::backends::vulkan
