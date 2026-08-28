@@ -84,11 +84,6 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
 #endif
 }
 
-#ifdef CHRONON3D_ENABLE_VULKAN
-#endif // CHRONON3D_ENABLE_VULKAN
-#include "vulkan_backend_public_lifecycle.inc"
-#include "vulkan_backend_public_stats.inc"
-
 void VulkanBackend::begin_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
@@ -328,10 +323,6 @@ void VulkanBackend::replay_submit(std::size_t slot_index,
     (void)params;
     (void)params_size;
 #endif
-}
-
-#include "vulkan_backend_public_surface_api.inc"
-    return std::make_unique<VulkanBackend>(device_index);
 }
 
 } // namespace chronon3d::backends::vulkan
