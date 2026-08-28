@@ -15,6 +15,7 @@
 
 #include "text_unicode_utils.hpp"
 #include "text_layout_types.hpp"
+#include "text_layout_helpers.hpp"
 
 #include <algorithm>
 #include <array>
@@ -144,57 +145,133 @@ inline TextLayoutLineRun make_run(
 // layout_single_run — single-style layout with word/char wrapping
 // ═══════════════════════════════════════════════════════════════════════════
 
-inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
+struct SingleLayoutContext {
+    const TextLayoutInput& input;
     TextLayoutResult result;
-    const float font_size = std::max(1.0f, input.style.size);
-    result.font_size = font_size;
-    const float line_height = std::max(1.0f, font_size * input.style.line_height);
-    const float max_width = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
-
+    float font_size{1.0f};
+    float line_height{1.0f};
+    float max_width{0.0f};
+    float tracking{0.0f};
     std::array<float, 256> char_widths{};
-    const bool use_bl2d = input.bl_measure_fn != nullptr && input.bl_font_ptr != nullptr;
-    const bool have_precomputed = use_bl2d || input.font_engine != nullptr;
-    if (use_bl2d) {
+    bool have_precomputed{false};
+    bool wrapping_enabled{false};
+};
+
+inline SingleLayoutContext make_single_layout_context(const TextLayoutInput& input) {
+    SingleLayoutContext ctx{input};
+    ctx.font_size = std::max(1.0f, input.style.size);
+    ctx.line_height = std::max(1.0f, ctx.font_size * input.style.line_height);
+    ctx.max_width = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
+    ctx.tracking = input.style.tracking;
+    ctx.wrapping_enabled = ctx.max_width > 0.0f && input.style.wrap != TextWrap::None;
+    ctx.result.font_size = ctx.font_size;
+    return ctx;
+}
+
+inline void precompute_single_char_widths(SingleLayoutContext& ctx) {
+    const auto& input = ctx.input;
+    ctx.have_precomputed = input.bl_measure_fn != nullptr && input.bl_font_ptr != nullptr;
+    if (ctx.have_precomputed) {
         for (int c = 32; c < 127; ++c) {
             char buf[2] = {static_cast<char>(c), '\0'};
-            char_widths[c] = input.bl_measure_fn(
-                input.bl_font_ptr, std::string_view(buf, 1), font_size);
+            ctx.char_widths[c] = input.bl_measure_fn(input.bl_font_ptr, std::string_view(buf, 1), ctx.font_size);
         }
-    } else if (input.font_engine) {
-        std::string ascii_batch;
-        ascii_batch.reserve(95);
-        for (int c = 32; c < 127; ++c) ascii_batch.push_back(static_cast<char>(c));
-        auto batch_run = input.font_engine->shape_text(
-            ascii_batch, input.font_spec, font_size, input.style.shaping);
-        if (batch_run && batch_run->glyphs.size() == 95) {
-            for (size_t i = 0; i < 95; ++i) {
-                const int c = 32 + static_cast<int>(i);
-                char_widths[c] = batch_run->glyphs[i].advance_x;
-            }
-        } else {
-            for (int c = 32; c < 127; ++c) {
-                char buf[2] = {static_cast<char>(c), '\0'};
-                char_widths[c] = input.font_engine->measure_text(
-                    buf, input.font_spec, font_size, input.style.shaping);
-            }
-        }
+        return;
     }
+    if (!input.font_engine) return;
+    ctx.have_precomputed = true;
+    std::string ascii_batch;
+    ascii_batch.reserve(95);
+    for (int c = 32; c < 127; ++c) ascii_batch.push_back(static_cast<char>(c));
+    auto batch_run = input.font_engine->shape_text(ascii_batch, input.font_spec, ctx.font_size, input.style.shaping);
+    if (batch_run && batch_run->glyphs.size() == 95) {
+        for (size_t i = 0; i < 95; ++i) {
+            ctx.char_widths[32 + static_cast<int>(i)] = batch_run->glyphs[i].advance_x;
+        }
+        return;
+    }
+    for (int c = 32; c < 127; ++c) {
+        char buf[2] = {static_cast<char>(c), '\0'};
+        ctx.char_widths[c] = input.font_engine->measure_text(buf, input.font_spec, ctx.font_size, input.style.shaping);
+    }
+}
+
+inline float single_char_width(const SingleLayoutContext& ctx, char c) {
+    const unsigned char uc = static_cast<unsigned char>(c);
+    if (ctx.have_precomputed && ctx.char_widths[uc] > 0.0f) return ctx.char_widths[uc];
+    return measure_single_char(c, false, ctx.char_widths, ctx.input, ctx.input.style, ctx.font_size);
+}
+
+inline void append_single_line(std::vector<std::string>& lines, std::vector<float>& widths,
+                               std::string& current, float& current_width) {
+    lines.push_back(std::move(current));
+    widths.push_back(current_width);
+    current.clear();
+    current_width = 0.0f;
+}
+
+inline void truncate_single_lines(std::vector<std::string>& lines, std::vector<float>& widths,
+                                  const SingleLayoutContext& ctx) {
+    const int max_lines = ctx.input.style.max_lines;
+    if (max_lines <= 0 || static_cast<int>(lines.size()) <= max_lines) return;
+    lines.resize(max_lines);
+    widths.resize(max_lines);
+    if (!(ctx.input.style.ellipsis || ctx.input.style.overflow == TextOverflow::Ellipsis) || lines.empty()) return;
+    auto& line = lines.back();
+    while (!line.empty() && measure_string(ctx.input, ctx.input.style, line + "...", ctx.font_size) > ctx.max_width) {
+        const size_t cluster_end = detail::grapheme_byte_offset_at(std::string_view(line), 1);
+        if (cluster_end == 0) break;
+        line.erase(line.size() - cluster_end);
+    }
+    line += "...";
+    widths.back() = measure_string(ctx.input, ctx.input.style, line, ctx.font_size);
+}
+
+inline TextLayoutResult emit_single_layout(const SingleLayoutContext& ctx,
+                                            const std::vector<std::string>& lines,
+                                            const std::vector<float>& widths) {
+    TextLayoutResult result = ctx.result;
+    float max_seen_width = 0.0f;
+    for (float width : widths) max_seen_width = std::max(max_seen_width, width);
+    result.size = {max_seen_width, static_cast<float>(lines.size()) * ctx.line_height};
+    float ascent = ctx.font_size * 0.78f;
+    float descent = ctx.font_size * 0.22f;
+    if (ctx.input.font_engine) {
+        const auto metrics = ctx.input.font_engine->get_font_metrics(ctx.input.font_spec, ctx.font_size);
+        if (metrics.ascent > 0.0f) ascent = metrics.ascent;
+        if (metrics.descent > 0.0f) descent = metrics.descent;
+    }
+    for (size_t i = 0; i < lines.size(); ++i) {
+        TextLayoutLine line;
+        line.text = lines[i];
+        line.width = widths[i];
+        line.ascent = ascent;
+        line.descent = descent;
+        line.baseline = ascent;
+        const float alignment_width = ctx.max_width > 0.0f ? ctx.max_width : max_seen_width;
+        line.position = {aligned_line_x(ctx.input.style.align, line.width, alignment_width),
+                         static_cast<float>(i) * ctx.line_height};
+        TextLayoutLineRun run;
+        run.text = line.text;
+        run.position = line.position;
+        run.width = line.width;
+        run.style = ctx.input.style;
+        line.runs.push_back(std::move(run));
+        result.lines.push_back(std::move(line));
+    }
+    return result;
+}
+
+inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
+    auto ctx = make_single_layout_context(input);
+    TextLayoutResult result = ctx.result;
+    const float font_size = ctx.font_size;
+    const float line_height = ctx.line_height;
+    const float max_width = ctx.max_width;
+    precompute_single_char_widths(ctx);
 
     auto measure_char = [&](char c) -> float {
-        if (have_precomputed) {
-            const unsigned char uc = static_cast<unsigned char>(c);
-            if (char_widths[uc] > 0.0f) return char_widths[uc];
-        }
-        if (use_bl2d) {
-            char buf[2] = {c, '\0'};
-            return input.bl_measure_fn(
-                input.bl_font_ptr, std::string_view(buf, 1), font_size);
-        }
-        if (input.font_engine) {
-            char buf[2] = {c, '\0'};
-            return input.font_engine->measure_text(buf, input.font_spec, font_size, input.style.shaping);
-        }
-        return measure_char_legacy(input, c, font_size);
+        return single_char_width(ctx, c);
     };
 
     auto measure_string_input = [&](std::string_view s) -> float {
@@ -255,14 +332,11 @@ inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
     const float tracking_amount = input.style.tracking;
 
     auto push_line_with_width = [&]() {
-        raw_lines.push_back(std::move(current_line));
-        line_widths.push_back(current_width);
-        current_line.clear();
-        current_width = 0.0f;
+        append_single_line(raw_lines, line_widths, current_line, current_width);
         segments_on_line = 0;
     };
 
-    const bool wrapping_enabled = max_width > 0.0f && input.style.wrap != TextWrap::None;
+    const bool wrapping_enabled = ctx.wrapping_enabled;
 
     for (const auto& token_pair : tokens) {
         const std::string& token = token_pair.first;
@@ -454,12 +528,8 @@ inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
         // not merely to the longest line. This is the CapCut contract:
         // short lines center/right-align inside the full text box.
         const float alignment_width = max_width > 0.0f ? max_width : max_seen_width;
-        float dx = 0.0f;
-        if (input.style.align == TextAlign::Center) {
-            dx = (alignment_width - line.width) * 0.5f;
-        } else if (input.style.align == TextAlign::Right) {
-            dx = alignment_width - line.width;
-        }
+        const float dx = aligned_line_x(input.style.align, line.width, alignment_width);
+
         line.position = {dx, static_cast<float>(i) * line_height};
 
         TextLayoutLineRun run;

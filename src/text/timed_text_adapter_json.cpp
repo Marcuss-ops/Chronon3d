@@ -1,6 +1,7 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
 #include "timed_text_core.hpp"
+#include "timed_text_adapter_support.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -185,16 +186,14 @@ std::optional<int> try_parse_int(JsonCursor& j, const char* key) {
 } // namespace
 
 TimedTextDocument timed_text_from_json(const std::string& raw) {
-    TimedTextDocument doc;
-    doc.source_format = "json";
-
-    if (raw.empty()) return doc;
+    timed_text_adapter_detail::AdapterDocumentBuilder output("json");
+    if (raw.empty()) return output.finish();
 
     JsonCursor j(raw);
 
     // Expect root object
     j.skip_whitespace();
-    if (j.peek() != '{') return doc;
+    if (j.peek() != '{') return output.finish();
     j.next();
 
     j.skip_whitespace();
@@ -211,9 +210,9 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
         j.skip_whitespace();
 
         if (key == "language") {
-            doc.language = j.parse_string();
+            output.document.language = j.parse_string();
         } else if (key == "title") {
-            doc.title = j.parse_string();
+            output.document.title = j.parse_string();
         } else if (key == "cues") {
             // Parse array of cues
             if (j.peek() != '[') { j.skip_value(); continue; }
@@ -351,7 +350,7 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                         textcore::classify_quality(words_from_source, cue.words.size());
 
                     if (textcore::cue_is_valid(cue)) {
-                        doc.cues.push_back(std::move(cue));
+                        output.accept(std::move(cue));
                     }
                 }
                 j.skip_whitespace();
@@ -368,8 +367,7 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
         j.skip_whitespace();
     }
 
-    textcore::canonicalize_document(doc);
-    return doc;
+    return output.finish();
 }
 
 } // namespace chronon3d

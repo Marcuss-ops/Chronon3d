@@ -1,5 +1,6 @@
 #include <chronon3d/backends/text/text_layout_inline.hpp>
 #include <chronon3d/backends/text/text_layout_single.hpp>
+#include <chronon3d/backends/text/text_layout_helpers.hpp>
 #include <chronon3d/backends/text/text_unicode_utils.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
@@ -34,9 +35,10 @@ struct InlineLayoutContext {
 InlineLayoutContext normalize_input(const TextLayoutInput& input) {
     InlineLayoutContext ctx;
     ctx.input = input;
-    ctx.font_size_hint = std::max(1.0f, input.style.size);
-    ctx.max_width_limit = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
-    ctx.wrapping_enabled = ctx.max_width_limit > 0.0f && input.style.wrap != TextWrap::None;
+    const auto geometry = layout_geometry(input);
+    ctx.font_size_hint = geometry.font_size;
+    ctx.max_width_limit = geometry.max_width;
+    ctx.wrapping_enabled = geometry.wrapping_enabled;
     ctx.word_wrap = ctx.wrapping_enabled && input.style.wrap == TextWrap::Word;
     ctx.char_wrap = ctx.wrapping_enabled && input.style.wrap == TextWrap::Character;
     return ctx;
@@ -212,7 +214,7 @@ TextLayoutResult emit_layout(const InlineLayoutContext& ctx) {
         line.position.y = static_cast<float>(index) * line_height;
         for (const auto& run : state.runs) line.text += run.text;
         const float alignment_width = ctx.max_width_limit > 0.0f ? ctx.max_width_limit : max_width;
-        line.position.x = ctx.input.style.align == TextAlign::Center ? (alignment_width - line.width) * 0.5f : ctx.input.style.align == TextAlign::Right ? alignment_width - line.width : 0.0f;
+        line.position.x = aligned_line_x(ctx.input.style.align, line.width, alignment_width);
         float cursor = line.position.x;
         for (auto run : state.runs) { run.position = {cursor, line.position.y}; cursor += run.width; line.runs.push_back(std::move(run)); }
         result.lines.push_back(std::move(line));
