@@ -1,10 +1,27 @@
-// Vulkan Impl Vulkan Impl construction and initialization. Included inside VulkanBackend::Impl to keep
-// the private state definition single-source while separating responsibilities.
+// vulkan_backend_lifecycle_private.cpp — VulkanBackend::Impl construction
+// and destruction. Out-of-class definitions; declared in
+// vulkan_backend_impl.hpp.
 
-    Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
+#include "vulkan_backend_impl.hpp"
+#include "composite_comp_spv.hpp"
+#include "transform_comp_spv.hpp"
+#include "affine_transform_comp_spv.hpp"
+#include "blur_comp_spv.hpp"
+#include "color_adjust_comp_spv.hpp"
+#include "matte_comp_spv.hpp"
+#include "text_run_comp_spv.hpp"
+#include "fill_rect_comp_spv.hpp"
+#include "layer_batch_comp_spv.hpp"
+#include "text_batch_comp_spv.hpp"
+#include "text_tile_bin_comp_spv.hpp"
+#include "text_tile_raster_comp_spv.hpp"
+
+namespace chronon3d::backends::vulkan {
+
+    VulkanBackend::Impl::Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
          std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported,
-         VulkanDebugContext* dbg_ctx = nullptr)
+         VulkanDebugContext* dbg_ctx)
         : instance(inst), physical_device(physical), device(logical), queue(graphics),
           queue_family(family), command_pool(pool),
           submission_ring(descriptor_arena),
@@ -528,3 +545,65 @@
             }
         }
     }
+
+VulkanBackend::Impl::~Impl() {
+        if (device != VK_NULL_HANDLE) vkDeviceWaitIdle(device);
+        surfaces.destroy_all(*this);
+        destroy_image(dst);
+        destroy_image(src);
+        if (staging.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(staging);
+        for (std::size_t i = 0; i < kGlyphInstanceRingSize; ++i) {
+            if (glyph_instance_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(glyph_instance_buffers[i]);
+            }
+            if (layer_instance_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(layer_instance_buffers[i]);
+            }
+            if (text_run_dynamic_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_run_dynamic_buffers[i]);
+            }
+            if (text_tile_count_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_tile_count_buffers[i]);
+            }
+            if (text_tile_index_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_tile_index_buffers[i]);
+            }
+        }
+        for (auto& slot : uploads.slots) destroy_upload_slot(slot);
+        descriptor_arena.destroy();
+        for (auto& slot_fence : frame_batch.fences) {
+            if (slot_fence != VK_NULL_HANDLE) vkDestroyFence(device, slot_fence, nullptr);
+        }
+        for (auto& slot_buffer : frame_batch.command_buffers) {
+            if (slot_buffer != VK_NULL_HANDLE) {
+                vkFreeCommandBuffers(device, command_pool, 1, &slot_buffer);
+            }
+        }
+        // ── Replay slot teardown ───────────────────────────────────
+        for (auto& slot : replay_slots) {
+            if (slot.command_buffer != VK_NULL_HANDLE) {
+                vkFreeCommandBuffers(device, command_pool, 1, &slot.command_buffer);
+            }
+            if (slot.fence != VK_NULL_HANDLE) {
+                vkDestroyFence(device, slot.fence, nullptr);
+            }
+            if (slot.params.buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(slot.params);
+            }
+        }
+        if (fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
+        if (timeline_semaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timeline_semaphore, nullptr);
+        kernels.destroy(device);
+        // Descriptor pools are destroyed by descriptor_arena.destroy().
+        if (descriptor_pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
+        if (descriptor_layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
+        if (text_tile_bin_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, text_tile_bin_descriptor_layout, nullptr);
+        }
+        if (text_tile_raster_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, text_tile_raster_descriptor_layout, nullptr);
+        }
+        if (timestamp_pool != VK_NULL_HANDLE) vkDestroyQueryPool(device, timestamp_pool, nullptr);
+    }
+
+} // namespace chronon3d::backends::vulkan

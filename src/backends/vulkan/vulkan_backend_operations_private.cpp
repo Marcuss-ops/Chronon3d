@@ -1,9 +1,16 @@
-// Vulkan Impl surface operation implementations. Included inside VulkanBackend::Impl to keep
-// the private state definition single-source while separating responsibilities.
-    void composite(runtime::RenderSurfaceHandle destination,
+// vulkan_backend_operations_private.cpp — VulkanBackend::Impl public
+// operation wrappers (composite, blur, glow, text/layer batches…).
+// Out-of-class definitions; declared in vulkan_backend_impl.hpp.
+
+#include "vulkan_backend_impl.hpp"
+#include <cmath>
+
+namespace chronon3d::backends::vulkan {
+
+    void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source, BlendMode mode,
-                   const std::optional<raster::BBox>& clip = std::nullopt,
-                   bool replace = false) {
+                   const std::optional<raster::BBox>& clip,
+                   bool replace) {
         auto& dst_image = resolve_image(destination);
         auto& src_image = resolve_image(source);
         if (!src_image.initialized ||
@@ -32,7 +39,7 @@
         throw std::logic_error("Vulkan composite requires an active frame batch");
     }
 
-    void fill_rect(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::fill_rect(runtime::RenderSurfaceHandle destination,
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,
                    const Color& color) {
@@ -54,7 +61,7 @@
         throw std::logic_error("Vulkan fill_rect requires an active frame batch");
     }
 
-    void fill_solid_shape(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::fill_solid_shape(runtime::RenderSurfaceHandle destination,
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,
                           const Vec4& shape, const Vec4& line,
@@ -78,7 +85,7 @@
         throw std::logic_error("Vulkan fill_solid_shape requires an active frame batch");
     }
 
-    void fill_path(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::fill_path(runtime::RenderSurfaceHandle destination,
                    std::span<const Vec2> vertices, const Color& color) {
         if (vertices.size() < 3 || vertices.size() > 8) {
             throw std::invalid_argument("Vulkan path fill supports 3..8 vertices");
@@ -104,7 +111,7 @@
         throw std::logic_error("Vulkan fill_path requires an active frame batch");
     }
 
-    void transform(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::transform(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source,
                    int offset_x, int offset_y, float opacity) {
         auto& dst_image = resolve_image(destination);
@@ -128,7 +135,7 @@
         throw std::logic_error("Vulkan transform requires an active frame batch");
     }
 
-    void transform_affine(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::transform_affine(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle source,
                           const runtime::SurfaceAffineTransform& transform) {
         auto& dst_image = resolve_image(destination);
@@ -151,7 +158,7 @@
         throw std::logic_error("Vulkan affine transform requires an active frame batch");
     }
 
-    void blur(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
               runtime::RenderSurfaceHandle source, float radius, bool horizontal) {
         if (!(radius >= 0.0f) || radius > 32.0f) {
             throw std::invalid_argument("Vulkan blur radius must be within [0, 32]");
@@ -177,7 +184,7 @@
         throw std::logic_error("Vulkan blur requires an active frame batch");
     }
 
-    void glow(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
               runtime::RenderSurfaceHandle source,
               runtime::RenderSurfaceHandle scratch_horizontal,
               runtime::RenderSurfaceHandle scratch_vertical,
@@ -230,7 +237,7 @@
         throw std::logic_error("Vulkan glow requires an active frame batch");
     }
 
-    void color_adjust(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::color_adjust(runtime::RenderSurfaceHandle destination,
                       runtime::RenderSurfaceHandle source,
                       float brightness, float contrast,
                       const Color& tint, float tint_amount) {
@@ -256,7 +263,7 @@
         throw std::logic_error("Vulkan color_adjust requires an active frame batch");
     }
 
-    void matte(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::matte(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,
                bool luma, bool inverted) {
@@ -286,12 +293,12 @@
     }
 
     // GPU text-run primitive: lowered directly to canonical draw_text_batch.
-    void text_run_surface(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::text_run_surface(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle atlas,
                           std::span<const runtime::GlyphInstance> glyphs,
-                          float current_frame = 0.0f,
-                          const Color& highlight_color = Color{},
-                          bool highlight_enabled = false) {
+                          float current_frame,
+                          const Color& highlight_color,
+                          bool highlight_enabled) {
         (void)current_frame;
         (void)highlight_color;
         (void)highlight_enabled;
@@ -343,7 +350,9 @@
     // plane bounds, draw order); `runs` holds per-run dynamic state (transforms,
     // opacities, tints); `atlas_pages` maps per-glyph atlas_page
     // indices to VkImages.
-    struct alignas(16) GpuGlyphStatic {
+namespace {
+
+struct alignas(16) GpuGlyphStatic {
         std::uint32_t run_index{0};
         std::uint32_t atlas_page_and_flags{0};
         std::uint32_t atlas_pos{0};
@@ -371,7 +380,9 @@
     };
     static_assert(sizeof(GpuTextRunDynamic) == 32, "GpuTextRunDynamic must be 32 bytes");
 
-    void draw_text_batch(runtime::RenderSurfaceHandle destination,
+} // anonymous namespace (GPU text layouts)
+
+    void VulkanBackend::Impl::draw_text_batch(runtime::RenderSurfaceHandle destination,
                          std::span<const runtime::GlyphStatic> glyphs,
                          std::span<const runtime::TextRunDynamic> runs,
                          std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
@@ -605,7 +616,9 @@
         }
     }
 
-    struct alignas(16) GpuLayerInstance {
+namespace {
+
+struct alignas(16) GpuLayerInstance {
         float dst_rect[4]{0.0f, 0.0f, 0.0f, 0.0f};
         float src_rect[4]{0.0f, 0.0f, 1.0f, 1.0f};
         float affine_row0[4]{0.0f, 0.0f, 0.0f, 0.0f};
@@ -618,12 +631,14 @@
     };
     static_assert(sizeof(GpuLayerInstance) == 96, "GpuLayerInstance must be 96 bytes");
 
+} // anonymous namespace (GPU layer layout)
+
     // ── execute_layer_batch ──────────────────────────────────────────────
     //
     // True GPU layer-batch consumer. Every LayerInstance in `instances` is
     // composited into `destination` in painter order via a fused compute
     // kernel dispatch (1 or few dispatches per batch).
-    void execute_layer_batch(runtime::RenderSurfaceHandle destination,
+    void VulkanBackend::Impl::execute_layer_batch(runtime::RenderSurfaceHandle destination,
                              std::span<const runtime::LayerInstance> instances,
                              std::span<const runtime::RenderSurfaceHandle> resources,
                              std::span<const float> transforms,
@@ -773,7 +788,7 @@
         }
     }
 
-    void ensure_images(std::uint32_t width, std::uint32_t height) {
+    void VulkanBackend::Impl::ensure_images(std::uint32_t width, std::uint32_t height) {
         if (dst.width == width && dst.height == height && src.image != VK_NULL_HANDLE) return;
         destroy_image(dst);
         destroy_image(src);
@@ -785,7 +800,7 @@
         bind_descriptors(dst, src);
     }
 
-    void ensure_staging(VkDeviceSize bytes) {
+    void VulkanBackend::Impl::ensure_staging(VkDeviceSize bytes) {
         if (staging.size >= bytes) return;
         if (staging.buffer != VK_NULL_HANDLE) {
             memory_manager.destroy_buffer(staging);
@@ -803,7 +818,7 @@
     // buffer is updated in-band with vkCmdUpdateBuffer and read by the
     // text-run compute kernel, so it needs both transfer-dst and storage
     // usage; device-local memory keeps the GPU read path on-card.
-    void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index) {
+    void VulkanBackend::Impl::ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index) {
         if (index >= kGlyphInstanceRingSize) index = 0;
         if (glyph_instance_buffers[index].size >= bytes) return;
         if (glyph_instance_buffers[index].buffer != VK_NULL_HANDLE) {
@@ -819,7 +834,7 @@
         glyph_instance_sizes[index] = 0;
     }
 
-    void ensure_layer_instance_buffer(VkDeviceSize bytes, std::size_t index) {
+    void VulkanBackend::Impl::ensure_layer_instance_buffer(VkDeviceSize bytes, std::size_t index) {
         if (index >= kGlyphInstanceRingSize) index = 0;
         if (layer_instance_buffers[index].size >= bytes) return;
         if (layer_instance_buffers[index].buffer != VK_NULL_HANDLE) {
@@ -835,7 +850,7 @@
         layer_instance_sizes[index] = 0;
     }
 
-    void ensure_text_run_dynamic_buffer(VkDeviceSize bytes, std::size_t index) {
+    void VulkanBackend::Impl::ensure_text_run_dynamic_buffer(VkDeviceSize bytes, std::size_t index) {
         if (index >= kGlyphInstanceRingSize) index = 0;
         if (text_run_dynamic_buffers[index].size >= bytes) return;
         if (text_run_dynamic_buffers[index].buffer != VK_NULL_HANDLE) {
@@ -851,7 +866,7 @@
         text_run_dynamic_sizes[index] = 0;
     }
 
-    void ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,
+    void VulkanBackend::Impl::ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,
                                  bool indices) {
         if (index >= kGlyphInstanceRingSize) index = 0;
         auto& buffer_alloc = indices ? text_tile_index_buffers[index]
@@ -869,19 +884,7 @@
         if (debug_context) debug_context->set_buffer_name(buffer_alloc.buffer, indices ? "Chronon3D.Buffer.TextTileIndex" : "Chronon3D.Buffer.TextTileCount");
     }
 
-    static void transition(VkCommandBuffer command, VkImage image,
-                           VkImageLayout old_layout, VkImageLayout new_layout) {
-        const VkImageMemoryBarrier barrier{
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr,
-            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-            old_layout, new_layout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-            image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
-        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-    }
-
-    void begin_command_buffer() {
+    void VulkanBackend::Impl::begin_command_buffer() {
         wait_for_pending();
         const VkCommandBufferBeginInfo begin{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
@@ -890,7 +893,7 @@
         check(vkBeginCommandBuffer(command_buffer, &begin), "vkBeginCommandBuffer");
     }
 
-    void wait_for_pending() {
+    void VulkanBackend::Impl::wait_for_pending() {
         if (pending_timeline_value != 0) {
             const auto wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
@@ -936,7 +939,7 @@
         }
     }
 
-    std::uint64_t submit(bool wait_for_completion = true) {
+    std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         check(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer");
         const auto signal_value = ++next_timeline_value;
         std::vector<VkSemaphore> wait_semaphores;
@@ -983,7 +986,7 @@
         return signal_value;
     }
 
-    void composite(Framebuffer& destination, const Framebuffer& source) {
+    void VulkanBackend::Impl::composite(Framebuffer& destination, const Framebuffer& source) {
         const auto width = static_cast<std::uint32_t>(destination.width());
         const auto height = static_cast<std::uint32_t>(destination.height());
         const VkDeviceSize image_bytes = static_cast<VkDeviceSize>(width) * height * sizeof(float) * 4;
@@ -1043,4 +1046,5 @@
             }
         }
     }
-};
+
+} // namespace chronon3d::backends::vulkan
