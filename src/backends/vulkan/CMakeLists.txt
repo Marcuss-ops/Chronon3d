@@ -79,17 +79,44 @@ set(CHRONON3D_VULKAN_ABI_HEADERS "${_chronon3d_shader_abi_headers}" CACHE INTERN
     "Vulkan shader ABI reflection headers")
 
 # ── Vulkan backend library ────────────────────────────────────────────────
-# The private implementation fragments are included by vulkan_backend.cpp and
-# must not be compiled as independent translation units. Keep the single TU
-# as the only source of Impl methods and lifecycle logic.
+# VulkanBackend::Impl is declared in vulkan_backend_impl.hpp (private, not
+# installed) and each implementation fragment compiles as an INDEPENDENT
+# translation unit, so incremental rebuilds only recompile the touched
+# fragment instead of the whole 5k-line backend.
 add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend.cpp
+    vulkan_backend_lifecycle_private.cpp
+    vulkan_descriptor_arena_private.cpp
+    vulkan_surface_store_private.cpp
+    vulkan_kernel_store_private.cpp
+    vulkan_backend_operations_private.cpp
     vulkan_legacy_fallback.cpp
     memory/vulkan_memory_manager.cpp
     debug/vulkan_debug_context.cpp
     ${_chronon3d_shader_headers}
 )
 set_target_properties(chronon3d_backend_vulkan PROPERTIES UNITY_BUILD OFF)
+# Precompiled headers: the Vulkan/spdlog/profiling and common std headers are
+# parsed once instead of once per fragment TU.
+target_precompile_headers(chronon3d_backend_vulkan
+    PRIVATE
+        <vulkan/vulkan.h>
+        <spdlog/spdlog.h>
+        <chronon3d/core/profiling/profiling.hpp>
+        <array>
+        <chrono>
+        <cstring>
+        <memory>
+        <mutex>
+        <optional>
+        <span>
+        <stdexcept>
+        <string>
+        <unordered_map>
+        <unordered_set>
+        <utility>
+        <vector>
+)
 target_compile_definitions(chronon3d_backend_vulkan PUBLIC CHRONON3D_ENABLE_VULKAN)
 target_link_libraries(chronon3d_backend_vulkan
     PUBLIC

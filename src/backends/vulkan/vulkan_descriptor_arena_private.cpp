@@ -1,7 +1,12 @@
-// Vulkan Impl resource, descriptor, and barrier helpers. Included inside VulkanBackend::Impl to keep
-// the private state definition single-source while separating responsibilities.
+// vulkan_descriptor_arena_private.cpp — VulkanBackend::Impl descriptor
+// allocation, image/staging helpers, barrier emission and CUDA export.
+// Out-of-class definitions; declared in vulkan_backend_impl.hpp.
 
-    void destroy_image(Image& target) {
+#include "vulkan_backend_impl.hpp"
+
+namespace chronon3d::backends::vulkan {
+
+    void VulkanBackend::Impl::destroy_image(Image& target) {
         if (target.cuda_to_vulkan != VK_NULL_HANDLE) {
             vkDestroySemaphore(device, target.cuda_to_vulkan, nullptr);
         }
@@ -21,7 +26,7 @@
         target = {};
     }
 
-    void destroy_upload_slot(VulkanUploadRing::UploadSlot& slot) {
+    void VulkanBackend::Impl::destroy_upload_slot(VulkanUploadRing::UploadSlot& slot) {
         if (slot.command_buffer != VK_NULL_HANDLE) {
             vkFreeCommandBuffers(device, command_pool, 1, &slot.command_buffer);
         }
@@ -32,9 +37,9 @@
         slot = {};
     }
 
-    void make_image(Image& target, std::uint32_t width, std::uint32_t height,
-                    bool exportable = false,
-                    VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT) {
+    void VulkanBackend::Impl::make_image(Image& target, std::uint32_t width, std::uint32_t height,
+                    bool exportable,
+                    VkFormat format) {
         VkExternalMemoryImageCreateInfo external_image{
             VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
         external_image.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
@@ -71,7 +76,7 @@
     }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    VkSemaphore make_external_binary_semaphore() {
+    VkSemaphore VulkanBackend::Impl::make_external_binary_semaphore() {
         VkExportSemaphoreCreateInfo export_info{
             VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
         export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
@@ -86,7 +91,7 @@
         return semaphore;
     }
 
-    void create_cuda_external_surface(runtime::RenderSurfaceHandle handle,
+    void VulkanBackend::Impl::create_cuda_external_surface(runtime::RenderSurfaceHandle handle,
                                       const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             desc.width == 0 || desc.height == 0 ||
@@ -116,7 +121,7 @@
         ++stats.surface_creations;
     }
 
-    CudaExternalMemoryInfo export_cuda_external_memory(
+    CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
         runtime::RenderSurfaceHandle handle) const {
         const auto binding = surfaces.surface_bindings.find(handle);
         if (binding == surfaces.surface_bindings.end()) {
@@ -174,7 +179,7 @@
             image_it->second.image.format == VK_FORMAT_B8G8R8A8_UNORM ? 2u : 1u};
     }
 
-    void prepare_cuda_surface_for_vulkan(runtime::RenderSurfaceHandle handle) {
+    void VulkanBackend::Impl::prepare_cuda_surface_for_vulkan(runtime::RenderSurfaceHandle handle) {
         const auto slot = bound_slot(handle);
         const auto it = surfaces.physical_surfaces.find(slot);
         if (it == surfaces.physical_surfaces.end() || !it->second.image.exportable ||
@@ -192,7 +197,7 @@
         surfaces.cuda_ready_surfaces.insert(slot);
     }
 
-    void copy_surface_to_cuda_encoder(runtime::RenderSurfaceHandle source,
+    void VulkanBackend::Impl::copy_surface_to_cuda_encoder(runtime::RenderSurfaceHandle source,
                                       runtime::RenderSurfaceHandle destination,
                                       bool wait_for_completion) {
         const auto source_slot = bound_slot(source);
@@ -231,19 +236,19 @@
     }
 #endif
 
-    void ensure_descriptor_set() {
+    void VulkanBackend::Impl::ensure_descriptor_set() {
         if (descriptor_set != VK_NULL_HANDLE) return;
         const VkDescriptorSetAllocateInfo allocation{
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptor_pool, 1, &descriptor_layout};
         check(vkAllocateDescriptorSets(device, &allocation, &descriptor_set), "vkAllocateDescriptorSets");
     }
 
-    void bind_descriptors(const Image& destination, const Image& source) {
+    void VulkanBackend::Impl::bind_descriptors(const Image& destination, const Image& source) {
         ensure_descriptor_set();
         write_descriptors(descriptor_set, destination, source);
     }
 
-    void write_descriptors(VkDescriptorSet set,
+    void VulkanBackend::Impl::write_descriptors(VkDescriptorSet set,
                            const Image& destination, const Image& source) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
         const VkDescriptorImageInfo src_info{VK_NULL_HANDLE, source.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -256,7 +261,7 @@
     }
 
     // fill_rect has a single-image binding (destination only, no source).
-    void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination) {
+    void VulkanBackend::Impl::write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
         const VkWriteDescriptorSet writes[] = {
             {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
@@ -264,12 +269,12 @@
         vkUpdateDescriptorSets(device, 1, writes, 0, nullptr);
     }
 
-    void bind_fill_rect_descriptors(const Image& destination) {
+    void VulkanBackend::Impl::bind_fill_rect_descriptors(const Image& destination) {
         ensure_descriptor_set();
         write_fill_rect_descriptors(descriptor_set, destination);
     }
 
-    void write_matte_descriptors(VkDescriptorSet set, const Image& destination,
+    void VulkanBackend::Impl::write_matte_descriptors(VkDescriptorSet set, const Image& destination,
                                  const Image& target, const Image& matte) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
         const VkDescriptorImageInfo target_info{VK_NULL_HANDLE, target.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -284,7 +289,7 @@
         vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
     }
 
-    void write_text_run_descriptors(VkDescriptorSet set, const Image& destination,
+    void VulkanBackend::Impl::write_text_run_descriptors(VkDescriptorSet set, const Image& destination,
                                     const Image& atlas, VkBuffer instance_buffer) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
         const VkDescriptorImageInfo atlas_info{VK_NULL_HANDLE, atlas.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -299,7 +304,7 @@
         vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
     }
 
-    void write_layer_batch_descriptors(VkDescriptorSet set, const Image& destination,
+    void VulkanBackend::Impl::write_layer_batch_descriptors(VkDescriptorSet set, const Image& destination,
                                        const Image& source, VkBuffer instance_buffer) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
         const VkDescriptorImageInfo src_info{VK_NULL_HANDLE, source.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -314,7 +319,7 @@
         vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
     }
 
-    void write_text_batch_descriptors(VkDescriptorSet set, const Image& destination,
+    void VulkanBackend::Impl::write_text_batch_descriptors(VkDescriptorSet set, const Image& destination,
                                       const Image& atlas, VkBuffer glyph_buffer,
                                       VkBuffer run_buffer) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -333,7 +338,7 @@
         vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
     }
 
-    VkDescriptorSet ensure_glow_descriptor_set(std::size_t index) {
+    VkDescriptorSet VulkanBackend::Impl::ensure_glow_descriptor_set(std::size_t index) {
         auto& set = glow_descriptor_sets[index];
         if (set != VK_NULL_HANDLE) return set;
         const VkDescriptorSetAllocateInfo allocation{
@@ -347,7 +352,7 @@
     // The command buffer of the slot currently being recorded.  next_slot is
     // stable during a batch; it only advances in submit_batch(), so this is
     // the correct target for every record_* call of the active frame.
-    [[nodiscard]] VkCommandBuffer active_command_buffer() const noexcept {
+    [[nodiscard]] VkCommandBuffer VulkanBackend::Impl::active_command_buffer() const noexcept {
         return frame_batch.command_buffers[frame_batch.next_slot];
     }
 
@@ -356,7 +361,7 @@
     // so the image bindings written now stay valid until end_frame_batch()
     // submits the whole batch; the sets are tracked so begin_frame_batch()
     // invalidates them with the slot's next allocator reset.
-    VkDescriptorSet allocate_pass_descriptor_set() {
+    VkDescriptorSet VulkanBackend::Impl::allocate_pass_descriptor_set() {
         const auto set =
             frame_batch.descriptor_allocators[frame_batch.next_slot].allocate();
         frame_batch.descriptor_sets.push_back(set);
@@ -364,21 +369,21 @@
         return set;
     }
 
-    VkDescriptorSet allocate_text_tile_bin_descriptor_set() {
+    VkDescriptorSet VulkanBackend::Impl::allocate_text_tile_bin_descriptor_set() {
         if (!frame_batch.active) {
             throw std::logic_error("text tile bin requires an active frame batch");
         }
         return frame_batch.text_tile_bin_allocators[frame_batch.next_slot].allocate();
     }
 
-    VkDescriptorSet allocate_text_tile_raster_descriptor_set() {
+    VkDescriptorSet VulkanBackend::Impl::allocate_text_tile_raster_descriptor_set() {
         if (!frame_batch.active) {
             throw std::logic_error("text tile raster requires an active frame batch");
         }
         return frame_batch.text_tile_raster_allocators[frame_batch.next_slot].allocate();
     }
 
-    void write_text_tile_bin_descriptors(
+    void VulkanBackend::Impl::write_text_tile_bin_descriptors(
         VkDescriptorSet set, VkBuffer glyph_buffer, VkBuffer run_buffer,
         VkBuffer tile_counts, VkBuffer tile_indices) {
         const VkDescriptorBufferInfo glyph{glyph_buffer, 0, VK_WHOLE_SIZE};
@@ -397,7 +402,7 @@
         vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
     }
 
-    void write_text_tile_raster_descriptors(
+    void VulkanBackend::Impl::write_text_tile_raster_descriptors(
         VkDescriptorSet set, const Image& destination, const Image& atlas,
         VkBuffer glyph_buffer, VkBuffer run_buffer,
         VkBuffer tile_counts, VkBuffer tile_indices) {
@@ -430,7 +435,7 @@
     // batches via begin_plan_batch) or the conservative fallback (standalone
     // ops and direct op calls without a plan).
 
-    VkImageMemoryBarrier make_image_barrier(const Image& image,
+    VkImageMemoryBarrier VulkanBackend::Impl::make_image_barrier(const Image& image,
                                             VkImageLayout old_layout,
                                             VkImageLayout new_layout,
                                             VkAccessFlags src_access,
@@ -442,7 +447,7 @@
             image.image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
     }
 
-    void emit_barriers(VkCommandBuffer command, VkPipelineStageFlags src_stage,
+    void VulkanBackend::Impl::emit_barriers(VkCommandBuffer command, VkPipelineStageFlags src_stage,
                        VkPipelineStageFlags dst_stage,
                        const std::vector<VkImageMemoryBarrier>& barriers) {
         if (barriers.empty()) return;
@@ -458,7 +463,7 @@
     // barrier per accessed surface plus the first-write layout transition.
     // This reproduces the legacy per-pass synchronization exactly, but lives
     // in ONE place instead of being duplicated inside every kernel.
-    void emit_conservative_pass_sync(VkCommandBuffer command,
+    void VulkanBackend::Impl::emit_conservative_pass_sync(VkCommandBuffer command,
                                      std::initializer_list<const Image*> images) {
         std::vector<VkImageMemoryBarrier> barriers;
         barriers.reserve(images.size());
@@ -476,7 +481,7 @@
 
     // Route one pass's synchronization: the BarrierPlan mapper when the
     // batch is plan-driven, the conservative fallback otherwise.
-    void emit_pass_sync(VkCommandBuffer command,
+    void VulkanBackend::Impl::emit_pass_sync(VkCommandBuffer command,
                         std::initializer_list<const Image*> images) {
         if (frame_batch.sync_plan) {
             emit_plan_pass_barriers(command, *frame_batch.sync_plan,
@@ -509,7 +514,7 @@
     // logical handles alias slots across the two overlays.  A single
     // conservative full-barrier over all initialized images is the safe,
     // per-boundary cost (once per overlay, not per pass).
-    void emit_command_batch_boundary() {
+    void VulkanBackend::Impl::emit_command_batch_boundary() {
         std::vector<VkImageMemoryBarrier> barriers;
         for (auto& [slot, physical] : surfaces.physical_surfaces) {
             (void)slot;
@@ -536,7 +541,7 @@
     //   * a first read needs no barrier: every previous submission (uploads,
     //     earlier batches) is queued before this one on the same queue, so
     //     FIFO ordering already made it visible.
-    void emit_plan_pass_barriers(VkCommandBuffer command,
+    void VulkanBackend::Impl::emit_plan_pass_barriers(VkCommandBuffer command,
                                  const runtime::BarrierPlan& plan,
                                  std::size_t pass_index) {
         std::vector<VkImageMemoryBarrier> barriers;
@@ -588,3 +593,5 @@
     // helpers below (the BarrierPlan mapper, or the conservative fallback
     // for plan-less calls).  They also never mutate surface state (the
     // `initialized` flags are updated by the operation wrappers).
+
+} // namespace chronon3d::backends::vulkan
