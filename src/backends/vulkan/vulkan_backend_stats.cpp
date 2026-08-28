@@ -1,5 +1,27 @@
-// Vulkan public capabilities and telemetry accessors. Included by the backend TU to preserve the
-// single public implementation while keeping each responsibility inspectable.
+// vulkan_backend_stats.cpp — VulkanBackend public capabilities and telemetry
+// accessors (capabilities(), stats(), export_gpu_telemetry_counters(), …).
+// Split out of vulkan_backend.cpp so touching the stats surface recompiles
+// only this TU, never the surface/op adapters or the kernel store.
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include "vulkan_backend_impl.hpp"
+#endif
+
+#include <array>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace chronon3d::backends::vulkan {
+
 graph::RenderCapabilities VulkanBackend::capabilities() const noexcept {
     return graph::RenderCapabilities{
         // TextRunNode first attempts the native GlyphAtlas/RenderSurface
@@ -31,25 +53,6 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
     return s;
 #else
     return {};
-#endif
-}
-
-void VulkanBackend::composite_legacy_surface(
-    Framebuffer& destination, const Framebuffer& source, BlendMode mode,
-    const std::optional<raster::BBox>& clip) {
-#ifdef CHRONON3D_ENABLE_VULKAN
-    const auto result = run_batched_surface_op([&] {
-        m_impl->composite(destination.surface_handle(), source.surface_handle(), mode, clip);
-    });
-    if (!result.ok()) {
-        throw std::runtime_error(result.error().message);
-    }
-#else
-    (void)destination;
-    (void)source;
-    (void)mode;
-    (void)clip;
-    unsupported("composite_layer");
 #endif
 }
 
@@ -140,3 +143,5 @@ const GpuKernelRegistry& VulkanBackend::kernel_registry() const noexcept {
     return empty;
 #endif
 }
+
+} // namespace chronon3d::backends::vulkan
