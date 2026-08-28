@@ -8,6 +8,7 @@
 
 - GPU-native 1920x1080 960f watermark+subtitle: **4.11s** vs NVDEC→NVENC 2.53s (+62%), CPU 29%, `gpu_readback_bytes=0`, `fallback=0`, `effective_backend=vulkan`.
 - Residuo: D2D Vulkan→CUDA→NVENC (`gpu_surface_copy_frames` + `encoder_staging_copy_bytes`), zero-copy NVDEC→NVENC ancora da chiudere (surface importabile).
+- **2026-08-28**: strumentati i gate zero-copy 3/4/6 (`nv12_to_rgba_frames`, `rgba_to_nv12_frames`, `gpu_surface_copy_frames`) che prima non esistevano o non venivano mai incrementati; ora il report `*.timing.json` misura le conversioni reali. Il percorso direct-YUV (`composite_direct_nv12*`) azzera i gate ma non è ancora attivo nel pipeline di export.
 - CLI/IPC: daemon caldo 10.09s vs CLI 13.17s, 100 job x150f stabili `1059s`, probe CUDA/Vulkan `CUDA_VULKAN_INTEROP_PASS` su RTX A4000, `hwmap=derive_device=vulkan` ancora FAIL.
 
 > Ultima baseline certificata: `main@7eb5c2ba` 11/11 PASS (2026-07-06). HEAD `main@8aad8e00f` worktree sporco — developer gates 20/20 PASS, architecture 26/26, ma CTest fast 92 test mancano binari, native decoder cache FAIL, no baseline same-SHA. Dettaglio: `docs/baselines/main-7eb5c2ba-baseline.md`.
@@ -16,7 +17,7 @@
 
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
-| TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
+| TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) — engine certification (Tests 10-16); product validation in PipelineGen |
 | TICKET-DEPRECATED-API-REMOVAL | API | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
 | TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) |
 
@@ -43,7 +44,7 @@ Indice completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md).
 ## Vulkan surface-store extraction — verification report (2026-08-27)
 
 - **CMake/configuration:** preset `linux-fast-dev` configured successfully with Vulkan dependencies and generated shader/ABI metadata.
-- **Backend build:** `chronon3d_backend_vulkan` builds successfully after keeping the private implementation fragments included by the single `vulkan_backend.cpp` translation unit; compiling those fragments independently was rejected because they depend on `VulkanBackend::Impl` context.
+- **Backend build:** `chronon3d_backend_vulkan` builds with `VulkanBackend::Impl` declared in the private `vulkan_backend_impl.hpp` (not installed) and every implementation fragment compiled as an independent translation unit (`vulkan_backend_lifecycle_private.cpp`, `vulkan_descriptor_arena_private.cpp`, `vulkan_surface_store_private.cpp`, `vulkan_kernel_store_private.cpp`, `vulkan_backend_operations_private.cpp`); the public adapters are split across `vulkan_backend_lifecycle.cpp`, `vulkan_backend_stats.cpp` and `vulkan_backend_surface_api.cpp`. Incremental rebuilds recompile only the touched fragment.
 - **Architecture gate:** `tools/check_architecture_boundaries.sh` passes all 26 checks after changing the CLI Vulkan importer include to a relative internal include. This is a gate result, not a complete proof that surface ownership has been fully extracted.
 - **GPU runtime:** `vulkaninfo --summary` detects an NVIDIA RTX A4000 (discrete GPU, Vulkan 1.4.329, NVIDIA driver 595.84) and llvmpipe fallback. `nvidia-smi` detects the same RTX A4000 and driver; NVIDIA device nodes are present.
 - **CUDA interop:** project configuration finds CUDA headers/driver libraries, while `nvcc` is unavailable. The runtime external-memory probe nevertheless passes on the real GPU: `CUDA_VULKAN_INTEROP_PASS`, device `NVIDIA RTX A4000`, Vulkan/CUDA UUID `66101dcc-7b1c-e277-889c-c62462e0ac8e`, external Vulkan image mapping and semaphore signaling verified. Full toolkit/compiler coverage remains uncertified because `nvcc` is unavailable.
