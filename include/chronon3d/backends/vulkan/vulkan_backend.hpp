@@ -255,6 +255,12 @@ public:
         runtime::RenderSurfaceHandle) override;
     [[nodiscard]] bool is_native_surface_valid(
         runtime::RenderSurfaceHandle) const noexcept override;
+    /// Waits for all Vulkan work that may reference native CUDA surfaces,
+    /// without retiring or destroying those surfaces.
+    [[nodiscard]] bool wait_for_pending_submissions() noexcept;
+    /// Capacity of the native-import ring derived from the backend's actual
+    /// frame-batch in-flight window.
+    [[nodiscard]] std::size_t native_surface_ring_capacity() const noexcept;
     void release_frame_transient_surfaces() noexcept override;
     void retire_frame_transient_surfaces() noexcept override;
     graph::RenderOpResult upload_surface(

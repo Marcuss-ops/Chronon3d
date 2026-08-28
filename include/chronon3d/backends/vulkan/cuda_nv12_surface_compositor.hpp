@@ -47,6 +47,10 @@ public:
     CudaNv12SurfaceCompositor(const CudaNv12SurfaceCompositor&) = delete;
     CudaNv12SurfaceCompositor& operator=(const CudaNv12SurfaceCompositor&) = delete;
 
+    /// Completes CUDA work associated with this imported surface before its
+    /// external memory and semaphore handles are retired.
+    [[nodiscard]] bool synchronize() noexcept;
+
     bool composite(CUdeviceptr y, int y_pitch, CUdeviceptr uv, int uv_pitch,
                    std::uint32_t width, std::uint32_t height, CUstream stream,
                    CudaYuvFormat format = CudaYuvFormat::Nv12,

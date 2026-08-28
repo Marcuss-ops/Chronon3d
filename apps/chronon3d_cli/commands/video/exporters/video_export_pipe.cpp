@@ -67,6 +67,18 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     // Phase 6 — Encoder close
     auto close_result = close_pipe_encoder(*session);
+
+    // Canonical native teardown: close the encoder, drain Vulkan, then let the
+    // decoder importer retire its CUDA handoffs before Vulkan retires the
+    // FrameTransient backing images.
+    if (session->opts.encoder.encoder_backend == "native" && session->renderer) {
+        auto& backend = session->renderer->runtime().backend();
+        if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend)) {
+            (void)vulkan->wait_for_pending_submissions();
+        }
+        session->native_decoder.reset();
+        backend.release_frame_transient_surfaces();
+    }
     nvml_sampler.stop();
     const auto nvml_stats = nvml_sampler.stats();
 

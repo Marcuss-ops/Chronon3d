@@ -98,13 +98,11 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
 
 CudaVulkanSurfaceBridge::~CudaVulkanSurfaceBridge() {
     if (m_context) (void)cuCtxSetCurrent(m_context);
-    // Destruction can happen after the owning compositor has stopped
-    // submitting work but while the driver still has pending external
-    // semaphore operations.  Retire the context here as the final lifetime
-    // boundary before destroying imported CUDA objects.
-    (void)cuCtxSynchronize();
-    if (m_vulkan_to_cuda) cuDestroyExternalSemaphore(m_vulkan_to_cuda);
+    // The producer stream is synchronized by the owning compositor before
+    // this bridge is destroyed. A global context synchronize here can wait on
+    // the Vulkan side of an external semaphore and deadlock teardown.
     if (m_cuda_to_vulkan) cuDestroyExternalSemaphore(m_cuda_to_vulkan);
+    if (m_vulkan_to_cuda) cuDestroyExternalSemaphore(m_vulkan_to_cuda);
     if (m_surface) cuSurfObjectDestroy(m_surface);
     if (m_mipmapped) cuMipmappedArrayDestroy(m_mipmapped);
     if (m_memory) cuDestroyExternalMemory(m_memory);

@@ -245,6 +245,13 @@ NativeSurfacePrep prepare_frame(
             persistent_source = surface_registry->create(source_desc);
             const auto created = ctx.backend.create_surface(persistent_source, source_desc);
             if (!created.ok()) {
+                spdlog::error(
+                    "[video] failed to create native source surface slot {} ({}x{}, format={}): {}",
+                    prep.interop_slot,
+                    source_desc.width,
+                    source_desc.height,
+                    static_cast<int>(source_desc.format),
+                    created.error().message);
                 (void)surface_registry->release(persistent_source);
                 persistent_source = runtime::kInvalidRenderSurfaceHandle;
             }
@@ -347,11 +354,18 @@ EncodeOutcome encode_frame(
     auto source_surface = fb
         ? fb->surface_handle()
         : runtime::kInvalidRenderSurfaceHandle;
+    if (source_surface == runtime::kInvalidRenderSurfaceHandle &&
+        prep.source_surface != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend.is_native_surface_valid(prep.source_surface)) {
+        source_surface = prep.source_surface;
+    }
     auto* surface_registry = ctx.sw_renderer
         ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
     if (surface_registry && video_settings.retain_native_surface_for_video) {
         if (source_surface != runtime::kInvalidRenderSurfaceHandle &&
             !ctx.backend.is_native_surface_valid(source_surface)) {
+            spdlog::error("[video] native source surface became invalid before frame {} handle={}",
+                          static_cast<int>(current_frame), source_surface);
             (void)surface_registry->release(source_surface);
             fb->clear_surface_handle();
             source_surface = runtime::kInvalidRenderSurfaceHandle;

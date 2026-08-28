@@ -531,11 +531,16 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
 CudaNv12SurfaceCompositor::~CudaNv12SurfaceCompositor() {
     if (context_) (void)cuCtxSetCurrent(context_);
     if (stream_) (void)cuStreamSynchronize(stream_);
-    (void)cuCtxSynchronize();
     bridge_.reset();
     if (layer_batch_buffer_) (void)cuMemFree(layer_batch_buffer_);
     if (module_) (void)cuModuleUnload(module_);
     if (stream_) (void)cuStreamDestroy(stream_);
+}
+
+bool CudaNv12SurfaceCompositor::synchronize() noexcept {
+    if (!stream_) return true;
+    if (context_) (void)cuCtxSetCurrent(context_);
+    return cuStreamSynchronize(stream_) == CUDA_SUCCESS;
 }
 
 bool CudaNv12SurfaceCompositor::composite(

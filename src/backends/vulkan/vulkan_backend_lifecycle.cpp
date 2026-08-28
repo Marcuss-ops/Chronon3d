@@ -15,6 +15,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -168,11 +169,26 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
     }
     std::vector<const char*> enabled_extensions;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    enabled_extensions.insert(enabled_extensions.end(), {
+    const auto has_device_extension = [&](const char* name) {
+        return std::any_of(device_extensions.begin(), device_extensions.end(),
+                           [name](const VkExtensionProperties& ext) {
+                               return std::strcmp(ext.extensionName, name) == 0;
+                           });
+    };
+    const std::array<const char*, 4> cuda_extensions{
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
         VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME});
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
+    const bool cuda_interop_extensions_available = std::all_of(
+        cuda_extensions.begin(), cuda_extensions.end(), has_device_extension);
+    if (cuda_interop_extensions_available) {
+        enabled_extensions.insert(enabled_extensions.end(),
+                                  cuda_extensions.begin(), cuda_extensions.end());
+    } else {
+        spdlog::warn("[Vulkan] CUDA interop extensions unavailable; native "
+                     "video surface interop disabled");
+    }
 #endif
     if (m_calibrated_timestamps_supported) {
         enabled_extensions.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
