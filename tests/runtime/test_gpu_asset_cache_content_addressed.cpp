@@ -43,6 +43,32 @@ public:
         return chronon3d::graph::RenderOpResult(chronon3d::graph::RenderOpOutcome{});
     }
 
+    // No-op effect/composite/blur/DOF hooks — this stub exercises only the
+    // surface create/upload/release contract used by GpuAssetCache.
+    void apply_effect_stack(
+        chronon3d::Framebuffer&,
+        const chronon3d::EffectStack&,
+        const chronon3d::effects::EffectExecutionContext&) override {}
+
+    void composite_layer(
+        chronon3d::Framebuffer&,
+        const chronon3d::Framebuffer&,
+        chronon3d::BlendMode,
+        const std::optional<chronon3d::raster::BBox>& = std::nullopt,
+        chronon3d::CompositeOperator = chronon3d::CompositeOperator::SourceOver) override {}
+
+    void apply_blur(
+        chronon3d::Framebuffer&,
+        float,
+        const std::optional<chronon3d::raster::BBox>& = std::nullopt) override {}
+
+    void apply_per_pixel_dof(
+        chronon3d::Framebuffer&,
+        std::span<const float>,
+        const chronon3d::DepthOfFieldSettings&,
+        const chronon3d::LensModel&,
+        const std::optional<chronon3d::raster::BBox>&) override {}
+
     std::vector<chronon3d::runtime::RenderSurfaceHandle> created;
     std::vector<chronon3d::runtime::RenderSurfaceHandle> released;
     std::size_t uploads{0};

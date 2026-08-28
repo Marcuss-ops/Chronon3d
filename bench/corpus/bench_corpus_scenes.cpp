@@ -648,6 +648,22 @@ Composition bench_canon3_motion_graphics() {
 
         add_dark_canvas_background(s);
 
+        // Blur band (BENCH-3 blur_band — re-enabled after the software-backend
+        // composite SEGV no longer reproduces on main: the CompositeNode
+        // null-input guard and upstream failure propagation landed in
+        // d1475f2c).  The historical trigger was exactly this shape:
+        // `s.layer(...).rect(...).blur(32)` composed with the 24 animated
+        // dots (blur + multi-layer composite, N>2).  Kept in the corpus as
+        // the regression gate for TICKET-PERF-BASELINE-V1 §composite SEGV.
+        s.screen_layer("blur_band", [](LayerBuilder& l) {
+            l.rect("band", {
+                .size = {1920.0f, 300.0f},
+                .color = {0.10f, 0.30f, 0.55f, 0.85f},
+                .pos = {0.0f, 390.0f, 0.0f},
+            });
+            l.blur(32.0f);
+        });
+
         // Motion layer #1 — shapes + transforms (rotating ring of dots).
         for (int i = 0; i < 24; ++i) {
             const double angle = 2.0 * 3.141592653589793 * static_cast<double>(i) / 24.0;
@@ -667,14 +683,6 @@ Composition bench_canon3_motion_graphics() {
             });
         }
 
-        // NOTE: a blurred layer composed below/above the 24 animated dots
-        // SEGVs the SOFTWARE backend (CompositeNode receives a null
-        // framebuffer — `Framebuffer::is_opaque()` on nullptr).  The isolated
-        // trigger was `s.layer(...).rect(...).blur(32)` in a multi-layer
-        // composite; B05 (blur on a 2-layer scene) renders fine.  Blur is
-        // intentionally EXCLUDED from BENCH-3 v1 until the software-backend
-        // composite bug is fixed — see TICKET-PERF-BASELINE-V1
-        // §software-backend composite SEGV (followup).
         return s.build();
     });
 }

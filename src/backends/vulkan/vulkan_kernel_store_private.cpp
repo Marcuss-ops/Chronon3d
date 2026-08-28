@@ -1,10 +1,16 @@
-// Vulkan Impl kernel recording and submission helpers. Included inside VulkanBackend::Impl to keep
-// the private state definition single-source while separating responsibilities.
-    void record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
+// vulkan_kernel_store_private.cpp — VulkanBackend::Impl compute-kernel
+// recording primitives, submission ring and command replay.
+// Out-of-class definitions; declared in vulkan_backend_impl.hpp.
+
+#include "vulkan_backend_impl.hpp"
+
+namespace chronon3d::backends::vulkan {
+
+    void VulkanBackend::Impl::record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           std::int32_t blend_mode, float source_scale,
                           const float tint[4],
-                          const std::optional<raster::BBox>& clip = std::nullopt) {
+                          const std::optional<raster::BBox>& clip) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Composite)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -47,7 +53,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           int offset_x, int offset_y, float opacity) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -67,7 +73,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_transform_affine(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_transform_affine(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  const Image& destination, const Image& source,
                                  runtime::SurfaceAffineTransform transform) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -102,7 +108,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
                      float radius, bool horizontal) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -120,7 +126,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
                              const Color& tint, float tint_amount) {
@@ -143,7 +149,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -161,14 +167,14 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_fill_rect(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_fill_rect(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination,
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,
                           const Color& color,
-                          const Vec4& shape = Vec4{0.0f},
-                          const Vec4& line = Vec4{0.0f},
-                          const std::array<Vec2, 8>& vertices = {}) {
+                          const Vec4& shape,
+                          const Vec4& line,
+                          const std::array<Vec2, 8>& vertices) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::FillRect)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -197,7 +203,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_text_run(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, std::int32_t glyph_count,
                          VkBuffer instance_buffer, bool instance_updated,
                          float current_frame, const Color& highlight_color,
@@ -266,7 +272,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_layer_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_layer_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
                             const Image& destination, std::int32_t instance_count,
                             VkBuffer instance_buffer, bool instance_updated,
                             std::int32_t dispatch_origin_x,
@@ -317,7 +323,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_text_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_text_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
                            const Image& destination, std::int32_t glyph_count,
                            std::int32_t run_count,
                            VkBuffer glyph_buffer, bool glyph_updated,
@@ -388,7 +394,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_text_tile_bin(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_text_tile_bin(VkCommandBuffer command, VkDescriptorSet descriptors,
                               std::int32_t glyph_count, std::int32_t tiles_x,
                               std::int32_t tiles_y, std::int32_t max_glyphs_per_tile,
                               std::int32_t dst_width, std::int32_t dst_height) {
@@ -413,7 +419,7 @@
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void record_text_tile_raster(VkCommandBuffer command, VkDescriptorSet descriptors,
+    void VulkanBackend::Impl::record_text_tile_raster(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  std::int32_t tiles_x, std::int32_t tiles_y,
                                  std::int32_t max_glyphs_per_tile,
                                  const Image& destination, const Image& atlas) {
@@ -446,7 +452,7 @@
     // slot's queries are reset by vkCmdResetQueryPool when the buffer is
     // re-recorded, so this must run after the fence wait and before that
     // reset executes on the GPU.
-    void read_gpu_timestamps(std::size_t slot) {
+    void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         if (timestamp_pool == VK_NULL_HANDLE) return;
         std::uint64_t stamps[2] = {0, 0};
         const VkResult result = vkGetQueryPoolResults(
@@ -484,7 +490,7 @@
     // with the current slot's fence.  No wait-for-completion happens here:
     // the caller waits only when that slot is reused (begin_frame_batch())
     // or before a readback (wait_for_pending()).
-    void submit_batch() {
+    void VulkanBackend::Impl::submit_batch() {
         const auto slot = frame_batch.next_slot;
         if (timestamp_pool != VK_NULL_HANDLE) {
             vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
@@ -557,7 +563,7 @@
     // responsible for the layout (typically a struct matching the shader's
     // uniform block).  Capacity grows on demand but never shrinks.
 
-    void ensure_replay_params_capacity(ReplaySlot& slot, VkDeviceSize bytes) {
+    void VulkanBackend::Impl::ensure_replay_params_capacity(ReplaySlot& slot, VkDeviceSize bytes) {
         if (slot.params.size >= bytes) return;
         if (slot.params.buffer != VK_NULL_HANDLE) {
             memory_manager.destroy_buffer(slot.params);
@@ -574,7 +580,7 @@
     /// for one frame into the returned command buffer, then calls
     /// end_replay_recording().  Must not be called while a frame batch
     /// or another replay recording is active.
-    VkCommandBuffer begin_replay_recording(std::size_t slot_index) {
+    VkCommandBuffer VulkanBackend::Impl::begin_replay_recording(std::size_t slot_index) {
         if (slot_index >= kReplaySlotCount) {
             throw std::out_of_range("begin_replay_recording: slot out of range");
         }
@@ -605,7 +611,7 @@
 
     /// Close the replay slot's command buffer.  After this call the slot
     /// holds a pre-recorded, reusable VkCommandBuffer.
-    void end_replay_recording(std::size_t slot_index) {
+    void VulkanBackend::Impl::end_replay_recording(std::size_t slot_index) {
         if (slot_index >= kReplaySlotCount) {
             throw std::out_of_range("end_replay_recording: slot out of range");
         }
@@ -618,7 +624,7 @@
     /// Waits on the slot's fence if it's still in flight (same ring-depth
     /// as the frame batch), writes `params` into the mapped buffer, then
     /// calls vkQueueSubmit exactly once.
-    void replay_submit(std::size_t slot_index,
+    void VulkanBackend::Impl::replay_submit(std::size_t slot_index,
                        const void* params, VkDeviceSize params_size) {
         if (slot_index >= kReplaySlotCount) {
             throw std::out_of_range("replay_submit: slot out of range");
@@ -658,3 +664,5 @@
         ++stats.submissions;
         slot.in_flight = true;
     }
+
+} // namespace chronon3d::backends::vulkan
