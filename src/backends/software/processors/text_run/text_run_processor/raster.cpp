@@ -60,19 +60,22 @@ struct SingleGlyphRun {
     BLGlyphPlacement placement{};
     BLGlyphRun       bl_run{};
 
-    static SingleGlyphRun from(const PlacedGlyph& pg) {
-        SingleGlyphRun r;
-        r.glyph_id = pg.glyph_id;
-        r.placement.placement.reset(0.0, 0.0);
-        r.placement.advance.reset(0.0, 0.0);
-        r.bl_run.glyphData = &r.glyph_id;
-        r.bl_run.glyphAdvance = static_cast<int8_t>(sizeof(std::uint32_t));
-        r.bl_run.placementData = &r.placement;
-        r.bl_run.placementAdvance = static_cast<int8_t>(sizeof(BLGlyphPlacement));
-        r.bl_run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
-        r.bl_run.size = 1;
-        return r;
+    explicit SingleGlyphRun(const PlacedGlyph& pg) noexcept {
+        glyph_id = pg.glyph_id;
+        placement.placement.reset(0.0, 0.0);
+        placement.advance.reset(0.0, 0.0);
+        bl_run.glyphData = &glyph_id;
+        bl_run.glyphAdvance = static_cast<int8_t>(sizeof(glyph_id));
+        bl_run.placementData = &placement;
+        bl_run.placementAdvance = static_cast<int8_t>(sizeof(placement));
+        bl_run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
+        bl_run.size = 1;
     }
+
+    SingleGlyphRun(const SingleGlyphRun&) = delete;
+    SingleGlyphRun& operator=(const SingleGlyphRun&) = delete;
+    SingleGlyphRun(SingleGlyphRun&&) = delete;
+    SingleGlyphRun& operator=(SingleGlyphRun&&) = delete;
 };
 
 // ── build_blur_tiers — O(G), once per side ─────────────────────────────────
@@ -246,9 +249,17 @@ struct SingleGlyphRun {
                 }
                 ctx.setFillStyle(to_bl_rgba(final_fill));
 
-                auto sgr = SingleGlyphRun::from(source_placed.glyphs[gi]);
+                if (gi >= glyph_span_indices.size() ||
+                    glyph_span_indices[gi] >= s.span_fonts.size()) {
+                    return 0;
+                }
+                SingleGlyphRun sgr{source_placed.glyphs[gi]};
                 const BLFont& span_font = s.span_fonts[glyph_span_indices[gi]];
-                ctx.fillGlyphRun(BLPoint(0.0, 0.0), span_font, sgr.bl_run);
+                const BLResult result = ctx.fillGlyphRun(
+                    BLPoint(0.0, 0.0), span_font, sgr.bl_run);
+                if (result != BL_SUCCESS) {
+                    return 0;
+                }
             }
 
             ctx.restore();
