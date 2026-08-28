@@ -212,6 +212,33 @@ TEST_CASE("timed_text_from_vtt — bold/italic tags stripped") {
     CHECK(doc.cues[0].text == "Bold and italic text");
 }
 
+TEST_CASE("timed_text_from_vtt — malformed timestamps are rejected") {
+    const char* vtt = R"(WEBVTT
+
+00:00:61.000 --> 00:00:04.000
+Invalid timestamp
+
+00:00:01.000 --> 00:00:01.000
+Zero duration
+
+00:00:02.000 --> 00:00:03.000
+Valid cue
+
+)";
+    const auto doc = timed_text_from_vtt(vtt);
+    REQUIRE(doc.cues.size() == 1);
+    CHECK(doc.cues[0].text == "Valid cue");
+}
+
+TEST_CASE("timed_text_from_vtt — missing cue text is rejected") {
+    const char* vtt = R"(WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+
+)";
+    CHECK(timed_text_from_vtt(vtt).cues.empty());
+}
+
 TEST_CASE("timed_text_from_vtt — empty input") {
     auto doc = timed_text_from_vtt("");
     CHECK(doc.cues.empty());
@@ -316,6 +343,18 @@ TEST_CASE("timed_text_from_json — multiple cues") {
     CHECK(doc.cues[1].source_id == "c2");
     CHECK(doc.cues[1].text == "Second");
     CHECK(doc.cues[1].speaker == "Bob");
+}
+
+TEST_CASE("timed_text_from_json — malformed root and invalid cues are rejected") {
+    CHECK(timed_text_from_json("not-json").cues.empty());
+    const char* json = R"({"cues":[
+        {"id":"bad", "start":3, "end":1, "text":"backwards"},
+        {"id":"empty", "start":1, "end":2, "text":""},
+        {"id":"good", "start":1, "end":2, "text":"valid"}
+    ]})";
+    const auto doc = timed_text_from_json(json);
+    REQUIRE(doc.cues.size() == 1);
+    CHECK(doc.cues[0].source_id == "good");
 }
 
 TEST_CASE("timed_text_from_json — empty input") {

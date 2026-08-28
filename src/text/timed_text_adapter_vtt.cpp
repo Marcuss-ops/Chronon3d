@@ -1,6 +1,7 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
 #include "timed_text_core.hpp"
+#include "timed_text_adapter_support.hpp"
 
 #include <cstdlib>
 #include <string_view>
@@ -81,10 +82,8 @@ std::string extract_vtt_speaker(const std::string& text) {
 } // namespace
 
 TimedTextDocument timed_text_from_vtt(const std::string& raw) {
-    TimedTextDocument doc;
-    doc.source_format = "vtt";
-
-    if (raw.empty()) return doc;
+    timed_text_adapter_detail::AdapterDocumentBuilder output("vtt");
+    if (raw.empty()) return output.finish();
 
     const std::string_view content(raw);
 
@@ -106,19 +105,12 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
                     if (meta.find("Language:") == 0 || meta.find("language:") == 0) {
                         auto colon = meta.find(':');
                         if (colon != std::string_view::npos) {
-                            doc.language = std::string(meta.substr(colon + 1));
-                            // Trim
-                            auto& lang = doc.language;
-                            while (!lang.empty() && (lang.front() == ' ' || lang.front() == '\t')) lang.erase(0, 1);
-                            while (!lang.empty() && (lang.back() == ' ' || lang.back() == '\t')) lang.pop_back();
+                            output.document.language = timed_text_adapter_detail::trim_ascii(meta.substr(colon + 1));
                         }
                     } else if (meta.find("Title:") == 0 || meta.find("title:") == 0) {
                         auto colon = meta.find(':');
                         if (colon != std::string_view::npos) {
-                            doc.title = std::string(meta.substr(colon + 1));
-                            auto& t = doc.title;
-                            while (!t.empty() && (t.front() == ' ' || t.front() == '\t')) t.erase(0, 1);
-                            while (!t.empty() && (t.back() == ' ' || t.back() == '\t')) t.pop_back();
+                            output.document.title = timed_text_adapter_detail::trim_ascii(meta.substr(colon + 1));
                         }
                     }
                     ++line_idx;
@@ -179,7 +171,7 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
 
         f32 start_s = parse_vtt_timestamp(ts_line.substr(0, arrow));
         f32 end_s = parse_vtt_timestamp(end_part);
-        if (start_s < 0.0f || end_s < 0.0f || end_s <= start_s) continue;
+        if (!timed_text_adapter_detail::valid_interval(start_s, end_s)) continue;
 
         // Text lines
         std::string cue_text;
@@ -196,7 +188,7 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
         cue.text = strip_vtt_tags(cue_text);
         cue.start_s = start_s;
         cue.end_s = end_s;
-        cue.source_id = cue_id.empty() ? std::to_string(doc.cues.size()) : cue_id;
+        cue.source_id = cue_id.empty() ? std::to_string(output.document.cues.size()) : cue_id;
 
         // Generate word breakdown via the shared uniform-timing core.
         // Byte offsets still reference the TAGGED original line and word
@@ -204,11 +196,10 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
         textcore::attach_uniform_words(cue, cue_text,
             /*skip_angle_tags*/true, /*include_cr*/true);
 
-        doc.cues.push_back(std::move(cue));
+        output.accept(std::move(cue));
     }
 
-    textcore::canonicalize_document(doc);
-    return doc;
+    return output.finish();
 }
 
 } // namespace chronon3d
