@@ -49,7 +49,7 @@
       "id": "BENCH-3",
       "name": "Motion Graphics",
       "composition": "BenchCanon3_MotionGraphics",
-      "content": "shapes + transforms + glow (blur excluded in v1 — software-backend composite SEGV, see TICKET-PERF-BASELINE-V1)",
+      "content": "shapes + blur + transforms + glow (blur_band re-enabled after composite SEGV resolution — TICKET-PERF-BASELINE-V1)",
       "resolution": "1920x1080",
       "fps": 30,
       "duration_frames": 90,

@@ -79,7 +79,7 @@ software. B05 (blur su scena a 2 layer) rende senza problemi → trigger isolato
 - **Exit condition**: `chronon3d_cli benchmark --scene <scena-con-blur-multi-layer>` non segfaulta; BENCH-3 può riabilitare `blur_band`.
 - **Equivalence**: BENCH-3 con e senza blur_band, stessi budget.
 - **Removal scope**: commento in bench_corpus_scenes.cpp + manifest note + questo paragrafo.
-- **Status**: **ACTIVE** (rimuovere quando fixato).
+- **Status**: **RESOLVED** (2026-08-28). Il SEGV non riproduce più su `main@d134e214`: la propagazione dei fallimenti upstream attraverso i compositi (`d1475f2c`) elimina il dereference di framebuffer mancanti in `CompositeNode::execute`. Verifica su `linux-fast-dev`: `blur(32)` band + 24 dots animati renderizza still + sequenza 0-10 exit 0; saturation 5s con blur_band incluso → p50 1.52ms (budget 1.9) / p95 1.60ms (budget 3.0) PASS, 3243 frame, 0 crash. `blur_band` riabilitato in `bench_corpus_scenes.cpp` (BENCH-3) e nota manifest aggiornata.
 
 ### 4b. GPU path non verificabile in sandbox
 
@@ -110,8 +110,9 @@ E i 4 new TEST_CASE del bench corpus passano (16/16).
 
 ## Forward point
 
-- TICKET-FIX: software-backend composite blur SEGV (4a) → poi riabilitare
-  `blur_band` e aggiornare manifest+BUDGET con il blur incluso.
+- ~~TICKET-FIX: software-backend composite blur SEGV (4a) → poi riabilitare
+  `blur_band` e aggiornare manifest+BUDGET con il blur incluso.~~ DONE 2026-08-28:
+  blur_band riabilitato, §4a RESOLVED (vedi sopra).
 - Bloccare budget GPU (gpu_execute_us/readback/submissions/VMA) su macchina
   Vulkan certificata.
 - CPU%/GPU% sampling end-to-end nel runner (annex oggi a fine run singola).

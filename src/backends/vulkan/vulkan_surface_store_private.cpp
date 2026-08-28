@@ -1,9 +1,14 @@
-// Vulkan Impl surface ownership and upload helpers. Included inside VulkanBackend::Impl to keep
-// the private state definition single-source while separating responsibilities.
+// vulkan_surface_store_private.cpp — VulkanBackend::Impl surface
+// ownership, upload/download and transient-slot lifecycle.
+// Out-of-class definitions; declared in vulkan_backend_impl.hpp.
+
+#include "vulkan_backend_impl.hpp"
+
+namespace chronon3d::backends::vulkan {
 
     // The compiler's interval plan owns CPU Framebuffer slots. Native Vulkan
     // surfaces use the logical registry/store lifecycle below.
-    void preallocate_plan_surfaces(
+    void VulkanBackend::Impl::preallocate_plan_surfaces(
         std::uint32_t canvas_width,
         std::uint32_t canvas_height,
         const graph::PhysicalFramebufferAllocationPlan& plan) {
@@ -24,22 +29,8 @@
 
     }
 
-    // When the plan is preallocated, ensure_surface is a direct binding
-    // operation: bind a logical handle to its planned physical slot with
-    // zero search, zero create, zero resize.  If the handle has no planned
-    // slot, it falls through to the pool path (job-persistent assets,
-    // unplanned scratch surfaces).
-    bool plan_preallocated{false};
-    std::uint32_t plan_canvas_width{0};
-    std::uint32_t plan_canvas_height{0};
-
-    static bool surface_compatible(const runtime::SurfaceDesc& a,
-                                   const runtime::SurfaceDesc& b) {
-        return a.width == b.width && a.height == b.height && a.format == b.format;
-    }
-
     // True when at least one logical handle currently references `slot`.
-    bool slot_in_use(std::size_t slot) const {
+    bool VulkanBackend::Impl::slot_in_use(std::size_t slot) const {
         for (const auto& [handle, bound_slot] : surfaces.surface_bindings) {
             (void)handle;
             if (bound_slot == slot) return true;
@@ -47,7 +38,7 @@
         return false;
     }
 
-    void prune_unused_transient_slots() {
+    void VulkanBackend::Impl::prune_unused_transient_slots() {
         for (auto it = surfaces.physical_surfaces.begin(); it != surfaces.physical_surfaces.end();) {
             if (slot_in_use(it->first) ||
                 it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
@@ -59,7 +50,7 @@
         }
     }
 
-    std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const {
+    std::size_t VulkanBackend::Impl::bound_slot(runtime::RenderSurfaceHandle handle) const {
         const auto it = surfaces.surface_bindings.find(handle);
         if (it == surfaces.surface_bindings.end()) {
             throw std::invalid_argument(
@@ -73,7 +64,7 @@
     }
 
     // The single resolve path: handle → slot → backing image.
-    Image& resolve_image(runtime::RenderSurfaceHandle handle) {
+    VulkanBackend::Impl::Image& VulkanBackend::Impl::resolve_image(runtime::RenderSurfaceHandle handle) {
         const auto slot = bound_slot(handle);
         const auto physical_it = surfaces.physical_surfaces.find(slot);
         if (physical_it == surfaces.physical_surfaces.end()) {
@@ -87,7 +78,7 @@
     // assets) are never aliased: the liveness model covers in-frame
     // producers only, so sharing such a slot with a writer could clobber
     // pixels the frame still needs to sample.
-    bool slot_has_initialized_occupant(std::size_t slot,
+    bool VulkanBackend::Impl::slot_has_initialized_occupant(std::size_t slot,
                                        runtime::RenderSurfaceHandle self) const {
         const auto physical_it = surfaces.physical_surfaces.find(slot);
         if (physical_it == surfaces.physical_surfaces.end() ||
@@ -108,7 +99,7 @@
     //     PINNED to its current slot — pixels never migrate to another slot;
     //   * a handle never aliases a slot whose occupant image is initialized
     //     — such a slot is DIVERTED to a fresh private slot instead.
-    Image& bind_handle_to_slot(runtime::RenderSurfaceHandle handle,
+    VulkanBackend::Impl::Image& VulkanBackend::Impl::bind_handle_to_slot(runtime::RenderSurfaceHandle handle,
                                std::size_t slot,
                                const runtime::SurfaceDesc& desc) {
         const auto previous = surfaces.surface_bindings.find(handle);
@@ -161,29 +152,7 @@
         return physical.image;
     }
 
-    static VkFormat to_vk_format(runtime::PixelFormat fmt) noexcept {
-        switch (fmt) {
-            case runtime::PixelFormat::Rgba32Float: return VK_FORMAT_R32G32B32A32_SFLOAT;
-            case runtime::PixelFormat::Rgba8Unorm:  return VK_FORMAT_B8G8R8A8_UNORM;
-            case runtime::PixelFormat::R8Unorm:     return VK_FORMAT_R8_UNORM;
-            case runtime::PixelFormat::Nv12:        return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-            case runtime::PixelFormat::P010:        return VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
-            default: return VK_FORMAT_R32G32B32A32_SFLOAT;
-        }
-    }
-
-    static constexpr std::size_t pixel_format_bytes(runtime::PixelFormat fmt) noexcept {
-        switch (fmt) {
-            case runtime::PixelFormat::Rgba32Float: return 16;
-            case runtime::PixelFormat::Rgba8Unorm:  return 4;
-            case runtime::PixelFormat::R8Unorm:     return 1;
-            case runtime::PixelFormat::Nv12:        return 1;
-            case runtime::PixelFormat::P010:        return 2;
-            default: return 16;
-        }
-    }
-
-    Image& ensure_surface(runtime::RenderSurfaceHandle handle,
+    VulkanBackend::Impl::Image& VulkanBackend::Impl::ensure_surface(runtime::RenderSurfaceHandle handle,
                           const runtime::SurfaceDesc& desc) {
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             (desc.format != runtime::PixelFormat::Rgba32Float &&
@@ -234,7 +203,7 @@
         return bind_handle_to_slot(handle, surfaces.next_slot++, desc);
     }
 
-    void wait_upload_slot(VulkanUploadRing::UploadSlot& slot) {
+    void VulkanBackend::Impl::wait_upload_slot(VulkanUploadRing::UploadSlot& slot) {
         if (!slot.in_flight) return;
         check(vkWaitForFences(device, 1, &slot.fence, VK_TRUE, UINT64_MAX),
               "vkWaitForFences(upload slot)");
@@ -242,7 +211,7 @@
         slot.in_flight = false;
     }
 
-    VulkanUploadRing::UploadSlot& acquire_upload_slot(bool wait_for_completion) {
+    VulkanBackend::Impl::VulkanUploadRing::UploadSlot& VulkanBackend::Impl::acquire_upload_slot(bool wait_for_completion) {
         // Synchronous callers retain the warmed first slot.  Asynchronous
         // callers rotate through the ring and only wait when all slots are
         // occupied, allowing several decoded assets to be queued together.
@@ -265,7 +234,7 @@
         return oldest;
     }
 
-    void ensure_upload_slot(VulkanUploadRing::UploadSlot& slot, VkDeviceSize bytes) {
+    void VulkanBackend::Impl::ensure_upload_slot(VulkanUploadRing::UploadSlot& slot, VkDeviceSize bytes) {
         wait_upload_slot(slot);
         if (slot.buffer_allocation.size < bytes) {
             if (slot.buffer_allocation.buffer != VK_NULL_HANDLE) {
@@ -292,7 +261,7 @@
         }
     }
 
-    void release_surface_now(runtime::RenderSurfaceHandle handle) {
+    void VulkanBackend::Impl::release_surface_now(runtime::RenderSurfaceHandle handle) {
         const auto binding = surfaces.surface_bindings.find(handle);
         if (binding == surfaces.surface_bindings.end()) return;
         wait_for_pending();
@@ -305,14 +274,14 @@
         ++stats.surface_releases;
     }
 
-    void flush_deferred_surface_releases() {
+    void VulkanBackend::Impl::flush_deferred_surface_releases() {
         if (surfaces.deferred_surface_releases.empty()) return;
         auto pending = std::move(surfaces.deferred_surface_releases);
         surfaces.deferred_surface_releases.clear();
         for (const auto handle : pending) release_surface_now(handle);
     }
 
-    void release_frame_transient_surfaces() noexcept {
+    void VulkanBackend::Impl::release_frame_transient_surfaces() noexcept {
         try {
             // This is invoked only after a complete job. Drain the device
             // once before destroying orphaned images; per-image destruction
@@ -358,7 +327,7 @@
         }
     }
 
-    void retire_completed_frame_transient_surfaces() noexcept {
+    void VulkanBackend::Impl::retire_completed_frame_transient_surfaces() noexcept {
         try {
             // This is deliberately a status query, never a wait.  A transient
             // image is eligible for destruction only after every Vulkan
@@ -415,7 +384,7 @@
         }
     }
 
-    std::uint64_t submit_upload(VulkanUploadRing::UploadSlot& slot, bool wait_for_completion) {
+    std::uint64_t VulkanBackend::Impl::submit_upload(VulkanUploadRing::UploadSlot& slot, bool wait_for_completion) {
         check(vkEndCommandBuffer(slot.command_buffer), "vkEndCommandBuffer(upload slot)");
         const auto signal_value = ++next_timeline_value;
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
@@ -434,7 +403,7 @@
         return signal_value;
     }
 
-    std::uint64_t upload(runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
+    std::uint64_t VulkanBackend::Impl::upload(runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
                          std::span<const float> rgba, bool wait_for_completion) {
         auto& image = ensure_surface(handle, desc);
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(desc.width) * desc.height * sizeof(float) * 4;
@@ -475,7 +444,7 @@
         return ticket;
     }
 
-    std::uint64_t upload_region(runtime::RenderSurfaceHandle handle,
+    std::uint64_t VulkanBackend::Impl::upload_region(runtime::RenderSurfaceHandle handle,
                                 const runtime::SurfaceDesc& desc,
                                 std::int32_t x, std::int32_t y,
                                 std::uint32_t width, std::uint32_t height,
@@ -541,7 +510,7 @@
         return submit_upload(slot, wait_for_completion);
     }
 
-    void wait_upload_ticket(std::uint64_t ticket) {
+    void VulkanBackend::Impl::wait_upload_ticket(std::uint64_t ticket) {
         const VkSemaphoreWaitInfo wait_info{
             VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO, nullptr, 0, 1,
             &timeline_semaphore, &ticket};
@@ -552,7 +521,7 @@
         }
     }
 
-    void download(runtime::RenderSurfaceHandle handle, std::span<float> rgba) {
+    void VulkanBackend::Impl::download(runtime::RenderSurfaceHandle handle, std::span<float> rgba) {
         if (surfaces.surface_bindings.count(handle) == 0) {
             throw std::invalid_argument("Vulkan download references an uninitialized surface");
         }
@@ -579,3 +548,27 @@
         std::memcpy(rgba.data(), staging.mapped, static_cast<std::size_t>(bytes));
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));
     }
+
+void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
+    VulkanBackend::Impl& owner) noexcept {
+    // The store is the sole owner of physical surface images. Impl remains
+    // responsible for the surrounding backend resources and invokes this
+    // first, after the device idle point, preserving the original teardown
+    // order for staging, rings, descriptors and pipelines.
+    for (auto& [slot, physical] : physical_surfaces) {
+        (void)slot;
+        owner.destroy_image(physical.image);
+    }
+    physical_surfaces.clear();
+    surface_bindings.clear();
+    deferred_surface_releases.clear();
+    unplanned_surface_handles.clear();
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    cuda_ready_surfaces.clear();
+    cuda_export_ready_surfaces.clear();
+#endif
+    slot_last_access.clear();
+    next_slot = 0;
+}
+
+} // namespace chronon3d::backends::vulkan
