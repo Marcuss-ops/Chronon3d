@@ -473,6 +473,17 @@ struct alignas(16) GpuGlyphStatic {
         const VkDeviceSize glyph_bytes = static_cast<VkDeviceSize>(glyphs.size() * sizeof(GpuGlyphStatic));
         const VkDeviceSize run_bytes = static_cast<VkDeviceSize>(runs.size() * sizeof(GpuTextRunDynamic));
 
+        constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
+        if (glyph_bytes > kMaxCmdUpdateBytes || run_bytes > kMaxCmdUpdateBytes) {
+            throw std::logic_error(
+                "Vulkan text metadata exceeds vkCmdUpdateBuffer limit");
+        }
+        if (frame_batch.active &&
+            frame_batch.pass_count >= kGlyphInstancePassesPerSlot) {
+            throw std::logic_error(
+                "Vulkan text upload pass capacity exhausted");
+        }
+
         const std::size_t pass_slot = frame_batch.active
             ? frame_batch.next_slot * kGlyphInstancePassesPerSlot +
                 (frame_batch.pass_count % kGlyphInstancePassesPerSlot)
