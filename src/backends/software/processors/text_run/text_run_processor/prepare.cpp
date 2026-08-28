@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 
 // TICKET-TEXT-CLIP-ASCENT — diagnostic spdlog include.
 // Gated on CHRONON3D_TEXT_CLIP_DEBUG env var; no-op in production
@@ -221,7 +222,8 @@ namespace chronon3d::renderer::text_run_stages {
                     s.span_fonts.end(),
                     std::make_move_iterator(temp_fonts.begin()),
                     std::make_move_iterator(temp_fonts.end()));
-                s.dissolve_per_glyph_span_idx.assign(dl.placed.glyphs.size(), 0);
+                s.dissolve_per_glyph_span_idx.assign(
+                    dl.placed.glyphs.size(), 0);
                 for (std::size_t si = 0; si < dl.font_spans.size(); ++si) {
                     const auto& spn = dl.font_spans[si];
                     const std::uint32_t span_end = std::min<std::uint32_t>(
@@ -244,7 +246,8 @@ namespace chronon3d::renderer::text_run_stages {
                 single_blfont.createFromFace(*s.span_handles.back().bl_face,
                     dl.font_size * static_cast<float>(s.raster_space.scale));
                 s.span_fonts.push_back(std::move(single_blfont));
-                s.dissolve_per_glyph_span_idx.assign(dl.placed.glyphs.size(), 0);
+                s.dissolve_per_glyph_span_idx.assign(
+                    dl.placed.glyphs.size(), span_offset);
             }
         }
     }
@@ -301,13 +304,37 @@ namespace chronon3d::renderer::text_run_stages {
     // raster_space.scale and layer_scale were computed earlier (before
     // font resolve) so that BLFont could be created at the supersampled
     // size.  Only the image dimensions and offset remain to be computed.
-    s.img_w = std::max(1, static_cast<int>(std::ceil(s.max_x - s.min_x + kMargin * 2.0f)));
-    s.img_h = std::max(1, static_cast<int>(std::ceil(s.max_y - s.min_y + kMargin * 2.0f)));
+    const double raw_w = std::ceil(
+        static_cast<double>(s.max_x) - static_cast<double>(s.min_x) +
+        static_cast<double>(kMargin) * 2.0);
+    const double raw_h = std::ceil(
+        static_cast<double>(s.max_y) - static_cast<double>(s.min_y) +
+        static_cast<double>(kMargin) * 2.0);
+    constexpr double kMaxTextSurface = 16384.0;
+    if (!std::isfinite(raw_w) || !std::isfinite(raw_h) ||
+        raw_w < 1.0 || raw_h < 1.0 ||
+        raw_w > kMaxTextSurface || raw_h > kMaxTextSurface) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "prepare_text_run: invalid or oversized text surface bounds"
+        });
+    }
+    const int scale = std::max(1, s.raster_space.scale);
+    const double max_int = static_cast<double>(
+        std::numeric_limits<int>::max());
+    if (raw_w > max_int / scale || raw_h > max_int / scale) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure,
+            "prepare_text_run: supersampled text surface dimensions overflow"
+        });
+    }
+    s.img_w = static_cast<int>(raw_w);
+    s.img_h = static_cast<int>(raw_h);
     s.offset_x = s.min_x - kMargin;
     s.offset_y = s.min_y - kMargin;
 
-    s.ss_img_w = s.img_w * s.raster_space.scale;
-    s.ss_img_h = s.img_h * s.raster_space.scale;
+    s.ss_img_w = s.img_w * scale;
+    s.ss_img_h = s.img_h * scale;
     s.raster_space.offset_x = s.offset_x * static_cast<float>(s.raster_space.scale);
     s.raster_space.offset_y = s.offset_y * static_cast<float>(s.raster_space.scale);
 
