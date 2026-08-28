@@ -347,7 +347,8 @@ RenderLoopOutput run_pipe_export_loop(
     // The decoder is created per render and lazily opens one session per
     // source path. NativeVideoFrameDecoder compiles to a null-decoding stub
     // when CHRONON3D_ENABLE_NATIVE_FFMPEG is off.
-    auto native_decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
+    session.native_decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
+    auto& native_decoder = session.native_decoder;
     native_decoder->set_counters(session.renderer->counters());
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer->backend())) {
@@ -411,9 +412,9 @@ RenderLoopOutput run_pipe_export_loop(
     if (session.writer_thread.joinable()) {
         session.writer_thread.join();
     }
+    spdlog::info("[video] writer join complete");
     // Destroy decoder CUDA/Vulkan imports before any backend/pool cleanup.
     // The imported image must outlive its CUDA external memory bridge.
-    native_decoder.reset();
     if (session.renderer && session.renderer->counters()) {
         session.renderer->counters()->interop_ring_wait_count.fetch_add(
             session.interop_ring.wait_count(), std::memory_order_relaxed);
@@ -430,6 +431,7 @@ RenderLoopOutput run_pipe_export_loop(
     // the framebuffer working set alive; single-shot jobs can still select
     // TrimAfterJob to release memory explicitly.
     if (session.renderer && session.renderer->framebuffer_pool()) {
+        spdlog::info("[video] trimming framebuffer pool");
         const auto policy = session.renderer->framebuffer_pool()->clear_policy();
         session.renderer->framebuffer_pool()->trim_after_job();
         if (policy == cache::FramebufferPoolClearPolicy::TrimAfterJob) {
@@ -438,12 +440,14 @@ RenderLoopOutput run_pipe_export_loop(
             spdlog::debug("[video] Retained framebuffer pool — warm policy active");
         }
     }
+    spdlog::info("[video] frame-loop cleanup complete");
 
     // The video IPC path does not pass through finalize_render_job(). Reclaim
     // orphaned FrameTransient Vulkan images here, after the writer has joined
     // and the final output readback is complete, while preserving warm
     // JobPersistent asset/font surfaces for the next daemon job.
-    if (session.renderer) {
+    const bool native_encoder = session.opts.encoder.encoder_backend == "native";
+    if (session.renderer && !native_encoder) {
         auto& rt = session.renderer->runtime();
         rt.backend().release_frame_transient_surfaces();
         for (const auto handle : rt.surface_registry().handles_with_lifetime(

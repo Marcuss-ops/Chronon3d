@@ -7,6 +7,8 @@
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <spdlog/spdlog.h>
 
 #include <atomic>
 #include <memory>
@@ -25,6 +27,10 @@ struct PipeExportSession {
 
     // Renderer
     std::shared_ptr<SoftwareRenderer> renderer;
+    // Kept alive through encoder close: the decoder's CUDA/Vulkan import
+    // session may still have external-semaphore work ordered behind the
+    // native encoder drain.
+    std::shared_ptr<::chronon3d::media::NativeVideoFrameDecoder> native_decoder;
 
     // State
     FfmpegExportOptions opts;
@@ -95,6 +101,9 @@ struct PipeExportSession {
         if (writer_thread.joinable()) {
             writer_thread.join();
         }
+        native_decoder.reset();
+        renderer.reset();
+        encoder.reset();
     }
 };
 

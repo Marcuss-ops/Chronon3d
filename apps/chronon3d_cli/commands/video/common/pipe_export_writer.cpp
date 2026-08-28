@@ -173,17 +173,16 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     // The queue is closed only after the producer has submitted its final
     // frame. Keep the ring slots retained until the encoder has consumed all
     // CUDA work, then release them in the same order used during production.
+    spdlog::info("[video] writer queue drained; deferred native slots={}", deferred_slots.size());
     while (!deferred_slots.empty()) {
-        retire_ready_slots();
-        if (!deferred_slots.empty()) {
-            if (!ctx.encoder.finish_native_surface(
-                    *deferred_slots.front().backend,
-                    deferred_slots.front().surface)) {
-                ctx.writer_failed.store(true);
-                break;
-            }
-            retire_ready_slots();
+        if (!ctx.encoder.finish_native_surface(
+                *deferred_slots.front().backend,
+                deferred_slots.front().surface)) {
+            ctx.writer_failed.store(true);
+            break;
         }
+        spdlog::info("[video] finished native surface slot; remaining={}", deferred_slots.size());
+        retire_ready_slots();
     }
 }
 

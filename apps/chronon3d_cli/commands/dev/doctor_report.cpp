@@ -24,9 +24,9 @@ namespace chronon3d::cli {
 
 namespace {
 
-constexpr const char* kRenderPlanSchema = "chronon.render-plan.v1";
-constexpr const char* kFontRegular = "fonts/Inter-Regular.ttf";
-constexpr const char* kFontBold = "fonts/Inter-Bold.ttf";
+constexpr const char* kRenderPlanSchema = "chronon.render-plan";
+constexpr const char* kFontRegular = "assets/fonts/Inter-Regular.ttf";
+constexpr const char* kFontBold = "assets/fonts/Inter-Bold.ttf";
 
 const char* doctor_status_name_impl(DoctorStatus status) noexcept {
     switch (status) {
