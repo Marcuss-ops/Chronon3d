@@ -100,6 +100,11 @@ try:
     if '$counter_name' in counters:
         print(counters['$counter_name'])
         sys.exit(0)
+    # Try job.gpu.<name> (the *.timing.json sidecar layout)
+    gpu = data.get('job', {}).get('gpu', {})
+    if '$counter_name' in gpu:
+        print(gpu['$counter_name'])
+        sys.exit(0)
     print('')
 except Exception as e:
     print('', file=sys.stderr)
@@ -148,6 +153,8 @@ log_file = '$OUTPUT_DIR/render.log'
 patterns = {
     'gpu_readback_bytes': r'gpu_readback_bytes[=:]\s*(\d+)',
     'encoder_staging_copy_bytes': r'encoder_staging_copy_bytes[=:]\s*(\d+)',
+    'nv12_to_rgba_frames': r'nv12_to_rgba_frames[=:]\s*(\d+)',
+    'rgba_to_nv12_frames': r'rgba_to_nv12_frames[=:]\s*(\d+)',
     'gpu_surface_copy_frames': r'gpu_surface_copy_frames[=:]\s*(\d+)',
     'cpu_pixel_readback_bytes': r'cpu_pixel_readback_bytes[=:]\s*(\d+)',
     'video_surface_upload_bytes': r'video_surface_upload_bytes[=:]\s*(\d+)',
