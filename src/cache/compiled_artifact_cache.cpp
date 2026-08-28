@@ -18,7 +18,6 @@
 #include <spdlog/spdlog.h>
 
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/timeline/composition_definition.hpp>
 
 #include <cstring>
 #include <fstream>
@@ -108,15 +107,14 @@ std::vector<std::uint8_t> serialize_to_flatbuffer(
 
     // ── Composition identity ──────────────────────────────────────────
 
-    auto comp_def = compiled.definition;
-    std::int32_t width  = comp_def ? comp_def->composition.width : 0;
-    std::int32_t height = comp_def ? comp_def->composition.height : 0;
-    std::int32_t fps_num_int = comp_def ? comp_def->composition.frame_rate.num() : 30;
-    std::int32_t fps_den_int = comp_def ? comp_def->composition.frame_rate.den() : 1;
+    auto composition = compiled.composition;
+    std::int32_t width  = composition ? composition->width() : 0;
+    std::int32_t height = composition ? composition->height() : 0;
+    std::int32_t fps_num_int = composition ? composition->frame_rate().num() : 30;
+    std::int32_t fps_den_int = composition ? composition->frame_rate().den() : 1;
     std::uint32_t fps_num = static_cast<std::uint32_t>(fps_num_int);
     std::uint32_t fps_den = static_cast<std::uint32_t>(fps_den_int);
-    std::int64_t duration = comp_def ? comp_def->composition.duration.integral()
-                                     : 0;
+    std::int64_t duration = composition ? composition->duration().integral() : 0;
     std::uint8_t exec_mode = static_cast<std::uint8_t>(
         compiled.execution_mode);
 
@@ -335,7 +333,8 @@ std::optional<LoadedArtifact> hydrate_from_flatbuffer(
     auto reconstituted = std::make_shared<CompiledComposition>();
     reconstituted->fingerprint = comp->fingerprint();
 
-    // Build a minimal CompositionDefinition from the stored metadata.
+    // Rehydrate a boundary Composition from stored metadata. The artifact
+    // contains no scene callback, so the cache result is metadata-only.
     CompositionSpec spec;
     spec.width  = comp->width();
     spec.height = comp->height();
@@ -344,9 +343,14 @@ std::optional<LoadedArtifact> hydrate_from_flatbuffer(
         static_cast<chronon3d::i32>(comp->fps_den())};
     spec.duration = Frame{comp->duration()};
 
-    auto def = std::make_shared<CompositionDefinition>();
-    def->composition = spec;
-    reconstituted->definition = def;
+    auto composition = std::make_shared<Composition>(
+        std::move(spec), Composition::SceneFunction{
+            [](const FrameContext&) { return Scene{}; }});
+    reconstituted->composition = composition;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    reconstituted->definition = composition;
+#pragma GCC diagnostic pop
     reconstituted->execution_mode = static_cast<SceneExecutionMode>(
         comp->execution_mode());
 

@@ -106,11 +106,11 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     chronon3d::SoftwareRenderer* sw_sidecar,
     chronon3d::CancellationToken* cancellation
 ) {
-    if (!compiled.definition) {
+    if (!compiled.composition) {
         throw std::invalid_argument(
             "compiled composition has no definition");
     }
-    const auto& spec = compiled.definition->composition;
+    const auto& spec = compiled.composition->spec();
     // Materialise the RenderRuntime* once at the entry point so both the
     // single-frame and the motion-blur sub-frame evaluation paths below
     // share the same pointer.  Primary source: sw_sidecar (the

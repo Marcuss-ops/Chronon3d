@@ -139,7 +139,9 @@ add_library(chronon3d_graph_executor OBJECT
     executor/level_timings.cpp          # P1 refactor — per-level metrics accumulator + roll_up() helper (replaces 7-vector declaration + 60-line if-block in executor_levels.cpp; forward-declared RenderCounters, src-local header)
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
-    executor/command_plan_executor.cpp    # backend-neutral CommandPlan executor (GPU graph execution via canonical RenderBackend API)
+    # ABI compatibility object only; no production callers. The declaration is
+    # test-only (tests/helpers/command_plan_executor.hpp).
+    executor/command_plan_executor.cpp
     # ── TICKET-009 close-out (post-RenderGraphContext OBJECT-lift) —
     # graph topological-plan cache (thread-safe, shared between
     # SoftwareRenderer and RenderRuntime).  Compiled directly into the

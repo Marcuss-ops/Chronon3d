@@ -76,8 +76,8 @@ FfmpegPipeOptions make_pipe_options(
             : ((opts.encoder.codec == "libx264" && opts.encoder.encoder_backend != "native") ? "zerolatency" : "");
 
     FfmpegPipeOptions pipe_options{
-        .width = compiled.definition->composition.width,
-        .height = compiled.definition->composition.height,
+        .width = compiled.composition->width(),
+        .height = compiled.composition->height(),
         .fps = opts.output.fps,
         .rate_control_mode = opts.encoder.rate_control_mode,
         .crf = opts.encoder.crf,
@@ -157,8 +157,8 @@ warmup_pipe_renderer(
         runtime::RenderPreparationOptions{
             .warmup_renderer = true,
             .warmup = runtime::RendererWarmupOptions{
-                .width = compiled.definition->composition.width,
-                .height = compiled.definition->composition.height,
+                .width = compiled.composition->width(),
+                .height = compiled.composition->height(),
                 .framebuffer_count = opts.warmup.warmup_framebuffers,
                 .preallocate_framebuffers = true,
                 .touch_memory = true,

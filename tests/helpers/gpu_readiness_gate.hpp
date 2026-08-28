@@ -21,7 +21,7 @@
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
-#include <chronon3d/render_graph/executor/command_plan_executor.hpp>
+#include "command_plan_executor.hpp"
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 

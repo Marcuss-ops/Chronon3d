@@ -36,23 +36,23 @@ namespace chronon3d {
 //   std::function itself has no portable capture introspection API.
 // ─────────────────────────────────────────────────────────────────────────────
 namespace {
-std::uint64_t fingerprint_composition_definition(
-    const CompositionDefinition& definition) {
+std::uint64_t fingerprint_composition(
+    const Composition& composition, bool scene_is_frame_invariant = false) {
     auto hash = core::hash::HashBuilder{}
         .add("chronon3d.composition.fingerprint.v2")
-        .add(definition.composition.name)
-        .add(definition.composition.width)
-        .add(definition.composition.height)
-        .add(definition.composition.frame_rate.numerator)
-        .add(definition.composition.frame_rate.denominator)
-        .add(definition.composition.duration)
-        .add(definition.scene_content_fingerprint)
-        .add(definition.scene_is_frame_invariant)
-        .add(definition.camera.has_value());
+        .add(composition.name())
+        .add(composition.width())
+        .add(composition.height())
+        .add(composition.frame_rate().numerator)
+        .add(composition.frame_rate().denominator)
+        .add(composition.duration())
+        .add(composition.scene_content_fingerprint())
+        .add(scene_is_frame_invariant)
+        .add(composition.has_default_camera_descriptor());
 
-    if (definition.camera.has_value()) {
+    if (composition.has_default_camera_descriptor()) {
         hash.add(camera_v1::compute_camera_descriptor_fingerprint(
-            *definition.camera));
+            composition.default_camera_descriptor()));
     }
     return hash.finish();
 }
@@ -96,19 +96,19 @@ compile_camera(const camera_v1::CameraDescriptor& descriptor,
 //   2. Sanity-check SceneFunction presence.
 //   3. Capture `definition` into a non-owning ref-counted shared_ptr (the
 //      caller retains lifetime ownership).
-//   4. If `definition.camera` is set, delegate the camera compile to
+//   4. If the canonical Composition has a camera descriptor, delegate the camera compile to
 //      `compile_camera()`; surface any failure verbatim.
 //   5. Compute a deterministic sequential fingerprint over the static
 //      CompositionSpec, explicit scene-content identity, and optional camera
 //      descriptor. The callback object itself is intentionally not hashed.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<CompiledComposition, CompositionCompileError>
-compile_composition(const CompositionDefinition& definition,
+compile_composition(const Composition& composition,
                     const CompositionCompileContext& /*context*/) {
     // (1) CompositionSpec sanity.
-    if (definition.composition.name.empty() ||
-        definition.composition.width  <= 0 ||
-        definition.composition.height <= 0) {
+    if (composition.name().empty() ||
+        composition.width() <= 0 ||
+        composition.height() <= 0) {
         CompositionCompileError err;
         err.kind    = CompositionCompileError::Kind::EmptyCompositionSpec;
         err.message = "CompositionSpec has empty name or non-positive dimensions";
@@ -116,22 +116,23 @@ compile_composition(const CompositionDefinition& definition,
     }
 
     // (2) SceneFunction presence.
-    if (!definition.scene) {
+    if (!composition.scene_function()) {
         CompositionCompileError err;
         err.kind    = CompositionCompileError::Kind::NoSceneFunction;
-        err.message = "CompositionDefinition::scene is null";
+        err.message = "Composition::SceneFunction is null";
         return err;
     }
 
     CompiledComposition out;
 
-    // (3) OWNING deep copy of the definition — P1 #11.
-    //     CompiledComposition now owns its own heap copy via make_shared,
-    //     so it survives destruction of the caller's original definition.
-    //     CompositionDefinition is copyable: CompositionSpec (POD + strings),
-    //     SceneFunction (std::function with state-safe captures), and
-    //     optional<CameraDescriptor> (copyable).
-    out.definition = std::make_shared<const CompositionDefinition>(definition);
+    // (3) Own a snapshot of the canonical Composition. DTO conversion, when
+    //     needed, happens only in the deprecated boundary overload below.
+    out.composition = std::make_shared<const Composition>(composition);
+    // Compatibility view only; all new consumers use `composition`.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    out.definition = out.composition;
+#pragma GCC diagnostic pop
 
     // (4) Camera compile path (only when a descriptor was supplied).
     // ADL on `camera_v1::CameraDescriptor` finds BOTH an outer wrapper in
@@ -140,9 +141,9 @@ compile_composition(const CompositionDefinition& definition,
     // Result<…, CameraCompileError>. Use a QUALIFIED call so only the
     // outer is in the overload set; the second arg is the explicit
     // CompositionCompileContext options carrier.
-    if (definition.camera.has_value()) {
+    if (composition.has_default_camera_descriptor()) {
         auto cam = chronon3d::compile_camera(
-            *definition.camera, CompositionCompileContext{});
+            composition.default_camera_descriptor(), CompositionCompileContext{});
         if (!cam.has_value()) {
             return std::move(cam).error();
         }
@@ -160,17 +161,17 @@ compile_composition(const CompositionDefinition& definition,
     // The template scene fast-path is used only when the definition explicitly promises
     // that scene materialization is frame invariant (SceneExecutionMode::StaticScene)
     // or through compiled dynamic topology parameter slots (SceneExecutionMode::StaticTopologySlots).
-    if (definition.scene) {
-        if (definition.scene_is_frame_invariant) {
+    if (composition.scene_function()) {
+        if (false) {
             out.execution_mode = SceneExecutionMode::StaticScene;
             try {
                 const FrameContext fc0 = make_frame_context({
-                    .global_time = SampleTime::from_frame(0.0, definition.composition.frame_rate),
-                    .duration = definition.composition.duration,
-                    .width = definition.composition.width,
-                    .height = definition.composition.height,
+                    .global_time = SampleTime::from_frame(0.0, composition.frame_rate()),
+                    .duration = composition.duration(),
+                    .width = composition.width(),
+                    .height = composition.height(),
                 });
-                out.static_scene = std::make_shared<const Scene>(definition.scene(fc0));
+                out.static_scene = std::make_shared<const Scene>(composition.evaluate(fc0));
                 out.template_scene = out.static_scene;
                 out.is_static_topology = true;
             } catch (...) {
@@ -187,10 +188,8 @@ compile_composition(const CompositionDefinition& definition,
         }
     }
 
-    // (6) Deterministic per-field fingerprint — P1 #11. Keep the helper
-    // reusable so compatibility adapters can replace storage without making
-    // the fingerprint describe a different immutable definition.
-    out.fingerprint = fingerprint_composition_definition(definition);
+    // (6) Deterministic fingerprint of the canonical Composition.
+    out.fingerprint = fingerprint_composition(composition);
 
     return out;
 }
@@ -198,46 +197,18 @@ compile_composition(const CompositionDefinition& definition,
 // ─────────────────────────────────────────────────────────────────────────────
 // compile_composition(Composition)
 //
-// Compatibility adapter — snapshot the legacy object into the explicit V2
-// input, then delegate to the canonical definition compiler. Existing
-// Composition callers remain source-compatible while new code can consume
-// the returned CompiledComposition.
+// Compatibility adapter: snapshot the legacy CompositionDefinition into the
+// canonical Composition model and delegate to the core compiler.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<CompiledComposition, CompositionCompileError>
-compile_composition(const Composition& composition,
+compile_composition(const CompositionDefinition& definition,
                     const CompositionCompileContext& context) {
-    CompositionDefinition definition;
-    definition.composition.name = composition.name();
-    definition.composition.width = composition.width();
-    definition.composition.height = composition.height();
-    definition.composition.frame_rate = composition.frame_rate();
-    definition.composition.duration = composition.duration();
-
-    if (!composition.has_scene_function()) {
-        CompositionCompileError err;
-        err.kind = CompositionCompileError::Kind::NoSceneFunction;
-        err.message = "Composition::SceneFunction is null";
-        return err;
+    Composition composition(definition.composition, definition.scene,
+                            definition.scene_content_fingerprint);
+    if (definition.camera.has_value()) {
+        composition.default_camera_descriptor(*definition.camera);
     }
-
-    auto scene = composition.scene_function_snapshot();
-    definition.scene = [scene = std::move(scene)](const FrameContext& frame_context) {
-        return Composition::evaluate_scene_function(scene, frame_context);
-    };
-    definition.scene_content_fingerprint = composition.scene_content_fingerprint();
-
-    // Legacy Composition scene functions have always been evaluated per-frame.
-    // Keep the compatibility adapter correctness-first: only callers using the
-    // explicit CompositionDefinition surface may opt into frame-invariant scene
-    // caching after making that semantic promise deliberately.
-    definition.scene_is_frame_invariant = false;
-
-    // Snapshot the sole authoring-time camera input. Compilation owns the
-    // resulting CameraProgram in CompiledComposition.
-    if (composition.has_default_camera_descriptor()) {
-        definition.camera = composition.default_camera_descriptor();
-    }
-    return compile_composition(definition, context);
+    return compile_composition(composition, context);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -276,18 +247,18 @@ Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 evaluate(const CompiledComposition& compiled,
          const CompositionEvaluateContext& context,
          SampleTime sample_time) {
-    if (!compiled.definition) {
+    if (!compiled.composition) {
         CompositionEvaluateError err;
         err.kind    = CompositionEvaluateError::Kind::NullCompiledComposition;
-        err.message = "compiled.definition is null (compile_composition was not invoked)";
+        err.message = "compiled.composition is null (compile_composition was not invoked)";
         return err;
     }
-    const auto& def = *compiled.definition;
+    const auto& composition = *compiled.composition;
 
-    if (!def.scene) {
+    if (!composition.scene_function()) {
         CompositionEvaluateError err;
         err.kind    = CompositionEvaluateError::Kind::NullSceneFunction;
-        err.message = "CompositionDefinition::scene is null";
+        err.message = "Composition::SceneFunction is null";
         return err;
     }
 
@@ -304,7 +275,7 @@ evaluate(const CompiledComposition& compiled,
         if (compiled.execution_mode == SceneExecutionMode::StaticScene && compiled.static_scene) {
             result.scene = compiled.static_scene->clone();
         } else {
-            result.scene = def.scene(fc);
+            result.scene = composition.evaluate(fc);
         }
     } catch (const std::exception& e) {
         CompositionEvaluateError err;
@@ -318,11 +289,11 @@ evaluate(const CompiledComposition& compiled,
         return err;
     }
 
-    // P3-F: consume Camera2_5D from the compiled program.  Never use a
-    // legacy composition field.  The `redecompose_camera_from_descriptor`
+    // Consume Camera2_5D from the compiled program. Never consult a legacy
+    // composition field. The `redecompose_camera_from_descriptor`
     // helper was REMOVED in P3-F (no mutable state inside Composition).
     // Adapter-only: `CompiledComposition::camera_program` is null when the
-    // caller supplied `CompositionDefinition` without a CameraDescriptor.
+    // canonical Composition has no authored camera descriptor.
     if (compiled.camera_program && compiled.camera_program->is_compiled()) {
         camera_v1::CameraSession session;
         camera_v1::CameraEvalContext cam_ctx;

@@ -216,7 +216,7 @@ struct RenderJob {
     /// Composition-bound probe retained for factory-created jobs. The executor
     /// separately validates the non-owning registry dependency before running.
     [[nodiscard]] explicit operator bool() const noexcept {
-        return compiled != nullptr && compiled->definition != nullptr;
+        return compiled != nullptr && compiled->composition != nullptr;
     }
 };
 

@@ -95,7 +95,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(
     const EvaluatedCompositionFrame& evaluated,
     Frame frame)
 {
-    if (!compiled.definition) {
+    if (!compiled.composition) {
         throw std::invalid_argument("compiled composition has no definition");
     }
     // The evaluated scene already owns its authored 2.5D state for the
@@ -115,15 +115,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(
         m_runtime.node_cache(),
         *effective,
         context_camera,
-        compiled.definition->composition.width,
-        compiled.definition->composition.height,
+        compiled.composition->width(),
+        compiled.composition->height(),
         frame,
         0.0f,
         m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
-        static_cast<float>(compiled.definition->composition.frame_rate.fps()),
-        compiled.definition->composition.name,
+        static_cast<float>(compiled.composition->frame_rate().fps()),
+        compiled.composition->name(),
         m_renderer);
 }
 

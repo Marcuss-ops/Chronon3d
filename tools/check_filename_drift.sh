@@ -40,6 +40,10 @@
 #                  Reported separately; never silently ignored.
 #   TEMPLATE    — citations explicitly marked `drift-class: template`.
 #                  Reported separately; never silently ignored.
+#   THIRD_PARTY — citations explicitly marked `drift-class: third-party`.
+#                  Reported separately; never silently ignored.
+#   FALSE_POSITIVE — citations explicitly marked `drift-class: false-positive`.
+#                  Reported separately; never silently ignored.
 #   PLANNED     — citations explicitly marked `drift-allow: <id>` together
 #                  with a same-line or immediately preceding
 #                  `drift-reason: <text>`. Missing paths are allowed only
@@ -135,6 +139,8 @@ candidates=$(grep -rEn "${PAT}" "${files[@]}" 2>/dev/null | awk -F: '
     classification = "operational"
     if (rest ~ /drift-class:[[:space:]]*historical([[:space:]]|$)/) classification = "historical"
     if (rest ~ /drift-class:[[:space:]]*template([[:space:]]|$)/) classification = "template"
+    if (rest ~ /drift-class:[[:space:]]*third-party([[:space:]]|$)/) classification = "third-party"
+    if (rest ~ /drift-class:[[:space:]]*false-positive([[:space:]]|$)/) classification = "false-positive"
     allowed = (rest ~ /drift-allow:[[:space:]]*[A-Za-z0-9_.-]+([[:space:]]|$)/)
     has_reason = (rest ~ /drift-reason:[[:space:]]*[^[:space:]].*[[:space:]]|drift-reason:[[:space:]]*[^[:space:]]+$/)
     if (allowed && has_reason) classification = "planned"
@@ -159,6 +165,8 @@ errs=0
 
 historical=0
 template=0
+third_party=0
+false_positive=0
 planned=0
 while IFS=: read -r classification file line tok; do
   [ -z "$tok" ] && continue
@@ -170,6 +178,12 @@ while IFS=: read -r classification file line tok; do
       template)
         echo "[TEMPLATE] ${file}:${line}: '${tok}' is not on disk";
         template=$((template + 1));;
+      third-party)
+        echo "[THIRD_PARTY] ${file}:${line}: '${tok}' is not on disk";
+        third_party=$((third_party + 1));;
+      false-positive)
+        echo "[FALSE_POSITIVE] ${file}:${line}: '${tok}' is not on disk";
+        false_positive=$((false_positive + 1));;
       planned)
         echo "[PLANNED] ${file}:${line}: '${tok}' is not on disk (explicitly allowed)";
         planned=$((planned + 1));;
@@ -187,10 +201,10 @@ done <<< "${candidates}"
 
 echo
 if [[ "$mode" == "strict" ]]; then
-  echo "Summary: ${errs} blocking operational drift finding(s) (mode=${mode}); historical=${historical}; template=${template}; planned=${planned}"
+  echo "Summary: ${errs} blocking operational drift finding(s) (mode=${mode}); historical=${historical}; template=${template}; third-party=${third_party}; false-positive=${false_positive}; planned=${planned}"
   [[ "$errs" -eq 0 ]] || exit 1
   exit 0
 else
-  echo "Summary: ${errs} operational drift finding(s) (mode=${mode}); historical=${historical}; template=${template}; planned=${planned}"
+  echo "Summary: ${errs} operational drift finding(s) (mode=${mode}); historical=${historical}; template=${template}; third-party=${third_party}; false-positive=${false_positive}; planned=${planned}"
   exit 0
 fi

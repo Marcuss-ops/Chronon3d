@@ -170,7 +170,7 @@ struct RequestedAsset {
         case PreparedAssetKind::Audio:
             return matches({".wav", ".mp3", ".aac", ".m4a", ".flac", ".ogg"});
         case PreparedAssetKind::Subtitle:
-            return matches({".srt", ".vtt", ".json"});
+            return matches({".ass", ".srt", ".vtt", ".json"});
         case PreparedAssetKind::Data:
             return true;
     }

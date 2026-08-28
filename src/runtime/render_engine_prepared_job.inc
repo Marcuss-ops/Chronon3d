@@ -9,10 +9,10 @@ bool PreparedRenderJob::Impl::can_split_evaluation() const noexcept {
 
 EvaluatedCompositionFrame PreparedRenderJob::Impl::evaluate_frame(
     Frame frame, FrameArena& arena) const {
-    if (!compiled || !compiled->definition) {
+    if (!compiled || !compiled->composition) {
         throw std::runtime_error("PreparedRenderJob has no compiled definition");
     }
-    const auto& spec = compiled->definition->composition;
+    const auto& spec = compiled->composition->spec();
     const auto& runtime = engine->m_impl->m_renderer->runtime();
     const FrameContextParams context_params{
         .global_time = SampleTime::from_frame_int(frame, spec.frame_rate),
@@ -97,7 +97,7 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
         const bool can_split_evaluation =
             settings.ssaa_factor <= 1.0f &&
             settings.motion_blur.mode == MotionBlurMode::Off;
-        if (can_split_evaluation && m_impl->compiled->definition) {
+        if (can_split_evaluation && m_impl->compiled->composition) {
             auto evaluated_frame = m_impl->evaluate_frame(
                 frame, evaluated->arena);
             output = m_impl->engine->m_impl->m_pipeline->render_evaluated_composition(

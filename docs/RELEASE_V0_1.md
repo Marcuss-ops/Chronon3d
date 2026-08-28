@@ -1,4 +1,6 @@
-# Chronon3D — Release v0.1 Certification
+# Chronon3D — Release v0.1 Contract
+
+> Canonical identity and certification rules: [`RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md).
 
 > **Contratto di rilascio.** v0.1 NON significa "finito": significa **prodotto
 > utilizzabile con un contratto definito**. Le righe CERTIFIED hanno evidenza
@@ -8,10 +10,11 @@
 | | |
 |---|---|
 | **Tag** | `v0.1` |
-| **Commit** | `4c5f1ce0` (HEAD al momento della certificazione) |
+| **Commit** | `7e86278e5535b799ec5c54960e520ce38c77244a` |
+| **Certification status** | `BLOCKED / NOT CERTIFIED` on this SHA |
 | **Data** | 2026-08-28 |
 | **Versione CMake** | 0.1.0 |
-| **Baseline verde di riferimento** | `main@7eb5c2ba` 11/11 PASS (2026-07-06) |
+| **Baseline verde storica** | `main@7eb5c2ba` 11/11 PASS (2026-07-06), non same-SHA |
 
 ## Contratto v0.1
 
@@ -70,6 +73,7 @@ stato di perfezione.
 
 ## Cross-link
 
+- `docs/RELEASE_V0_1_CONTRACT.md` — contract canonico, identità e verdetto
 - `docs/RELEASE_GATE.md` — requisiti release (baseline verde 11-gate)
 - `docs/CURRENT_STATUS.md` — stato corrente per area
 - `docs/ROADMAP.md` — milestone (V0.1 acceptance suite REGISTERED)

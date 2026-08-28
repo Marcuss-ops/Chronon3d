@@ -253,7 +253,7 @@ std::shared_ptr<Framebuffer> RenderEngine::render(
 std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
     const CompiledComposition& compiled, Frame frame)
 {
-    if (!compiled.definition) {
+    if (!compiled.composition) {
         throw std::runtime_error(
             "CompiledComposition has no definition");
     }
@@ -329,8 +329,8 @@ PreparedRenderJob RenderEngine::prepare(
     auto impl = std::make_unique<PreparedRenderJob::Impl>();
     impl->engine = this;
     impl->compiled = std::move(compiled);
-    impl->count = impl->compiled->definition
-        ? impl->compiled->definition->composition.duration
+    impl->count = impl->compiled->composition
+        ? impl->compiled->composition->duration()
         : Frame{0};
     runtime::ResourcePlanner planner;
     if (const auto* graph = m_impl->m_renderer->graph_cache().peek(
