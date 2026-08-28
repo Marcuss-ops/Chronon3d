@@ -27,7 +27,9 @@ chronon3d_add_test_suite(
     NAME chronon3d_text_layout_advanced_tests
     TIER UNIT
     LINK_TARGETS chronon3d_text_core chronon3d_scene chronon3d_core chronon3d_sdk
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_advanced_layout_matrix.cpp
+    SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_advanced_layout_matrix.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_layout_helpers.cpp
 )
 
 # Wire into the FAST test aggregator (pure layout math, no rendering
