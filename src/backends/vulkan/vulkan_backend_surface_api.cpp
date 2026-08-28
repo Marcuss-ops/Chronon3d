@@ -11,6 +11,7 @@
 #endif
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include <spdlog/spdlog.h>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include "vulkan_backend_impl.hpp"
@@ -199,6 +200,30 @@ bool VulkanBackend::is_native_surface_valid(
 #else
     (void)handle;
     return false;
+#endif
+}
+
+bool VulkanBackend::wait_for_pending_submissions() noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!m_impl) return false;
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        m_impl->wait_for_pending();
+        return true;
+    } catch (const std::exception& error) {
+        spdlog::error("[vulkan] native submission drain failed: {}", error.what());
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
+std::size_t VulkanBackend::native_surface_ring_capacity() const noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    return Impl::VulkanSubmissionRing::kSlotCount + 1;
+#else
+    return 1;
 #endif
 }
 

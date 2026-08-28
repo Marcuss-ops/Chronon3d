@@ -380,17 +380,22 @@ bool NativeAvEncoder::close() {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     // Complete the bounded CUDA->NVENC queue before flushing the codec. In
     // steady state this is polled asynchronously; only the final tail waits.
+    spdlog::info("[native_av] close: draining CUDA pending={}", pending_cuda_frames_.size());
     if (gpu_nvenc_ && !drain_ready_cuda_frames(true)) {
         spdlog::error("[native_av] failed to drain pending CUDA frames");
     }
+    spdlog::info("[native_av] close: CUDA drain complete");
 #endif
 
     // 1. Drain encoder: send NULL to flush internal buffers (encoder flush).
     const auto t_flush0 = Clock::now();
+    spdlog::info("[native_av] close: sending encoder flush");
     avcodec_send_frame(codec_, nullptr);
+    spdlog::info("[native_av] close: encoder flush sent");
 
     // 2. Receive and write remaining packets (timing tracked inside drain_packets)
     drain_packets();
+    spdlog::info("[native_av] close: packets drained");
     const double flush_ms = elapsed_ms(t_flush0);
     native_flush_ms_ += flush_ms;
 
@@ -399,7 +404,9 @@ bool NativeAvEncoder::close() {
     //    flush so the two tails never mask each other.
     const auto t_trailer0 = Clock::now();
     if (packet_assembler_) {
+        spdlog::info("[native_av] close: finalizing packet assembler");
         (void)packet_assembler_->finalize();
+        spdlog::info("[native_av] close: packet assembler finalized");
     }
     const double trailer_ms = elapsed_ms(t_trailer0);
 
@@ -414,43 +421,15 @@ bool NativeAvEncoder::close() {
 
     // 5. Close the IO
     if (fmt_ && !(fmt_->oformat->flags & AVFMT_NOFILE)) {
+        spdlog::info("[native_av] close: closing mux IO");
         avio_closep(&fmt_->pb);
+        spdlog::info("[native_av] close: mux IO closed");
     }
 
-    // 5. Free resources
-    av_packet_free(&packet_);
-    av_frame_free(&frame_);
-    avcodec_free_context(&codec_);
-    packet_assembler_.reset();
-    avformat_free_context(fmt_);
-
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    // Imported external memory and semaphores are reusable for the lifetime
-    // of each persistent encode surface. Do not destroy them frame-by-frame:
-    // that path causes driver object churn and defeats the interop ring.
-    cuda_nv12_compositors_.clear();
-    for (auto* reusable : reusable_cuda_frames_) {
-        av_frame_free(&reusable);
-    }
-    reusable_cuda_frames_.clear();
-    if (cuda_stream_) {
-        cuStreamDestroy(cuda_stream_);
-        cuda_stream_ = nullptr;
-    }
-    av_buffer_unref(&cuda_frames_ref_);
-    av_buffer_unref(&cuda_device_ref_);
-    if (cuda_context_) {
-        cuDevicePrimaryCtxRelease(0);
-        cuda_context_ = nullptr;
-    }
-    gpu_nvenc_ = false;
-#endif
-
-    fmt_    = nullptr;
-    codec_  = nullptr;
-    stream_ = nullptr;
-    frame_  = nullptr;
-    packet_ = nullptr;
+    // Keep all FFmpeg/CUDA objects alive until the encoder object is destroyed.
+    // The caller retires the renderer's Vulkan imports immediately after this
+    // method returns, then destroys the encoder. Destroying the codec here can
+    // wait forever because NVENC still owns an interop reference.
 
     spdlog::info("[native_av] Closed native encoder — {} frames written, YUV cache: {} hits / {} misses",
                  frames_written_, cache_hits_, cache_misses_);
@@ -736,6 +715,8 @@ bool NativeAvEncoder::finish_native_surface(
     return true;
 #else
     (void)backend;
+    spdlog::info("[native_av] finish_native_surface destination={} pending={}",
+                 destination, pending_cuda_frames_.size());
     // Pending CUDA work is ordered on one stream. Drain in submission order
     // until the event belonging to this surface has been consumed. This is
     // the ownership hand-off that makes FrameInteropRing::release safe.

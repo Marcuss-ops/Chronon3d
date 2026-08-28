@@ -72,9 +72,11 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
 
 NativeVideoFrameDecoder::~NativeVideoFrameDecoder() = default;
 NativeVideoFrameDecoder::Session::~Session() {
+    spdlog::info("[native-decoder] stopping prefetch worker");
     prefetch_stop.store(true, std::memory_order_relaxed);
     prefetch_cv.notify_all();
     if (prefetch_worker.joinable()) prefetch_worker.join();
+    spdlog::info("[native-decoder] prefetch worker stopped");
     native_import_session.reset();
     av_frame_free(&decoded);
     av_frame_free(&closest_frame);
@@ -126,14 +128,26 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     if (it != m_sessions.end()) return it->second;
     auto session = std::make_shared<Session>();
     AVFormatContext* fmt = nullptr;
-    if (avformat_open_input(&fmt, path.c_str(), nullptr, nullptr) != 0) return nullptr;
+    if (avformat_open_input(&fmt, path.c_str(), nullptr, nullptr) != 0) {
+        spdlog::error("[native-decoder] open input failed: {}", path);
+        return nullptr;
+    }
     session->fmt = fmt;
-    if (avformat_find_stream_info(fmt, nullptr) < 0) return nullptr;
+    if (avformat_find_stream_info(fmt, nullptr) < 0) {
+        spdlog::error("[native-decoder] stream info failed: {}", path);
+        return nullptr;
+    }
     const int index = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-    if (index < 0) return nullptr;
+    if (index < 0) {
+        spdlog::error("[native-decoder] no video stream: {}", path);
+        return nullptr;
+    }
     session->stream_index = index;
     const AVCodec* codec = avcodec_find_decoder(fmt->streams[index]->codecpar->codec_id);
-    if (!codec) return nullptr;
+    if (!codec) {
+        spdlog::error("[native-decoder] decoder unavailable for: {}", path);
+        return nullptr;
+    }
     AVCodecContext* cc = avcodec_alloc_context3(codec);
     if (!cc || avcodec_parameters_to_context(cc, fmt->streams[index]->codecpar) < 0) {
         avcodec_free_context(&cc); return nullptr;
@@ -144,16 +158,25 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         if ((config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) &&
             config->device_type == AV_HWDEVICE_TYPE_CUDA) {
             AVBufferRef* device = nullptr;
-            if (av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0) >= 0) {
+            const int hw_device_result = av_hwdevice_ctx_create(
+                &device, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0);
+            if (hw_device_result >= 0) {
                 cc->hw_device_ctx = av_buffer_ref(device);
                 cc->get_format = select_cuda_format;
                 session->hw_device_ctx = device;
+            } else {
+                spdlog::error("[native-decoder] CUDA hwdevice init failed: {}",
+                              hw_device_result);
             }
             break;
         }
     }
     cc->thread_count = 0;
-    if (avcodec_open2(cc, codec, nullptr) < 0) { avcodec_free_context(&cc); return nullptr; }
+    if (avcodec_open2(cc, codec, nullptr) < 0) {
+        spdlog::error("[native-decoder] codec open failed for {}", path);
+        avcodec_free_context(&cc);
+        return nullptr;
+    }
     session->codec = cc;
     session->hw_transfer_frame = av_frame_alloc();
     session->decoded = av_frame_alloc();
