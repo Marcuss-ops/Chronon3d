@@ -146,6 +146,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         const auto* c = session->renderer->counters();
         timings.gpu.gpu_native_surface_frames = c->gpu_native_surface_frames.load(std::memory_order_relaxed);
         timings.gpu.gpu_native_encode_frames = c->gpu_native_encode_frames.load(std::memory_order_relaxed);
+        timings.gpu.nv12_to_rgba_frames = c->nv12_to_rgba_frames.load(std::memory_order_relaxed);
+        timings.gpu.rgba_to_nv12_frames = c->rgba_to_nv12_frames.load(std::memory_order_relaxed);
         timings.gpu.gpu_surface_copy_frames = c->gpu_surface_copy_frames.load(std::memory_order_relaxed);
         timings.gpu.cpu_pixel_readback_count = c->cpu_pixel_readback_count.load(std::memory_order_relaxed);
         timings.gpu.cpu_pixel_readback_bytes = c->cpu_pixel_readback_bytes.load(std::memory_order_relaxed);

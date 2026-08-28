@@ -101,6 +101,47 @@ GPU-native 1920x1080 960f watermark+subtitle:
 Il residuo è il percorso D2D Vulkan→CUDA→NVENC che deve essere eliminato
 dalla Fase 5 (Zero-Copy Async Video Ring).
 
+## Strumentazione dei gate (2026-08-28)
+
+I gate 3 (`nv12_to_rgba_frames`) e 4 (`rgba_to_nv12_frames`) non erano
+strumentati: i contatori non esistevano e il gate 6 (`gpu_surface_copy_frames`)
+non veniva mai incrementato, quindi la certificazione passava senza misurare
+le conversioni reali. Ora:
+
+- `nv12_to_rgba_frames` — incrementato in `CudaNv12SurfaceCompositor::composite()`
+  (kernel `nv12_to_rgba` / `p010_to_rgba`).
+- `rgba_to_nv12_frames` — incrementato in
+  `CudaNv12SurfaceCompositor::composite_surface_to_nv12()`
+  (kernel `rgba_surface_to_nv12_2x2` / `rgba_u8_surface_to_nv12_2x2`).
+- `gpu_surface_copy_frames` — incrementato in
+  `VulkanBackend::Impl::copy_surface_to_cuda_encoder()` (la blit D2D
+  `vkCmdBlitImage` Vulkan→CUDA).
+
+I tre contatori sono esposti nel report `*.timing.json` sotto `job.gpu`
+e vengono letti da `tools/verify_zero_copy_end_to_end.sh`.
+
+**Implicazione**: il percorso di encode nativo attuale (`write_native_surface_impl`
+→ `composite_surface_to_nv12`) fa ancora una conversione RGBA→NV12 per frame,
+quindi `rgba_to_nv12_frames` e `gpu_surface_copy_frames` risultano `≠ 0` finché
+non viene usato il percorso direct-YUV (`composite_direct_nv12*`), che compone
+l'overlay direttamente nel dominio NV12 senza passare da RGBA.
+
+## Percorso zero-copy target (direct-YUV)
+
+Il percorso che azzera i gate 3/4/6 è già implementato nei kernel CUDA:
+
+```
+NVDEC (NV12/P010) → CudaNv12SurfaceCompositor::composite_direct_nv12*
+    → Vulkan composita l'overlay direttamente nell'immagine YUV
+    → NVENC (nessuna copia RGBA intermedia, nessuna blit D2D)
+```
+
+Per attivarlo nel pipeline di export serve sostituire, in
+`NativeAvEncoder::write_native_surface_impl`, la coppia
+`copy_surface_to_cuda_encoder` + `composite_surface_to_nv12` con
+`composite_direct_nv12*` (o far scrivere il grafo Vulkan direttamente
+sulla superficie CUDA-exportable).
+
 ## Integrazione CI
 
 ```yaml
