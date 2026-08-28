@@ -65,7 +65,11 @@ namespace chronon3d::media {
         height,
         runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::JobPersistent,
+        // Decode/import slots are owned by one render job. They must be
+        // retired by the end-of-job Vulkan drain before CUDA destroys its
+        // external semaphore imports; keeping them JobPersistent leaves the
+        // Vulkan semaphore alive across the CUDA teardown boundary.
+        runtime::LifetimeClass::FrameTransient,
         runtime::tight_surface_bytes(
             runtime::PixelFormat::Rgba32Float, width, height),
     };

@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/media/frame_source_provider.hpp>
+#include <spdlog/spdlog.h>
 #include <span>
 
 namespace chronon3d::graph {
@@ -72,6 +73,7 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         if (!m_decoder) {
+            spdlog::error("[video-node] no decoder wired for source='{}'", m_source.path);
             const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
             const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
             return ctx.acquire_owned_fb(render_w, render_h);
@@ -94,6 +96,9 @@ public:
             m_source.source_fps
         );
         if (!decoded) {
+            spdlog::error("[video-node] decoder returned no frame: path='{}' frame={} source_frame={}",
+                          m_source.path, static_cast<int>(local_frame),
+                          static_cast<int>(source_frame));
             return ctx.acquire_owned_fb(render_w, render_h);
         }
         // Preserve the provider-owned native surface when possible. The

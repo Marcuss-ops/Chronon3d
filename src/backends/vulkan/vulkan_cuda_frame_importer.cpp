@@ -10,8 +10,10 @@ extern "C" {
 #include <libavutil/hwcontext_cuda.h>
 }
 
-#include <array>
 #include <stdexcept>
+#include <mutex>
+#include <spdlog/spdlog.h>
+#include <vector>
 
 namespace chronon3d::backends::vulkan {
 namespace {
@@ -21,10 +23,17 @@ public:
     VulkanCudaFrameImportSession(VulkanBackend& backend,
                                  runtime::RenderSurfaceRegistry& registry,
                                  CUcontext context)
-        : backend_(backend), registry_(registry), context_(context) {}
+        : backend_(backend), registry_(registry), context_(context),
+          slots_(backend.native_surface_ring_capacity()) {
+        for (std::size_t index = 0; index < slots_.size(); ++index) {
+            slots_[index].index = index;
+        }
+    }
 
     ~VulkanCudaFrameImportSession() override {
+        (void)backend_.wait_for_pending_submissions();
         for (auto& slot : slots_) {
+            if (slot.pending && slot.compositor) (void)slot.compositor->synchronize();
             slot.compositor.reset();
             if (slot.surface != runtime::kInvalidRenderSurfaceHandle) {
                 (void)backend_.release_surface(slot.surface);
@@ -35,6 +44,7 @@ public:
 
     std::shared_ptr<Framebuffer> import(
         const media::NativeDecodedFrameView& view) override {
+        std::lock_guard lock(mutex_);
         if (!context_ || !view.frame || view.width == 0 || view.height == 0 ||
             (view.format != runtime::PixelFormat::Nv12 &&
              view.format != runtime::PixelFormat::P010)) return nullptr;
@@ -42,6 +52,18 @@ public:
         if (!frame->data[0] || !frame->data[1]) return nullptr;
 
         auto& slot = slots_[next_slot_++ % slots_.size()];
+        if (slot.pending) {
+            // A slot is reusable only after both halves of the external
+            // semaphore handoff completed.  Validity of the logical surface
+            // alone is not an ownership/fence signal.
+            if (!backend_.wait_for_pending_submissions() ||
+                !slot.compositor || !slot.compositor->synchronize()) {
+                spdlog::error("[native-import] pending slot {} generation {} did not drain",
+                              slot.index, slot.generation);
+                return nullptr;
+            }
+            slot.pending = false;
+        }
         if (slot.surface != runtime::kInvalidRenderSurfaceHandle &&
             (!registry_.lookup(slot.surface) ||
              !backend_.is_native_surface_valid(slot.surface))) {
@@ -54,8 +76,15 @@ public:
             auto desc = media::native_decode_surface_desc(view.width, view.height);
             desc.color = view.color;
             slot.surface = registry_.create(desc);
-            if (slot.surface == runtime::kInvalidRenderSurfaceHandle ||
-                !backend_.create_cuda_external_surface(slot.surface, desc).ok()) {
+            if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
+                spdlog::error("[native-import] render surface allocation failed ({}x{})",
+                              view.width, view.height);
+                return nullptr;
+            }
+            const auto created = backend_.create_cuda_external_surface(slot.surface, desc);
+            if (!created.ok()) {
+                spdlog::error("[native-import] CUDA external surface creation failed: {}",
+                              created.error().message);
                 if (slot.surface != runtime::kInvalidRenderSurfaceHandle)
                     (void)registry_.release(slot.surface);
                 slot.surface = runtime::kInvalidRenderSurfaceHandle;
@@ -64,7 +93,9 @@ public:
             try {
                 slot.compositor = std::make_unique<CudaNv12SurfaceCompositor>(
                     backend_.export_cuda_external_memory(slot.surface), context_);
-            } catch (...) {
+            } catch (const std::exception& error) {
+                spdlog::error("[native-import] CUDA compositor creation failed: {}",
+                              error.what());
                 (void)backend_.release_surface(slot.surface);
                 (void)registry_.release(slot.surface);
                 slot.surface = runtime::kInvalidRenderSurfaceHandle;
@@ -74,11 +105,20 @@ public:
         const auto format = view.format == runtime::PixelFormat::P010
             ? CudaYuvFormat::P010 : CudaYuvFormat::Nv12;
         const auto params = make_yuv_to_rgb_params(view.color, view.format);
-        if (!slot.compositor || !slot.compositor->composite(
+        if (!slot.compositor) {
+            spdlog::error("[native-import] CUDA compositor unavailable");
+            return nullptr;
+        }
+        if (!slot.compositor->composite(
                 reinterpret_cast<CUdeviceptr>(frame->data[0]), frame->linesize[0],
                 reinterpret_cast<CUdeviceptr>(frame->data[1]), frame->linesize[1],
                 view.width, view.height, nullptr, format, params) ||
-            !backend_.prepare_cuda_surface_for_vulkan(slot.surface).ok()) return nullptr;
+            !backend_.prepare_cuda_surface_for_vulkan(slot.surface).ok()) {
+            spdlog::error("[native-import] CUDA NV12 composite or Vulkan sync failed");
+            return nullptr;
+        }
+        slot.pending = true;
+        ++slot.generation;
 
         auto result = std::make_shared<Framebuffer>(
             static_cast<int>(view.width), static_cast<int>(view.height),
@@ -89,14 +129,18 @@ public:
 
 private:
     struct Slot {
+        std::size_t index{0};
         runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
         std::unique_ptr<CudaNv12SurfaceCompositor> compositor;
+        std::uint64_t generation{0};
+        bool pending{false};
     };
     VulkanBackend& backend_;
     runtime::RenderSurfaceRegistry& registry_;
     CUcontext context_;
-    std::array<Slot, 4> slots_;
+    std::vector<Slot> slots_;
     std::size_t next_slot_{0};
+    std::mutex mutex_;
 };
 
 } // namespace
