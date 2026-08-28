@@ -92,7 +92,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no CompositionRegistry"};
     }
-    if (!job.compiled || !job.compiled->definition) {
+    if (!job.compiled || !job.compiled->composition) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no compiled composition"};

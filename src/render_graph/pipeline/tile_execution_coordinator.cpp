@@ -47,6 +47,9 @@ TileExecutionResult execute_tile_or_fallback(
     TileExecutionResult result;
 
     (void)resolved;
+    // ExecutionResolver is the sole tile-prune authority. The coordinator
+    // consumes only the immutable path and never checks dirty policy, ratio,
+    // effects, or tile eligibility itself.
     result.use_tile_execution =
         execution_plan.path == FrameExecutionPath::SparseTiles;
 

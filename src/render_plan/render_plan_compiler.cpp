@@ -13,6 +13,7 @@
 #include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/timeline/composition_definition.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <filesystem>

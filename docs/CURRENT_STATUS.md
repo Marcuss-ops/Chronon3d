@@ -1,5 +1,15 @@
 # Chronon3D — Current Status
 
+> **Single v0.1 release contract:** [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This file reports observed status; it does not redefine release identity.
+
+## v0.1 contract status — 2026-08-28
+
+- Release tag: `v0.1`
+- Release SHA: `7e86278e5535b799ec5c54960e520ce38c77244a`
+- Verdict: **BLOCKED / NOT CERTIFIED**
+- Historical green baseline: `main@7eb5c2ba`, 11/11 PASS; not same-SHA evidence
+
+
 ## Performance Baseline — 2026-08-25
 
 - **Chronon Performance Baseline ufficiale (BENCH-1..5) DONE**: 5 composition canoniche, runner suite, report GPU/CPU, budget LOCKED (p50/p95 ×1.4) e gate `tools/check_perf_baseline.sh` PASS 10/10 su `main@eb871240` (CPU/software; GPU-side budget da bloccare su macchina Vulkan). Dettaglio: [TICKET-PERF-BASELINE-V1](tickets/TICKET-PERF-BASELINE-V1.md).
@@ -11,13 +21,13 @@
 - **2026-08-28**: strumentati i gate zero-copy 3/4/6 (`nv12_to_rgba_frames`, `rgba_to_nv12_frames`, `gpu_surface_copy_frames`) che prima non esistevano o non venivano mai incrementati; ora il report `*.timing.json` misura le conversioni reali. Il percorso direct-YUV (`composite_direct_nv12*`) azzera i gate ma non è ancora attivo nel pipeline di export.
 - CLI/IPC: daemon caldo 10.09s vs CLI 13.17s, 100 job x150f stabili `1059s`, probe CUDA/Vulkan `CUDA_VULKAN_INTEROP_PASS` su RTX A4000, `hwmap=derive_device=vulkan` ancora FAIL.
 
-> Ultima baseline certificata: `main@7eb5c2ba` 11/11 PASS (2026-07-06). HEAD `main@8aad8e00f` worktree sporco — developer gates 20/20 PASS, architecture 26/26, ma CTest fast 92 test mancano binari, native decoder cache FAIL, no baseline same-SHA. Dettaglio: `docs/baselines/main-7eb5c2ba-baseline.md`.
+> Ultima baseline verde storica: `main@7eb5c2ba` 11/11 PASS (2026-07-06). Non è una certificazione same-SHA di `v0.1`; il tag `v0.1` è `BLOCKED / NOT CERTIFIED`. Il worktree corrente è sporco — developer gates 20/20 PASS, architecture 26/26, ma CTest fast 92 test mancano binari, native decoder cache FAIL, no baseline same-SHA. Dettaglio: `docs/baselines/main-7eb5c2ba-baseline.md`.
 
 ## Active Blockers
 
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
-| TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) — engine certification (Tests 10-16); product validation in PipelineGen |
+| TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) — engine certification (Tests 10-16); Test 13 = Camera brutal, distinto da Test 11; product validation in PipelineGen |
 | TICKET-DEPRECATED-API-REMOVAL | API | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
 | TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) |
 
@@ -32,7 +42,7 @@ Indice completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md).
 | Text Core V1 | PASS | FreeType/HarfBuzz/FriBidi + layout/cache/animator certificati |
 | Text Production | PARTIAL | 20+8 preset, 192/192 subtitle PASS, manca corpus CapCut PNG |
 | GPU Production V1 | PARTIAL | Vulkan native + CUDA interop probe PASS, D2D copy residua |
-| Executor / Tile-prune | P2 OPEN | `tile_prune_skip_unification` tracked |
+| Executor / Tile-prune | P2 OPEN | `GraphExecutor` è la sola authority produttiva; `executor_levels.cpp`, `node_runner.cpp` e `node_executor.cpp` hanno ownership distinta; `command_plan_executor.cpp` è adapter test-only con symbol ABI preservato. Dettaglio: [`docs/EXECUTOR_OWNERSHIP.md`](EXECUTOR_OWNERSHIP.md) |
 | SDK C++ / C ABI v2 | PASS (focused) | `install_consumer` 14/14 + `CHRONON_ERROR_ASSET_CHANGED` |
 | Video pipeline | PASS | 13 codici errore, atomic output, 98 test |
 | CI infrastructure | FAIL | gate WIRED, run recenti non verdi |
@@ -54,7 +64,7 @@ Indice completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md).
 - **Pre-existing warnings:** CMake developer warnings about intentional `LINK_TARGETS` overrides and the filename-drift audit warnings are separate from this extraction. The filename-drift scan reported 787 warnings in warning mode.
 - **Uncertified items:** runtime behavior of surface aliasing, plan preallocation, deferred release, frame-transient retirement and final destruction still requires execution of the focused Vulkan test binaries. CUDA/Vulkan external-memory mapping and semaphore signaling are certified by the dedicated probe; broader CUDA toolkit/compiler paths remain uncertified.
 
-## Filename drift — classificazione finale (2026-08-27)
+## Filename drift — audit progressivo (2026-08-28)
 
 Il gate `tools/check_filename_drift.sh` analizza nuovamente tutti i percorsi
 operativi (`cmake/`, `docs/`, `include/`, `src/`, `apps/`, `tests/` e `content/`).
@@ -70,13 +80,46 @@ classificate.
 - **Aperti:** il gate strict rileva ancora finding operativi da correggere o
   classificare puntualmente; non sono stati ricreati file rimossi e non sono
   stati aggiunti marker `drift-allow` generici.
-- **Ultimo risultato strict:** `139` finding operativi bloccanti prima della
-  verifica dello scope; dopo il ripristino dell’analisi dei percorsi attivi, il
-  conteggio deve essere rieseguito e riportato come evidenza aggiornata.
-- **Regola:** `drift-class: historical` e `drift-class: template` restano
-  diagnostici; un riferimento pianificato richiede sia `drift-allow: <id>` sia
-  `drift-reason: <motivazione>`. Nessuna delle due classificazioni nasconde
+- **Risultato warn-only aggiornato:** `116` finding operativi rilevati il
+  2026-08-28; nessun finding è stato nascosto con un allow generico.
+- **Classificazione introdotta:** operational, historical, template,
+  third-party, false-positive e planned (`drift-allow` + `drift-reason`).
+- **Blocking:** resta disattivato; va riattivato solo sotto 10 finding
+  operativi e con tutti i riferimenti CMake/include/test attivi risolti.
+- **Regola:** `drift-class: historical`, `template`, `third-party` e
+  `false-positive` restano diagnostici; un riferimento pianificato richiede  sia `drift-allow: <id>` sia `drift-reason: <motivazione>`. Nessuna
+  classificazione nasconde
+
   automaticamente sorgenti o test attivi.
+
+## Executor ownership verdict — 2026-08-28
+
+- **Production authority:** `GraphExecutor` (`executor.cpp`) è l'unica autorità che decide il modo di esecuzione del frame: compiled program oppure fallback DAG.
+- **Helper ownership:** `executor_levels.cpp` orchestra i livelli; `node_runner.cpp` orchestra il singolo nodo; `node_executor.cpp` esegue il nodo e trasferisce ownership del framebuffer. Nessuna decisione duplicata.
+- **Test-only adapter:** `command_plan_executor.cpp` non ha caller produttivi. La dichiarazione è confinata a `tests/helpers/command_plan_executor.hpp`; il simbolo `execute_command_plan` resta presente come ABI-compatibility shim, verificato nella baseline `tools/sdk/chronon3d_c.abi`.
+- **Profiling:** syntax-only `executor_levels.cpp` = 15,36s; `node_runner.cpp` = 27,94s. L'accorpamento non è stato applicato perché unire i TU aumenterebbe il coupling e non produce un guadagno misurato.
+- Dettaglio: [`docs/EXECUTOR_OWNERSHIP.md`](EXECUTOR_OWNERSHIP.md).
+
+## Test 13 indexing verdict — 2026-08-28
+
+- Audit completo di `AGENTS.md`, `docs/`, `tools/`, test e git history: **Test 13 è distinto da Test 11**.
+- Test 11 = fix speed / cronometro / render cost; Test 13 = `Camera brutal` nel first-principles orchestrator.
+- Corretto il commento legacy del runner da `Test #9` a `Test #13`; nessuna nuova camera authority introdotta.
+- Contratto canonico: [`docs/tickets/TICKET-TEST-13-CORE.md`](tickets/TICKET-TEST-13-CORE.md). TICKET-127 è RESOLVED; runtime Test 13 resta OPEN/PARTIAL fino a esecuzione WBH.
+
+## Main synchronization / F2 divergence — 2026-08-28
+
+- `main` locale è avanti di 5 commit rispetto a `origin/main`; `origin/main` è antenato di `HEAD`, quindi **non c'è divergenza topologica** e non serve rebase.
+- `tools/wrap_push.sh` ora richiede il contratto `CHRONON3D_TESTED_SHA` (default = HEAD dopo i gate), vieta force-push su `main` e verifica dopo il push `tested SHA == HEAD == origin/main == @{u}`.
+- Selftest: `tools/selftest_wrap_push_sha.sh` PASS.
+- Il push non è stato eseguito: il worktree contiene modifiche non committate; prima occorre chiudere/committare il worktree e rieseguire i gate sullo SHA risultante.
+
+## Working Build Host — 2026-08-28
+
+- WBH contract and non-installing preflight: [`docs/WORKING_BUILD_HOST.md`](WORKING_BUILD_HOST.md) + `tools/check_wbh_toolchain.sh`.
+- Current host: CMake `3.31.6` available; NVIDIA RTX A4000/driver `595.84` and Vulkan loader detected.
+- **BLOCKED:** Ninja `1.13.0.git.kitware.jobserver-pipe-1` is rejected (approved contract requires `>=1.14`); `nvcc` is missing, so the CUDA smoke compilation and full toolkit certification cannot run.
+- No host packages were installed or modified by this verification. Clean build, CTest, incremental rebuild and full CUDA/Vulkan/NVENC certification remain deferred to the provisioned WBH.
 
 ## Gate Audit
 
@@ -87,6 +130,7 @@ classificate.
 
 ## Link canonici
 
+- [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md) — identità e contratto v0.1
 - [`docs/ROADMAP.md`](ROADMAP.md) — milestone
 - [`docs/RELEASE_GATE.md`](RELEASE_GATE.md) — requisiti release
 - [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) — blocker

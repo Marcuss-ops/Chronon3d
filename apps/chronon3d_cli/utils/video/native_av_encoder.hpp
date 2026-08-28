@@ -45,6 +45,13 @@ public:
     void set_counters(chronon3d::RenderCounters* counters) override {
         counters_ = counters;
     }
+    [[nodiscard]] void* cuda_context() const override {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        return cuda_context_;
+#else
+        return nullptr;
+#endif
+    }
     bool write_frame(const Framebuffer& fb) override;
     bool write_native_surface(
         graph::RenderBackend& backend,

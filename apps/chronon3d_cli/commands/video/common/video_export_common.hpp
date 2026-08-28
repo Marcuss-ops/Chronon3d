@@ -125,7 +125,7 @@ inline Scene evaluate_video_scene(
     SampleTime time,
     SoftwareRenderer& renderer)
 {
-    const auto& spec = compiled.definition->composition;
+    const auto& spec = compiled.composition->spec();
     const auto context = make_frame_context({
         .global_time = time,
         .duration = spec.duration,
@@ -153,7 +153,7 @@ inline Scene evaluate_video_scene(
     SoftwareRenderer& renderer)
 {
     return evaluate_video_scene(compiled,
-        SampleTime::from_frame_int(frame, compiled.definition->composition.frame_rate),
+        SampleTime::from_frame_int(frame, compiled.composition->frame_rate()),
         renderer);
 }
 
