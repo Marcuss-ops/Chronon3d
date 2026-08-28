@@ -35,7 +35,7 @@ echo "== Product demo =="
 # TODO: wire `chronon render ProductLaunch --props examples/product_launch.json \
 #       --output /tmp/chronon-product-proof.mp4` + ffprobe (Test #1)
 
-echo "== Camera brutal =="               # TODO (Test #9)
+echo "== Camera brutal =="               # TODO (Test #13)
 echo "== Multilingual text =="           # TODO (Test #8)
 echo "== Fail-loud errors =="           # Test #7 (Wired via tools/check_first_principles_fail_loud.sh)
 bash "$SCRIPT_DIR/check_first_principles_fail_loud.sh"

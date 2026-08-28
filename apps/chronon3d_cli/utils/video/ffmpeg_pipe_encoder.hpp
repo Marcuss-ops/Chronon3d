@@ -86,6 +86,12 @@ struct IVideoEncoder {
         return write_frame(fb);
     }
     virtual void set_counters(chronon3d::RenderCounters* counters) { (void)counters; }
+
+    // CUDA context owning hardware frames. Native encoders expose the
+    // FFmpeg CUDA context after open(); GPU frame importers must use this
+    // exact context rather than sampling whichever context happens to be
+    // current during pipeline construction.
+    [[nodiscard]] virtual void* cuda_context() const { return nullptr; }
     virtual bool close() = 0;
     [[nodiscard]] virtual uint64_t frames_written() const = 0;
     [[nodiscard]] virtual EncoderFrameTelemetry last_frame_telemetry() const { return {}; }

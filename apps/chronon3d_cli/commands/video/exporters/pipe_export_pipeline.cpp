@@ -136,8 +136,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->opts.output.output = partial_output_path.string();
     session->start_frame = start;
     session->end_frame = end;
-    session->canvas_width = compiled.definition->composition.width;
-    session->canvas_height = compiled.definition->composition.height;
+    session->canvas_width = compiled.composition->width();
+    session->canvas_height = compiled.composition->height();
     session->total_frames = static_cast<int64_t>(end - start);
     // Trace correlation: stable per-job id synthesized at setup (output path
     // hash ⊕ wall-clock ns) and shared by decode/render/encode so Perfetto
@@ -298,8 +298,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Note: the queue itself is owned by PipeExportSession (constructed above
     // with kArenaPoolCount as capacity).  We only allocate the arena pool here.
     const size_t arena_size =compute_pipe_arena_size(
-        compiled.definition->composition.width,
-        compiled.definition->composition.height)
+        compiled.composition->width(),
+        compiled.composition->height())
 ;
     session->triple_arena = std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
 
@@ -351,8 +351,17 @@ RenderLoopOutput run_pipe_export_loop(
     native_decoder->set_counters(session.renderer->counters());
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer->backend())) {
-        CUcontext cuda_context = nullptr;
-        (void)cuCtxGetCurrent(&cuda_context);
+        // The encoder is opened before this loop. Use the context that owns
+        // the FFmpeg/NVDEC/NVENC hardware frames; sampling the current
+        // context here can select Vulkan's primary context instead.
+        CUcontext cuda_context = reinterpret_cast<CUcontext>(session.encoder->cuda_context());
+        if (!cuda_context) {
+            // Non-native/pipe encoders do not own an FFmpeg CUDA context;
+            // retain the renderer's current context for their ordinary
+            // Vulkan surface path. Native NVENC must have exposed its exact
+            // FFmpeg context above or its compositor will fail closed.
+            (void)cuCtxGetCurrent(&cuda_context);
+        }
         auto importer = std::make_shared<backends::vulkan::VulkanCudaFrameImporter>(
             *vulkan, session.renderer->runtime().surface_registry(), cuda_context);
         native_decoder->set_native_frame_importer(std::move(importer));

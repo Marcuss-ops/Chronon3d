@@ -82,7 +82,7 @@ NodeExecResult TransformNode::execute(
         input->width() == out_w && input->height() == out_h &&
         input->origin_x() == out_bounds.x0 && input->origin_y() == out_bounds.y0) {
         const uint64_t area = static_cast<uint64_t>(out_w) * out_h;
-        if (ctx.services.backend) {
+        if (ctx.services.backend && ctx.services.backend->counters()) {
             ctx.services.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
         }
         if (ctx.node_exec.counters) {
@@ -242,7 +242,7 @@ NodeExecResult TransformNode::execute(
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
         : 0;
 
-    if (ctx.services.backend) {
+    if (ctx.services.backend && ctx.services.backend->counters()) {
         ctx.services.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
     }
     if (ctx.node_exec.counters) {

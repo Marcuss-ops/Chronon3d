@@ -28,6 +28,8 @@
 #   4.5p. tools/check_determinism_matrix.sh
 #   5. git push "$@" + post-push SHA-triple self-check (drop exec; canonical
 #      in-script companion to AGENTS.md §Post-push SHA-selfcheck invariant).
+#      The tested SHA is captured explicitly and must equal origin/main after
+#      push; no successful push is reported if another commit wins the race.
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
 # always; no --skip-gates escape hatch.  Documented in
@@ -194,8 +196,35 @@ if [ "$AUTO_FF_SETTING" = "true" ] && [ -n "$REMOTE_COMMIT" ] \
     echo "wrap_push.sh: auto-FF: merged remote commits into local"
 fi
 
+# ── Step 3.5: reject force-push on main and capture the tested SHA contract ──
+# `main` is the only integration line. Force-pushing it can discard commits
+# that were fetched or pushed by another agent, so it is never accepted here.
+if [[ "$TARGET_BRANCH" == "main" ]]; then
+    for arg in "$@"; do
+        case "$arg" in
+            --force|--force-with-lease|-f)
+                echo "wrap_push.sh: GATE_FAIL: force-push is forbidden on main" >&2
+                echo "  fix: reconcile origin/main, run gates, then push fast-forward only" >&2
+                echo "GATE_FAIL"
+                exit 1
+                ;;
+        esac
+    done
+fi
+
+# A caller that ran a certification suite may provide its exact SHA. If it is
+# omitted, the wrapper treats the post-gate HEAD as the tested SHA. This keeps
+# the default workflow usable while allowing release/WBH scripts to make the
+# tested-commit contract explicit.
+TESTED_SHA="${CHRONON3D_TESTED_SHA:-$(git rev-parse HEAD)}"
+if ! git cat-file -e "${TESTED_SHA}^{commit}" 2>/dev/null; then
+    echo "wrap_push.sh: GATE_FAIL: CHRONON3D_TESTED_SHA is not a commit: $TESTED_SHA" >&2
+    echo "GATE_FAIL"
+    exit 1
+fi
+
 # ── Step 4: run the canonical gate (post-FF working-tree state) ───────────
-echo "wrap_push.sh: GATE-MNT-01 pre-flight"
+echo "wrap_push.sh: GATE-MNT-01 pre-flight (tested_sha=$TESTED_SHA)"
 if ! "$GATE"; then
     echo "wrap_push.sh: gate FAILED — push aborted" >&2
     echo "  fix: ensure working tree clean (post-FF), then retry" >&2
@@ -314,6 +343,14 @@ fi
 # dropping `exec` is minimal vs the §honesty-violation cost of skipping the
 # triple-check on a silent-class failure mode.
 LOCAL_SHA_PRE_PUSH="$(git rev-parse HEAD)"
+if [[ "$LOCAL_SHA_PRE_PUSH" != "$TESTED_SHA" ]]; then
+    echo "wrap_push.sh: GATE_FAIL: HEAD changed after tests; tested SHA is stale" >&2
+    echo "  tested_sha = $TESTED_SHA" >&2
+    echo "  local_head = $LOCAL_SHA_PRE_PUSH" >&2
+    echo "  fix: rerun the certification gates on current HEAD" >&2
+    echo "GATE_FAIL"
+    exit 1
+fi
 echo "wrap_push.sh: LOCAL_SHA_PRE_PUSH=$LOCAL_SHA_PRE_PUSH — invoking: git push $*"
 
 # Push (NO `exec` — post-push self-check needs the wrapper shell alive).
@@ -339,16 +376,17 @@ if ! git rev-parse '@{u}' >/dev/null 2>&1; then
 fi
 UPSTREAM_SHA="$(git rev-parse '@{u}')"
 
-if [ "$POSTPUSH_SHA" != "$UPSTREAM_SHA" ]; then
-    echo "wrap_push.sh: GATE_FAIL: post-push SHA mismatch — lost-commit pattern detected" >&2
+if [ "$POSTPUSH_SHA" != "$UPSTREAM_SHA" ] || [ "$POSTPUSH_SHA" != "$TESTED_SHA" ]; then
+    echo "wrap_push.sh: GATE_FAIL: post-push SHA mismatch — tested SHA did not become origin/main" >&2
     echo "  pre_push_SHA   = $LOCAL_SHA_PRE_PUSH" >&2
     echo "  post_push_SHA  = $POSTPUSH_SHA" >&2
     echo "  upstream_SHA   = $UPSTREAM_SHA" >&2
+    echo "  tested_SHA     = $TESTED_SHA" >&2
     echo "  fix: chore <$LOCAL_SHA_PRE_PUSH> may be lost between local and upstream (race window)." >&2
     echo "  fix: see AGENTS.md §Post-push SHA-selfcheck invariant '21ece2b3 unique-edit recovery variant' for the reset+re-apply template." >&2
     echo "GATE_FAIL"
     exit 1
 fi
 
-echo "wrap_push.sh: post-push SHA-triple VERIFIED — chore $POSTPUSH_SHA == origin/$TARGET_BRANCH == @{u}"
+echo "wrap_push.sh: post-push SHA-triple VERIFIED — tested $TESTED_SHA == HEAD $POSTPUSH_SHA == origin/$TARGET_BRANCH $UPSTREAM_SHA == @{u}"
 exit 0

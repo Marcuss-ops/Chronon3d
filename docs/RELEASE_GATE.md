@@ -1,8 +1,15 @@
 # Chronon3D — Release Gate
 
+> Per v0.1, identità, scope e criterio same-SHA sono definiti esclusivamente in [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md).
+
 La certificazione corrente e le baseline storiche vivono in [`docs/baselines/`](docs/baselines/). Lo snapshot corrente è in [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
-## Baseline verde — requisiti (tutti sullo stesso commit)
+## Baseline verde v0.1 — requisiti (tutti sul release SHA)
+
+Il release contract canonico per v0.1 è `docs/RELEASE_V0_1_CONTRACT.md`:
+`v0.1` punta a `7e86278e5535b799ec5c54960e520ce38c77244a`. La baseline
+`main@7eb5c2ba` è soltanto evidenza storica e non certifica il tag.
+
 
 Prima di qualsiasi release, tutti i controlli seguenti devono passare sullo **stesso commit**:
 
@@ -134,7 +141,7 @@ L'orchestratore usa una lista unica di **15 sub-gate eseguibili** e un verdict a
 
 L'output richiesto è **`CHRONON_PRODUCT_FUNCTIONAL_PASS`** (exit 0). Il wiring dei 15 gate è completo, ma il nuovo orchestratore e il diagnostics gate devono ancora essere eseguiti sullo stesso working-build-host commit prima di dichiarare una nuova baseline. L'ultima baseline prodotto osservata resta quella storica in [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md).
 
-**HEAD corrente non è certificato**: le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per lo stato aggiornato.
+**Il release SHA v0.1 è BLOCKED / NOT CERTIFIED** finché la stessa SHA non supera build, CTest e gate. Le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per lo stato aggiornato.
 
 ## Criterio di chiusura
 

@@ -1,5 +1,7 @@
 # Chronon3D — Active Roadmap
 
+> Release identity and v0.1 acceptance contract: [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This roadmap tracks future work and does not redefine release status.
+
 La roadmap è organizzata per milestone prodotto. Non avviare una milestone
 successiva per nascondere blocker della precedente.
 
@@ -55,7 +57,12 @@ riportano lo stesso stato.
 
 _Dettaglio completo in `ROADMAP.archive.md`._
 
-## V0.1 — Acceptance suite (REGISTERED, macchina-verification deferred)
+## V0.1 — Acceptance suite (contract defined, certification blocked)
+
+The canonical v0.1 release SHA is `7e86278e5535b799ec5c54960e520ce38c77244a`.
+The tag remains immutable and is currently `BLOCKED / NOT CERTIFIED` because
+same-SHA clean build, CTest, 11 gates, determinism corpus and performance
+baseline were not completed. See [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md).
 
 
 > **Origine:** TICKET-ACCEPTANCE-SUITE-PHASE-D closure commit (2026-07-11).
@@ -155,7 +162,7 @@ _Dettaglio completo in `ROADMAP.archive.md`._
 
 _Dettaglio completo in `ROADMAP.archive.md`._
 
-## Global DoD Sign-off (21-item) — PARTIAL-BLOCKED @ `main@ef9c83f1` (2026-07-12)
+## Global DoD Sign-off (21-item) — historical evidence, not v0.1 certification
 
 
 Il comando canonico di certificazione prodotto `tools/verify_chronon_product_linux.sh` orchestra 14 sub-gate eseguibili + 1 forward-pointed che coprono i **21 item DoD** dello spec utente (13 zero-require + 8 one-of). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (14/14 PASS + 1 forward-pointed `verify_diagnostics_linux`). Dettaglio: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Forward-point: `TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN` (separati per AGENTS.md "Fare PR piccole e mirate"). M0 §10 closes: l'orchestratore esiste + esegue + riporta verdict onesto.

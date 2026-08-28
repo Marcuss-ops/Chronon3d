@@ -8,6 +8,8 @@
 
 namespace chronon3d::graph {
 
+// Per-node clip calculation only. This helper must not decide whether tile
+// pruning is enabled; ExecutionResolver owns that frame-level policy.
 std::optional<raster::BBox> compute_dirty_clip(
     const RenderGraphContext& ctx,
     const RenderGraphNode& node,

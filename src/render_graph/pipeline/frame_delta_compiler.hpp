@@ -109,7 +109,7 @@ struct FrameDeltaCompileOptions {
     // the resulting bounds and tile mask so callers cannot diverge.
     bool force_full_frame{false};
 
-    // Optional policy-selected damage replacement (for example the exposed
+    // Optional resolver-selected damage replacement (for example the exposed
     // strip after a valid framebuffer scroll). It is normalized here and
     // applied consistently to both dirty_bounds and dirty_tiles.
     std::optional<raster::BBox> dirty_bounds_override;
@@ -151,7 +151,12 @@ struct FrameDelta {
     bool video_source_changed{false};
 };
 
-/// Compiles layer state into one dirty-region decision for the frame.
+/// Compiles layer state into the canonical dirty geometry for the frame.
+///
+/// FrameDeltaCompiler owns calculation only: old/new bounds unioning, spatial
+/// spread application, and DirtyTileMask generation. It does not decide
+/// SparseTiles versus FullRgb; that policy belongs exclusively to
+/// ExecutionResolver.
 ///
 /// This owns no history and performs no rendering.  The caller supplies the
 /// canonical previous layer map from DirtyHistory, so exporters and backends
