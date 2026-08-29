@@ -257,6 +257,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         const std::string assets_root = request.value("assets_root", "");
         const std::string output = request.value("output", "");
         const std::string backend = request.value("backend", "auto");
+        const std::string gpu_hot_path_mode = request.value(
+            "gpu_hot_path_mode", "auto");
         const bool report = request.value("report", false);
         RenderPlanVideoOverrides video;
         video.codec = request.value("codec", "");
@@ -280,7 +282,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
                                             report, std::move(warm_renderer), backend,
                                             std::move(video), /*trace_output=*/"",
-                                            /*trace_level=*/"pipeline");
+                                            /*trace_level=*/"pipeline",
+                                            gpu_hot_path_mode);
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};
