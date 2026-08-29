@@ -219,9 +219,12 @@ inline void truncate_single_lines(std::vector<std::string>& lines, std::vector<f
     if (!(ctx.input.style.ellipsis || ctx.input.style.overflow == TextOverflow::Ellipsis) || lines.empty()) return;
     auto& line = lines.back();
     while (!line.empty() && measure_string(ctx.input, ctx.input.style, line + "...", ctx.font_size) > ctx.max_width) {
-        const size_t cluster_end = detail::grapheme_byte_offset_at(std::string_view(line), 1);
-        if (cluster_end == 0) break;
-        line.erase(line.size() - cluster_end);
+        const auto previous = detail::previous_grapheme_start(line);
+        if (!previous) {
+            line.clear();
+            break;
+        }
+        line.resize(*previous);
     }
     line += "...";
     widths.back() = measure_string(ctx.input, ctx.input.style, line, ctx.font_size);

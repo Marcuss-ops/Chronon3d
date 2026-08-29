@@ -15,11 +15,13 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <blend2d.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <limits>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -31,6 +33,17 @@ namespace {
 /// Fixed packed-atlas width.  Glyphs are shelf-packed left-to-right and
 /// wrapped to a new row when a glyph would overflow this width.
 constexpr std::uint32_t kMaxAtlasWidth = 1024;
+
+/// Overflow-safe `a * b`.  Returns false on overflow and never writes `out`.
+/// Glyph dimensions flow in from layout/font/effect code and must never be
+/// trusted to fit `size_t` when computing payload sizes.
+bool checked_mul(std::size_t a, std::size_t b, std::size_t& out) {
+    if (a != 0 && b > std::numeric_limits<std::size_t>::max() / a) {
+        return false;
+    }
+    out = a * b;
+    return true;
+}
 
 struct PackedGlyph {
     std::uint32_t atlas_x{0};
@@ -114,7 +127,16 @@ struct TimedHighlightPlan {
 TimedHighlightPlan build_timed_highlight_plan(const TextRunShape& shape) {
     TimedHighlightPlan plan;
     if (!shape.layout || shape.layout->units.word_count == 0) return plan;
-    plan.glyph_ranges.assign(shape.layout->placed.glyphs.size(), {-1.0f, -1.0f});
+
+    const auto glyph_count = shape.layout->placed.glyphs.size();
+    if (shape.layout->units.glyph_to_word.size() < glyph_count) {
+        spdlog::error(
+            "[text-run] invalid glyph_to_word mapping: placed_glyphs={} glyph_to_word={}",
+            glyph_count, shape.layout->units.glyph_to_word.size());
+        return plan;
+    }
+
+    plan.glyph_ranges.assign(glyph_count, {-1.0f, -1.0f});
     const auto word_count = static_cast<float>(shape.layout->units.word_count);
 
     for (const auto& animator : shape.animators) {
@@ -227,9 +249,12 @@ graph::RenderOpResult draw_packed_text_run_surface(
     // caller can fall back to draw_text_run without leaking a surface.
     for (const auto& glyph : glyphs) {
         const auto pixels = glyph.pixels();
-        const std::size_t expected =
-            static_cast<std::size_t>(glyph.width) * glyph.height * 4;
+        std::size_t quad = 0;
+        std::size_t expected = 0;
         if (glyph.width == 0 || glyph.height == 0 ||
+            !checked_mul(static_cast<std::size_t>(glyph.width),
+                         static_cast<std::size_t>(glyph.height), quad) ||
+            !checked_mul(quad, 4u, expected) ||
             pixels.size() != expected) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::InvalidInput,
@@ -305,8 +330,16 @@ graph::RenderOpResult draw_packed_text_run_surface(
         const auto [packed, dims] = pack_glyphs(glyphs);
 
         // Build the packed atlas buffer and per-glyph instances in one pass.
-        atlas_buffer.assign(
-            static_cast<std::size_t>(dims.width) * dims.height * 4, 0.0f);
+        std::size_t atlas_pixels = 0;
+        std::size_t atlas_bytes = 0;
+        if (!checked_mul(static_cast<std::size_t>(dims.width),
+                         static_cast<std::size_t>(dims.height), atlas_pixels) ||
+            !checked_mul(atlas_pixels, 4u, atlas_bytes)) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "draw_packed_text_run_surface: atlas dimensions overflow"});
+        }
+        atlas_buffer.assign(atlas_bytes, 0.0f);
         atlas_desc = runtime::SurfaceDesc{
             dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
@@ -459,9 +492,12 @@ graph::RenderOpResult draw_packed_text_run(
     // the destination has no backend surface yet.
     for (const auto& glyph : glyphs) {
         const auto pixels = glyph.pixels();
-        const std::size_t expected =
-            static_cast<std::size_t>(glyph.width) * glyph.height * 4;
+        std::size_t quad = 0;
+        std::size_t expected = 0;
         if (glyph.width == 0 || glyph.height == 0 ||
+            !checked_mul(static_cast<std::size_t>(glyph.width),
+                         static_cast<std::size_t>(glyph.height), quad) ||
+            !checked_mul(quad, 4u, expected) ||
             pixels.size() != expected) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::InvalidInput,

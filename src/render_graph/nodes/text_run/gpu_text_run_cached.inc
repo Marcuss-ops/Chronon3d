@@ -135,7 +135,21 @@ graph::RenderOpResult draw_cached_text_run(
             counter.fetch_add(1, std::memory_order_relaxed);
         }
         if (!styled) {
-        std::vector<float> rgba(static_cast<std::size_t>(output_width) * output_height * 4, 0.0f);
+        if (output_width <= 0 || output_height <= 0) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "draw_cached_text_run: invalid styled glyph raster dimensions"});
+        }
+        std::size_t raster_pixels = 0;
+        std::size_t raster_floats = 0;
+        if (!checked_mul(static_cast<std::size_t>(output_width),
+                         static_cast<std::size_t>(output_height), raster_pixels) ||
+            !checked_mul(raster_pixels, 4u, raster_floats)) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "draw_cached_text_run: styled glyph raster size overflow"});
+        }
+        std::vector<float> rgba(raster_floats, 0.0f);
         auto source_alpha = [&](int x, int y) {
             if (x < 0 || y < 0 || x >= data.size.w || y >= data.size.h) return 0.0f;
             const auto* source_row = static_cast<const std::uint8_t*>(data.pixelData) +
@@ -226,6 +240,16 @@ graph::RenderOpResult draw_cached_text_run(
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "draw_cached_text_run: styled glyph cache returned no pixels"});
         }
+        std::size_t glyph_pixels = 0;
+        std::size_t expected_pixels = 0;
+        if (!checked_mul(static_cast<std::size_t>(styled->width),
+                         static_cast<std::size_t>(styled->height), glyph_pixels) ||
+            !checked_mul(glyph_pixels, 4u, expected_pixels) ||
+            styled->rgba->size() != expected_pixels) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "draw_cached_text_run: cached glyph pixel-size mismatch"});
+        }
         glyphs.push_back(GpuTextGlyph{
             styled->width,
             styled->height,
@@ -238,8 +262,10 @@ graph::RenderOpResult draw_cached_text_run(
             state.scale.y * model_scale_y,
             state.opacity * opacity,
             styled->rgba,
-            highlight_plan.enabled ? highlight_plan.glyph_ranges[i].first : -1.0f,
-            highlight_plan.enabled ? highlight_plan.glyph_ranges[i].second : -1.0f});
+            (highlight_plan.enabled && i < highlight_plan.glyph_ranges.size())
+                ? highlight_plan.glyph_ranges[i].first : -1.0f,
+            (highlight_plan.enabled && i < highlight_plan.glyph_ranges.size())
+                ? highlight_plan.glyph_ranges[i].second : -1.0f});
         glyphs.back().atlas_key = std::move(style_key);
     }
     // A cached TextRun renders into its own transparent output surface. Do
