@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
@@ -34,6 +35,26 @@ bool set_codec_option_checked(AVCodecContext* codec, const char* key,
     }
     return true;
 }
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+// The CUDA hwdevice is process-persistent in the daemon. Each encoder keeps
+// its own AVBufferRef, while FFmpeg's underlying CUDA context is shared and
+// released only when the last reference is gone. Codec/frame/mux state stays
+// job-local; only the device runtime crosses job boundaries.
+AVBufferRef* shared_cuda_hwdevice() {
+    static std::mutex mutex;
+    static AVBufferRef* device = nullptr;
+    std::lock_guard lock(mutex);
+    if (!device) {
+        if (cuInit(0) != CUDA_SUCCESS) return nullptr;
+        if (av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_CUDA,
+                                   "0", nullptr, 0) < 0) {
+            device = nullptr;
+        }
+    }
+    return device ? av_buffer_ref(device) : nullptr;
+}
+#endif
 }
 
 namespace chronon3d::cli {
@@ -158,37 +179,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     gpu_nvenc_ = options_.hardware_encoder == "nvenc";
     if (gpu_nvenc_) {
         const auto hw_t0 = Clock::now();
-        if (cuInit(0) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] CUDA driver initialization failed");
+        cuda_device_ref_ = shared_cuda_hwdevice();
+        if (!cuda_device_ref_) {
+            spdlog::error("[native_av] shared CUDA hwdevice initialization failed");
             return false;
         }
-        CUdevice cuda_device{};
-        if (cuDeviceGet(&cuda_device, 0) != CUDA_SUCCESS) return false;
-        // Use the device primary context for the complete native path.  A
-        // private cuCtxCreate context can be different from the context
-        // selected by FFmpeg's CUDA hwdevice and makes Vulkan/CUDA external
-        // semaphore ownership fragile under sustained reuse of the encode
-        // surface (eventually reported as VK_ERROR_DEVICE_LOST).
-        CUcontext primary_context = nullptr;
-        // The primary context may already be active (Whisper/Ollama and
-        // other workers use the same device).  Setting its flags here would
-        // return CUDA_ERROR_PRIMARY_CONTEXT_ACTIVE and look like a stream
-        // failure; retain the existing context without changing its flags.
-        if (cuDevicePrimaryCtxRetain(&primary_context, cuda_device) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] CUDA primary context acquisition failed");
-            return false;
-        }
-        cuda_context_ = primary_context;
-        primary_context_retained_ = true;
-        if (cuCtxSetCurrent(primary_context) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] CUDA primary context activation failed");
-            (void)cuDevicePrimaryCtxRelease(cuda_device);
-            cuda_context_ = nullptr;
-            primary_context_retained_ = false;
-            return false;
-        }
-        if (av_hwdevice_ctx_create(&cuda_device_ref_, AV_HWDEVICE_TYPE_CUDA,
-                                   "0", nullptr, 0) < 0) return false;
         auto* av_device = reinterpret_cast<AVHWDeviceContext*>(cuda_device_ref_->data);
         auto* av_cuda = av_device
             ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx)
@@ -204,11 +199,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             (void)cuStreamDestroy(cuda_stream_);
             cuda_stream_ = nullptr;
         }
-        if (cuda_context_ != av_cuda->cuda_ctx) {
-            (void)cuDevicePrimaryCtxRelease(0);
-            primary_context_retained_ = false;
-            cuda_context_ = av_cuda->cuda_ctx;
-        }
+        cuda_context_ = av_cuda->cuda_ctx;
         if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
             spdlog::error("[native_av] FFmpeg CUDA context activation failed");
             return false;
