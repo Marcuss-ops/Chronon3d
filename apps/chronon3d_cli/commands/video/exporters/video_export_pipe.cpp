@@ -415,6 +415,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     session->startup_breakdown.total_startup_ms = startup_ms;
     const double startup_accounted = session->startup_breakdown.cli_init_ms +
+        session->startup_breakdown.logger_init_ms +
+        session->startup_breakdown.cli_bootstrap_ms +
+        session->startup_breakdown.cli_parse_ms +
+        session->startup_breakdown.composition_registration_ms +
+        session->startup_breakdown.plan_read_ms +
+        session->startup_breakdown.plan_json_parse_ms +
+        session->startup_breakdown.plan_decode_validate_ms +
+        session->startup_breakdown.plan_asset_resolve_ms +
+        session->startup_breakdown.plan_compile_ms +
         session->startup_breakdown.plan_prepare_ms +
         session->startup_breakdown.encoder_create_ms +
         session->startup_breakdown.encoder_open_hw_ctx_ms +
@@ -426,6 +435,23 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         session->startup_breakdown.vulkan_pipelines_ms +
         session->startup_breakdown.renderer_runtime_init_ms;
     session->startup_breakdown.other_startup_ms = std::max(0.0, startup_ms - startup_accounted);
+
+    spdlog::info(
+        "[startup-profile] total={:.2f}ms logger={:.2f}ms cli_bootstrap={:.2f}ms "
+        "cli_parse={:.2f}ms composition={:.2f}ms plan_read={:.2f}ms "
+        "json_parse={:.2f}ms plan_decode_validate={:.2f}ms asset_resolve={:.2f}ms "
+        "plan_compile={:.2f}ms other={:.2f}ms",
+        session->startup_breakdown.total_startup_ms,
+        session->startup_breakdown.logger_init_ms,
+        session->startup_breakdown.cli_bootstrap_ms,
+        session->startup_breakdown.cli_parse_ms,
+        session->startup_breakdown.composition_registration_ms,
+        session->startup_breakdown.plan_read_ms,
+        session->startup_breakdown.plan_json_parse_ms,
+        session->startup_breakdown.plan_decode_validate_ms,
+        session->startup_breakdown.plan_asset_resolve_ms,
+        session->startup_breakdown.plan_compile_ms,
+        session->startup_breakdown.other_startup_ms);
 
     session->prepare_breakdown.total_prepare_ms = prepare_exclusive_ms;
     const double prepare_accounted = session->prepare_breakdown.font_preflight_ms +

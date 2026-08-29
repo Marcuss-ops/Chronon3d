@@ -682,6 +682,15 @@ void write_frame_timing_sidecar(
 
     auto& sb = out["startup_breakdown"];
     sb["cli_init_ms"] = timings.startup_breakdown.cli_init_ms;
+    sb["logger_init_ms"] = timings.startup_breakdown.logger_init_ms;
+    sb["cli_bootstrap_ms"] = timings.startup_breakdown.cli_bootstrap_ms;
+    sb["cli_parse_ms"] = timings.startup_breakdown.cli_parse_ms;
+    sb["composition_registration_ms"] = timings.startup_breakdown.composition_registration_ms;
+    sb["plan_read_ms"] = timings.startup_breakdown.plan_read_ms;
+    sb["plan_json_parse_ms"] = timings.startup_breakdown.plan_json_parse_ms;
+    sb["plan_decode_validate_ms"] = timings.startup_breakdown.plan_decode_validate_ms;
+    sb["plan_asset_resolve_ms"] = timings.startup_breakdown.plan_asset_resolve_ms;
+    sb["plan_compile_ms"] = timings.startup_breakdown.plan_compile_ms;
     sb["plan_prepare_ms"] = timings.startup_breakdown.plan_prepare_ms;
     sb["encoder_create_ms"] = timings.startup_breakdown.encoder_create_ms;
     sb["encoder_open_hw_ctx_ms"] = timings.startup_breakdown.encoder_open_hw_ctx_ms;
