@@ -230,6 +230,10 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     "Trace capture level: pipeline (default), nodes, or full")
         ->default_val("pipeline")
         ->check(CLI::IsMember({"pipeline", "nodes", "full"}));
+    cmd->add_option("--gpu-hot-path-mode", args.gpu_hot_path_mode,
+                    "GPU hot-path mode: auto, require_gpu_native, or require_direct_yuv")
+        ->default_val("auto")
+        ->check(CLI::IsMember({"auto", "require_gpu_native", "require_direct_yuv"}));
 
     add_video_options(*cmd, args);
 
@@ -348,7 +352,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     .crf = render_args.video_settings.crf,
                     .qp = render_args.video_settings.qp,
                     .bitrate = render_args.video_settings.bitrate},
-                render_args.trace_output, render_args.trace_level);
+                render_args.trace_output, render_args.trace_level,
+                render_args.gpu_hot_path_mode);
             return;
         }
         if (render_args.comp_id.empty()) {

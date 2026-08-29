@@ -253,6 +253,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         // (attach_software_backend registers Vulkan only for GPU preference).
         Config renderer_cfg = Config::from_environment(cpu_budget);
         renderer_cfg.set_backend_preference(opts.backend_preference);
+        renderer_cfg.set_gpu_hot_path_mode(opts.gpu_hot_path_mode);
         session->renderer = create_renderer(
             registry, settings, std::move(renderer_cfg), session->opts.assets_root,
             &session->engine_init_ms, &session->backend_init_ms);
@@ -350,6 +351,7 @@ RenderLoopOutput run_pipe_export_loop(
     session.native_decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
     auto& native_decoder = session.native_decoder;
     native_decoder->set_counters(session.renderer->counters());
+    native_decoder->set_gpu_hot_path_mode(session.renderer->config().gpu_hot_path_mode());
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer->backend())) {
         // The encoder is opened before this loop. Use the context that owns
@@ -362,6 +364,14 @@ RenderLoopOutput run_pipe_export_loop(
             // Vulkan surface path. Native NVENC must have exposed its exact
             // FFmpeg context above or its compositor will fail closed.
             (void)cuCtxGetCurrent(&cuda_context);
+        }
+        if (!cuda_context) {
+            if (cuInit(0) == CUDA_SUCCESS) {
+                CUdevice dev{};
+                if (cuDeviceGet(&dev, 0) == CUDA_SUCCESS) {
+                    (void)cuDevicePrimaryCtxRetain(&cuda_context, dev);
+                }
+            }
         }
         auto importer = std::make_shared<backends::vulkan::VulkanCudaFrameImporter>(
             *vulkan, session.renderer->runtime().surface_registry(), cuda_context);
