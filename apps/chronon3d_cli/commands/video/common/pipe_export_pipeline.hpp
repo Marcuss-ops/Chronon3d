@@ -16,6 +16,9 @@ namespace chronon3d::cli {
 // ── Pipeline phases (each extracted into its own .cpp file) ─────────────────
 
 /// Phase 1: Create encoder, renderer, arena, queue, writer thread.
+/// `video_runtimes` is the per-process VideoRuntimeRegistry (the daemon owns
+/// one; CLI jobs create one lazily). When null a fresh registry is created
+/// and owned by the session.
 [[nodiscard]] std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
     const CompiledComposition& compiled,
@@ -23,7 +26,9 @@ namespace chronon3d::cli {
     const FfmpegExportOptions& opts,
     Frame start,
     Frame end,
-    const chronon3d::CpuBudget& cpu_budget);
+    const chronon3d::CpuBudget& cpu_budget,
+    std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
+    runtime::DeviceScheduler* device_scheduler = nullptr);
 
 /// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
 void warmup_pipe_pool(PipeExportSession& session);
@@ -75,6 +80,8 @@ void record_pipe_telemetry(
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
-    const chronon3d::CpuBudget& cpu_budget);
+    const chronon3d::CpuBudget& cpu_budget,
+    std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
+    runtime::DeviceScheduler* device_scheduler = nullptr);
 
 } // namespace chronon3d::cli

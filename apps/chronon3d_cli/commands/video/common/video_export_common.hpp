@@ -25,6 +25,7 @@
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
+#include <chronon3d/media/video/video_device_runtime.hpp>
 #include <string>
 #include <filesystem>
 #include <optional>
@@ -74,6 +75,10 @@ struct FfmpegExportOptions {
     chronon3d::GpuHotPathMode gpu_hot_path_mode{
         chronon3d::GpuHotPathMode::Auto};
 
+    // DeviceScheduler resolves placement before the video pipeline starts.
+    // The default keeps existing single-device callers on device 0.
+    runtime::DeviceId device_id{0};
+
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};
 
@@ -104,8 +109,17 @@ struct ChunkedExportResult {
     double encode_ms{0.0};
 };
 
+/// Context handed to the encoder factory. The encoder does NOT discover or
+/// retain CUDA itself anymore: the device runtime already owns the primary
+/// CUDA context + FFmpeg hwdevice for the selected device.
+struct VideoEncoderCreateContext {
+    std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
+};
+
 // Factory: creates the appropriate encoder based on opts.encoder_backend
-std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts);
+std::unique_ptr<IVideoEncoder> create_video_encoder(
+    const FfmpegExportOptions& opts,
+    const VideoEncoderCreateContext& context = {});
 
 [[nodiscard]] ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,

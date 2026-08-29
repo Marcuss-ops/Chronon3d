@@ -3,6 +3,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/runtime/device_scheduler.hpp>
+#include <chronon3d/media/video/video_device_runtime.hpp>
 #include "chronon_ipc.hpp"
 #include <functional>
 #include <string>
@@ -113,6 +114,10 @@ private:
         m_device_sessions;
     std::string m_backend{"auto"};
     runtime::DeviceScheduler m_device_scheduler;
+    // One owner of CUDA context + FFmpeg hwdevice per device, process-wide.
+    // Resolution chain: DeviceScheduler → DeviceReservation → device() →
+    // VideoRuntimeRegistry::get_or_create(device).
+    media::VideoRuntimeRegistry m_video_runtimes;
     std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
     mutable std::mutex m_ipc_state_mutex;                 // warm session ownership

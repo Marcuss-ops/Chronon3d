@@ -73,7 +73,7 @@ static std::shared_ptr<SoftwareRenderer> make_integration_renderer() {
 /// any remaining items and exits when `pop` returns false (queue
 /// closed + empty).
 static void drain_queue_consumer(
-    RenderFrameQueue<RenderFramePackage>& queue,
+    runtime::BoundedChannel<RenderFramePackage>& queue,
     TripleBufferArena& arena,
     std::atomic<int>& consumed_count)
 {
@@ -96,7 +96,7 @@ static RenderLoopContext make_loop_context(
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
-    RenderFrameQueue<RenderFramePackage>& queue,
+    runtime::BoundedChannel<RenderFramePackage>& queue,
     std::atomic<bool>& writer_failed,
     TripleBufferArena& triple_arena,
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
@@ -158,7 +158,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<int> consumed{0};
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
@@ -202,7 +202,7 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     // 4 arenas for 1 frame — no consumer needed
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
@@ -251,7 +251,7 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     // Pre-cancel: the loop checks the token before rendering and exits immediately.
     token.cancel();
 
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
@@ -288,7 +288,7 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{true}; // Pre-set failure
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
@@ -320,7 +320,7 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<int> consumed{0};
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
@@ -363,7 +363,7 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<int> consumed{0};
     // 4 arenas for 4 frames — just at the limit, use consumer to be safe
@@ -406,7 +406,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<int> frames_encoded{0};
     std::atomic<int> consumed{0};
@@ -467,7 +467,7 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
     auto compiled = compile_integration_comp(comp);
 
     FfmpegExportOptions opts;
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 

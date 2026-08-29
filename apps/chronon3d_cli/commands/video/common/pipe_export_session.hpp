@@ -13,6 +13,7 @@
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/media/video/video_device_runtime.hpp>
 #include <spdlog/spdlog.h>
 
 #include <atomic>
@@ -21,6 +22,7 @@
 #include <thread>
 #include <vector>
 #include <array>
+#include <optional>
 
 namespace chronon3d::cli {
 
@@ -96,6 +98,16 @@ struct PipeExportSession {
     // stage builds the same Perfetto flow ids (see tracing/trace_ids.hpp).
     std::uint64_t trace_job_id{0};
 
+    // Placement is owned by DeviceScheduler; the reservation remains alive
+    // for the complete export session so resources cannot be oversubscribed.
+    std::optional<runtime::DeviceReservation> device_reservation;
+    runtime::DeviceId device_id{0};
+
+    // Persistent per-device GPU runtime (primary CUDA context + FFmpeg
+    // hwdevice) borrowed from the job's VideoRuntimeRegistry. The encoder
+    // and the decoder both alias this same context — one owner per device.
+    std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
+
     // Accumulated prepare-barrier sub-timings (preflight + font preflight +
     // warmup), emitted as the `job.prepare` breakdown in the sidecar.
     runtime::RenderPreparationTimings prepare_timings;
@@ -112,7 +124,7 @@ struct PipeExportSession {
     }
 
     // Queue + async writer
-    RenderFrameQueue<RenderFramePackage> queue;
+    runtime::BoundedChannel<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
     std::thread writer_thread;
@@ -122,7 +134,7 @@ struct PipeExportSession {
     // Telemetry — single canonical frame record shared with the render thread.
     std::vector<chronon3d::telemetry::FrameTelemetry> frame_encoder_telemetry;
 
-    // P0-1 fix(pipe): RenderFrameQueue holds std::mutex + std::condition_variable
+    // P0-1 fix(pipe): BoundedChannel holds std::mutex + std::condition_variable
     // so it is neither movable nor assignable (copy/move ctors are =delete'd on
     // those types).  Constructing it here in the member-init-list avoids the rot
     // of late-assigning to a default-constructed PipeExportSession in setup.

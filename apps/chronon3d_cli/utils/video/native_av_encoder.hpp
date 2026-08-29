@@ -3,6 +3,7 @@
 #include "ffmpeg_pipe_encoder.hpp"
 #include "packet_assembler.hpp"
 #include "direct_yuv_frame.hpp"
+#include <chronon3d/media/video/video_device_runtime.hpp>
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -37,7 +38,10 @@ namespace chronon3d::cli {
 /// and pipe overhead entirely.
 class NativeAvEncoder : public IVideoEncoder {
 public:
-    NativeAvEncoder() = default;
+    /// Borrows the persistent GPU device runtime (primary CUDA context +
+    /// FFmpeg hwdevice). NVENC open() fails closed without it.
+    explicit NativeAvEncoder(
+        std::shared_ptr<media::VideoDeviceRuntime> device_runtime = nullptr);
     ~NativeAvEncoder() override;
 
     NativeAvEncoder(const NativeAvEncoder&) = delete;
@@ -152,11 +156,14 @@ private:
         AVFrame* frame{nullptr};
         CUevent ready{nullptr};
         runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
-        std::shared_ptr<void> resources_owner;
+        // Keep the Direct-YUV overlay program (batch, resources and the
+        // device-resident watermark image) alive until NVENC has consumed the
+        // encoded output.  Typed replacement for the old shared_ptr<void>.
+        std::shared_ptr<const DirectYuvTemplate> program;
         // Keep the NVDEC surface referenced until the direct-YUV kernel has
         // completed.  Releasing it when the queue package is destroyed can
         // make NVDEC block while trying to recycle its surface pool.
-        std::shared_ptr<AVFrame> source_owner;
+        media::HwFrameRef source_owner;
     };
     std::deque<PendingCudaFrame> pending_cuda_frames_;
     CUstream cuda_stream_{nullptr};
@@ -164,13 +171,12 @@ private:
     uint64_t cuda_pending_peak_{0};
     uint64_t cuda_backpressure_wait_count_{0};
     void* cuda_context_{nullptr};
-    // True only while cuda_context_ is the primary context retained above.
-    // FFmpeg may select a different CUDA context for its hwdevice; that
-    // context is borrowed and must never be released as a primary context.
-    bool primary_context_retained_{false};
     AVBufferRef* cuda_device_ref_{nullptr};
     AVBufferRef* cuda_frames_ref_{nullptr};
 #endif
+    // Persistent device runtime borrowed from the job's registry. The
+    // primary CUDA context + FFmpeg hwdevice are owned there, not here.
+    std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
     bool gpu_nvenc_{false};
     bool open_complete_{false};
 

@@ -8,7 +8,9 @@ namespace chronon3d::cli {
 
 // ── Factory: create the appropriate encoder based on sink_type / backend ──────
 
-std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts) {
+std::unique_ptr<IVideoEncoder> create_video_encoder(
+    const FfmpegExportOptions& opts,
+    const VideoEncoderCreateContext& context) {
     // Note: video_sink_type_id is set in setup_pipe_export_session() after the
     // renderer (and its counters) are created — g_current_counters is null here.
 
@@ -31,7 +33,7 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     if (opts.encoder.encoder_backend == "native") {
-        return std::make_unique<NativeAvEncoder>();
+        return std::make_unique<NativeAvEncoder>(context.device_runtime);
     }
 #else
     if (opts.encoder.encoder_backend == "native") {
