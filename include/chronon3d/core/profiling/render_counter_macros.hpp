@@ -112,6 +112,9 @@ namespace chronon3d {
     X(gpu_text_atlas_key_bytes_hashed) \
     X(gpu_text_styled_cache_hits) \
     X(gpu_text_styled_cache_misses) \
+    X(gpu_text_glyphs_built) \
+    X(gpu_text_fast_path_success) \
+    X(gpu_text_fallback_count) \
     X(gpu_text_instance_upload_count) \
     X(gpu_text_instance_upload_bytes) \
     X(text_bbox_contract_violations)  /**< TICKET-TEXT-CLIP-PREDICTED-BBOX: incremented when predicted_bbox() returns empty or non-finite */
