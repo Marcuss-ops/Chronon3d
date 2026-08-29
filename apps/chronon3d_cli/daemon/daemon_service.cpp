@@ -101,18 +101,11 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
 
     m_engine->set_composition_registry(&m_registry);
 
-    // The legacy RenderEngine remains the owner of PREPARE_PLAN/overlay IPC.
-    // RENDER_JOB uses this CLI-side renderer because the video exporter works
-    // directly with SoftwareRenderer and can now reuse it across jobs.
-    RenderSettings warm_settings;
-    Config warm_config = Config::from_environment();
-    warm_config.set_backend_preference(backend_preference_from_name(m_backend));
-    warm_config.set_gpu_device_id(m_options.gpu_device_id);
-    m_warm_renderer = create_renderer(
-        m_registry, warm_settings, std::move(warm_config),
-        m_options.assets_root.empty()
-            ? std::optional<std::filesystem::path>{}
-            : std::optional<std::filesystem::path>{m_options.assets_root});
+    // Do not construct a SoftwareRenderer at daemon startup.  Direct-YUV
+    // video jobs do not use RenderEngine/SoftwareRenderer at all; creating a
+    // warm renderer here would reintroduce the exact startup baggage that the
+    // direct path removed.  FullGraph obtains a renderer lazily in
+    // warm_renderer_for_device() on its first job.
 
     // Register the persistent daemon lane with the canonical scheduler.
     // Physical-device discovery remains owned by the backend; this service
@@ -155,12 +148,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
             std::move(capabilities),
             runtime::DeviceResourceVector{.compute_units = 1.0f});
     }
-    m_device_sessions.emplace(
-        m_options.gpu_device_id == Config::kAutoGpuDevice
-            ? 0 : m_options.gpu_device_id,
-        m_warm_renderer);
-
-    spdlog::info("🔥 Engine initialised. backend={}, FB pool warm, font engines loaded.",
+    spdlog::info("🔥 Worker initialised. backend={}, renderer lazy, asset/CUDA caches process-persistent.",
                  m_backend);
     spdlog::info("   {} compositions registered.", m_registry.available().size());
 }
@@ -499,8 +487,19 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             }
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={})",
                           reservation->device(), native_nvenc);
+            // Direct-YUV owns its CUDA video runtime and deliberately must not
+            // receive a SoftwareRenderer.  This keeps the worker lightweight
+            // for the common native video lane while preserving a warm
+            // renderer for FullGraph jobs.
+            const auto hot_path = request.value("gpu_hot_path_mode", "auto");
+            const bool direct_yuv = native_nvenc && hot_path == "require_direct_yuv";
             std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
-            auto warm_renderer = warm_renderer_for_device(reservation->device());
+            std::shared_ptr<SoftwareRenderer> warm_renderer;
+            if (!direct_yuv) {
+                warm_renderer = warm_renderer_for_device(reservation->device());
+            } else {
+                spdlog::debug("[daemon] Direct-YUV job: renderer construction skipped");
+            }
             auto& warm_dispatcher = warm_render_job_dispatcher();
             if (warm_dispatcher) {
                 return warm_dispatcher(req.payload, std::move(warm_renderer));
