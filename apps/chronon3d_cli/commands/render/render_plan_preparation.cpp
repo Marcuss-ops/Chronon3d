@@ -4,6 +4,7 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // is_motion_blur_active
 #include <chronon3d/core/profiling/profiling.hpp>
+#include "../../utils/process_start.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -68,6 +69,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         const auto read_t0 = preparation_t0;
         const auto source = read_plan_source(options);
         const double read_ms = profiling::duration_ms(read_t0, profiling::now());
+        startup_trace().plan_read_ms = read_ms;
 
         nlohmann::json root;
         const auto parse_t0 = profiling::now();
@@ -77,6 +79,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             return render_plan::PlanDecodeError{options.input, error.what()};
         }
         const double parse_ms = profiling::duration_ms(parse_t0, profiling::now());
+        startup_trace().plan_json_parse_ms = parse_ms;
 
         auto plan_json = root;
         if (root.is_object() && root.value("schema", "") == "renderinggen.job" && root.contains("render_plan")) {
@@ -89,6 +92,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             return std::move(decoded).error();
         }
         const double decode_ms = profiling::duration_ms(decode_t0, profiling::now());
+        startup_trace().plan_decode_validate_ms = decode_ms;
 
         const std::string effective_assets_root = !options.assets_root.empty()
             ? options.assets_root
@@ -110,6 +114,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             resolver.mount(std::filesystem::path{effective_assets_root});
         }
         const double resolver_ms = profiling::duration_ms(resolver_t0, profiling::now());
+        startup_trace().plan_asset_resolve_ms = resolver_ms;
 
         RenderSettings settings;
         settings.fail_on_missing_assets = true;
@@ -123,6 +128,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             return std::move(compiled).error();
         }
         const double compile_ms = profiling::duration_ms(compile_t0, profiling::now());
+        startup_trace().plan_compile_ms = compile_ms;
         const double total_ms = profiling::duration_ms(preparation_t0, profiling::now());
         spdlog::info(
             "[plan-profile] read={:.2f}ms parse={:.2f}ms decode={:.2f}ms "
