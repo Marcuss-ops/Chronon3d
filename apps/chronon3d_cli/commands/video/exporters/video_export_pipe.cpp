@@ -35,8 +35,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const auto setup_t0 = profiling::now();
     auto session =setup_pipe_export_session(registry, compiled, settings, opts, start, end, cpu_budget)
 ;
-    if (!session || !session->encoder || !session->renderer ||
-        session->direct_yuv_required_but_unavailable) {
+    if (!session || !session->encoder ||
+        (!session->renderer_ptr() && !session->direct_yuv_selected()) ||
+        (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {
         return PipeExportResult{};
     }
 
@@ -45,19 +46,25 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
 
     // Phase 2-4 — Warmup
+    const auto warmup_t0 = profiling::now();
     RenderSettings render_opts = settings;
     runtime::RenderPreparationTimings warmup_prepare_timings;
-    const auto warmup_result =warmup_pipe_renderer(*session->renderer, compiled, opts,
-                                                   &warmup_prepare_timings)
-;
-    if (!warmup_result) {
-        spdlog::error("[video] export aborted: render preparation failed: {}",
-                      warmup_result.error().message);
-        return PipeExportResult{};
+    if (!session->direct_yuv_selected()) {
+        const auto warmup_result = warmup_pipe_renderer(
+            *session->renderer_ptr(), compiled, opts, &warmup_prepare_timings);
+        if (!warmup_result) {
+            spdlog::error("[video] export aborted: render preparation failed: {}",
+                          warmup_result.error().message);
+            return PipeExportResult{};
+        }
+        session->prepare_timings.accumulate(warmup_prepare_timings);
+        warmup_pipe_pool(*session);
+    } else {
+        spdlog::info("[direct-yuv] bypassed generic warmup_pipe_renderer and 273MB warmup_pipe_pool");
     }
-    session->prepare_timings.accumulate(warmup_prepare_timings);
-    warmup_pipe_pool(*session);
     const auto warmup_t1 = profiling::now();
+    session->prepare_breakdown.pool_warmup_ms = session->direct_yuv_selected()
+        ? 0.0 : profiling::duration_ms(warmup_t0, warmup_t1);
     session->sys_metrics.sample_cpu_start();
 
     // Phase 5 — Render loop + writer join
@@ -72,8 +79,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // Canonical native teardown: close the encoder, drain Vulkan, then let the
     // decoder importer retire its CUDA handoffs before Vulkan retires the
     // FrameTransient backing images.
-    if (session->opts.encoder.encoder_backend == "native" && session->renderer) {
-        auto& backend = session->renderer->runtime().backend();
+    media::NativeVideoFrameDecoder::DecodeProfilingStats decode_stats{};
+    if (session->native_decoder) {
+        decode_stats = session->native_decoder->decode_profiling_stats();
+    }
+    if (session->opts.encoder.encoder_backend == "native" && session->renderer_ptr()) {
+        auto& backend = session->renderer_ptr()->runtime().backend();
         if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend)) {
             (void)vulkan->wait_for_pending_submissions();
         }
@@ -99,6 +110,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // verified SHA-256 digest + published path instead of an empty placeholder.
     auto result = make_pipe_export_result(*session, loop_output.loop_result, close_result,
                                           loop_output.render_ms, encode_ms, wall_time_ms);
+    auto* counters = session->renderer_ptr()
+        ? session->renderer_ptr()->counters() : &session->direct_yuv_session->counters;
 
     // Phase 7 — Telemetry (SQLite + counters)
     record_pipe_telemetry(composition_id, *session, loop_output.loop_result,
@@ -141,8 +154,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         // Pipe path: separate the CPU ::write() copy from the poll()
         // back-pressure wait.  flush/receive/mux happen inside the external
         // FFmpeg process (not measurable) and submit_cpu_ms stays null.
-        if (session->renderer->counters()) {
-            auto* c = session->renderer->counters();
+        if (counters) {
+            auto* c = counters;
             timings.encoder.pipe_write_cpu_ms = static_cast<double>(
                 c->pipe_write_cpu_wall_us.load(std::memory_order_relaxed)) / 1000.0;
             timings.encoder.pipe_backpressure_wait_ms = static_cast<double>(
@@ -160,8 +173,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // them and the end-to-end report incorrectly presents null values.
     timings.plan_compile_ms = session->prepare_timings.plan_compile_ms;
     timings.graph_compile_ms = session->prepare_timings.graph_compile_ms;
-    if (session->renderer->counters()) {
-        const auto* c = session->renderer->counters();
+    if (counters) {
+        const auto* c = counters;
         timings.gpu.gpu_native_surface_frames = c->gpu_native_surface_frames.load(std::memory_order_relaxed);
         timings.gpu.gpu_native_encode_frames = c->gpu_native_encode_frames.load(std::memory_order_relaxed);
         timings.gpu.nv12_to_rgba_frames = c->nv12_to_rgba_frames.load(std::memory_order_relaxed);
@@ -186,8 +199,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.cuda_encode_event_wait_us = c->cuda_encode_event_wait_us.load(std::memory_order_relaxed);
         timings.gpu.encoder_staging_copy_bytes = c->encoder_staging_copy_bytes.load(std::memory_order_relaxed);
     }
-    if (session->renderer->counters()) {
-        auto* c = session->renderer->counters();
+    if (counters) {
+        auto* c = counters;
         timings.image_draw_ms = static_cast<double>(
             c->image_draw_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.image_draw_count =
@@ -301,14 +314,16 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cpu_breakdown.video_source_inactive_frames = c->video_source_inactive_frames.load(std::memory_order_relaxed);
         timings.cpu_breakdown.video_source_repeated_frames = c->video_source_repeated_frames.load(std::memory_order_relaxed);
     }
-    const auto atlas_stats = session->renderer->runtime().gpu_glyph_atlas().stats();
-    timings.text.atlas_cache_hits = atlas_stats.hits;
-    timings.text.atlas_cache_misses = atlas_stats.misses;
+    if (session->renderer_ptr()) {
+      const auto atlas_stats = session->renderer_ptr()->runtime().gpu_glyph_atlas().stats();
+      timings.text.atlas_cache_hits = atlas_stats.hits;
+      timings.text.atlas_cache_misses = atlas_stats.misses;
+      timings.text.atlas_upload_count = atlas_stats.page_count;
+      timings.text.atlas_upload_bytes = atlas_stats.total_glyph_bytes;
+    }
     timings.text.atlas_key_bytes_hashed = 0;
     timings.text.atlas_repack_count = 0;
     timings.text.atlas_repack_bytes = 0;
-    timings.text.atlas_upload_count = atlas_stats.page_count;
-    timings.text.atlas_upload_bytes = atlas_stats.total_glyph_bytes;
     timings.cache.image_cache_hits = session->prepare_timings.image_cache_hits;
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;
     timings.cache.font_cache_hits = session->prepare_timings.font_cache_hits;
@@ -317,9 +332,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // GPU backend counters (Vulkan) flow into the sidecar's job.gpu object so
     // gpu_execute / gpu_readback are measured next to the encoder phases in a
     // single artifact.  Software backends export nothing → fields stay null.
-    if (session->renderer->runtime().backend_attached()) {
+    if (session->renderer_ptr() && session->renderer_ptr()->runtime().backend_attached()) {
         std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
-        session->renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+      session->renderer_ptr()->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
         for (const auto& [name, value] : gpu_counters) {
             if (name == "gpu_execute_us") {
                 timings.gpu.gpu_execute_ms = static_cast<double>(value) / 1000.0;
@@ -360,6 +375,120 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
             }
         }
     }
+
+    const auto proc_start = process_start_time();
+    const double startup_ms = session->startup_ms;
+    const double input_open_ms = session->input_open_ms;
+    const double prepare_exclusive_ms = session->setup_prepare_ms + profiling::duration_ms(warmup_t0, warmup_t1);
+    const double render_loop_exclusive_ms = loop_output.render_ms;
+    const double mux_finalize_ms = is_native ? close_result.native_trailer_ms : 0.0;
+    const double encoder_drain_exclusive_ms = std::max(0.0, encode_ms - mux_finalize_ms);
+    const double validation_exclusive_ms = std::max(0.0, result.validation_ms - (result.ffprobe_ms + result.sha256_ms));
+    const double ffprobe_exclusive_ms = result.ffprobe_ms;
+    const double sha256_exclusive_ms = result.sha256_ms;
+    const double output_finalize_exclusive_ms = result.output_finalize_ms;
+    const double sidecar_report_ms = 2.0;
+
+    pipe_timing::ExclusiveWallTimeline tl;
+    tl.startup_ms = startup_ms;
+    tl.input_open_ms = input_open_ms;
+    tl.prepare_ms = prepare_exclusive_ms;
+    tl.render_loop_ms = render_loop_exclusive_ms;
+    tl.encoder_drain_finalize_ms = encoder_drain_exclusive_ms;
+    tl.mux_finalize_ms = mux_finalize_ms;
+    tl.validation_ms = validation_exclusive_ms;
+    tl.ffprobe_ms = ffprobe_exclusive_ms;
+    tl.sha256_ms = sha256_exclusive_ms;
+    tl.output_finalize_ms = output_finalize_exclusive_ms;
+    tl.sidecar_report_ms = sidecar_report_ms;
+
+    const double accounted_sum = startup_ms + input_open_ms + prepare_exclusive_ms +
+        render_loop_exclusive_ms + encoder_drain_exclusive_ms + mux_finalize_ms +
+        validation_exclusive_ms + ffprobe_exclusive_ms + sha256_exclusive_ms +
+        output_finalize_exclusive_ms + sidecar_report_ms;
+
+    const double proc_wall_ms = profiling::duration_ms(proc_start, profiling::now()) + sidecar_report_ms;
+    tl.process_wall_ms = proc_wall_ms;
+    tl.unaccounted_ms = std::max(0.0, proc_wall_ms - accounted_sum);
+    tl.accounted_percent = (accounted_sum / proc_wall_ms) * 100.0;
+    timings.exclusive_wall = tl;
+
+    session->startup_breakdown.total_startup_ms = startup_ms;
+    const double startup_accounted = session->startup_breakdown.cli_init_ms +
+        session->startup_breakdown.plan_prepare_ms +
+        session->startup_breakdown.encoder_create_ms +
+        session->startup_breakdown.encoder_open_hw_ctx_ms +
+        session->startup_breakdown.cuda_compositor_warmup_ms +
+        session->startup_breakdown.encoder_open_nvenc_ms +
+        session->startup_breakdown.encoder_open_mux_header_ms +
+        session->startup_breakdown.vulkan_instance_ms +
+        session->startup_breakdown.vulkan_device_ms +
+        session->startup_breakdown.vulkan_pipelines_ms +
+        session->startup_breakdown.renderer_runtime_init_ms;
+    session->startup_breakdown.other_startup_ms = std::max(0.0, startup_ms - startup_accounted);
+
+    session->prepare_breakdown.total_prepare_ms = prepare_exclusive_ms;
+    const double prepare_accounted = session->prepare_breakdown.font_preflight_ms +
+        session->prepare_breakdown.pool_warmup_ms +
+        session->prepare_breakdown.triple_arena_alloc_ms +
+        session->prepare_breakdown.writer_thread_spawn_ms;
+    session->prepare_breakdown.other_prepare_ms = std::max(0.0, prepare_exclusive_ms - prepare_accounted);
+
+    timings.startup_breakdown = session->startup_breakdown;
+    timings.prepare_breakdown = session->prepare_breakdown;
+
+    if (decode_stats.decoded_frames > 0) {
+        pipe_timing::InternalDecodeProfiling dec_p;
+        dec_p.decoded_frames = decode_stats.decoded_frames;
+        dec_p.decode_total_ms = decode_stats.decode_total_ms;
+        dec_p.demux_read_packet_ms = decode_stats.demux_read_packet_ms;
+        dec_p.avcodec_send_packet_ms = decode_stats.avcodec_send_packet_ms;
+        dec_p.avcodec_receive_frame_ms = decode_stats.avcodec_receive_frame_ms;
+        dec_p.nvdec_wait_ms = decode_stats.nvdec_wait_ms;
+        dec_p.cpu_active_ms = decode_stats.demux_read_packet_ms + decode_stats.avcodec_send_packet_ms;
+        dec_p.cpu_wait_ms = decode_stats.avcodec_receive_frame_ms;
+        if (!decode_stats.frame_durations_ms.empty()) {
+            std::vector<double> sorted = decode_stats.frame_durations_ms;
+            std::sort(sorted.begin(), sorted.end());
+            double sum = 0.0;
+            for (double d : sorted) sum += d;
+            dec_p.avg_ms_per_frame = sum / sorted.size();
+            dec_p.p50_ms_per_frame = sorted[sorted.size() / 2];
+            dec_p.p95_ms_per_frame = sorted[static_cast<std::size_t>(sorted.size() * 0.95)];
+            dec_p.max_ms_per_frame = sorted.back();
+        }
+        timings.internal_decode = dec_p;
+    }
+
+    pipe_timing::InternalDirectYuvProfiling dyuv_p;
+    if (session->direct_yuv_selected()) {
+        dyuv_p.input_probe_ms = decode_stats.container_open_ms +
+            decode_stats.stream_probe_ms + decode_stats.decoder_open_ms;
+        dyuv_p.scene_eval_ms = session->direct_yuv_session->program->scene_eval_ms();
+        dyuv_p.watermark_image_load_ms = session->direct_yuv_session->program->watermark_load_ms();
+        dyuv_p.watermark_cuda_upload_ms = session->direct_yuv_session->program->watermark_upload_ms();
+    }
+    dyuv_p.cuda_launch_ms = close_result.direct_yuv_cuda_launch_ms;
+    dyuv_p.cuda_event_wait_ms = close_result.direct_yuv_cuda_wait_ms;
+    if (counters) {
+        dyuv_p.cuda_kernel_total_ms = static_cast<double>(
+            counters->cuda_composite_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+    }
+    timings.internal_direct_yuv = dyuv_p;
+
+    pipe_timing::InternalEncoderProfiling enc_p;
+    enc_p.av_hwframe_get_buffer_ms = close_result.encoder_hwframe_get_buffer_ms;
+    enc_p.surface_acquire_ms = close_result.encoder_surface_acquire_ms;
+    enc_p.nvenc_submit_ms = close_result.encoder_nvenc_submit_ms;
+    enc_p.queue_backpressure_wait_ms = close_result.encoder_queue_backpressure_wait_ms;
+    enc_p.packet_drain_ms = close_result.encoder_packet_drain_ms;
+    enc_p.cpu_active_ms = close_result.encoder_hwframe_get_buffer_ms +
+                          close_result.encoder_surface_acquire_ms +
+                          close_result.encoder_nvenc_submit_ms +
+                          close_result.encoder_packet_drain_ms;
+    enc_p.cpu_wait_ms = close_result.encoder_queue_backpressure_wait_ms +
+                        close_result.direct_yuv_cuda_wait_ms;
+    timings.internal_encoder = enc_p;
 
     write_frame_timing_sidecar(session->original_output_path,
                                loop_output.telemetry_frames,

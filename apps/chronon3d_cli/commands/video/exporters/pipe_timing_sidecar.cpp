@@ -627,6 +627,82 @@ void write_frame_timing_sidecar(
     memory["framebuffer_alloc_scratch"] = timings.framebuffer_alloc_scratch.value_or(0);
     memory["framebuffer_alloc_unknown"] = timings.framebuffer_alloc_unknown.value_or(0);
 
+    auto& wall_tl = out["exclusive_wall_timeline"];
+    const auto put_wt = [&wall_tl](const char* key, const std::optional<double>& value) {
+        if (value) wall_tl[key] = *value; else wall_tl[key] = nullptr;
+    };
+    put_wt("process_wall_ms", timings.exclusive_wall.process_wall_ms);
+    put_wt("startup_ms", timings.exclusive_wall.startup_ms);
+    put_wt("input_open_ms", timings.exclusive_wall.input_open_ms);
+    put_wt("prepare_ms", timings.exclusive_wall.prepare_ms);
+    put_wt("render_loop_ms", timings.exclusive_wall.render_loop_ms);
+    put_wt("encoder_drain_finalize_ms", timings.exclusive_wall.encoder_drain_finalize_ms);
+    put_wt("mux_finalize_ms", timings.exclusive_wall.mux_finalize_ms);
+    put_wt("validation_ms", timings.exclusive_wall.validation_ms);
+    put_wt("ffprobe_ms", timings.exclusive_wall.ffprobe_ms);
+    put_wt("sha256_ms", timings.exclusive_wall.sha256_ms);
+    put_wt("output_finalize_ms", timings.exclusive_wall.output_finalize_ms);
+    put_wt("sidecar_report_ms", timings.exclusive_wall.sidecar_report_ms);
+    put_wt("unaccounted_ms", timings.exclusive_wall.unaccounted_ms);
+    put_wt("accounted_percent", timings.exclusive_wall.accounted_percent);
+
+    auto& internal = out["internal_profiling"];
+    auto& dec = internal["decode"];
+    if (timings.internal_decode.decoded_frames) dec["decoded_frames"] = *timings.internal_decode.decoded_frames; else dec["decoded_frames"] = nullptr;
+    if (timings.internal_decode.decode_total_ms) dec["decode_total_ms"] = *timings.internal_decode.decode_total_ms; else dec["decode_total_ms"] = nullptr;
+    if (timings.internal_decode.demux_read_packet_ms) dec["demux_read_packet_ms"] = *timings.internal_decode.demux_read_packet_ms; else dec["demux_read_packet_ms"] = nullptr;
+    if (timings.internal_decode.avcodec_send_packet_ms) dec["avcodec_send_packet_ms"] = *timings.internal_decode.avcodec_send_packet_ms; else dec["avcodec_send_packet_ms"] = nullptr;
+    if (timings.internal_decode.avcodec_receive_frame_ms) dec["avcodec_receive_frame_ms"] = *timings.internal_decode.avcodec_receive_frame_ms; else dec["avcodec_receive_frame_ms"] = nullptr;
+    if (timings.internal_decode.nvdec_wait_ms) dec["nvdec_wait_ms"] = *timings.internal_decode.nvdec_wait_ms; else dec["nvdec_wait_ms"] = nullptr;
+    if (timings.internal_decode.cpu_active_ms) dec["cpu_active_ms"] = *timings.internal_decode.cpu_active_ms; else dec["cpu_active_ms"] = nullptr;
+    if (timings.internal_decode.cpu_wait_ms) dec["cpu_wait_ms"] = *timings.internal_decode.cpu_wait_ms; else dec["cpu_wait_ms"] = nullptr;
+    if (timings.internal_decode.avg_ms_per_frame) dec["avg_ms_per_frame"] = *timings.internal_decode.avg_ms_per_frame; else dec["avg_ms_per_frame"] = nullptr;
+    if (timings.internal_decode.p50_ms_per_frame) dec["p50_ms_per_frame"] = *timings.internal_decode.p50_ms_per_frame; else dec["p50_ms_per_frame"] = nullptr;
+    if (timings.internal_decode.p95_ms_per_frame) dec["p95_ms_per_frame"] = *timings.internal_decode.p95_ms_per_frame; else dec["p95_ms_per_frame"] = nullptr;
+    if (timings.internal_decode.max_ms_per_frame) dec["max_ms_per_frame"] = *timings.internal_decode.max_ms_per_frame; else dec["max_ms_per_frame"] = nullptr;
+
+    auto& dyuv = internal["direct_yuv"];
+    if (timings.internal_direct_yuv.input_probe_ms) dyuv["input_probe_ms"] = *timings.internal_direct_yuv.input_probe_ms; else dyuv["input_probe_ms"] = nullptr;
+    if (timings.internal_direct_yuv.scene_eval_ms) dyuv["scene_eval_ms"] = *timings.internal_direct_yuv.scene_eval_ms; else dyuv["scene_eval_ms"] = nullptr;
+    if (timings.internal_direct_yuv.watermark_image_load_ms) dyuv["watermark_image_load_ms"] = *timings.internal_direct_yuv.watermark_image_load_ms; else dyuv["watermark_image_load_ms"] = nullptr;
+    if (timings.internal_direct_yuv.watermark_cuda_upload_ms) dyuv["watermark_cuda_upload_ms"] = *timings.internal_direct_yuv.watermark_cuda_upload_ms; else dyuv["watermark_cuda_upload_ms"] = nullptr;
+    if (timings.internal_direct_yuv.prepare_update_ms) dyuv["prepare_update_ms"] = *timings.internal_direct_yuv.prepare_update_ms; else dyuv["prepare_update_ms"] = nullptr;
+    if (timings.internal_direct_yuv.cuda_launch_ms) dyuv["cuda_launch_ms"] = *timings.internal_direct_yuv.cuda_launch_ms; else dyuv["cuda_launch_ms"] = nullptr;
+    if (timings.internal_direct_yuv.cuda_event_wait_ms) dyuv["cuda_event_wait_ms"] = *timings.internal_direct_yuv.cuda_event_wait_ms; else dyuv["cuda_event_wait_ms"] = nullptr;
+    if (timings.internal_direct_yuv.cuda_kernel_total_ms) dyuv["cuda_kernel_total_ms"] = *timings.internal_direct_yuv.cuda_kernel_total_ms; else dyuv["cuda_kernel_total_ms"] = nullptr;
+
+    auto& enc_p = internal["encoder"];
+    if (timings.internal_encoder.av_hwframe_get_buffer_ms) enc_p["av_hwframe_get_buffer_ms"] = *timings.internal_encoder.av_hwframe_get_buffer_ms; else enc_p["av_hwframe_get_buffer_ms"] = nullptr;
+    if (timings.internal_encoder.surface_acquire_ms) enc_p["surface_acquire_ms"] = *timings.internal_encoder.surface_acquire_ms; else enc_p["surface_acquire_ms"] = nullptr;
+    if (timings.internal_encoder.nvenc_submit_ms) enc_p["nvenc_submit_ms"] = *timings.internal_encoder.nvenc_submit_ms; else enc_p["nvenc_submit_ms"] = nullptr;
+    if (timings.internal_encoder.queue_backpressure_wait_ms) enc_p["queue_backpressure_wait_ms"] = *timings.internal_encoder.queue_backpressure_wait_ms; else enc_p["queue_backpressure_wait_ms"] = nullptr;
+    if (timings.internal_encoder.packet_drain_ms) enc_p["packet_drain_ms"] = *timings.internal_encoder.packet_drain_ms; else enc_p["packet_drain_ms"] = nullptr;
+    if (timings.internal_encoder.cpu_active_ms) enc_p["cpu_active_ms"] = *timings.internal_encoder.cpu_active_ms; else enc_p["cpu_active_ms"] = nullptr;
+    if (timings.internal_encoder.cpu_wait_ms) enc_p["cpu_wait_ms"] = *timings.internal_encoder.cpu_wait_ms; else enc_p["cpu_wait_ms"] = nullptr;
+
+    auto& sb = out["startup_breakdown"];
+    sb["cli_init_ms"] = timings.startup_breakdown.cli_init_ms;
+    sb["plan_prepare_ms"] = timings.startup_breakdown.plan_prepare_ms;
+    sb["encoder_create_ms"] = timings.startup_breakdown.encoder_create_ms;
+    sb["encoder_open_hw_ctx_ms"] = timings.startup_breakdown.encoder_open_hw_ctx_ms;
+    sb["cuda_compositor_warmup_ms"] = timings.startup_breakdown.cuda_compositor_warmup_ms;
+    sb["encoder_open_nvenc_ms"] = timings.startup_breakdown.encoder_open_nvenc_ms;
+    sb["encoder_open_mux_header_ms"] = timings.startup_breakdown.encoder_open_mux_header_ms;
+    sb["vulkan_instance_ms"] = timings.startup_breakdown.vulkan_instance_ms;
+    sb["vulkan_device_ms"] = timings.startup_breakdown.vulkan_device_ms;
+    sb["vulkan_pipelines_ms"] = timings.startup_breakdown.vulkan_pipelines_ms;
+    sb["renderer_runtime_init_ms"] = timings.startup_breakdown.renderer_runtime_init_ms;
+    sb["other_startup_ms"] = timings.startup_breakdown.other_startup_ms;
+    sb["total_startup_ms"] = timings.startup_breakdown.total_startup_ms;
+
+    auto& pb = out["prepare_breakdown"];
+    pb["font_preflight_ms"] = timings.prepare_breakdown.font_preflight_ms;
+    pb["pool_warmup_ms"] = timings.prepare_breakdown.pool_warmup_ms;
+    pb["triple_arena_alloc_ms"] = timings.prepare_breakdown.triple_arena_alloc_ms;
+    pb["writer_thread_spawn_ms"] = timings.prepare_breakdown.writer_thread_spawn_ms;
+    pb["other_prepare_ms"] = timings.prepare_breakdown.other_prepare_ms;
+    pb["total_prepare_ms"] = timings.prepare_breakdown.total_prepare_ms;
+
     const auto sidecar = std::filesystem::path(video_path).string() + ".timing.json";
     std::ofstream file(sidecar);
     if (!file) {

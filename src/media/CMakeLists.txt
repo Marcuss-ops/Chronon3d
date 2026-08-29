@@ -30,6 +30,18 @@ if(CHRONON3D_ENABLE_VIDEO)
             chronon3d_ffmpeg_full
         )
         set_target_properties(chronon3d_media_native PROPERTIES UNITY_BUILD OFF)
+        if(CHRONON3D_ENABLE_CUDA_INTEROP)
+            target_sources(chronon3d_media_native PRIVATE
+                video/cuda_direct_nv12_compositor.cpp)
+            target_include_directories(chronon3d_media_native PRIVATE
+                "${CHRONON3D_CUDA_INCLUDE_DIR}"
+                "${CHRONON3D_NVRTC_INCLUDE_DIR}")
+            target_link_libraries(chronon3d_media_native PRIVATE
+                "${CHRONON3D_CUDA_DRIVER_LIBRARY}"
+                "${CHRONON3D_NVRTC_LIBRARY}")
+            target_compile_definitions(chronon3d_media_native PRIVATE
+                CHRONON3D_ENABLE_CUDA_INTEROP)
+        endif()
     endif()
 
     # TICKET-011 cmake-boundary (OBJECT lift) — see chronon3d_backend_software comment.

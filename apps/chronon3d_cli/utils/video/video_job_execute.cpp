@@ -86,8 +86,8 @@ int render_and_encode_ffmpeg(
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
     }
-    if (opts.sink.ffmpeg_mode != "png" && opts.sink.ffmpeg_mode != "pipe") {
-        spdlog::error("[video] Unknown ffmpeg mode '{}'. Expected: png, pipe",
+    if (opts.sink.ffmpeg_mode != "pipe") {
+        spdlog::error("[video] Unsupported ffmpeg mode '{}'. Only 'pipe' is available",
                       opts.sink.ffmpeg_mode);
         return 1;
     }
@@ -98,13 +98,6 @@ int render_and_encode_ffmpeg(
             settings, start, end, opts, cpu_budget);
         return result.return_code;
     }
-    if (opts.sink.ffmpeg_mode == "png") {
-        auto result = render_and_encode_ffmpeg_chunked(
-            registry, compiled, composition_id,
-            settings, start, end, opts, cpu_budget);
-        return result.return_code;
-    }
-
     return 1;
 }
 

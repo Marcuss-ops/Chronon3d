@@ -367,6 +367,9 @@ public:
     [[nodiscard]] std::uint32_t graphics_queue_family() const noexcept {
         return m_queue_family;
     }
+    [[nodiscard]] double init_instance_ms() const noexcept { return m_init_instance_ms; }
+    [[nodiscard]] double init_device_ms() const noexcept { return m_init_device_ms; }
+    [[nodiscard]] double init_pipelines_ms() const noexcept { return m_init_pipelines_ms; }
 #endif
 
 private:
@@ -390,6 +393,9 @@ private:
     // backend reports only CPU-side submit/fence-wait events.
     bool m_calibrated_timestamps_supported{false};
     std::unique_ptr<VulkanDebugContext> m_debug_context;
+    double m_init_instance_ms{0.0};
+    double m_init_device_ms{0.0};
+    double m_init_pipelines_ms{0.0};
 #endif
 };
 
