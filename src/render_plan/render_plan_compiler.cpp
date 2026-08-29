@@ -400,8 +400,15 @@ compile_render_plan(
                         Frame{plan.canvas.duration.value});
                 if (layer.position_dimensions > 0) {
                     prepared_images[index] = resolved;
+                    const float box_width = resolved.box_width;
+                    const float box_height = resolved.box_height;
+                    const float world_x = layer.position[0] + box_width * 0.5f -
+                                          static_cast<float>(plan.canvas.width) * 0.5f;
+                    const float world_y = layer.position[1] + box_height * 0.5f -
+                                          static_cast<float>(plan.canvas.height) * 0.5f;
                     prepared_image_positions[index] =
-                        chronon3d::Vec2{layer.position[0], layer.position[1]};
+                        chronon3d::Vec2{world_x + layer.offset[0],
+                                        world_y + layer.offset[1]};
                 } else {
                     layout_requests.push_back(layout_request(
                         layer, resolved.layout, plan.canvas.duration.value));

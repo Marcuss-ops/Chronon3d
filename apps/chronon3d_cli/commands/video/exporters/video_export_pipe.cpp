@@ -35,7 +35,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const auto setup_t0 = profiling::now();
     auto session =setup_pipe_export_session(registry, compiled, settings, opts, start, end, cpu_budget)
 ;
-    if (!session || !session->encoder || !session->renderer) {
+    if (!session || !session->encoder || !session->renderer ||
+        session->direct_yuv_required_but_unavailable) {
         return PipeExportResult{};
     }
 
@@ -154,6 +155,11 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.sha256_ms = result.sha256_ms;
     timings.target_fps = session->opts.output.fps;
     timings.prepare = session->prepare_timings;
+    // The preparation barrier already measures these compiler phases. Keep
+    // them at the canonical job level as well; otherwise the sidecar loses
+    // them and the end-to-end report incorrectly presents null values.
+    timings.plan_compile_ms = session->prepare_timings.plan_compile_ms;
+    timings.graph_compile_ms = session->prepare_timings.graph_compile_ms;
     if (session->renderer->counters()) {
         const auto* c = session->renderer->counters();
         timings.gpu.gpu_native_surface_frames = c->gpu_native_surface_frames.load(std::memory_order_relaxed);

@@ -132,8 +132,12 @@ void apply_text_animation_intent(
         preset_animation, layer, Frame{composition_frames});
     // No per-unit intent anywhere → leave the text run static.
     if (!resolved.text_intent) return;
+    // TextRunShape is sampled in layer-local time (Layer::local_time), while
+    // the render-plan layer start is composition-global.  The animator's
+    // window must therefore begin at local frame zero; passing the global
+    // layer start leaves every glyph at opacity zero for the whole layer.
     definition.animation.animators.push_back(build_unit_reveal_animator(
-        resolved.unit, resolved.layer_start, resolved.layer_duration,
+        resolved.unit, Frame{0}, resolved.layer_duration,
         resolved.enter_duration,
         resolved.exit_duration > Frame{0}
             ? std::optional<Frame>{resolved.exit_duration} : std::nullopt));
@@ -201,6 +205,14 @@ VisualBounds measure_visual_bounds(const ResolvedVisualLayer& layer,
         return bounds;
     }
     bounds.width = text_width + 2.0f * pad_x + stroke + 2.0f * shadow_x;
+    // The text shaper above measures the unwrapped line.  Word-wrapped
+    // presets deliberately author a finite frame so long phrases can wrap
+    // inside the safe area; exposing the unwrapped width to the scene-wide
+    // resolver makes an otherwise valid phrase impossible to place.  Keep
+    // the resolver footprint aligned with that authored frame.  The renderer
+    // still owns the actual wrapping and clipping through `def.frame`.
+    if (def.frame.wrap == TextWrap::Word && def.frame.size.x > 0.0f)
+        bounds.width = std::min(bounds.width, def.frame.size.x);
     bounds.height = text_height + 2.0f * pad_y + stroke + 2.0f * shadow_y;
     return bounds;
 }

@@ -2,6 +2,7 @@
 
 #include "ffmpeg_pipe_encoder.hpp"
 #include "packet_assembler.hpp"
+#include "direct_yuv_frame.hpp"
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -53,6 +54,7 @@ public:
 #endif
     }
     bool write_frame(const Framebuffer& fb) override;
+    bool write_direct_yuv(const DirectYuvFrame& frame) override;
     bool write_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
@@ -113,6 +115,8 @@ private:
     std::unordered_map<std::uint64_t,
         std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>>
         cuda_nv12_compositors_;
+    std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>
+        direct_yuv_compositor_;
     // AVFrame wrappers are recycled across the bounded CUDA/NVENC ring. The
     // hw-frame pool remains owned by FFmpeg; only the wrapper lifetime is
     // reused here, avoiding an av_frame_alloc/free pair per encoded frame.
@@ -121,6 +125,11 @@ private:
         AVFrame* frame{nullptr};
         CUevent ready{nullptr};
         runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
+        std::shared_ptr<void> resources_owner;
+        // Keep the NVDEC surface referenced until the direct-YUV kernel has
+        // completed.  Releasing it when the queue package is destroyed can
+        // make NVDEC block while trying to recycle its surface pool.
+        std::shared_ptr<AVFrame> source_owner;
     };
     std::deque<PendingCudaFrame> pending_cuda_frames_;
     CUstream cuda_stream_{nullptr};

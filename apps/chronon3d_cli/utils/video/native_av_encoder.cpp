@@ -568,6 +568,124 @@ bool NativeAvEncoder::write_prepared_native_surface(
     return write_native_surface_impl(backend, source, destination, true);
 }
 
+bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
+#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+    (void)direct;
+    return false;
+#else
+    const auto direct_submit_t0 = Clock::now();
+    last_frame_telemetry_ = EncoderFrameTelemetry{};
+    if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
+        !direct.decoded || direct.decoded->format != AV_PIX_FMT_CUDA ||
+        !direct.decoded->data[0] || !direct.decoded->data[1] ||
+        direct.batch.empty() || direct.resources.empty()) {
+        spdlog::error("[native_av] invalid DirectCudaYuv frame contract");
+        return false;
+    }
+    if (!direct_yuv_compositor_) {
+        try {
+            direct_yuv_compositor_ =
+                std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
+                    reinterpret_cast<CUcontext>(cuda_context_));
+        } catch (const std::exception& error) {
+            spdlog::error("[native_av] DirectCudaYuv compositor init failed: {}",
+                          error.what());
+            return false;
+        }
+    }
+    if (!drain_ready_cuda_frames(false)) return false;
+    if (pending_cuda_frames_.size() >= kCudaEncodeRingSlots &&
+        !drain_ready_cuda_frames(true)) {
+        ++cuda_backpressure_wait_count_;
+        return false;
+    }
+
+    AVFrame* gpu_frame = nullptr;
+    if (!reusable_cuda_frames_.empty()) {
+        gpu_frame = reusable_cuda_frames_.front();
+        reusable_cuda_frames_.pop_front();
+        av_frame_unref(gpu_frame);
+    } else {
+        gpu_frame = av_frame_alloc();
+    }
+    if (!gpu_frame) return false;
+    gpu_frame->format = AV_PIX_FMT_CUDA;
+    gpu_frame->width = options_.width;
+    gpu_frame->height = options_.height;
+    gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
+    if (av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0) < 0 ||
+        !gpu_frame->data[0] || !gpu_frame->data[1]) {
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        return false;
+    }
+
+    auto* frames = direct.decoded->hw_frames_ctx
+        ? reinterpret_cast<AVHWFramesContext*>(direct.decoded->hw_frames_ctx->data)
+        : nullptr;
+    if (!frames || frames->sw_format != AV_PIX_FMT_NV12) {
+        spdlog::error("[native_av] DirectCudaYuv currently requires NV12 input");
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        return false;
+    }
+    if (!direct_yuv_compositor_->composite_direct_nv12_batch(
+            direct.batch, direct.resources,
+            reinterpret_cast<CUdeviceptr>(direct.decoded->data[0]),
+            direct.decoded->linesize[0],
+            reinterpret_cast<CUdeviceptr>(direct.decoded->data[1]),
+            direct.decoded->linesize[1],
+            reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]),
+            gpu_frame->linesize[0],
+            reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
+            gpu_frame->linesize[1],
+            static_cast<std::uint32_t>(options_.width),
+            static_cast<std::uint32_t>(options_.height), cuda_stream_)) {
+        spdlog::error("[native_av] DirectCudaYuv kernel dispatch failed");
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        return false;
+    }
+    gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
+    CUevent ready = nullptr;
+    if (cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING) != CUDA_SUCCESS ||
+        cuEventRecord(ready, cuda_stream_) != CUDA_SUCCESS) {
+        if (ready) cuEventDestroy(ready);
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        return false;
+    }
+    // NVDEC owns a finite pool of input surfaces. Complete the direct-YUV
+    // kernel before releasing the source AVFrame; retaining all input frames
+    // until the encoder consumes the outputs exhausts the decoder pool and
+    // regresses the render loop. The output remains queued for NVENC.
+    if (cuEventSynchronize(ready) != CUDA_SUCCESS) {
+        cuEventDestroy(ready);
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        return false;
+    }
+    pending_cuda_frames_.push_back(
+        PendingCudaFrame{gpu_frame, ready,
+                         runtime::kInvalidRenderSurfaceHandle,
+                         direct.resources_owner,
+                         {}});
+    cuda_pending_peak_ = std::max<std::uint64_t>(
+        cuda_pending_peak_, pending_cuda_frames_.size());
+    if (counters_) {
+        auto observed = counters_->cuda_encode_queue_peak.load(std::memory_order_relaxed);
+        const auto current = static_cast<std::uint64_t>(pending_cuda_frames_.size());
+        while (observed < current &&
+               !counters_->cuda_encode_queue_peak.compare_exchange_weak(
+                   observed, current, std::memory_order_relaxed)) {}
+    }
+    const bool drained = drain_ready_cuda_frames(false);
+    last_frame_telemetry_.encoder_ms = elapsed_ms(direct_submit_t0);
+    last_frame_telemetry_.frame_submit_ms = last_frame_telemetry_.encoder_ms;
+    return drained;
+#endif
+}
+
 bool NativeAvEncoder::write_native_surface_impl(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,

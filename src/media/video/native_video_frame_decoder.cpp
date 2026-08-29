@@ -17,6 +17,7 @@ extern "C" {
 #include <spdlog/spdlog.h>
 #include <tbb/blocked_range.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -100,7 +101,22 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     Session& session, AVFrame* frame) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
-    if (!frame || frame->format != AV_PIX_FMT_CUDA || !m_native_importer) return nullptr;
+    if (!frame || frame->format != AV_PIX_FMT_CUDA) return nullptr;
+    if (session.capture_native_frame) {
+        auto captured = std::shared_ptr<AVFrame>(
+            av_frame_alloc(), [](AVFrame* value) {
+                if (value) av_frame_free(&value);
+            });
+        if (!captured || av_frame_ref(captured.get(), frame) < 0) return nullptr;
+        session.captured_native_frame = std::move(captured);
+        if (m_counters) {
+            m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
+            m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
+            m_counters->video_decode_native_surface_frames.fetch_add(1, std::memory_order_relaxed);
+        }
+        return nullptr;
+    }
+    if (!m_native_importer) return nullptr;
     runtime::PixelFormat format = runtime::PixelFormat::Nv12;
     if (frame->hw_frames_ctx) {
         auto* frames = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
@@ -230,7 +246,14 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     session->decoded = av_frame_alloc();
     session->closest_frame = av_frame_alloc();
     session->packet = av_packet_alloc();
-    session->start_prefetch_worker(this);
+    // Direct-YUV owns the sequential codec access.  Starting the ordinary
+    // framebuffer prefetch worker here would race the native-frame capture
+    // path on the same AVCodecContext.
+    if (m_gpu_hot_path_mode != GpuHotPathMode::RequireDirectYuv) {
+        session->start_prefetch_worker(this);
+    } else {
+        session->direct_prefetch_disabled = true;
+    }
     m_sessions[path] = session;
     return session;
 }
@@ -310,6 +333,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
             const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE ? decoded->best_effort_timestamp : decoded->pts;
             if (pts == target_pts) {
                 if ((result = try_native_frame(session, decoded))) break;
+                if (session.capture_native_frame && session.captured_native_frame) break;
                 if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
                     m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
                     spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: try_native_frame failed for CUDA frame, CPU fallback forbidden");
@@ -342,20 +366,22 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
             }
         }
         if (result || overshoot >= 16) break;
+        if (session.capture_native_frame && session.captured_native_frame) break;
         if (receive < 0 && receive != AVERROR(EAGAIN)) break;
     }
     if (!result && closest->width > 0 && closest->height > 0) {
         if (closest->format == AV_PIX_FMT_CUDA) {
             if (!(result = try_native_frame(session, closest))) {
-                if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
-                    m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+                if (session.capture_native_frame && session.captured_native_frame) {
+                    result.reset();
+                } else if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+                           m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
                     spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: try_native_frame failed for closest CUDA frame, CPU fallback forbidden");
                     if (m_counters) {
                         m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
                     }
                     return nullptr;
-                }
-                if (session.hw_transfer_frame) {
+                } else if (session.hw_transfer_frame) {
                     av_frame_unref(session.hw_transfer_frame);
                     const auto xfer_start = profiling::now();
                     if (av_hwframe_transfer_data(session.hw_transfer_frame, closest, 0) >= 0) {
@@ -402,6 +428,14 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
             session.eof_frame = result;
         }
     }
+    // Direct-YUV returns the decoded CUDA frame through the capture handoff
+    // rather than through `result`.  Preserve the sequential decoder state
+    // in that mode as well; otherwise every direct request looks like the
+    // first request and may seek back to a keyframe, decoding/discarding
+    // intermediate surfaces repeatedly.
+    if (!result && session.capture_native_frame && session.captured_native_frame) {
+        session.last_target = target;
+    }
     return result;
 }
 
@@ -423,6 +457,60 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::st
     if (result && result->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         session->cache.put(target, result);
     }
+    return result;
+}
+
+std::shared_ptr<AVFrame> NativeVideoFrameDecoder::decode_native_frame(
+    const std::string& path, Frame frame, int, int, float) {
+    if (frame < 0 || path.empty() || !m_native_importer) return nullptr;
+    if (m_counters) {
+        m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
+    }
+    std::shared_ptr<Session> session;
+    {
+        std::lock_guard lock(m_mutex);
+        session = open_session_locked(path);
+    }
+    if (!session) return nullptr;
+
+    // Suspend the ordinary prefetch worker while capturing a ref to the
+    // decoder's CUDA frame.  Both paths share one FFmpeg codec context, so
+    // allowing them to advance the demuxer concurrently would violate the
+    // sequential decode contract and make the native surface identity
+    // ambiguous.
+    std::unique_lock state_lock(session->mutex);
+    if (!session->direct_prefetch_disabled && session->prefetch_worker.joinable()) {
+        session->prefetch_stop.store(true, std::memory_order_relaxed);
+        session->prefetch_cv.notify_all();
+        state_lock.unlock();
+        session->prefetch_worker.join();
+        state_lock.lock();
+        session->direct_prefetch_disabled = true;
+    }
+    session->prefetch_queue.clear();
+    ++session->prefetch_generation;
+    session->prefetch_next = -1;
+    session->prefetch_cv.notify_all();
+    session->prefetch_cv.wait(state_lock, [&session] {
+        return session->prefetch_inflight < 0 || session->prefetch_stop.load();
+    });
+    session->captured_native_frame.reset();
+    session->capture_native_frame = true;
+    state_lock.unlock();
+
+    const auto decode_start = profiling::now();
+    const auto ignored = decode_frame_internal(*session, frame.integral());
+    if (m_counters) {
+        m_counters->video_decode_wall_ms.fetch_add(
+            static_cast<std::uint64_t>(std::llround(
+                profiling::duration_ms(decode_start, profiling::now()))),
+            std::memory_order_relaxed);
+    }
+    (void)ignored;
+
+    state_lock.lock();
+    session->capture_native_frame = false;
+    auto result = std::move(session->captured_native_frame);
     return result;
 }
 
