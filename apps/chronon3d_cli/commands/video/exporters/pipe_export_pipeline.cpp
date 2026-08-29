@@ -270,6 +270,23 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // dynamic_cast required; the renderer pointer IS the right type.
     SoftwareRenderer* sw_renderer = session->renderer.get();
 
+    if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
+        opts.encoder.encoder_backend == "native" &&
+        opts.encoder.hardware_encoder == "nvenc") {
+        std::string direct_reason;
+        session->direct_yuv_program = DirectYuvProgram::prepare(
+            compiled, *session->renderer, session->encoder->cuda_context(),
+            direct_reason);
+        if (!session->direct_yuv_program) {
+            spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}",
+                          direct_reason);
+            session->direct_yuv_required_but_unavailable = true;
+            return session;
+        }
+        spdlog::info("[direct-yuv] selected for video source '{}'",
+                     session->direct_yuv_program->video_path());
+    }
+
     // ── Font preflight (P0 video/text — Fase 1) ────────────────────────────
     // Check fonts referenced by the composition before rendering starts.
     // Missing fonts fail early with a clear error instead of crashing or
@@ -412,6 +429,7 @@ RenderLoopOutput run_pipe_export_loop(
         .counters = session.renderer->counters(),
         .telemetry_frames = telemetry_frames,
         .trace_job_id = session.trace_job_id,
+        .direct_yuv_program = session.direct_yuv_program,
     };
     auto loop_result = run_render_loop(loop_ctx);
 

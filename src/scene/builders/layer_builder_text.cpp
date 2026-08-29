@@ -198,9 +198,13 @@ Layer LayerBuilder::build() {
                 // The layer owns the Canvas pin; the node receives only the
                 // resolver's box origin relative to that pin.
                 local_origin -= layer_pin;
-            } else {
+            } else if (resolved_placement.kind != TextPlacementKind::Absolute) {
                 // The 2D graph basis is centered at (0,0), while the
                 // canonical resolver intentionally remains top-left Canvas.
+                // Absolute placement is already a graph-space coordinate;
+                // resolve_text_run_placement deliberately skips the implicit
+                // canvas-center matrix for it, so subtracting the canvas half
+                // here would move the glyphs completely off-canvas.
                 local_origin -= Vec2{canvas.width * 0.5f, canvas.height * 0.5f};
             }
 

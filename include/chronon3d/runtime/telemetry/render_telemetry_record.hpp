@@ -282,6 +282,9 @@ struct FrameTelemetry {
     double dirty_area_ratio{1.0};
     double node_lookup_ms{0.0};
     double graph_eval_ms{0.0};
+    // Direct-YUV execution time. This is deliberately separate from
+    // graph_eval_ms because the DirectCudaYuvProgram bypasses RenderGraph.
+    double direct_yuv_decode_ms{0.0};
     double queue_wait_ms{0.0};
     FrameRenderBreakdown render_breakdown{};
     FrameImageTiming image_timing{};

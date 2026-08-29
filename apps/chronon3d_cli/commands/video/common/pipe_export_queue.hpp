@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include "../../../utils/video/direct_yuv_frame.hpp"
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/render_surface_handle.hpp>
@@ -231,6 +232,7 @@ struct RenderFramePackage {
     runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
     std::size_t interop_slot{FrameInteropRing::kInvalidSlot};
     bool native_surface_ready{false};
+    std::shared_ptr<DirectYuvFrame> direct_yuv;
 };
 
 } // namespace chronon3d::cli

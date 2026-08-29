@@ -501,6 +501,70 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             // P1-20 — sw_renderer is a non-nullable reference; no null check.
             ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
 
+            if (ctx.direct_yuv_program) {
+                auto* native_decoder =
+                    dynamic_cast<media::NativeVideoFrameDecoder*>(ctx.video_decoder);
+                const auto direct_t0 = profiling::now();
+                auto direct_frame = native_decoder
+                    ? ctx.direct_yuv_program->execute(*native_decoder, current_frame)
+                    : nullptr;
+                const auto direct_t1 = profiling::now();
+                const double frame_ms = profiling::duration_ms(direct_t0, direct_t1);
+                result.render_graph_eval_ms += frame_ms;
+                if (!direct_frame) {
+                    ctx.triple_arena.release(current_arena);
+                    mark_pipe_render_failed(status, current_frame);
+                    break;
+                }
+
+                RenderFramePackage package;
+                package.frame_number = current_frame;
+                package.arena = std::move(current_arena);
+                package.direct_yuv = std::move(direct_frame);
+                const auto queue_t0 = profiling::now();
+                const bool pushed = ctx.queue.push(
+                    package, ctx.opts.cancellation_token);
+                const double wait_ms = profiling::duration_ms(
+                    queue_t0, profiling::now());
+                result.queue_wait_ms += wait_ms;
+                ++status.frames_rendered;
+                if (!pushed) {
+                    ctx.triple_arena.release(std::move(package.arena));
+                    if (ctx.writer_failed.load()) mark_pipe_writer_failed(status, current_frame);
+                    else mark_pipe_render_failed(status, current_frame);
+                    break;
+                }
+                ++status.frames_enqueued;
+                ctx.telemetry_frames.push_back({
+                    .frame_number = static_cast<int>(current_frame),
+                    .wall_start_ms = profiling::duration_ms(loop_t0, direct_t0),
+                    .duration_ms = frame_ms + wait_ms,
+                    .cache_hit = true,
+                    .dirty_area_ratio = 0.0,
+                    .node_lookup_ms = 0.0,
+                    .graph_eval_ms = 0.0,
+                    .direct_yuv_decode_ms = frame_ms,
+                    .queue_wait_ms = wait_ms,
+                    .render_breakdown = {},
+                    .image_timing = {},
+                    .text_timing = {},
+                    .dirty_rect_enabled = false,
+                    .dirty_rect_x0 = 0,
+                    .dirty_rect_y0 = 0,
+                    .dirty_rect_x1 = 0,
+                    .dirty_rect_y1 = 0,
+                    .tile_execution_used = false,
+                    .fast_path_reused = true,
+                    .graph_reused = true,
+                    .program_cache_capacity = 1
+                });
+                if (ctx.writer_failed.load()) {
+                    mark_pipe_writer_failed(status, current_frame);
+                    break;
+                }
+                continue;
+            }
+
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
             const NativeSurfacePrep prep =

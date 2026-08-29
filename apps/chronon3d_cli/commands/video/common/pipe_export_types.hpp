@@ -2,6 +2,7 @@
 
 #include "pipe_export_queue.hpp"
 #include "pipe_export_helpers.hpp"
+#include "direct_yuv_program.hpp"
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
@@ -105,6 +106,7 @@ struct RenderLoopContext {
     /// Trace correlation: stable per-job id mixed with the current frame to
     /// build the non-terminating Perfetto flow id for this render.
     std::uint64_t trace_job_id{0};
+    std::shared_ptr<DirectYuvProgram> direct_yuv_program;
 };
 
 struct RenderLoopResult {

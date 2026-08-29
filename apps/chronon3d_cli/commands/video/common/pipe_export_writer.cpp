@@ -66,6 +66,46 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 dequeue_ms, std::memory_order_relaxed);
         }
 
+        if (package.direct_yuv) {
+            const auto enc_t0 = profiling::now();
+            if (ctx.renderer.counters()) {
+                ctx.renderer.counters()->gpu_native_surface_frames.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            const bool encoded = ctx.encoder.write_direct_yuv(*package.direct_yuv);
+            const auto enc_t1 = profiling::now();
+            ctx.writer_encode_us_total.fetch_add(
+                static_cast<uint64_t>(profiling::duration_ms(enc_t0, enc_t1) * 1000.0),
+                std::memory_order_relaxed);
+            if (!encoded) {
+                if (ctx.renderer.counters()) {
+                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(
+                        1, std::memory_order_relaxed);
+                }
+                ctx.writer_failed.store(true);
+                ctx.queue.close();
+                ctx.triple_arena.release(std::move(package.arena));
+                return;
+            }
+            if (ctx.renderer.counters()) {
+                ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(
+                    1, std::memory_order_relaxed);
+                ctx.renderer.counters()->nvenc_frames.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            ++ctx.frames_encoded;
+            const auto direct_telemetry = ctx.encoder.last_frame_telemetry();
+            ctx.frame_encoder_telemetry.push_back({
+                .frame_number = static_cast<int>(package.frame_number),
+                .encoder_ms = direct_telemetry.encoder_ms,
+                .native_send_ms = direct_telemetry.native_send_ms,
+                .native_receive_ms = direct_telemetry.native_receive_ms,
+                .native_mux_ms = direct_telemetry.native_mux_ms,
+            });
+            ctx.triple_arena.release(std::move(package.arena));
+            continue;
+        }
+
         if (package.framebuffer) {
             const auto release_interop_slot = [&]() noexcept {
                 ctx.interop_ring.release(package.interop_slot);
