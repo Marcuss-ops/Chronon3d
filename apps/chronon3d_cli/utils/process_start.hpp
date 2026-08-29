@@ -4,6 +4,26 @@
 
 namespace chronon3d::cli {
 
+/// Fine-grained process-bootstrap timings.  This is thread-local on purpose:
+/// daemon requests may prepare plans concurrently and must not overwrite the
+/// timing belonging to another request.
+struct StartupTrace {
+    double logger_init_ms{0.0};
+    double cli_bootstrap_ms{0.0};
+    double cli_parse_ms{0.0};
+    double composition_registration_ms{0.0};
+    double plan_read_ms{0.0};
+    double plan_json_parse_ms{0.0};
+    double plan_decode_validate_ms{0.0};
+    double plan_asset_resolve_ms{0.0};
+    double plan_compile_ms{0.0};
+};
+
+inline StartupTrace& startup_trace() {
+    static thread_local StartupTrace trace;
+    return trace;
+}
+
 /// Anchors the steady clock at the very first line of `main()`, so callers
 /// can report process startup (CLI boot + argument parsing) as a measured
 /// wall time instead of a misleading zero or a hand-waved estimate.

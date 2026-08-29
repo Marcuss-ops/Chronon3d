@@ -6,6 +6,15 @@ namespace chronon3d::cli {
 
 struct StartupBreakdown {
     double cli_init_ms{0.0};
+    double logger_init_ms{0.0};
+    double cli_bootstrap_ms{0.0};
+    double cli_parse_ms{0.0};
+    double composition_registration_ms{0.0};
+    double plan_read_ms{0.0};
+    double plan_json_parse_ms{0.0};
+    double plan_decode_validate_ms{0.0};
+    double plan_asset_resolve_ms{0.0};
+    double plan_compile_ms{0.0};
     double plan_prepare_ms{0.0};
     double encoder_create_ms{0.0};
     double encoder_open_hw_ctx_ms{0.0};

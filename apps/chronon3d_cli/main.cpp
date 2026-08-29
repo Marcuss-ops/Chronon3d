@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <algorithm>
 #include <string>
 #include <thread>
 
@@ -21,6 +22,16 @@
 
 int main(int argc, char** argv) {
     chronon3d::cli::record_process_start();
+
+    // Force construction of the default logger at the process boundary so
+    // logger setup is measured separately from CLI parsing and registration.
+    {
+        const auto t0 = chronon3d::profiling::now();
+        (void)spdlog::default_logger();
+        chronon3d::cli::startup_trace().logger_init_ms =
+            chronon3d::profiling::duration_ms(t0, chronon3d::profiling::now());
+    }
+    const auto cli_bootstrap_t0 = chronon3d::profiling::now();
 
 #ifdef CHRONON3D_ENABLE_CRASH_HANDLER
     // Optional dev-mode crash handler.  A library must NOT install signal
@@ -90,9 +101,12 @@ int main(int argc, char** argv) {
     // Register content and built-in compositions into the registry.
     // (CompositionRegistry now starts empty — compositions are added
     //  explicitly via init_compositions()).
+    const auto composition_t0 = chronon3d::profiling::now();
     chronon3d::CompositionRegistry registry;
     chronon3d::AssetRegistry assets;
     chronon3d::cli::init_compositions(registry, assets);
+    chronon3d::cli::startup_trace().composition_registration_ms =
+        chronon3d::profiling::duration_ms(composition_t0, chronon3d::profiling::now());
     int exit_code = 0;
     chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets, cpu_budget};
 
@@ -108,7 +122,14 @@ int main(int argc, char** argv) {
     // (see register_render_commands.cpp) — no argv mutation needed.
 
     try {
+        chronon3d::cli::startup_trace().cli_bootstrap_ms =
+            std::max(0.0, chronon3d::profiling::duration_ms(
+                cli_bootstrap_t0, chronon3d::profiling::now()) -
+                chronon3d::cli::startup_trace().composition_registration_ms);
+        const auto parse_t0 = chronon3d::profiling::now();
         CLI11_PARSE(app, argc, argv);
+        chronon3d::cli::startup_trace().cli_parse_ms =
+            chronon3d::profiling::duration_ms(parse_t0, chronon3d::profiling::now());
     } catch (const CLI::ParseError& e) {
         return app.exit(e);
     }
