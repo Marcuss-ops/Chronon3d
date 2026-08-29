@@ -109,7 +109,6 @@ private:
     const CompositionRegistry& m_registry;
     DaemonOptions m_options;
     std::unique_ptr<RenderEngine> m_engine;
-    std::shared_ptr<SoftwareRenderer> m_warm_renderer;
     std::unordered_map<runtime::DeviceId, std::shared_ptr<SoftwareRenderer>>
         m_device_sessions;
     std::string m_backend{"auto"};
