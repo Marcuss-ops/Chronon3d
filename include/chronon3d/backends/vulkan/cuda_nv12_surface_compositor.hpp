@@ -42,6 +42,10 @@ public:
     CudaNv12SurfaceCompositor(
         const CudaExternalMemoryInfo& target,
         CUcontext context);
+    /// Direct-YUV-only variant.  It owns the CUDA module/stream but no
+    /// Vulkan external surface; direct NV12 batch kernels use linear CUDA
+    /// overlay resources and therefore do not need an RGBA bridge.
+    explicit CudaNv12SurfaceCompositor(CUcontext context);
     ~CudaNv12SurfaceCompositor();
 
     CudaNv12SurfaceCompositor(const CudaNv12SurfaceCompositor&) = delete;

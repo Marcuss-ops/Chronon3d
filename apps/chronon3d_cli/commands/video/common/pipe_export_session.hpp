@@ -57,6 +57,11 @@ struct PipeExportSession {
     // warmup), emitted as the `job.prepare` breakdown in the sidecar.
     runtime::RenderPreparationTimings prepare_timings;
 
+    // Resolver-selected direct NV12 program. Null means the canonical
+    // Vulkan RenderGraph path remains selected.
+    std::shared_ptr<DirectYuvProgram> direct_yuv_program;
+    bool direct_yuv_required_but_unavailable{false};
+
     // Queue + async writer
     RenderFrameQueue<RenderFramePackage> queue;
     FrameInteropRing interop_ring;

@@ -48,7 +48,10 @@ void write_frame_timing_sidecar(
     // `first_frame` deep-dive in the summary.  Sections mirror the
     // architectural boundaries; sub-fields that are not measurable on this
     // path emit JSON null, never a misleading 0.0.
-    const auto build_render_section = [](const chronon3d::telemetry::FrameTelemetry& f) {
+    const auto render_total = [](const chronon3d::telemetry::FrameTelemetry& f) {
+        return f.direct_yuv_decode_ms > 0.0 ? f.direct_yuv_decode_ms : f.graph_eval_ms;
+    };
+    const auto build_render_section = [&render_total](const chronon3d::telemetry::FrameTelemetry& f) {
         return nlohmann::json{
             {"timeline_eval_ms", f.render_breakdown.timeline_eval_ms},
             {"animation_eval_ms", nullptr},
@@ -61,7 +64,8 @@ void write_frame_timing_sidecar(
             {"backend_overhead_ms", f.render_breakdown.backend_overhead_ms},
             {"accounted_cpu_ms", f.render_breakdown.accounted_cpu_ms},
             {"unaccounted_cpu_ms", f.render_breakdown.unaccounted_cpu_ms},
-            {"total_ms", f.graph_eval_ms}
+            {"direct_yuv_decode_ms", f.direct_yuv_decode_ms > 0.0 ? nlohmann::json(f.direct_yuv_decode_ms) : nlohmann::json(nullptr)},
+            {"total_ms", render_total(f)}
         };
     };
     // Pixel conversion decomposed into its architectural boundaries:
@@ -178,7 +182,7 @@ void write_frame_timing_sidecar(
             {"image", build_image_section(frame)},
             {"text", build_text_section(frame)},
             {"cache", build_cache_section(frame)},
-            {"render_ms", frame.graph_eval_ms},
+            {"render_ms", render_total(frame)},
             {"end_to_end_render_thread_ms", frame.duration_ms},
             {"conversion_copy_ms", e ? e->conversion_copy_ms : 0.0},
             {"encoder_ms", e ? e->encoder_ms : 0.0},
@@ -225,7 +229,7 @@ void write_frame_timing_sidecar(
     // realtime_factor is end_to_end_fps / target_fps — how many times faster
     // than realtime the export runs (dashboards love this single number).
     double render_only_ms = 0.0;
-    for (const auto& f : frames) render_only_ms += f.graph_eval_ms;
+    for (const auto& f : frames) render_only_ms += render_total(f);
     const double end_to_end_fps = wall_time_ms > 0.0
         ? (1000.0 * static_cast<double>(count) / wall_time_ms) : 0.0;
     const double render_loop_fps = render_ms > 0.0
@@ -246,7 +250,7 @@ void write_frame_timing_sidecar(
         {"frame", first.frame_number},
         {"wall_duration_ms", first.duration_ms},
         {"queue_wait_ms", first.queue_wait_ms},
-        {"render_total_ms", first.graph_eval_ms},
+        {"render_total_ms", render_total(first)},
         {"render", build_render_section(first)},
         {"conversion", build_conversion_section(first_e)},
         {"encoder", build_encoder_section(first_e)},
@@ -404,7 +408,10 @@ void write_frame_timing_sidecar(
     put_gpu_u64("encode_submit_ms", timings.gpu.encode_submit_ms);
     put_gpu_u64("encode_wait_ms", timings.gpu.encode_wait_ms);
     std::string effective_backend = "unknown";
-    if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
+    if (timings.gpu.cuda_composite_frames && *timings.gpu.cuda_composite_frames > 0 &&
+        (!timings.gpu.gpu_nodes || *timings.gpu.gpu_nodes == 0)) {
+        effective_backend = "direct_yuv_cuda";
+    } else if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
         effective_backend = "vulkan";
     }
     gpu["effective_backend"] = effective_backend;
