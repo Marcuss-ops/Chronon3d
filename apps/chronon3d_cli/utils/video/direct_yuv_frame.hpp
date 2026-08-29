@@ -1,15 +1,12 @@
 #pragma once
 
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
+#include <chronon3d/media/video/cuda_layer_resource.hpp>
 
 #include <memory>
 #include <vector>
 
 struct AVFrame;
-
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
-#endif
 
 namespace chronon3d::cli {
 
@@ -20,7 +17,7 @@ struct DirectYuvFrame {
     std::shared_ptr<AVFrame> decoded;
     runtime::GpuLayerBatch batch;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    std::vector<backends::vulkan::CudaLayerResource> resources;
+    std::vector<media::CudaLayerResource> resources;
 #endif
     std::shared_ptr<void> resources_owner;
 };

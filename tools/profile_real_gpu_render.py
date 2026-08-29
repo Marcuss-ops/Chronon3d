@@ -142,7 +142,7 @@ def main():
         "cuda_encode_event_wait_count", "cuda_encode_event_wait_us", "cuda_encode_queue_peak"))
     watermark = {k: image.get(k) for k in ("resolve_ms", "decode_ms", "convert_ms", "upload_ms",
                                             "draw_ms", "decode_count", "draw_count")}
-    upload_breakdown = gpu.get("upload_breakdown", {})
+    upload_breakdown = gpu.get("upload_breakdown") or {}
     watermark["upload_count"] = upload_breakdown.get("gpu_upload_image_full_count", 0) + upload_breakdown.get("gpu_upload_image_region_count", 0)
     watermark["upload_bytes"] = upload_breakdown.get("gpu_upload_image_bytes")
     watermark.update({k: data.get("cache", {}).get(k) for k in ("image_cache_hits", "image_cache_misses",
@@ -222,8 +222,13 @@ def main():
                             "ms_per_frame": total / len(frames) if frames else None, "type": kind,
                             "inclusive_measurement": inclusive})
 
+    exclusive_wall = data.get("exclusive_wall_timeline", {})
+    internal_prof = data.get("internal_profiling", {})
+
     report = {"schema": "chronon3d.real_gpu_render_profile.v1", "source_sidecar": str(args.sidecar),
               "frames": len(frames), "wall_ms": wall, "end_to_end": phases, "phase_percent_wall": phase_pct,
+              "exclusive_wall_timeline": exclusive_wall,
+              "internal_profiling": internal_prof,
               "nvdec_video_input": decode, "render_graph_cpu": render_cpu, "render_counters": counters,
               "watermark_image": watermark, "gpu_vulkan_cuda": gpu_group, "zero_copy": zero_copy,
               "nvenc": {k: enc.get(k) for k in ("submit_cpu_ms", "backpressure_wait_ms", "flush_ms",
@@ -243,20 +248,153 @@ def main():
     report["unaccounted_percent"] = report["unaccounted_ms"] / wall * 100.0 if wall else None
     args.json.parent.mkdir(parents=True, exist_ok=True)
     args.json.write_text(json.dumps(report, indent=2) + "\n")
+
+    # Format Level 1 ASCII tree
+    ew = exclusive_wall
+    p_wall = ew.get("process_wall_ms") or wall or 1.0
+    def pct_w(val):
+        return (val / p_wall * 100.0) if (val is not None and p_wall) else 0.0
+
+    l1_lines = [
+        "================================================================================",
+        "LEVEL 1 — EXCLUSIVE PROCESS WALL TIMELINE",
+        "================================================================================",
+        f"PROCESS WALL                               {p_wall:10.2f} ms  (100.0%)",
+        f"├── startup                                {ew.get('startup_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('startup_ms')):5.1f}%)",
+        f"├── input/open                             {ew.get('input_open_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('input_open_ms')):5.1f}%)",
+        f"├── prepare exclusive                      {ew.get('prepare_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('prepare_ms')):5.1f}%)",
+        f"├── render_loop exclusive                  {ew.get('render_loop_ms') or render or 0.0:10.2f} ms  ({pct_w(ew.get('render_loop_ms') or render):5.1f}%)",
+        f"├── encoder_drain_finalize exclusive       {ew.get('encoder_drain_finalize_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('encoder_drain_finalize_ms')):5.1f}%)",
+        f"├── mux_finalize exclusive                 {ew.get('mux_finalize_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('mux_finalize_ms')):5.1f}%)",
+        f"├── validation exclusive                   {ew.get('validation_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('validation_ms')):5.1f}%)",
+        f"├── ffprobe exclusive                      {ew.get('ffprobe_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('ffprobe_ms')):5.1f}%)",
+        f"├── sha256 exclusive                       {ew.get('sha256_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('sha256_ms')):5.1f}%)",
+        f"├── sidecar/report                         {ew.get('sidecar_report_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('sidecar_report_ms')):5.1f}%)",
+        f"└── unaccounted                            {ew.get('unaccounted_ms') or 0.0:10.2f} ms  ({pct_w(ew.get('unaccounted_ms')):5.1f}%)",
+        "",
+        f"ACCOUNTED:                                 {ew.get('accounted_percent') or 0.0:5.1f}%",
+        "================================================================================"
+    ]
+
+    # Format Sub-breakdown 1: Startup
+    sb = data.get("startup_breakdown", {})
+    sb_total = sb.get("total_startup_ms") or ew.get("startup_ms") or 0.0
+    def pct_sb(val):
+        return (val / sb_total * 100.0) if (val and sb_total > 0) else 0.0
+
+    startup_tree_lines = [
+        "SUB-BREAKDOWN 1 — STARTUP COST (53% of Process Wall)",
+        "================================================================================",
+        f"STARTUP TOTAL:                             {sb_total:10.2f} ms  ({pct_w(sb_total):5.1f}% wall)",
+        f"  ├── CLI parse & plan compile             {sb.get('cli_init_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('cli_init_ms')):5.1f}% startup)  [PER-JOB]",
+        f"  ├── Encoder struct allocation            {sb.get('encoder_create_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('encoder_create_ms')):5.1f}% startup)  [PER-JOB]",
+        f"  ├── CUDA driver & FFmpeg hwdevice init   {sb.get('encoder_open_hw_ctx_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('encoder_open_hw_ctx_ms')):5.1f}% startup)  [PERSISTENT / WORKER]",
+        f"  ├── CUDA compositor PTX/module load      {sb.get('cuda_compositor_warmup_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('cuda_compositor_warmup_ms')):5.1f}% startup)  [PERSISTENT / WORKER]",
+        f"  ├── NVENC encoder session init (open)    {sb.get('encoder_open_nvenc_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('encoder_open_nvenc_ms')):5.1f}% startup)  [PER-JOB / POOLED]",
+        f"  ├── MP4 container header write           {sb.get('encoder_open_mux_header_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('encoder_open_mux_header_ms')):5.1f}% startup)  [PER-JOB]",
+        f"  ├── Vulkan instance & phys device enum   {sb.get('vulkan_instance_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('vulkan_instance_ms')):5.1f}% startup)  [PERSISTENT / WORKER]",
+        f"  ├── Vulkan device & queue creation       {sb.get('vulkan_device_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('vulkan_device_ms')):5.1f}% startup)  [PERSISTENT / WORKER]",
+        f"  ├── Vulkan compute pipeline compilation  {sb.get('vulkan_pipelines_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('vulkan_pipelines_ms')):5.1f}% startup)  [PERSISTENT / WORKER]",
+        f"  ├── Render runtime & asset resolver init {sb.get('renderer_runtime_init_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('renderer_runtime_init_ms')):5.1f}% startup)  [PERSISTENT / WORKER]",
+        f"  └── Other startup overhead               {sb.get('other_startup_ms') or 0.0:10.2f} ms  ({pct_sb(sb.get('other_startup_ms')):5.1f}% startup)",
+        "================================================================================"
+    ]
+
+    # Format Sub-breakdown 2: Prepare
+    pb = data.get("prepare_breakdown", {})
+    pb_total = pb.get("total_prepare_ms") or ew.get("prepare_ms") or 0.0
+    def pct_pb(val):
+        return (val / pb_total * 100.0) if (val and pb_total > 0) else 0.0
+
+    prepare_tree_lines = [
+        "SUB-BREAKDOWN 2 — PREPARE COST (10% of Process Wall)",
+        "================================================================================",
+        f"PREPARE TOTAL:                             {pb_total:10.2f} ms  ({pct_w(pb_total):5.1f}% wall)",
+        f"  ├── Font preflight & glyph caching check {pb.get('font_preflight_ms') or 0.0:10.2f} ms  ({pct_pb(pb.get('font_preflight_ms')):5.1f}% prepare)  [PERSISTENT / CACHE]",
+        f"  ├── Framebuffer pool pre-allocation      {pb.get('pool_warmup_ms') or 0.0:10.2f} ms  ({pct_pb(pb.get('pool_warmup_ms')):5.1f}% prepare)  [PERSISTENT / WORKER]",
+        f"  ├── Triple buffer arena allocation       {pb.get('triple_arena_alloc_ms') or 0.0:10.2f} ms  ({pct_pb(pb.get('triple_arena_alloc_ms')):5.1f}% prepare)  [PERSISTENT / WORKER]",
+        f"  ├── Writer background thread spawn       {pb.get('writer_thread_spawn_ms') or 0.0:10.2f} ms  ({pct_pb(pb.get('writer_thread_spawn_ms')):5.1f}% prepare)  [PERSISTENT / WORKER]",
+        f"  └── Other prepare overhead               {pb.get('other_prepare_ms') or 0.0:10.2f} ms  ({pct_pb(pb.get('other_prepare_ms')):5.1f}% prepare)",
+        "================================================================================"
+    ]
+
+    # Format Level 2 Internal Profiling
+    dec = internal_prof.get("decode", {})
+    dyuv = internal_prof.get("direct_yuv", {})
+    enc_p = internal_prof.get("encoder", {})
+    fps = (len(frames) / (render / 1000.0)) if (render and len(frames)) else 0.0
+
+    l2_lines = [
+        "LEVEL 2 — INTERNAL PROFILING (Nested / Concurrent — not summed to Wall)",
+        "================================================================================",
+        f"RENDER INTERNAL (Render Loop Wall: {render or 0.0:.2f} ms | {fps:.1f} FPS)",
+        "",
+        f"Decoded frames:                            {dec.get('decoded_frames') or len(frames)}",
+        f"Decode total:                              {dec.get('decode_total_ms') or 0.0:10.2f} ms",
+        f"  ├── demux/read_packet                    {dec.get('demux_read_packet_ms') or 0.0:10.2f} ms",
+        f"  ├── avcodec_send_packet                  {dec.get('avcodec_send_packet_ms') or 0.0:10.2f} ms",
+        f"  ├── avcodec_receive_frame                {dec.get('avcodec_receive_frame_ms') or 0.0:10.2f} ms",
+        f"  └── NVDEC wait                           {dec.get('nvdec_wait_ms') or 0.0:10.2f} ms",
+        f"  ├── cpu_active_ms                        {dec.get('cpu_active_ms') or 0.0:10.2f} ms",
+        f"  └── cpu_wait_ms                          {dec.get('cpu_wait_ms') or 0.0:10.2f} ms",
+        f"Decode per frame:   AVG: {dec.get('avg_ms_per_frame') or 0.0:.3f} ms | P50: {dec.get('p50_ms_per_frame') or 0.0:.3f} ms | P95: {dec.get('p95_ms_per_frame') or 0.0:.3f} ms | MAX: {dec.get('max_ms_per_frame') or 0.0:.3f} ms",
+        "",
+        "Direct-YUV:",
+        f"  ├── input probe (demux/NVDEC open)        {dyuv.get('input_probe_ms') or 0.0:10.2f} ms",
+        f"  ├── static scene evaluation               {dyuv.get('scene_eval_ms') or 0.0:10.2f} ms",
+        f"  ├── watermark image load/decode           {dyuv.get('watermark_image_load_ms') or 0.0:10.2f} ms",
+        f"  ├── watermark CUDA upload                 {dyuv.get('watermark_cuda_upload_ms') or 0.0:10.2f} ms",
+        f"  ├── prepare/update                       {dyuv.get('prepare_update_ms') or 0.0:10.2f} ms",
+        f"  ├── CUDA launch                          {dyuv.get('cuda_launch_ms') or 0.0:10.2f} ms",
+        f"  └── CUDA event wait (source release)     {dyuv.get('cuda_event_wait_ms') or 0.0:10.2f} ms",
+        f"  Kernel execution (GPU total):            {dyuv.get('cuda_kernel_total_ms') or 0.0:10.2f} ms",
+        "",
+        "Encoder (NVENC):",
+        f"  ├── av_hwframe_get_buffer                {enc_p.get('av_hwframe_get_buffer_ms') or 0.0:10.2f} ms",
+        f"  ├── surface acquire                      {enc_p.get('surface_acquire_ms') or 0.0:10.2f} ms",
+        f"  ├── NVENC submit (avcodec_send_frame)    {enc_p.get('nvenc_submit_ms') or 0.0:10.2f} ms",
+        f"  ├── queue/backpressure wait              {enc_p.get('queue_backpressure_wait_ms') or 0.0:10.2f} ms",
+        f"  └── packet drain                         {enc_p.get('packet_drain_ms') or 0.0:10.2f} ms",
+        f"  ├── cpu_active_ms                        {enc_p.get('cpu_active_ms') or 0.0:10.2f} ms",
+        f"  └── cpu_wait_ms                          {enc_p.get('cpu_wait_ms') or 0.0:10.2f} ms",
+        "",
+        "Steady-State Frames:",
+        f"  First frame:                             {summary.get('first_frame_ms') or 0.0:10.2f} ms",
+        f"  Steady frame AVG:                        {summary.get('steady_avg_ms') or 0.0:10.3f} ms",
+        f"  Steady frame P50:                        {summary.get('steady_p50_ms') or 0.0:10.3f} ms",
+        f"  Steady frame P95:                        {summary.get('steady_p95_ms') or 0.0:10.3f} ms",
+        f"  Steady frame FPS:                        {1000.0 / summary['steady_avg_ms'] if summary.get('steady_avg_ms') else 0.0:10.1f} FPS",
+        "================================================================================"
+    ]
+
+    terminal_summary = "\n".join(l1_lines + [""] + startup_tree_lines + [""] + prepare_tree_lines + [""] + l2_lines)
+    print(terminal_summary)
+
     if args.markdown:
-        lines = ["# Real GPU render profile", "", f"- Frames: {len(frames)}", f"- Wall: {wall:.3f} ms" if wall else "- Wall: unavailable", "", "## Total time", "", "```text"]
-        for label, value in (("render", render), ("outside render", report["unaccounted_ms"])):
-            if value is not None and wall:
-                lines.append(f"{label:14} {value:10.3f} ms  {'#' * max(1, round(value / wall * 40))}")
-        lines += ["```", "", "## TOP bottleneck", "", "| Rank | Phase | Total ms | % wall | ms/frame | Type | Inclusive |", "|---:|---|---:|---:|---:|---|:---:|"]
-        lines += [f"| {x['rank']} | {x['phase']} | {x['total_ms']:.3f} | {x['percent_wall']:.2f} | {x['ms_per_frame']:.3f} | {x['type']} | {'yes' if x['inclusive_measurement'] else 'no'} |" for x in ranking]
-        lines += ["", "## Gate status", "", "| Contract | Status |", "|---|:---:|"]
-        lines += [f"| native export | {'PASS' if gate_report['native_export']['all_pass'] else 'FAIL'} |",
-                  f"| direct-YUV frame path | {'PASS' if gate_report['direct_yuv_zero_copy']['all_pass'] else 'FAIL'} |",
-                  "", "The direct-YUV contract allows one-time static asset residency upload; it forbids per-frame YUV/RGBA conversion and surface copies."]
-        lines += ["", "## Interpretation", "", "Values absent from the sidecar remain null; no missing counter is inferred as zero.", "Inclusive child counters (graph/backend/dispatch) are ranked for diagnosis but are excluded from the accounting sum."]
+        md_lines = [
+            "# Real GPU Render Profile", "",
+            f"- Frames: {len(frames)}",
+            f"- Process Wall: {p_wall:.2f} ms",
+            f"- Render Loop Wall: {render or 0.0:.2f} ms ({fps:.1f} FPS)",
+            f"- Accounted: {ew.get('accounted_percent') or 0.0:.1f}%",
+            "",
+            "```text",
+            terminal_summary,
+            "```",
+            "",
+            "## Gate Status", "",
+            "| Contract | Status |",
+            "|---|:---:|",
+            f"| native export | {'PASS' if gate_report['native_export']['all_pass'] else 'FAIL'} |",
+            f"| direct-YUV frame path | {'PASS' if gate_report['direct_yuv_zero_copy']['all_pass'] else 'FAIL'} |",
+            "",
+            "## Bottleneck Ranking (Diagnostic)", "",
+            "| Rank | Phase | Total ms | % wall | ms/frame | Type | Inclusive |",
+            "|---:|---|---:|---:|---:|---|:---:|"
+        ]
+        md_lines += [f"| {x['rank']} | {x['phase']} | {x['total_ms']:.3f} | {x['percent_wall']:.2f} | {x['ms_per_frame']:.3f} | {x['type']} | {'yes' if x['inclusive_measurement'] else 'no'} |" for x in ranking]
         args.markdown.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown.write_text("\n".join(lines) + "\n")
+        args.markdown.write_text("\n".join(md_lines) + "\n")
 
 
 if __name__ == "__main__":

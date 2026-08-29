@@ -320,7 +320,7 @@ struct EncodeOutcome {
     // push: the caller must release the arena and mark render-failed (see
     // the require_native_gpu branch of the encode stage).
     bool source_residency_failed{false};
-    RenderFramePackage package;
+    FullGraphFramePackage package;
     double wait_ms{0.0};
     uint64_t node_cache_hits_after{0};
 };
@@ -419,7 +419,7 @@ EncodeOutcome encode_frame(
             }
         }
     }
-    out.package = RenderFramePackage{
+    out.package = FullGraphFramePackage{
         .frame_number = current_frame,
         .framebuffer = std::move(fb),
         .arena = std::move(current_arena),
@@ -432,7 +432,8 @@ EncodeOutcome encode_frame(
         .native_surface_ready = prep.native_surface != runtime::kInvalidRenderSurfaceHandle};
     ++status.frames_rendered;
 
-    out.pushed = ctx.queue.push(out.package, ctx.opts.cancellation_token);
+    RenderFramePackage queue_package = out.package;
+    out.pushed = ctx.queue.push(queue_package, ctx.opts.cancellation_token);
     const auto wait_t1 = profiling::now();
     out.wait_ms = profiling::duration_ms(wait_t0, wait_t1);
 
@@ -469,6 +470,93 @@ void finalize_render_session(PipeExportStatus& status, Frame current_frame, Fram
 
 } // namespace
 
+RenderLoopOutput run_direct_yuv_loop(
+    PipeExportSession& session,
+    media::NativeVideoFrameDecoder& decoder,
+    Frame start,
+    Frame end,
+    const FfmpegExportOptions& opts) {
+    RenderLoopOutput output;
+    auto& result = output.loop_result;
+    auto& status = result.status;
+    const int total = static_cast<int>(end - start);
+    Frame current_frame = start;
+    const auto loop_t0 = profiling::now();
+    output.telemetry_frames.reserve(total > 0 ? static_cast<std::size_t>(total) : 0U);
+
+    try {
+        for (; current_frame < end; ++current_frame) {
+            if (opts.cancellation_token && opts.cancellation_token->is_cancelled()) {
+                mark_pipe_cancelled(status, current_frame);
+                break;
+            }
+            if (session.writer_failed.load(std::memory_order_relaxed)) {
+                mark_pipe_writer_failed(status, current_frame);
+                break;
+            }
+
+            const auto direct_t0 = profiling::now();
+            auto direct_frame = session.direct_yuv_selected()
+                ? session.direct_yuv_session->program->execute(decoder, current_frame)
+                : nullptr;
+            const auto direct_t1 = profiling::now();
+            const double frame_ms = profiling::duration_ms(direct_t0, direct_t1);
+            result.direct_yuv_execute_ms += frame_ms;
+            ++status.frames_rendered;
+            if (!direct_frame) {
+                mark_pipe_render_failed(status, current_frame);
+                break;
+            }
+
+            RenderFramePackage package = DirectYuvFramePackage{
+                .frame_number = current_frame,
+                .direct_yuv = std::move(direct_frame)};
+            const auto queue_t0 = profiling::now();
+            const bool pushed = session.queue.push(package, opts.cancellation_token);
+            const double wait_ms = profiling::duration_ms(queue_t0, profiling::now());
+            result.queue_wait_ms += wait_ms;
+            session.direct_yuv_session->counters.io_queue_push_wait_ms.fetch_add(
+                static_cast<std::uint64_t>(wait_ms), std::memory_order_relaxed);
+            if (!pushed) {
+                if (session.writer_failed.load(std::memory_order_relaxed))
+                    mark_pipe_writer_failed(status, current_frame);
+                else
+                    mark_pipe_render_failed(status, current_frame);
+                break;
+            }
+            ++status.frames_enqueued;
+            output.telemetry_frames.push_back({
+                .frame_number = static_cast<int>(current_frame),
+                .wall_start_ms = profiling::duration_ms(loop_t0, direct_t0),
+                .duration_ms = frame_ms + wait_ms,
+                .cache_hit = true,
+                .dirty_area_ratio = 0.0,
+                .node_lookup_ms = 0.0,
+                .graph_eval_ms = 0.0,
+                .direct_yuv_decode_ms = frame_ms,
+                .queue_wait_ms = wait_ms,
+                .render_breakdown = {},
+                .image_timing = {},
+                .text_timing = {},
+                .dirty_rect_enabled = false,
+                .dirty_rect_x0 = 0,
+                .dirty_rect_y0 = 0,
+                .dirty_rect_x1 = 0,
+                .dirty_rect_y1 = 0,
+                .tile_execution_used = false,
+                .fast_path_reused = true,
+                .graph_reused = true,
+                .program_cache_capacity = 1});
+        }
+    } catch (const std::exception& error) {
+        mark_pipe_exception(status, current_frame, error);
+    }
+    finalize_render_session(status, current_frame, end);
+    output.render_end = profiling::now();
+    output.render_ms = profiling::duration_ms(loop_t0, output.render_end);
+    return output;
+}
+
 // ── Render loop ─────────────────────────────────────────────────────────────
 
 RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
@@ -497,73 +585,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 spdlog::info("[video]   {}/{} frames", done_count, total);
             }
 
-            auto current_arena = ctx.triple_arena.acquire();
-            // P1-20 — sw_renderer is a non-nullable reference; no null check.
+            auto current_arena = ctx.triple_arena->acquire();
             ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
-
-            if (ctx.direct_yuv_program) {
-                auto* native_decoder =
-                    dynamic_cast<media::NativeVideoFrameDecoder*>(ctx.video_decoder);
-                const auto direct_t0 = profiling::now();
-                auto direct_frame = native_decoder
-                    ? ctx.direct_yuv_program->execute(*native_decoder, current_frame)
-                    : nullptr;
-                const auto direct_t1 = profiling::now();
-                const double frame_ms = profiling::duration_ms(direct_t0, direct_t1);
-                result.render_graph_eval_ms += frame_ms;
-                if (!direct_frame) {
-                    ctx.triple_arena.release(current_arena);
-                    mark_pipe_render_failed(status, current_frame);
-                    break;
-                }
-
-                RenderFramePackage package;
-                package.frame_number = current_frame;
-                package.arena = std::move(current_arena);
-                package.direct_yuv = std::move(direct_frame);
-                const auto queue_t0 = profiling::now();
-                const bool pushed = ctx.queue.push(
-                    package, ctx.opts.cancellation_token);
-                const double wait_ms = profiling::duration_ms(
-                    queue_t0, profiling::now());
-                result.queue_wait_ms += wait_ms;
-                ++status.frames_rendered;
-                if (!pushed) {
-                    ctx.triple_arena.release(std::move(package.arena));
-                    if (ctx.writer_failed.load()) mark_pipe_writer_failed(status, current_frame);
-                    else mark_pipe_render_failed(status, current_frame);
-                    break;
-                }
-                ++status.frames_enqueued;
-                ctx.telemetry_frames.push_back({
-                    .frame_number = static_cast<int>(current_frame),
-                    .wall_start_ms = profiling::duration_ms(loop_t0, direct_t0),
-                    .duration_ms = frame_ms + wait_ms,
-                    .cache_hit = true,
-                    .dirty_area_ratio = 0.0,
-                    .node_lookup_ms = 0.0,
-                    .graph_eval_ms = 0.0,
-                    .direct_yuv_decode_ms = frame_ms,
-                    .queue_wait_ms = wait_ms,
-                    .render_breakdown = {},
-                    .image_timing = {},
-                    .text_timing = {},
-                    .dirty_rect_enabled = false,
-                    .dirty_rect_x0 = 0,
-                    .dirty_rect_y0 = 0,
-                    .dirty_rect_x1 = 0,
-                    .dirty_rect_y1 = 0,
-                    .tile_execution_used = false,
-                    .fast_path_reused = true,
-                    .graph_reused = true,
-                    .program_cache_capacity = 1
-                });
-                if (ctx.writer_failed.load()) {
-                    mark_pipe_writer_failed(status, current_frame);
-                    break;
-                }
-                continue;
-            }
 
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
@@ -585,7 +608,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             if (!shot.fb) {
-                ctx.triple_arena.release(current_arena);
+                ctx.triple_arena->release(current_arena);
                 if (ctx.opts.cancellation_token &&
                     ctx.opts.cancellation_token->is_cancelled()) {
                     mark_pipe_cancelled(status, current_frame);
@@ -621,7 +644,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             const double wait_ms = enc.wait_ms;
 
             if (enc.source_residency_failed) {
-                ctx.triple_arena.release(current_arena);
+                ctx.triple_arena->release(current_arena);
                 mark_pipe_render_failed(status, current_frame);
                 break;
             }
@@ -637,7 +660,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                            ctx.opts.cancellation_token->is_cancelled()) {
                     mark_pipe_cancelled(status, current_frame);
                 }
-                ctx.triple_arena.release(arena);
+            ctx.triple_arena->release(arena);
                 ctx.interop_ring.release(enc.package.interop_slot);
                 break;
             }

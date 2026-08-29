@@ -20,6 +20,25 @@ if(CHRONON3D_ENABLE_SVG)
 endif()
 add_library(chronon3d_assets OBJECT ${CHRONON3D_ASSET_SOURCES})
 set_target_properties(chronon3d_assets PROPERTIES UNITY_BUILD OFF)
+
+# Use the platform's optimized SHA-256 implementation for artifact hashing
+# when OpenSSL is available.  The source retains a small portable fallback so
+# asset hashing remains available on builds without OpenSSL.
+find_package(OpenSSL QUIET COMPONENTS Crypto)
+if(OpenSSL_FOUND)
+    target_compile_definitions(chronon3d_assets PRIVATE CHRONON3D_HAS_OPENSSL_SHA256=1)
+    target_link_libraries(chronon3d_assets PRIVATE OpenSSL::Crypto)
+else()
+    # Some minimal GPU/worker images ship libcrypto without the development
+    # headers.  EVP is a stable C ABI, so use the runtime library directly in
+    # that environment instead of falling back to the debug scalar SHA code.
+    find_library(CHRONON3D_CRYPTO_LIBRARY
+        NAMES crypto libcrypto.so.3 libcrypto.so)
+    if(CHRONON3D_CRYPTO_LIBRARY)
+        target_compile_definitions(chronon3d_assets PRIVATE CHRONON3D_HAS_OPENSSL_SHA256=1)
+        target_link_libraries(chronon3d_assets PRIVATE "${CHRONON3D_CRYPTO_LIBRARY}")
+    endif()
+endif()
 set_source_files_properties(prepared_asset_manifest.cpp PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON)
 if(CHRONON3D_ENABLE_SVG)

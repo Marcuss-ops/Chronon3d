@@ -1,11 +1,16 @@
 #pragma once
 
 #include "pipe_export_types.hpp"
+#include "pipe_startup_breakdown.hpp"
 #include "video_export_common.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <spdlog/spdlog.h>
@@ -19,14 +24,47 @@
 
 namespace chronon3d::cli {
 
+/// State owned exclusively by the Direct-YUV execution mode.  Keeping this
+/// state together makes the mode boundary explicit: the direct path owns
+/// only its program, asset cache and counters, never renderer resources.
+struct DirectYuvSession {
+    std::shared_ptr<DirectYuvProgram> program;
+    RenderCounters counters;
+    std::unique_ptr<assets::AssetResolver> asset_resolver;
+    std::unique_ptr<ImageCache> image_cache;
+    std::shared_ptr<image::ImageBackend> image_backend;
+    bool required_but_unavailable{false};
+};
+
+/// Resources that exist only for FullGraph execution.  A DirectYuvSession
+/// never constructs this object, so renderer/Vulkan surface lifetime cannot
+/// accidentally leak into the direct execution mode.
+struct FullGraphSession {
+    std::shared_ptr<SoftwareRenderer> renderer;
+    FrameInteropRing interop_ring;
+    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
+        native_encode_surfaces{};
+    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
+        native_source_surfaces{};
+    std::unique_ptr<TripleBufferArena> triple_arena;
+
+    FullGraphSession() : interop_ring(FrameInteropRing::kSlotCount) {
+        native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+        native_source_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+    }
+};
+
 // ── PipeExportSession: intermediate state for the pipeline ───────────────────
 
 struct PipeExportSession {
     // Encoder
     std::unique_ptr<IVideoEncoder> encoder;
 
-    // Renderer
-    std::shared_ptr<SoftwareRenderer> renderer;
+    // Execution-mode state. Exactly one mode is created by the resolver.
+    std::unique_ptr<FullGraphSession> full_graph_session;
+    std::unique_ptr<DirectYuvSession> direct_yuv_session;
+
+    // Renderer is retained only through FullGraphSession.
     // Kept alive through encoder close: the decoder's CUDA/Vulkan import
     // session may still have external-semaphore work ordered behind the
     // native encoder drain.
@@ -47,6 +85,11 @@ struct PipeExportSession {
     // frame-timing sidecar can report engine_init_ms vs backend_init_ms.
     double engine_init_ms{0.0};
     double backend_init_ms{0.0};
+    double startup_ms{0.0};
+    double input_open_ms{0.0};
+    double setup_prepare_ms{0.0};
+    StartupBreakdown startup_breakdown;
+    PrepareBreakdown prepare_breakdown;
 
     // Trace correlation: stable per-job id synthesized at session setup and
     // shared by the render loop, the decoder and the writer thread so every
@@ -57,20 +100,20 @@ struct PipeExportSession {
     // warmup), emitted as the `job.prepare` breakdown in the sidecar.
     runtime::RenderPreparationTimings prepare_timings;
 
-    // Resolver-selected direct NV12 program. Null means the canonical
-    // Vulkan RenderGraph path remains selected.
-    std::shared_ptr<DirectYuvProgram> direct_yuv_program;
-    bool direct_yuv_required_but_unavailable{false};
+    [[nodiscard]] bool direct_yuv_selected() const noexcept {
+        return direct_yuv_session && direct_yuv_session->program;
+    }
+
+    [[nodiscard]] SoftwareRenderer* renderer_ptr() noexcept {
+        return full_graph_session ? full_graph_session->renderer.get() : nullptr;
+    }
+    [[nodiscard]] const SoftwareRenderer* renderer_ptr() const noexcept {
+        return full_graph_session ? full_graph_session->renderer.get() : nullptr;
+    }
 
     // Queue + async writer
     RenderFrameQueue<RenderFramePackage> queue;
-    FrameInteropRing interop_ring;
-    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
-        native_encode_surfaces{};
-    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
-        native_source_surfaces{};
     std::atomic<bool> writer_failed{false};
-    std::unique_ptr<TripleBufferArena> triple_arena;
     std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
     std::thread writer_thread;
     std::atomic<uint64_t> writer_encode_us_total{0};
@@ -86,9 +129,7 @@ struct PipeExportSession {
     // Transitively: PipeExportSession's implicit copy/move ops are deleted (the
     // queue's mutex/cv forbid them), tolerated by unique_ptr-holding + reference-only call sites.
     explicit PipeExportSession(size_t queue_capacity)
-        : queue(queue_capacity), interop_ring(FrameInteropRing::kSlotCount) {
-        native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
-        native_source_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+        : queue(queue_capacity) {
     }
 
     // ── P1-B safety: never destroy a joinable writer thread ─────────────
@@ -102,12 +143,12 @@ struct PipeExportSession {
     // path (run_pipe_export_loop already closes + joins).
     ~PipeExportSession() {
         queue.close();
-        interop_ring.close();
+        if (full_graph_session) full_graph_session->interop_ring.close();
         if (writer_thread.joinable()) {
             writer_thread.join();
         }
         native_decoder.reset();
-        renderer.reset();
+        full_graph_session.reset();
         encoder.reset();
     }
 };

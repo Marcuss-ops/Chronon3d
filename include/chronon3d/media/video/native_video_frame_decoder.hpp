@@ -88,6 +88,9 @@ public:
         std::shared_ptr<NativeFrameImporter> importer) override {
         m_native_importer = std::move(importer);
     }
+    void set_shared_cuda_context(void* ctx) {
+        m_shared_cuda_context = ctx;
+    }
     void set_gpu_hot_path_mode(GpuHotPathMode mode) override {
         m_gpu_hot_path_mode = mode;
     }
@@ -125,6 +128,20 @@ public:
 
     std::shared_ptr<Framebuffer> try_native_frame(
         Session& session, AVFrame* frame);
+
+    struct DecodeProfilingStats {
+        uint64_t decoded_frames{0};
+        double container_open_ms{0.0};
+        double stream_probe_ms{0.0};
+        double decoder_open_ms{0.0};
+        double demux_read_packet_ms{0.0};
+        double avcodec_send_packet_ms{0.0};
+        double avcodec_receive_frame_ms{0.0};
+        double nvdec_wait_ms{0.0};
+        double decode_total_ms{0.0};
+        std::vector<double> frame_durations_ms;
+    };
+    [[nodiscard]] DecodeProfilingStats decode_profiling_stats() const;
 
 private:
     struct Session {
@@ -172,7 +189,9 @@ private:
         // direct-native request and never changes the ordinary graph path.
         bool capture_native_frame{false};
         std::shared_ptr<AVFrame> captured_native_frame;
+        std::shared_ptr<AVFrame> eof_captured_native_frame;
         bool direct_prefetch_disabled{false};
+        DecodeProfilingStats profiling;
 
         ~Session();
         void start_prefetch_worker(NativeVideoFrameDecoder* decoder);
@@ -181,6 +200,7 @@ private:
     std::mutex m_mutex;
     RenderCounters* m_counters{nullptr};
     std::shared_ptr<NativeFrameImporter> m_native_importer;
+    void* m_shared_cuda_context{nullptr};
     GpuHotPathMode m_gpu_hot_path_mode{GpuHotPathMode::Auto};
     std::atomic<std::uint64_t> m_trace_job_id{0};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;

@@ -1,5 +1,7 @@
 #include "vulkan_cuda_frame_importer.hpp"
 
+#include <chronon3d/media/video/native_frame_importer_factory.hpp>
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
 #include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
@@ -158,6 +160,21 @@ VulkanCudaFrameImporter::create_session() {
 
 } // namespace chronon3d::backends::vulkan
 
+namespace chronon3d::media {
+
+std::shared_ptr<NativeFrameImporter>
+create_native_frame_importer_for_backend(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceRegistry& registry,
+    void* cuda_context) {
+    auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
+    if (!vulkan || !cuda_context) return nullptr;
+    return std::make_shared<backends::vulkan::VulkanCudaFrameImporter>(
+        *vulkan, registry, reinterpret_cast<CUcontext>(cuda_context));
+}
+
+} // namespace chronon3d::media
+
 #else
 
 namespace chronon3d::backends::vulkan {
@@ -168,5 +185,13 @@ VulkanCudaFrameImporter::VulkanCudaFrameImporter(
 std::unique_ptr<media::NativeFrameImportSession>
 VulkanCudaFrameImporter::create_session() { return nullptr; }
 } // namespace chronon3d::backends::vulkan
+
+namespace chronon3d::media {
+std::shared_ptr<NativeFrameImporter>
+create_native_frame_importer_for_backend(
+    graph::RenderBackend&, runtime::RenderSurfaceRegistry&, void*) {
+    return nullptr;
+}
+} // namespace chronon3d::media
 
 #endif

@@ -4,6 +4,7 @@
 
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
+#include <chronon3d/media/video/cuda_layer_resource.hpp>
 #include <chronon3d/backends/vulkan/cuda_yuv_conversion.hpp>
 
 #include <cuda.h>
@@ -23,12 +24,7 @@ enum class CudaYuvFormat : std::uint8_t {
 /// `rgba` points to device-local float4 pixels; no host pixel storage is
 /// involved in the direct YUV path.  The table is indexed by
 /// LayerInstance::resource_index.
-struct CudaLayerResource {
-    CUdeviceptr rgba{0};
-    int pitch_bytes{0};
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-};
+using CudaLayerResource = ::chronon3d::media::CudaLayerResource;
 
 /// Owns CUDA kernels for NV12/RGBA interop without host staging. The bridge
 /// imports one Vulkan RGBA surface and owns the external memory/semaphore

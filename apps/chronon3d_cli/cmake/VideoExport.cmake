@@ -64,13 +64,8 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
             "CHRONON3D_NVRTC_ARCHITECTURE must be compute_<capability>, got: "
             "${CHRONON3D_NVRTC_ARCHITECTURE}")
     endif()
-    # Vulkan owns the single CUDA/NVRTC discovery layer. Reuse its resolved
-    # paths here so the CLI cannot silently select a different toolkit.
-    if(NOT TARGET chronon3d_backend_vulkan)
-        message(FATAL_ERROR
-            "CUDA interop requires CHRONON3D_ENABLE_VULKAN so the Vulkan "
-            "backend can provide the canonical CUDA discovery")
-    endif()
+    # CUDA/NVRTC discovery is owned by the media CUDA layer. Vulkan is only
+    # needed by the optional FullGraph native-surface path.
     set(CHRONON3D_CUDA_INCLUDE_DIR_CLI "${CHRONON3D_CUDA_INCLUDE_DIR}")
     set(CHRONON3D_NVRTC_INCLUDE_DIR_CLI "${CHRONON3D_NVRTC_INCLUDE_DIR}")
     set(CHRONON3D_CUDA_DRIVER_LIBRARY_CLI "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
@@ -93,8 +88,12 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_include_directories(chronon3d_cli_render PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
     target_link_libraries(chronon3d_cli_video_export PRIVATE
-        chronon3d_backend_vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}"
+        "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}"
         "${CHRONON3D_NVRTC_LIBRARY_CLI}")
+    if(TARGET chronon3d_backend_vulkan)
+        target_link_libraries(chronon3d_cli_video_export PRIVATE
+            chronon3d_backend_vulkan)
+    endif()
     target_compile_definitions(chronon3d_cli_video_export PRIVATE
         CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
     # The compositor implementation is compiled into the media library, not
@@ -111,7 +110,6 @@ endif()
 target_sources(chronon3d_cli_render PRIVATE
     commands/video/common/video_export_common.cpp
     commands/video/exporters/video_export_pipe.cpp
-    commands/video/exporters/video_export_chunked.cpp
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp
     utils/video/video_job_execute.cpp

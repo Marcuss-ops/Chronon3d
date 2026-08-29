@@ -1,4 +1,6 @@
 #pragma once
+#ifndef CHRONON3D_CLI_VIDEO_EXPORT_COMMON_HPP
+#define CHRONON3D_CLI_VIDEO_EXPORT_COMMON_HPP
 
 #include "../../../commands.hpp"
 #include "../../../utils/job/cli_render_utils.hpp"
@@ -88,7 +90,8 @@ struct FfmpegExportOptions {
 // render_and_encode_ffmpeg_pipe() is declared in pipe_export_pipeline.hpp
 // and returns PipeExportResult (boundary model with all status/timing data).
 
-/// Result boundary model for chunked export (PNG frames → ffmpeg encode).
+// Kept for the standalone legacy exporter source, which is intentionally not
+// part of the CLI video target anymore.
 struct ChunkedExportResult {
     int return_code{1};
     bool success{false};
@@ -161,3 +164,5 @@ inline Scene evaluate_video_scene(
 
 
 } // namespace chronon3d::cli
+
+#endif // CHRONON3D_CLI_VIDEO_EXPORT_COMMON_HPP
