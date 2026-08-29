@@ -39,6 +39,21 @@ struct ContentDigest {
 [[nodiscard]] std::optional<ContentDigest> sha256_file(
     const std::filesystem::path& path);
 
+/// Process-persistent digest cache counters. The cache is shared by all
+/// execution modes in a worker; counters are cumulative for the process and
+/// are intended for startup/preflight telemetry and tests.
+struct AssetDigestCacheStats {
+    std::uint64_t hits{0};
+    std::uint64_t misses{0};
+    std::uint64_t invalidations{0};
+    std::uint64_t bytes_hashed{0};
+    double cache_lookup_ms{0.0};
+    double cache_write_ms{0.0};
+    double full_hash_ms{0.0};
+};
+
+[[nodiscard]] AssetDigestCacheStats asset_digest_cache_stats();
+
 enum class PreparedAssetKind : std::uint8_t {
     Image,
     Video,

@@ -14,8 +14,14 @@
 #include <sstream>
 #include <string>
 #include <limits>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
 #include <spdlog/spdlog.h>
+
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#endif
 
 namespace chronon3d::assets {
 namespace {
@@ -265,28 +271,132 @@ struct RequestedAsset {
         return error(AssetPreflightErrorCode::AssetTooLarge, std::move(logical_path),
                      "asset exceeds the configured single-asset limit");
 
-    std::ifstream input(path, std::ios::binary);
-    if (!input)
-        return error(AssetPreflightErrorCode::ReadFailed, std::move(logical_path),
-                     "asset could not be opened for hashing");
-    Sha256 sha;
-    std::array<char, 64U * 1024U> buffer{};
-    std::uint64_t read_size = 0;
-    while (input) {
-        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        const auto count = input.gcount();
-        if (count <= 0) break;
-        const auto bytes = static_cast<std::uint64_t>(count);
-        if (read_size > max_size || bytes > max_size - read_size)
-            return error(AssetPreflightErrorCode::AssetTooLarge, std::move(logical_path),
-                         "asset exceeds the configured single-asset limit while reading");
-        sha.update(buffer.data(), static_cast<std::size_t>(count));
-        read_size += bytes;
-    }
-    if (input.bad() || read_size != expected_size)
+    // Keep the manifest and artifact hashing paths on the same optimized
+    // implementation.  The old local 64 KiB scalar SHA implementation made
+    // a 13 MiB video take seconds to preflight even when OpenSSL was already
+    // available for output verification.
+    const auto digest = sha256_file(path);
+    if (!digest)
         return error(AssetPreflightErrorCode::HashFailed, std::move(logical_path),
                      "asset changed or failed while hashing");
-    return sha.finish();
+    std::error_code size_ec;
+    const auto actual_size = std::filesystem::file_size(path, size_ec);
+    if (size_ec || actual_size != expected_size || actual_size > max_size)
+        return error(AssetPreflightErrorCode::HashFailed, std::move(logical_path),
+                     "asset changed or failed while hashing");
+    return *digest;
+}
+
+struct FileIdentity {
+    std::uint64_t device{0};
+    std::uint64_t inode{0};
+
+    friend bool operator==(const FileIdentity&, const FileIdentity&) = default;
+};
+
+[[nodiscard]] FileIdentity file_identity(const std::filesystem::path& path) {
+#if !defined(_WIN32)
+    struct stat info {};
+    if (::stat(path.c_str(), &info) == 0) {
+        return {static_cast<std::uint64_t>(info.st_dev),
+                static_cast<std::uint64_t>(info.st_ino)};
+    }
+#else
+    (void)path;
+#endif
+    return {};
+}
+
+struct DigestCacheEntry {
+    std::uint32_t algorithm_version{1};
+    std::uint64_t byte_size{0};
+    std::int64_t timestamp{0};
+    FileIdentity identity{};
+    ContentDigest digest{};
+};
+
+struct CachedDigest {
+    ContentDigest digest{};
+    bool hit{false};
+    bool invalidated{false};
+    std::uint64_t bytes_hashed{0};
+    double cache_lookup_ms{0.0};
+    double cache_write_ms{0.0};
+    double full_hash_ms{0.0};
+};
+
+// Process-persistent and shared by Direct-YUV, FullGraph, and future worker
+// jobs. Holding this mutex through a miss is intentional: it is the single-
+// flight guarantee. Two jobs cannot read and hash the same immutable asset at
+// the same time, while different assets remain safely serialized at this
+// small preflight boundary.
+class PreparedAssetDigestCache {
+public:
+    static constexpr std::uint32_t kAlgorithmVersion = 1;
+
+    [[nodiscard]] Result<CachedDigest, AssetPreflightError> resolve(
+        const std::filesystem::path& canonical,
+        std::string logical_path,
+        std::uint64_t byte_size,
+        std::int64_t timestamp,
+        FileIdentity identity,
+        std::uint64_t max_size) {
+        const auto lookup_t0 = chronon3d::profiling::now();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const double lookup_ms = chronon3d::profiling::duration_ms(
+            lookup_t0, chronon3d::profiling::now());
+        m_stats.cache_lookup_ms += lookup_ms;
+        const auto key = canonical.generic_string();
+        const auto found = m_entries.find(key);
+        const bool invalidated = found != m_entries.end();
+        if (found != m_entries.end() &&
+            found->second.algorithm_version == kAlgorithmVersion &&
+            found->second.byte_size == byte_size &&
+            found->second.timestamp == timestamp &&
+            found->second.identity == identity) {
+            ++m_stats.hits;
+            return CachedDigest{found->second.digest, true, false, 0U,
+                                lookup_ms, 0.0, 0.0};
+        }
+
+        ++m_stats.misses;
+        if (invalidated) ++m_stats.invalidations;
+        const auto hash_t0 = chronon3d::profiling::now();
+        auto digest = hash_file(canonical, logical_path, byte_size, max_size);
+        if (!digest) return std::move(digest).error();
+        const double hash_ms = chronon3d::profiling::duration_ms(
+            hash_t0, chronon3d::profiling::now());
+        m_stats.bytes_hashed += byte_size;
+        m_stats.full_hash_ms += hash_ms;
+        const auto write_t0 = chronon3d::profiling::now();
+        m_entries[key] = DigestCacheEntry{kAlgorithmVersion, byte_size,
+                                           timestamp, identity, digest.value()};
+        const double write_ms = chronon3d::profiling::duration_ms(
+            write_t0, chronon3d::profiling::now());
+        m_stats.cache_write_ms += write_ms;
+        return CachedDigest{std::move(digest).value(), false, invalidated,
+                            byte_size, lookup_ms, write_ms, hash_ms};
+    }
+
+    void discard(const std::filesystem::path& canonical) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_entries.erase(canonical.generic_string());
+    }
+
+    [[nodiscard]] AssetDigestCacheStats stats() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_stats;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    std::unordered_map<std::string, DigestCacheEntry> m_entries;
+    AssetDigestCacheStats m_stats{};
+};
+
+[[nodiscard]] PreparedAssetDigestCache& prepared_asset_digest_cache() {
+    static PreparedAssetDigestCache cache;
+    return cache;
 }
 
 void add_u64(Sha256& sha, std::uint64_t value) {
@@ -297,6 +407,10 @@ void add_u64(Sha256& sha, std::uint64_t value) {
 }
 
 } // namespace
+
+AssetDigestCacheStats asset_digest_cache_stats() {
+    return prepared_asset_digest_cache().stats();
+}
 
 Result<PreparedAssetView, AssetPreflightError> PreparedAssetStore::find(
     std::string_view logical_path,
@@ -320,6 +434,7 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
     const render_plan::RenderPlan& plan,
     AssetResolver& resolver,
     const AssetPreflightPolicy& policy) {
+    const auto cache_before = asset_digest_cache_stats();
     const auto requests = requested_assets(plan);
     if (requests.empty()) {
         PreparedAssetManifest empty_manifest;
@@ -378,6 +493,7 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
             return error(AssetPreflightErrorCode::WrongAssetKind, normalized,
                          "asset extension does not match the requested asset kind");
 
+        const auto metadata_t0 = chronon3d::profiling::now();
         const auto byte_size = std::filesystem::file_size(canonical, ec);
         if (ec)
             return error(AssetPreflightErrorCode::ReadFailed, normalized,
@@ -397,17 +513,21 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
             return error(AssetPreflightErrorCode::ReadFailed, normalized,
                          "asset timestamp could not be read");
 
-        const auto hash_t0 = chronon3d::profiling::now();
-        auto digest = hash_file(canonical, normalized, byte_size,
-                                policy.max_single_asset_bytes);
+        const auto timestamp_value = static_cast<std::int64_t>(
+            timestamp_before.time_since_epoch().count());
+        const auto identity_before = file_identity(canonical);
+        const double metadata_ms = chronon3d::profiling::duration_ms(
+            metadata_t0, chronon3d::profiling::now());
+        auto digest = prepared_asset_digest_cache().resolve(
+            canonical, normalized, byte_size, timestamp_value,
+            identity_before, policy.max_single_asset_bytes);
         if (!digest) return std::move(digest).error();
-        const double hash_ms = chronon3d::profiling::duration_ms(
-            hash_t0, chronon3d::profiling::now());
 
         timestamp_ec.clear();
         const auto timestamp_after = std::filesystem::last_write_time(
             canonical, timestamp_ec);
         if (timestamp_ec || timestamp_before != timestamp_after) {
+            prepared_asset_digest_cache().discard(canonical);
             return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                          normalized,
                          "asset changed while its prepared bytes were hashed");
@@ -415,16 +535,23 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
         std::error_code size_ec;
         const auto size_after = std::filesystem::file_size(canonical, size_ec);
         if (size_ec || size_after != byte_size) {
+            prepared_asset_digest_cache().discard(canonical);
             return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                          normalized,
                          "asset size changed while its prepared bytes were hashed");
+        }
+        if (file_identity(canonical) != identity_before) {
+            prepared_asset_digest_cache().discard(canonical);
+            return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
+                         normalized,
+                         "asset identity changed while it was being preflighted");
         }
 
         PreparedAsset prepared{
             normalized,
             request.kind,
             byte_size,
-            std::move(digest).value(),
+            digest.value().digest,
             static_cast<std::int64_t>(timestamp_after.time_since_epoch().count())};
         manifest_hash.update(prepared.logical_path.data(), prepared.logical_path.size());
         const auto kind = static_cast<std::uint8_t>(prepared.kind);
@@ -435,12 +562,28 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
         total_bytes += byte_size;
         manifest.m_assets.push_back(std::move(prepared));
         spdlog::info(
-            "[asset-profile] kind={} path={} bytes={} hash={:.2f}ms total={:.2f}ms",
-            static_cast<int>(request.kind), normalized, byte_size, hash_ms,
+            "[asset-profile] kind={} path={} bytes={} cache={} invalidated={} "
+            "stat={:.2f}ms hash={:.2f}ms hashed_bytes={} total={:.2f}ms",
+            static_cast<int>(request.kind), normalized, byte_size,
+            digest.value().hit ? "hit" : "miss",
+            digest.value().invalidated ? 1 : 0,
+            metadata_ms,
+            digest.value().full_hash_ms, digest.value().bytes_hashed,
             chronon3d::profiling::duration_ms(asset_t0, chronon3d::profiling::now()));
     }
 
     manifest.m_manifest_digest = manifest_hash.finish();
+    const auto cache_after = asset_digest_cache_stats();
+    spdlog::info(
+        "[asset-digest-cache] hits={} misses={} invalidations={} "
+        "bytes_hashed={} lookup_ms={:.2f} write_ms={:.2f} full_hash_ms={:.2f}",
+        cache_after.hits - cache_before.hits,
+        cache_after.misses - cache_before.misses,
+        cache_after.invalidations - cache_before.invalidations,
+        cache_after.bytes_hashed - cache_before.bytes_hashed,
+        cache_after.cache_lookup_ms - cache_before.cache_lookup_ms,
+        cache_after.cache_write_ms - cache_before.cache_write_ms,
+        cache_after.full_hash_ms - cache_before.full_hash_ms);
     return manifest;
 }
 
