@@ -15,6 +15,8 @@
 
 namespace chronon3d::cli {
 
+struct PipeExportSession;
+
 // ── Boundary model for the final export result ──────────────────────────────
 
 struct PipeExportResult {
@@ -66,13 +68,15 @@ struct PipeExportTelemetry {
 struct WriterThreadContext {
     RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
-    TripleBufferArena& triple_arena;
+    TripleBufferArena* triple_arena{nullptr};
     IVideoEncoder& encoder;
-    SoftwareRenderer & renderer;
+    SoftwareRenderer* renderer{nullptr};
+    RenderCounters* counters{nullptr};
+    GpuHotPathMode hot_path_mode{GpuHotPathMode::Auto};
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
     bool require_native_gpu{false};
-    FrameInteropRing& interop_ring;
+    FrameInteropRing* interop_ring{nullptr};
     std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
     /// Trace correlation: stable per-job id mixed with the package frame
     /// number to build the terminating Perfetto flow id for this encode.
@@ -100,18 +104,18 @@ struct RenderLoopContext {
         native_encode_surfaces;
     std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
         native_source_surfaces;
-    TripleBufferArena& triple_arena;
+    TripleBufferArena* triple_arena{nullptr};
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;
     /// Trace correlation: stable per-job id mixed with the current frame to
     /// build the non-terminating Perfetto flow id for this render.
     std::uint64_t trace_job_id{0};
-    std::shared_ptr<DirectYuvProgram> direct_yuv_program;
 };
 
 struct RenderLoopResult {
     PipeExportStatus status;
     double render_graph_eval_ms{0.0};
+    double direct_yuv_execute_ms{0.0};
     double queue_wait_ms{0.0};
 };
 
@@ -130,6 +134,16 @@ void run_writer_thread(const WriterThreadContext& ctx);
 /// Handles cancellation, back-pressure, and per-frame telemetry.
 [[nodiscard]] RenderLoopResult run_render_loop(const RenderLoopContext& ctx);
 
+/// Direct-YUV loop with no RenderBackend, NodeCache, framebuffer, or arena.
+/// The writer/queue ownership remains shared with FullGraph, while the
+/// producer is deliberately a separate execution boundary.
+[[nodiscard]] RenderLoopOutput run_direct_yuv_loop(
+    PipeExportSession& session,
+    media::NativeVideoFrameDecoder& decoder,
+    Frame start,
+    Frame end,
+    const FfmpegExportOptions& opts);
+
 // ── Encoder close result ──────────────────────────────────────────────────
 
 struct EncoderCloseResult {
@@ -143,6 +157,13 @@ struct EncoderCloseResult {
     double native_receive_ms{0.0};
     double native_mux_ms{0.0};
     double native_trailer_ms{0.0};
+    double encoder_hwframe_get_buffer_ms{0.0};
+    double encoder_surface_acquire_ms{0.0};
+    double encoder_nvenc_submit_ms{0.0};
+    double encoder_queue_backpressure_wait_ms{0.0};
+    double encoder_packet_drain_ms{0.0};
+    double direct_yuv_cuda_launch_ms{0.0};
+    double direct_yuv_cuda_wait_ms{0.0};
     bool success{true};
 };
 

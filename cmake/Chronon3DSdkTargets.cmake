@@ -2,9 +2,7 @@
 # cmake/Chronon3DSdkTargets.cmake — SDK consumer-facing targets
 # ==============================================================================
 
-add_library(chronon3d_sdk_impl STATIC
-    ${CMAKE_SOURCE_DIR}/src/sdk_impl_marker.cpp
-)
+add_library(chronon3d_sdk_impl STATIC)
 
 chronon3d_link_registered_objects_into_archive(chronon3d_sdk_impl)
 

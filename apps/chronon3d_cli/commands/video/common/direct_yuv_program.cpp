@@ -1,10 +1,9 @@
 #include "direct_yuv_program.hpp"
 
 #include <chronon3d/backends/assets/image_cache.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -29,6 +28,8 @@ bool identity_2d(const Transform& t) {
            std::abs(t.rotation.x) < 1e-4f &&
            std::abs(t.rotation.y) < 1e-4f &&
            std::abs(t.rotation.z) < 1e-4f &&
+           std::abs(t.scale.x - 1.0f) < 1e-4f &&
+           std::abs(t.scale.y - 1.0f) < 1e-4f &&
            std::abs(t.scale.z - 1.0f) < 1e-4f &&
            std::abs(t.position.z) < 1e-4f &&
            std::abs(t.anchor.z) < 1e-4f;
@@ -39,11 +40,11 @@ bool identity_2d(const Transform& t) {
 
 std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const CompiledComposition& compiled,
-    SoftwareRenderer& renderer,
+    ImageCache& image_cache,
     void* cuda_context,
     std::string& reason) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
-    (void)compiled; (void)renderer; (void)cuda_context;
+    (void)compiled; (void)image_cache; (void)cuda_context;
     reason = "CUDA interop is not compiled";
     return nullptr;
 #else
@@ -67,12 +68,14 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         .height = compiled.composition->height(),
     });
     Scene scene;
+    const auto scene_t0 = profiling::now();
     try {
         scene = compiled.composition->evaluate(context);
     } catch (const std::exception& error) {
         reason = std::string("scene evaluation failed: ") + error.what();
         return nullptr;
     }
+    const double scene_eval_ms = profiling::duration_ms(scene_t0, profiling::now());
 
     std::string video_path;
     struct Overlay {
@@ -143,8 +146,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         return nullptr;
     }
 
-    auto cached = renderer.runtime().image_cache().get_or_load(
+    const auto img_t0 = profiling::now();
+    auto cached = image_cache.get_or_load(
         overlay.path, overlay.options);
+    const double watermark_load_ms = profiling::duration_ms(img_t0, profiling::now());
     if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
         reason = "watermark is not available through the canonical ImageCache";
         return nullptr;
@@ -155,16 +160,21 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     }
     auto device = std::make_shared<DeviceImage>();
     const std::size_t bytes = cached->gpu_rgba.size() * sizeof(float);
+    const auto upload_t0 = profiling::now();
     if (cuMemAlloc(&device->ptr, bytes) != CUDA_SUCCESS ||
         cuMemcpyHtoD(device->ptr, cached->gpu_rgba.data(), bytes) != CUDA_SUCCESS) {
         reason = "failed to upload watermark into CUDA resident memory";
         return nullptr;
     }
+    const double watermark_upload_ms = profiling::duration_ms(upload_t0, profiling::now());
 
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
     program->video_path_ = std::move(video_path);
     program->width_ = compiled.composition->width();
     program->height_ = compiled.composition->height();
+    program->scene_eval_ms_ = scene_eval_ms;
+    program->watermark_load_ms_ = watermark_load_ms;
+    program->watermark_upload_ms_ = watermark_upload_ms;
     DirectYuvFrame frame;
     frame.batch.instances.push_back(runtime::LayerInstance{
         .kind = runtime::PrimitiveKind::Image,
@@ -174,7 +184,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         .dst_x1 = overlay.x1, .dst_y1 = overlay.y1,
         .opacity = overlay.opacity,
         .blend = BlendMode::Normal});
-    backends::vulkan::CudaLayerResource resource;
+    media::CudaLayerResource resource;
     resource.rgba = device->ptr;
     resource.pitch_bytes = static_cast<int>(cached->width * sizeof(float) * 4);
     resource.width = static_cast<std::uint32_t>(cached->width);

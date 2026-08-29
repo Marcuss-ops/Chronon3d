@@ -13,8 +13,9 @@ namespace chronon3d::cli {
 // from the render loop makes the GPU-surface lifetime and fallback policy
 // auditable without mixing them with frame evaluation.
 void run_writer_thread(const WriterThreadContext& ctx) {
-    profiling::g_current_counters = ctx.renderer.counters();
-    profiling::g_current_framebuffer_pool = ctx.renderer.framebuffer_pool().get();
+    profiling::g_current_counters = ctx.counters;
+    profiling::g_current_framebuffer_pool = ctx.renderer
+        ? ctx.renderer->framebuffer_pool().get() : nullptr;
     bool arena_notified = false;
     struct DeferredInteropSlot {
         std::size_t slot{FrameInteropRing::kInvalidSlot};
@@ -29,7 +30,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 [&](const DeferredInteropSlot& pending) {
                     if (!pending.backend || ctx.encoder.poll_native_surface(
                             *pending.backend, pending.surface)) {
-                        ctx.interop_ring.release(pending.slot);
+                        if (ctx.interop_ring) ctx.interop_ring->release(pending.slot);
                         return true;
                     }
                     return false;
@@ -61,54 +62,53 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             if (ctx.queue.closed_and_empty()) break;
             continue;
         }
-        if (ctx.renderer.counters()) {
-            ctx.renderer.counters()->io_queue_pop_wait_ms.fetch_add(
+        if (ctx.counters) {
+            ctx.counters->io_queue_pop_wait_ms.fetch_add(
                 dequeue_ms, std::memory_order_relaxed);
         }
 
-        if (package.direct_yuv) {
+        if (const auto* direct = std::get_if<DirectYuvFramePackage>(&package)) {
             const auto enc_t0 = profiling::now();
-            if (ctx.renderer.counters()) {
-                ctx.renderer.counters()->gpu_native_surface_frames.fetch_add(
+            if (ctx.counters) {
+                ctx.counters->gpu_native_surface_frames.fetch_add(
                     1, std::memory_order_relaxed);
             }
-            const bool encoded = ctx.encoder.write_direct_yuv(*package.direct_yuv);
+            const bool encoded = ctx.encoder.write_direct_yuv(*direct->direct_yuv);
             const auto enc_t1 = profiling::now();
             ctx.writer_encode_us_total.fetch_add(
                 static_cast<uint64_t>(profiling::duration_ms(enc_t0, enc_t1) * 1000.0),
                 std::memory_order_relaxed);
             if (!encoded) {
-                if (ctx.renderer.counters()) {
-                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(
+                if (ctx.counters) {
+                    ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);
                 }
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
-                ctx.triple_arena.release(std::move(package.arena));
                 return;
             }
-            if (ctx.renderer.counters()) {
-                ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(
+            if (ctx.counters) {
+                ctx.counters->gpu_native_encode_frames.fetch_add(
                     1, std::memory_order_relaxed);
-                ctx.renderer.counters()->nvenc_frames.fetch_add(
+                ctx.counters->nvenc_frames.fetch_add(
                     1, std::memory_order_relaxed);
             }
             ++ctx.frames_encoded;
             const auto direct_telemetry = ctx.encoder.last_frame_telemetry();
             ctx.frame_encoder_telemetry.push_back({
-                .frame_number = static_cast<int>(package.frame_number),
+                .frame_number = static_cast<int>(direct->frame_number),
                 .encoder_ms = direct_telemetry.encoder_ms,
                 .native_send_ms = direct_telemetry.native_send_ms,
                 .native_receive_ms = direct_telemetry.native_receive_ms,
                 .native_mux_ms = direct_telemetry.native_mux_ms,
             });
-            ctx.triple_arena.release(std::move(package.arena));
             continue;
         }
 
-        if (package.framebuffer) {
+        auto* full = std::get_if<FullGraphFramePackage>(&package);
+        if (full && full->framebuffer) {
             const auto release_interop_slot = [&]() noexcept {
-                ctx.interop_ring.release(package.interop_slot);
+                if (ctx.interop_ring) ctx.interop_ring->release(full->interop_slot);
             };
             if (!arena_notified) {
                 spdlog::info("[video] Exporting via Arena-backed SIMD pipeline");
@@ -116,35 +116,35 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             }
 
             const auto enc_t0 = profiling::now();
-            const Framebuffer& fb_ref = *package.framebuffer;
+            const Framebuffer& fb_ref = *full->framebuffer;
             // Timeline tracing: terminating flow hop — the frame's
             // NVDEC → render chain ends here at the encoder sink. The flow id
             // is the same MakeFlowId(job, frame) emitted by decode and render.
             const auto trace_job_id = ctx.trace_job_id;
             const auto trace_flow = chronon3d::tracing::MakeFlowId(
-                trace_job_id, static_cast<uint64_t>(package.frame_number));
+                trace_job_id, static_cast<uint64_t>(full->frame_number));
             CHRONON_TRACE_FLOW_END_IDS("chronon.encode", "EncodeFrame",
                 trace_flow, trace_job_id,
-                static_cast<uint64_t>(package.frame_number));
+                static_cast<uint64_t>(full->frame_number));
             const bool gpu_frame =
-                package.native_surface != runtime::kInvalidRenderSurfaceHandle &&
-                package.backend != nullptr;
-            if (gpu_frame && ctx.renderer.counters()) {
-                ctx.renderer.counters()->gpu_native_surface_frames.fetch_add(
+                full->native_surface != runtime::kInvalidRenderSurfaceHandle &&
+                full->backend != nullptr;
+            if (gpu_frame && ctx.counters) {
+                ctx.counters->gpu_native_surface_frames.fetch_add(
                     1, std::memory_order_relaxed);
             }
             if (!gpu_frame && (ctx.require_native_gpu ||
-                               ctx.renderer.config().gpu_hot_path_mode() == GpuHotPathMode::RequireGpuNative ||
-                               ctx.renderer.config().gpu_hot_path_mode() == GpuHotPathMode::RequireDirectYuv)) {
-                if (ctx.renderer.counters()) {
-                    ctx.renderer.counters()->video_native_fallback_frames.fetch_add(
+                               ctx.hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+                               ctx.hot_path_mode == GpuHotPathMode::RequireDirectYuv)) {
+                if (ctx.counters) {
+                    ctx.counters->video_native_fallback_frames.fetch_add(
                         1, std::memory_order_relaxed);
-                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(
+                    ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);
                 }
                 spdlog::error(
                     "[video] GPU_NATIVE_REQUIRED: non-GPU surface at frame {}; refusing CPU fallback",
-                    package.frame_number);
+                    full->frame_number);
                 release_interop_slot();
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
@@ -152,16 +152,16 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             }
 
             const bool encoded = gpu_frame
-                ? (package.native_surface_ready
+                ? (full->native_surface_ready
                     ? ctx.encoder.write_prepared_native_surface(
-                        *package.backend, package.source_surface, package.native_surface)
+                        *full->backend, full->source_surface, full->native_surface)
                     : ctx.encoder.write_native_surface(
-                        *package.backend, package.source_surface, package.native_surface))
-                : ctx.encoder.write_frame_async(fb_ref, std::move(package.framebuffer));
+                        *full->backend, full->source_surface, full->native_surface))
+                : ctx.encoder.write_frame_async(fb_ref, std::move(full->framebuffer));
 
             if (!encoded) {
-                if (ctx.renderer.counters()) {
-                    ctx.renderer.counters()->gpu_encode_failures.fetch_add(
+                if (ctx.counters) {
+                    ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);
                 }
                 release_interop_slot();
@@ -170,23 +170,23 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 return;
             }
             const bool surface_ready = !gpu_frame || ctx.encoder.poll_native_surface(
-                *package.backend, package.native_surface);
+                *full->backend, full->native_surface);
             if (gpu_frame && !surface_ready) {
-                deferred_slots.push_back({package.interop_slot, package.backend,
-                                          package.native_surface});
+                deferred_slots.push_back({full->interop_slot, full->backend,
+                                          full->native_surface});
             } else {
                 release_interop_slot();
             }
-            if (ctx.renderer.counters()) {
+            if (ctx.counters) {
                 if (gpu_frame) {
-                    ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(
+                    ctx.counters->gpu_native_encode_frames.fetch_add(
                         1, std::memory_order_relaxed);
-                    ctx.renderer.counters()->nvenc_frames.fetch_add(
+                    ctx.counters->nvenc_frames.fetch_add(
                         1, std::memory_order_relaxed);
                 } else {
-                    ctx.renderer.counters()->video_pipe_fallback_frames.fetch_add(
+                    ctx.counters->video_pipe_fallback_frames.fetch_add(
                         1, std::memory_order_relaxed);
-                    ctx.renderer.counters()->software_encode_frames.fetch_add(
+                    ctx.counters->software_encode_frames.fetch_add(
                         1, std::memory_order_relaxed);
                 }
             }
@@ -197,7 +197,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 std::memory_order_relaxed);
 
             ctx.frame_encoder_telemetry.push_back({
-                .frame_number = static_cast<int>(package.frame_number),
+                .frame_number = static_cast<int>(full->frame_number),
                 .conversion_copy_ms = ctx.encoder.last_frame_telemetry().conversion_copy_ms,
                 .pixel_format_convert_ms = ctx.encoder.last_frame_telemetry().pixel_format_convert_ms,
                 .color_space_convert_ms = ctx.encoder.last_frame_telemetry().color_space_convert_ms,
@@ -213,7 +213,9 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             });
         }
 
-        ctx.triple_arena.release(package.arena);
+        if (full && full->arena && ctx.triple_arena) {
+            ctx.triple_arena->release(std::move(full->arena));
+        }
     }
 
     // The queue is closed only after the producer has submitted its final

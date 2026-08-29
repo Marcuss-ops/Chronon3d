@@ -26,17 +26,17 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     const bool is_native = (session.opts.encoder.encoder_backend == "native");
     result.write_blocked_ms = pipe_write_blocked_ms(is_native, *session.encoder);
 
-    const double conv_copy_ms = session.renderer && session.renderer->counters()
-        ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_wall_ms.load())
+    const double conv_copy_ms = session.renderer_ptr() && session.renderer_ptr()->counters()
+        ? static_cast<double>(session.renderer_ptr()->counters()->frame_conversion_copy_wall_ms.load())
         : 0.0;
-    const auto conversion_bytes = session.renderer && session.renderer->counters()
-        ? session.renderer->counters()->conversion_bytes_written.load()
+    const auto conversion_bytes = session.renderer_ptr() && session.renderer_ptr()->counters()
+        ? session.renderer_ptr()->counters()->conversion_bytes_written.load()
         : 0ULL;
-    const auto staging_copy_bytes = session.renderer && session.renderer->counters()
-        ? session.renderer->counters()->encoder_staging_copy_bytes.load()
+    const auto staging_copy_bytes = session.renderer_ptr() && session.renderer_ptr()->counters()
+        ? session.renderer_ptr()->counters()->encoder_staging_copy_bytes.load()
         : 0ULL;
-    const auto encoder_slot_reuses = session.renderer && session.renderer->counters()
-        ? session.renderer->counters()->encoder_slot_reuses.load()
+    const auto encoder_slot_reuses = session.renderer_ptr() && session.renderer_ptr()->counters()
+        ? session.renderer_ptr()->counters()->encoder_slot_reuses.load()
         : 0ULL;
 
     spdlog::info("[video] Encoder write blocked duration: {:.2f} ms", result.write_blocked_ms);
@@ -64,6 +64,13 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.native_receive_ms      = session.encoder->native_receive_packet_ms();
     result.native_mux_ms          = session.encoder->native_mux_write_ms();
     result.native_trailer_ms      = session.encoder->native_trailer_ms();
+    result.encoder_hwframe_get_buffer_ms = session.encoder->encoder_hwframe_get_buffer_ms();
+    result.encoder_surface_acquire_ms    = session.encoder->encoder_surface_acquire_ms();
+    result.encoder_nvenc_submit_ms       = session.encoder->encoder_nvenc_submit_ms();
+    result.encoder_queue_backpressure_wait_ms = session.encoder->encoder_queue_backpressure_wait_ms();
+    result.encoder_packet_drain_ms       = session.encoder->encoder_packet_drain_ms();
+    result.direct_yuv_cuda_launch_ms     = session.encoder->direct_yuv_cuda_launch_ms();
+    result.direct_yuv_cuda_wait_ms       = session.encoder->direct_yuv_cuda_wait_ms();
 
     if (is_native) {
         spdlog::info(
@@ -217,8 +224,10 @@ void record_pipe_telemetry(
     const PipeExportResult& result)
 {
     const bool is_native = (session.opts.encoder.encoder_backend == "native");
-    const double conv_copy_ms = session.renderer && session.renderer->counters()
-        ? static_cast<double>(session.renderer->counters()->frame_conversion_copy_wall_ms.load())
+    auto* counters = session.renderer_ptr() ? session.renderer_ptr()->counters()
+                                      : &session.direct_yuv_session->counters;
+    const double conv_copy_ms = counters
+        ? static_cast<double>(counters->frame_conversion_copy_wall_ms.load())
         : 0.0;
 
     // ── Merge encoder telemetry into frame records ────────────────────────
@@ -259,9 +268,10 @@ void record_pipe_telemetry(
 
     // ── Phase records ──────────────────────────────────────────────────────
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
+    const bool direct_yuv = session.direct_yuv_selected();
 
-    if (session.renderer->counters()) {
-        auto graph_phases = cli::telemetry::capture_graph_phase_records(*session.renderer->counters());
+    if (!direct_yuv && session.renderer_ptr() && counters) {
+        auto graph_phases = cli::telemetry::capture_graph_phase_records(*counters);
         phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
     }
 
@@ -271,8 +281,10 @@ void record_pipe_telemetry(
 
     phases.push_back({"rendering_loop", render_ms});
     phases.push_back({"encoder_close_and_flush", encode_ms});
-    phases.push_back({"chronon_render_pure_ms", loop_result.render_graph_eval_ms});
-    phases.push_back({"chronon_render_only_ms", loop_result.render_graph_eval_ms});
+    if (!direct_yuv) {
+        phases.push_back({"chronon_render_pure_ms", loop_result.render_graph_eval_ms});
+        phases.push_back({"chronon_render_only_ms", loop_result.render_graph_eval_ms});
+    }
     phases.push_back({"chronon_render_loop_ms", render_ms});
     phases.push_back({"chronon_conversion_copy_ms", conv_copy_ms});
     phases.push_back({"chronon_queue_wait_ms", queue_wait_ms});
@@ -292,14 +304,16 @@ void record_pipe_telemetry(
     // scene_eval / gpu_render split the render loop so pixel work is never
     // masked by easing/layout/scheduling.  gpu_readback / encode / disk_io
     // split the writer side so codec and I/O never mask GPU readback.
-    const uint64_t node_execute_ms = session.renderer->counters()
-        ? session.renderer->counters()->node_execute_actual_wall_ms.load(std::memory_order_relaxed)
+    const uint64_t node_execute_ms = counters
+        ? counters->node_execute_actual_wall_ms.load(std::memory_order_relaxed)
         : 0ULL;
 
     chronon3d::telemetry::RenderPhaseTimings phase_timings;
-    phase_timings.gpu_render_ms = static_cast<double>(node_execute_ms);
-    phase_timings.scene_eval_ms = std::max(
-        0.0, loop_result.render_graph_eval_ms - phase_timings.gpu_render_ms);
+    phase_timings.gpu_render_ms = direct_yuv
+        ? 0.0 : static_cast<double>(node_execute_ms);
+    phase_timings.scene_eval_ms = direct_yuv
+        ? 0.0
+        : std::max(0.0, loop_result.render_graph_eval_ms - phase_timings.gpu_render_ms);
 
     double readback_sum = 0.0;
     double codec_sum = 0.0;
@@ -332,39 +346,39 @@ void record_pipe_telemetry(
     phases.insert(phases.end(), canonical_phases.begin(), canonical_phases.end());
 
     // ── Counters ───────────────────────────────────────────────────────────
-    if (session.renderer->counters()) {
-        session.sys_metrics.fill_system_counters(*session.renderer->counters());
+    if (counters) {
+        session.sys_metrics.fill_system_counters(*counters);
 
         if (is_native) {
-            session.renderer->counters()->native_av_convert_wall_ms.store(
+            counters->native_av_convert_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_convert_ms), std::memory_order_relaxed);
-            session.renderer->counters()->native_av_receive_packet_wall_ms.store(
+            counters->native_av_receive_packet_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_receive_ms), std::memory_order_relaxed);
-            session.renderer->counters()->native_av_mux_write_wall_ms.store(
+            counters->native_av_mux_write_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_mux_ms), std::memory_order_relaxed);
         } else {
-            session.renderer->counters()->video_pipe_write_wall_ms.store(
+            counters->video_pipe_write_wall_ms.store(
                 static_cast<uint64_t>(close_result.write_blocked_ms), std::memory_order_relaxed);
-            session.renderer->counters()->ffmpeg_pipe_write_wall_ms.store(
+            counters->ffmpeg_pipe_write_wall_ms.store(
                 static_cast<uint64_t>(close_result.write_blocked_ms), std::memory_order_relaxed);
         }
     }
 
-    auto resolved_counters = telemetry::capture_counters(*session.renderer->counters());
+    auto resolved_counters = telemetry::capture_counters(*counters);
     resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms",
         static_cast<uint64_t>(std::llround(close_result.write_blocked_ms))});
     resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms",
         static_cast<uint64_t>(std::llround(loop_result.queue_wait_ms))});
 
-    if (session.renderer && session.renderer->framebuffer_pool()) {
-        auto pool_stats = session.renderer->framebuffer_pool()->stats();
+    if (session.renderer_ptr() && session.renderer_ptr()->framebuffer_pool()) {
+        auto pool_stats = session.renderer_ptr()->framebuffer_pool()->stats();
         resolved_counters.push_back({"framebuffer_pool_capacity", pool_stats.max_bytes});
         resolved_counters.push_back({"framebuffer_pool_available_count", pool_stats.available_count});
         resolved_counters.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});
         resolved_counters.push_back({"framebuffer_pool_total_allocations", pool_stats.total_allocations});
         resolved_counters.push_back({"framebuffer_pool_total_reuses", pool_stats.total_reuses});
         const auto configured_pool_budget =
-            session.renderer->runtime().config().cache().fb_pool_budget_bytes();
+            session.renderer_ptr()->runtime().config().cache().fb_pool_budget_bytes();
         resolved_counters.push_back({
             "framebuffer_pool_budget_bytes",
             configured_pool_budget > 0 ? configured_pool_budget : pool_stats.budget_bytes});
@@ -378,9 +392,9 @@ void record_pipe_telemetry(
     // GPU backend counters (vkQueueSubmit count + executed command-plan
     // passes) flow into render_counters so the summary can print them next to
     // the CPU/FFmpeg breakdown.  Software backends contribute nothing.
-    if (session.renderer->runtime().backend_attached()) {
+    if (session.renderer_ptr() && session.renderer_ptr()->runtime().backend_attached()) {
         std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
-        session.renderer->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+        session.renderer_ptr()->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
         for (const auto& [name, value] : gpu_counters) {
             resolved_counters.push_back({name, value});
         }
@@ -412,8 +426,6 @@ void record_pipe_telemetry(
 
     // ── Record ─────────────────────────────────────────────────────────────
     const int encoded_frames = pipe_encoded_frame_count(loop_result.status);
-    const auto& counters = session.renderer->counters();
-
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     cli::telemetry::record_output_run(
         composition_id,

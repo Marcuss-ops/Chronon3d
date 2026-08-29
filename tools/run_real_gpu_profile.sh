@@ -45,8 +45,10 @@ print(f'{cpu:.3f},{rss/1024.0:.3f}')
 PY
 }
 
+PLAN="${CHRONON3D_PLAN:-test_renders/matt_damon_1080p/plan_matt_damon_1080p.json}"
+
 "$CLI" render \
-  --plan test_renders/matt_damon_1080p/plan_matt_damon_1080p.json \
+  --plan "$PLAN" \
   --backend vulkan --hardware nvenc --encoder-backend native \
   --assets-root "$ROOT" --gpu-hot-path-mode "$HOT_PATH_MODE" \
   "${trace_args[@]}" \

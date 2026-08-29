@@ -157,15 +157,19 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     if (it != m_sessions.end()) return it->second;
     auto session = std::make_shared<Session>();
     AVFormatContext* fmt = nullptr;
+    const auto t_open = profiling::now();
     if (avformat_open_input(&fmt, path.c_str(), nullptr, nullptr) != 0) {
         spdlog::error("[native-decoder] open input failed: {}", path);
         return nullptr;
     }
+    session->profiling.container_open_ms = profiling::duration_ms(t_open, profiling::now());
     session->fmt = fmt;
+    const auto t_probe = profiling::now();
     if (avformat_find_stream_info(fmt, nullptr) < 0) {
         spdlog::error("[native-decoder] stream info failed: {}", path);
         return nullptr;
     }
+    session->profiling.stream_probe_ms = profiling::duration_ms(t_probe, profiling::now());
     const int index = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (index < 0) {
         spdlog::error("[native-decoder] no video stream: {}", path);
@@ -188,6 +192,7 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         spdlog::error("[native-decoder] decoder unavailable for: {}", path);
         return nullptr;
     }
+    const auto t_dec = profiling::now();
     AVCodecContext* cc = avcodec_alloc_context3(codec);
     if (!cc || avcodec_parameters_to_context(cc, fmt->streams[index]->codecpar) < 0) {
         avcodec_free_context(&cc); return nullptr;
@@ -195,9 +200,9 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     AVBufferRef* device = nullptr;
-    CUcontext shared_ctx = m_native_importer
-        ? reinterpret_cast<CUcontext>(m_native_importer->cuda_context())
-        : nullptr;
+    CUcontext shared_ctx = m_shared_cuda_context
+        ? reinterpret_cast<CUcontext>(m_shared_cuda_context)
+        : (m_native_importer ? reinterpret_cast<CUcontext>(m_native_importer->cuda_context()) : nullptr);
     if (shared_ctx) {
         AVBufferRef* dev = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA);
         if (dev) {
@@ -241,6 +246,7 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         avcodec_free_context(&cc);
         return nullptr;
     }
+    session->profiling.decoder_open_ms = profiling::duration_ms(t_dec, profiling::now());
     session->codec = cc;
     session->hw_transfer_frame = av_frame_alloc();
     session->decoded = av_frame_alloc();
@@ -285,10 +291,21 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(NativeVideoFrameDec
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Session& session, int64_t target) {
     std::lock_guard decode_lock(session.decode_mutex);
     const AVStream* st = session.fmt->streams[session.stream_index];
-    AVRational duration = av_inv_q(st->avg_frame_rate);
+    AVRational fps = (st->r_frame_rate.num > 0 && st->r_frame_rate.den > 0)
+        ? st->r_frame_rate
+        : st->avg_frame_rate;
+    AVRational duration = av_inv_q(fps);
     if (duration.num <= 0 || duration.den <= 0) duration = {1, 30};
     const int64_t target_pts = av_rescale_q(target, duration, st->time_base);
-    if (session.source_eof && session.eof_frame && target >= session.eof_target) return session.eof_frame;
+    const int64_t frame_tick = av_rescale_q(1, duration, st->time_base);
+    const int64_t pts_tolerance = frame_tick > 0 ? (frame_tick / 2) : 1;
+    if (session.source_eof && target >= session.eof_target) {
+        if (session.capture_native_frame && session.eof_captured_native_frame) {
+            session.captured_native_frame = session.eof_captured_native_frame;
+            return nullptr;
+        }
+        if (session.eof_frame) return session.eof_frame;
+    }
     if (session.last_target < 0 || target < session.last_target || target > session.last_target + 8) {
         av_seek_frame(session.fmt, session.stream_index, target_pts, AVSEEK_FLAG_BACKWARD);
         avcodec_flush_buffers(session.codec); session.last_target = -1;
@@ -299,16 +316,19 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
     AVFrame* decoded = session.decoded; AVFrame* closest = session.closest_frame; AVPacket* packet = session.packet;
     std::shared_ptr<Framebuffer> result; int64_t closest_delta = INT64_MAX; int overshoot = 0; bool eof = false;
     while (true) {
+        const auto read_start = profiling::now();
         const int read = av_read_frame(session.fmt, packet);
+        session.profiling.demux_read_packet_ms += profiling::duration_ms(read_start, profiling::now());
         if (read < 0) {
             eof = (read == AVERROR_EOF);
             if (eof && session.codec) {
                 (void)avcodec_send_packet(session.codec, nullptr);
                 while (avcodec_receive_frame(session.codec, decoded) == 0) {
                     const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE ? decoded->best_effort_timestamp : decoded->pts;
-                    if (pts == target_pts) {
+                    if (pts == target_pts || std::llabs(pts - target_pts) <= pts_tolerance) {
                         result = try_native_frame(session, decoded);
                         if (result) break;
+                        if (session.capture_native_frame && session.captured_native_frame) break;
                     }
                     if (pts != AV_NOPTS_VALUE) {
                         const int64_t delta = std::llabs(pts - target_pts);
@@ -321,17 +341,23 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
         if (packet->stream_index != session.stream_index) { av_packet_unref(packet); continue; }
         const auto submit_start = profiling::now();
         const int send = avcodec_send_packet(session.codec, packet);
-        const auto submit_dur = static_cast<uint64_t>(profiling::duration_ms(submit_start, profiling::now()));
-        if (m_counters) m_counters->decode_submit_ms.fetch_add(submit_dur, std::memory_order_relaxed);
+        const auto submit_dur = profiling::duration_ms(submit_start, profiling::now());
+        session.profiling.avcodec_send_packet_ms += submit_dur;
+        if (m_counters) m_counters->decode_submit_ms.fetch_add(static_cast<uint64_t>(submit_dur), std::memory_order_relaxed);
         av_packet_unref(packet);
         if (send < 0) break;
         int receive = 0;
         const auto wait_start = profiling::now();
         while ((receive = avcodec_receive_frame(session.codec, decoded)) == 0) {
-            const auto wait_dur = static_cast<uint64_t>(profiling::duration_ms(wait_start, profiling::now()));
-            if (m_counters) m_counters->decode_wait_ms.fetch_add(wait_dur, std::memory_order_relaxed);
+            const auto wait_dur = profiling::duration_ms(wait_start, profiling::now());
+            session.profiling.avcodec_receive_frame_ms += wait_dur;
+            session.profiling.nvdec_wait_ms += wait_dur;
+            if (m_counters) m_counters->decode_wait_ms.fetch_add(static_cast<uint64_t>(wait_dur), std::memory_order_relaxed);
             const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE ? decoded->best_effort_timestamp : decoded->pts;
-            if (pts == target_pts) {
+            const bool match = (pts == target_pts) ||
+                               (std::llabs(pts - target_pts) <= pts_tolerance) ||
+                               (session.last_target >= 0 && target == session.last_target + 1);
+            if (match) {
                 if ((result = try_native_frame(session, decoded))) break;
                 if (session.capture_native_frame && session.captured_native_frame) break;
                 if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
@@ -435,6 +461,20 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
     // intermediate surfaces repeatedly.
     if (!result && session.capture_native_frame && session.captured_native_frame) {
         session.last_target = target;
+        session.eof_captured_native_frame = session.captured_native_frame;
+        if (eof) {
+            session.source_eof = true;
+            session.eof_target = target;
+        }
+    } else if (!session.captured_native_frame && eof && session.eof_captured_native_frame && session.capture_native_frame) {
+        session.captured_native_frame = session.eof_captured_native_frame;
+        session.source_eof = true;
+        session.eof_target = session.last_target;
+        session.last_target = target;
+    }
+    if (!result && session.capture_native_frame && !session.captured_native_frame) {
+        spdlog::error("[native-decoder] target={} FAILED: target_pts={} last_target={} closest_pts={}",
+                      target, target_pts, session.last_target, closest ? closest->pts : -1);
     }
     return result;
 }
@@ -462,7 +502,8 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::st
 
 std::shared_ptr<AVFrame> NativeVideoFrameDecoder::decode_native_frame(
     const std::string& path, Frame frame, int, int, float) {
-    if (frame < 0 || path.empty() || !m_native_importer) return nullptr;
+    if (frame < 0 || path.empty()) return nullptr;
+    if (!m_native_importer && !m_shared_cuda_context) return nullptr;
     if (m_counters) {
         m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
     }
@@ -500,10 +541,10 @@ std::shared_ptr<AVFrame> NativeVideoFrameDecoder::decode_native_frame(
 
     const auto decode_start = profiling::now();
     const auto ignored = decode_frame_internal(*session, frame.integral());
+    const double decode_dur_ms = profiling::duration_ms(decode_start, profiling::now());
     if (m_counters) {
         m_counters->video_decode_wall_ms.fetch_add(
-            static_cast<std::uint64_t>(std::llround(
-                profiling::duration_ms(decode_start, profiling::now()))),
+            static_cast<std::uint64_t>(std::llround(decode_dur_ms)),
             std::memory_order_relaxed);
     }
     (void)ignored;
@@ -511,7 +552,35 @@ std::shared_ptr<AVFrame> NativeVideoFrameDecoder::decode_native_frame(
     state_lock.lock();
     session->capture_native_frame = false;
     auto result = std::move(session->captured_native_frame);
+    if (result) {
+        session->profiling.decoded_frames++;
+        session->profiling.decode_total_ms += decode_dur_ms;
+        session->profiling.frame_durations_ms.push_back(decode_dur_ms);
+    }
     return result;
+}
+
+NativeVideoFrameDecoder::DecodeProfilingStats NativeVideoFrameDecoder::decode_profiling_stats() const {
+    DecodeProfilingStats total;
+    std::lock_guard lock(const_cast<std::mutex&>(m_mutex));
+    for (const auto& [_, session] : m_sessions) {
+        if (!session) continue;
+        std::lock_guard s_lock(session->mutex);
+        total.decoded_frames += session->profiling.decoded_frames;
+        total.container_open_ms += session->profiling.container_open_ms;
+        total.stream_probe_ms += session->profiling.stream_probe_ms;
+        total.decoder_open_ms += session->profiling.decoder_open_ms;
+        total.demux_read_packet_ms += session->profiling.demux_read_packet_ms;
+        total.avcodec_send_packet_ms += session->profiling.avcodec_send_packet_ms;
+        total.avcodec_receive_frame_ms += session->profiling.avcodec_receive_frame_ms;
+        total.nvdec_wait_ms += session->profiling.nvdec_wait_ms;
+        total.decode_total_ms += session->profiling.decode_total_ms;
+        total.frame_durations_ms.insert(
+            total.frame_durations_ms.end(),
+            session->profiling.frame_durations_ms.begin(),
+            session->profiling.frame_durations_ms.end());
+    }
+    return total;
 }
 
 } // namespace chronon3d::media

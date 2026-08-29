@@ -7,8 +7,10 @@
 #include <algorithm>
 #include <chrono>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
+#endif
 #include <cuda.h>
 #include <libavutil/hwcontext_cuda.h>
 #endif
@@ -107,6 +109,13 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     native_receive_packet_ms_  = 0.0;
     native_mux_write_ms_       = 0.0;
     native_trailer_ms_         = 0.0;
+    encoder_hwframe_get_buffer_ms_ = 0.0;
+    encoder_surface_acquire_ms_    = 0.0;
+    encoder_nvenc_submit_ms_       = 0.0;
+    encoder_queue_backpressure_wait_ms_ = 0.0;
+    encoder_packet_drain_ms_       = 0.0;
+    direct_yuv_cuda_launch_ms_     = 0.0;
+    direct_yuv_cuda_wait_ms_       = 0.0;
 
     // 1. Allocate format context (MP4 muxer)
     const std::string filename = options_.output_path;
@@ -148,6 +157,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     gpu_nvenc_ = options_.hardware_encoder == "nvenc";
     if (gpu_nvenc_) {
+        const auto hw_t0 = Clock::now();
         if (cuInit(0) != CUDA_SUCCESS) {
             spdlog::error("[native_av] CUDA driver initialization failed");
             return false;
@@ -169,29 +179,14 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             return false;
         }
         cuda_context_ = primary_context;
+        primary_context_retained_ = true;
         if (cuCtxSetCurrent(primary_context) != CUDA_SUCCESS) {
             spdlog::error("[native_av] CUDA primary context activation failed");
             (void)cuDevicePrimaryCtxRelease(cuda_device);
             cuda_context_ = nullptr;
+            primary_context_retained_ = false;
             return false;
         }
-        auto cuda_stage_ok = [&](const char* stage) {
-            const CUresult result = cuCtxSynchronize();
-            if (result == CUDA_SUCCESS) return true;
-            const char* name = nullptr;
-            const char* text = nullptr;
-            cuGetErrorName(result, &name);
-            cuGetErrorString(result, &text);
-            spdlog::error("[native_av] CUDA context failed after {}: {} ({})",
-                          stage, name ? name : "unknown", text ? text : "unknown");
-            return false;
-        };
-        if (!cuda_stage_ok("cuCtxSetCurrent")) return false;
-        if (cuStreamCreate(&cuda_stream_, CU_STREAM_NON_BLOCKING) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] CUDA stream creation failed");
-            return false;
-        }
-        if (!cuda_stage_ok("cuStreamCreate")) return false;
         if (av_hwdevice_ctx_create(&cuda_device_ref_, AV_HWDEVICE_TYPE_CUDA,
                                    "0", nullptr, 0) < 0) return false;
         auto* av_device = reinterpret_cast<AVHWDeviceContext*>(cuda_device_ref_->data);
@@ -211,6 +206,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         }
         if (cuda_context_ != av_cuda->cuda_ctx) {
             (void)cuDevicePrimaryCtxRelease(0);
+            primary_context_retained_ = false;
             cuda_context_ = av_cuda->cuda_ctx;
         }
         if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
@@ -221,7 +217,6 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             spdlog::error("[native_av] FFmpeg CUDA stream creation failed");
             return false;
         }
-        if (!cuda_stage_ok("av_hwdevice_ctx_create")) return false;
         cuda_frames_ref_ = av_hwframe_ctx_alloc(cuda_device_ref_);
         if (!cuda_frames_ref_) return false;
         auto* frames = reinterpret_cast<AVHWFramesContext*>(cuda_frames_ref_->data);
@@ -234,14 +229,25 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         frames->height = options_.height;
         frames->initial_pool_size = 4;
         if (av_hwframe_ctx_init(cuda_frames_ref_) < 0) return false;
-        if (!cuda_stage_ok("av_hwframe_ctx_init")) return false;
-        try {
-            backends::vulkan::CudaNv12SurfaceCompositor::warm_up(
-                reinterpret_cast<CUcontext>(cuda_context_));
-        } catch (const std::exception& error) {
-            spdlog::error("[native_av] CUDA compositor warm-up failed before NVENC: {}",
-                          error.what());
+        open_hw_ctx_ms_ = elapsed_ms(hw_t0);
+        if (!options_.direct_yuv_mode) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+            const auto warmup_t0 = Clock::now();
+            try {
+                backends::vulkan::CudaNv12SurfaceCompositor::warm_up(
+                    reinterpret_cast<CUcontext>(cuda_context_));
+            } catch (const std::exception& error) {
+                spdlog::error("[native_av] CUDA compositor warm-up failed before NVENC: {}",
+                              error.what());
+                return false;
+            }
+            cuda_compositor_warmup_ms_ = elapsed_ms(warmup_t0);
+#else
+            spdlog::error("[native_av] FullGraph NVENC requires Vulkan interop");
             return false;
+#endif
+        } else {
+            spdlog::info("[direct-yuv] skipped Vulkan compositor warm-up");
         }
         codec_->pix_fmt = AV_PIX_FMT_CUDA;
         codec_->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
@@ -292,24 +298,15 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
 
     // 4. Open the codec
+    const auto nvenc_t0 = Clock::now();
     if (avcodec_open2(codec_, encoder, nullptr) < 0) {
         spdlog::error("[native_av] avcodec_open2 failed");
         return false;
     }
-    if (gpu_nvenc_) {
-        const CUresult result = cuCtxSynchronize();
-        if (result != CUDA_SUCCESS) {
-            const char* name = nullptr;
-            const char* text = nullptr;
-            cuGetErrorName(result, &name);
-            cuGetErrorString(result, &text);
-            spdlog::error("[native_av] CUDA context failed after avcodec_open2: {} ({})",
-                          name ? name : "unknown", text ? text : "unknown");
-            return false;
-        }
-    }
+    open_nvenc_ms_ = elapsed_ms(nvenc_t0);
 
     // 5. Create stream
+    const auto mux_t0 = Clock::now();
     stream_ = avformat_new_stream(fmt_, nullptr);
     if (!stream_) {
         spdlog::error("[native_av] avformat_new_stream failed");
@@ -338,6 +335,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         spdlog::error("[native_av] avformat_write_header failed");
         return false;
     }
+    open_mux_header_ms_ = elapsed_ms(mux_t0);
 
     packet_assembler_ = std::make_unique<PacketAssembler>(fmt_, stream_);
 
@@ -459,7 +457,9 @@ void NativeAvEncoder::abort_open() noexcept {
     }
     reusable_cuda_frames_.clear();
     if (cuda_context_) (void)cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_));
+#ifdef CHRONON3D_ENABLE_VULKAN
     cuda_nv12_compositors_.clear();
+#endif
     if (cuda_stream_) {
         (void)cuStreamDestroy(cuda_stream_);
         cuda_stream_ = nullptr;
@@ -482,9 +482,12 @@ void NativeAvEncoder::abort_open() noexcept {
     av_buffer_unref(&cuda_frames_ref_);
     av_buffer_unref(&cuda_device_ref_);
     if (cuda_context_) {
-        (void)cuDevicePrimaryCtxRelease(0);
+        if (primary_context_retained_) {
+            (void)cuDevicePrimaryCtxRelease(0);
+        }
         cuda_context_ = nullptr;
     }
+    primary_context_retained_ = false;
     gpu_nvenc_ = false;
 #endif
     open_complete_ = false;
@@ -510,6 +513,7 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             }
             const auto wait_ms = elapsed_ms(wait_t0);
             native_backpressure_ms_ += wait_ms;
+            encoder_queue_backpressure_wait_ms_ += wait_ms;
             ++cuda_backpressure_wait_count_;
             if (counters_) {
                 counters_->cuda_encode_event_wait_count.fetch_add(1, std::memory_order_relaxed);
@@ -528,7 +532,9 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
 
         const auto send_t0 = Clock::now();
         const int send_ret = avcodec_send_frame(codec_, pending.frame);
-        native_send_frame_ms_ += elapsed_ms(send_t0);
+        const double send_dur = elapsed_ms(send_t0);
+        native_send_frame_ms_ += send_dur;
+        encoder_nvenc_submit_ms_ += send_dur;
         av_frame_unref(pending.frame);
         reusable_cuda_frames_.push_back(pending.frame);
         pending.frame = nullptr;
@@ -542,11 +548,13 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
                           frames_written_, error);
             return false;
         }
+        const auto drain_t0 = Clock::now();
         if (!drain_packets()) {
             spdlog::error("[native_av] NVENC packet drain failed after GPU frame {}",
                           frames_written_);
             return false;
         }
+        encoder_packet_drain_ms_ += elapsed_ms(drain_t0);
         ++frames_written_;
         wait_for_one = false;
     }
@@ -585,7 +593,7 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     if (!direct_yuv_compositor_) {
         try {
             direct_yuv_compositor_ =
-                std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
+                std::make_unique<media::CudaDirectNv12Compositor>(
                     reinterpret_cast<CUcontext>(cuda_context_));
         } catch (const std::exception& error) {
             spdlog::error("[native_av] DirectCudaYuv compositor init failed: {}",
@@ -600,6 +608,7 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
         return false;
     }
 
+    const auto acq_t0 = Clock::now();
     AVFrame* gpu_frame = nullptr;
     if (!reusable_cuda_frames_.empty()) {
         gpu_frame = reusable_cuda_frames_.front();
@@ -608,13 +617,16 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     } else {
         gpu_frame = av_frame_alloc();
     }
+    encoder_surface_acquire_ms_ += elapsed_ms(acq_t0);
     if (!gpu_frame) return false;
     gpu_frame->format = AV_PIX_FMT_CUDA;
     gpu_frame->width = options_.width;
     gpu_frame->height = options_.height;
     gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
-    if (av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0) < 0 ||
-        !gpu_frame->data[0] || !gpu_frame->data[1]) {
+    const auto hw_t0 = Clock::now();
+    const int hw_rc = av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0);
+    encoder_hwframe_get_buffer_ms_ += elapsed_ms(hw_t0);
+    if (hw_rc < 0 || !gpu_frame->data[0] || !gpu_frame->data[1]) {
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
@@ -629,7 +641,8 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
     }
-    if (!direct_yuv_compositor_->composite_direct_nv12_batch(
+    const auto launch_t0 = Clock::now();
+    const bool launch_ok = direct_yuv_compositor_->composite_direct_nv12_batch(
             direct.batch, direct.resources,
             reinterpret_cast<CUdeviceptr>(direct.decoded->data[0]),
             direct.decoded->linesize[0],
@@ -640,7 +653,9 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
             reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
             gpu_frame->linesize[1],
             static_cast<std::uint32_t>(options_.width),
-            static_cast<std::uint32_t>(options_.height), cuda_stream_)) {
+            static_cast<std::uint32_t>(options_.height), cuda_stream_);
+    direct_yuv_cuda_launch_ms_ += elapsed_ms(launch_t0);
+    if (!launch_ok) {
         spdlog::error("[native_av] DirectCudaYuv kernel dispatch failed");
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
@@ -659,7 +674,10 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     // kernel before releasing the source AVFrame; retaining all input frames
     // until the encoder consumes the outputs exhausts the decoder pool and
     // regresses the render loop. The output remains queued for NVENC.
-    if (cuEventSynchronize(ready) != CUDA_SUCCESS) {
+    const auto sync_t0 = Clock::now();
+    const CUresult sync_res = cuEventSynchronize(ready);
+    direct_yuv_cuda_wait_ms_ += elapsed_ms(sync_t0);
+    if (sync_res != CUDA_SUCCESS) {
         cuEventDestroy(ready);
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
@@ -691,7 +709,7 @@ bool NativeAvEncoder::write_native_surface_impl(
     runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle destination,
     bool surface_already_prepared) {
-#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+#if !defined(CHRONON3D_ENABLE_CUDA_INTEROP) || !defined(CHRONON3D_ENABLE_VULKAN)
     (void)backend; (void)source; (void)destination;
     return false;
 #else

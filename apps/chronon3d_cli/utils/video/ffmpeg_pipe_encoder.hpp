@@ -112,6 +112,17 @@ struct IVideoEncoder {
     [[nodiscard]] virtual double native_receive_packet_ms() const { return 0.0; }
     [[nodiscard]] virtual double native_mux_write_ms()   const { return 0.0; }
     [[nodiscard]] virtual double native_trailer_ms()     const { return 0.0; }
+    [[nodiscard]] virtual double encoder_hwframe_get_buffer_ms() const { return 0.0; }
+    [[nodiscard]] virtual double encoder_surface_acquire_ms() const { return 0.0; }
+    [[nodiscard]] virtual double encoder_nvenc_submit_ms() const { return 0.0; }
+    [[nodiscard]] virtual double encoder_queue_backpressure_wait_ms() const { return 0.0; }
+    [[nodiscard]] virtual double encoder_packet_drain_ms() const { return 0.0; }
+    [[nodiscard]] virtual double direct_yuv_cuda_launch_ms() const { return 0.0; }
+    [[nodiscard]] virtual double direct_yuv_cuda_wait_ms() const { return 0.0; }
+    [[nodiscard]] virtual double open_hw_ctx_ms() const { return 0.0; }
+    [[nodiscard]] virtual double cuda_compositor_warmup_ms() const { return 0.0; }
+    [[nodiscard]] virtual double open_nvenc_ms() const { return 0.0; }
+    [[nodiscard]] virtual double open_mux_header_ms() const { return 0.0; }
 
     // ── Pipe encoder telemetry accessors ──
     [[nodiscard]] virtual double total_write_blocked_ms() const { return 0.0; }
@@ -145,6 +156,9 @@ struct FfmpegPipeOptions {
     std::string tune;
     std::string pipe_writer{"classic"};
     int encode_threads{0};  ///< 0 = use encoder default (legacy behaviour)
+    // Direct-YUV owns its CUDA-only compositor and must not warm the
+    // Vulkan/FullGraph compositor while opening the encoder.
+    bool direct_yuv_mode{false};
 };
 
 } // namespace chronon3d::cli

@@ -3,6 +3,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // is_motion_blur_active
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -13,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
 
@@ -62,22 +64,31 @@ void apply_fingerprint_settings(render_plan::RenderPlanFingerprintOptions& finge
 Result<PreparedRenderPlanContext, render_plan::PlanDecodeError>
 prepare_render_plan(const RenderPlanPreparationOptions& options) {
     try {
+        const auto preparation_t0 = profiling::now();
+        const auto read_t0 = preparation_t0;
+        const auto source = read_plan_source(options);
+        const double read_ms = profiling::duration_ms(read_t0, profiling::now());
+
         nlohmann::json root;
+        const auto parse_t0 = profiling::now();
         try {
-            root = nlohmann::json::parse(read_plan_source(options));
+            root = nlohmann::json::parse(source);
         } catch (const std::exception& error) {
             return render_plan::PlanDecodeError{options.input, error.what()};
         }
+        const double parse_ms = profiling::duration_ms(parse_t0, profiling::now());
 
         auto plan_json = root;
         if (root.is_object() && root.value("schema", "") == "renderinggen.job" && root.contains("render_plan")) {
             plan_json = root.at("render_plan");
         }
 
+        const auto decode_t0 = profiling::now();
         auto decoded = render_plan::decode_render_plan(plan_json);
         if (!decoded) {
             return std::move(decoded).error();
         }
+        const double decode_ms = profiling::duration_ms(decode_t0, profiling::now());
 
         const std::string effective_assets_root = !options.assets_root.empty()
             ? options.assets_root
@@ -93,21 +104,30 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             plan.output.crf = output_obj.at("crf").get<int>();
         }
 
+        const auto resolver_t0 = profiling::now();
         chronon3d::assets::AssetResolver resolver;
         if (!effective_assets_root.empty()) {
             resolver.mount(std::filesystem::path{effective_assets_root});
         }
+        const double resolver_ms = profiling::duration_ms(resolver_t0, profiling::now());
 
         RenderSettings settings;
         settings.fail_on_missing_assets = true;
         render_plan::RenderPlanFingerprintOptions fingerprint_options;
         apply_fingerprint_settings(fingerprint_options, settings, plan);
 
+        const auto compile_t0 = profiling::now();
         auto compiled = render_plan::compile_render_plan(
             plan, resolver, fingerprint_options);
         if (!compiled) {
             return std::move(compiled).error();
         }
+        const double compile_ms = profiling::duration_ms(compile_t0, profiling::now());
+        const double total_ms = profiling::duration_ms(preparation_t0, profiling::now());
+        spdlog::info(
+            "[plan-profile] read={:.2f}ms parse={:.2f}ms decode={:.2f}ms "
+            "resolver={:.2f}ms compile_validate={:.2f}ms total={:.2f}ms",
+            read_ms, parse_ms, decode_ms, resolver_ms, compile_ms, total_ms);
 
         PreparedRenderPlanContext context;
         context.decoded = std::move(plan);

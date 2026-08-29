@@ -1,5 +1,6 @@
 #include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
+#include "utils/process_start.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
@@ -7,11 +8,12 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-#include "../../../../../src/backends/vulkan/vulkan_cuda_frame_importer.hpp"
+#include <chronon3d/media/video/native_frame_importer_factory.hpp>
+#if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <cuda.h>
 #endif
@@ -19,6 +21,7 @@
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <functional>
+#include <cstdlib>
 #include <memory>
 #include <thread>
 
@@ -201,7 +204,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
         session->encoder = std::make_unique<VariantFanoutEncoder>(std::move(children));
     } else {
+        const auto enc_create_t0 = profiling::now();
         session->encoder = create_video_encoder(session->opts);
+        session->startup_breakdown.encoder_create_ms = profiling::duration_ms(enc_create_t0, profiling::now());
     }
     if (!session->encoder) {
         spdlog::error("[video] Failed to create encoder");
@@ -223,9 +228,40 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
+    pipe_options.direct_yuv_mode =
+        opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
+        opts.encoder.encoder_backend == "native" &&
+        opts.encoder.hardware_encoder == "nvenc";
     if (!session->encoder->open(pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
+    }
+    session->startup_breakdown.encoder_open_hw_ctx_ms = session->encoder->open_hw_ctx_ms();
+    session->startup_breakdown.cuda_compositor_warmup_ms = session->encoder->cuda_compositor_warmup_ms();
+    session->startup_breakdown.encoder_open_nvenc_ms = session->encoder->open_nvenc_ms();
+    session->startup_breakdown.encoder_open_mux_header_ms = session->encoder->open_mux_header_ms();
+
+    // Direct-YUV needs image decoding and asset resolution for its static
+    // overlay, but it does not need the renderer-owned runtime to obtain
+    // either service.  Build these small services before the renderer branch
+    // so the dependency is explicit and can be removed completely when the
+    // remaining FullGraph-only session wiring is split out.
+    if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
+        opts.encoder.encoder_backend == "native" &&
+        opts.encoder.hardware_encoder == "nvenc") {
+        session->direct_yuv_session = std::make_unique<DirectYuvSession>();
+        auto& direct = *session->direct_yuv_session;
+        direct.asset_resolver = std::make_unique<assets::AssetResolver>();
+        if (session->opts.assets_root) {
+            direct.asset_resolver->mount(*session->opts.assets_root);
+        } else if (const char* env_root = std::getenv("CHRONON3D_CLI_ASSETS_ROOT");
+                   env_root && *env_root) {
+            direct.asset_resolver->mount(std::filesystem::path{env_root});
+        }
+        direct.image_cache = std::make_unique<ImageCache>();
+        direct.image_backend = std::make_shared<image::StbImageBackend>();
+        direct.image_cache->set_backend(direct.image_backend);
+        direct.image_cache->set_asset_resolver(direct.asset_resolver.get());
     }
 
     // Track FFmpeg process only for ffmpeg pipe sink
@@ -237,70 +273,104 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // exporter receives the same root carried by RenderJob and never falls
     // back to the process CWD.
 
-    // ── Create renderer ──────────────────────────────────────────────────
+    // Resolve Direct-YUV before constructing any renderer.  Its eligibility
+    // scan and overlay preparation use only the compiled composition, the
+    // small direct image cache, and the encoder CUDA context.
+    if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
+        opts.encoder.encoder_backend == "native" &&
+        opts.encoder.hardware_encoder == "nvenc") {
+        const auto input_t0 = profiling::now();
+        std::string direct_reason;
+        session->direct_yuv_session->program = DirectYuvProgram::prepare(
+            compiled, *session->direct_yuv_session->image_cache, session->encoder->cuda_context(),
+            direct_reason);
+        session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
+        if (!session->direct_yuv_selected()) {
+            spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}",
+                          direct_reason);
+            session->direct_yuv_session->required_but_unavailable = true;
+            return session;
+        }
+        spdlog::info("[direct-yuv] selected for video source '{}'",
+                     session->direct_yuv_session->program->video_path());
+    }
+
+    // ── Create renderer only for FullGraph ───────────────────────────────
     const auto renderer_t0 = profiling::now();
-    if (opts.warm_renderer) {
-        session->renderer = opts.warm_renderer;
-        session->renderer->set_settings(settings);
+    if (session->direct_yuv_selected()) {
+        spdlog::info("[direct-yuv] skipped SoftwareRenderer and RenderRuntime construction");
+    } else if (opts.warm_renderer) {
+        session->full_graph_session = std::make_unique<FullGraphSession>();
+        session->full_graph_session->renderer = opts.warm_renderer;
+        session->full_graph_session->renderer->set_settings(settings);
         if (session->opts.assets_root) {
-            session->renderer->runtime().resolver().mount(*session->opts.assets_root);
+            session->full_graph_session->renderer->runtime().resolver().mount(*session->opts.assets_root);
         }
         spdlog::info("[video] Reusing daemon-owned warm renderer");
     } else {
-        // Inject the single CLI CpuBudget so the runtime does not recompute it,
-        // and honor the CLI --backend selection.  Auto falls back to Software
-        // on the video pipe path; GPU strictly resolves the Vulkan backend
-        // (attach_software_backend registers Vulkan only for GPU preference).
+        session->full_graph_session = std::make_unique<FullGraphSession>();
         Config renderer_cfg = Config::from_environment(cpu_budget);
-        renderer_cfg.set_backend_preference(opts.backend_preference);
+        if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+            // Direct-YUV execution bypasses Vulkan entirely: GPU processing is owned by
+            // native NVDEC -> CUDA Compositor -> NVENC. Use Software backend preference
+            // for the orchestration renderer so Vulkan instance, device, and SPIR-V
+            // compute pipelines (~4.5s overhead) are never initialized.
+            renderer_cfg.set_backend_preference(graph::BackendPreference::Software);
+            spdlog::info("[direct-yuv] RequireDirectYuv active: bypassed Vulkan backend initialization");
+        } else {
+            renderer_cfg.set_backend_preference(opts.backend_preference);
+        }
         renderer_cfg.set_gpu_hot_path_mode(opts.gpu_hot_path_mode);
-        session->renderer = create_renderer(
+        session->full_graph_session->renderer = create_renderer(
             registry, settings, std::move(renderer_cfg), session->opts.assets_root,
             &session->engine_init_ms, &session->backend_init_ms);
     }
     const auto renderer_t1 = profiling::now();
 
-    if (session->renderer->counters()) {
+    if (session->full_graph_session && session->full_graph_session->renderer &&
+        session->full_graph_session->renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
             profiling::duration_ms(renderer_t0, renderer_t1));
-        session->renderer->counters()->setup_graph_parsing_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+        session->full_graph_session->renderer->counters()->setup_graph_parsing_wall_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
     // 06 R3b — `create_renderer` returns `std::shared_ptr<SoftwareRenderer>`
     // (the CLI-side type contract is now SoftwareRenderer-direct).  No
     // dynamic_cast required; the renderer pointer IS the right type.
-    SoftwareRenderer* sw_renderer = session->renderer.get();
-
-    if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
-        opts.encoder.encoder_backend == "native" &&
-        opts.encoder.hardware_encoder == "nvenc") {
-        std::string direct_reason;
-        session->direct_yuv_program = DirectYuvProgram::prepare(
-            compiled, *session->renderer, session->encoder->cuda_context(),
-            direct_reason);
-        if (!session->direct_yuv_program) {
-            spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}",
-                          direct_reason);
-            session->direct_yuv_required_but_unavailable = true;
-            return session;
-        }
-        spdlog::info("[direct-yuv] selected for video source '{}'",
-                     session->direct_yuv_program->video_path());
+    SoftwareRenderer* sw_renderer = session->full_graph_session
+        ? session->full_graph_session->renderer.get() : nullptr;
+    session->startup_ms = profiling::duration_ms(process_start_time(), renderer_t1);
+    session->startup_breakdown.renderer_runtime_init_ms = session->engine_init_ms;
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (session->full_graph_session && session->full_graph_session->renderer) {
+      if (auto* vk_b = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(&session->full_graph_session->renderer->backend())) {
+        session->startup_breakdown.vulkan_instance_ms = vk_b->init_instance_ms();
+        session->startup_breakdown.vulkan_device_ms = vk_b->init_device_ms();
+        session->startup_breakdown.vulkan_pipelines_ms = vk_b->init_pipelines_ms();
+      }
     }
+#endif
+
+    const auto prep_start = profiling::now();
 
     // ── Font preflight (P0 video/text — Fase 1) ────────────────────────────
     // Check fonts referenced by the composition before rendering starts.
     // Missing fonts fail early with a clear error instead of crashing or
     // producing black frames.
-    {
+    if (!session->direct_yuv_selected()) {
+        const auto font_t0 = profiling::now();
         const auto preparation = runtime::prepare_render(
             sw_renderer, compiled,
             runtime::RenderPreparationOptions{.warmup_renderer = false});
+        session->prepare_breakdown.font_preflight_ms = profiling::duration_ms(font_t0, profiling::now());
         if (!preparation.ok()) {
             spdlog::error("[video] Render preparation FAILED:\n{}",
                           preparation.diagnostic());
             return session;
         }
         session->prepare_timings.accumulate(preparation.timings);
+    } else {
+        session->prepare_breakdown.font_preflight_ms = 0.0;
+        spdlog::info("[direct-yuv] bypassed generic runtime::prepare_render and font preflight");
     }
 
     // ── Wire counters into encoder so async converter thread can report telemetry ──
@@ -315,32 +385,44 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // ── Arena ──────────────────────────────────────────────────────────────
     // Note: the queue itself is owned by PipeExportSession (constructed above
     // with kArenaPoolCount as capacity).  We only allocate the arena pool here.
-    const size_t arena_size =compute_pipe_arena_size(
-        compiled.composition->width(),
-        compiled.composition->height())
-;
-    session->triple_arena = std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
+    if (!session->direct_yuv_selected()) {
+        const auto arena_t0 = profiling::now();
+        const size_t arena_size = compute_pipe_arena_size(
+            compiled.composition->width(),
+            compiled.composition->height());
+        session->full_graph_session->triple_arena =
+            std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
+        session->prepare_breakdown.triple_arena_alloc_ms =
+            profiling::duration_ms(arena_t0, profiling::now());
+    }
 
     // ── Writer thread (context stored in session so it outlives the thread) ─
     auto writer_ctx = std::unique_ptr<WriterThreadContext>(
         new WriterThreadContext{
             .queue = session->queue,
             .writer_failed = session->writer_failed,
-            .triple_arena = *session->triple_arena,
+            .triple_arena = session->full_graph_session
+                ? session->full_graph_session->triple_arena.get() : nullptr,
             .encoder = *session->encoder,
-            .renderer = *sw_renderer,
+            .renderer = sw_renderer,
+            .counters = sw_renderer ? sw_renderer->counters() : &session->direct_yuv_session->counters,
+            .hot_path_mode = opts.gpu_hot_path_mode,
             .writer_encode_us_total = session->writer_encode_us_total,
             .frames_encoded = session->frames_encoded,
             .require_native_gpu =
                 opts.backend_preference == graph::BackendPreference::GPU &&
                 opts.encoder.encoder_backend == "native" &&
                 opts.encoder.hardware_encoder == "nvenc",
-            .interop_ring = session->interop_ring,
+            .interop_ring = session->full_graph_session
+                ? &session->full_graph_session->interop_ring : nullptr,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
             .trace_job_id = session->trace_job_id,
         });
+    const auto spawn_t0 = profiling::now();
     session->writer_thread = std::thread(run_writer_thread, std::ref(*writer_ctx));
     session->writer_ctx = std::move(writer_ctx);
+    session->prepare_breakdown.writer_thread_spawn_ms = profiling::duration_ms(spawn_t0, profiling::now());
+    session->setup_prepare_ms = profiling::duration_ms(prep_start, profiling::now());
 
     return session;
 }
@@ -354,11 +436,6 @@ RenderLoopOutput run_pipe_export_loop(
     Frame end,
     const FfmpegExportOptions& opts)
 {
-    // Reuse the renderer/runtime's canonical NodeCache instead of creating a
-    // second local cache.  This keeps still and video renders consistent and
-    // avoids split statistics / capacity / clear behaviour.
-    cache::NodeCache& node_cache = session.renderer->node_cache();
-
     // Production video-frame decoder: video source layers (VideoNode) consume
     // media::MediaFrameProvider; without a live decoder every video layer
     // (light leaks, VIDEO_BACKGROUND, …) renders as an empty black framebuffer.
@@ -367,10 +444,16 @@ RenderLoopOutput run_pipe_export_loop(
     // when CHRONON3D_ENABLE_NATIVE_FFMPEG is off.
     session.native_decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
     auto& native_decoder = session.native_decoder;
-    native_decoder->set_counters(session.renderer->counters());
-    native_decoder->set_gpu_hot_path_mode(session.renderer->config().gpu_hot_path_mode());
+    native_decoder->set_counters(session.renderer_ptr()
+        ? session.renderer_ptr()->counters() : &session.direct_yuv_session->counters);
+    native_decoder->set_gpu_hot_path_mode(session.renderer_ptr()
+        ? session.renderer_ptr()->config().gpu_hot_path_mode() : opts.gpu_hot_path_mode);
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer->backend())) {
+    if (session.direct_yuv_selected()) {
+        native_decoder->set_shared_cuda_context(session.encoder->cuda_context());
+        spdlog::info("[direct-yuv] bound decoder directly to CUDA context without Vulkan importer");
+#if defined(CHRONON3D_ENABLE_VULKAN)
+    } else if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer_ptr()->backend())) {
         // The encoder is opened before this loop. Use the context that owns
         // the FFmpeg/NVDEC/NVENC hardware frames; sampling the current
         // context here can select Vulkan's primary context instead.
@@ -390,26 +473,33 @@ RenderLoopOutput run_pipe_export_loop(
                 }
             }
         }
-        auto importer = std::make_shared<backends::vulkan::VulkanCudaFrameImporter>(
-            *vulkan, session.renderer->runtime().surface_registry(), cuda_context);
-        native_decoder->set_native_frame_importer(std::move(importer));
+        auto importer = media::create_native_frame_importer_for_backend(
+            *vulkan, session.renderer_ptr()->runtime().surface_registry(), cuda_context);
+        if (importer) native_decoder->set_native_frame_importer(std::move(importer));
+#endif
     }
 #endif
     native_decoder->set_trace_job_id(session.trace_job_id);
     media::MediaFrameProvider* video_decoder = native_decoder.get();
 
-    std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
-    telemetry_frames.reserve(session.total_frames > 0
-        ? static_cast<size_t>(session.total_frames) : 0);
+    RenderLoopOutput output;
+    if (session.direct_yuv_selected()) {
+        output = run_direct_yuv_loop(session, *native_decoder, start, end, opts);
+    } else {
+        // Reuse the renderer/runtime's canonical NodeCache instead of
+        // creating a second local cache. This branch is FullGraph-only.
+        cache::NodeCache& node_cache = session.renderer_ptr()->node_cache();
+        std::vector<chronon3d::telemetry::FrameTelemetry> telemetry_frames;
+        telemetry_frames.reserve(session.total_frames > 0
+            ? static_cast<size_t>(session.total_frames) : 0);
+        const auto render_t0 = profiling::now();
 
-    const auto render_t0 = profiling::now();
-
-    RenderLoopContext loop_ctx{
+        RenderLoopContext loop_ctx{
         // 06 R3b boundary refactor: `SoftwareRenderer` no longer derives
         // from `graph::RenderBackend` — the backend is reachable via the
         // `->backend()` accessor (a domain-aware forwarder into the
         // runtime-owned backend slot, NOT an implicit IS-A upcast).
-        .backend = session.renderer->backend(),
+        .backend = session.renderer_ptr()->backend(),
         .node_cache = node_cache,
         .settings = settings,
         .registry = registry,
@@ -418,22 +508,25 @@ RenderLoopOutput run_pipe_export_loop(
         .start = start,
         .end = end,
         .opts = opts,
-        .sw_renderer = session.renderer.get(),
+        .sw_renderer = session.renderer_ptr(),
         .queue = session.queue,
         .writer_failed = session.writer_failed,
         .frames_encoded = session.frames_encoded,
-        .interop_ring = session.interop_ring,
-        .native_encode_surfaces = session.native_encode_surfaces,
-        .native_source_surfaces = session.native_source_surfaces,
-        .triple_arena = *session.triple_arena,
-        .counters = session.renderer->counters(),
+        .interop_ring = session.full_graph_session->interop_ring,
+        .native_encode_surfaces = session.full_graph_session->native_encode_surfaces,
+        .native_source_surfaces = session.full_graph_session->native_source_surfaces,
+        .triple_arena = session.full_graph_session->triple_arena.get(),
+        .counters = session.renderer_ptr()->counters(),
         .telemetry_frames = telemetry_frames,
         .trace_job_id = session.trace_job_id,
-        .direct_yuv_program = session.direct_yuv_program,
-    };
-    auto loop_result = run_render_loop(loop_ctx);
-
-    const auto render_t1 = profiling::now();
+        };
+        output.loop_result = run_render_loop(loop_ctx);
+        const auto render_t1 = profiling::now();
+        output.telemetry_frames = std::move(telemetry_frames);
+        output.render_ms = profiling::duration_ms(render_t0, render_t1);
+        output.render_end = render_t1;
+    }
+    auto& loop_result = output.loop_result;
 
     // Close the queue to unblock the writer, then join.
     session.queue.close();
@@ -443,11 +536,11 @@ RenderLoopOutput run_pipe_export_loop(
     spdlog::info("[video] writer join complete");
     // Destroy decoder CUDA/Vulkan imports before any backend/pool cleanup.
     // The imported image must outlive its CUDA external memory bridge.
-    if (session.renderer && session.renderer->counters()) {
-        session.renderer->counters()->interop_ring_wait_count.fetch_add(
-            session.interop_ring.wait_count(), std::memory_order_relaxed);
-        session.renderer->counters()->interop_ring_wait_us.fetch_add(
-            session.interop_ring.wait_us(), std::memory_order_relaxed);
+    if (session.renderer_ptr() && session.renderer_ptr()->counters()) {
+        session.renderer_ptr()->counters()->interop_ring_wait_count.fetch_add(
+            session.full_graph_session->interop_ring.wait_count(), std::memory_order_relaxed);
+        session.renderer_ptr()->counters()->interop_ring_wait_us.fetch_add(
+            session.full_graph_session->interop_ring.wait_us(), std::memory_order_relaxed);
     }
 
     if (session.writer_failed.load()) {
@@ -458,10 +551,10 @@ RenderLoopOutput run_pipe_export_loop(
     // Apply the configured post-job policy. In warm daemon mode this keeps
     // the framebuffer working set alive; single-shot jobs can still select
     // TrimAfterJob to release memory explicitly.
-    if (session.renderer && session.renderer->framebuffer_pool()) {
+    if (session.renderer_ptr() && session.renderer_ptr()->framebuffer_pool()) {
         spdlog::info("[video] trimming framebuffer pool");
-        const auto policy = session.renderer->framebuffer_pool()->clear_policy();
-        session.renderer->framebuffer_pool()->trim_after_job();
+        const auto policy = session.renderer_ptr()->framebuffer_pool()->clear_policy();
+        session.renderer_ptr()->framebuffer_pool()->trim_after_job();
         if (policy == cache::FramebufferPoolClearPolicy::TrimAfterJob) {
             spdlog::info("[video] Released framebuffer pool — memory trimmed");
         } else {
@@ -475,14 +568,14 @@ RenderLoopOutput run_pipe_export_loop(
     // and the final output readback is complete, while preserving warm
     // JobPersistent asset/font surfaces for the next daemon job.
     const bool native_encoder = session.opts.encoder.encoder_backend == "native";
-    if (session.renderer && !native_encoder) {
-        auto& rt = session.renderer->runtime();
+    if (session.renderer_ptr() && !native_encoder) {
+        auto& rt = session.renderer_ptr()->runtime();
         rt.backend().release_frame_transient_surfaces();
         for (const auto handle : rt.surface_registry().handles_with_lifetime(
                  runtime::LifetimeClass::FrameTransient)) {
             (void)rt.surface_registry().release(handle);
         }
-        for (auto& handle : session.native_source_surfaces) {
+        for (auto& handle : session.full_graph_session->native_source_surfaces) {
             if (handle != runtime::kInvalidRenderSurfaceHandle) {
                 (void)rt.backend().release_surface(handle);
                 (void)rt.surface_registry().release(handle);
@@ -491,11 +584,6 @@ RenderLoopOutput run_pipe_export_loop(
         }
     }
 
-    RenderLoopOutput output;
-    output.loop_result = std::move(loop_result);
-    output.telemetry_frames = std::move(telemetry_frames);
-    output.render_ms = profiling::duration_ms(render_t0, render_t1);
-    output.render_end = render_t1;
     return output;
 }
 
@@ -546,13 +634,13 @@ void warmup_text_size_classes(cache::FramebufferPool& pool) {
 } // namespace
 
 void warmup_pipe_pool(PipeExportSession& session) {
-    if (!session.renderer || !session.renderer->framebuffer_pool()) {
+    if (!session.renderer_ptr() || !session.renderer_ptr()->framebuffer_pool()) {
         return;
     }
 
     const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(
         session.canvas_width, session.canvas_height);
-    const auto prealloced = session.renderer->framebuffer_pool()->preallocate(
+    const auto prealloced = session.renderer_ptr()->framebuffer_pool()->preallocate(
         cache::FramebufferPoolPreallocOptions{
             .width = bw,
             .height = bh,
@@ -566,7 +654,7 @@ void warmup_pipe_pool(PipeExportSession& session) {
     }
 
     // Pre-warm the text-composition ROI + downsample size classes.
-    warmup_text_size_classes(*session.renderer->framebuffer_pool());
+    warmup_text_size_classes(*session.renderer_ptr()->framebuffer_pool());
 }
 
 } // namespace chronon3d::cli

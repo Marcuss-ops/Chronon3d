@@ -1,4 +1,6 @@
 #pragma once
+#ifndef CHRONON3D_CLI_SINK_OPTIONS_HPP
+#define CHRONON3D_CLI_SINK_OPTIONS_HPP
 
 // ---------------------------------------------------------------------------
 // sink_options.hpp
@@ -58,13 +60,13 @@ enum class VideoSinkType {
 /// Sink-specific options.
 ///
 /// Most sinks are selected purely by type and don't need additional options.
-/// FfmpegSink still uses `ffmpeg_mode` ("pipe" or "png") and its related
-/// chunking / keep-frames behaviour.
+/// FfmpegSink uses the native streaming `pipe` mode.
 struct SinkOptions {
     /// The sink type selected for this export.
     VideoSinkType sink_type{VideoSinkType::Ffmpeg};
 
-    /// FFmpeg sub-mode: "pipe" (stream via pipe) or "png" (render → PNG → ffmpeg).
+    /// FFmpeg sub-mode. The legacy PNG/chunked mode is no longer part of the
+    /// CLI video target.
     /// Only meaningful when sink_type == Ffmpeg.
     std::string ffmpeg_mode{"pipe"};
 
@@ -76,3 +78,5 @@ struct SinkOptions {
 };
 
 } // namespace chronon3d::cli
+
+#endif // CHRONON3D_CLI_SINK_OPTIONS_HPP
