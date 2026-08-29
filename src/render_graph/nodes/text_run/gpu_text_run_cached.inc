@@ -135,111 +135,118 @@ graph::RenderOpResult draw_cached_text_run(
             counter.fetch_add(1, std::memory_order_relaxed);
         }
         if (!styled) {
-        if (output_width <= 0 || output_height <= 0) {
-            return graph::RenderOpResult(graph::RenderBackendError{
-                graph::RenderBackendErrorCode::InvalidInput,
-                "draw_cached_text_run: invalid styled glyph raster dimensions"});
-        }
-        std::size_t raster_pixels = 0;
-        std::size_t raster_floats = 0;
-        if (!checked_mul(static_cast<std::size_t>(output_width),
-                         static_cast<std::size_t>(output_height), raster_pixels) ||
-            !checked_mul(raster_pixels, 4u, raster_floats)) {
-            return graph::RenderOpResult(graph::RenderBackendError{
-                graph::RenderBackendErrorCode::InvalidInput,
-                "draw_cached_text_run: styled glyph raster size overflow"});
-        }
-        std::vector<float> rgba(raster_floats, 0.0f);
-        auto source_alpha = [&](int x, int y) {
-            if (x < 0 || y < 0 || x >= data.size.w || y >= data.size.h) return 0.0f;
-            const auto* source_row = static_cast<const std::uint8_t*>(data.pixelData) +
-                static_cast<std::size_t>(y) * data.stride;
-            return source_row[static_cast<std::size_t>(x) * 4 + 3] / 255.0f;
-        };
-        auto over = [](float& dr, float& dg, float& db, float& da,
-                       float sr, float sg, float sb, float sa) {
-            dr = sr + dr * (1.0f - sa);
-            dg = sg + dg * (1.0f - sa);
-            db = sb + db * (1.0f - sa);
-            da = sa + da * (1.0f - sa);
-        };
-        auto shadow_alpha = [&](const TextShadow& shadow, int x, int y) {
-            const int sx = x - static_cast<int>(std::lround(shadow.offset.x));
-            const int sy = y - static_cast<int>(std::lround(shadow.offset.y));
-            const int radius = static_cast<int>(std::ceil(std::max(0.0f, shadow.blur)));
-            if (radius <= 0) return source_alpha(sx, sy);
-            float sum = 0.0f;
-            int samples = 0;
-            for (int oy = -1; oy <= 1; ++oy) {
-                for (int ox = -1; ox <= 1; ++ox) {
-                    sum += source_alpha(sx + ox * radius, sy + oy * radius);
-                    ++samples;
-                }
+            // SOLO generazione bitmap/cache miss
+            if (output_width <= 0 || output_height <= 0) {
+                return graph::RenderOpResult(graph::RenderBackendError{
+                    graph::RenderBackendErrorCode::InvalidInput,
+                    "draw_cached_text_run: invalid styled glyph raster dimensions"});
             }
-            return sum / static_cast<float>(samples);
-        };
-        for (int y = 0; y < output_height; ++y) {
-            const int source_y = y - pad;
-            for (int x = 0; x < output_width; ++x) {
-                const int source_x = x - pad;
-                const float mask = source_alpha(source_x, source_y);
-                float stroke_mask = 0.0f;
-                if (stroke_radius > 0) {
-                    for (int oy = -stroke_radius; oy <= stroke_radius; ++oy) {
-                        for (int ox = -stroke_radius; ox <= stroke_radius; ++ox) {
-                            if (ox * ox + oy * oy <= stroke_radius * stroke_radius) {
-                                stroke_mask = std::max(stroke_mask,
-                                    source_alpha(source_x + ox, source_y + oy));
+            std::size_t raster_pixels = 0;
+            std::size_t raster_floats = 0;
+            if (!checked_mul(static_cast<std::size_t>(output_width),
+                             static_cast<std::size_t>(output_height), raster_pixels) ||
+                !checked_mul(raster_pixels, 4u, raster_floats)) {
+                return graph::RenderOpResult(graph::RenderBackendError{
+                    graph::RenderBackendErrorCode::InvalidInput,
+                    "draw_cached_text_run: styled glyph raster size overflow"});
+            }
+            std::vector<float> rgba(raster_floats, 0.0f);
+            auto source_alpha = [&](int x, int y) {
+                if (x < 0 || y < 0 || x >= data.size.w || y >= data.size.h) return 0.0f;
+                const auto* source_row = static_cast<const std::uint8_t*>(data.pixelData) +
+                    static_cast<std::size_t>(y) * data.stride;
+                return source_row[static_cast<std::size_t>(x) * 4 + 3] / 255.0f;
+            };
+            auto over = [](float& dr, float& dg, float& db, float& da,
+                           float sr, float sg, float sb, float sa) {
+                dr = sr + dr * (1.0f - sa);
+                dg = sg + dg * (1.0f - sa);
+                db = sb + db * (1.0f - sa);
+                da = sa + da * (1.0f - sa);
+            };
+            auto shadow_alpha = [&](const TextShadow& shadow, int x, int y) {
+                const int sx = x - static_cast<int>(std::lround(shadow.offset.x));
+                const int sy = y - static_cast<int>(std::lround(shadow.offset.y));
+                const int radius = static_cast<int>(std::ceil(std::max(0.0f, shadow.blur)));
+                if (radius <= 0) return source_alpha(sx, sy);
+                float sum = 0.0f;
+                int samples = 0;
+                for (int oy = -1; oy <= 1; ++oy) {
+                    for (int ox = -1; ox <= 1; ++ox) {
+                        sum += source_alpha(sx + ox * radius, sy + oy * radius);
+                        ++samples;
+                    }
+                }
+                return sum / static_cast<float>(samples);
+            };
+            for (int y = 0; y < output_height; ++y) {
+                const int source_y = y - pad;
+                for (int x = 0; x < output_width; ++x) {
+                    const int source_x = x - pad;
+                    const float mask = source_alpha(source_x, source_y);
+                    float stroke_mask = 0.0f;
+                    if (stroke_radius > 0) {
+                        for (int oy = -stroke_radius; oy <= stroke_radius; ++oy) {
+                            for (int ox = -stroke_radius; ox <= stroke_radius; ++ox) {
+                                if (ox * ox + oy * oy <= stroke_radius * stroke_radius) {
+                                    stroke_mask = std::max(stroke_mask,
+                                        source_alpha(source_x + ox, source_y + oy));
+                                }
                             }
                         }
                     }
+                    const std::size_t off = (static_cast<std::size_t>(y) * output_width + x) * 4;
+                    float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
+                    if (state.background.a > 1e-4f) {
+                        const float ba = std::clamp(state.background.a, 0.0f, 1.0f);
+                        over(r, g, b, a, state.background.r * ba,
+                             state.background.g * ba, state.background.b * ba, ba);
+                    }
+                    for (const auto& shadow : shape.shadows) {
+                        if (!shadow.enabled || shadow.opacity <= 1e-4f) continue;
+                        const float sa = shadow_alpha(shadow, source_x, source_y) *
+                            std::clamp(shadow.opacity, 0.0f, 1.0f);
+                        over(r, g, b, a, shadow.color.r * sa,
+                             shadow.color.g * sa, shadow.color.b * sa, sa);
+                    }
+                    if (stroke_mask > 1e-4f && state.stroke.a > 1e-4f) {
+                        const float sa = stroke_mask * std::clamp(state.stroke.a, 0.0f, 1.0f);
+                        over(r, g, b, a, state.stroke.r * sa,
+                             state.stroke.g * sa, state.stroke.b * sa, sa);
+                    }
+                    if (mask > 1e-4f) {
+                        const float fa = mask * std::clamp(raster_fill.a, 0.0f, 1.0f);
+                        over(r, g, b, a, raster_fill.r * fa,
+                             raster_fill.g * fa, raster_fill.b * fa, fa);
+                    }
+                    rgba[off + 0] = r;
+                    rgba[off + 1] = g;
+                    rgba[off + 2] = b;
+                    rgba[off + 3] = a;
                 }
-                const std::size_t off = (static_cast<std::size_t>(y) * output_width + x) * 4;
-                float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
-                if (state.background.a > 1e-4f) {
-                    const float ba = std::clamp(state.background.a, 0.0f, 1.0f);
-                    over(r, g, b, a, state.background.r * ba,
-                         state.background.g * ba, state.background.b * ba, ba);
-                }
-                for (const auto& shadow : shape.shadows) {
-                    if (!shadow.enabled || shadow.opacity <= 1e-4f) continue;
-                    const float sa = shadow_alpha(shadow, source_x, source_y) *
-                        std::clamp(shadow.opacity, 0.0f, 1.0f);
-                    over(r, g, b, a, shadow.color.r * sa,
-                         shadow.color.g * sa, shadow.color.b * sa, sa);
-                }
-                if (stroke_mask > 1e-4f && state.stroke.a > 1e-4f) {
-                    const float sa = stroke_mask * std::clamp(state.stroke.a, 0.0f, 1.0f);
-                    over(r, g, b, a, state.stroke.r * sa,
-                         state.stroke.g * sa, state.stroke.b * sa, sa);
-                }
-                if (mask > 1e-4f) {
-                    const float fa = mask * std::clamp(raster_fill.a, 0.0f, 1.0f);
-                    over(r, g, b, a, raster_fill.r * fa,
-                         raster_fill.g * fa, raster_fill.b * fa, fa);
-                }
-                rgba[off + 0] = r;
-                rgba[off + 1] = g;
-                rgba[off + 2] = b;
-                rgba[off + 3] = a;
             }
+            auto pixels = std::make_shared<const std::vector<float>>(std::move(rgba));
+            if (ctx.services.gpu_text_atlas_cache) {
+                ctx.services.gpu_text_atlas_cache->store_styled(
+                    style_key, static_cast<std::uint32_t>(output_width),
+                    static_cast<std::uint32_t>(output_height), pixels);
+            }
+            styled = std::make_shared<const runtime::GpuTextAtlasCache::StyledGlyphBitmap>(
+                runtime::GpuTextAtlasCache::StyledGlyphBitmap{
+                    static_cast<std::uint32_t>(output_width),
+                    static_cast<std::uint32_t>(output_height), std::move(pixels)});
         }
-        auto pixels = std::make_shared<const std::vector<float>>(std::move(rgba));
-        if (ctx.services.gpu_text_atlas_cache) {
-            ctx.services.gpu_text_atlas_cache->store_styled(
-                style_key, static_cast<std::uint32_t>(output_width),
-                static_cast<std::uint32_t>(output_height), pixels);
-        }
-        styled = std::make_shared<const runtime::GpuTextAtlasCache::StyledGlyphBitmap>(
-            runtime::GpuTextAtlasCache::StyledGlyphBitmap{
-                static_cast<std::uint32_t>(output_width),
-                static_cast<std::uint32_t>(output_height), std::move(pixels)});
-        }
+
+        // ===========================================
+        // DA QUI IN POI FUORI DA if (!styled)
+        // ===========================================
+
         if (!styled || !styled->rgba) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "draw_cached_text_run: styled glyph cache returned no pixels"});
         }
+
         std::size_t glyph_pixels = 0;
         std::size_t expected_pixels = 0;
         if (!checked_mul(static_cast<std::size_t>(styled->width),
@@ -250,23 +257,51 @@ graph::RenderOpResult draw_cached_text_run(
                 graph::RenderBackendErrorCode::InvalidInput,
                 "draw_cached_text_run: cached glyph pixel-size mismatch"});
         }
+
+        const float highlight_start =
+            highlight_plan.enabled &&
+            i < highlight_plan.glyph_ranges.size()
+                ? highlight_plan.glyph_ranges[i].first
+                : -1.0f;
+
+        const float highlight_end =
+            highlight_plan.enabled &&
+            i < highlight_plan.glyph_ranges.size()
+                ? highlight_plan.glyph_ranges[i].second
+                : -1.0f;
+
         glyphs.push_back(GpuTextGlyph{
             styled->width,
             styled->height,
             {},
-            static_cast<std::int32_t>(std::lround(model_translate_x +
-                model_scale_x * (placed.x + state.position.x + entry->x_offset - pad))),
-            static_cast<std::int32_t>(std::lround(model_translate_y +
-                model_scale_y * (placed.y + state.position.y + entry->y_offset - pad))),
+            static_cast<std::int32_t>(
+                std::lround(
+                    model_translate_x +
+                    model_scale_x *
+                        (placed.x +
+                         state.position.x +
+                         entry->x_offset -
+                         pad))),
+            static_cast<std::int32_t>(
+                std::lround(
+                    model_translate_y +
+                    model_scale_y *
+                        (placed.y +
+                         state.position.y +
+                         entry->y_offset -
+                         pad))),
             state.scale.x * model_scale_x,
             state.scale.y * model_scale_y,
             state.opacity * opacity,
             styled->rgba,
-            (highlight_plan.enabled && i < highlight_plan.glyph_ranges.size())
-                ? highlight_plan.glyph_ranges[i].first : -1.0f,
-            (highlight_plan.enabled && i < highlight_plan.glyph_ranges.size())
-                ? highlight_plan.glyph_ranges[i].second : -1.0f});
-        glyphs.back().atlas_key = std::move(style_key);
+            highlight_start,
+            highlight_end
+        });
+
+        glyphs.back().atlas_key = style_key;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_glyphs_built.fetch_add(1, std::memory_order_relaxed);
+        }
     }
     // A cached TextRun renders into its own transparent output surface. Do
     // not upload the CPU framebuffer here: that would copy the full canvas

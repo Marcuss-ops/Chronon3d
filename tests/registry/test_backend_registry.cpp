@@ -30,6 +30,12 @@
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/text/glyph_atlas.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <blend2d.h>
 #endif
 
 #include "../../src/render_graph/nodes/text_run/gpu_text_run.hpp"
@@ -348,6 +354,76 @@ TEST_CASE("packed text-run builder packs glyphs and composites via Vulkan") {
     // No bleed outside the glyph quads.
     CHECK(pixel(0, 0)[3] == doctest::Approx(0.0f));
     CHECK(pixel(2, 1)[3] == doctest::Approx(0.0f));
+}
+
+TEST_CASE("cached text-run builds glyphs on both styled cache miss and hit via Vulkan") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    TextRenderResources text_resources;
+    runtime::GpuTextAtlasCache gpu_cache;
+    RenderGraphContext ctx;
+    ctx.services.backend = &backend;
+    ctx.services.surface_registry = &surfaces;
+    ctx.services.text_render_resources = &text_resources;
+    ctx.services.gpu_text_atlas_cache = &gpu_cache;
+
+    // Pre-populate glyph atlas with an unstyled glyph entry
+    auto glyph_img = std::make_shared<BLImage>(4, 4, BL_FORMAT_PRGB32);
+    BLImageData img_data{};
+    REQUIRE(glyph_img->getData(&img_data) == BL_SUCCESS);
+    std::memset(img_data.pixelData, 0xFF, static_cast<std::size_t>(img_data.size.h) * img_data.stride);
+
+    GlyphAtlasEntry entry;
+    entry.image = glyph_img;
+    entry.x_offset = 0;
+    entry.y_offset = 0;
+    entry.advance_x = 4.0f;
+    text_resources.store_glyph_atlas("test_font", 1, 12, entry);
+
+    TextRunShape shape;
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->font.font_path = "test_font";
+    layout->font_size = 12.0f;
+
+    PlacedGlyph pg{};
+    pg.glyph_id = 1;
+    pg.bbox_x0 = 0.0f;
+    pg.bbox_x1 = 4.0f;
+    pg.bbox_y0 = 4.0f;
+    pg.bbox_y1 = 0.0f;
+    layout->placed.glyphs.push_back(pg);
+    layout->units.glyph_to_word.assign(1, 0);
+    shape.layout = layout;
+
+    GlyphInstanceState gs{};
+    gs.glyph_id = 1;
+    gs.scale = {1.0f, 1.0f, 1.0f};
+    gs.opacity = 1.0f;
+    shape.glyphs.push_back(gs);
+
+    RenderCounters counters{};
+    profiling::g_current_counters = &counters;
+
+    // Frame 0: Cold Cache (MISS)
+    Framebuffer canvas0(16, 16);
+    const auto r0 = text_run::draw_cached_text_run(ctx, canvas0, shape, glm::mat4(1.0f), 1.0f);
+    REQUIRE(r0.ok());
+    CHECK(counters.gpu_text_styled_cache_misses.load() == 1);
+    CHECK(counters.gpu_text_styled_cache_hits.load() == 0);
+    CHECK(counters.gpu_text_glyphs_built.load() == 1);
+
+    // Frame 1: Warm Cache (HIT) -> MUST build glyphs even on cache hit!
+    Framebuffer canvas1(16, 16);
+    const auto r1 = text_run::draw_cached_text_run(ctx, canvas1, shape, glm::mat4(1.0f), 1.0f);
+    REQUIRE(r1.ok());
+    CHECK(counters.gpu_text_styled_cache_misses.load() == 1);
+    CHECK(counters.gpu_text_styled_cache_hits.load() == 1);
+    CHECK(counters.gpu_text_glyphs_built.load() == 2);
+
+    profiling::g_current_counters = nullptr;
 }
 #endif
 
