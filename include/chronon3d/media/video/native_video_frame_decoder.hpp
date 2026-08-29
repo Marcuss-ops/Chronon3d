@@ -111,6 +111,18 @@ public:
         int height,
         float fps) override;
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    /// Return one ref-counted CUDA-backed decoded frame without importing it
+    /// into a Vulkan RGBA surface.  This is the input contract for the
+    /// DirectCudaYuvProgram; callers own the returned AVFrame reference.
+    [[nodiscard]] std::shared_ptr<AVFrame> decode_native_frame(
+        const std::string& path,
+        Frame frame,
+        int width,
+        int height,
+        float fps);
+#endif
+
     std::shared_ptr<Framebuffer> try_native_frame(
         Session& session, AVFrame* frame);
 
@@ -153,6 +165,14 @@ private:
         uint64_t prefetch_generation{0};
 
         std::unique_ptr<NativeFrameImportSession> native_import_session;
+
+        // Temporary hand-off used by DirectCudaYuvProgram.  The decoder owns
+        // the reusable AVFrame, while this ref keeps the CUDA hw surface alive
+        // after decode_frame_internal returns.  It is enabled only around a
+        // direct-native request and never changes the ordinary graph path.
+        bool capture_native_frame{false};
+        std::shared_ptr<AVFrame> captured_native_frame;
+        bool direct_prefetch_disabled{false};
 
         ~Session();
         void start_prefetch_worker(NativeVideoFrameDecoder* decoder);

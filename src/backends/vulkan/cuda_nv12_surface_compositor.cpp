@@ -355,8 +355,8 @@ __device__ float4 overlay_load_u8(cudaSurfaceObject_t surface, int x, int y,
   if (x < 0 || y < 0 || x >= width || y >= height) return make_float4(0, 0, 0, 0);
   uchar4 value;
   surf2Dread(&value, surface, x * (int)sizeof(uchar4), y);
-  return make_float4(value.x / 255.0f, value.y / 255.0f,
-                     value.z / 255.0f, value.w / 255.0f);
+  return make_float4(value.z / 255.0f, value.y / 255.0f,
+                     value.x / 255.0f, value.w / 255.0f);
 }
 
 extern "C" __global__ void rgba_u8_surface_to_nv12_2x2(
@@ -528,6 +528,21 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
         target, context_, stream_);
 }
 
+CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(CUcontext context)
+    : context_(context), surface_u8_(false) {
+    if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
+    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
+    check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
+    const std::string ptx = get_compiled_nv12_ptx();
+    check_cuda(cuModuleLoadData(&module_, ptx.c_str()), "cuModuleLoadData");
+    check_cuda(cuModuleGetFunction(&direct_nv12_kernel_, module_,
+                                   "nv12_composite_overlay_2x2"),
+               "cuModuleGetFunction(nv12_composite_overlay_2x2)");
+    check_cuda(cuModuleGetFunction(&direct_nv12_batch_kernel_, module_,
+                                   "nv12_composite_layer_batch_2x2"),
+               "cuModuleGetFunction(nv12_composite_layer_batch_2x2)");
+}
+
 CudaNv12SurfaceCompositor::~CudaNv12SurfaceCompositor() {
     if (context_) (void)cuCtxSetCurrent(context_);
     if (stream_) (void)cuStreamSynchronize(stream_);
@@ -676,6 +691,7 @@ bool CudaNv12SurfaceCompositor::composite_direct_nv12_batch(
         check_cuda(cuMemAlloc(&layer_batch_buffer_, bytes), "cuMemAlloc(layer batch)");
         layer_batch_capacity_ = bytes;
     }
+    const auto started = std::chrono::steady_clock::now();
     check_cuda(cuMemcpyHtoDAsync(
                    layer_batch_buffer_, host_layers.data(), bytes, active),
                "cuMemcpyHtoDAsync(layer batch)");
@@ -687,6 +703,13 @@ bool CudaNv12SurfaceCompositor::composite_direct_nv12_batch(
                    direct_nv12_batch_kernel_, (width + 31) / 32,
                    (height + 31) / 32, 1, 16, 16, 1, 0, active, args, nullptr),
                "cuLaunchKernel(nv12_composite_layer_batch_2x2)");
+    if (auto* counters = profiling::g_current_counters) {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - started).count();
+        counters->cuda_composite_frames.fetch_add(1, std::memory_order_relaxed);
+        counters->cuda_composite_wall_us.fetch_add(
+            static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
+    }
     return true;
 }
 

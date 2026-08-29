@@ -46,8 +46,12 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
         return false;
     }
 
-    const auto cached = ctx.services.image_cache->find(
+    auto cached = ctx.services.image_cache->find(
         image.path, image.decode_options);
+    if (!cached) {
+        cached = ctx.services.image_cache->get_or_load(
+            image.path, image.decode_options);
+    }
     if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) return false;
 
     const auto& key = cached->gpu_key;

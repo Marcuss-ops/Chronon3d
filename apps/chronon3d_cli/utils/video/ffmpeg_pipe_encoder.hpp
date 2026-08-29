@@ -15,6 +15,8 @@
 
 namespace chronon3d::cli {
 
+struct DirectYuvFrame;
+
 /// Per-frame telemetry captured by the encoder during write_frame().
 struct EncoderFrameTelemetry {
     double conversion_copy_ms{0.0};
@@ -52,6 +54,10 @@ struct IVideoEncoder {
     virtual ~IVideoEncoder() = default;
     virtual bool open(const struct FfmpegPipeOptions& options) = 0;
     virtual bool write_frame(const Framebuffer& fb) = 0;
+    virtual bool write_direct_yuv(const DirectYuvFrame& frame) {
+        (void)frame;
+        return false;
+    }
     virtual bool write_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
