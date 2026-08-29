@@ -16,13 +16,6 @@ namespace chronon3d::cli {
 namespace {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-struct DeviceImage {
-    CUdeviceptr ptr{0};
-    ~DeviceImage() {
-        if (ptr) (void)cuMemFree(ptr);
-    }
-};
-
 bool identity_2d(const Transform& t) {
     return std::abs(t.rotation.w - 1.0f) < 1e-4f &&
            std::abs(t.rotation.x) < 1e-4f &&
@@ -158,14 +151,17 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         reason = "failed to select encoder CUDA context";
         return nullptr;
     }
-    auto device = std::make_shared<DeviceImage>();
+    auto resource = std::make_shared<media::CudaImageResource>();
     const std::size_t bytes = cached->gpu_rgba.size() * sizeof(float);
     const auto upload_t0 = profiling::now();
-    if (cuMemAlloc(&device->ptr, bytes) != CUDA_SUCCESS ||
-        cuMemcpyHtoD(device->ptr, cached->gpu_rgba.data(), bytes) != CUDA_SUCCESS) {
+    if (cuMemAlloc(&resource->ptr, bytes) != CUDA_SUCCESS ||
+        cuMemcpyHtoD(resource->ptr, cached->gpu_rgba.data(), bytes) != CUDA_SUCCESS) {
         reason = "failed to upload watermark into CUDA resident memory";
         return nullptr;
     }
+    resource->width = static_cast<std::uint32_t>(cached->width);
+    resource->height = static_cast<std::uint32_t>(cached->height);
+    resource->pitch_bytes = static_cast<std::size_t>(cached->width) * sizeof(float) * 4;
     const double watermark_upload_ms = profiling::duration_ms(upload_t0, profiling::now());
 
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
@@ -175,8 +171,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     program->scene_eval_ms_ = scene_eval_ms;
     program->watermark_load_ms_ = watermark_load_ms;
     program->watermark_upload_ms_ = watermark_upload_ms;
-    DirectYuvFrame frame;
-    frame.batch.instances.push_back(runtime::LayerInstance{
+    auto template_frame = std::make_shared<DirectYuvTemplate>();
+    template_frame->batch.instances.push_back(runtime::LayerInstance{
         .kind = runtime::PrimitiveKind::Image,
         .resource_index = 0,
         .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
@@ -184,14 +180,14 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         .dst_x1 = overlay.x1, .dst_y1 = overlay.y1,
         .opacity = overlay.opacity,
         .blend = BlendMode::Normal});
-    media::CudaLayerResource resource;
-    resource.rgba = device->ptr;
-    resource.pitch_bytes = static_cast<int>(cached->width * sizeof(float) * 4);
-    resource.width = static_cast<std::uint32_t>(cached->width);
-    resource.height = static_cast<std::uint32_t>(cached->height);
-    frame.resources.push_back(resource);
-    frame.resources_owner = std::static_pointer_cast<void>(device);
-    program->template_frame_ = std::make_shared<DirectYuvFrame>(std::move(frame));
+    media::CudaLayerResource layer;
+    layer.rgba = resource->ptr;
+    layer.pitch_bytes = static_cast<int>(resource->pitch_bytes);
+    layer.width = resource->width;
+    layer.height = resource->height;
+    template_frame->resources.push_back(layer);
+    template_frame->resource_owner = std::move(resource);
+    program->template_frame_ = std::move(template_frame);
     return program;
 #endif
 }
@@ -201,8 +197,9 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     auto decoded = decoder.decode_native_frame(
         video_path_, frame, width_, height_, 0.0f);
     if (!decoded || !template_frame_) return nullptr;
-    auto result = std::make_shared<DirectYuvFrame>(*template_frame_);
+    auto result = std::make_shared<DirectYuvFrame>();
     result->decoded = std::move(decoded);
+    result->program = template_frame_;
     return result;
 }
 

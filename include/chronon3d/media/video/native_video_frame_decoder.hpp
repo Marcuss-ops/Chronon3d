@@ -19,6 +19,8 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/media/video/native_frame_importer.hpp>
+#include <chronon3d/media/video/hw_frame_ref.hpp>
+#include <chronon3d/media/video/video_device_runtime.hpp>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 extern "C" {
@@ -88,9 +90,13 @@ public:
         std::shared_ptr<NativeFrameImporter> importer) override {
         m_native_importer = std::move(importer);
     }
-    void set_shared_cuda_context(void* ctx) {
-        m_shared_cuda_context = ctx;
+    /// Bind NVDEC to the process-persistent video device runtime. The
+    /// decoder then borrows the SAME FFmpeg CUDA hwdevice (and therefore the
+    /// same primary CUDA context) as the encoder — one context per device.
+    void set_video_runtime(std::shared_ptr<VideoDeviceRuntime> runtime) {
+        m_video_runtime = std::move(runtime);
     }
+
     void set_gpu_hot_path_mode(GpuHotPathMode mode) override {
         m_gpu_hot_path_mode = mode;
     }
@@ -117,8 +123,8 @@ public:
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     /// Return one ref-counted CUDA-backed decoded frame without importing it
     /// into a Vulkan RGBA surface.  This is the input contract for the
-    /// DirectCudaYuvProgram; callers own the returned AVFrame reference.
-    [[nodiscard]] std::shared_ptr<AVFrame> decode_native_frame(
+    /// DirectCudaYuvProgram; callers own the returned frame reference.
+    [[nodiscard]] HwFrameRef decode_native_frame(
         const std::string& path,
         Frame frame,
         int width,
@@ -188,8 +194,8 @@ private:
         // after decode_frame_internal returns.  It is enabled only around a
         // direct-native request and never changes the ordinary graph path.
         bool capture_native_frame{false};
-        std::shared_ptr<AVFrame> captured_native_frame;
-        std::shared_ptr<AVFrame> eof_captured_native_frame;
+        HwFrameRef captured_native_frame;
+        HwFrameRef eof_captured_native_frame;
         bool direct_prefetch_disabled{false};
         DecodeProfilingStats profiling;
 
@@ -200,7 +206,7 @@ private:
     std::mutex m_mutex;
     RenderCounters* m_counters{nullptr};
     std::shared_ptr<NativeFrameImporter> m_native_importer;
-    void* m_shared_cuda_context{nullptr};
+    std::shared_ptr<VideoDeviceRuntime> m_video_runtime;
     GpuHotPathMode m_gpu_hot_path_mode{GpuHotPathMode::Auto};
     std::atomic<std::uint64_t> m_trace_job_id{0};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
