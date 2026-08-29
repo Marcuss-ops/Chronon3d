@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -573,6 +574,32 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
     }
 
     return sv.size();
+}
+
+/// Find the byte offset of the last grapheme cluster start in `text`.
+/// Returns std::nullopt if the text is empty or invalid.
+inline std::optional<std::size_t> previous_grapheme_start(std::string_view text) {
+    if (text.empty()) return std::nullopt;
+
+    std::size_t offset = 0;
+    std::size_t previous = 0;
+
+    while (offset < text.size()) {
+        previous = offset;
+
+        const std::size_t length =
+            grapheme_byte_offset_at(
+                text.substr(offset), 1);
+
+        if (length == 0 ||
+            length > text.size() - offset) {
+            return std::nullopt;
+        }
+
+        offset += length;
+    }
+
+    return previous;
 }
 
 } // namespace chronon3d::detail

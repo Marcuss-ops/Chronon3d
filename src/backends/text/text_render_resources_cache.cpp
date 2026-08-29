@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <shared_mutex>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -218,14 +219,32 @@ void TextRenderResources::store_glyph_atlas(
     // population cost (frame 0 vs steady-state 0) is visible in telemetry.
     const auto store_t0 = profiling::now();
     ensure_glyph_atlas_materialized();
+
+    if (!entry.image || entry.image->empty()) {
+        spdlog::error(
+            "[text-atlas] refusing invalid glyph: font='{}' glyph={} size={}",
+            font_path, glyph_id, font_size);
+        return;
+    }
+
+    const auto w = static_cast<std::size_t>(entry.image->width());
+    const auto h = static_cast<std::size_t>(entry.image->height());
+
+    if (w == 0 || h == 0 ||
+        w > SIZE_MAX / 4 ||
+        h > SIZE_MAX / (w * 4)) {
+        spdlog::error(
+            "[text-atlas] invalid glyph dimensions {}x{}", w, h);
+        return;
+    }
+
     // Weight is the image byte size (width × height × 4 for PRGB32);
     // the metadata struct is ~24 bytes and is amortized over the image
     // bytes — counting it would distort cache pressure for negligible
     // gain.  The shared_ptr<BLImage> inside the entry gets its ref-count
     // incremented (cheap, atomic) so the cache owns the new instance
     // until eviction.
-    size_t weight = static_cast<size_t>(entry.image->width()) *
-                    static_cast<size_t>(entry.image->height()) * 4;
+    const std::size_t weight = w * h * 4;
     detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
     std::unique_lock lock(glyph_atlas->mutex);
     glyph_atlas->cache.put(key, entry, weight);

@@ -186,9 +186,12 @@ void apply_ellipsis(InlineLayoutContext& ctx) {
         const float size = std::max(1.0f, run.style.size <= 0.0f ? ctx.font_size_hint : run.style.size);
         const float ellipsis_width = measure_string(ctx.input, run.style, "...", size);
         while (!run.text.empty() && measure_string(ctx.input, run.style, run.text + "...", size) + 0.001f > ctx.max_width_limit) {
-            const size_t end = grapheme_byte_offset_at(std::string_view(run.text), 1);
-            if (end == 0) break;
-            run.text.erase(run.text.size() - end);
+            const auto previous = previous_grapheme_start(run.text);
+            if (!previous) {
+                run.text.clear();
+                break;
+            }
+            run.text.resize(*previous);
         }
         run.text += "...";
         run.width = measure_string(ctx.input, run.style, run.text, size);

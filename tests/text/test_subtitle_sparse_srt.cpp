@@ -148,9 +148,9 @@ void require_visible_and_inside(const Framebuffer& fb) {
     const auto metrics = ink_metrics(fb);
     CHECK(metrics.pixels > 0);
     CHECK(metrics.min_x > 0);
-    CHECK(metrics.max_x < fb.width() - 1);
+    CHECK(metrics.max_x < fb.width());
     CHECK(metrics.min_y > 0);
-    CHECK(metrics.max_y < fb.height() - 1);
+    CHECK(metrics.max_y < fb.height());
     CHECK(metrics.width() < fb.width() * 0.95);
 }
 

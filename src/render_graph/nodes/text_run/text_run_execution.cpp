@@ -166,18 +166,61 @@ graph::RenderOpResult render_text_run_item(
     TextRunShape local_shape = source_shape;
     chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
 
+    // ── Per-frame fail-closed invariants ──────────────────────────────
+    // An internally inconsistent shape (missing layout, or per-glyph
+    // animator states that do not line up with the shaped/placed run)
+    // must surface as an explicit error instead of a raw out-of-bounds
+    // access in the GPU or software renderers below.
+    const bool text_debug = ctx.policy.diagnostics_enabled ||
+        (std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr);
+    const auto shaped_glyph_count = local_shape.layout
+        ? local_shape.layout->placed.glyphs.size() : std::size_t{0};
+    if (text_debug) {
+        spdlog::info(
+            "[text-frame] frame={} phase=invariants shape_glyphs={} "
+            "placed_glyphs={} unit_glyphs={} font='{}' font_size={}",
+            ctx.frame_input.frame.integral(),
+            local_shape.glyphs.size(),
+            shaped_glyph_count,
+            local_shape.layout
+                ? local_shape.layout->units.glyph_to_word.size() : 0u,
+            local_shape.layout ? local_shape.layout->font.font_path : "",
+            local_shape.layout ? local_shape.layout->font_size : 0.0f);
+    }
+    if (!local_shape.layout) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            RenderBackendErrorCode::InvalidInput,
+            "render_text_run_item: missing layout"});
+    }
+    if (local_shape.glyphs.size() != shaped_glyph_count) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            RenderBackendErrorCode::InvalidInput,
+            "render_text_run_item: shape/layout glyph-count mismatch"});
+    }
+
     // Single matrix authority: identical input to predicted_bbox().
     // The tight-surface local basis (T(-surface_origin)) is owned by
     // build_world_matrix itself so rasterization and bbox sampling can
     // never diverge.
     glm::mat4 world_matrix = build_world_matrix(ctx, placement);
     auto& mutable_ctx = const_cast<RenderGraphContext&>(ctx);
+    const auto frame_number = ctx.frame_input.frame.integral();
+    if (text_debug) {
+        spdlog::info(
+            "[text-debug] frame={} phase=gpu.begin", frame_number);
+    }
     auto native = draw_cached_text_run(
         mutable_ctx, fb, local_shape, world_matrix, opacity);
+    if (text_debug) {
+        spdlog::info(
+            "[text-debug] frame={} phase=gpu.end ok={} err='{}'",
+            frame_number, native.ok(),
+            native.ok() ? "" : native.error().message);
+    }
     if (native.ok()) {
         return native;
     }
-    if (ctx.policy.diagnostics_enabled) {
+    if (text_debug) {
         spdlog::debug(
             "[text-run] native surface path fell back: {}",
             native.error().message);
@@ -187,7 +230,16 @@ graph::RenderOpResult render_text_run_item(
     // renderer instead of aborting the complete video frame.  The backend
     // still owns the final native surface and the caller keeps the failure
     // visible in its telemetry/logs.
+    if (text_debug) {
+        spdlog::info(
+            "[text-debug] frame={} phase=software.begin", frame_number);
+    }
     auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
+    if (text_debug) {
+        spdlog::info(
+            "[text-debug] frame={} phase=software.end ok={}",
+            frame_number, fallback.ok());
+    }
     if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
         backend.supports_native_surfaces()) {
         // The fallback framebuffer is transparent outside its actual ink.
@@ -195,8 +247,18 @@ graph::RenderOpResult render_text_run_item(
         // avoids 1280x720/1080p RGBA32F full-surface uploads for small text
         // overlays while retaining ensure_native_surface() as the exact
         // historical correctness fallback when the ROI path is unavailable.
-        if (!promote_text_fallback_region(
-                mutable_ctx, backend, fb, fallback.value().actual_ink_bbox) &&
+        if (text_debug) {
+            spdlog::info(
+                "[text-debug] frame={} phase=promotion.begin", frame_number);
+        }
+        const bool promoted = promote_text_fallback_region(
+            mutable_ctx, backend, fb, fallback.value().actual_ink_bbox);
+        if (text_debug) {
+            spdlog::info(
+                "[text-debug] frame={} phase=promotion.end ok={}",
+                frame_number, promoted);
+        }
+        if (!promoted &&
             !ensure_native_surface(mutable_ctx, fb)) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 RenderBackendErrorCode::ExecutionFailure,
