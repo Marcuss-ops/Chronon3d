@@ -41,7 +41,7 @@ private:
     std::string video_path_;
     int width_{0};
     int height_{0};
-    std::shared_ptr<DirectYuvFrame> template_frame_;
+    std::shared_ptr<DirectYuvTemplate> template_frame_;
     double scene_eval_ms_{0.0};
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};

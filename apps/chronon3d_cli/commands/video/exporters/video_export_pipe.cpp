@@ -27,14 +27,45 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
-    const chronon3d::CpuBudget& cpu_budget)
+    const chronon3d::CpuBudget& cpu_budget,
+    std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
+    runtime::DeviceScheduler* device_scheduler)
 {
     const auto wall_t0 = profiling::now();
 
     // Phase 1 — Setup
     const auto setup_t0 = profiling::now();
-    auto session =setup_pipe_export_session(registry, compiled, settings, opts, start, end, cpu_budget)
-;
+
+    // Standalone CLI path: create the same scheduler contract used by the
+    // daemon. The daemon can inject its scheduler through the optional
+    // argument; otherwise register the requested device as the local lane.
+    runtime::DeviceScheduler local_scheduler;
+    if (!device_scheduler) {
+        runtime::DeviceCapabilities capabilities;
+        capabilities.id = opts.device_id;
+        capabilities.name = "cli-device-" + std::to_string(opts.device_id);
+        capabilities.cuda = opts.encoder.hardware_encoder == "nvenc";
+        capabilities.nvdec = capabilities.cuda;
+        capabilities.nvenc = capabilities.cuda;
+        capabilities.nv12 = capabilities.cuda;
+        capabilities.p010 = capabilities.cuda;
+        capabilities.h264 = capabilities.cuda;
+        capabilities.hevc = capabilities.cuda;
+        capabilities.av1 = capabilities.cuda;
+        local_scheduler.register_device(
+            std::move(capabilities),
+            runtime::DeviceResourceVector{
+                .compute_units = 1.0f,
+                .vram_bytes = 0,
+                .nvdec_sessions = 1,
+                .nvenc_sessions = 1,
+                .pcie_bandwidth = 1.0f});
+        device_scheduler = &local_scheduler;
+    }
+
+    auto session = setup_pipe_export_session(
+        registry, compiled, settings, opts, start, end, cpu_budget,
+        std::move(video_runtimes), device_scheduler);
     if (!session || !session->encoder ||
         (!session->renderer_ptr() && !session->direct_yuv_selected()) ||
         (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {

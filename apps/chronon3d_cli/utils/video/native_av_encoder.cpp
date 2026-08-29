@@ -35,29 +35,13 @@ bool set_codec_option_checked(AVCodecContext* codec, const char* key,
     }
     return true;
 }
-
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-// The CUDA hwdevice is process-persistent in the daemon. Each encoder keeps
-// its own AVBufferRef, while FFmpeg's underlying CUDA context is shared and
-// released only when the last reference is gone. Codec/frame/mux state stays
-// job-local; only the device runtime crosses job boundaries.
-AVBufferRef* shared_cuda_hwdevice() {
-    static std::mutex mutex;
-    static AVBufferRef* device = nullptr;
-    std::lock_guard lock(mutex);
-    if (!device) {
-        if (cuInit(0) != CUDA_SUCCESS) return nullptr;
-        if (av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_CUDA,
-                                   "0", nullptr, 0) < 0) {
-            device = nullptr;
-        }
-    }
-    return device ? av_buffer_ref(device) : nullptr;
-}
-#endif
 }
 
 namespace chronon3d::cli {
+
+NativeAvEncoder::NativeAvEncoder(
+    std::shared_ptr<media::VideoDeviceRuntime> device_runtime)
+    : device_runtime_(std::move(device_runtime)) {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,22 +163,38 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     gpu_nvenc_ = options_.hardware_encoder == "nvenc";
     if (gpu_nvenc_) {
         const auto hw_t0 = Clock::now();
-        cuda_device_ref_ = shared_cuda_hwdevice();
+        if (!device_runtime_) {
+            spdlog::error("[native_av] NVENC requires a video device runtime (none provided)");
+            return false;
+        }
+        // Borrow the persistent hwdevice owned by the runtime. No cuInit,
+        // no device discovery, no primary-context retain here: the runtime
+        // did all of it once for the whole engine lifetime.
+        cuda_device_ref_ = device_runtime_->ref_cuda_hwdevice();
         if (!cuda_device_ref_) {
-            spdlog::error("[native_av] shared CUDA hwdevice initialization failed");
+            spdlog::error("[native_av] failed to borrow CUDA hwdevice from the video device runtime");
             return false;
         }
         auto* av_device = reinterpret_cast<AVHWDeviceContext*>(cuda_device_ref_->data);
         auto* av_cuda = av_device
             ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx)
             : nullptr;
+        auto gpu = device_runtime_->gpu();
         spdlog::info("[native_av] CUDA context contract: native={} ffmpeg={}",
-                     static_cast<void*>(cuda_context_),
+                     gpu ? reinterpret_cast<void*>(gpu->native_context_handle()) : nullptr,
                      av_cuda ? static_cast<void*>(av_cuda->cuda_ctx) : nullptr);
         if (!av_cuda || !av_cuda->cuda_ctx) return false;
-        // FFmpeg owns the CUDA allocations used by AVHWFrames. Use its
-        // context for the compositor as well; retaining a separate primary
-        // context makes the device pointers invalid to the CUDA kernels.
+        // FAIL_CLOSED: the FFmpeg hwdevice must alias the exact primary CUDA
+        // context retained by the runtime. A second context would make the
+        // device pointers invalid to the CUDA kernels and to AVHWFrames.
+        if (!device_runtime_->context_matches(
+                reinterpret_cast<std::uintptr_t>(av_cuda->cuda_ctx))) {
+            spdlog::error("[native_av] FAIL_CLOSED: FFmpeg CUDA context {} does not match "
+                          "GpuRuntime primary context {}",
+                          static_cast<void*>(av_cuda->cuda_ctx),
+                          gpu ? reinterpret_cast<void*>(gpu->native_context_handle()) : nullptr);
+            return false;
+        }
         if (cuda_stream_) {
             (void)cuStreamDestroy(cuda_stream_);
             cuda_stream_ = nullptr;
@@ -472,13 +472,9 @@ void NativeAvEncoder::abort_open() noexcept {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     av_buffer_unref(&cuda_frames_ref_);
     av_buffer_unref(&cuda_device_ref_);
-    if (cuda_context_) {
-        if (primary_context_retained_) {
-            (void)cuDevicePrimaryCtxRelease(0);
-        }
-        cuda_context_ = nullptr;
-    }
-    primary_context_retained_ = false;
+    // The CUDA context + hwdevice belong to the device runtime; only the
+    // borrowed pointers are cleared here.
+    cuda_context_ = nullptr;
     gpu_nvenc_ = false;
 #endif
     open_complete_ = false;
@@ -577,7 +573,8 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         !direct.decoded || direct.decoded->format != AV_PIX_FMT_CUDA ||
         !direct.decoded->data[0] || !direct.decoded->data[1] ||
-        direct.batch.empty() || direct.resources.empty()) {
+        !direct.program || direct.program->batch.empty() ||
+        direct.program->resources.empty()) {
         spdlog::error("[native_av] invalid DirectCudaYuv frame contract");
         return false;
     }
@@ -634,7 +631,7 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     }
     const auto launch_t0 = Clock::now();
     const bool launch_ok = direct_yuv_compositor_->composite_direct_nv12_batch(
-            direct.batch, direct.resources,
+            direct.program->batch, direct.program->resources,
             reinterpret_cast<CUdeviceptr>(direct.decoded->data[0]),
             direct.decoded->linesize[0],
             reinterpret_cast<CUdeviceptr>(direct.decoded->data[1]),
@@ -677,8 +674,8 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     pending_cuda_frames_.push_back(
         PendingCudaFrame{gpu_frame, ready,
                          runtime::kInvalidRenderSurfaceHandle,
-                         direct.resources_owner,
-                         {}});
+                         direct.program,
+                         chronon3d::media::HwFrameRef(direct.decoded)});
     cuda_pending_peak_ = std::max<std::uint64_t>(
         cuda_pending_peak_, pending_cuda_frames_.size());
     if (counters_) {

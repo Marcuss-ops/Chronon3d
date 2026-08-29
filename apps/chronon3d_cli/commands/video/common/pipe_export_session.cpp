@@ -327,7 +327,7 @@ struct EncodeOutcome {
 
 // ENCODE (handoff): build the publishable RenderFramePackage (owning the
 // framebuffer + arena, referencing the native surfaces), then block on the
-// bounded RenderFrameQueue — the bounded queue/ring provide back-pressure.
+// bounded BoundedChannel — the bounded queue/ring provide back-pressure.
 // Returns the package (caller retains ownership if push failed) plus the
 // wait and node-cache readings the commit stage needs.
 EncodeOutcome encode_frame(

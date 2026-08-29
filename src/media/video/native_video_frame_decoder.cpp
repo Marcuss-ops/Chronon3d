@@ -103,12 +103,12 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
     if (!frame || frame->format != AV_PIX_FMT_CUDA) return nullptr;
     if (session.capture_native_frame) {
-        auto captured = std::shared_ptr<AVFrame>(
-            av_frame_alloc(), [](AVFrame* value) {
-                if (value) av_frame_free(&value);
-            });
-        if (!captured || av_frame_ref(captured.get(), frame) < 0) return nullptr;
-        session.captured_native_frame = std::move(captured);
+        AVFrame* captured = av_frame_alloc();
+        if (!captured || av_frame_ref(captured, frame) < 0) {
+            if (captured) av_frame_free(&captured);
+            return nullptr;
+        }
+        session.captured_native_frame = HwFrameRef(captured);
         if (m_counters) {
             m_counters->video_decode_frames.fetch_add(1, std::memory_order_relaxed);
             m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
@@ -200,42 +200,35 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     AVBufferRef* device = nullptr;
-    CUcontext shared_ctx = m_shared_cuda_context
-        ? reinterpret_cast<CUcontext>(m_shared_cuda_context)
-        : (m_native_importer ? reinterpret_cast<CUcontext>(m_native_importer->cuda_context()) : nullptr);
-    if (shared_ctx) {
-        AVBufferRef* dev = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA);
-        if (dev) {
-            auto* hwctx = reinterpret_cast<AVHWDeviceContext*>(dev->data);
-            auto* cuda_hwctx = reinterpret_cast<AVCUDADeviceContext*>(hwctx->hwctx);
-            cuda_hwctx->cuda_ctx = shared_ctx;
-            if (av_hwdevice_ctx_init(dev) >= 0) {
-                device = dev;
-                spdlog::info("[native-decoder] bound NVDEC to shared CUDA context {}",
-                             static_cast<void*>(shared_ctx));
-            } else {
-                spdlog::warn("[native-decoder] failed to initialize device context from shared CUDA context");
-                av_buffer_unref(&dev);
-            }
-        }
-    }
-    if (!device) {
-        const int hw_device_result = av_hwdevice_ctx_create(
-            &device, AV_HWDEVICE_TYPE_CUDA, "0", nullptr, AV_CUDA_USE_PRIMARY_CONTEXT);
-        if (hw_device_result >= 0) {
-            spdlog::info("[native-decoder] bound NVDEC to primary CUDA context");
+    if (m_video_runtime) {
+        // Bind NVDEC to the shared video device runtime: same FFmpeg
+        // hwdevice, same primary CUDA context as NVENC.
+        device = m_video_runtime->ref_cuda_hwdevice();
+        if (device) {
+            spdlog::info("[native-decoder] bound NVDEC to the shared video device runtime (primary CUDA context)");
         } else {
-            spdlog::warn("[native-decoder] CUDA primary hwdevice init failed: {}", hw_device_result);
+            spdlog::error("[native-decoder] FAIL_CLOSED: video device runtime has no shared CUDA hwdevice");
         }
     }
+    // A native video decoder must be bound to the registry-owned
+    // VideoDeviceRuntime; unavailable shared hardware is fail-closed.
     if (device) {
+        auto* av_device = reinterpret_cast<AVHWDeviceContext*>(device->data);
+        auto* av_cuda = av_device
+            ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx) : nullptr;
+        if (!av_cuda || !m_video_runtime->context_matches(
+                reinterpret_cast<std::uintptr_t>(av_cuda->cuda_ctx))) {
+            spdlog::error("[native-decoder] FAIL_CLOSED: shared hwdevice context mismatch");
+            av_buffer_unref(&device);
+            avcodec_free_context(&cc);
+            return nullptr;
+        }
         cc->hw_device_ctx = av_buffer_ref(device);
         cc->get_format = select_cuda_format;
         cc->extra_hw_frames = 8;
         session->hw_device_ctx = device;
-    } else if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
-               m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
-        spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: failed to create CUDA hwdevice context");
+    } else {
+        spdlog::error("[native-decoder] FAIL_CLOSED: no registry-owned CUDA hwdevice for decoder");
         avcodec_free_context(&cc);
         return nullptr;
     }
@@ -480,11 +473,11 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
 }
 
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::string& path, Frame frame, int, int, float) {
-    if (frame < 0 || path.empty()) return nullptr;
+    if (frame < 0 || path.empty()) return {};
     const int64_t target = frame.integral();
     std::shared_ptr<Session> session;
     { std::lock_guard lock(m_mutex); session = open_session_locked(path); }
-    if (!session) return nullptr;
+    if (!session) return {};
     std::unique_lock lock(session->mutex);
     if (session->prefetch_inflight == target) session->prefetch_cv.wait(lock, [&session, target] { return session->prefetch_inflight != target || session->prefetch_stop.load(); });
     if (auto cached = session->cache.get(target)) return *cached;
@@ -500,10 +493,10 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::st
     return result;
 }
 
-std::shared_ptr<AVFrame> NativeVideoFrameDecoder::decode_native_frame(
+HwFrameRef NativeVideoFrameDecoder::decode_native_frame(
     const std::string& path, Frame frame, int, int, float) {
-    if (frame < 0 || path.empty()) return nullptr;
-    if (!m_native_importer && !m_shared_cuda_context) return nullptr;
+    if (frame < 0 || path.empty()) return {};
+    if (!m_native_importer && !m_video_runtime) return {};
     if (m_counters) {
         m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
     }
@@ -512,7 +505,7 @@ std::shared_ptr<AVFrame> NativeVideoFrameDecoder::decode_native_frame(
         std::lock_guard lock(m_mutex);
         session = open_session_locked(path);
     }
-    if (!session) return nullptr;
+    if (!session) return {};
 
     // Suspend the ordinary prefetch worker while capturing a ref to the
     // decoder's CUDA frame.  Both paths share one FFmpeg codec context, so

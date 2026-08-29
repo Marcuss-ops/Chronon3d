@@ -2,24 +2,34 @@
 
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/media/video/cuda_layer_resource.hpp>
+#include <chronon3d/media/video/cuda_image_resource.hpp>
+#include <chronon3d/media/video/hw_frame_ref.hpp>
 
 #include <memory>
 #include <vector>
 
-struct AVFrame;
-
 namespace chronon3d::cli {
 
-/// One decoded CUDA NV12 frame plus the precompiled direct-YUV overlay IR.
-/// `resources_owner` keeps device-resident overlay memory alive until the
-/// asynchronous NVENC handoff has consumed the frame.
-struct DirectYuvFrame {
-    std::shared_ptr<AVFrame> decoded;
+/// Precompiled, frame-invariant Direct-YUV overlay IR.  Owned once by the
+/// program and shared by every decoded frame: batch/resource tables and the
+/// device-resident overlay image are never rebuilt or heap-copied per frame.
+struct DirectYuvTemplate {
     runtime::GpuLayerBatch batch;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     std::vector<media::CudaLayerResource> resources;
+    // Keeps the device-resident overlay memory alive as long as any frame
+    // built from this template is still in flight.  Typed replacement for
+    // the old `std::shared_ptr<void> resources_owner`.
+    std::shared_ptr<const media::CudaImageResource> resource_owner;
 #endif
-    std::shared_ptr<void> resources_owner;
+};
+
+/// One decoded CUDA NV12 frame plus a shared pointer to the frame-invariant
+/// overlay IR.  Each frame is now just an HwFrameRef + one shared_ptr to the
+/// template instead of a per-frame heap copy of batch/resources.
+struct DirectYuvFrame {
+    media::HwFrameRef decoded;
+    std::shared_ptr<const DirectYuvTemplate> program;
 };
 
 } // namespace chronon3d::cli

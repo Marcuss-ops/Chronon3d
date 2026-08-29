@@ -66,7 +66,7 @@ struct PipeExportTelemetry {
 // ── Writer thread ───────────────────────────────────────────────────────────
 
 struct WriterThreadContext {
-    RenderFrameQueue<RenderFramePackage>& queue;
+    runtime::BoundedChannel<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     TripleBufferArena* triple_arena{nullptr};
     IVideoEncoder& encoder;
@@ -96,7 +96,7 @@ struct RenderLoopContext {
     Frame end;
     const FfmpegExportOptions& opts;
     SoftwareRenderer* sw_renderer;
-    RenderFrameQueue<RenderFramePackage>& queue;
+    runtime::BoundedChannel<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     std::atomic<int>& frames_encoded;
     FrameInteropRing& interop_ring;
