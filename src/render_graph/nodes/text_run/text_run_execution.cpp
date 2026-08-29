@@ -218,7 +218,15 @@ graph::RenderOpResult render_text_run_item(
             native.ok() ? "" : native.error().message);
     }
     if (native.ok()) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_fast_path_success.fetch_add(
+                1, std::memory_order_relaxed);
+        }
         return native;
+    }
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_text_fallback_count.fetch_add(
+            1, std::memory_order_relaxed);
     }
     if (text_debug) {
         spdlog::debug(
