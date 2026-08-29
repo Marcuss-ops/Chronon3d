@@ -275,6 +275,38 @@ TEST_CASE("PreparedAssetManifest hashes and normalizes logical assets") {
     CHECK(result->manifest_digest().hex().size() == 64);
 }
 
+TEST_CASE("PreparedAssetManifest digest cache hits and invalidates safely") {
+    write_file(g_temp.path, "images/cache.png", "cache-v1");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+    const auto plan = image_plan("images/cache.png");
+
+    const auto before = chronon3d::assets::asset_digest_cache_stats();
+    const auto cold = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(cold);
+    const auto after_cold = chronon3d::assets::asset_digest_cache_stats();
+    CHECK(after_cold.misses >= before.misses + 1);
+    CHECK(only_asset(cold.value()).content_digest ==
+          chronon3d::assets::sha256_string("cache-v1"));
+
+    const auto warm = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(warm);
+    const auto after_warm = chronon3d::assets::asset_digest_cache_stats();
+    CHECK(after_warm.hits >= after_cold.hits + 1);
+    CHECK(after_warm.bytes_hashed == after_cold.bytes_hashed);
+    CHECK(warm->manifest_digest() == cold->manifest_digest());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    write_file(g_temp.path, "images/cache.png", "cache-v2");
+    const auto changed = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(changed);
+    const auto after_change = chronon3d::assets::asset_digest_cache_stats();
+    CHECK(after_change.invalidations >= after_warm.invalidations + 1);
+    CHECK(after_change.bytes_hashed > after_warm.bytes_hashed);
+    CHECK(only_asset(changed.value()).content_digest !=
+          only_asset(warm.value()).content_digest);
+}
+
 TEST_CASE("PreparedAssetManifest hashes font_asset references as Font assets") {
     write_file(g_temp.path, "fonts/custom.ttf", "font-bytes");
     chronon3d::assets::AssetResolver resolver;
