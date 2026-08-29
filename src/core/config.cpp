@@ -212,6 +212,11 @@ Config::Config() {
     runtime_.assets_root_ = env_string("CHRONON3D_CLI_ASSETS_ROOT");
     runtime_.telemetry_path_ = env_string("CHRONON3D_TELEMETRY_PATH");
     runtime_.cli_assets_root_ = runtime_.assets_root_;
+
+    const char* hot_path_env = std::getenv("CHRONON3D_GPU_HOT_PATH_MODE");
+    if (hot_path_env && *hot_path_env) {
+        gpu_hot_path_mode_ = parse_gpu_hot_path_mode(hot_path_env);
+    }
 }
 
 } // namespace chronon3d

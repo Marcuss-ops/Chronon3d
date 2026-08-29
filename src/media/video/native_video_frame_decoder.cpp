@@ -44,9 +44,11 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const auto start = profiling::now();
     const int ret = sws_scale(sws, frame->data, frame->linesize, 0, frame->height,
                               dst_data, dst_stride);
-    if (counters) counters->video_decode_sws_wall_ms.fetch_add(
-        static_cast<uint64_t>(profiling::duration_ms(start, profiling::now())),
-        std::memory_order_relaxed);
+    const auto sws_dur = static_cast<uint64_t>(profiling::duration_ms(start, profiling::now()));
+    if (counters) {
+        counters->video_decode_sws_wall_ms.fetch_add(sws_dur, std::memory_order_relaxed);
+        counters->swscale_ms.fetch_add(sws_dur, std::memory_order_relaxed);
+    }
     if (ret != frame->height) return nullptr;
     profiling::FramebufferAllocationScope allocation_scope(
         profiling::FramebufferAllocationCategory::Video);
@@ -54,6 +56,7 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const i32 stride = fb->allocated_width();
     Color* pixels = fb->data();
     const int grain = std::max(16, frame->height / 16);
+    const auto conv_start = profiling::now();
     parallel_for_tracked(tbb::blocked_range<int>(0, frame->height, grain),
         [&](const tbb::blocked_range<int>& rows) {
             for (int y = rows.begin(); y < rows.end(); ++y) {
@@ -65,6 +68,11 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
                 }
             }
         });
+    const auto conv_dur = static_cast<uint64_t>(profiling::duration_ms(conv_start, profiling::now()));
+    if (counters) {
+        counters->cpu_pixel_conversion_ms.fetch_add(conv_dur, std::memory_order_relaxed);
+        counters->software_color_convert_frames.fetch_add(1, std::memory_order_relaxed);
+    }
     return fb;
 }
 
@@ -92,11 +100,18 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     Session& session, AVFrame* frame) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
-    if (!frame || frame->format != AV_PIX_FMT_CUDA || !m_native_importer ||
-        !frame->hw_frames_ctx) return nullptr;
-    auto* frames = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
-    if (!frames || !frames->device_ref ||
-        (frames->sw_format != AV_PIX_FMT_NV12 && frames->sw_format != AV_PIX_FMT_P010)) return nullptr;
+    if (!frame || frame->format != AV_PIX_FMT_CUDA || !m_native_importer) return nullptr;
+    runtime::PixelFormat format = runtime::PixelFormat::Nv12;
+    if (frame->hw_frames_ctx) {
+        auto* frames = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
+        if (frames) {
+            if (frames->sw_format == AV_PIX_FMT_P010) {
+                format = runtime::PixelFormat::P010;
+            } else if (frames->sw_format != AV_PIX_FMT_NV12) {
+                return nullptr;
+            }
+        }
+    }
     if (!session.native_import_session)
         session.native_import_session = m_native_importer->create_session();
     if (!session.native_import_session) return nullptr;
@@ -106,8 +121,6 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
             ? runtime::ColorMatrix::Bt601 : runtime::ColorMatrix::Bt709);
     color.range = frame->color_range == AVCOL_RANGE_JPEG ? runtime::ColorRange::Full
                                                          : runtime::ColorRange::Limited;
-    const auto format = frames->sw_format == AV_PIX_FMT_P010
-        ? runtime::PixelFormat::P010 : runtime::PixelFormat::Nv12;
     auto result = session.native_import_session->import(NativeDecodedFrameView{
         frame, static_cast<std::uint32_t>(frame->width), static_cast<std::uint32_t>(frame->height),
         format, color});
@@ -143,7 +156,18 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         return nullptr;
     }
     session->stream_index = index;
-    const AVCodec* codec = avcodec_find_decoder(fmt->streams[index]->codecpar->codec_id);
+    const enum AVCodecID codec_id = fmt->streams[index]->codecpar->codec_id;
+    const AVCodec* codec = nullptr;
+    if (codec_id == AV_CODEC_ID_H264) {
+        codec = avcodec_find_decoder_by_name("h264_cuvid");
+    } else if (codec_id == AV_CODEC_ID_HEVC) {
+        codec = avcodec_find_decoder_by_name("hevc_cuvid");
+    } else if (codec_id == AV_CODEC_ID_AV1) {
+        codec = avcodec_find_decoder_by_name("av1_cuvid");
+    }
+    if (!codec) {
+        codec = avcodec_find_decoder(codec_id);
+    }
     if (!codec) {
         spdlog::error("[native-decoder] decoder unavailable for: {}", path);
         return nullptr;
@@ -152,25 +176,49 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     if (!cc || avcodec_parameters_to_context(cc, fmt->streams[index]->codecpar) < 0) {
         avcodec_free_context(&cc); return nullptr;
     }
-    for (int i = 0;; ++i) {
-        const AVCodecHWConfig* config = avcodec_get_hw_config(codec, i);
-        if (!config) break;
-        if ((config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) &&
-            config->device_type == AV_HWDEVICE_TYPE_CUDA) {
-            AVBufferRef* device = nullptr;
-            const int hw_device_result = av_hwdevice_ctx_create(
-                &device, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0);
-            if (hw_device_result >= 0) {
-                cc->hw_device_ctx = av_buffer_ref(device);
-                cc->get_format = select_cuda_format;
-                session->hw_device_ctx = device;
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    AVBufferRef* device = nullptr;
+    CUcontext shared_ctx = m_native_importer
+        ? reinterpret_cast<CUcontext>(m_native_importer->cuda_context())
+        : nullptr;
+    if (shared_ctx) {
+        AVBufferRef* dev = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_CUDA);
+        if (dev) {
+            auto* hwctx = reinterpret_cast<AVHWDeviceContext*>(dev->data);
+            auto* cuda_hwctx = reinterpret_cast<AVCUDADeviceContext*>(hwctx->hwctx);
+            cuda_hwctx->cuda_ctx = shared_ctx;
+            if (av_hwdevice_ctx_init(dev) >= 0) {
+                device = dev;
+                spdlog::info("[native-decoder] bound NVDEC to shared CUDA context {}",
+                             static_cast<void*>(shared_ctx));
             } else {
-                spdlog::error("[native-decoder] CUDA hwdevice init failed: {}",
-                              hw_device_result);
+                spdlog::warn("[native-decoder] failed to initialize device context from shared CUDA context");
+                av_buffer_unref(&dev);
             }
-            break;
         }
     }
+    if (!device) {
+        const int hw_device_result = av_hwdevice_ctx_create(
+            &device, AV_HWDEVICE_TYPE_CUDA, "0", nullptr, AV_CUDA_USE_PRIMARY_CONTEXT);
+        if (hw_device_result >= 0) {
+            spdlog::info("[native-decoder] bound NVDEC to primary CUDA context");
+        } else {
+            spdlog::warn("[native-decoder] CUDA primary hwdevice init failed: {}", hw_device_result);
+        }
+    }
+    if (device) {
+        cc->hw_device_ctx = av_buffer_ref(device);
+        cc->get_format = select_cuda_format;
+        cc->extra_hw_frames = 8;
+        session->hw_device_ctx = device;
+    } else if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+               m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+        spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: failed to create CUDA hwdevice context");
+        avcodec_free_context(&cc);
+        return nullptr;
+    }
+#endif
     cc->thread_count = 0;
     if (avcodec_open2(cc, codec, nullptr) < 0) {
         spdlog::error("[native-decoder] codec open failed for {}", path);
@@ -229,19 +277,61 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
     std::shared_ptr<Framebuffer> result; int64_t closest_delta = INT64_MAX; int overshoot = 0; bool eof = false;
     while (true) {
         const int read = av_read_frame(session.fmt, packet);
-        if (read < 0) { eof = read == AVERROR_EOF; break; }
+        if (read < 0) {
+            eof = (read == AVERROR_EOF);
+            if (eof && session.codec) {
+                (void)avcodec_send_packet(session.codec, nullptr);
+                while (avcodec_receive_frame(session.codec, decoded) == 0) {
+                    const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE ? decoded->best_effort_timestamp : decoded->pts;
+                    if (pts == target_pts) {
+                        result = try_native_frame(session, decoded);
+                        if (result) break;
+                    }
+                    if (pts != AV_NOPTS_VALUE) {
+                        const int64_t delta = std::llabs(pts - target_pts);
+                        if (delta < closest_delta) { closest_delta = delta; av_frame_unref(closest); av_frame_ref(closest, decoded); }
+                    }
+                }
+            }
+            break;
+        }
         if (packet->stream_index != session.stream_index) { av_packet_unref(packet); continue; }
-        const int send = avcodec_send_packet(session.codec, packet); av_packet_unref(packet);
+        const auto submit_start = profiling::now();
+        const int send = avcodec_send_packet(session.codec, packet);
+        const auto submit_dur = static_cast<uint64_t>(profiling::duration_ms(submit_start, profiling::now()));
+        if (m_counters) m_counters->decode_submit_ms.fetch_add(submit_dur, std::memory_order_relaxed);
+        av_packet_unref(packet);
         if (send < 0) break;
         int receive = 0;
+        const auto wait_start = profiling::now();
         while ((receive = avcodec_receive_frame(session.codec, decoded)) == 0) {
+            const auto wait_dur = static_cast<uint64_t>(profiling::duration_ms(wait_start, profiling::now()));
+            if (m_counters) m_counters->decode_wait_ms.fetch_add(wait_dur, std::memory_order_relaxed);
             const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE ? decoded->best_effort_timestamp : decoded->pts;
             if (pts == target_pts) {
                 if ((result = try_native_frame(session, decoded))) break;
+                if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+                    m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+                    spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: try_native_frame failed for CUDA frame, CPU fallback forbidden");
+                    if (m_counters) {
+                        m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    return nullptr;
+                }
                 const AVFrame* render = decoded;
                 if (decoded->format == AV_PIX_FMT_CUDA && session.hw_transfer_frame) {
                     av_frame_unref(session.hw_transfer_frame);
-                    if (av_hwframe_transfer_data(session.hw_transfer_frame, decoded, 0) >= 0) render = session.hw_transfer_frame;
+                    const auto xfer_start = profiling::now();
+                    if (av_hwframe_transfer_data(session.hw_transfer_frame, decoded, 0) >= 0) {
+                        render = session.hw_transfer_frame;
+                        const auto xfer_dur = static_cast<uint64_t>(profiling::duration_ms(xfer_start, profiling::now()));
+                        if (m_counters) {
+                            m_counters->video_decode_hw_transfer_wall_ms.fetch_add(xfer_dur, std::memory_order_relaxed);
+                            m_counters->hwframe_transfer_ms.fetch_add(xfer_dur, std::memory_order_relaxed);
+                            m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
+                            m_counters->hwframe_transfer_to_cpu_frames.fetch_add(1, std::memory_order_relaxed);
+                        }
+                    }
                 }
                 result = frame_to_framebuffer(render, session.sws, session.rgba, m_counters); break;
             }
@@ -256,14 +346,62 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
     }
     if (!result && closest->width > 0 && closest->height > 0) {
         if (closest->format == AV_PIX_FMT_CUDA) {
-            if (!(result = try_native_frame(session, closest)) && session.hw_transfer_frame) {
-                av_frame_unref(session.hw_transfer_frame);
-                if (av_hwframe_transfer_data(session.hw_transfer_frame, closest, 0) >= 0)
-                    result = frame_to_framebuffer(session.hw_transfer_frame, session.sws, session.rgba, m_counters);
+            if (!(result = try_native_frame(session, closest))) {
+                if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+                    m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+                    spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: try_native_frame failed for closest CUDA frame, CPU fallback forbidden");
+                    if (m_counters) {
+                        m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    return nullptr;
+                }
+                if (session.hw_transfer_frame) {
+                    av_frame_unref(session.hw_transfer_frame);
+                    const auto xfer_start = profiling::now();
+                    if (av_hwframe_transfer_data(session.hw_transfer_frame, closest, 0) >= 0) {
+                        const auto xfer_dur = static_cast<uint64_t>(profiling::duration_ms(xfer_start, profiling::now()));
+                        if (m_counters) {
+                            m_counters->video_decode_hw_transfer_wall_ms.fetch_add(xfer_dur, std::memory_order_relaxed);
+                            m_counters->hwframe_transfer_ms.fetch_add(xfer_dur, std::memory_order_relaxed);
+                            m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
+                            m_counters->hwframe_transfer_to_cpu_frames.fetch_add(1, std::memory_order_relaxed);
+                        }
+                        result = frame_to_framebuffer(session.hw_transfer_frame, session.sws, session.rgba, m_counters);
+                    }
+                }
             }
-        } else result = frame_to_framebuffer(closest, session.sws, session.rgba, m_counters);
+        } else {
+            if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+                m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+                spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: decoder produced software frame (expected CUDA)");
+                if (m_counters) {
+                    m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
+                }
+                return nullptr;
+            }
+            result = frame_to_framebuffer(closest, session.sws, session.rgba, m_counters);
+        }
     }
-    if (result) { session.last_target = target; if (eof) { session.source_eof = true; session.eof_target = target; session.eof_frame = result; } }
+    if (!result && session.eof_frame) {
+        result = session.eof_frame;
+    }
+    if (!result && eof && session.last_target >= 0) {
+        auto last_cached = session.cache.get(session.last_target);
+        if (last_cached && *last_cached) {
+            result = *last_cached;
+            session.source_eof = true;
+            session.eof_target = session.last_target;
+            session.eof_frame = result;
+        }
+    }
+    if (result) {
+        session.last_target = target;
+        if (eof) {
+            session.source_eof = true;
+            session.eof_target = target;
+            session.eof_frame = result;
+        }
+    }
     return result;
 }
 

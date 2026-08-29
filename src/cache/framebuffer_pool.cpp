@@ -252,7 +252,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_noclear(int width, int hei
 OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(other.width(), other.height(), &fresh_alloc);
-    if (fb && other.data() != fb->data()) {
+    if (fb && other.data() && fb->data() && other.data() != fb->data()) {
         // Framebuffer storage is cache-line padded: logical rows are not
         // necessarily contiguous at `width * sizeof(Color)`.  Copying the
         // whole logical area as one block shifts every row after the first
@@ -272,6 +272,10 @@ OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
     fb->set_origin(other.origin_x(), other.origin_y());
     fb->set_opaque(other.is_opaque());
     fb->set_content_cleared(other.is_content_cleared());
+    fb->set_surface_handle(other.surface_handle());
+    if (!other.is_cpu_authoritative()) {
+        fb->mark_gpu_authoritative();
+    }
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 

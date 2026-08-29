@@ -42,6 +42,7 @@ struct RenderPlanState {
     std::string trace_output;
     // Trace capture level: pipeline | nodes | full.
     std::string trace_level{"pipeline"};
+    std::string gpu_hot_path_mode{"auto"};
 };
 
 graph::BackendPreference backend_preference_from_name(const std::string& value) {
@@ -101,6 +102,10 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         Config renderer_config = Config::from_environment();
         renderer_config.set_backend_preference(
             backend_preference_from_name(args.backend));
+        if (!args.gpu_hot_path_mode.empty()) {
+            renderer_config.set_gpu_hot_path_mode(
+                parse_gpu_hot_path_mode(args.gpu_hot_path_mode));
+        }
         request.execution.config = std::move(renderer_config);
         request.execution.report = args.report;
         request.execution.trace_output = std::filesystem::path(args.trace_output);
@@ -222,7 +227,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          const std::string& backend,
                          RenderPlanVideoOverrides video,
                          const std::string& trace_output,
-                         const std::string& trace_level) {
+                         const std::string& trace_level,
+                         const std::string& gpu_hot_path_mode) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
@@ -233,6 +239,7 @@ int run_render_plan_file(const CompositionRegistry& registry,
     state.video = std::move(video);
     state.trace_output = trace_output;
     state.trace_level = trace_level;
+    state.gpu_hot_path_mode = gpu_hot_path_mode;
     return execute_render_plan(registry, state);
 }
 
@@ -315,6 +322,9 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--trace-level", state->trace_level,
                         "Trace capture level: pipeline (default), nodes, or full")
         ->check(CLI::IsMember({"pipeline", "nodes", "full"}));
+    command->add_option("--gpu-hot-path-mode", state->gpu_hot_path_mode,
+                        "GPU hot-path mode: auto, require_gpu_native, or require_direct_yuv")
+        ->check(CLI::IsMember({"auto", "require_gpu_native", "require_direct_yuv"}));
     command->callback([state, &ctx] { ctx.exit_code = execute_render_plan(ctx.registry, *state); });
 }
 

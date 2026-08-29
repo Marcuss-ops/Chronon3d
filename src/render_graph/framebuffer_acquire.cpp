@@ -157,6 +157,18 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     // to the pool instead of an 8 MB alloc.  Replaces the ~8 MB
     // `pool->acquire_from(other) → memcpy` that previously dominated
     // `compositenode_acquire_wall_ms` in chained composite layouts.
+    if (!other.data() && other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        auto* fresh = new Framebuffer(other.width(), other.height(), false);
+        fresh->set_surface_handle(other.surface_handle());
+        fresh->set_origin(other.origin_x(), other.origin_y());
+        fresh->set_opaque(other.is_opaque());
+        fresh->set_content_cleared(other.is_content_cleared());
+        if (!other.is_cpu_authoritative()) {
+            fresh->mark_gpu_authoritative();
+        }
+        return OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
+    }
+
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {
@@ -168,20 +180,34 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         // manually and pair with the no-pool deleter.
         auto* fresh = new Framebuffer(other.width(), other.height(), false);
         out = OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
-        // Framebuffer storage may have a cache-line padded stride. Copy the
-        // logical rows rather than treating the active image as contiguous;
-        // the latter silently copies row-0 padding and leaves later rows
-        // default-initialized (alpha=1), breaking transparent pixels.
-        const auto row_bytes = static_cast<std::size_t>(other.width()) * sizeof(Color);
-        for (i32 y = 0; y < other.height(); ++y) {
-            std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
+        if (other.data()) {
+            const auto row_bytes = static_cast<std::size_t>(other.width()) * sizeof(Color);
+            for (i32 y = 0; y < other.height(); ++y) {
+                std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
+            }
+        }
+        out->set_surface_handle(other.surface_handle());
+        if (!other.is_cpu_authoritative()) {
+            out->mark_gpu_authoritative();
         }
     }
     return out;
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) {
-    if (src && src.use_count() == 1) {
+    if (!src) return OwnedFB{};
+    if (!src->data() && src->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        auto* placeholder = new Framebuffer(src->width(), src->height(), false);
+        placeholder->set_surface_handle(src->surface_handle());
+        placeholder->set_origin(src->origin_x(), src->origin_y());
+        placeholder->set_opaque(src->is_opaque());
+        placeholder->set_content_cleared(src->is_content_cleared());
+        if (!src->is_cpu_authoritative()) {
+            placeholder->mark_gpu_authoritative();
+        }
+        return OwnedFB(placeholder, PoolFbDeleter(DeleteFramebuffer{}));
+    }
+    if (src.use_count() == 1) {
         // Uniquely referenced source: perform a zero-copy ownership transfer
         // via a 1×1 placeholder swap. The placeholder assumes the source's
         // pixel storage; the source keeps a tiny 1×1 buffer that is cheap to
