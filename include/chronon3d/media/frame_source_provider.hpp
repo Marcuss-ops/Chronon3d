@@ -15,6 +15,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <chronon3d/media/video/native_frame_importer.hpp>
 
 #include <memory>
@@ -38,6 +39,9 @@ public:
     /// source-compatible.
     virtual void set_native_frame_importer(
         std::shared_ptr<NativeFrameImporter> /*importer*/) {}
+
+    /// Optional policy controlling GPU-native fail-closed behavior.
+    virtual void set_gpu_hot_path_mode(GpuHotPathMode /*mode*/) {}
 
     /// Decode a single frame from the source identified by `path`.
     /// Output dimensions are suggested via `width`/`height`; implementations

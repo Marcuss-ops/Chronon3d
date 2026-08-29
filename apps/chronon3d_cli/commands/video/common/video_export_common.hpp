@@ -69,6 +69,8 @@ struct FfmpegExportOptions {
     // the video pipe path; GPU strictly resolves the Vulkan backend.
     chronon3d::graph::BackendPreference backend_preference{
         chronon3d::graph::BackendPreference::Auto};
+    chronon3d::GpuHotPathMode gpu_hot_path_mode{
+        chronon3d::GpuHotPathMode::Auto};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

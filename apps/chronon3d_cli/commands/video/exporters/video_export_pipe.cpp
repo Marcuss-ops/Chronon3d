@@ -242,6 +242,21 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.video_decode_hw_transfer_wall_ms = c->video_decode_hw_transfer_wall_ms.load(std::memory_order_relaxed);
         timings.gpu.video_decode_sws_wall_ms = c->video_decode_sws_wall_ms.load(std::memory_order_relaxed);
         timings.gpu.video_decode_framebuffer_wall_ms = c->video_decode_framebuffer_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.hwframe_transfer_to_cpu_frames = c->hwframe_transfer_to_cpu_frames.load(std::memory_order_relaxed);
+        timings.gpu.software_color_convert_frames = c->software_color_convert_frames.load(std::memory_order_relaxed);
+        timings.gpu.cpu_full_surface_upload_bytes = c->cpu_full_surface_upload_bytes.load(std::memory_order_relaxed);
+        timings.gpu.gpu_readback_bytes = c->gpu_readback_bytes.load(std::memory_order_relaxed);
+        timings.gpu.nvenc_frames = c->nvenc_frames.load(std::memory_order_relaxed);
+        timings.gpu.software_encode_frames = c->software_encode_frames.load(std::memory_order_relaxed);
+        timings.gpu.decode_submit_ms = c->decode_submit_ms.load(std::memory_order_relaxed);
+        timings.gpu.decode_wait_ms = c->decode_wait_ms.load(std::memory_order_relaxed);
+        timings.gpu.hwframe_transfer_ms = c->hwframe_transfer_ms.load(std::memory_order_relaxed);
+        timings.gpu.swscale_ms = c->swscale_ms.load(std::memory_order_relaxed);
+        timings.gpu.cpu_pixel_conversion_ms = c->cpu_pixel_conversion_ms.load(std::memory_order_relaxed);
+        timings.gpu.full_surface_upload_ms = c->full_surface_upload_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_composite_ms = c->video_composite_ms.load(std::memory_order_relaxed);
+        timings.gpu.encode_submit_ms = c->encode_submit_ms.load(std::memory_order_relaxed);
+        timings.gpu.encode_wait_ms = c->encode_wait_ms.load(std::memory_order_relaxed);
 
         timings.cpu_breakdown.timeline_eval_ms = static_cast<double>(c->timeline_eval_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.cpu_breakdown.graph_resolve_layers_ms = static_cast<double>(c->graph_resolve_layers_wall_us.load(std::memory_order_relaxed)) / 1000.0;

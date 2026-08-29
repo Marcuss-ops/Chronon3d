@@ -31,6 +31,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>  // P1-21: FramebufferPoolClearPolicy
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
+#include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <chronon3d/render_graph/backend_selection.hpp>
 
 namespace chronon3d {
@@ -234,6 +235,11 @@ public:
         gpu_device_id_ = device_id;
     }
 
+    /// Select GPU hot-path fail-closed mode (Auto, RequireGpuNative, RequireDirectYuv).
+    void set_gpu_hot_path_mode(GpuHotPathMode mode) noexcept {
+        gpu_hot_path_mode_ = mode;
+    }
+
     // ── Domain accessors ──────────────────────────────────────────────
 
     [[nodiscard]] const DebugConfig&     debug()     const noexcept { return debug_; }
@@ -247,6 +253,9 @@ public:
     }
     [[nodiscard]] std::uint32_t gpu_device_id() const noexcept {
         return gpu_device_id_;
+    }
+    [[nodiscard]] GpuHotPathMode gpu_hot_path_mode() const noexcept {
+        return gpu_hot_path_mode_;
     }
 
     // ── Utility (kept public, unchanged) ──────────────────────────────
@@ -274,6 +283,7 @@ private:
     chronon3d::graph::BackendPreference backend_preference_{
         chronon3d::graph::BackendPreference::Auto};
     std::uint32_t gpu_device_id_{kAutoGpuDevice};
+    GpuHotPathMode gpu_hot_path_mode_{GpuHotPathMode::Auto};
 };
 
 } // namespace chronon3d

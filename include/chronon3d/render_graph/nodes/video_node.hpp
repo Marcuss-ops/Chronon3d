@@ -72,7 +72,15 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        if (!m_decoder) {
+        auto* decoder = m_decoder ? m_decoder : ctx.services.video_decoder;
+        if (!decoder) {
+            if (ctx.policy.is_gpu_native_required()) {
+                spdlog::error("[video-node] GPU_NATIVE_REQUIRED: no decoder wired for source='{}'", m_source.path);
+                return NodeExecResult(NodeExecutionError{
+                    .backend_code = RenderBackendErrorCode::ExecutionFailure,
+                    .node_name = "video",
+                    .message = "GPU_NATIVE_REQUIRED: no decoder wired for video source"});
+            }
             spdlog::error("[video-node] no decoder wired for source='{}'", m_source.path);
             const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
             const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
@@ -88,7 +96,7 @@ public:
 
         const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
         const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
-        auto decoded = m_decoder->decode_frame(
+        auto decoded = decoder->decode_frame(
             m_source.path,
             source_frame,
             render_w,
@@ -96,10 +104,27 @@ public:
             m_source.source_fps
         );
         if (!decoded) {
+            if (ctx.policy.is_gpu_native_required()) {
+                spdlog::error("[video-node] GPU_NATIVE_REQUIRED: decoder failed to return frame for path='{}' frame={}",
+                              m_source.path, static_cast<int>(local_frame));
+                return NodeExecResult(NodeExecutionError{
+                    .backend_code = RenderBackendErrorCode::ExecutionFailure,
+                    .node_name = "video",
+                    .message = "GPU_NATIVE_REQUIRED: decoder returned no frame"});
+            }
             spdlog::error("[video-node] decoder returned no frame: path='{}' frame={} source_frame={}",
                           m_source.path, static_cast<int>(local_frame),
                           static_cast<int>(source_frame));
             return ctx.acquire_owned_fb(render_w, render_h);
+        }
+        if (ctx.policy.is_gpu_native_required() &&
+            decoded->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+            spdlog::error("[video-node] GPU_NATIVE_REQUIRED: decoder returned CPU frame without native GPU surface: path='{}'",
+                          m_source.path);
+            return NodeExecResult(NodeExecutionError{
+                .backend_code = RenderBackendErrorCode::ExecutionFailure,
+                .node_name = "video",
+                .message = "GPU_NATIVE_REQUIRED: video layer returned non-GPU native framebuffer"});
         }
         // Preserve the provider-owned native surface when possible. The
         // shared_ptr overload avoids an unnecessary CPU copy for GPU-backed

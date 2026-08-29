@@ -19,6 +19,8 @@ public:
                             CUcontext cuda_context);
     ~VulkanCudaFrameImporter() override = default;
 
+    [[nodiscard]] void* cuda_context() const noexcept override { return cuda_context_; }
+
     [[nodiscard]] std::unique_ptr<media::NativeFrameImportSession>
     create_session() override;
 

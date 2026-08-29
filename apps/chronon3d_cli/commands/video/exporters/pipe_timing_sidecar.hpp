@@ -115,6 +115,20 @@ struct GpuMetrics {
     std::optional<std::uint64_t> video_decode_hw_transfer_wall_ms;
     std::optional<std::uint64_t> video_decode_sws_wall_ms;
     std::optional<std::uint64_t> video_decode_framebuffer_wall_ms;
+    std::optional<std::uint64_t> hwframe_transfer_to_cpu_frames;
+    std::optional<std::uint64_t> software_color_convert_frames;
+    std::optional<std::uint64_t> cpu_full_surface_upload_bytes;
+    std::optional<std::uint64_t> nvenc_frames;
+    std::optional<std::uint64_t> software_encode_frames;
+    std::optional<std::uint64_t> decode_submit_ms;
+    std::optional<std::uint64_t> decode_wait_ms;
+    std::optional<std::uint64_t> hwframe_transfer_ms;
+    std::optional<std::uint64_t> swscale_ms;
+    std::optional<std::uint64_t> cpu_pixel_conversion_ms;
+    std::optional<std::uint64_t> full_surface_upload_ms;
+    std::optional<std::uint64_t> video_composite_ms;
+    std::optional<std::uint64_t> encode_submit_ms;
+    std::optional<std::uint64_t> encode_wait_ms;
 };
 
 struct CpuBreakdownMetrics {
