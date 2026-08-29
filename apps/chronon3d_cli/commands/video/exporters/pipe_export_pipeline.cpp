@@ -111,15 +111,56 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const FfmpegExportOptions& opts,
     Frame start,
     Frame end,
-    const chronon3d::CpuBudget& cpu_budget)
+    const chronon3d::CpuBudget& cpu_budget,
+    std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
+    runtime::DeviceScheduler* device_scheduler)
 {
-    // P0-1 fix(pipe): construct queue in PipeExportSession ctor.  RenderFrameQueue
+    // P0-1 fix(pipe): construct queue in PipeExportSession ctor.  BoundedChannel
     // holds std::mutex + std::condition_variable internally so it is neither
     // movable nor assignable — a late `session->queue = …` would be a build rot.
     // Queue capacity matches the in-flight arena count (4) so the render thread
     // blocks instead of busy-waiting when all arenas are queued.
     constexpr size_t kArenaPoolCount = 4;
     auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
+
+    // Placement is decided once per job by DeviceScheduler. Keep the RAII
+    // reservation in the session so it spans setup, encode, drain and close.
+    if (device_scheduler) {
+        runtime::DeviceSelectionRequirements requirements;
+        requirements.resources.compute_units = 1.0f;
+        requirements.resources.nvenc_sessions =
+            opts.encoder.hardware_encoder == "nvenc" ? 1U : 0U;
+        requirements.resources.nvdec_sessions =
+            (opts.encoder.hardware_encoder == "nvenc" ||
+             opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) ? 1U : 0U;
+        requirements.cuda = opts.encoder.hardware_encoder == "nvenc" ||
+                            opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv;
+        requirements.nvenc = opts.encoder.hardware_encoder == "nvenc";
+        requirements.nvdec = requirements.resources.nvdec_sessions > 0;
+        auto reservation = device_scheduler->reserve(requirements);
+        if (!reservation) {
+            spdlog::error("[video] DeviceScheduler could not reserve a compatible device");
+            return session;
+        }
+        session->device_id = reservation->device();
+        session->device_reservation = std::move(*reservation);
+    } else {
+        // Legacy callers have no scheduler yet; preserve device 0 explicitly.
+        session->device_id = opts.device_id;
+    }
+
+    // Resolve the persistent per-device GPU runtime BEFORE creating the
+    // encoder: the encoder borrows the primary CUDA context + FFmpeg
+    // hwdevice from it instead of creating its own.
+    if (!video_runtimes) {
+        video_runtimes = std::make_shared<media::VideoRuntimeRegistry>();
+    }
+    session->device_runtime = video_runtimes->get_or_create(session->device_id);
+    if (!session->device_runtime) {
+        spdlog::error("[video] failed to obtain the video device runtime; aborting");
+        return session;
+    }
+
     const auto& startup_trace = chronon3d::cli::startup_trace();
     session->startup_breakdown.logger_init_ms = startup_trace.logger_init_ms;
     session->startup_breakdown.cli_bootstrap_ms = startup_trace.cli_bootstrap_ms;
@@ -206,7 +247,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                 ? "libx264"
                 : resolve_cli_ffmpeg_codec(child_opts.encoder.codec,
                                            child_opts.encoder.hardware_encoder);
-            auto child_encoder = create_video_encoder(child_opts);
+            auto child_encoder = create_video_encoder(child_opts, {
+                .device_runtime = session->device_runtime});
             if (!child_encoder) return session;
             auto child_options = make_pipe_options(
                 compiled, child_opts, child_codec, cpu_budget);
@@ -218,7 +260,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->encoder = std::make_unique<VariantFanoutEncoder>(std::move(children));
     } else {
         const auto enc_create_t0 = profiling::now();
-        session->encoder = create_video_encoder(session->opts);
+        session->encoder = create_video_encoder(session->opts, {
+            .device_runtime = session->device_runtime});
         session->startup_breakdown.encoder_create_ms = profiling::duration_ms(enc_create_t0, profiling::now());
     }
     if (!session->encoder) {
@@ -461,34 +504,25 @@ RenderLoopOutput run_pipe_export_loop(
         ? session.renderer_ptr()->counters() : &session.direct_yuv_session->counters);
     native_decoder->set_gpu_hot_path_mode(session.renderer_ptr()
         ? session.renderer_ptr()->config().gpu_hot_path_mode() : opts.gpu_hot_path_mode);
+    native_decoder->set_video_runtime(session.device_runtime);
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (session.direct_yuv_selected()) {
-        native_decoder->set_shared_cuda_context(session.encoder->cuda_context());
-        spdlog::info("[direct-yuv] bound decoder directly to CUDA context without Vulkan importer");
+        spdlog::info("[direct-yuv] decoder bound to the shared video device runtime");
 #if defined(CHRONON3D_ENABLE_VULKAN)
     } else if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer_ptr()->backend())) {
         // The encoder is opened before this loop. Use the context that owns
         // the FFmpeg/NVDEC/NVENC hardware frames; sampling the current
         // context here can select Vulkan's primary context instead.
-        CUcontext cuda_context = reinterpret_cast<CUcontext>(session.encoder->cuda_context());
+        auto gpu = session.device_runtime ? session.device_runtime->gpu() : nullptr;
+        CUcontext cuda_context = gpu
+            ? reinterpret_cast<CUcontext>(gpu->native_context_handle()) : nullptr;
         if (!cuda_context) {
-            // Non-native/pipe encoders do not own an FFmpeg CUDA context;
-            // retain the renderer's current context for their ordinary
-            // Vulkan surface path. Native NVENC must have exposed its exact
-            // FFmpeg context above or its compositor will fail closed.
-            (void)cuCtxGetCurrent(&cuda_context);
+            spdlog::error("[video] FAIL_CLOSED: shared video runtime has no CUDA context");
+        } else {
+            auto importer = media::create_native_frame_importer_for_backend(
+                *vulkan, session.renderer_ptr()->runtime().surface_registry(), cuda_context);
+            if (importer) native_decoder->set_native_frame_importer(std::move(importer));
         }
-        if (!cuda_context) {
-            if (cuInit(0) == CUDA_SUCCESS) {
-                CUdevice dev{};
-                if (cuDeviceGet(&dev, 0) == CUDA_SUCCESS) {
-                    (void)cuDevicePrimaryCtxRetain(&cuda_context, dev);
-                }
-            }
-        }
-        auto importer = media::create_native_frame_importer_for_backend(
-            *vulkan, session.renderer_ptr()->runtime().surface_registry(), cuda_context);
-        if (importer) native_decoder->set_native_frame_importer(std::move(importer));
 #endif
     }
 #endif
