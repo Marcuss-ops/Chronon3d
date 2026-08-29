@@ -15,6 +15,7 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <filesystem>
 #include <algorithm>
@@ -25,6 +26,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::render_plan {
 namespace {
@@ -266,9 +268,16 @@ compile_render_plan(
     chronon3d::assets::AssetResolver& resolver,
     const RenderPlanFingerprintOptions& fingerprint_options) {
     try {
+        const auto compile_total_t0 = chronon3d::profiling::now();
+        double asset_prepare_ms = 0.0;
+        double fingerprint_ms = 0.0;
+        double media_resolution_ms = 0.0;
+        double materialize_layout_ms = 0.0;
+        double composition_compile_ms = 0.0;
         if (const auto budget_error = validate_render_budget(plan)) {
             return *budget_error;
         }
+        const auto asset_t0 = chronon3d::profiling::now();
         auto prepared_store = chronon3d::assets::prepare_asset_store(plan, resolver);
         if (!prepared_store) {
             return PlanDecodeError{
@@ -280,7 +289,10 @@ compile_render_plan(
                 "asset_resolver"};
         }
         auto resources = std::move(prepared_store).value();
+        asset_prepare_ms = chronon3d::profiling::duration_ms(
+            asset_t0, chronon3d::profiling::now());
         auto assets = resources.manifest();
+        const auto fingerprint_t0 = chronon3d::profiling::now();
         const auto fingerprints = render_job_fingerprint(
             plan, assets, fingerprint_options);
         auto content_plan = plan;
@@ -288,6 +300,8 @@ compile_render_plan(
         content_plan.output = {};
         const auto content_fingerprint =
             compute_render_plan_content_fingerprint(content_plan);
+        fingerprint_ms = chronon3d::profiling::duration_ms(
+            fingerprint_t0, chronon3d::profiling::now());
         const auto canvas = CanvasInfo::from_dimensions(
             static_cast<float>(plan.canvas.width),
             static_cast<float>(plan.canvas.height));
@@ -322,6 +336,7 @@ compile_render_plan(
         // runtime resolver during resource preparation. The content
         // fingerprint still derives from the plan's logical paths, so
         // machine-local roots never leak into identity.
+        const auto media_t0 = chronon3d::profiling::now();
         std::vector<std::string> resolved_video_paths(plan.layers.size());
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
@@ -334,6 +349,8 @@ compile_render_plan(
             }
             resolved_video_paths[index] = resolved->string();
         }
+        media_resolution_ms = chronon3d::profiling::duration_ms(
+            media_t0, chronon3d::profiling::now());
 
         CompositionSpec spec;
         spec.name = plan.job_id;
@@ -347,6 +364,7 @@ compile_render_plan(
         // asset mount as font materialization.
         chronon3d::FontEngine font_engine(resolver);
 
+        const auto materialize_t0 = chronon3d::profiling::now();
         // COLLECT — materialize every text/image overlay first, deferring
         // placement.  Layout requests accumulate here so a SINGLE resolver
         // pass can see all overlays (and the regions they occupy) at once,
@@ -462,6 +480,8 @@ compile_render_plan(
                      placement.y + plan.layers[target.layer_index].offset[1]}};
             }
         }
+        materialize_layout_ms = chronon3d::profiling::duration_ms(
+            materialize_t0, chronon3d::profiling::now());
 
         CompositionDefinition definition;
         definition.composition = spec;
@@ -618,7 +638,10 @@ compile_render_plan(
         // a compatibility view whose callback delegates to that immutable
         // compiled value for consumers that have not yet migrated to the
         // direct CompiledComposition entry point.
+        const auto composition_t0 = chronon3d::profiling::now();
         auto compiled = chronon3d::compile_composition(definition, {});
+        composition_compile_ms = chronon3d::profiling::duration_ms(
+            composition_t0, chronon3d::profiling::now());
         if (!compiled) {
             return PlanDecodeError{"composition", compiled.error().message};
         }
@@ -657,6 +680,14 @@ compile_render_plan(
         prepared.canvas = plan.canvas;
         prepared.output = plan.output;
         prepared.render_budget = plan.budget;
+        spdlog::info(
+            "[plan-compile-profile] assets={:.2f}ms fingerprint={:.2f}ms "
+            "media_resolution={:.2f}ms materialize_layout={:.2f}ms "
+            "composition_compile={:.2f}ms total={:.2f}ms",
+            asset_prepare_ms, fingerprint_ms, media_resolution_ms,
+            materialize_layout_ms, composition_compile_ms,
+            chronon3d::profiling::duration_ms(
+                compile_total_t0, chronon3d::profiling::now()));
         return prepared;
     } catch (const std::exception& error) {
         return PlanDecodeError{"", error.what()};

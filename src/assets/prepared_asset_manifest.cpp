@@ -1,4 +1,5 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/registry/visual_preset_registry.hpp>
@@ -14,6 +15,7 @@
 #include <string>
 #include <limits>
 #include <utility>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::assets {
 namespace {
@@ -344,6 +346,7 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
     manifest_hash.update(domain.data(), domain.size());
 
     for (const auto& request : requests) {
+        const auto asset_t0 = chronon3d::profiling::now();
         const std::filesystem::path raw_path{request.logical_path};
         if (raw_path.is_absolute() || drive_absolute(request.logical_path))
             return error(AssetPreflightErrorCode::AbsolutePathRejected,
@@ -394,9 +397,12 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
             return error(AssetPreflightErrorCode::ReadFailed, normalized,
                          "asset timestamp could not be read");
 
+        const auto hash_t0 = chronon3d::profiling::now();
         auto digest = hash_file(canonical, normalized, byte_size,
                                 policy.max_single_asset_bytes);
         if (!digest) return std::move(digest).error();
+        const double hash_ms = chronon3d::profiling::duration_ms(
+            hash_t0, chronon3d::profiling::now());
 
         timestamp_ec.clear();
         const auto timestamp_after = std::filesystem::last_write_time(
@@ -428,6 +434,10 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
                              prepared.content_digest.bytes.size());
         total_bytes += byte_size;
         manifest.m_assets.push_back(std::move(prepared));
+        spdlog::info(
+            "[asset-profile] kind={} path={} bytes={} hash={:.2f}ms total={:.2f}ms",
+            static_cast<int>(request.kind), normalized, byte_size, hash_ms,
+            chronon3d::profiling::duration_ms(asset_t0, chronon3d::profiling::now()));
     }
 
     manifest.m_manifest_digest = manifest_hash.finish();

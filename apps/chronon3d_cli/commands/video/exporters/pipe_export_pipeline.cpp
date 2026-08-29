@@ -120,6 +120,19 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // blocks instead of busy-waiting when all arenas are queued.
     constexpr size_t kArenaPoolCount = 4;
     auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
+    const auto& startup_trace = chronon3d::cli::startup_trace();
+    session->startup_breakdown.logger_init_ms = startup_trace.logger_init_ms;
+    session->startup_breakdown.cli_bootstrap_ms = startup_trace.cli_bootstrap_ms;
+    session->startup_breakdown.cli_parse_ms = startup_trace.cli_parse_ms;
+    session->startup_breakdown.composition_registration_ms =
+        startup_trace.composition_registration_ms;
+    session->startup_breakdown.plan_read_ms = startup_trace.plan_read_ms;
+    session->startup_breakdown.plan_json_parse_ms = startup_trace.plan_json_parse_ms;
+    session->startup_breakdown.plan_decode_validate_ms =
+        startup_trace.plan_decode_validate_ms;
+    session->startup_breakdown.plan_asset_resolve_ms =
+        startup_trace.plan_asset_resolve_ms;
+    session->startup_breakdown.plan_compile_ms = startup_trace.plan_compile_ms;
     session->opts = opts;
     // P1-B: atomic output — FFmpeg writes to a .partial temp file.
     // On success, make_pipe_export_result() renames it to the final path.
