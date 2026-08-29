@@ -88,6 +88,9 @@ public:
         std::shared_ptr<NativeFrameImporter> importer) override {
         m_native_importer = std::move(importer);
     }
+    void set_gpu_hot_path_mode(GpuHotPathMode mode) override {
+        m_gpu_hot_path_mode = mode;
+    }
 
     /// Trace correlation context: stable per-job id mixed with the decoded
     /// source frame to build the Perfetto flow id for this decode. Set once
@@ -158,6 +161,7 @@ private:
     std::mutex m_mutex;
     RenderCounters* m_counters{nullptr};
     std::shared_ptr<NativeFrameImporter> m_native_importer;
+    GpuHotPathMode m_gpu_hot_path_mode{GpuHotPathMode::Auto};
     std::atomic<std::uint64_t> m_trace_job_id{0};
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 

@@ -388,11 +388,42 @@ void write_frame_timing_sidecar(
     put_gpu_u64("video_decode_hw_transfer_wall_ms", timings.gpu.video_decode_hw_transfer_wall_ms);
     put_gpu_u64("video_decode_sws_wall_ms", timings.gpu.video_decode_sws_wall_ms);
     put_gpu_u64("video_decode_framebuffer_wall_ms", timings.gpu.video_decode_framebuffer_wall_ms);
+    put_gpu_u64("hwframe_transfer_to_cpu_frames", timings.gpu.hwframe_transfer_to_cpu_frames);
+    put_gpu_u64("software_color_convert_frames", timings.gpu.software_color_convert_frames);
+    put_gpu_u64("cpu_full_surface_upload_bytes", timings.gpu.cpu_full_surface_upload_bytes);
+    put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
+    put_gpu_u64("nvenc_frames", timings.gpu.nvenc_frames);
+    put_gpu_u64("software_encode_frames", timings.gpu.software_encode_frames);
+    put_gpu_u64("decode_submit_ms", timings.gpu.decode_submit_ms);
+    put_gpu_u64("decode_wait_ms", timings.gpu.decode_wait_ms);
+    put_gpu_u64("hwframe_transfer_ms", timings.gpu.hwframe_transfer_ms);
+    put_gpu_u64("swscale_ms", timings.gpu.swscale_ms);
+    put_gpu_u64("cpu_pixel_conversion_ms", timings.gpu.cpu_pixel_conversion_ms);
+    put_gpu_u64("full_surface_upload_ms", timings.gpu.full_surface_upload_ms);
+    put_gpu_u64("video_composite_ms", timings.gpu.video_composite_ms);
+    put_gpu_u64("encode_submit_ms", timings.gpu.encode_submit_ms);
+    put_gpu_u64("encode_wait_ms", timings.gpu.encode_wait_ms);
     std::string effective_backend = "unknown";
     if (timings.gpu.gpu_nodes && *timings.gpu.gpu_nodes > 0) {
         effective_backend = "vulkan";
     }
     gpu["effective_backend"] = effective_backend;
+
+    std::string decoder_backend = "software";
+    if (timings.gpu.video_decode_native_surface_frames && *timings.gpu.video_decode_native_surface_frames > 0) {
+        if (!timings.gpu.video_decode_native_fallback_frames || *timings.gpu.video_decode_native_fallback_frames == 0) {
+            decoder_backend = "nvdec";
+        } else {
+            decoder_backend = "hybrid";
+        }
+    }
+    gpu["decoder_backend"] = decoder_backend;
+
+    std::string encoder_backend = "software";
+    if (timings.gpu.nvenc_frames && *timings.gpu.nvenc_frames > 0) {
+        encoder_backend = "nvenc";
+    }
+    gpu["encoder_backend"] = encoder_backend;
 
     auto& prepare = job["prepare"];
     const auto put_prepare = [&prepare](const char* key, const std::optional<double>& value) {

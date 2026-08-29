@@ -61,6 +61,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/core/gpu_hot_path_mode.hpp>
 
 // TICKET-007 / TICKET-010 — render_graph_context.hpp is a public SDK header
 // consumed by graph-node TU families (transform_node, multi_source_node,
@@ -196,6 +197,12 @@ struct RenderPolicy {
     bool retain_native_surface_for_video{false};
     bool disable_pixel_readback{false};
     bool require_native_gpu{false};
+    GpuHotPathMode gpu_hot_path_mode{GpuHotPathMode::Auto};
+    [[nodiscard]] bool is_gpu_native_required() const noexcept {
+        return require_native_gpu ||
+               gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+               gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv;
+    }
     runtime::RenderSurfaceHandle native_video_encode_surface{
         runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_video_source_surface{

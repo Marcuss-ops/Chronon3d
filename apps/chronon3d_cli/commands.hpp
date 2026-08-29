@@ -87,6 +87,7 @@ struct RenderArgs {
     std::string trace_output;
     // Trace capture level: pipeline | nodes | full.
     std::string trace_level{"pipeline"};
+    std::string gpu_hot_path_mode{"auto"};
 };
 
 struct BenchConvertArgs {

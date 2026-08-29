@@ -101,6 +101,11 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         framebuffer.clear_surface_handle();
     }
 
+    if (!framebuffer.data()) {
+        spdlog::error("[native-surface] cannot upload from framebuffer without CPU pixel backing");
+        return false;
+    }
+
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
     // A strict native-video job can still contain a small CPU-authored
     // overlay (for example a decoded watermark or a legacy text fallback).

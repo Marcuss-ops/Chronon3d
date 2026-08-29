@@ -283,9 +283,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 framebuffer->set_surface_handle(handle);
                 return handle;
             }
-            if (ctx.policy.require_native_gpu) {
+            if (ctx.policy.is_gpu_native_required()) {
                 spdlog::error(
-                    "[native-residency] missing native source surface at frame {}",
+                    "[native-residency] GPU_NATIVE_REQUIRED: missing native source surface at frame {}",
                     static_cast<int>(frame));
                 return runtime::kInvalidRenderSurfaceHandle;
             }
@@ -328,7 +328,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 ctx.node_exec.counters->video_surface_upload_bytes.fetch_add(
                     static_cast<std::uint64_t>(rgba.size() * sizeof(float)),
                     std::memory_order_relaxed);
+                ctx.node_exec.counters->cpu_full_surface_upload_bytes.fetch_add(
+                    static_cast<std::uint64_t>(rgba.size() * sizeof(float)),
+                    std::memory_order_relaxed);
                 ctx.node_exec.counters->video_surface_upload_wall_ms.fetch_add(
+                    static_cast<std::uint64_t>(upload_ms),
+                    std::memory_order_relaxed);
+                ctx.node_exec.counters->full_surface_upload_ms.fetch_add(
                     static_cast<std::uint64_t>(upload_ms),
                     std::memory_order_relaxed);
             }

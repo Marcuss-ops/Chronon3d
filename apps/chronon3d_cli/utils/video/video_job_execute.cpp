@@ -57,6 +57,9 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.backend_preference = job.execution.config
         ? job.execution.config->backend_preference()
         : chronon3d::graph::BackendPreference::Auto;
+    opts.gpu_hot_path_mode = job.execution.config
+        ? job.execution.config->gpu_hot_path_mode()
+        : chronon3d::GpuHotPathMode::Auto;
     return opts;
 }
 

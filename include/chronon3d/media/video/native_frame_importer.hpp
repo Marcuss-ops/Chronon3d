@@ -31,6 +31,8 @@ class NativeFrameImporter {
 public:
     virtual ~NativeFrameImporter() = default;
 
+    [[nodiscard]] virtual void* cuda_context() const noexcept { return nullptr; }
+
     [[nodiscard]] virtual std::unique_ptr<NativeFrameImportSession>
     create_session() = 0;
 };

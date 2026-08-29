@@ -93,7 +93,9 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 ctx.renderer.counters()->gpu_native_surface_frames.fetch_add(
                     1, std::memory_order_relaxed);
             }
-            if (!gpu_frame && ctx.require_native_gpu) {
+            if (!gpu_frame && (ctx.require_native_gpu ||
+                               ctx.renderer.config().gpu_hot_path_mode() == GpuHotPathMode::RequireGpuNative ||
+                               ctx.renderer.config().gpu_hot_path_mode() == GpuHotPathMode::RequireDirectYuv)) {
                 if (ctx.renderer.counters()) {
                     ctx.renderer.counters()->video_native_fallback_frames.fetch_add(
                         1, std::memory_order_relaxed);
@@ -101,7 +103,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                         1, std::memory_order_relaxed);
                 }
                 spdlog::error(
-                    "[video] Native GPU profile lost its Vulkan surface at frame {}; refusing CPU fallback",
+                    "[video] GPU_NATIVE_REQUIRED: non-GPU surface at frame {}; refusing CPU fallback",
                     package.frame_number);
                 release_interop_slot();
                 ctx.writer_failed.store(true);
@@ -139,8 +141,12 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 if (gpu_frame) {
                     ctx.renderer.counters()->gpu_native_encode_frames.fetch_add(
                         1, std::memory_order_relaxed);
+                    ctx.renderer.counters()->nvenc_frames.fetch_add(
+                        1, std::memory_order_relaxed);
                 } else {
                     ctx.renderer.counters()->video_pipe_fallback_frames.fetch_add(
+                        1, std::memory_order_relaxed);
+                    ctx.renderer.counters()->software_encode_frames.fetch_add(
                         1, std::memory_order_relaxed);
                 }
             }
