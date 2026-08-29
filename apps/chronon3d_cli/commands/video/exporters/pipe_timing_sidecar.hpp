@@ -2,6 +2,7 @@
 
 #include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include "../common/pipe_startup_breakdown.hpp"
 
 #include <cstdint>
 #include <map>
@@ -182,6 +183,59 @@ struct HardwareMetrics {
     std::optional<std::uint64_t> vram_total_mb;
 };
 
+struct ExclusiveWallTimeline {
+    std::optional<double> process_wall_ms;
+    std::optional<double> startup_ms;
+    std::optional<double> input_open_ms;
+    std::optional<double> prepare_ms;
+    std::optional<double> render_loop_ms;
+    std::optional<double> encoder_drain_finalize_ms;
+    std::optional<double> mux_finalize_ms;
+    std::optional<double> validation_ms;
+    std::optional<double> ffprobe_ms;
+    std::optional<double> sha256_ms;
+    std::optional<double> output_finalize_ms;
+    std::optional<double> sidecar_report_ms;
+    std::optional<double> unaccounted_ms;
+    std::optional<double> accounted_percent;
+};
+
+struct InternalDecodeProfiling {
+    std::optional<uint64_t> decoded_frames;
+    std::optional<double> decode_total_ms;
+    std::optional<double> demux_read_packet_ms;
+    std::optional<double> avcodec_send_packet_ms;
+    std::optional<double> avcodec_receive_frame_ms;
+    std::optional<double> nvdec_wait_ms;
+    std::optional<double> cpu_active_ms;
+    std::optional<double> cpu_wait_ms;
+    std::optional<double> avg_ms_per_frame;
+    std::optional<double> p50_ms_per_frame;
+    std::optional<double> p95_ms_per_frame;
+    std::optional<double> max_ms_per_frame;
+};
+
+struct InternalDirectYuvProfiling {
+    std::optional<double> input_probe_ms;
+    std::optional<double> scene_eval_ms;
+    std::optional<double> watermark_image_load_ms;
+    std::optional<double> watermark_cuda_upload_ms;
+    std::optional<double> prepare_update_ms;
+    std::optional<double> cuda_launch_ms;
+    std::optional<double> cuda_event_wait_ms;
+    std::optional<double> cuda_kernel_total_ms;
+};
+
+struct InternalEncoderProfiling {
+    std::optional<double> av_hwframe_get_buffer_ms;
+    std::optional<double> surface_acquire_ms;
+    std::optional<double> nvenc_submit_ms;
+    std::optional<double> queue_backpressure_wait_ms;
+    std::optional<double> packet_drain_ms;
+    std::optional<double> cpu_active_ms;
+    std::optional<double> cpu_wait_ms;
+};
+
 struct JobTimings {
     std::optional<double> process_wall_ms;
     std::optional<double> job_wall_ms;
@@ -218,6 +272,12 @@ struct JobTimings {
     HardwareMetrics hardware;
     chronon3d::runtime::RenderPreparationTimings prepare;
     std::optional<int> target_fps;
+    ExclusiveWallTimeline exclusive_wall;
+    InternalDecodeProfiling internal_decode;
+    InternalDirectYuvProfiling internal_direct_yuv;
+    InternalEncoderProfiling internal_encoder;
+    StartupBreakdown startup_breakdown;
+    PrepareBreakdown prepare_breakdown;
 };
 
 } // namespace chronon3d::cli::pipe_timing

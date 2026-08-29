@@ -8,8 +8,7 @@
 #include <string>
 
 namespace chronon3d {
-class SoftwareRenderer;
-class RenderCounters;
+class ImageCache;
 namespace media { class NativeVideoFrameDecoder; }
 }
 
@@ -24,7 +23,7 @@ class DirectYuvProgram final {
 public:
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,
-        SoftwareRenderer& renderer,
+        ImageCache& image_cache,
         void* cuda_context,
         std::string& reason);
 
@@ -33,6 +32,9 @@ public:
         Frame frame) const;
 
     [[nodiscard]] const std::string& video_path() const noexcept { return video_path_; }
+    [[nodiscard]] double scene_eval_ms() const noexcept { return scene_eval_ms_; }
+    [[nodiscard]] double watermark_load_ms() const noexcept { return watermark_load_ms_; }
+    [[nodiscard]] double watermark_upload_ms() const noexcept { return watermark_upload_ms_; }
 
 private:
     DirectYuvProgram() = default;
@@ -40,6 +42,9 @@ private:
     int width_{0};
     int height_{0};
     std::shared_ptr<DirectYuvFrame> template_frame_;
+    double scene_eval_ms_{0.0};
+    double watermark_load_ms_{0.0};
+    double watermark_upload_ms_{0.0};
 };
 
 } // namespace chronon3d::cli

@@ -11,8 +11,11 @@
 #include <vector>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <chronon3d/media/video/cuda_direct_nv12_compositor.hpp>
+#ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
 #include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#endif
 #endif
 
 
@@ -96,11 +99,33 @@ public:
     [[nodiscard]] double native_receive_packet_ms()   const override { return native_receive_packet_ms_; }
     [[nodiscard]] double native_mux_write_ms()        const override { return native_mux_write_ms_; }
     [[nodiscard]] double native_trailer_ms()          const override { return native_trailer_ms_; }
+    [[nodiscard]] double encoder_hwframe_get_buffer_ms() const override { return encoder_hwframe_get_buffer_ms_; }
+    [[nodiscard]] double encoder_surface_acquire_ms() const override { return encoder_surface_acquire_ms_; }
+    [[nodiscard]] double encoder_nvenc_submit_ms() const override { return encoder_nvenc_submit_ms_; }
+    [[nodiscard]] double encoder_queue_backpressure_wait_ms() const override { return encoder_queue_backpressure_wait_ms_; }
+    [[nodiscard]] double encoder_packet_drain_ms() const override { return encoder_packet_drain_ms_; }
+    [[nodiscard]] double direct_yuv_cuda_launch_ms() const override { return direct_yuv_cuda_launch_ms_; }
+    [[nodiscard]] double direct_yuv_cuda_wait_ms() const override { return direct_yuv_cuda_wait_ms_; }
+    [[nodiscard]] double open_hw_ctx_ms() const override { return open_hw_ctx_ms_; }
+    [[nodiscard]] double cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
+    [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
+    [[nodiscard]] double open_mux_header_ms() const override { return open_mux_header_ms_; }
 
 private:
     chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};
     uint64_t frames_written_{0};
+    double open_hw_ctx_ms_{0.0};
+    double cuda_compositor_warmup_ms_{0.0};
+    double open_nvenc_ms_{0.0};
+    double open_mux_header_ms_{0.0};
+    double encoder_hwframe_get_buffer_ms_{0.0};
+    double encoder_surface_acquire_ms_{0.0};
+    double encoder_nvenc_submit_ms_{0.0};
+    double encoder_queue_backpressure_wait_ms_{0.0};
+    double encoder_packet_drain_ms_{0.0};
+    double direct_yuv_cuda_launch_ms_{0.0};
+    double direct_yuv_cuda_wait_ms_{0.0};
 
     // FFmpeg objects
     AVFormatContext* fmt_{nullptr};
@@ -112,10 +137,12 @@ private:
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     static constexpr std::size_t kCudaEncodeRingSlots = 6;
+#ifdef CHRONON3D_ENABLE_VULKAN
     std::unordered_map<std::uint64_t,
         std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>>
         cuda_nv12_compositors_;
-    std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>
+#endif
+    std::unique_ptr<media::CudaDirectNv12Compositor>
         direct_yuv_compositor_;
     // AVFrame wrappers are recycled across the bounded CUDA/NVENC ring. The
     // hw-frame pool remains owned by FFmpeg; only the wrapper lifetime is
@@ -137,6 +164,10 @@ private:
     uint64_t cuda_pending_peak_{0};
     uint64_t cuda_backpressure_wait_count_{0};
     void* cuda_context_{nullptr};
+    // True only while cuda_context_ is the primary context retained above.
+    // FFmpeg may select a different CUDA context for its hwdevice; that
+    // context is borrowed and must never be released as a primary context.
+    bool primary_context_retained_{false};
     AVBufferRef* cuda_device_ref_{nullptr};
     AVBufferRef* cuda_frames_ref_{nullptr};
 #endif

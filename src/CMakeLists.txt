@@ -92,6 +92,11 @@ if(CHRONON3D_ENABLE_TRACING)
     )
 endif()
 
+if(CHRONON3D_ENABLE_CUDA_INTEROP)
+    include("${CMAKE_SOURCE_DIR}/cmake/ChrononCuda.cmake")
+    chronon3d_configure_cuda()
+endif()
+
 # ==============================================================================
 # Per-subsystem targets (ordered by dependency graph)
 # ==============================================================================

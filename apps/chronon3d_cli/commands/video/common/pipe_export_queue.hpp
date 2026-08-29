@@ -19,6 +19,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <variant>
 
 namespace chronon3d::cli {
 
@@ -115,32 +116,14 @@ private:
 };
 
 // ── RenderFrameQueue — bounded blocking queue replacing moodycamel::ConcurrentQueue ─
-// Wraps std::queue + std::mutex + condition_variables.  Exposes blocking
-// push/pop for the video pipeline and non-blocking try_dequeue/enqueue for
-// tests and legacy callers.
+// Wraps std::queue + std::mutex + condition_variables.  Exposes only the
+// blocking operations used by the video pipeline.
 
 template <typename T>
 class RenderFrameQueue {
 public:
     explicit RenderFrameQueue(size_t capacity = 0)
         : capacity_(capacity) {}
-
-    bool try_dequeue(T& item) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (queue_.empty()) return false;
-        item = std::move(queue_.front());
-        queue_.pop();
-        not_full_.notify_one();
-        return true;
-    }
-
-    void enqueue(T item) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            queue_.push(std::move(item));
-        }
-        not_empty_.notify_one();
-    }
 
     size_t size_approx() const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -220,9 +203,12 @@ private:
     bool closed_{false};
 };
 
-// ── Shared frame package ────────────────────────────────────────────────────
+// ── Explicit frame variants ────────────────────────────────────────────────
+// Direct-YUV must not carry FullGraph ownership/lifetime state. Keeping the
+// two payloads as a variant makes accidental use of Vulkan surfaces or the
+// CPU arena in the direct path a type error instead of a convention.
 
-struct RenderFramePackage {
+struct FullGraphFramePackage {
     Frame frame_number{0};
     std::shared_ptr<Framebuffer> framebuffer;
     std::shared_ptr<FramebufferArena> arena;
@@ -232,7 +218,13 @@ struct RenderFramePackage {
     runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
     std::size_t interop_slot{FrameInteropRing::kInvalidSlot};
     bool native_surface_ready{false};
+};
+
+struct DirectYuvFramePackage {
+    Frame frame_number{0};
     std::shared_ptr<DirectYuvFrame> direct_yuv;
 };
+
+using RenderFramePackage = std::variant<FullGraphFramePackage, DirectYuvFramePackage>;
 
 } // namespace chronon3d::cli

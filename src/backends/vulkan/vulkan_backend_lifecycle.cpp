@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -27,6 +28,7 @@ namespace chronon3d::backends::vulkan {
 
 VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
 #ifdef CHRONON3D_ENABLE_VULKAN
+    const auto t_inst0 = std::chrono::steady_clock::now();
     m_debug_context = std::make_unique<VulkanDebugContext>();
     const auto debug_config = VulkanDebugConfig::from_environment();
     std::vector<const char*> enabled_layers;
@@ -136,6 +138,10 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
             : "Vulkan: requested graphics device index is unavailable");
     }
 
+    m_init_instance_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t_inst0).count();
+    const auto t_dev0 = std::chrono::steady_clock::now();
+
     constexpr float queue_priority = 1.0f;
     const VkDeviceQueueCreateInfo queue_info{
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -221,10 +227,15 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
         m_debug_context->set_device(m_device);
         m_debug_context->set_command_pool_name(m_command_pool, "Chronon3D.CommandPool.Main");
     }
+    m_init_device_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t_dev0).count();
+    const auto t_pipe0 = std::chrono::steady_clock::now();
     m_impl = std::make_unique<Impl>(m_instance, m_physical_device, m_device, m_queue,
                                     m_queue_family, m_command_pool,
                                     m_calibrated_timestamps_supported,
                                     m_debug_context.get());
+    m_init_pipelines_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t_pipe0).count();
 #else
     throw std::runtime_error("Vulkan backend was not compiled");
 #endif
