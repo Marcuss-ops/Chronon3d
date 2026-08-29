@@ -458,6 +458,7 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             const auto encoder_backend = request.value(
                 "encoder_backend", std::string{"pipe"});
             const auto codec = request.value("codec", std::string{"auto"});
+            const auto hot_path = request.value("gpu_hot_path_mode", "auto");
             const bool native_nvenc =
                 (requested_backend == "vulkan" ||
                  (requested_backend == "auto" && m_backend == "vulkan")) &&
@@ -465,7 +466,8 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                 encoder_backend == "native";
             runtime::DeviceSelectionRequirements requirements;
             requirements.cuda = native_nvenc;
-            requirements.vulkan_interop = native_nvenc;
+            requirements.vulkan_interop = native_nvenc &&
+                hot_path != "require_direct_yuv";
             requirements.nvenc = native_nvenc;
             requirements.nv12 = native_nvenc;
             requirements.resources.nvenc_sessions = native_nvenc ? 1U : 0U;
@@ -491,7 +493,6 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             // receive a SoftwareRenderer.  This keeps the worker lightweight
             // for the common native video lane while preserving a warm
             // renderer for FullGraph jobs.
-            const auto hot_path = request.value("gpu_hot_path_mode", "auto");
             const bool direct_yuv = native_nvenc && hot_path == "require_direct_yuv";
             std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             std::shared_ptr<SoftwareRenderer> warm_renderer;
