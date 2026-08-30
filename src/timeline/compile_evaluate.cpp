@@ -128,12 +128,6 @@ compile_composition(const Composition& composition,
     // (3) Own a snapshot of the canonical Composition. DTO conversion, when
     //     needed, happens only in the deprecated boundary overload below.
     out.composition = std::make_shared<const Composition>(composition);
-    // Compatibility view only; all new consumers use `composition`.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    out.definition = out.composition;
-#pragma GCC diagnostic pop
-
     // (4) Camera compile path (only when a descriptor was supplied).
     // ADL on `camera_v1::CameraDescriptor` finds BOTH an outer wrapper in
     // `chronon3d::` (this TU — returns Result<…, CompositionCompileError>)
