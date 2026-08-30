@@ -79,8 +79,9 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
     if (!evaluated) {
         throw std::runtime_error("PreparedRenderJob pipeline has no free frame slot");
     }
-    evaluated->frame = frame;
-    evaluated->sequence = m_impl->next_sequence++;
+    evaluated->frame_index = frame.integral();
+    auto& evaluated_payload = m_impl->payload(*evaluated);
+    evaluated_payload.reset();
     if (!m_impl->slots.publish_evaluated(*evaluated)) {
         (void)m_impl->slots.abort(*evaluated);
         throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
@@ -99,7 +100,7 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
             settings.motion_blur.mode == MotionBlurMode::Off;
         if (can_split_evaluation && m_impl->compiled->composition) {
             auto evaluated_frame = m_impl->evaluate_frame(
-                frame, evaluated->arena);
+                frame, evaluated_payload.arena);
             output = m_impl->engine->m_impl->m_pipeline->render_evaluated_composition(
                 *m_impl->compiled, evaluated_frame, frame);
         } else {
@@ -115,14 +116,14 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
         if (!encode_slot || encode_slot != render_slot ||
             !m_impl->slots.begin_encoding(*encode_slot) ||
             !m_impl->slots.release_encoded(*encode_slot)) {
-            if (encode_slot && encode_slot->state != runtime::FrameSlotState::Free) {
+            if (encode_slot && encode_slot->state.load(std::memory_order_acquire) != runtime::FrameSlotState::Free) {
                 (void)m_impl->slots.abort(*encode_slot);
             }
             throw std::runtime_error("PreparedRenderJob failed to release encoded frame slot");
         }
         return output;
     } catch (...) {
-        if (render_slot->state != runtime::FrameSlotState::Free) {
+        if (render_slot && render_slot->state.load(std::memory_order_acquire) != runtime::FrameSlotState::Free) {
             (void)m_impl->slots.abort(*render_slot);
         }
         throw;
@@ -141,9 +142,9 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
         throw std::invalid_argument("PreparedRenderJob frame count must not be negative");
     }
 
-    // The three stage queues are owned by FrameSlotPipeline.  Payloads live
-    // in the fixed slots themselves, so a slow encoder cannot cause a second,
-    // unbounded payload queue to grow.
+    // The three stage queues and slot ownership are provided by the canonical
+    // FrameExecutionSlotRing. CPU payloads remain in the fixed job slots, so
+    // a slow encoder cannot cause an unbounded payload queue to grow.
     std::mutex wait_mutex;
     std::condition_variable stage_changed;
     bool evaluation_done = false;
@@ -165,16 +166,12 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
         stage_changed.notify_all();
     };
 
-    const auto slot_index = [&](const runtime::FrameSlot* slot) {
-        return static_cast<std::size_t>(
-            slot - m_impl->slots.slots().data());
-    };
     const bool split_evaluation = m_impl->can_split_evaluation();
     const Frame end = first + count;
 
     std::thread evaluation_thread([&] {
         for (Frame frame = first; frame < end; ++frame) {
-            runtime::FrameSlot* slot = nullptr;
+            runtime::FrameExecutionSlot* slot = nullptr;
             {
                 std::unique_lock lock(wait_mutex);
                 stage_changed.wait(lock, [&] {
@@ -182,13 +179,13 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                 });
                 if (failed) break;
             }
-            const auto index = slot_index(slot);
-            slot->frame = frame;
-            slot->sequence = m_impl->next_sequence++;
+            slot->frame_index = frame.integral();
+            auto& payload = m_impl->payload(*slot);
+            payload.reset();
             try {
                 if (split_evaluation) {
-                    slot->evaluated.emplace(
-                        m_impl->evaluate_frame(frame, slot->arena));
+                    payload.evaluated.emplace(
+                        m_impl->evaluate_frame(frame, payload.arena));
                 }
                 if (!m_impl->slots.publish_evaluated(*slot)) {
                     throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
@@ -213,7 +210,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
 
     std::thread render_thread([&] {
         for (;;) {
-            runtime::FrameSlot* slot = nullptr;
+            runtime::FrameExecutionSlot* slot = nullptr;
             {
                 std::unique_lock lock(wait_mutex);
                 stage_changed.wait(lock, [&] {
@@ -234,14 +231,14 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                     continue;
                 }
             }
-            const auto index = slot_index(slot);
-            const Frame slot_frame = slot->frame;
+            auto& payload = m_impl->payload(*slot);
+            const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
             try {
                 std::shared_ptr<Framebuffer> output;
                 if (split_evaluation) {
                     output = m_impl->render_evaluated_frame(
-                        *slot->evaluated, slot_frame);
-                    slot->evaluated.reset();
+                        *payload.evaluated, slot_frame);
+                    payload.evaluated.reset();
                 } else {
                     // Temporal/SSAA paths retain their canonical complete
                     // compositor boundary, but still participate in the
@@ -250,7 +247,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                     output = m_impl->engine->render_compiled(
                         *m_impl->compiled, slot_frame);
                 }
-                slot->rendered = std::move(output);
+                payload.rendered = std::move(output);
                 ++frames_rendered;
                 if (!m_impl->slots.publish_rendered(*slot)) {
                     throw std::runtime_error("PreparedRenderJob failed to publish rendered frame");
@@ -273,7 +270,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
 
     std::thread encoder_thread([&] {
         for (;;) {
-            runtime::FrameSlot* slot = nullptr;
+            runtime::FrameExecutionSlot* slot = nullptr;
             {
                 std::unique_lock lock(wait_mutex);
                 stage_changed.wait(lock, [&] {
@@ -286,16 +283,16 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                     continue;
                 }
             }
-            const auto index = slot_index(slot);
-            const Frame slot_frame = slot->frame;
+            auto& payload = m_impl->payload(*slot);
+            const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
 
             try {
                 if (!m_impl->slots.begin_encoding(*slot)) {
                     throw std::runtime_error(
                         "PreparedRenderJob failed to begin encoding frame");
                 }
-                if (!slot->rendered ||
-                    !encoder(slot_frame, *slot->rendered)) {
+                if (!payload.rendered ||
+                    !encoder(slot_frame, *payload.rendered)) {
                     (void)m_impl->slots.abort(*slot);
                     fail(slot_frame, "PreparedRenderJob encoder rejected frame");
                     return;
@@ -309,7 +306,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                 fail(slot_frame, "PreparedRenderJob encoder threw an unknown exception");
                 return;
             }
-            slot->rendered.reset();
+            payload.rendered.reset();
             (void)m_impl->slots.release_encoded(*slot);
             ++frames_encoded;
             stage_changed.notify_all();
@@ -323,7 +320,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
     // A failed stage may have left payloads in one of the two internal rings.
     // Reset only after every worker has joined; this returns every fixed slot
     // and makes the PreparedRenderJob reusable after an encoder failure.
-    m_impl->slots.reset();
+    m_impl->reset_slots();
 
     PreparedRenderBatchResult result;
     result.frames_rendered = frames_rendered;
