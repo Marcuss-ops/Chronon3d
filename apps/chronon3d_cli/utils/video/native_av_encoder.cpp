@@ -872,7 +872,7 @@ bool NativeAvEncoder::finish_native_surface(
                  destination, pending_cuda_frames_.size());
     // Pending CUDA work is ordered on one stream. Drain in submission order
     // until the event belonging to this surface has been consumed. This is
-    // the ownership hand-off that makes FrameInteropRing::release safe.
+    // the ownership hand-off that keeps the encoder surface lifetime safe.
     for (;;) {
         auto it = std::find_if(
             pending_cuda_frames_.begin(), pending_cuda_frames_.end(),

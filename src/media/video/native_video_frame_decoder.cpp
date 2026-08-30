@@ -526,7 +526,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::st
     if (frame < 0 || path.empty()) return {};
     const int64_t target = frame.integral();
     std::shared_ptr<Session> session;
-    { std::lock_guard lock(m_mutex); session = open_session_locked(path); }
+    { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
     if (!session) return {};
     std::unique_lock lock(session->mutex);
     if (session->prefetch_inflight == target) session->prefetch_cv.wait(lock, [&session, target] { return session->prefetch_inflight != target || session->prefetch_stop.load(); });
@@ -539,9 +539,12 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::st
     }
     session->prefetch_queue.clear(); ++session->prefetch_generation; session->prefetch_next = target + 1;
     lock.unlock(); auto result = decode_frame_internal(*session, target); lock.lock(); session->prefetch_cv.notify_all();
-    if (result && result->surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
-        session->test_options.enable_frame_cache) {
-        session->cache.put(target, result);
+    if (result) {
+        const bool native_surface = result->surface_handle() !=
+            runtime::kInvalidRenderSurfaceHandle;
+        if (!native_surface && session->test_options.enable_frame_cache) {
+            session->cache.put(target, result);
+        }
     }
     return result;
 }
@@ -555,7 +558,7 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame(
     }
     std::shared_ptr<Session> session;
     {
-        std::lock_guard lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         session = open_session_locked(path);
     }
     if (!session) return {};

@@ -65,11 +65,11 @@ TEST_CASE("Composition compatibility adapter snapshots the canonical pipeline") 
 
     auto compiled = compile_composition(comp, {});
     REQUIRE(compiled.has_value());
-    REQUIRE(compiled->definition);
-    CHECK(compiled->definition->composition.name == comp.name());
-    CHECK(compiled->definition->composition.width == comp.width());
-    CHECK(compiled->definition->composition.height == comp.height());
-    CHECK(compiled->definition->composition.frame_rate.numerator == 24);
+    REQUIRE(compiled->composition);
+    CHECK(compiled->composition->name() == comp.name());
+    CHECK(compiled->composition->width() == comp.width());
+    CHECK(compiled->composition->height() == comp.height());
+    CHECK(compiled->composition->frame_rate().numerator == 24);
 
     CompositionEvaluateContext eval_context;
     eval_context.frame_context = eval_context.frame_context.with_frame_rate(comp.frame_rate());
@@ -116,9 +116,9 @@ TEST_CASE("Composition adapter compiles its authored camera descriptor") {
 
     auto compiled = compile_composition(comp, {});
     REQUIRE(compiled.has_value());
-    REQUIRE(compiled->definition);
-    REQUIRE(compiled->definition->camera.has_value());
-    CHECK(compiled->definition->camera->id == "adapter-descriptor");
+    REQUIRE(compiled->composition);
+    CHECK(compiled->composition->has_default_camera_descriptor());
+    CHECK(compiled->composition->default_camera_descriptor().id == "adapter-descriptor");
     REQUIRE(compiled->camera_program);
     CHECK(compiled->camera_program->is_compiled());
     CHECK(compiled->fingerprint != 0);
