@@ -48,7 +48,7 @@
     },
     "svg": {
       "description": "SVG path/document importing (CHRONON3D_ENABLE_SVG)",
-      "dependencies": ["boost-spirit", "boost-math"]
+      "dependencies": ["boost-spirit", "boost-math", "boost-property-tree"]
     },
     "ocio": {
       "description": "OpenColorIO colour-management transforms (CHRONON3D_ENABLE_OCIO)",
