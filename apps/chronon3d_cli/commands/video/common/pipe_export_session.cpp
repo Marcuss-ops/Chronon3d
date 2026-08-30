@@ -316,7 +316,7 @@ struct EncodeOutcome {
     // push: the caller must release the arena and mark render-failed (see
     // the require_native_gpu branch of the encode stage).
     bool source_residency_failed{false};
-    FullGraphFramePackage package;
+    RenderFramePackage package;
     double wait_ms{0.0};
     uint64_t node_cache_hits_after{0};
 };
@@ -331,7 +331,7 @@ EncodeOutcome encode_frame(
     std::shared_ptr<Framebuffer> fb,
     const RenderSettings& video_settings,
     std::shared_ptr<FramebufferArena> current_arena,
-    const NativeSurfacePrep& prep,
+    NativeSurfacePrep prep,
     Frame current_frame,
     PipeExportStatus& status) {
     EncodeOutcome out;
@@ -416,11 +416,12 @@ EncodeOutcome encode_frame(
             }
         }
     }
-    out.package = FullGraphFramePackage{
-        .frame_number = current_frame,
-        .slot = std::move(prep.slot),
-        .cpu_fallback = std::move(fb),
-        .cpu_arena = std::move(current_arena)};
+    out.package.emplace<FullGraphFramePackage>();
+    auto& full_package = std::get<FullGraphFramePackage>(out.package);
+    full_package.frame_number = current_frame;
+    full_package.slot = std::move(prep.slot);
+    full_package.cpu_fallback = std::move(fb);
+    full_package.cpu_arena = std::move(current_arena);
     ++status.frames_rendered;
 
     out.pushed = ctx.queue.push(out.package, ctx.opts.cancellation_token);
@@ -580,7 +581,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
-            const NativeSurfacePrep prep =
+            NativeSurfacePrep prep =
                 prepare_frame(ctx, ctx.settings, current_frame);
 
             RenderOutcome shot =
@@ -628,7 +629,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             EncodeOutcome enc = encode_frame(
-                ctx, shot.fb, prep.video_settings, current_arena, prep,
+                ctx, shot.fb, prep.video_settings, current_arena, std::move(prep),
                 current_frame, status);
             result.queue_wait_ms += enc.wait_ms;
             const double wait_ms = enc.wait_ms;
@@ -643,7 +644,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 // Frame-transient source/encode surfaces are reclaimed by the
                 // caller after the writer has joined. Recover the arena so it
                 // can be released back to the pool.
-                auto arena = std::move(enc.package.cpu_arena);
+                auto* full = std::get_if<FullGraphFramePackage>(&enc.package);
+                auto arena = full ? std::move(full->cpu_arena) : nullptr;
                 if (ctx.writer_failed.load()) {
                     mark_pipe_writer_failed(status, current_frame);
                 } else if (ctx.opts.cancellation_token &&
