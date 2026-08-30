@@ -40,9 +40,6 @@ struct CompiledFrameProgram {
 /// Immutable runtime artifact retaining the one canonical Composition value.
 struct CompiledComposition {
     std::shared_ptr<const Composition> composition{};
-    /// Deprecated compatibility view; points to the same object as `composition`.
-    [[deprecated("use CompiledComposition::composition")]]
-    std::shared_ptr<const Composition> definition{};
     std::shared_ptr<const camera_v1::CameraProgram> camera_program{};
     std::shared_ptr<const assets::PreparedAssetManifest> asset_manifest{};
     render_plan::RenderBudget render_budget{};

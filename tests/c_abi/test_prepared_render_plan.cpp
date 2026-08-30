@@ -82,16 +82,16 @@ TEST_CASE("prepared render plan owns the canonical compiled composition") {
     REQUIRE(prepared_result);
     const auto& prepared = prepared_result.value();
 
-    REQUIRE(prepared.compiled_composition.definition);
+    REQUIRE(prepared.compiled_composition.composition);
     REQUIRE(prepared.compiled_composition.asset_manifest);
     CHECK(prepared.compiled_composition.asset_manifest->assets().empty());
-    CHECK(prepared.compiled_composition.definition->composition.name ==
+    CHECK(prepared.compiled_composition.composition->name() ==
           "prepared-plan-test");
-    CHECK(prepared.compiled_composition.definition->composition.width == 320);
+    CHECK(prepared.compiled_composition.composition->width() == 320);
     CHECK(prepared.compiled_composition.fingerprint != 0);
     REQUIRE(prepared.composition);
     CHECK(prepared.composition->width() ==
-          prepared.compiled_composition.definition->composition.width);
+          prepared.compiled_composition.composition->width());
 
     // The compiled value owns its definition.  Dropping the source plan and
     // resolver cannot invalidate the scene callback or its metadata.
