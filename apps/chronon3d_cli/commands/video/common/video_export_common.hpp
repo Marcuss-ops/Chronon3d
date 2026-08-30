@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <optional>
 #include <memory>
+#include <cstdint>
 
 namespace chronon3d::cli {
 
@@ -70,6 +71,16 @@ struct FfmpegExportOptions {
         chronon3d::graph::BackendPreference::Auto};
     chronon3d::GpuHotPathMode gpu_hot_path_mode{
         chronon3d::GpuHotPathMode::Auto};
+    // Set only by video_job_execute after the canonical resolver decision.
+    // Lower-level exporters must not infer or resolve the execution path.
+    enum class ResolvedExecutionPath : std::uint8_t {
+        DirectYuv,
+        FullGraph,
+    };
+    ResolvedExecutionPath resolved_execution_path{ResolvedExecutionPath::FullGraph};
+    // Pooling remains opt-in until benchmark evidence demonstrates a
+    // material win over job-local NativeAvEncoder ownership.
+    bool encoder_session_pool_enabled{false};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

@@ -2,7 +2,7 @@
 // tests/video/test_output_contract.cpp
 //
 // Locks the canonical OutputContract resolution + verification contract:
-//   - youtube_overlay_v1 resolves to 1920×1080 / 30fps / h264 / yuv420p
+//   - youtube_overlay_v1 resolves to 1920×1080 / 24fps / h264 / yuv420p
 //     with audio policy, and unknown profiles fail loud.
 //   - assets::sha256_file hashes a file's bytes with the canonical SHA-256
 //     primitive (identical to sha256_string of the same bytes).
@@ -47,7 +47,7 @@ TEST_CASE("resolve_output_contract: youtube_overlay_v1 resolves canonically") {
     const auto& c = result.value();
     CHECK(c.width == 1920);
     CHECK(c.height == 1080);
-    CHECK(c.fps.num() == 30);
+    CHECK(c.fps.num() == 24);
     CHECK(c.fps.den() == 1);
     CHECK(c.video_codec == "h264");
     CHECK(c.pixel_format == "yuv420p");
@@ -108,14 +108,14 @@ TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
     const auto artifact = temp_path("verified.mp4");
     const std::string make =
         "ffmpeg -hide_banner -loglevel error -y "
-        "-f lavfi -i color=c=black:s=1920x1080:r=30 "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
         "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
     REQUIRE(std::system(make.c_str()) == 0);
 
     OutputContract contract;
     contract.width = 1920;
     contract.height = 1080;
-    contract.fps = chronon3d::FrameRate{30, 1};
+    contract.fps = chronon3d::FrameRate{24, 1};
     contract.video_codec = "h264";
     contract.pixel_format = "yuv420p";
     contract.audio_required = false;
@@ -146,7 +146,7 @@ TEST_CASE("verify_output_contract: pix_fmt mismatch passes but not copy_eligible
     const auto artifact = temp_path("wrong_pixfmt.mp4");
     const std::string make =
         "ffmpeg -hide_banner -loglevel error -y "
-        "-f lavfi -i color=c=black:s=1920x1080:r=30 "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
         "-frames:v 1 -c:v libx264 -pix_fmt yuv420p " + artifact;
     REQUIRE(std::system(make.c_str()) == 0);
 
@@ -155,7 +155,7 @@ TEST_CASE("verify_output_contract: pix_fmt mismatch passes but not copy_eligible
     OutputContract contract;
     contract.width = 1920;
     contract.height = 1080;
-    contract.fps = chronon3d::FrameRate{30, 1};
+    contract.fps = chronon3d::FrameRate{24, 1};
     contract.video_codec = "h264";
     contract.pixel_format = "yuv444p";
     contract.audio_required = false;

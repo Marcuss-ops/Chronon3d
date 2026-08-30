@@ -398,6 +398,9 @@ namespace chronon3d {
     X(gpu_readback_bytes) \
     X(nvenc_frames) \
     X(software_encode_frames) \
+    X(bitstream_copy_frames) \
+    X(vulkan_frames) \
+    X(cpu_readback_frames) \
     X(decode_submit_ms) \
     X(decode_wait_ms) \
     X(hwframe_transfer_ms) \
@@ -406,7 +409,15 @@ namespace chronon3d {
     X(full_surface_upload_ms) \
     X(video_composite_ms) \
     X(encode_submit_ms) \
-    X(encode_wait_ms)
+    X(encode_wait_ms) \
+    X(video_runtime_created) \
+    X(video_runtime_reused) \
+    X(cuda_hwdevice_created) \
+    X(cuda_hwdevice_reused) \
+    X(cuda_frames_cache_hit) \
+    X(cuda_frames_cache_miss) \
+    X(cuda_image_cache_hit) \
+    X(cuda_image_cache_miss)
 
 #define CHRONON_COUNTERS_FRAME_WALL(X) \
     X(timeline_patch_wall_us) \

@@ -140,7 +140,7 @@ PipeExportResult make_pipe_export_result(
         }
     } else {
         // P1-B: OutputContract verification before rename.
-        // The canonical production contract (h264/yuv420p/30fps) is resolved
+        // The canonical production contract (h264/yuv420p/24fps) is resolved
         // once; runtime geometry/fps/frame count override it. The pipe export
         // is video-only (audio is muxed by the external mux boundary later),
         // so audio is not required at this stage.

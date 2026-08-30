@@ -1,5 +1,4 @@
 #include "../common/pipe_export_pipeline.hpp"
-#include <chronon3d/media/video/video_execution_resolver.hpp>
 #include "../common/pipe_export_helpers.hpp"
 #include "utils/process_start.hpp"
 
@@ -123,25 +122,14 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // blocks instead of busy-waiting when all arenas are queued.
     constexpr size_t kArenaPoolCount = 4;
     auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
-    const auto path_decision = media::resolve_video_execution(media::VideoExecutionRequest{
-        .encoder_backend = opts.encoder.encoder_backend,
-        .hardware_encoder = opts.encoder.hardware_encoder,
-        .codec = opts.encoder.codec,
-        .hot_path = opts.gpu_hot_path_mode,
-        .has_gop_source = !opts.gop_source.empty(),
-        .gop_copy_only = opts.gop_copy_only});
-    if (!path_decision.valid) {
-        spdlog::error("[video] execution resolver rejected request: {}", path_decision.reason);
-        return session;
-    }
-    if (path_decision.path == media::VideoExecutionPath::BitstreamCopy) {
-        // Packet copy has a separate demux/mux contract and is not a render
-        // pipeline. Never silently run it through the renderer while claiming
-        // that the resolver selected copy.
-        spdlog::error("[video] bitstream-copy execution must use the packet pipeline");
-        return session;
-    }
-    bool direct_yuv_requested = path_decision.path == media::VideoExecutionPath::DirectYuv;
+    // Execution-path dispatch is owned exclusively by video_job_execute.cpp.
+    // This lower-level session builder receives only renderable work; it must
+    // not call the resolver or create a second authority. The caller has
+    // already handled BitstreamCopy/SmartGopCopy and selected DirectYuv or
+    // FullGraph before entering this function.
+    const bool direct_yuv_requested =
+        opts.resolved_execution_path ==
+            FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
 
     // Placement is decided once per job by DeviceScheduler. Keep the RAII
     // reservation in the session so it spans setup, encode, drain and close.
@@ -187,11 +175,22 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Resolve the persistent per-device GPU runtime BEFORE creating the
     // encoder: the encoder borrows the primary CUDA context + FFmpeg
     // hwdevice from it instead of creating its own.
+    //
+    // FAIL_CLOSED: when no registry is supplied we refuse to create a new
+    // one inline. A throwaway registry would allocate a fresh CUDA context +
+    // FFmpeg hwdevice for this single job, defeating the entire purpose of
+    // the process-persistent VideoRuntimeRegistry (200-300ms of codec/hwdevice
+    // opening churn per clip). The daemon MUST pass its shared registry via
+    // VideoJobExecutionContext::video_runtimes; the standalone CLI path
+    // MUST pass it via the video_runtimes parameter.
     if (!video_runtimes && execution) {
         video_runtimes = execution->video_runtimes;
     }
     if (!video_runtimes) {
-        video_runtimes = std::make_shared<media::VideoRuntimeRegistry>();
+        spdlog::error("[video] FAIL_CLOSED: no persistent VideoRuntimeRegistry supplied. "
+                      "The daemon or CLI must pass its shared registry; a throwaway "
+                      "registry would reintroduce per-clip codec/hwdevice churn.");
+        return session;
     }
     const auto cuda_ordinal = execution
         ? execution->cuda_device_ordinal : -1;

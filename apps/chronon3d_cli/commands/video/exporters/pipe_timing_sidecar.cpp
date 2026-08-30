@@ -314,6 +314,10 @@ void write_frame_timing_sidecar(
     put_ms("process_wall_ms", timings.process_wall_ms);
     if (timings.measurement_kind) job["measurement_kind"] = *timings.measurement_kind;
     else job["measurement_kind"] = nullptr;
+    // execution_path: MANDATORY, never null. Single authority for the
+    // execution mode. Eliminates the ambiguity where Direct-YUV jobs
+    // (native NVENC, no Vulkan) were reported as "GPU Vulkan".
+    job["execution_path"] = timings.execution_path.value_or("unknown");
     put_ms("job_wall_ms", timings.job_wall_ms);
     put_ms("engine_init_ms", timings.engine_init_ms);
     put_ms("backend_init_ms", timings.backend_init_ms);
@@ -404,6 +408,22 @@ void write_frame_timing_sidecar(
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("nvenc_frames", timings.gpu.nvenc_frames);
     put_gpu_u64("software_encode_frames", timings.gpu.software_encode_frames);
+    put_gpu_u64("bitstream_copy_frames", timings.gpu.bitstream_copy_frames);
+    put_gpu_u64("vulkan_frames", timings.gpu.vulkan_frames);
+    put_gpu_u64("cpu_readback_frames", timings.gpu.cpu_readback_frames);
+    // Execution path frame accounting — MANDATORY, never null. These
+    // five fields disambiguate the execution path even when
+    // effective_backend is "unknown":
+    //   direct_yuv:   vulkan_frames=0, cpu_readback_frames=0,
+    //                 software_encode_frames=0, nvenc_frames>0,
+    //                 bitstream_copy_frames=0
+    //   full_graph:   vulkan_frames>0, nvenc_frames>0 (or software_encode)
+    //   bitstream_copy: bitstream_copy_frames>0, everything else=0
+    gpu["vulkan_frames"] = timings.gpu.vulkan_frames.value_or(uint64_t{0});
+    gpu["cpu_readback_frames"] = timings.gpu.cpu_readback_frames.value_or(uint64_t{0});
+    gpu["software_encode_frames"] = timings.gpu.software_encode_frames.value_or(uint64_t{0});
+    gpu["nvenc_frames"] = timings.gpu.nvenc_frames.value_or(uint64_t{0});
+    gpu["bitstream_copy_frames"] = timings.gpu.bitstream_copy_frames.value_or(uint64_t{0});
     put_gpu_u64("decode_submit_ms", timings.gpu.decode_submit_ms);
     put_gpu_u64("decode_wait_ms", timings.gpu.decode_wait_ms);
     put_gpu_u64("hwframe_transfer_ms", timings.gpu.hwframe_transfer_ms);
@@ -549,6 +569,32 @@ void write_frame_timing_sidecar(
     const uint64_t glyph_misses = timings.cache.glyph_cache_misses.value_or(uint64_t{0});
     cache["glyph_hit_ratio"] = (glyph_hits + glyph_misses > 0)
         ? (static_cast<double>(glyph_hits) / static_cast<double>(glyph_hits + glyph_misses))
+        : 0.0;
+
+    // ── Runtime persistence telemetry ──────────────────────────────────
+    // Proves VideoRuntimeRegistry + VideoDeviceRuntime stay alive across
+    // clips. runtime_reused > 0 means the daemon's shared registry was
+    // reused; runtime_created > 0 means churn (new CUDA context + hwdevice).
+    auto& runtime = job["runtime"];
+    const auto put_rt_u64 = [&runtime](const char* key, const std::optional<uint64_t>& value) {
+        if (value) runtime[key] = *value; else runtime[key] = nullptr;
+    };
+    const auto put_rt_f = [&runtime](const char* key, const std::optional<double>& value) {
+        if (value) runtime[key] = *value; else runtime[key] = nullptr;
+    };
+    put_rt_u64("video_runtime_created", timings.runtime.video_runtime_created);
+    put_rt_u64("video_runtime_reused", timings.runtime.video_runtime_reused);
+    put_rt_u64("cuda_hwdevice_created", timings.runtime.cuda_hwdevice_created);
+    put_rt_u64("cuda_hwdevice_reused", timings.runtime.cuda_hwdevice_reused);
+    put_rt_u64("cuda_frames_cache_hit", timings.runtime.cuda_frames_cache_hit);
+    put_rt_u64("cuda_frames_cache_miss", timings.runtime.cuda_frames_cache_miss);
+    put_rt_u64("cuda_image_cache_hit", timings.runtime.cuda_image_cache_hit);
+    put_rt_u64("cuda_image_cache_miss", timings.runtime.cuda_image_cache_miss);
+    put_rt_f("encoder_open_nvenc_ms", timings.runtime.encoder_open_nvenc_ms);
+    const uint64_t rt_created = timings.runtime.video_runtime_created.value_or(uint64_t{0});
+    const uint64_t rt_reused = timings.runtime.video_runtime_reused.value_or(uint64_t{0});
+    runtime["runtime_reuse_ratio"] = (rt_created + rt_reused > 0)
+        ? (static_cast<double>(rt_reused) / static_cast<double>(rt_created + rt_reused))
         : 0.0;
 
     // Framebuffer allocation rate (the only per-frame allocation event rate
