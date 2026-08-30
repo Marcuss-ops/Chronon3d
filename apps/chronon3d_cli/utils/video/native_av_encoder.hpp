@@ -119,6 +119,13 @@ public:
     [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
     [[nodiscard]] double open_mux_header_ms() const override { return mux_ ? mux_->open_header_ms() : 0.0; }
 
+    // Pool eligibility is deliberately explicit. NativeAvEncoder owns
+    // job-local codec, mux, PTS and CUDA queue state; it is not reusable
+    // until a future pool can prove a complete reset contract.
+    [[nodiscard]] bool pool_reset_safe() const noexcept {
+        return !open_complete_ && !codec_ && !mux_ && !frame_ && !packet_;
+    }
+
 private:
     chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};

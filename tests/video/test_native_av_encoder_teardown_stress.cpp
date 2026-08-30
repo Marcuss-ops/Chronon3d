@@ -5,6 +5,21 @@
 
 #include <string>
 
+TEST_CASE("NativeAvEncoder reset contract is closed before pooling") {
+    chronon3d::cli::NativeAvEncoder encoder;
+    CHECK(encoder.pool_reset_safe());
+
+    chronon3d::cli::FfmpegPipeOptions options;
+    options.width = 0;
+    options.height = 0;
+    options.fps_num = 0;
+    options.fps_den = 0;
+    options.output_path = "";
+    CHECK_FALSE(encoder.open(options));
+    encoder.shutdown_noexcept();
+    CHECK(encoder.pool_reset_safe());
+}
+
 TEST_CASE("NativeAvEncoder failed open is safe to destroy repeatedly") {
     for (int i = 0; i < 1000; ++i) {
         chronon3d::cli::NativeAvEncoder encoder;

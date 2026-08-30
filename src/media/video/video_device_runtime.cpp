@@ -5,6 +5,7 @@
 
 #include <spdlog/spdlog.h>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
+#include <chronon3d/core/profiling/profiling_context.hpp>
 
 extern "C" {
 #include <libavutil/buffer.h>
@@ -59,7 +60,13 @@ VideoDeviceRuntime::~VideoDeviceRuntime() {
 
 bool VideoDeviceRuntime::ensure_initialized(std::string& reason) {
     std::lock_guard lock(mutex_);
-    if (initialized_) return init_ok_;
+    if (initialized_) {
+        if (init_ok_ && profiling::g_current_counters) {
+            profiling::g_current_counters->cuda_hwdevice_reused
+                .fetch_add(1, std::memory_order_relaxed);
+        }
+        return init_ok_;
+    }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (!gpu_->initialize(static_cast<std::uint32_t>(cuda_device_ordinal_))) {
@@ -110,6 +117,10 @@ bool VideoDeviceRuntime::ensure_initialized(std::string& reason) {
 #endif
     initialized_ = true;
     init_ok_ = true;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->cuda_hwdevice_created
+            .fetch_add(1, std::memory_order_relaxed);
+    }
     return true;
 }
 
@@ -144,7 +155,15 @@ AVBufferRef* VideoDeviceRuntime::ref_cuda_frames(
     std::lock_guard lock(mutex_);
     const CudaFramesKey key{width, height, sw_format};
     if (const auto it = cuda_frames_.find(key); it != cuda_frames_.end()) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->cuda_frames_cache_hit
+                .fetch_add(1, std::memory_order_relaxed);
+        }
         return av_buffer_ref(it->second);
+    }
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->cuda_frames_cache_miss
+            .fetch_add(1, std::memory_order_relaxed);
     }
     if (!cuda_hwdevice_) {
         reason = "CUDA hwdevice is unavailable for frames context";
@@ -201,7 +220,15 @@ std::shared_ptr<const CudaImageResource> VideoDeviceRuntime::get_or_upload_image
     std::lock_guard lock(mutex_);
     if (const auto it = cuda_images_.find(key); it != cuda_images_.end()) {
         cache_hit = true;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->cuda_image_cache_hit
+                .fetch_add(1, std::memory_order_relaxed);
+        }
         return it->second;
+    }
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->cuda_image_cache_miss
+            .fetch_add(1, std::memory_order_relaxed);
     }
 
     auto resource = std::make_shared<CudaImageResource>();
@@ -244,6 +271,11 @@ std::shared_ptr<VideoDeviceRuntime> VideoRuntimeRegistry::get_or_create(
                 device, ordinal_it->second, cuda_device_ordinal);
             return nullptr;
         }
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->video_runtime_reused
+                .fetch_add(1, std::memory_order_relaxed);
+        }
+        spdlog::debug("[video-runtime] reused persistent runtime for device {}", device);
         return it->second;
     }
 
@@ -277,6 +309,12 @@ std::shared_ptr<VideoDeviceRuntime> VideoRuntimeRegistry::get_or_create(
     runtimes_.emplace(device, runtime);
     cuda_ordinals_[device] = ordinal < 0
         ? static_cast<std::int32_t>(device) : ordinal;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->video_runtime_created
+            .fetch_add(1, std::memory_order_relaxed);
+    }
+    spdlog::info("[video-runtime] created persistent runtime for device {} "
+                 "(CUDA ordinal {})", device, cuda_ordinals_[device]);
     return runtime;
 }
 

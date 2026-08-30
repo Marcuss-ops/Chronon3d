@@ -114,7 +114,7 @@ Result<OutputContract, std::string> resolve_output_contract(
         OutputContract contract;
         contract.width = 1920;
         contract.height = 1080;
-        contract.fps = chronon3d::FrameRate{30, 1};
+        contract.fps = chronon3d::FrameRate{24, 1};
         contract.video_codec = "h264";
         contract.pixel_format = "yuv420p";
         contract.audio_required = true;

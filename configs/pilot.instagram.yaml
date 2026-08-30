@@ -45,7 +45,7 @@ render:
   format: mp4
   width: 1080         # IG Reels vertical
   height: 1920        # IG Reels vertical
-  fps: 30
+  fps: 24
   duration_seconds_min: 15     # IG Reels minimum
   duration_seconds_max: 90     # IG Reels maximum
   motion_blur: true           # canonical --motion-blur CLI flag (per content/launches/product_launch.cpp)
