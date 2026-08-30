@@ -77,8 +77,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         float x0{}, y0{}, x1{}, y1{};
         float opacity{1.0f};
         ImageDecodeOptions options{};
-    } overlay;
-    bool have_overlay = false;
+    };
+    std::vector<Overlay> overlays;
     for (const auto& layer : scene.layers()) {
         if (!layer.visible || layer.uses_2_5d_projection || layer.screen_space ||
             layer.mask.enabled() || layer.blend_mode != BlendMode::Normal ||
@@ -101,10 +101,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 return nullptr;
             }
             const auto& image = node.shape.image();
-            if (have_overlay) {
-                reason = "more than one image overlay";
-                return nullptr;
-            }
             if (image.path.empty() || image.crop.enabled ||
                 !identity_2d(node.world_transform)) {
                 reason = "image crop or transform is unsupported";
@@ -116,19 +112,20 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 reason = "image dimensions are invalid";
                 return nullptr;
             }
-            overlay.path = image.path;
-            overlay.x0 = static_cast<float>(compiled.composition->width()) * 0.5f +
-                         layer.transform.position.x +
-                         node.world_transform.position.x - w * 0.5f;
-            overlay.y0 = static_cast<float>(compiled.composition->height()) * 0.5f +
-                         layer.transform.position.y +
-                         node.world_transform.position.y - h * 0.5f;
-            overlay.x1 = overlay.x0 + w;
-            overlay.y1 = overlay.y0 + h;
-            overlay.opacity = image.opacity * node.world_transform.opacity *
-                              layer.transform.opacity;
-            overlay.options = image.decode_options;
-            have_overlay = true;
+            Overlay ov;
+            ov.path = image.path;
+            ov.x0 = static_cast<float>(compiled.composition->width()) * 0.5f +
+                    layer.transform.position.x +
+                    node.world_transform.position.x - w * 0.5f;
+            ov.y0 = static_cast<float>(compiled.composition->height()) * 0.5f +
+                    layer.transform.position.y +
+                    node.world_transform.position.y - h * 0.5f;
+            ov.x1 = ov.x0 + w;
+            ov.y1 = ov.y0 + h;
+            ov.opacity = image.opacity * node.world_transform.opacity *
+                         layer.transform.opacity;
+            ov.options = image.decode_options;
+            overlays.push_back(std::move(ov));
         }
     }
     if (video_path.empty()) {
@@ -136,24 +133,46 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         return nullptr;
     }
     double watermark_load_ms = 0.0;
-    bool cache_hit = false;
     double watermark_upload_ms = 0.0;
-    std::shared_ptr<const media::CudaImageResource> resource;
-    if (have_overlay) {
+    auto template_frame = std::make_shared<DirectYuvTemplate>();
+
+    for (const auto& ov : overlays) {
         const auto img_t0 = profiling::now();
-        auto cached = image_cache.get_or_load(overlay.path, overlay.options);
-        watermark_load_ms = profiling::duration_ms(img_t0, profiling::now());
+        auto cached = image_cache.get_or_load(ov.path, ov.options);
+        watermark_load_ms += profiling::duration_ms(img_t0, profiling::now());
         if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
-            reason = "watermark is not available through the canonical ImageCache";
+            reason = "overlay is not available through the canonical ImageCache: " + ov.path;
             return nullptr;
         }
-        resource = video_runtime->get_or_upload_image(
-            cached->gpu_key.content_digest, overlay.options,
+        bool cache_hit = false;
+        double upload_ms = 0.0;
+        auto resource = video_runtime->get_or_upload_image(
+            cached->gpu_key.content_digest, ov.options,
             static_cast<std::uint32_t>(cached->width),
             static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
-            cache_hit, watermark_upload_ms, reason);
+            cache_hit, upload_ms, reason);
         if (!resource) return nullptr;
-        (void)cache_hit;
+        watermark_upload_ms += upload_ms;
+
+        uint32_t res_idx = static_cast<uint32_t>(template_frame->resources.size());
+        template_frame->batch.instances.push_back(runtime::LayerInstance{
+            .kind = runtime::PrimitiveKind::Image,
+            .resource_index = res_idx,
+            .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
+            .dst_x0 = ov.x0, .dst_y0 = ov.y0,
+            .dst_x1 = ov.x1, .dst_y1 = ov.y1,
+            .opacity = ov.opacity,
+            .blend = BlendMode::Normal});
+        media::CudaLayerResource layer;
+        layer.rgba = resource->ptr;
+        layer.pitch_bytes = static_cast<int>(resource->pitch_bytes);
+        layer.width = resource->width;
+        layer.height = resource->height;
+        template_frame->resources.push_back(layer);
+        if (!template_frame->resource_owner) {
+            template_frame->resource_owner = resource;
+        }
+        template_frame->resource_owners.push_back(std::move(resource));
     }
 
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
@@ -163,24 +182,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     program->scene_eval_ms_ = scene_eval_ms;
     program->watermark_load_ms_ = watermark_load_ms;
     program->watermark_upload_ms_ = watermark_upload_ms;
-    auto template_frame = std::make_shared<DirectYuvTemplate>();
-    if (resource) {
-        template_frame->batch.instances.push_back(runtime::LayerInstance{
-            .kind = runtime::PrimitiveKind::Image,
-            .resource_index = 0,
-            .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
-            .dst_x0 = overlay.x0, .dst_y0 = overlay.y0,
-            .dst_x1 = overlay.x1, .dst_y1 = overlay.y1,
-            .opacity = overlay.opacity,
-            .blend = BlendMode::Normal});
-        media::CudaLayerResource layer;
-        layer.rgba = resource->ptr;
-        layer.pitch_bytes = static_cast<int>(resource->pitch_bytes);
-        layer.width = resource->width;
-        layer.height = resource->height;
-        template_frame->resources.push_back(layer);
-        template_frame->resource_owner = std::move(resource);
-    }
     program->template_frame_ = std::move(template_frame);
     return program;
 #endif
