@@ -184,7 +184,8 @@ NativeSurfacePrep prepare_frame(
     prep.video_settings.retain_native_surface_for_video =
         ctx.opts.encoder.encoder_backend == "native" &&
         ctx.opts.encoder.hardware_encoder == "nvenc" &&
-        ctx.backend.supports_native_video_surface();
+        ctx.backend.supports_native_video_surface() &&
+        ctx.opts.gpu_hot_path_mode != GpuHotPathMode::Auto;
     prep.video_settings.require_native_gpu =
         prep.video_settings.retain_native_surface_for_video;
     auto* surface_registry = ctx.sw_renderer
@@ -255,8 +256,13 @@ NativeSurfacePrep prepare_frame(
             prep.video_settings.native_video_source_surface = persistent_source;
         }
     }
-    execution_slot.native_surface_ready =
-        execution_slot.native_surface != runtime::kInvalidRenderSurfaceHandle;
+    // Allocation is not preparation.  The render graph owns the Vulkan
+    // copy into the encoder surface for this mode; until that copy has been
+    // observed by the writer, it must use the ordinary native-surface path.
+    // Marking this true merely because the handle existed let the writer
+    // hand an unprepared surface to NVENC and made FullGraph crash in the
+    // Vulkan/CUDA interop path.
+    execution_slot.native_surface_ready = false;
     return prep;
 }
 
