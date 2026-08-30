@@ -26,6 +26,47 @@ bool MuxSession::open(const std::string& output_path,
         return false;
     }
     video_stream_->time_base = codec.time_base;
+    return write_header(output_path, reason) ?
+        (open_header_ms_ = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - started).count(), true)
+        : false;
+}
+
+bool MuxSession::open_with_audio(const std::string& output_path,
+                                 const AVCodecContext& codec,
+                                 const AudioStreamConfig& audio,
+                                 std::string& reason) {
+    const auto started = std::chrono::steady_clock::now();
+    if (avformat_alloc_output_context2(&format_, nullptr, nullptr,
+                                       output_path.c_str()) < 0 || !format_) {
+        reason = "failed to allocate output format context";
+        return false;
+    }
+    video_stream_ = avformat_new_stream(format_, nullptr);
+    if (!video_stream_ || avcodec_parameters_from_context(video_stream_->codecpar, &codec) < 0) {
+        reason = "failed to create output video stream";
+        return false;
+    }
+    video_stream_->time_base = codec.time_base;
+    // Register the audio stream BEFORE write_header so the muxer sees the
+    // complete stream list and can compute interleaving correctly.
+    if (!add_audio_stream(audio, reason)) {
+        return false;
+    }
+    if (!write_header(output_path, reason)) {
+        return false;
+    }
+    open_header_ms_ = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
+    return true;
+}
+
+bool MuxSession::write_header(const std::string& output_path,
+                               std::string& reason) {
+    if (!format_) {
+        reason = "write_header called without a format context";
+        return false;
+    }
     if (!(format_->oformat->flags & AVFMT_NOFILE) &&
         avio_open(&format_->pb, output_path.c_str(), AVIO_FLAG_WRITE) < 0) {
         reason = "failed to open output";
@@ -35,12 +76,38 @@ bool MuxSession::open(const std::string& output_path,
         reason = "failed to write mux header";
         return false;
     }
-    open_header_ms_ = std::chrono::duration<double, std::milli>(
-        std::chrono::steady_clock::now() - started).count();
     return true;
 }
 
-bool MuxSession::submit(EncodedPacket encoded) noexcept {
+bool MuxSession::add_audio_stream(const AudioStreamConfig& audio,
+                                   std::string& reason) {
+    if (!format_) {
+        reason = "audio stream cannot be added before open()";
+        return false;
+    }
+    if (!audio.params) {
+        reason = "audio stream requires codec parameters";
+        return false;
+    }
+    if (audio_stream_) {
+        reason = "audio stream already added";
+        return false;
+    }
+    audio_stream_ = avformat_new_stream(format_, nullptr);
+    if (!audio_stream_) {
+        reason = "avformat_new_stream failed for audio";
+        return false;
+    }
+    if (avcodec_parameters_copy(audio_stream_->codecpar, audio.params) < 0) {
+        reason = "avcodec_parameters_copy failed for audio";
+        audio_stream_ = nullptr;
+        return false;
+    }
+    audio_stream_->time_base = audio.time_base;
+    return true;
+}
+
+bool MuxSession::submit_video(EncodedPacket encoded) noexcept {
     if (!format_ || !video_stream_ || !encoded.packet) return false;
     const auto started = std::chrono::steady_clock::now();
     auto& packet = *encoded.packet;
@@ -48,6 +115,18 @@ bool MuxSession::submit(EncodedPacket encoded) noexcept {
     packet.stream_index = video_stream_->index;
     const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
     packet_write_ms_ += std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
+    return ok;
+}
+
+bool MuxSession::submit_audio(EncodedPacket encoded) noexcept {
+    if (!format_ || !audio_stream_ || !encoded.packet) return false;
+    const auto started = std::chrono::steady_clock::now();
+    auto& packet = *encoded.packet;
+    av_packet_rescale_ts(&packet, encoded.time_base, audio_stream_->time_base);
+    packet.stream_index = audio_stream_->index;
+    const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
+    audio_write_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     return ok;
 }

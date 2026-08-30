@@ -62,12 +62,23 @@ TEST_CASE("GOP planner copies only a closed safe untouched GOP") {
         .first_pts = 100,
         .last_pts = 199,
         .codec_parameters_match = true,
+        .compatibility = {
+            .codec_match = true,
+            .profile_match = true,
+            .level_compatible = true,
+            .dimensions_match = true,
+            .pixel_format_match = true,
+            .parameter_sets_compatible = true,
+            .color_params_match = true,
+            .random_access_safe = true},
         .closed = true,
         .safe_random_access = true,
         .intersects_edit = false});
     CHECK(safe.copy_packets());
+    CHECK_FALSE(safe.reencode_packets());
     CHECK(safe.first_pts == 100);
     CHECK(safe.last_pts == 199);
+    CHECK(safe.ordinal == 0);
 
     auto touched = safe;
     touched.mode = chronon3d::cli::GopExecutionMode::Reencode;
@@ -78,7 +89,83 @@ TEST_CASE("GOP planner copies only a closed safe untouched GOP") {
         .safe_random_access = true,
         .intersects_edit = true}).mode ==
           chronon3d::cli::GopExecutionMode::Reencode);
+
+    const auto hybrid_copy = chronon3d::cli::plan_gop({
+        .codec_parameters_match = true,
+        .compatibility = {
+            .codec_match = true,
+            .profile_match = true,
+            .level_compatible = true,
+            .dimensions_match = true,
+            .pixel_format_match = true,
+            .parameter_sets_compatible = true,
+            .color_params_match = true,
+            .random_access_safe = true},
+        .closed = true,
+        .safe_random_access = true,
+        .intersects_edit = false});
+    const auto hybrid_reencode = chronon3d::cli::plan_gop({
+        .codec_parameters_match = true,
+        .closed = true,
+        .safe_random_access = true,
+        .intersects_edit = true});
+    CHECK(hybrid_copy.copy_packets());
+    CHECK(hybrid_reencode.reencode_packets());
+
+    chronon3d::cli::BitstreamCompatibility incompatible;
+    incompatible.codec_match = true;
+    incompatible.profile_match = true;
+    incompatible.level_compatible = true;
+    incompatible.dimensions_match = true;
+    incompatible.pixel_format_match = true;
+    incompatible.parameter_sets_compatible = false;
+    incompatible.color_params_match = true;
+    incompatible.random_access_safe = true;
+    CHECK_FALSE(incompatible.safe_to_splice());
 }
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+TEST_CASE("BitstreamCompatibility compares codec parameters fail-closed") {
+    AVCodecParameters source{};
+    AVCodecParameters output{};
+    source.codec_id = output.codec_id = AV_CODEC_ID_H264;
+    source.profile = output.profile = 100;
+    source.level = output.level = 40;
+    source.width = output.width = 1920;
+    source.height = output.height = 1080;
+    source.format = output.format = AV_PIX_FMT_YUV420P;
+    source.color_range = output.color_range = AVCOL_RANGE_MPEG;
+    source.color_space = output.color_space = AVCOL_SPC_BT709;
+    source.color_primaries = output.color_primaries = AVCOL_PRI_BT709;
+    source.color_trc = output.color_trc = AVCOL_TRC_BT709;
+
+    const std::array<std::uint8_t, 3> extradata{{1, 2, 3}};
+    source.extradata = const_cast<std::uint8_t*>(extradata.data());
+    output.extradata = const_cast<std::uint8_t*>(extradata.data());
+    source.extradata_size = output.extradata_size = static_cast<int>(extradata.size());
+
+    CHECK(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+              .safe_to_splice());
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, false)
+                    .safe_to_splice());
+
+    output.profile++;
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+                    .safe_to_splice());
+    output.profile--;
+    output.width++;
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+                    .safe_to_splice());
+    output.width--;
+    output.format = AV_PIX_FMT_NV12;
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+                    .safe_to_splice());
+    output.format = source.format;
+    output.extradata = nullptr;
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+                    .safe_to_splice());
+}
+#endif
 
 TEST_CASE("GOP source analyzer exposes packet-level demux planning") {
     CHECK(requires(const std::string& path) {

@@ -26,6 +26,22 @@ struct CacheMetrics {
     std::optional<std::uint64_t> gpu_asset_cache_misses;
 };
 
+/// Process-persistent GPU runtime reuse telemetry. Proves that the
+/// VideoRuntimeRegistry + VideoDeviceRuntime stay alive across clips
+/// (runtime_reused > 0) instead of being recreated per clip
+/// (runtime_created > 0 is the churn we want to minimize).
+struct RuntimeMetrics {
+    std::optional<std::uint64_t> video_runtime_created;
+    std::optional<std::uint64_t> video_runtime_reused;
+    std::optional<std::uint64_t> cuda_hwdevice_created;
+    std::optional<std::uint64_t> cuda_hwdevice_reused;
+    std::optional<std::uint64_t> cuda_frames_cache_hit;
+    std::optional<std::uint64_t> cuda_frames_cache_miss;
+    std::optional<std::uint64_t> cuda_image_cache_hit;
+    std::optional<std::uint64_t> cuda_image_cache_miss;
+    std::optional<double> encoder_open_nvenc_ms;
+};
+
 struct TextMetrics {
     std::optional<double> font_resolve_ms;
     std::optional<double> shaping_ms;
@@ -119,6 +135,9 @@ struct GpuMetrics {
     std::optional<std::uint64_t> cpu_full_surface_upload_bytes;
     std::optional<std::uint64_t> nvenc_frames;
     std::optional<std::uint64_t> software_encode_frames;
+    std::optional<std::uint64_t> bitstream_copy_frames;
+    std::optional<std::uint64_t> vulkan_frames;
+    std::optional<std::uint64_t> cpu_readback_frames;
     std::optional<std::uint64_t> decode_submit_ms;
     std::optional<std::uint64_t> decode_wait_ms;
     std::optional<std::uint64_t> hwframe_transfer_ms;
@@ -237,6 +256,12 @@ struct InternalEncoderProfiling {
 struct JobTimings {
     std::optional<double> process_wall_ms;
     std::optional<std::string> measurement_kind;
+    // Canonical execution path string: "direct_yuv" | "full_graph" |
+    // "bitstream_copy" | "smart_gop_copy". Determined by the exporter from
+    // the session's direct_yuv_selected() + encoder_backend, NOT from
+    // counter heuristics. This is the single authoritative field; the
+    // gpu.effective_backend field is kept as a compatibility projection.
+    std::optional<std::string> execution_path;
     std::optional<double> job_wall_ms;
     std::optional<double> engine_init_ms;
     std::optional<double> backend_init_ms;
@@ -267,6 +292,7 @@ struct JobTimings {
     TextMetrics text;
     EncoderMetrics encoder;
     GpuMetrics gpu;
+    RuntimeMetrics runtime;
     CpuBreakdownMetrics cpu_breakdown;
     HardwareMetrics hardware;
     chronon3d::runtime::RenderPreparationTimings prepare;

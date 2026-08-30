@@ -16,7 +16,7 @@ pilot:
     start_window: "2026-07-13 (Monday) — 2026-07-19 (Sunday)"
     cadence: "1 video rendered per day at 09:00 UTC, posted within 1h window"
   composition:
-    engine_render_command: "chronon3d_cli video <composition_id> -o <output_path> --start 0 --end 60 --fps 30 --width 1080 --height 1920 --motion-blur"
+    engine_render_command: "chronon3d_cli video <composition_id> -o <output_path> --start 0 --end 60 --fps 24 --width 1080 --height 1920 --motion-blur"
     canonical_composition_id: "ChrononGlowFinalAE"  # the canonical cinematic-glow composition per commit 1cb9cff2 (TICKET-CHRONON-GLOW-FINAL Fase 6)
     fallback_composition_ids: ["KineticTitleReveal", "Anchor3DShowcase"]
     duration_seconds:

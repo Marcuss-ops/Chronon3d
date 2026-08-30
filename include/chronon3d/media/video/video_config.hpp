@@ -37,8 +37,8 @@ struct VideoStreamConfig {
     int height{0};
 
     /// Frame rate as a rational: numerator / denominator.
-    /// Default 30/1 = 30 fps.
-    int frame_rate_num{30};
+    /// Default 24/1 = 24 fps (canonical production profile).
+    int frame_rate_num{24};
     int frame_rate_den{1};
 
     /// Pixel format of the frames supplied to VideoSink::submit().
