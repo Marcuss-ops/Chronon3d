@@ -24,9 +24,11 @@ int dry_run_video_job(const RenderJob& job) {
                  job.metadata.width, job.metadata.height);
     spdlog::info("[dry-run]   Frame range: {} – {} inclusive ({} frames)",
                  job.first_frame, job.last_frame, total);
-    spdlog::info("[dry-run]   FPS: {}", job.video_settings.fps);
+    const auto fps = chronon3d::FrameRate{
+        job.video_settings.fps_num, job.video_settings.fps_den};
+    spdlog::info("[dry-run]   FPS: {}/{}", fps.numerator, fps.denominator);
     spdlog::info("[dry-run]   Duration: {:.1f}s",
-                 static_cast<double>(total) / job.video_settings.fps);
+                 fps.to_seconds(total));
     spdlog::info("[dry-run]   Output: {}", job.output);
     spdlog::info("[dry-run]   Sink: {} ({})",
                  job.video_settings.sink_type,

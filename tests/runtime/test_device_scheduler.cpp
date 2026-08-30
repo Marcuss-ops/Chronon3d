@@ -106,3 +106,40 @@ TEST_CASE("DeviceScheduler: capability filter precedes pressure placement") {
     auto unsupported = scheduler.reserve(requirements);
     CHECK_FALSE(unsupported.has_value());
 }
+
+TEST_CASE("DeviceScheduler: preserves physical identity and CUDA ordinal") {
+    DeviceScheduler scheduler;
+    DeviceCapabilities caps;
+    caps.name = "GPU-physical";
+    caps.cuda_device_ordinal = 3;
+    caps.has_uuid = true;
+    caps.uuid[0] = 0x42;
+    caps.has_pci_identity = true;
+    caps.pci_bus = 7;
+    scheduler.register_device(caps, DeviceResourceVector{.compute_units = 1.0f});
+
+    const auto snapshot = scheduler.capability_snapshot(0);
+    REQUIRE(snapshot.has_value());
+    CHECK(snapshot->cuda_device_ordinal == 3);
+    CHECK(snapshot->has_uuid);
+    CHECK(snapshot->uuid[0] == 0x42);
+    CHECK(snapshot->has_pci_identity);
+    CHECK(snapshot->pci_bus == 7);
+}
+
+TEST_CASE("DeviceScheduler: compute share permits concurrent codec sessions") {
+    DeviceScheduler scheduler;
+    scheduler.register_device(
+        DeviceCapabilities{.name = "shared"},
+        DeviceResourceVector{.compute_units = 1.0f, .nvenc_sessions = 2});
+    DeviceSelectionRequirements req;
+    req.resources.compute_units = 0.5f;
+    req.resources.nvenc_sessions = 1;
+    req.nvenc = true;
+    auto first = scheduler.reserve(req);
+    auto second = scheduler.reserve(req);
+    REQUIRE(first.has_value());
+    REQUIRE(second.has_value());
+    CHECK(scheduler.resource_state(0)->reserved.compute_units == doctest::Approx(1.0f));
+    CHECK_FALSE(scheduler.reserve(req).has_value());
+}

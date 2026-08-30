@@ -301,6 +301,10 @@ void write_frame_timing_sidecar(
     } else {
         summary["target_fps"] = nullptr;
     }
+    summary["target_fps_num"] = timings.target_fps_num
+        ? nlohmann::json(*timings.target_fps_num) : nlohmann::json(nullptr);
+    summary["target_fps_den"] = timings.target_fps_den
+        ? nlohmann::json(*timings.target_fps_den) : nlohmann::json(nullptr);
     out["summary"] = std::move(summary);
 
     auto& job = out["job"];

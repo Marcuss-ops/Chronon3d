@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <array>
 
 namespace chronon3d::backends::vulkan {
 
@@ -51,7 +52,8 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
         vkDestroyInstance(instance, nullptr);
         return result;
     }
-    for (const auto device : devices) {
+    for (std::uint32_t physical_index = 0; physical_index < devices.size(); ++physical_index) {
+        const auto device = devices[physical_index];
         std::uint32_t family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &family_count, nullptr);
         std::vector<VkQueueFamilyProperties> families(family_count);
@@ -64,6 +66,38 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
         if (!graphics) continue;
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(device, &properties);
+        std::array<std::uint8_t, 16> uuid{};
+        bool has_uuid = false;
+        std::uint32_t pci_domain = 0;
+        std::uint32_t pci_bus = 0;
+        std::uint32_t pci_device = 0;
+        std::uint32_t pci_function = 0;
+        bool has_pci_identity = false;
+#if defined(VK_KHR_get_physical_device_properties2) || defined(VK_VERSION_1_1)
+        VkPhysicalDeviceIDProperties id_properties{
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
+#ifdef VK_EXT_pci_bus_info
+        VkPhysicalDevicePCIBusInfoPropertiesEXT pci_properties{
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT};
+        id_properties.pNext = &pci_properties;
+#endif
+        VkPhysicalDeviceProperties2 properties2{
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+        properties2.pNext = &id_properties;
+        vkGetPhysicalDeviceProperties2(device, &properties2);
+        std::copy(std::begin(id_properties.deviceUUID),
+                  std::end(id_properties.deviceUUID), uuid.begin());
+        has_uuid = std::any_of(uuid.begin(), uuid.end(),
+                               [](std::uint8_t byte) { return byte != 0; });
+#ifdef VK_EXT_pci_bus_info
+        pci_domain = pci_properties.pciDomain;
+        pci_bus = pci_properties.pciBus;
+        pci_device = pci_properties.pciDevice;
+        pci_function = pci_properties.pciFunction;
+        has_pci_identity = pci_domain != 0 || pci_bus != 0 ||
+                           pci_device != 0 || pci_function != 0;
+#endif
+#endif
         VkPhysicalDeviceMemoryProperties memory{};
         vkGetPhysicalDeviceMemoryProperties(device, &memory);
         std::uint64_t local_memory = 0;
@@ -72,10 +106,19 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
                 local_memory += memory.memoryHeaps[i].size;
             }
         }
-        result.push_back({
-            static_cast<std::uint32_t>(result.size()), properties.deviceName,
-            properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-            local_memory});
+        VulkanDeviceInfo info;
+        info.index = physical_index;
+        info.name = properties.deviceName;
+        info.discrete = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+        info.device_memory_bytes = local_memory;
+        info.device_uuid = uuid;
+        info.has_device_uuid = has_uuid;
+        info.pci_domain = pci_domain;
+        info.pci_bus = pci_bus;
+        info.pci_device = pci_device;
+        info.pci_function = pci_function;
+        info.has_pci_identity = has_pci_identity;
+        result.push_back(std::move(info));
     }
     vkDestroyInstance(instance, nullptr);
     return result;

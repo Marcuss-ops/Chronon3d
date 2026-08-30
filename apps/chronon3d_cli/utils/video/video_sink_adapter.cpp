@@ -103,8 +103,8 @@ bool VideoSinkEncoderAdapter::build_sink_config(
     // ── Stream config ──────────────────────────────────────────────────
     config.stream.width            = opts.width;
     config.stream.height           = opts.height;
-    config.stream.frame_rate_num   = opts.fps;
-    config.stream.frame_rate_den   = 1;
+    config.stream.frame_rate_num   = opts.canonical_fps_num();
+    config.stream.frame_rate_den   = opts.canonical_fps_den();
     config.stream.submitted_format = map_pixel_format(opts.input_format);
 
     // ── Encoder config ─────────────────────────────────────────────────
@@ -185,9 +185,11 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
-    if (options.width <= 0 || options.height <= 0 || options.fps <= 0) {
-        spdlog::error("[video_adapter] Invalid encoder options (w={}, h={}, fps={})",
-                      options.width, options.height, options.fps);
+    if (options.width <= 0 || options.height <= 0 || options.canonical_fps_num() <= 0 ||
+        options.canonical_fps_den() <= 0) {
+        spdlog::error("[video_adapter] Invalid encoder options (w={}, h={}, fps={}/{})",
+                      options.width, options.height, options.canonical_fps_num(),
+                      options.canonical_fps_den());
         return false;
     }
 

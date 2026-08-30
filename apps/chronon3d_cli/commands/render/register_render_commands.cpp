@@ -189,13 +189,17 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     // Wire the daemon's RENDER_JOB IPC command to the canonical render-plan
     // executor. The daemon (chronon3d_cli_core) dispatches to this handler,
     // so core never needs a link dependency on the render group.
-    render_job_dispatcher() = [registry = &ctx.registry](const std::string& payload) -> ipc::Reply {
-        return ipc_render_job(*registry, payload);
+    render_job_dispatcher() = [registry = &ctx.registry](
+        const std::string& payload,
+        std::shared_ptr<media::VideoJobExecutionContext> video_execution) -> ipc::Reply {
+        return ipc_render_job(*registry, payload, {}, std::move(video_execution));
     };
     warm_render_job_dispatcher() = [registry = &ctx.registry](
         const std::string& payload,
-        std::shared_ptr<SoftwareRenderer> renderer) -> ipc::Reply {
-        return ipc_render_job(*registry, payload, std::move(renderer));
+        std::shared_ptr<SoftwareRenderer> renderer,
+        std::shared_ptr<media::VideoJobExecutionContext> video_execution) -> ipc::Reply {
+        return ipc_render_job(*registry, payload, std::move(renderer),
+                              std::move(video_execution));
     };
 
     auto* cmd = app.add_subcommand("render", "Render a composition");

@@ -13,6 +13,8 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     output.output = job.output;
     output.frames_dir_name = job.video_settings.frames_dir;
     output.fps = job.video_settings.fps;
+    output.fps_num = job.video_settings.fps_num;
+    output.fps_den = job.video_settings.fps_den;
 
     EncoderOptions encoder;
     encoder.codec = job.video_settings.codec;
@@ -48,6 +50,7 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.pipe = std::move(pipe);
     opts.warmup = std::move(warmup);
     opts.sink = std::move(sink);
+    opts.video_execution = job.video_execution;
     opts.assets_root = job.execution.assets_root;
     opts.gop_source = job.video_settings.gop_source;
     opts.gop_copy_only = job.video_settings.gop_copy_only;

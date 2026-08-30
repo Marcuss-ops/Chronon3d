@@ -15,12 +15,48 @@
 #include <chronon3d/math/color.hpp>
 
 #include <atomic>
+#include <chrono>
+#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
 using namespace chronon3d;
 
 using namespace chronon3d::cli;
+
+TEST_CASE("BoundedChannel: cancellation wakes blocked push and pop") {
+    runtime::BoundedChannel<int> full_queue(1);
+    int first = 1;
+    REQUIRE(full_queue.push(first));
+    CancellationToken push_token;
+    std::promise<bool> push_result;
+    auto push_done = push_result.get_future();
+    std::thread producer([&] {
+        int second = 2;
+        push_result.set_value(full_queue.push(second, &push_token));
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    push_token.cancel();
+    CHECK(push_done.wait_for(std::chrono::milliseconds(500)) ==
+          std::future_status::ready);
+    CHECK_FALSE(push_done.get());
+    producer.join();
+
+    runtime::BoundedChannel<int> empty_queue(1);
+    CancellationToken pop_token;
+    std::promise<bool> pop_result;
+    auto pop_done = pop_result.get_future();
+    std::thread consumer([&] {
+        int value = 0;
+        pop_result.set_value(empty_queue.pop(value, &pop_token));
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    pop_token.cancel();
+    CHECK(pop_done.wait_for(std::chrono::milliseconds(500)) ==
+          std::future_status::ready);
+    CHECK_FALSE(pop_done.get());
+    consumer.join();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -82,7 +118,9 @@ static void drain_queue_consumer(
         if (!queue.pop(pkg)) {
             return;  // queue closed and empty
         }
-        arena.release(pkg.arena);
+        if (auto* full = std::get_if<FullGraphFramePackage>(&pkg)) {
+            arena.release(std::move(full->arena));
+        }
         ++consumed_count;
     }
 }
@@ -139,7 +177,7 @@ static RenderLoopContext make_loop_context(
         .interop_ring = interop_ring,
         .native_encode_surfaces = native_encode_surfaces,
         .native_source_surfaces = native_source_surfaces,
-        .triple_arena = triple_arena,
+        .triple_arena = &triple_arena,
         .counters = renderer.counters(),
         .telemetry_frames = telemetry_frames,
     };
@@ -226,10 +264,12 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     queue.close();
     RenderFramePackage pkg;
     REQUIRE(queue.pop(pkg));
-    CHECK(pkg.framebuffer != nullptr);
-    CHECK(pkg.framebuffer->width() == W);
-    CHECK(pkg.framebuffer->height() == H);
-    triple_arena.release(pkg.arena);
+    auto* full = std::get_if<FullGraphFramePackage>(&pkg);
+    REQUIRE(full != nullptr);
+    CHECK(full->framebuffer != nullptr);
+    CHECK(full->framebuffer->width() == W);
+    CHECK(full->framebuffer->height() == H);
+    triple_arena.release(std::move(full->arena));
     CHECK_FALSE(queue.pop(pkg));
 }
 
@@ -425,7 +465,9 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
                 consumed.store(count);
                 return;  // queue closed and empty
             }
-            triple_arena.release(pkg.arena);
+            if (auto* full = std::get_if<FullGraphFramePackage>(&pkg)) {
+                triple_arena.release(std::move(full->arena));
+            }
             ++count;
             if (count >= 3) {
                 writer_failed.store(true, std::memory_order_release);

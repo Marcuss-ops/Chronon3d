@@ -34,10 +34,10 @@ bool identity_2d(const Transform& t) {
 std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const CompiledComposition& compiled,
     ImageCache& image_cache,
-    void* cuda_context,
+    std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
     std::string& reason) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
-    (void)compiled; (void)image_cache; (void)cuda_context;
+    (void)compiled; (void)image_cache; (void)video_runtime;
     reason = "CUDA interop is not compiled";
     return nullptr;
 #else
@@ -45,8 +45,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         reason = "compiled composition is empty";
         return nullptr;
     }
-    if (!cuda_context) {
-        reason = "encoder did not expose its CUDA context";
+    if (!video_runtime) {
+        reason = "video device runtime is unavailable";
         return nullptr;
     }
 
@@ -147,22 +147,15 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         reason = "watermark is not available through the canonical ImageCache";
         return nullptr;
     }
-    if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context)) != CUDA_SUCCESS) {
-        reason = "failed to select encoder CUDA context";
-        return nullptr;
-    }
-    auto resource = std::make_shared<media::CudaImageResource>();
-    const std::size_t bytes = cached->gpu_rgba.size() * sizeof(float);
-    const auto upload_t0 = profiling::now();
-    if (cuMemAlloc(&resource->ptr, bytes) != CUDA_SUCCESS ||
-        cuMemcpyHtoD(resource->ptr, cached->gpu_rgba.data(), bytes) != CUDA_SUCCESS) {
-        reason = "failed to upload watermark into CUDA resident memory";
-        return nullptr;
-    }
-    resource->width = static_cast<std::uint32_t>(cached->width);
-    resource->height = static_cast<std::uint32_t>(cached->height);
-    resource->pitch_bytes = static_cast<std::size_t>(cached->width) * sizeof(float) * 4;
-    const double watermark_upload_ms = profiling::duration_ms(upload_t0, profiling::now());
+    bool cache_hit = false;
+    double watermark_upload_ms = 0.0;
+    auto resource = video_runtime->get_or_upload_image(
+        cached->gpu_key.content_digest, overlay.options,
+        static_cast<std::uint32_t>(cached->width),
+        static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
+        cache_hit, watermark_upload_ms, reason);
+    if (!resource) return nullptr;
+    (void)cache_hit;
 
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
     program->video_path_ = std::move(video_path);

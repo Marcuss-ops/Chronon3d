@@ -1,4 +1,5 @@
 #include "../common/pipe_export_pipeline.hpp"
+#include "../common/video_execution_resolver.hpp"
 #include "../common/pipe_export_helpers.hpp"
 #include "utils/process_start.hpp"
 
@@ -122,19 +123,53 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // blocks instead of busy-waiting when all arenas are queued.
     constexpr size_t kArenaPoolCount = 4;
     auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
+    const auto execution = resolve_video_execution(VideoExecutionRequest{
+        .encoder_backend = opts.encoder.encoder_backend,
+        .hardware_encoder = opts.encoder.hardware_encoder,
+        .codec = opts.encoder.codec,
+        .hot_path = opts.gpu_hot_path_mode,
+        .has_gop_source = !opts.gop_source.empty(),
+        .gop_copy_only = opts.gop_copy_only});
+    if (!execution.valid) {
+        spdlog::error("[video] execution resolver rejected request: {}", execution.reason);
+        return session;
+    }
+    if (execution.path == VideoExecutionPath::BitstreamCopy) {
+        // Packet copy has a separate demux/mux contract and is not a render
+        // pipeline. Never silently run it through the renderer while claiming
+        // that the resolver selected copy.
+        spdlog::error("[video] bitstream-copy execution must use the packet pipeline");
+        return session;
+    }
+    const bool direct_yuv_requested = execution.path == VideoExecutionPath::DirectYuv;
 
     // Placement is decided once per job by DeviceScheduler. Keep the RAII
     // reservation in the session so it spans setup, encode, drain and close.
-    if (device_scheduler) {
+    if (opts.video_execution) {
+        auto& execution = *opts.video_execution;
+        if (!execution.reservation || !execution.video_runtimes) {
+            spdlog::error("[video] incomplete injected execution context: "
+                          "reservation and persistent registry are required");
+            return session;
+        }
+        if (execution.device_id != execution.reservation->device()) {
+            spdlog::error("[video] injected device id does not match reservation");
+            return session;
+        }
+        session->device_id = execution.device_id;
+        session->device_reservation = std::move(execution.reservation);
+    } else if (device_scheduler) {
         runtime::DeviceSelectionRequirements requirements;
-        requirements.resources.compute_units = 1.0f;
+        requirements.resources.compute_units =
+            (opts.backend_preference == graph::BackendPreference::GPU ||
+             direct_yuv_requested) ? 0.5f : 0.0f;
         requirements.resources.nvenc_sessions =
             opts.encoder.hardware_encoder == "nvenc" ? 1U : 0U;
         requirements.resources.nvdec_sessions =
             (opts.encoder.hardware_encoder == "nvenc" ||
-             opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) ? 1U : 0U;
+            direct_yuv_requested) ? 1U : 0U;
         requirements.cuda = opts.encoder.hardware_encoder == "nvenc" ||
-                            opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv;
+                            direct_yuv_requested;
         requirements.nvenc = opts.encoder.hardware_encoder == "nvenc";
         requirements.nvdec = requirements.resources.nvdec_sessions > 0;
         auto reservation = device_scheduler->reserve(requirements);
@@ -152,10 +187,16 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Resolve the persistent per-device GPU runtime BEFORE creating the
     // encoder: the encoder borrows the primary CUDA context + FFmpeg
     // hwdevice from it instead of creating its own.
+    if (!video_runtimes && opts.video_execution) {
+        video_runtimes = opts.video_execution->video_runtimes;
+    }
     if (!video_runtimes) {
         video_runtimes = std::make_shared<media::VideoRuntimeRegistry>();
     }
-    session->device_runtime = video_runtimes->get_or_create(session->device_id);
+    const auto cuda_ordinal = opts.video_execution
+        ? opts.video_execution->cuda_device_ordinal : -1;
+    session->device_runtime = video_runtimes->get_or_create(
+        session->device_id, nullptr, cuda_ordinal);
     if (!session->device_runtime) {
         spdlog::error("[video] failed to obtain the video device runtime; aborting");
         return session;
@@ -284,10 +325,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
-    pipe_options.direct_yuv_mode =
-        opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
-        opts.encoder.encoder_backend == "native" &&
-        opts.encoder.hardware_encoder == "nvenc";
+    pipe_options.direct_yuv_mode = direct_yuv_requested;
     if (!session->encoder->open(pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
@@ -302,9 +340,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // either service.  Build these small services before the renderer branch
     // so the dependency is explicit and can be removed completely when the
     // remaining FullGraph-only session wiring is split out.
-    if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
-        opts.encoder.encoder_backend == "native" &&
-        opts.encoder.hardware_encoder == "nvenc") {
+    if (direct_yuv_requested) {
         session->direct_yuv_session = std::make_unique<DirectYuvSession>();
         auto& direct = *session->direct_yuv_session;
         direct.asset_resolver = std::make_unique<assets::AssetResolver>();
@@ -332,13 +368,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Resolve Direct-YUV before constructing any renderer.  Its eligibility
     // scan and overlay preparation use only the compiled composition, the
     // small direct image cache, and the encoder CUDA context.
-    if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv &&
-        opts.encoder.encoder_backend == "native" &&
-        opts.encoder.hardware_encoder == "nvenc") {
+    if (direct_yuv_requested) {
         const auto input_t0 = profiling::now();
         std::string direct_reason;
         session->direct_yuv_session->program = DirectYuvProgram::prepare(
-            compiled, *session->direct_yuv_session->image_cache, session->encoder->cuda_context(),
+            compiled, *session->direct_yuv_session->image_cache, session->device_runtime,
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {
@@ -366,7 +400,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     } else {
         session->full_graph_session = std::make_unique<FullGraphSession>();
         Config renderer_cfg = Config::from_environment(cpu_budget);
-        if (opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+        if (direct_yuv_requested) {
             // Direct-YUV execution bypasses Vulkan entirely: GPU processing is owned by
             // native NVDEC -> CUDA Compositor -> NVENC. Use Software backend preference
             // for the orchestration renderer so Vulkan instance, device, and SPIR-V
@@ -394,6 +428,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // dynamic_cast required; the renderer pointer IS the right type.
     SoftwareRenderer* sw_renderer = session->full_graph_session
         ? session->full_graph_session->renderer.get() : nullptr;
+    if (session->full_graph_session && sw_renderer) {
+        session->full_graph_session->surface_backend = &sw_renderer->backend();
+        session->full_graph_session->surface_registry =
+            &sw_renderer->runtime().surface_registry();
+    }
     session->startup_ms = profiling::duration_ms(process_start_time(), renderer_t1);
     session->startup_breakdown.renderer_runtime_init_ms = session->engine_init_ms;
 #ifdef CHRONON3D_ENABLE_VULKAN

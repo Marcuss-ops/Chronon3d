@@ -2,6 +2,7 @@
 
 #include "../../cli_context.hpp"
 #include "../../daemon/chronon_ipc.hpp"
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 
 #include <cstdint>
 #include <string>
@@ -35,7 +36,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          RenderPlanVideoOverrides video = {},
                          const std::string& trace_output = {},
                          const std::string& trace_level = "pipeline",
-                         const std::string& gpu_hot_path_mode = "auto");
+                         const std::string& gpu_hot_path_mode = "auto",
+                         std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload
@@ -45,6 +47,7 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const std::string& payload);
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const std::string& payload,
-                          std::shared_ptr<SoftwareRenderer> warm_renderer);
+                          std::shared_ptr<SoftwareRenderer> warm_renderer,
+                          std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
 
 }  // namespace chronon3d::cli

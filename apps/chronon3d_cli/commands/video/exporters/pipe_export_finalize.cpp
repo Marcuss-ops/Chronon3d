@@ -159,7 +159,7 @@ PipeExportResult make_pipe_export_result(
         auto contract = std::move(contract_result).value();
         contract.width = session.canvas_width;
         contract.height = session.canvas_height;
-        contract.fps = FrameRate{session.opts.output.fps, 1};
+        contract.fps = session.opts.output.frame_rate();
         contract.frame_count = session.total_frames;
         contract.audio_required = false;
         contract.audio_streams = 0;

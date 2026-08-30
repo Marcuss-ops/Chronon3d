@@ -26,6 +26,7 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <string>
 #include <filesystem>
 #include <optional>
@@ -78,6 +79,7 @@ struct FfmpegExportOptions {
     // DeviceScheduler resolves placement before the video pipeline starts.
     // The default keeps existing single-device callers on device 0.
     runtime::DeviceId device_id{0};
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution;
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 #include <array>
+#include <unordered_set>
 #include <optional>
 
 namespace chronon3d::cli {
@@ -43,6 +44,11 @@ struct DirectYuvSession {
 /// accidentally leak into the direct execution mode.
 struct FullGraphSession {
     std::shared_ptr<SoftwareRenderer> renderer;
+    // The pool owns the logical handles and their backend bindings for the
+    // complete FullGraph job. Releasing the registry entry alone is not
+    // sufficient: Vulkan/CUDA may still own the physical allocation.
+    graph::RenderBackend* surface_backend{nullptr};
+    runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     FrameInteropRing interop_ring;
     std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
         native_encode_surfaces{};
@@ -53,6 +59,28 @@ struct FullGraphSession {
     FullGraphSession() : interop_ring(FrameInteropRing::kSlotCount) {
         native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
         native_source_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
+    }
+
+    ~FullGraphSession() {
+        std::unordered_set<runtime::RenderSurfaceHandle> handles;
+        for (const auto handle : native_encode_surfaces) {
+            if (handle != runtime::kInvalidRenderSurfaceHandle) handles.insert(handle);
+        }
+        for (const auto handle : native_source_surfaces) {
+            if (handle != runtime::kInvalidRenderSurfaceHandle) handles.insert(handle);
+        }
+        // Backend first: the logical registry must not forget a handle while
+        // the physical backend binding is still alive.
+        if (surface_backend) {
+            for (const auto handle : handles) {
+                (void)surface_backend->release_surface(handle);
+            }
+        }
+        if (surface_registry) {
+            for (const auto handle : handles) {
+                (void)surface_registry->release(handle);
+            }
+        }
     }
 };
 
@@ -159,9 +187,12 @@ struct PipeExportSession {
         if (writer_thread.joinable()) {
             writer_thread.join();
         }
+        // Drain/tear down the encoder before the backend surface pool and
+        // decoder. This ordering is part of the ownership contract: no
+        // consumer may outlive the physical surface bindings it reads.
+        encoder.reset();
         native_decoder.reset();
         full_graph_session.reset();
-        encoder.reset();
     }
 };
 

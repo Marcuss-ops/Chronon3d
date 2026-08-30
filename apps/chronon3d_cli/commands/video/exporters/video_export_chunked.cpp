@@ -51,8 +51,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         }
         const auto copied = copy_gop_source(
             opts.gop_source, opts.output.output,
-            static_cast<double>(start) / opts.output.fps,
-            static_cast<double>(end) / opts.output.fps);
+            opts.output.frame_rate().to_seconds(start),
+            opts.output.frame_rate().to_seconds(end));
         if (!copied) {
             spdlog::error("[video] GOP packet copy failed for '{}'", opts.gop_source);
             result.encode_failed = true;
@@ -103,14 +103,14 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     int chunks = std::max(1, std::min(opts.sink.chunks, total));
 
     spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
-                 total, start, end, opts.output.fps, chunks, opts.output.output);
+                 total, start, end, opts.output.fps_value(), chunks, opts.output.output);
 
     if (!opts.gop_source.empty()) {
         const auto source_plan = inspect_gop_source(
             opts.gop_source,
             resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder),
-            static_cast<double>(start) / opts.output.fps,
-            static_cast<double>(end) / opts.output.fps);
+            opts.output.frame_rate().to_seconds(start),
+            opts.output.frame_rate().to_seconds(end));
         if (!source_plan) {
             spdlog::warn("[video] GOP source analysis unavailable for '{}'",
                          opts.gop_source);

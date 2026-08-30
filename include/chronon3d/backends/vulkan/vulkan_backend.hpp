@@ -103,6 +103,15 @@ struct VulkanDeviceInfo {
     std::string name{};
     bool discrete{false};
     std::uint64_t device_memory_bytes{0};
+    // Stable physical identity.  Vulkan enumeration indices are only local
+    // ordering and must never be used to infer a CUDA ordinal.
+    std::array<std::uint8_t, 16> device_uuid{};
+    bool has_device_uuid{false};
+    std::uint32_t pci_domain{0};
+    std::uint32_t pci_bus{0};
+    std::uint32_t pci_device{0};
+    std::uint32_t pci_function{0};
+    bool has_pci_identity{false};
 };
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
