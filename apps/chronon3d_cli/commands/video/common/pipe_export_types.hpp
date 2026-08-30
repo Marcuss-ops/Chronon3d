@@ -5,6 +5,7 @@
 #include "direct_yuv_program.hpp"
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/core/triple_buffer_arena.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -76,7 +77,6 @@ struct WriterThreadContext {
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
     bool require_native_gpu{false};
-    FrameInteropRing* interop_ring{nullptr};
     std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
     /// Trace correlation: stable per-job id mixed with the package frame
     /// number to build the terminating Perfetto flow id for this encode.
@@ -99,11 +99,7 @@ struct RenderLoopContext {
     runtime::BoundedChannel<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     std::atomic<int>& frames_encoded;
-    FrameInteropRing& interop_ring;
-    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
-        native_encode_surfaces;
-    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>&
-        native_source_surfaces;
+    runtime::FrameExecutionSlotRing& execution_slots;
     TripleBufferArena* triple_arena{nullptr};
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;

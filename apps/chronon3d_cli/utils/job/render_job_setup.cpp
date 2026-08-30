@@ -115,8 +115,8 @@ void setup_render_job(const CompositionRegistry& registry,
                 runtime::ResourceUsage::ColorAttachment,
                 bytes_per_resource,
                 alignof(Color),
-                persistent ? runtime::ResourceLifetime::Persistent
-                           : runtime::ResourceLifetime::Transient};
+                persistent ? runtime::LifetimeClass::JobPersistent
+                           : runtime::LifetimeClass::FrameTransient};
             planner.add(std::move(request));
         }
         out.resource_plan = planner.build();

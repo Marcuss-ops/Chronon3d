@@ -312,6 +312,8 @@ void write_frame_timing_sidecar(
         if (value) job[key] = *value; else job[key] = nullptr;
     };
     put_ms("process_wall_ms", timings.process_wall_ms);
+    if (timings.measurement_kind) job["measurement_kind"] = *timings.measurement_kind;
+    else job["measurement_kind"] = nullptr;
     put_ms("job_wall_ms", timings.job_wall_ms);
     put_ms("engine_init_ms", timings.engine_init_ms);
     put_ms("backend_init_ms", timings.backend_init_ms);
@@ -370,8 +372,8 @@ void write_frame_timing_sidecar(
     put_gpu_u64("video_native_fallback_frames", timings.gpu.video_native_fallback_frames);
     put_gpu_u64("gpu_surface_create_failures", timings.gpu.gpu_surface_create_failures);
     put_gpu_u64("gpu_encode_failures", timings.gpu.gpu_encode_failures);
-    put_gpu_u64("interop_ring_wait_count", timings.gpu.interop_ring_wait_count);
-    put_gpu_u64("interop_ring_wait_us", timings.gpu.interop_ring_wait_us);
+    put_gpu_u64("frame_slot_wait_count", timings.gpu.frame_slot_wait_count);
+    put_gpu_u64("frame_slot_wait_us", timings.gpu.frame_slot_wait_us);
     put_gpu_u64("cuda_vulkan_wait_count", timings.gpu.cuda_vulkan_wait_count);
     put_gpu_u64("cuda_vulkan_wait_submit_us", timings.gpu.cuda_vulkan_wait_submit_us);
     put_gpu_u64("cuda_vulkan_signal_count", timings.gpu.cuda_vulkan_signal_count);
@@ -707,6 +709,9 @@ void write_frame_timing_sidecar(
     sb["renderer_runtime_init_ms"] = timings.startup_breakdown.renderer_runtime_init_ms;
     sb["other_startup_ms"] = timings.startup_breakdown.other_startup_ms;
     sb["total_startup_ms"] = timings.startup_breakdown.total_startup_ms;
+    sb["accounted_ms"] = timings.startup_breakdown.accounted_ms;
+    sb["unaccounted_ms"] = timings.startup_breakdown.unaccounted_ms;
+    sb["phases_observed"] = timings.startup_breakdown.phases_observed;
 
     auto& pb = out["prepare_breakdown"];
     pb["font_preflight_ms"] = timings.prepare_breakdown.font_preflight_ms;

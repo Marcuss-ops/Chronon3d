@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pipe_export_session.hpp"
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 
 #include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -28,7 +29,8 @@ namespace chronon3d::cli {
     Frame end,
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
-    runtime::DeviceScheduler* device_scheduler = nullptr);
+    runtime::DeviceScheduler* device_scheduler = nullptr,
+    std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr);
 
 /// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
 void warmup_pipe_pool(PipeExportSession& session);
@@ -82,6 +84,7 @@ void record_pipe_telemetry(
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
-    runtime::DeviceScheduler* device_scheduler = nullptr);
+    runtime::DeviceScheduler* device_scheduler = nullptr,
+    std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr);
 
 } // namespace chronon3d::cli

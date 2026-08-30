@@ -125,7 +125,6 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             rc = dry_run_video_job(job);
         } else {
             auto opts = make_ffmpeg_export_options(job);
-            opts.warm_renderer = warm_renderer;
             chronon3d::CancellationToken cancel_token;
             install_signal_cancellation(cancel_token);
             opts.cancellation_token = &cancel_token;
@@ -144,7 +143,10 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.first_frame,
                     job.last_frame + Frame{1},
                     opts,
-                    job.execution.cpu_budget);
+                    job.execution.cpu_budget,
+                    job.video_execution,
+                    nullptr,
+                    nullptr);
             } catch (const std::exception& error) {
                 return RenderJobError{
                     RenderJobErrorCode::RenderFailed,

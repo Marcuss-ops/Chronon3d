@@ -49,6 +49,25 @@ extern "C" {
 
 namespace chronon3d::media {
 
+/// Test-only injection point used by the teardown stress test
+/// (tests/video/test_native_decoder_teardown_stress.cpp) to bisect which
+/// decoder subsystem introduces heap corruption during concurrent
+/// create/decode/destroy cycles. Each flag defaults to the production
+/// value (`true`) so the struct is a no-op outside the stress harness.
+///
+/// The matrix is:
+///   prefetch ON / swscale ON / cache ON   (production)
+///   prefetch OFF / swscale ON / cache ON
+///   prefetch OFF / swscale OFF / cache ON
+///   prefetch OFF / swscale OFF / cache OFF
+/// If a row passes where the previous row crashed, the disabled subsystem
+/// is the corruption source.
+struct NativeDecoderTestOptions {
+    bool enable_prefetch{true};
+    bool enable_swscale{true};
+    bool enable_frame_cache{true};
+};
+
 /// Surface description for the CUDA-interop decode handoff (the surface
 /// created by try_native_frame).
 ///
@@ -106,6 +125,13 @@ public:
     /// before decoding starts (the prefetch worker may read it concurrently).
     void set_trace_job_id(std::uint64_t job_id) noexcept {
         m_trace_job_id.store(job_id, std::memory_order_relaxed);
+    }
+
+    /// Test-only: override production subsystem toggles for the teardown
+    /// stress harness. Default-constructed options leave every subsystem
+    /// enabled (production behavior). Production code never calls this.
+    void set_test_options(NativeDecoderTestOptions opts) noexcept {
+        m_test_options = opts;
     }
 
     /// Decode one frame from `path` at the given source frame index and pack
@@ -197,6 +223,7 @@ private:
         HwFrameRef captured_native_frame;
         HwFrameRef eof_captured_native_frame;
         bool direct_prefetch_disabled{false};
+        NativeDecoderTestOptions test_options;
         DecodeProfilingStats profiling;
 
         ~Session();
@@ -209,6 +236,7 @@ private:
     std::shared_ptr<VideoDeviceRuntime> m_video_runtime;
     GpuHotPathMode m_gpu_hot_path_mode{GpuHotPathMode::Auto};
     std::atomic<std::uint64_t> m_trace_job_id{0};
+    NativeDecoderTestOptions m_test_options;
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 
     std::shared_ptr<Framebuffer> decode_frame_internal(
@@ -244,6 +272,7 @@ public:
         const std::string&, Frame, int, int, float) { return {}; }
     [[nodiscard]] DecodeProfilingStats decode_profiling_stats() const { return {}; }
     void set_trace_job_id(std::uint64_t) noexcept {}  // no-op stub
+    void set_test_options(NativeDecoderTestOptions) noexcept {}  // no-op stub
 };
 
 #endif  // CHRONON3D_ENABLE_NATIVE_FFMPEG
