@@ -14,6 +14,7 @@
 #include "../../commands/video/common/warmup_options.hpp"
 
 #include <string>
+#include <memory>
 
 namespace chronon3d::cli {
 
@@ -33,6 +34,7 @@ namespace chronon3d::cli {
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
-    const chronon3d::CpuBudget& cpu_budget);
+    const chronon3d::CpuBudget& cpu_budget,
+    std::shared_ptr<media::VideoJobExecutionContext> execution = {});
 
 } // namespace chronon3d::cli

@@ -82,11 +82,13 @@ private:
 }  // namespace
 
 Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job) {
-    return execute_render_job(job, {});
+    return execute_render_job(job, {}, {});
 }
 
 Result<RenderJobOutput, RenderJobError> execute_render_job(
-    const RenderJob& job, std::shared_ptr<SoftwareRenderer> warm_renderer) {
+    const RenderJob& job,
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    std::shared_ptr<media::VideoJobExecutionContext> execution) {
     if (!job.registry) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
@@ -143,7 +145,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.first_frame,
                     job.last_frame + Frame{1},
                     opts,
-                    job.execution.cpu_budget);
+                    job.execution.cpu_budget,
+                    std::move(execution));
             } catch (const std::exception& error) {
                 return RenderJobError{
                     RenderJobErrorCode::RenderFailed,

@@ -5,6 +5,7 @@
 
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/timeline/render_job.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 
 #include <optional>
 
@@ -33,6 +34,8 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
 /// Sole immutable executor for still, sequence, video, and selected-frame jobs.
 Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job);
 Result<RenderJobOutput, RenderJobError> execute_render_job(
-    const RenderJob& job, std::shared_ptr<SoftwareRenderer> warm_renderer);
+    const RenderJob& job,
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    std::shared_ptr<media::VideoJobExecutionContext> execution = {});
 
 } // namespace chronon3d::cli

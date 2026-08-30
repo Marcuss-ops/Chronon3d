@@ -167,8 +167,6 @@ struct RenderJob {
     RenderExecutionOptions execution;
     RenderDiagnostics diagnostics{};
 
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution;
-
     static RenderJob still(std::string id,
                            std::shared_ptr<const CompiledComposition> c,
                            Frame frame,
