@@ -3,11 +3,33 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
 #include <chrono>
-#include <vector>
 
 namespace chronon3d::cli {
+
+namespace {
+
+class EncoderGpuCompletion final : public runtime::GpuCompletion {
+public:
+    EncoderGpuCompletion(IVideoEncoder& encoder, graph::RenderBackend& backend,
+                         runtime::RenderSurfaceHandle surface) noexcept
+        : encoder_(encoder), backend_(backend), surface_(surface) {}
+
+    [[nodiscard]] bool ready() const noexcept override {
+        return encoder_.poll_native_surface(backend_, surface_);
+    }
+
+    void wait() override {
+        (void)encoder_.finish_native_surface(backend_, surface_);
+    }
+
+private:
+    IVideoEncoder& encoder_;
+    graph::RenderBackend& backend_;
+    runtime::RenderSurfaceHandle surface_;
+};
+
+} // namespace
 
 // The writer owns the encoder-facing side of the queue. Keeping it separate
 // from the render loop makes the GPU-surface lifetime and fallback policy
@@ -17,27 +39,6 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     profiling::g_current_framebuffer_pool = ctx.renderer
         ? ctx.renderer->framebuffer_pool().get() : nullptr;
     bool arena_notified = false;
-    struct DeferredInteropSlot {
-        std::size_t slot{FrameInteropRing::kInvalidSlot};
-        graph::RenderBackend* backend{nullptr};
-        runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
-    };
-    std::vector<DeferredInteropSlot> deferred_slots;
-
-    const auto retire_ready_slots = [&]() {
-        deferred_slots.erase(
-            std::remove_if(deferred_slots.begin(), deferred_slots.end(),
-                [&](const DeferredInteropSlot& pending) {
-                    if (!pending.backend || ctx.encoder.poll_native_surface(
-                            *pending.backend, pending.surface)) {
-                        if (ctx.interop_ring) ctx.interop_ring->release(pending.slot);
-                        return true;
-                    }
-                    return false;
-                }),
-            deferred_slots.end());
-    };
-
     for (;;) {
         // Perfetto counter tracks (pipeline health): frames waiting between
         // the render thread and the writer, and encode work still in flight
@@ -48,9 +49,8 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             CHRONON_TRACE_COUNTER("chronon.pipeline", "render_queue_depth",
                 static_cast<int64_t>(ctx.queue.size_approx()));
             CHRONON_TRACE_COUNTER("chronon.pipeline", "encoder_queue_depth",
-                static_cast<int64_t>(deferred_slots.size()));
+                static_cast<int64_t>(ctx.queue.size_approx()));
         }
-        retire_ready_slots();
         RenderFramePackage package;
         const auto pop_t0 = profiling::now();
         const bool popped = ctx.queue.pop_for(package, std::chrono::milliseconds(1));
@@ -106,17 +106,14 @@ void run_writer_thread(const WriterThreadContext& ctx) {
         }
 
         auto* full = std::get_if<FullGraphFramePackage>(&package);
-        if (full && full->framebuffer) {
-            const auto release_interop_slot = [&]() noexcept {
-                if (ctx.interop_ring) ctx.interop_ring->release(full->interop_slot);
-            };
+        if (full && full->cpu_fallback) {
             if (!arena_notified) {
                 spdlog::info("[video] Exporting via Arena-backed SIMD pipeline");
                 arena_notified = true;
             }
 
             const auto enc_t0 = profiling::now();
-            const Framebuffer& fb_ref = *full->framebuffer;
+            const Framebuffer& fb_ref = *full->cpu_fallback;
             // Timeline tracing: terminating flow hop — the frame's
             // NVDEC → render chain ends here at the encoder sink. The flow id
             // is the same MakeFlowId(job, frame) emitted by decode and render.
@@ -126,9 +123,10 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             CHRONON_TRACE_FLOW_END_IDS("chronon.encode", "EncodeFrame",
                 trace_flow, trace_job_id,
                 static_cast<uint64_t>(full->frame_number));
-            const bool gpu_frame =
-                full->native_surface != runtime::kInvalidRenderSurfaceHandle &&
-                full->backend != nullptr;
+            auto* slot = full->slot.valid() ? &full->slot.slot() : nullptr;
+            const bool gpu_frame = slot &&
+                slot->native_surface != runtime::kInvalidRenderSurfaceHandle &&
+                slot->backend != nullptr;
             if (gpu_frame && ctx.counters) {
                 ctx.counters->gpu_native_surface_frames.fetch_add(
                     1, std::memory_order_relaxed);
@@ -145,37 +143,35 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 spdlog::error(
                     "[video] GPU_NATIVE_REQUIRED: non-GPU surface at frame {}; refusing CPU fallback",
                     full->frame_number);
-                release_interop_slot();
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
             }
 
             const bool encoded = gpu_frame
-                ? (full->native_surface_ready
+                ? (slot->native_surface_ready
                     ? ctx.encoder.write_prepared_native_surface(
-                        *full->backend, full->source_surface, full->native_surface)
+                        *slot->backend, slot->source_surface, slot->native_surface)
                     : ctx.encoder.write_native_surface(
-                        *full->backend, full->source_surface, full->native_surface))
-                : ctx.encoder.write_frame_async(fb_ref, std::move(full->framebuffer));
+                        *slot->backend, slot->source_surface, slot->native_surface))
+                : ctx.encoder.write_frame_async(fb_ref, std::move(full->cpu_fallback));
 
             if (!encoded) {
                 if (ctx.counters) {
                     ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);
                 }
-                release_interop_slot();
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
             }
             const bool surface_ready = !gpu_frame || ctx.encoder.poll_native_surface(
-                *full->backend, full->native_surface);
+                *slot->backend, slot->native_surface);
             if (gpu_frame && !surface_ready) {
-                deferred_slots.push_back({full->interop_slot, full->backend,
-                                          full->native_surface});
+                full->slot.retire(std::make_shared<EncoderGpuCompletion>(
+                    ctx.encoder, *slot->backend, slot->native_surface));
             } else {
-                release_interop_slot();
+                full->slot.release();
             }
             if (ctx.counters) {
                 if (gpu_frame) {
@@ -213,24 +209,9 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             });
         }
 
-        if (full && full->arena && ctx.triple_arena) {
-            ctx.triple_arena->release(std::move(full->arena));
+        if (full && full->cpu_arena && ctx.triple_arena) {
+            ctx.triple_arena->release(std::move(full->cpu_arena));
         }
-    }
-
-    // The queue is closed only after the producer has submitted its final
-    // frame. Keep the ring slots retained until the encoder has consumed all
-    // CUDA work, then release them in the same order used during production.
-    spdlog::info("[video] writer queue drained; deferred native slots={}", deferred_slots.size());
-    while (!deferred_slots.empty()) {
-        if (!ctx.encoder.finish_native_surface(
-                *deferred_slots.front().backend,
-                deferred_slots.front().surface)) {
-            ctx.writer_failed.store(true);
-            break;
-        }
-        spdlog::info("[video] finished native surface slot; remaining={}", deferred_slots.size());
-        retire_ready_slots();
     }
 }
 

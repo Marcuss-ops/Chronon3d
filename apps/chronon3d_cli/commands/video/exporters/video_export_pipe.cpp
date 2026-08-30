@@ -46,8 +46,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     runtime::DeviceScheduler local_scheduler;
     if (!device_scheduler) {
         runtime::DeviceCapabilities capabilities;
-        capabilities.id = opts.device_id;
-        capabilities.name = "cli-device-" + std::to_string(opts.device_id);
+        capabilities.id = 0;
+        capabilities.name = "cli-device-0";
         capabilities.cuda = opts.encoder.hardware_encoder == "nvenc";
         capabilities.nvdec = capabilities.cuda;
         capabilities.nvenc = capabilities.cuda;
@@ -69,7 +69,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     auto session = setup_pipe_export_session(
         registry, compiled, settings, opts, start, end, cpu_budget,
-        std::move(video_runtimes), device_scheduler);
+        std::move(video_runtimes), device_scheduler, nullptr);
     if (!session || !session->encoder ||
         (!session->renderer_ptr() && !session->direct_yuv_selected()) ||
         (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {
@@ -160,6 +160,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     pipe_timing::JobTimings timings;
     timings.job_wall_ms = wall_time_ms;
     timings.process_wall_ms = profiling::duration_ms(process_start_time(), wall_t0);
+    timings.measurement_kind = chronon3d::cli::startup_measurement_kind_name(
+        chronon3d::cli::startup_trace().measurement_kind);
     timings.prepare_ms = profiling::duration_ms(setup_t0, warmup_t1);
     timings.engine_init_ms = session->engine_init_ms;
     timings.backend_init_ms = session->backend_init_ms;
@@ -225,8 +227,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.video_native_fallback_frames = c->video_native_fallback_frames.load(std::memory_order_relaxed);
         timings.gpu.gpu_surface_create_failures = c->gpu_surface_create_failures.load(std::memory_order_relaxed);
         timings.gpu.gpu_encode_failures = c->gpu_encode_failures.load(std::memory_order_relaxed);
-        timings.gpu.interop_ring_wait_count = c->interop_ring_wait_count.load(std::memory_order_relaxed);
-        timings.gpu.interop_ring_wait_us = c->interop_ring_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.frame_slot_wait_count = c->frame_slot_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.frame_slot_wait_us = c->frame_slot_wait_us.load(std::memory_order_relaxed);
         timings.gpu.cuda_vulkan_wait_count = c->cuda_vulkan_wait_count.load(std::memory_order_relaxed);
         timings.gpu.cuda_vulkan_wait_submit_us = c->cuda_vulkan_wait_submit_us.load(std::memory_order_relaxed);
         timings.gpu.cuda_vulkan_signal_count = c->cuda_vulkan_signal_count.load(std::memory_order_relaxed);
@@ -473,7 +475,25 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         session->startup_breakdown.vulkan_device_ms +
         session->startup_breakdown.vulkan_pipelines_ms +
         session->startup_breakdown.renderer_runtime_init_ms;
-    session->startup_breakdown.other_startup_ms = std::max(0.0, startup_ms - startup_accounted);
+    session->startup_breakdown.accounted_ms =
+        std::min(startup_ms, startup_accounted);
+    session->startup_breakdown.unaccounted_ms =
+        std::max(0.0, startup_ms - startup_accounted);
+    session->startup_breakdown.phases_observed = 0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.logger_init_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.cli_bootstrap_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.cli_parse_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.composition_registration_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.plan_read_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.plan_json_parse_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.plan_decode_validate_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.plan_asset_resolve_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.plan_compile_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.encoder_create_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.encoder_open_hw_ctx_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.encoder_open_nvenc_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.encoder_open_mux_header_ms > 0.0;
+    session->startup_breakdown.phases_observed += session->startup_breakdown.renderer_runtime_init_ms > 0.0;
 
     spdlog::info(
         "[startup-profile] total={:.2f}ms logger={:.2f}ms cli_bootstrap={:.2f}ms "
@@ -501,6 +521,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     timings.startup_breakdown = session->startup_breakdown;
     timings.prepare_breakdown = session->prepare_breakdown;
+    timings.startup_accounted_ms = session->startup_breakdown.accounted_ms;
+    timings.startup_unaccounted_ms = session->startup_breakdown.unaccounted_ms;
 
     if (decode_stats.decoded_frames > 0) {
         pipe_timing::InternalDecodeProfiling dec_p;

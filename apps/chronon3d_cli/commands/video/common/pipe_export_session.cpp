@@ -167,9 +167,7 @@ FrameTimingProjection project_frame_timings(
 
 struct NativeSurfacePrep {
     RenderSettings video_settings{};
-    runtime::RenderSurfaceHandle native_surface{runtime::kInvalidRenderSurfaceHandle};
-    runtime::RenderSurfaceHandle source_surface{runtime::kInvalidRenderSurfaceHandle};
-    std::size_t interop_slot{FrameInteropRing::kInvalidSlot};
+    runtime::FrameExecutionSlotRing::SlotLease slot;
 };
 
 // PREPARE: acquire the swap-chained arena for this frame, register the
@@ -189,22 +187,20 @@ NativeSurfacePrep prepare_frame(
         ctx.backend.supports_native_video_surface();
     prep.video_settings.require_native_gpu =
         prep.video_settings.retain_native_surface_for_video;
-    prep.native_surface = runtime::kInvalidRenderSurfaceHandle;
-    prep.interop_slot = FrameInteropRing::kInvalidSlot;
-
     auto* surface_registry = ctx.sw_renderer
         ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
     if (!surface_registry || !prep.video_settings.retain_native_surface_for_video) {
         return prep;
     }
 
-    prep.interop_slot = ctx.interop_ring.acquire(ctx.opts.cancellation_token);
-    if (prep.interop_slot == FrameInteropRing::kInvalidSlot) {
+    prep.slot = ctx.execution_slots.acquire_lease(ctx.opts.cancellation_token);
+    if (!prep.slot.valid()) {
         return prep;
     }
 
-    auto& persistent_native_surface =
-        ctx.native_encode_surfaces[prep.interop_slot];
+    auto& execution_slot = prep.slot.slot();
+    execution_slot.backend = &ctx.backend;
+    auto& persistent_native_surface = execution_slot.native_surface;
     if (persistent_native_surface == runtime::kInvalidRenderSurfaceHandle) {
         const runtime::SurfaceDesc encode_desc{
             static_cast<std::uint32_t>(ctx.compiled.composition->width()),
@@ -219,20 +215,19 @@ NativeSurfacePrep prepare_frame(
             persistent_native_surface, encode_desc);
         if (!created.ok()) {
             spdlog::error("[video] failed to create CUDA encode surface slot {}: {}",
-                          prep.interop_slot, created.error().message);
+                          execution_slot.slot_id, created.error().message);
             (void)surface_registry->release(persistent_native_surface);
             persistent_native_surface = runtime::kInvalidRenderSurfaceHandle;
         }
     }
     if (persistent_native_surface != runtime::kInvalidRenderSurfaceHandle) {
-        prep.native_surface = persistent_native_surface;
-        prep.video_settings.native_video_encode_surface = prep.native_surface;
+        prep.video_settings.native_video_encode_surface = persistent_native_surface;
     } else {
-        ctx.interop_ring.release(prep.interop_slot);
-        prep.interop_slot = FrameInteropRing::kInvalidSlot;
+        prep.slot.release();
+        return prep;
     }
-    if (prep.interop_slot != FrameInteropRing::kInvalidSlot) {
-        auto& persistent_source = ctx.native_source_surfaces[prep.interop_slot];
+    {
+        auto& persistent_source = execution_slot.source_surface;
         if (persistent_source == runtime::kInvalidRenderSurfaceHandle) {
             const runtime::SurfaceDesc source_desc{
                 static_cast<std::uint32_t>(ctx.compiled.composition->width()),
@@ -247,7 +242,7 @@ NativeSurfacePrep prepare_frame(
             if (!created.ok()) {
                 spdlog::error(
                     "[video] failed to create native source surface slot {} ({}x{}, format={}): {}",
-                    prep.interop_slot,
+                    execution_slot.slot_id,
                     source_desc.width,
                     source_desc.height,
                     static_cast<int>(source_desc.format),
@@ -258,9 +253,10 @@ NativeSurfacePrep prepare_frame(
         }
         if (persistent_source != runtime::kInvalidRenderSurfaceHandle) {
             prep.video_settings.native_video_source_surface = persistent_source;
-            prep.source_surface = persistent_source;
         }
     }
+    execution_slot.native_surface_ready =
+        execution_slot.native_surface != runtime::kInvalidRenderSurfaceHandle;
     return prep;
 }
 
@@ -354,10 +350,11 @@ EncodeOutcome encode_frame(
     auto source_surface = fb
         ? fb->surface_handle()
         : runtime::kInvalidRenderSurfaceHandle;
-    if (source_surface == runtime::kInvalidRenderSurfaceHandle &&
-        prep.source_surface != runtime::kInvalidRenderSurfaceHandle &&
-        ctx.backend.is_native_surface_valid(prep.source_surface)) {
-        source_surface = prep.source_surface;
+    auto* execution_slot = prep.slot.valid() ? &prep.slot.slot() : nullptr;
+    if (source_surface == runtime::kInvalidRenderSurfaceHandle && execution_slot &&
+        execution_slot->source_surface != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend.is_native_surface_valid(execution_slot->source_surface)) {
+        source_surface = execution_slot->source_surface;
     }
     auto* surface_registry = ctx.sw_renderer
         ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
@@ -421,26 +418,19 @@ EncodeOutcome encode_frame(
     }
     out.package = FullGraphFramePackage{
         .frame_number = current_frame,
-        .framebuffer = std::move(fb),
-        .arena = std::move(current_arena),
-        .backend = &ctx.backend,
-        .surface_registry = ctx.sw_renderer
-            ? &ctx.sw_renderer->runtime().surface_registry() : nullptr,
-        .source_surface = source_surface,
-        .native_surface = prep.native_surface,
-        .interop_slot = prep.interop_slot,
-        .native_surface_ready = prep.native_surface != runtime::kInvalidRenderSurfaceHandle};
+        .slot = std::move(prep.slot),
+        .cpu_fallback = std::move(fb),
+        .cpu_arena = std::move(current_arena)};
     ++status.frames_rendered;
 
-    RenderFramePackage queue_package = out.package;
-    out.pushed = ctx.queue.push(queue_package, ctx.opts.cancellation_token);
+    out.pushed = ctx.queue.push(out.package, ctx.opts.cancellation_token);
     const auto wait_t1 = profiling::now();
     out.wait_ms = profiling::duration_ms(wait_t0, wait_t1);
 
     if (chronon3d::tracing::TracingActive()) {
         const int64_t in_flight =
             static_cast<int64_t>(ctx.queue.size_approx()) +
-            static_cast<int64_t>(ctx.interop_ring.busy_count());
+            static_cast<int64_t>(ctx.execution_slots.busy_count());
         CHRONON_TRACE_COUNTER("chronon.pipeline", "frames_in_flight", in_flight);
         const auto pool_stats = ctx.sw_renderer->framebuffer_pool()->stats();
         CHRONON_TRACE_COUNTER("chronon.pipeline", "framebuffer_pool_live_mb",
@@ -653,7 +643,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 // Frame-transient source/encode surfaces are reclaimed by the
                 // caller after the writer has joined. Recover the arena so it
                 // can be released back to the pool.
-                auto arena = std::move(enc.package.arena);
+                auto arena = std::move(enc.package.cpu_arena);
                 if (ctx.writer_failed.load()) {
                     mark_pipe_writer_failed(status, current_frame);
                 } else if (ctx.opts.cancellation_token &&
@@ -661,7 +651,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     mark_pipe_cancelled(status, current_frame);
                 }
             ctx.triple_arena->release(arena);
-                ctx.interop_ring.release(enc.package.interop_slot);
                 break;
             }
 

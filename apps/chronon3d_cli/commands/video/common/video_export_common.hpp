@@ -5,7 +5,6 @@
 #include "../../../commands.hpp"
 #include "../../../utils/job/cli_render_utils.hpp"
 #include "../../../utils/common/cli_mappers.hpp"
-#include "../../../utils/video/frame_chunks.hpp"
 #include "../../../utils/video/ffmpeg_pipe_encoder.hpp"
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 #include "../../../utils/video/native_av_encoder.hpp"
@@ -26,7 +25,6 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
-#include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <string>
 #include <filesystem>
 #include <optional>
@@ -65,9 +63,6 @@ struct FfmpegExportOptions {
     // Explicit per-render asset mount; never inferred from the process CWD.
     std::optional<std::filesystem::path> assets_root;
 
-    // Optional daemon-owned renderer reused across jobs.
-    std::shared_ptr<SoftwareRenderer> warm_renderer;
-
     // Rendering backend preference carried from the canonical RenderJob's
     // Config (--backend auto|software|vulkan).  Auto resolves to Software on
     // the video pipe path; GPU strictly resolves the Vulkan backend.
@@ -75,11 +70,6 @@ struct FfmpegExportOptions {
         chronon3d::graph::BackendPreference::Auto};
     chronon3d::GpuHotPathMode gpu_hot_path_mode{
         chronon3d::GpuHotPathMode::Auto};
-
-    // DeviceScheduler resolves placement before the video pipeline starts.
-    // The default keeps existing single-device callers on device 0.
-    runtime::DeviceId device_id{0};
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution;
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};
@@ -97,20 +87,6 @@ struct FfmpegExportOptions {
 // render_and_encode_ffmpeg_pipe() is declared in pipe_export_pipeline.hpp
 // and returns PipeExportResult (boundary model with all status/timing data).
 
-// Kept for the standalone legacy exporter source, which is intentionally not
-// part of the CLI video target anymore.
-struct ChunkedExportResult {
-    int return_code{1};
-    bool success{false};
-    bool chunk_failed{false};
-    bool encode_failed{false};
-    int frames_written{0};
-    int frames_total{0};
-    double wall_time_ms{0.0};
-    double render_ms{0.0};
-    double encode_ms{0.0};
-};
-
 /// Context handed to the encoder factory. The encoder does NOT discover or
 /// retain CUDA itself anymore: the device runtime already owns the primary
 /// CUDA context + FFmpeg hwdevice for the selected device.
@@ -122,16 +98,6 @@ struct VideoEncoderCreateContext {
 std::unique_ptr<IVideoEncoder> create_video_encoder(
     const FfmpegExportOptions& opts,
     const VideoEncoderCreateContext& context = {});
-
-[[nodiscard]] ChunkedExportResult render_and_encode_ffmpeg_chunked(
-    const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
-    const std::string& composition_id,
-    const RenderSettings& settings,
-    Frame start,
-    Frame end,
-    const FfmpegExportOptions& opts,
-    const chronon3d::CpuBudget& cpu_budget);
 
 /// Canonical video-pipeline evaluation: supplies the renderer-owned runtime
 /// through an explicit FrameContext so text services are resolved per render.

@@ -3,7 +3,7 @@
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <string_view>
 
-namespace chronon3d::cli {
+namespace chronon3d::media {
 
 enum class VideoExecutionPath : unsigned char {
     BitstreamCopy,
@@ -29,4 +29,4 @@ struct VideoExecutionDecision {
 [[nodiscard]] VideoExecutionDecision resolve_video_execution(
     const VideoExecutionRequest& request) noexcept;
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::media

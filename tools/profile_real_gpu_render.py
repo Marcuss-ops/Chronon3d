@@ -135,7 +135,7 @@ def main():
         "gpu_encode_failures", "hwframe_transfer_to_cpu_frames", "software_encode_frames"))
     gpu_group = counter_group(("gpu_execute_ms", "gpu_submit_cpu_ms", "gpu_wait_cpu_ms", "gpu_submissions",
         "passes_executed", "gpu_nodes", "cuda_composite_frames", "cuda_composite_wall_us",
-        "interop_ring_wait_count", "interop_ring_wait_us", "cuda_vulkan_wait_count",
+        "frame_slot_wait_count", "frame_slot_wait_us", "cuda_vulkan_wait_count",
         "cuda_vulkan_wait_submit_us", "cuda_vulkan_signal_count", "cuda_vulkan_signal_submit_us",
         "frame_slot_wait_count", "frame_slot_wait_us", "frame_batch_drain_wait_count",
         "frame_batch_drain_wait_us", "standalone_wait_count", "standalone_wait_us",

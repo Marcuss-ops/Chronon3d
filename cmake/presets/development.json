@@ -81,6 +81,26 @@
       }
     },
     {
+      "name": "linux-asan-native",
+      "inherits": "base-linux",
+      "displayName": "Linux ASan + UBSan (native FFmpeg decoder teardown gate)",
+      "description": "AddressSanitizer + UndefinedBehaviorSanitizer debug preset with native FFmpeg video ON. Targeted gate for the decoder teardown stress suite (tests/video/test_native_decoder_teardown_stress.cpp): 1000/1000 CPU concurrent teardown PASS, 0 OOB / 0 UAF / 0 UB. CHRONON3D_ENABLE_VIDEO + CHRONON3D_ENABLE_NATIVE_FFMPEG ON. asan-specific -fsanitize flags override base-linux diag-color+pipe flags.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
+      }
+    },
+    {
       "name": "linux-tsan",
       "inherits": "base-linux",
       "displayName": "Linux TSan (DEBUG, 7-subsystem gate, no unity build)",
@@ -168,6 +188,14 @@
       "jobs": 16
     },
     {
+      "name": "linux-asan-native",
+      "configurePreset": "linux-asan-native",
+      "targets": [
+        "chronon3d_native_decoder_teardown_tests"
+      ],
+      "jobs": 20
+    },
+    {
       "name": "linux-tsan",
       "configurePreset": "linux-tsan",
       "targets": [
@@ -197,6 +225,17 @@
     {
       "name": "linux-asan-test",
       "configurePreset": "linux-asan",
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1:abort_on_error=1:detect_leaks=1:print_summary=1:print_stacktrace=1:fast_unwind_on_fatal=0:check_initialization_order=1:strict_init_order=1:strict_string_checks=1:detect_stack_use_after_return=1:detect_odr_violation=2:malloc_context_size=20",
+        "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:print_summary=1:report_error_type=1"
+      }
+    },
+    {
+      "name": "linux-asan-native-test",
+      "configurePreset": "linux-asan-native",
       "output": {
         "outputOnFailure": true
       },

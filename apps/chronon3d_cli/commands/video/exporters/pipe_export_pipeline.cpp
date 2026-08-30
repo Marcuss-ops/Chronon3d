@@ -1,5 +1,5 @@
 #include "../common/pipe_export_pipeline.hpp"
-#include "../common/video_execution_resolver.hpp"
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 #include "../common/pipe_export_helpers.hpp"
 #include "utils/process_start.hpp"
 
@@ -9,7 +9,6 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
@@ -114,7 +113,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     Frame end,
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
-    runtime::DeviceScheduler* device_scheduler)
+    runtime::DeviceScheduler* device_scheduler,
+    std::shared_ptr<media::VideoJobExecutionContext> execution)
 {
     // P0-1 fix(pipe): construct queue in PipeExportSession ctor.  BoundedChannel
     // holds std::mutex + std::condition_variable internally so it is neither
@@ -123,41 +123,41 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // blocks instead of busy-waiting when all arenas are queued.
     constexpr size_t kArenaPoolCount = 4;
     auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
-    const auto execution = resolve_video_execution(VideoExecutionRequest{
+    const auto path_decision = media::resolve_video_execution(media::VideoExecutionRequest{
         .encoder_backend = opts.encoder.encoder_backend,
         .hardware_encoder = opts.encoder.hardware_encoder,
         .codec = opts.encoder.codec,
         .hot_path = opts.gpu_hot_path_mode,
         .has_gop_source = !opts.gop_source.empty(),
         .gop_copy_only = opts.gop_copy_only});
-    if (!execution.valid) {
-        spdlog::error("[video] execution resolver rejected request: {}", execution.reason);
+    if (!path_decision.valid) {
+        spdlog::error("[video] execution resolver rejected request: {}", path_decision.reason);
         return session;
     }
-    if (execution.path == VideoExecutionPath::BitstreamCopy) {
+    if (path_decision.path == media::VideoExecutionPath::BitstreamCopy) {
         // Packet copy has a separate demux/mux contract and is not a render
         // pipeline. Never silently run it through the renderer while claiming
         // that the resolver selected copy.
         spdlog::error("[video] bitstream-copy execution must use the packet pipeline");
         return session;
     }
-    const bool direct_yuv_requested = execution.path == VideoExecutionPath::DirectYuv;
+    const bool direct_yuv_requested = path_decision.path == media::VideoExecutionPath::DirectYuv;
 
     // Placement is decided once per job by DeviceScheduler. Keep the RAII
     // reservation in the session so it spans setup, encode, drain and close.
-    if (opts.video_execution) {
-        auto& execution = *opts.video_execution;
-        if (!execution.reservation || !execution.video_runtimes) {
+    if (execution) {
+        auto& injected_execution = *execution;
+        if (!injected_execution.reservation || !injected_execution.video_runtimes) {
             spdlog::error("[video] incomplete injected execution context: "
                           "reservation and persistent registry are required");
             return session;
         }
-        if (execution.device_id != execution.reservation->device()) {
+        if (injected_execution.device_id != injected_execution.reservation->device()) {
             spdlog::error("[video] injected device id does not match reservation");
             return session;
         }
-        session->device_id = execution.device_id;
-        session->device_reservation = std::move(execution.reservation);
+        session->device_id = injected_execution.device_id;
+        session->device_reservation = std::move(injected_execution.reservation);
     } else if (device_scheduler) {
         runtime::DeviceSelectionRequirements requirements;
         requirements.resources.compute_units =
@@ -180,21 +180,21 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->device_id = reservation->device();
         session->device_reservation = std::move(*reservation);
     } else {
-        // Legacy callers have no scheduler yet; preserve device 0 explicitly.
-        session->device_id = opts.device_id;
+        // No scheduler was supplied; use the canonical default device.
+        session->device_id = 0;
     }
 
     // Resolve the persistent per-device GPU runtime BEFORE creating the
     // encoder: the encoder borrows the primary CUDA context + FFmpeg
     // hwdevice from it instead of creating its own.
-    if (!video_runtimes && opts.video_execution) {
-        video_runtimes = opts.video_execution->video_runtimes;
+    if (!video_runtimes && execution) {
+        video_runtimes = execution->video_runtimes;
     }
     if (!video_runtimes) {
         video_runtimes = std::make_shared<media::VideoRuntimeRegistry>();
     }
-    const auto cuda_ordinal = opts.video_execution
-        ? opts.video_execution->cuda_device_ordinal : -1;
+    const auto cuda_ordinal = execution
+        ? execution->cuda_device_ordinal : -1;
     session->device_runtime = video_runtimes->get_or_create(
         session->device_id, nullptr, cuda_ordinal);
     if (!session->device_runtime) {
@@ -350,10 +350,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                    env_root && *env_root) {
             direct.asset_resolver->mount(std::filesystem::path{env_root});
         }
-        direct.image_cache = std::make_unique<ImageCache>();
-        direct.image_backend = std::make_shared<image::StbImageBackend>();
-        direct.image_cache->set_backend(direct.image_backend);
-        direct.image_cache->set_asset_resolver(direct.asset_resolver.get());
+        session->device_runtime->image_cache().set_asset_resolver(
+            direct.asset_resolver.get());
     }
 
     // Track FFmpeg process only for ffmpeg pipe sink
@@ -372,7 +370,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         const auto input_t0 = profiling::now();
         std::string direct_reason;
         session->direct_yuv_session->program = DirectYuvProgram::prepare(
-            compiled, *session->direct_yuv_session->image_cache, session->device_runtime,
+            compiled, session->device_runtime->image_cache(), session->device_runtime,
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {
@@ -389,15 +387,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const auto renderer_t0 = profiling::now();
     if (session->direct_yuv_selected()) {
         spdlog::info("[direct-yuv] skipped SoftwareRenderer and RenderRuntime construction");
-    } else if (opts.warm_renderer) {
-        session->full_graph_session = std::make_unique<FullGraphSession>();
-        session->full_graph_session->renderer = opts.warm_renderer;
-        session->full_graph_session->renderer->set_settings(settings);
-        if (session->opts.assets_root) {
-            session->full_graph_session->renderer->runtime().resolver().mount(*session->opts.assets_root);
-        }
-        spdlog::info("[video] Reusing daemon-owned warm renderer");
     } else {
+        session->full_graph_session = std::make_unique<FullGraphSession>();
         session->full_graph_session = std::make_unique<FullGraphSession>();
         Config renderer_cfg = Config::from_environment(cpu_budget);
         if (direct_yuv_requested) {
@@ -492,7 +483,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     // ── Writer thread (context stored in session so it outlives the thread) ─
-    auto writer_ctx = std::unique_ptr<WriterThreadContext>(
+        auto writer_ctx = std::unique_ptr<WriterThreadContext>(
         new WriterThreadContext{
             .queue = session->queue,
             .writer_failed = session->writer_failed,
@@ -508,8 +499,6 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                 opts.backend_preference == graph::BackendPreference::GPU &&
                 opts.encoder.encoder_backend == "native" &&
                 opts.encoder.hardware_encoder == "nvenc",
-            .interop_ring = session->full_graph_session
-                ? &session->full_graph_session->interop_ring : nullptr,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
             .trace_job_id = session->trace_job_id,
         });
@@ -598,9 +587,7 @@ RenderLoopOutput run_pipe_export_loop(
         .queue = session.queue,
         .writer_failed = session.writer_failed,
         .frames_encoded = session.frames_encoded,
-        .interop_ring = session.full_graph_session->interop_ring,
-        .native_encode_surfaces = session.full_graph_session->native_encode_surfaces,
-        .native_source_surfaces = session.full_graph_session->native_source_surfaces,
+        .execution_slots = session.full_graph_session->execution_slots,
         .triple_arena = session.full_graph_session->triple_arena.get(),
         .counters = session.renderer_ptr()->counters(),
         .telemetry_frames = telemetry_frames,
@@ -623,10 +610,6 @@ RenderLoopOutput run_pipe_export_loop(
     // Destroy decoder CUDA/Vulkan imports before any backend/pool cleanup.
     // The imported image must outlive its CUDA external memory bridge.
     if (session.renderer_ptr() && session.renderer_ptr()->counters()) {
-        session.renderer_ptr()->counters()->interop_ring_wait_count.fetch_add(
-            session.full_graph_session->interop_ring.wait_count(), std::memory_order_relaxed);
-        session.renderer_ptr()->counters()->interop_ring_wait_us.fetch_add(
-            session.full_graph_session->interop_ring.wait_us(), std::memory_order_relaxed);
     }
 
     if (session.writer_failed.load()) {
@@ -661,13 +644,7 @@ RenderLoopOutput run_pipe_export_loop(
                  runtime::LifetimeClass::FrameTransient)) {
             (void)rt.surface_registry().release(handle);
         }
-        for (auto& handle : session.full_graph_session->native_source_surfaces) {
-            if (handle != runtime::kInvalidRenderSurfaceHandle) {
-                (void)rt.backend().release_surface(handle);
-                (void)rt.surface_registry().release(handle);
-                handle = runtime::kInvalidRenderSurfaceHandle;
-            }
-        }
+        session.full_graph_session->execution_slots.close();
     }
 
     return output;

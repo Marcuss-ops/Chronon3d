@@ -1,17 +1,15 @@
 #pragma once
 
-#include <chronon3d/media/video/packet_assembler.hpp>
-
 #include <cstdint>
+#include <memory>
+#include <string>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 }
 
-namespace chronon3d::cli {
-
-using PacketAssembler = chronon3d::media::PacketAssembler;
+namespace chronon3d::media {
 
 enum class AudioExecutionPath : std::uint8_t {
     CopyPackets,
@@ -20,7 +18,6 @@ enum class AudioExecutionPath : std::uint8_t {
     FullReencode,
 };
 
-/// Selects the compressed-audio path without decoding unchanged samples.
 constexpr AudioExecutionPath resolve_audio_execution(
     bool content_changed, bool boundary_trim, bool codec_compatible) noexcept {
     if (!content_changed && !boundary_trim && codec_compatible) {
@@ -35,12 +32,39 @@ constexpr AudioExecutionPath resolve_audio_execution(
     return AudioExecutionPath::FullReencode;
 }
 
-/// Canonical packet-level mux boundary shared by native encoding and
-/// BitstreamCopy. The assembler does not own the format context; its caller
-/// owns container lifetime while all encoded and copied packets converge on
-/// these operations.
-/* PacketAssembler is the canonical media::PacketAssembler. */
-#if 0
+/// Canonical mux boundary shared by encoded and copied packets.
+struct EncodedPacket {
+    std::shared_ptr<AVPacket> packet;
+    AVRational time_base{1, 1};
+    bool keyframe{false};
+};
+
+class MuxSession final {
+public:
+    MuxSession() = default;
+    ~MuxSession();
+    MuxSession(const MuxSession&) = delete;
+    MuxSession& operator=(const MuxSession&) = delete;
+
+    [[nodiscard]] bool open(const std::string& output_path,
+                            const AVCodecContext& codec,
+                            std::string& reason);
+    [[nodiscard]] bool submit(EncodedPacket packet) noexcept;
+    [[nodiscard]] bool finalize() noexcept;
+    [[nodiscard]] double open_header_ms() const noexcept { return open_header_ms_; }
+    [[nodiscard]] double packet_write_ms() const noexcept { return packet_write_ms_; }
+    [[nodiscard]] double trailer_ms() const noexcept { return trailer_ms_; }
+
+private:
+    AVFormatContext* format_{nullptr};
+    AVStream* video_stream_{nullptr};
+    double open_header_ms_{0.0};
+    double packet_write_ms_{0.0};
+    double trailer_ms_{0.0};
+};
+
+/// Compatibility packet mux boundary for callers that still own a format
+/// context. New encoded paths should use MuxSession.
 class PacketAssembler final {
 public:
     PacketAssembler(AVFormatContext* format, AVStream* video_stream,
@@ -51,9 +75,6 @@ public:
     PacketAssembler& operator=(const PacketAssembler&) = delete;
 
     [[nodiscard]] bool submit_video(AVPacket& packet, AVRational source_time_base) const noexcept;
-    /// Submit an already encoded packet (e.g. an untouched safe GOP).
-    /// Kept distinct from submit_video so the GOP planner can account for
-    /// copied versus reencoded work without changing the mux boundary.
     [[nodiscard]] bool submit_copied_video(
         AVPacket& packet, AVRational source_time_base) const noexcept;
     [[nodiscard]] bool submit_audio(AVPacket& packet, AVRational source_time_base) const noexcept;
@@ -61,11 +82,10 @@ public:
 
 private:
     [[nodiscard]] bool submit(AVPacket& packet, AVRational source_time_base,
-                               AVStream* target, bool default_duration) const noexcept;
+                              AVStream* target, bool default_duration) const noexcept;
     AVFormatContext* format_{nullptr};
     AVStream* video_stream_{nullptr};
     AVStream* audio_stream_{nullptr};
 };
-#endif
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::media

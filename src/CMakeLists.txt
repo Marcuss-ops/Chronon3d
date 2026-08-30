@@ -122,6 +122,7 @@ endif()
 add_subdirectory(render_graph)      # chronon3d_graph
 add_subdirectory(runtime)           # chronon3d_runtime
 add_subdirectory(verification)      # chronon3d_verification (render receipt)
+add_subdirectory(vidrush)           # chronon3d_vidrush (provenance report contracts)
 add_subdirectory(render_plan)      # chronon3d_render_plan (JSON Schema validator)
 add_subdirectory(extension)        # chronon3d_extension (Fase 5)
 add_subdirectory(backends/software) # chronon3d_backend_software

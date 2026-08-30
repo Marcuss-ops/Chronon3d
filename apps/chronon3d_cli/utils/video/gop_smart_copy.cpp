@@ -1,7 +1,7 @@
 #include "gop_smart_copy.hpp"
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-#include "packet_assembler.hpp"
+#include <chronon3d/media/video/packet_assembler.hpp>
 extern "C" {
 #include <libavformat/avformat.h>
 }
@@ -170,8 +170,14 @@ std::optional<GopCopyResult> copy_gop_source(
         return std::nullopt;
     }
     const auto fail = [&]() -> std::optional<GopCopyResult> {
-        if (output->pb && !(output->oformat->flags & AVFMT_NOFILE)) avio_closep(&output->pb);
-        avformat_free_context(output);
+        if (output) {
+            if (output->pb && output->oformat &&
+                !(output->oformat->flags & AVFMT_NOFILE)) {
+                avio_closep(&output->pb);
+            }
+            avformat_free_context(output);
+            output = nullptr;
+        }
         close_input();
         return std::nullopt;
     };
@@ -197,7 +203,7 @@ std::optional<GopCopyResult> copy_gop_source(
         return fail();
     }
     if (avformat_write_header(output, nullptr) < 0) return fail();
-    PacketAssembler assembler(output, output_video, output_audio);
+    chronon3d::media::PacketAssembler assembler(output, output_video, output_audio);
 
     const auto to_source_pts = [](double seconds, AVRational time_base) {
         return static_cast<std::int64_t>(std::llround(seconds / av_q2d(time_base)));
@@ -246,8 +252,12 @@ std::optional<GopCopyResult> copy_gop_source(
     av_packet_free(&packet);
     if (!selected_video_started) return fail();
     if (!assembler.finalize()) return fail();
-    if (output->pb && !(output->oformat->flags & AVFMT_NOFILE)) avio_closep(&output->pb);
+    if (output->pb && output->oformat &&
+        !(output->oformat->flags & AVFMT_NOFILE)) {
+        avio_closep(&output->pb);
+    }
     avformat_free_context(output);
+    output = nullptr;
     close_input();
     return result;
 #endif

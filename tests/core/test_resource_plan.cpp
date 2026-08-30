@@ -96,12 +96,12 @@ TEST_CASE("ResourcePlanner keeps persistent resources distinct and excludes exte
     ResourcePlanner planner;
     ResourceRequest persistent_a{"persistent-a", ResourceKind::Color, 64,
                                 LifetimeClass::JobPersistent, 0, 0, 16};
-    persistent_a.desc.lifetime = ResourceLifetime::Persistent;
+    persistent_a.desc.lifetime = LifetimeClass::JobPersistent;
     ResourceRequest persistent_b{"persistent-b", ResourceKind::Color, 64,
                                 LifetimeClass::JobPersistent, 1, 1, 16};
-    persistent_b.desc.lifetime = ResourceLifetime::Persistent;
+    persistent_b.desc.lifetime = LifetimeClass::JobPersistent;
     ResourceRequest external{"external", ResourceKind::Color, 64, {}, 0, 1, 16};
-    external.desc.lifetime = ResourceLifetime::External;
+    external.desc.lifetime = LifetimeClass::External;
     planner.add(persistent_a);
     planner.add(persistent_b);
     planner.add(external);

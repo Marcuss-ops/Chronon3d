@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ffmpeg_pipe_encoder.hpp"
-#include "packet_assembler.hpp"
+#include <chronon3d/media/video/packet_assembler.hpp>
 #include "direct_yuv_frame.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <cstddef>
@@ -22,7 +22,6 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/opt.h>
@@ -78,6 +77,11 @@ public:
         runtime::RenderSurfaceHandle destination) override;
     bool close() override;
 
+    /// Safe, idempotent cleanup used by close(), the destructor, and failed
+    /// partial-open paths. It never throws and leaves all owned FFmpeg/CUDA
+    /// handles null.
+    void shutdown_noexcept() noexcept;
+
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
     [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
 
@@ -113,7 +117,7 @@ public:
     [[nodiscard]] double open_hw_ctx_ms() const override { return open_hw_ctx_ms_; }
     [[nodiscard]] double cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
     [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
-    [[nodiscard]] double open_mux_header_ms() const override { return open_mux_header_ms_; }
+    [[nodiscard]] double open_mux_header_ms() const override { return mux_ ? mux_->open_header_ms() : 0.0; }
 
 private:
     chronon3d::RenderCounters* counters_{nullptr};
@@ -122,7 +126,6 @@ private:
     double open_hw_ctx_ms_{0.0};
     double cuda_compositor_warmup_ms_{0.0};
     double open_nvenc_ms_{0.0};
-    double open_mux_header_ms_{0.0};
     double encoder_hwframe_get_buffer_ms_{0.0};
     double encoder_surface_acquire_ms_{0.0};
     double encoder_nvenc_submit_ms_{0.0};
@@ -132,10 +135,8 @@ private:
     double direct_yuv_cuda_wait_ms_{0.0};
 
     // FFmpeg objects
-    AVFormatContext* fmt_{nullptr};
+    std::unique_ptr<chronon3d::media::MuxSession> mux_;
     AVCodecContext*  codec_{nullptr};
-    AVStream*        stream_{nullptr};
-    std::unique_ptr<PacketAssembler> packet_assembler_;
     AVFrame*         frame_{nullptr};
     AVPacket*        packet_{nullptr};
 

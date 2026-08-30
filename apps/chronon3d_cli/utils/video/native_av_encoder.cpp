@@ -73,7 +73,7 @@ bool validate_encoder_options(const FfmpegPipeOptions& options) {
 } // namespace
 
 bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
-    if (fmt_ || codec_) {
+    if (mux_ || codec_) {
         spdlog::error("[native_av] Encoder already open");
         return false;
     }
@@ -127,13 +127,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     direct_yuv_cuda_launch_ms_     = 0.0;
     direct_yuv_cuda_wait_ms_       = 0.0;
 
-    // 1. Allocate format context (MP4 muxer)
     const std::string filename = options_.output_path;
-    avformat_alloc_output_context2(&fmt_, nullptr, nullptr, filename.c_str());
-    if (!fmt_) {
-        spdlog::error("[native_av] avformat_alloc_output_context2 failed for '{}'", filename);
-        return false;
-    }
 
     // 2. Find the encoder
     const AVCodec* encoder = avcodec_find_encoder_by_name(resolve_encoder_name(options_));
@@ -287,10 +281,6 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (!set_codec_option_checked(codec_, "tune", tune)) return false;
     }
 
-    // Global header if the container format requires it
-    if (fmt_->oformat->flags & AVFMT_GLOBALHEADER) {
-        codec_->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    }
 
     // 4. Open the codec
     const auto nvenc_t0 = Clock::now();
@@ -300,39 +290,13 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
     open_nvenc_ms_ = elapsed_ms(nvenc_t0);
 
-    // 5. Create stream
-    const auto mux_t0 = Clock::now();
-    stream_ = avformat_new_stream(fmt_, nullptr);
-    if (!stream_) {
-        spdlog::error("[native_av] avformat_new_stream failed");
+    // MuxSession owns all libavformat state and container I/O.
+    mux_ = std::make_unique<chronon3d::media::MuxSession>();
+    std::string mux_reason;
+    if (!mux_->open(filename, *codec_, mux_reason)) {
+        spdlog::error("[native_av] mux session open failed: {}", mux_reason);
         return false;
     }
-    stream_->time_base = codec_->time_base;
-
-    if (avcodec_parameters_from_context(stream_->codecpar, codec_) < 0) {
-        spdlog::error("[native_av] avcodec_parameters_from_context failed");
-        return false;
-    }
-
-    // 6. Open output file
-    if (!(fmt_->oformat->flags & AVFMT_NOFILE)) {
-        if (avio_open(&fmt_->pb, filename.c_str(), AVIO_FLAG_WRITE) < 0) {
-            spdlog::error("[native_av] avio_open failed for '{}'", filename);
-            return false;
-        }
-    }
-
-    // 7. Write header (no +faststart for benchmarks — adds write-seek overhead)
-    AVDictionary* mux_opts = nullptr;
-    // No +faststart — we want clean close() timing for benchmarks.
-    // faststart can be added in a follow-up when the user needs streaming MP4.
-    if (avformat_write_header(fmt_, &mux_opts) < 0) {
-        spdlog::error("[native_av] avformat_write_header failed");
-        return false;
-    }
-    open_mux_header_ms_ = elapsed_ms(mux_t0);
-
-    packet_assembler_ = std::make_unique<PacketAssembler>(fmt_, stream_);
 
     // 8. Allocate frame + packet
     frame_  = av_frame_alloc();
@@ -396,10 +360,10 @@ bool NativeAvEncoder::close() {
     //    This is the mux finalization, measured separately from the encoder
     //    flush so the two tails never mask each other.
     const auto t_trailer0 = Clock::now();
-    if (packet_assembler_) {
-        spdlog::info("[native_av] close: finalizing packet assembler");
-        (void)packet_assembler_->finalize();
-        spdlog::info("[native_av] close: packet assembler finalized");
+    if (mux_) {
+        spdlog::info("[native_av] close: finalizing mux session");
+        (void)mux_->finalize();
+        spdlog::info("[native_av] close: mux session finalized");
     }
     const double trailer_ms = elapsed_ms(t_trailer0);
 
@@ -412,17 +376,9 @@ bool NativeAvEncoder::close() {
             static_cast<uint64_t>(trailer_ms), std::memory_order_relaxed);
     }
 
-    // 5. Close the IO
-    if (fmt_ && !(fmt_->oformat->flags & AVFMT_NOFILE)) {
-        spdlog::info("[native_av] close: closing mux IO");
-        avio_closep(&fmt_->pb);
-        spdlog::info("[native_av] close: mux IO closed");
-    }
 
-    // Keep all FFmpeg/CUDA objects alive until the encoder object is destroyed.
-    // The caller retires the renderer's Vulkan imports immediately after this
-    // method returns, then destroys the encoder. Destroying the codec here can
-    // wait forever because NVENC still owns an interop reference.
+    // Codec teardown remains encoder-owned; container teardown is owned by
+    // MuxSession and happens after the trailer has been written.
 
     spdlog::info("[native_av] Closed native encoder — {} frames written, YUV cache: {} hits / {} misses",
                  frames_written_, cache_hits_, cache_misses_);
@@ -430,8 +386,19 @@ bool NativeAvEncoder::close() {
 }
 
 NativeAvEncoder::~NativeAvEncoder() {
+    shutdown_noexcept();
+}
+
+void NativeAvEncoder::shutdown_noexcept() noexcept {
+    // close() performs the codec drain/trailer only while the encoder is
+    // fully open. Any exception or failed open must use the abort path.
     if (open_complete_) {
-        close();
+        try {
+            (void)close();
+        } catch (...) {
+            spdlog::error("[native_av] exception during destructor close; forcing abort cleanup");
+            abort_open();
+        }
     } else {
         abort_open();
     }
@@ -460,17 +427,12 @@ void NativeAvEncoder::abort_open() noexcept {
         cuda_stream_ = nullptr;
     }
 #endif
+    // Release frame/packet wrappers and codec state. MuxSession owns all
+    // libavformat state and closes its container independently.
     av_packet_free(&packet_);
     av_frame_free(&frame_);
     avcodec_free_context(&codec_);
-    packet_assembler_.reset();
-    if (fmt_ && fmt_->pb && fmt_->oformat &&
-        !(fmt_->oformat->flags & AVFMT_NOFILE)) {
-        avio_closep(&fmt_->pb);
-    }
-    avformat_free_context(fmt_);
-    fmt_ = nullptr;
-    stream_ = nullptr;
+    mux_.reset();
     packet_ = nullptr;
     frame_ = nullptr;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

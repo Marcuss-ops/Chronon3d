@@ -16,7 +16,7 @@ double elapsed_ms(const Clock::time_point& start) {
 // ---------------------------------------------------------------------------
 
 bool NativeAvEncoder::drain_packets() {
-    if (!codec_ || !fmt_ || !stream_ || !packet_) {
+    if (!codec_ || !mux_ || !packet_) {
         return false;
     }
 
@@ -36,10 +36,16 @@ bool NativeAvEncoder::drain_packets() {
         }
 
         const auto t_mux0 = Clock::now();
-        ret = packet_assembler_ &&
-                      packet_assembler_->submit_video(*packet_, codec_->time_base)
-                  ? 0
-                  : AVERROR_EXTERNAL;
+        auto owned_packet = std::shared_ptr<AVPacket>(av_packet_alloc(), [](AVPacket* value) {
+            if (value) av_packet_free(&value);
+        });
+        if (!owned_packet || av_packet_ref(owned_packet.get(), packet_) < 0) {
+            ret = AVERROR(ENOMEM);
+        } else {
+            ret = mux_->submit(media::EncodedPacket{
+                std::move(owned_packet), codec_->time_base,
+                (packet_->flags & AV_PKT_FLAG_KEY) != 0}) ? 0 : AVERROR_EXTERNAL;
+        }
         const double mux_ms = elapsed_ms(t_mux0);
         native_mux_write_ms_ += mux_ms;
 

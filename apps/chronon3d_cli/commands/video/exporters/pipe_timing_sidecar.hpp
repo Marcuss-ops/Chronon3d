@@ -90,8 +90,6 @@ struct GpuMetrics {
     std::optional<std::uint64_t> video_native_fallback_frames;
     std::optional<std::uint64_t> gpu_surface_create_failures;
     std::optional<std::uint64_t> gpu_encode_failures;
-    std::optional<std::uint64_t> interop_ring_wait_count;
-    std::optional<std::uint64_t> interop_ring_wait_us;
     std::optional<std::uint64_t> cuda_vulkan_wait_count;
     std::optional<std::uint64_t> cuda_vulkan_wait_submit_us;
     std::optional<std::uint64_t> cuda_vulkan_signal_count;
@@ -238,6 +236,7 @@ struct InternalEncoderProfiling {
 
 struct JobTimings {
     std::optional<double> process_wall_ms;
+    std::optional<std::string> measurement_kind;
     std::optional<double> job_wall_ms;
     std::optional<double> engine_init_ms;
     std::optional<double> backend_init_ms;
@@ -280,6 +279,8 @@ struct JobTimings {
     InternalEncoderProfiling internal_encoder;
     StartupBreakdown startup_breakdown;
     PrepareBreakdown prepare_breakdown;
+    std::optional<double> startup_accounted_ms;
+    std::optional<double> startup_unaccounted_ms;
 };
 
 } // namespace chronon3d::cli::pipe_timing

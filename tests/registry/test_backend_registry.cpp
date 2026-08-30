@@ -2170,7 +2170,7 @@ TEST_CASE("command planner aliases non-overlapping transient surfaces") {
     const RenderSurfaceHandle output{3};
     const ResourceDesc desc{16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
                             16 * 8 * 4, alignof(std::max_align_t),
-                            ResourceLifetime::Transient};
+                            LifetimeClass::FrameTransient};
     planner.declare_surface(input, desc);
     planner.declare_surface(scratch, desc);
     planner.declare_surface(output, desc);
@@ -2247,7 +2247,7 @@ TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
 
     const ResourceDesc desc{16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
                             16 * 8 * 4, alignof(std::max_align_t),
-                            ResourceLifetime::Transient};
+                            LifetimeClass::FrameTransient};
     GpuCommandPlanner planner;
     planner.declare_surface(input, desc);
     planner.declare_surface(scratch, desc);

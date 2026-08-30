@@ -9,6 +9,7 @@ set(_cli_tests_link_targets
     chronon3d_sdk
     chronon3d_sdk_impl
     chronon3d_pipeline
+    chronon3d_vidrush
     chronon3d_scene
     chronon3d_backend_software
     chronon3d_backend_image
@@ -25,6 +26,7 @@ set(_cli_test_sources
     cli/test_populate_run_host_attribs.cpp
     cli/test_render_job_write_frame_sanity.cpp
     cli/test_semantic_script.cpp
+    cli/test_vidrush_visual_unit_report.cpp
 )
 
 # Video exporter tests are appended only when the implementation target exists.
@@ -37,7 +39,6 @@ if(TARGET chronon3d_cli_video_export)
     list(APPEND _cli_test_sources
         cli/test_render_loop_integration.cpp
         ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/video_export_common.cpp
-        cli/test_frame_chunks.cpp
         cli/test_pipe_export_helpers.cpp
         cli/test_video_end_semantics.cpp
         cli/test_video_sink_encoders.cpp
