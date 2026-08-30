@@ -56,11 +56,10 @@ std::shared_ptr<const CompiledComposition> make_test_composition() {
     spec.height      = 1080;
     spec.frame_rate  = FrameRate{30, 1};
     spec.duration    = Frame{100};
-    auto definition = std::make_shared<CompositionDefinition>();
-    definition->composition = std::move(spec);
-    definition->scene = [](const FrameContext&) { return Scene{}; };
+    auto composition = std::make_shared<Composition>(
+        std::move(spec), [](const FrameContext&) { return Scene{}; });
     auto compiled = std::make_shared<CompiledComposition>();
-    compiled->definition = std::move(definition);
+    compiled->composition = std::move(composition);
     return compiled;
 }
 
