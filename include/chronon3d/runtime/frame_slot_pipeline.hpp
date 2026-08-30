@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 #include <chronon3d/runtime/bounded_spsc_ring.hpp>
+#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
 
 #include <array>
 #include <cstddef>
@@ -13,14 +14,6 @@
 #include <optional>
 
 namespace chronon3d::runtime {
-
-enum class FrameSlotState : std::uint8_t {
-    Free,
-    Evaluating,
-    Evaluated,
-    Rendered,
-    Encoding,
-};
 
 struct FrameSlot {
     Frame frame{-1};

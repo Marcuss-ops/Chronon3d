@@ -30,6 +30,9 @@ public:
 /// Discrete lifecycle states for an execution slot in the streaming pipeline.
 enum class FrameSlotState : std::uint8_t {
     Free,
+    Evaluating,
+    Evaluated,
+    Rendered,
     GpuWriting,
     ReadyForEncode,
     Encoding
