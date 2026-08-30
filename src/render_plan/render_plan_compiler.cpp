@@ -511,7 +511,7 @@ compile_render_plan(
         definition.composition = spec;
         definition.scene = [plan, canvas, subtitles, resolved_video_paths,
                             prepared_texts, prepared_image_positions,
-                            prepared_images, font_engine](
+                            prepared_images, font_resolver, font_engine](
                                const FrameContext& ctx) {
                 SceneBuilder scene(ctx);
                 // Cascade the resolver-backed engine through every layer
