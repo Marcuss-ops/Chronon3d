@@ -159,6 +159,26 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // Phase 9 — Frame-timing sidecar (job timings now include validation + finalize)
     const bool is_native = (session->opts.encoder.encoder_backend == "native");
     pipe_timing::JobTimings timings;
+    // ── Canonical execution_path ─────────────────────────────────────
+    // Single authority: determined from the session's actual mode, NOT
+    // from counter heuristics. This eliminates the ambiguity where a
+    // Direct-YUV job (native NVENC, no Vulkan) was reported as "GPU
+    // Vulkan" in the sidecar.
+    if (session->direct_yuv_selected()) {
+        timings.execution_path = "direct_yuv";
+    } else if (is_native) {
+        timings.execution_path = "full_graph_native";
+    } else {
+        timings.execution_path = "full_graph";
+    }
+    // Bump the frame counter for the selected path so the sidecar can
+    // distinguish zero-GPU paths (bitstream_copy_frames > 0) from GPU
+    // paths (nvenc_frames > 0, vulkan_frames > 0).
+    if (counters) {
+        if (session->direct_yuv_selected()) {
+            counters->nvenc_frames.fetch_add(0, std::memory_order_relaxed);  // already counted by encoder
+        }
+    }
     timings.job_wall_ms = wall_time_ms;
     timings.process_wall_ms = profiling::duration_ms(process_start_time(), wall_t0);
     timings.measurement_kind = chronon3d::cli::startup_measurement_kind_name(
@@ -309,6 +329,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.gpu_readback_bytes = c->gpu_readback_bytes.load(std::memory_order_relaxed);
         timings.gpu.nvenc_frames = c->nvenc_frames.load(std::memory_order_relaxed);
         timings.gpu.software_encode_frames = c->software_encode_frames.load(std::memory_order_relaxed);
+        timings.gpu.bitstream_copy_frames = c->bitstream_copy_frames.load(std::memory_order_relaxed);
+        timings.gpu.vulkan_frames = c->vulkan_frames.load(std::memory_order_relaxed);
+        timings.gpu.cpu_readback_frames = c->cpu_readback_frames.load(std::memory_order_relaxed);
         timings.gpu.decode_submit_ms = c->decode_submit_ms.load(std::memory_order_relaxed);
         timings.gpu.decode_wait_ms = c->decode_wait_ms.load(std::memory_order_relaxed);
         timings.gpu.hwframe_transfer_ms = c->hwframe_transfer_ms.load(std::memory_order_relaxed);
@@ -370,6 +393,27 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.cache.image_cache_misses = session->prepare_timings.image_cache_misses;
     timings.cache.font_cache_hits = session->prepare_timings.font_cache_hits;
     timings.cache.font_cache_misses = session->prepare_timings.font_cache_misses;
+
+    // ── Runtime persistence projection ─────────────────────────────────
+    // The VideoRuntimeRegistry and VideoDeviceRuntime bump these atomics
+    // when they reuse or create per-device state. Projecting them into the
+    // sidecar makes the churn visible per-clip: the first clip on each
+    // device shows runtime_created=1, every subsequent clip shows
+    // runtime_reused=1 (the persistent daemon registry was reused).
+    if (counters) {
+        auto* c = counters;
+        timings.runtime.video_runtime_created = c->video_runtime_created.load(std::memory_order_relaxed);
+        timings.runtime.video_runtime_reused = c->video_runtime_reused.load(std::memory_order_relaxed);
+        timings.runtime.cuda_hwdevice_created = c->cuda_hwdevice_created.load(std::memory_order_relaxed);
+        timings.runtime.cuda_hwdevice_reused = c->cuda_hwdevice_reused.load(std::memory_order_relaxed);
+        timings.runtime.cuda_frames_cache_hit = c->cuda_frames_cache_hit.load(std::memory_order_relaxed);
+        timings.runtime.cuda_frames_cache_miss = c->cuda_frames_cache_miss.load(std::memory_order_relaxed);
+        timings.runtime.cuda_image_cache_hit = c->cuda_image_cache_hit.load(std::memory_order_relaxed);
+        timings.runtime.cuda_image_cache_miss = c->cuda_image_cache_miss.load(std::memory_order_relaxed);
+    }
+    // encoder_open_nvenc_ms is already measured in startup_breakdown.
+    timings.runtime.encoder_open_nvenc_ms =
+        session->startup_breakdown.encoder_open_nvenc_ms;
 
     // GPU backend counters (Vulkan) flow into the sidecar's job.gpu object so
     // gpu_execute / gpu_readback are measured next to the encoder phases in a

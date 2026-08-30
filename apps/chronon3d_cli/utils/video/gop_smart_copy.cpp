@@ -12,6 +12,7 @@ extern "C" {
 #include <filesystem>
 #include <string_view>
 #include <limits>
+#include <cstring>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 namespace {
@@ -29,10 +30,46 @@ bool codec_matches(AVCodecID source, std::string_view requested) noexcept {
     if (requested == "vp9") return source == AV_CODEC_ID_VP9;
     return false;
 }
+bool extradata_equal(const AVCodecParameters& source,
+                     const AVCodecParameters& output) noexcept {
+    if (source.extradata_size <= 0 || output.extradata_size <= 0 ||
+        !source.extradata || !output.extradata) {
+        return false;
+    }
+    return source.extradata_size == output.extradata_size &&
+        std::memcmp(source.extradata, output.extradata,
+                    static_cast<std::size_t>(source.extradata_size)) == 0;
+}
 } // namespace
 #endif
 
 namespace chronon3d::cli {
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+BitstreamCompatibility compare_bitstream_compatibility(
+    const AVCodecParameters& source,
+    const AVCodecParameters& output,
+    bool random_access_safe) noexcept {
+    BitstreamCompatibility result;
+    result.codec_match = source.codec_id != AV_CODEC_ID_NONE &&
+        source.codec_id == output.codec_id;
+    result.profile_match = source.profile >= 0 &&
+        source.profile == output.profile;
+    result.level_compatible = source.level >= 0 &&
+        output.level >= 0 && source.level == output.level;
+    result.dimensions_match = source.width > 0 && source.height > 0 &&
+        source.width == output.width && source.height == output.height;
+    result.pixel_format_match = source.format >= 0 &&
+        source.format == output.format;
+    result.parameter_sets_compatible = extradata_equal(source, output);
+    result.color_params_match = source.color_range == output.color_range &&
+        source.color_space == output.color_space &&
+        source.color_primaries == output.color_primaries &&
+        source.color_trc == output.color_trc;
+    result.random_access_safe = random_access_safe;
+    return result;
+}
+#endif
 
 std::optional<GopSourceAnalysis> inspect_gop_source(
     const std::string& path,
@@ -67,9 +104,13 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         close_format();
         return std::nullopt;
     }
+    const auto* source_params = format->streams[video_stream_index]->codecpar;
     const bool codec_parameters_match = codec_matches(
-        format->streams[video_stream_index]->codecpar->codec_id,
-        requested_codec);
+        source_params->codec_id, requested_codec);
+    // No output encoder parameters are available during source inspection.
+    // Keep this aggregate only for diagnostics; plan_gop remains fail-closed
+    // until the caller supplies an actual output configuration.
+    const BitstreamCompatibility unavailable_compatibility{};
     const auto time_base = format->streams[video_stream_index]->time_base;
     const double time_base_seconds = av_q2d(time_base);
     if (!(time_base_seconds > 0.0)) {
@@ -113,13 +154,29 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         const auto& last = group.back();
         const bool intersects = edit_end > edit_start &&
             last.pts >= edit_start && first.pts < edit_end;
-        result.plans.push_back(plan_gop(analyze_gop(
-            group, codec_parameters_match, intersects)));
+        auto analysis = analyze_gop(group, codec_parameters_match, intersects);
+        analysis.compatibility = unavailable_compatibility;
+        auto plan = plan_gop(analysis);
+        plan.ordinal = result.plans.size();
+        result.plans.push_back(plan);
     }
     close_format();
     if (result.plans.empty()) return std::nullopt;
     result.first_pts = result.plans.front().first_pts;
     result.last_pts = result.plans.back().last_pts;
+    // Aggregate the per-GOP plans into copy/reencode counts and the
+    // all_copy_eligible flag. all_copy_eligible requires every GOP to
+    // be copy-eligible AND the bitstream compatibility gate to be safe.
+    result.copy_count = 0;
+    result.reencode_count = 0;
+    for (const auto& plan : result.plans) {
+        if (plan.copy_packets()) {
+            ++result.copy_count;
+        } else {
+            ++result.reencode_count;
+        }
+    }
+    result.all_copy_eligible = result.valid() && result.copy_count == result.plans.size();
     return result;
 #endif
 }
