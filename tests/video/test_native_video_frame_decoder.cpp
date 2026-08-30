@@ -65,7 +65,7 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
     CHECK(desc.height == height);
     CHECK(desc.format == chronon3d::runtime::PixelFormat::Rgba32Float);
     CHECK(desc.usage == chronon3d::runtime::ResourceUsage::Storage);
-    CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::JobPersistent);
+    CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::FrameTransient);
     // float4 write view must fit exactly inside the external allocation.
     CHECK(desc.bytes == static_cast<std::size_t>(width) * height * 16);
     CHECK(desc.bytes ==
@@ -113,4 +113,3 @@ TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
     CHECK(frame_b->height() == 2);
     CHECK(frame_a->get_pixel(0, 0).r != doctest::Approx(frame_b->get_pixel(0, 0).r));
 }
-

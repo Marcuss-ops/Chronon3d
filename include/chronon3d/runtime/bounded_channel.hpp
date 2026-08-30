@@ -34,6 +34,10 @@ public:
     /// cancelled before the item can be enqueued.  On success the item is
     /// moved into the queue; on failure the caller retains ownership.
     bool push(T& item, const CancellationToken* token = nullptr) {
+        const auto callback_id = token ? token->on_cancel([this]() {
+            not_full_.notify_all();
+            not_empty_.notify_all();
+        }) : 0;
         std::unique_lock<std::mutex> lock(mutex_);
         if (capacity_ > 0) {
             not_full_.wait(lock, [this, token]() {
@@ -41,25 +45,44 @@ public:
                 return closed_ || queue_.size() < capacity_;
             });
         }
-        if (closed_) return false;
-        if (token && token->is_cancelled()) return false;
+        if (closed_) {
+            if (token) token->remove_on_cancel(callback_id);
+            return false;
+        }
+        if (token && token->is_cancelled()) {
+            token->remove_on_cancel(callback_id);
+            return false;
+        }
         queue_.push(std::move(item));
         not_empty_.notify_one();
+        if (token) token->remove_on_cancel(callback_id);
         return true;
     }
 
     /// Blocking pop.  Returns false when the channel is closed and empty, or
     /// when the token is cancelled.
     bool pop(T& item, const CancellationToken* token = nullptr) {
+        const auto callback_id = token ? token->on_cancel([this]() {
+            not_full_.notify_all();
+            not_empty_.notify_all();
+        }) : 0;
         std::unique_lock<std::mutex> lock(mutex_);
         not_empty_.wait(lock, [this, token]() {
             if (token && token->is_cancelled()) return true;
             return closed_ || !queue_.empty();
         });
-        if (closed_ && queue_.empty()) return false;
+        if (closed_ && queue_.empty()) {
+            if (token) token->remove_on_cancel(callback_id);
+            return false;
+        }
+        if (token && token->is_cancelled()) {
+            if (token) token->remove_on_cancel(callback_id);
+            return false;
+        }
         item = std::move(queue_.front());
         queue_.pop();
         not_full_.notify_one();
+        if (token) token->remove_on_cancel(callback_id);
         return true;
     }
 

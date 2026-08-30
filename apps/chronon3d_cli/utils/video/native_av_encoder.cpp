@@ -66,7 +66,8 @@ namespace {
 
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
     return options.width > 0 && options.height > 0 &&
-           options.fps > 0 && !options.output_path.empty();
+           options.canonical_fps_num() > 0 && options.canonical_fps_den() > 0 &&
+           !options.output_path.empty();
 }
 
 } // namespace
@@ -86,6 +87,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
 
     options_ = options;
+    // Normalize the last external integer-only callers at the boundary. All
+    // FFmpeg state below is then derived from the rational contract.
+    options_.fps_num = options.canonical_fps_num();
+    options_.fps_den = options.canonical_fps_den();
     frames_written_ = 0;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     frames_submitted_ = 0;
@@ -146,15 +151,16 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 
     codec_->width     = options_.width;
     codec_->height    = options_.height;
-    codec_->time_base = AVRational{1, options_.fps};
-    codec_->framerate = AVRational{options_.fps, 1};
+    codec_->time_base = AVRational{options_.fps_den, options_.fps_num};
+    codec_->framerate = AVRational{options_.fps_num, options_.fps_den};
     // GOP size = 1 second (fps frames) for reliable decoder compatibility.
     // With fps*2, the very subtle tracking_breathing animation (4% scale over
     // 120 frames) produces P-frames with 99.7% skip on the "ultrafast" preset
     // — some H.264 decoders can't decode those near-empty P-frames, resulting
     // in visible frames only at keyframe intervals.  fps*2 worked for most
     // content but broke for near-static scenes with tiny per-frame changes.
-    codec_->gop_size  = options_.fps;  // was fps * 2
+    codec_->gop_size  = std::max(1, static_cast<int>(std::llround(
+        static_cast<double>(options_.fps_num) / options_.fps_den)));
     codec_->max_b_frames = 0;              // no B-frames for lowest latency
 
     // NVENC consumes CUDA frames. The GPU path is enabled only for the
@@ -208,18 +214,16 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             spdlog::error("[native_av] FFmpeg CUDA stream creation failed");
             return false;
         }
-        cuda_frames_ref_ = av_hwframe_ctx_alloc(cuda_device_ref_);
-        if (!cuda_frames_ref_) return false;
-        auto* frames = reinterpret_cast<AVHWFramesContext*>(cuda_frames_ref_->data);
-        frames->format = AV_PIX_FMT_CUDA;
-        // NVENC consumes CUDA NV12/P010 planes directly. Keeping NV12 here
-        // lets the Vulkan RGBA surface be converted by the 2x2 CUDA kernel
-        // straight into the encoder frame, with no RGBA staging allocation.
-        frames->sw_format = AV_PIX_FMT_NV12;
-        frames->width = options_.width;
-        frames->height = options_.height;
-        frames->initial_pool_size = 4;
-        if (av_hwframe_ctx_init(cuda_frames_ref_) < 0) return false;
+        std::string frames_reason;
+        cuda_frames_ref_ = device_runtime_->ref_cuda_frames(
+            static_cast<std::uint32_t>(options_.width),
+            static_cast<std::uint32_t>(options_.height),
+            AV_PIX_FMT_NV12, frames_reason);
+        if (!cuda_frames_ref_) {
+            spdlog::error("[native_av] persistent CUDA frames context unavailable: {}",
+                          frames_reason);
+            return false;
+        }
         open_hw_ctx_ms_ = elapsed_ms(hw_t0);
         if (!options_.direct_yuv_mode) {
 #ifdef CHRONON3D_ENABLE_VULKAN

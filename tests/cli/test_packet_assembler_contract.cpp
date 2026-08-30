@@ -1,4 +1,6 @@
 #include <doctest/doctest.h>
+#include <chronon3d/core/gpu_hot_path_mode.hpp>
+#include "../../apps/chronon3d_cli/commands/video/common/video_execution_resolver.hpp"
 #include <array>
 
 #include "utils/video/packet_assembler.hpp"
@@ -7,6 +9,20 @@
 
 using chronon3d::cli::AudioExecutionPath;
 using chronon3d::cli::resolve_audio_execution;
+
+TEST_CASE("VideoExecutionResolver: direct YUV is fail-closed") {
+    using namespace chronon3d::cli;
+    const auto accepted = resolve_video_execution({
+        .encoder_backend = "native", .hardware_encoder = "nvenc",
+        .codec = "h264", .hot_path = chronon3d::GpuHotPathMode::RequireDirectYuv});
+    CHECK(accepted.valid);
+    CHECK(accepted.path == VideoExecutionPath::DirectYuv);
+
+    const auto rejected = resolve_video_execution({
+        .encoder_backend = "pipe", .hardware_encoder = "nvenc",
+        .codec = "h264", .hot_path = chronon3d::GpuHotPathMode::RequireDirectYuv});
+    CHECK_FALSE(rejected.valid);
+}
 
 TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") {
     CHECK(resolve_audio_execution(false, false, true) == AudioExecutionPath::CopyPackets);

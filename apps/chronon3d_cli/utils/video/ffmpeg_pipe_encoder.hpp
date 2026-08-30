@@ -141,6 +141,8 @@ struct FfmpegPipeOptions {
     int width{0};
     int height{0};
     int fps{30};
+    int fps_num{30};
+    int fps_den{1};
     std::string rate_control_mode{"crf"};
     int crf{18};
     int qp{-1};
@@ -159,6 +161,13 @@ struct FfmpegPipeOptions {
     // Direct-YUV owns its CUDA-only compositor and must not warm the
     // Vulkan/FullGraph compositor while opening the encoder.
     bool direct_yuv_mode{false};
+
+    [[nodiscard]] int canonical_fps_num() const noexcept {
+        return (fps_num == 30 && fps_den == 1 && fps != 30) ? fps : fps_num;
+    }
+    [[nodiscard]] int canonical_fps_den() const noexcept {
+        return (fps_num == 30 && fps_den == 1 && fps != 30) ? 1 : fps_den;
+    }
 };
 
 } // namespace chronon3d::cli

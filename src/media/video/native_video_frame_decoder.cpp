@@ -21,6 +21,7 @@ extern "C" {
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <string_view>
 
 namespace chronon3d::media {
 namespace {
@@ -56,19 +57,32 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
     auto fb = std::make_shared<Framebuffer>(frame->width, frame->height, false);
     const i32 stride = fb->allocated_width();
     Color* pixels = fb->data();
-    const int grain = std::max(16, frame->height / 16);
     const auto conv_start = profiling::now();
-    parallel_for_tracked(tbb::blocked_range<int>(0, frame->height, grain),
-        [&](const tbb::blocked_range<int>& rows) {
-            for (int y = rows.begin(); y < rows.end(); ++y) {
-                const uint8_t* row = rgba.data() + static_cast<size_t>(y) * frame->width * 4;
-                Color* dst = pixels + static_cast<usize>(y) * stride;
-                for (int x = 0; x < frame->width; ++x) {
-                    const uint8_t* p = row + static_cast<size_t>(x) * 4;
-                    dst[x] = Color{p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, 1.0f};
-                }
+    const auto convert_rows = [&](int first, int last) {
+        for (int y = first; y < last; ++y) {
+            const uint8_t* row = rgba.data() + static_cast<size_t>(y) * frame->width * 4;
+            Color* dst = pixels + static_cast<usize>(y) * stride;
+            for (int x = 0; x < frame->width; ++x) {
+                const uint8_t* p = row + static_cast<size_t>(x) * 4;
+                dst[x] = Color{p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, 1.0f};
             }
-        });
+        }
+    };
+    // Do not initialize/enter the process-wide TBB scheduler for tiny video
+    // frames. Apart from being slower, doing so from multiple decoder
+    // sessions makes startup unnecessarily contend on TBB's global runtime.
+    constexpr std::size_t kParallelPixelThreshold = 4096;
+    const auto pixels_count = static_cast<std::size_t>(frame->width) *
+                              static_cast<std::size_t>(frame->height);
+    if (pixels_count < kParallelPixelThreshold) {
+        convert_rows(0, frame->height);
+    } else {
+        const int grain = std::max(16, frame->height / 16);
+        parallel_for_tracked(tbb::blocked_range<int>(0, frame->height, grain),
+            [&](const tbb::blocked_range<int>& rows) {
+                convert_rows(rows.begin(), rows.end());
+            });
+    }
     const auto conv_dur = static_cast<uint64_t>(profiling::duration_ms(conv_start, profiling::now()));
     if (counters) {
         counters->cpu_pixel_conversion_ms.fetch_add(conv_dur, std::memory_order_relaxed);
@@ -86,13 +100,30 @@ NativeVideoFrameDecoder::Session::~Session() {
     prefetch_cv.notify_all();
     if (prefetch_worker.joinable()) prefetch_worker.join();
     spdlog::info("[native-decoder] prefetch worker stopped");
+
+    // Release every AVFrame/cache object which can retain an AVBufferRef to
+    // the decoder's hw frames before tearing down the codec hw device.  These
+    // are members, so their implicit destruction would otherwise happen
+    // *after* this destructor body and after av_buffer_unref(hw_device_ctx),
+    // leaving FFmpeg's buffer callbacks to run against a dead CUDA device.
+    // That ordering caused the intermittent malloc corruption observed when
+    // independent decoder sessions were destroyed concurrently.
+    prefetch_queue.clear();
+    cache.clear();
+    eof_frame.reset();
+    captured_native_frame.reset();
+    eof_captured_native_frame.reset();
     native_import_session.reset();
+    spdlog::info("[native-decoder] session buffers released");
     av_frame_free(&decoded);
     av_frame_free(&closest_frame);
     av_packet_free(&packet);
     av_frame_free(&hw_transfer_frame);
+    spdlog::info("[native-decoder] session AV frames released");
     if (sws) sws_freeContext(sws);
+    spdlog::info("[native-decoder] session sws released");
     avcodec_free_context(&codec);
+    spdlog::info("[native-decoder] session codec released");
     av_buffer_unref(&hw_device_ctx);
     if (fmt) avformat_close_input(&fmt);
 }
@@ -199,8 +230,10 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    const bool uses_nvdec = codec->name &&
+        std::string_view(codec->name).ends_with("_cuvid");
     AVBufferRef* device = nullptr;
-    if (m_video_runtime) {
+    if (uses_nvdec && m_video_runtime) {
         // Bind NVDEC to the shared video device runtime: same FFmpeg
         // hwdevice, same primary CUDA context as NVENC.
         device = m_video_runtime->ref_cuda_hwdevice();
@@ -210,9 +243,12 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
             spdlog::error("[native-decoder] FAIL_CLOSED: video device runtime has no shared CUDA hwdevice");
         }
     }
-    // A native video decoder must be bound to the registry-owned
+    // A selected NVDEC decoder must be bound to the registry-owned
     // VideoDeviceRuntime; unavailable shared hardware is fail-closed.
-    if (device) {
+    if (!uses_nvdec) {
+        spdlog::debug("[native-decoder] using software decoder {} without CUDA hwdevice",
+                      codec->name ? codec->name : "unknown");
+    } else if (device) {
         auto* av_device = reinterpret_cast<AVHWDeviceContext*>(device->data);
         auto* av_cuda = av_device
             ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx) : nullptr;
