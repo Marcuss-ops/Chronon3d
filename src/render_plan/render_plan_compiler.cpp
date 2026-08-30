@@ -362,7 +362,16 @@ compile_render_plan(
         // Real text bounds require a shaping engine.  Construct one against
         // the job's resolver so per-line HarfBuzz measurement uses the same
         // asset mount as font materialization.
-        chronon3d::FontEngine font_engine(resolver);
+        // Keep the resolver-backed engine alive through scene evaluation, not
+        // only through compile-time measurement. The caller may move its
+        // resolver into PreparedRenderPlan after compilation, so the engine
+        // must own a stable resolver snapshot rather than a reference to the
+        // caller's movable stack object.
+        auto font_resolver = std::make_shared<chronon3d::assets::AssetResolver>();
+        if (const auto root = resolver.mount_root(); !root.empty()) {
+            font_resolver->mount(root);
+        }
+        auto font_engine = std::make_shared<chronon3d::FontEngine>(*font_resolver);
 
         const auto materialize_t0 = chronon3d::profiling::now();
         // COLLECT — materialize every text/image overlay first, deferring
@@ -389,7 +398,7 @@ compile_render_plan(
             if (layer.type == LayerType::Text) {
                 auto materialized = materialize_text(
                     layer, canvas, plan.style_profile,
-                    plan.canvas.duration.value, font_engine);
+                    plan.canvas.duration.value, *font_engine);
                 if (materialized.layout) {
                     layout_requests.push_back(layout_request(
                         layer, *materialized.layout, plan.canvas.duration.value));
@@ -434,6 +443,21 @@ compile_render_plan(
                     prepared_images[index] = resolved;
                 }
             }
+        }
+
+        // Freeze logical font references to canonical paths from the mounted
+        // job resolver before the compiled scene is evaluated by a runtime
+        // FontEngine. This keeps frame evaluation independent of CWD while
+        // retaining the same AssetResolver boundary used by preflight.
+        for (auto& prepared : prepared_texts) {
+            if (!prepared || prepared->style.font.font_path.empty()) continue;
+            const auto resolved = resolver.resolve_logical(
+                std::filesystem::path{prepared->style.font.font_path});
+            if (!resolved) {
+                throw std::runtime_error(
+                    "font asset was not prepared: " + prepared->style.font.font_path);
+            }
+            prepared->style.font.font_path = resolved->string();
         }
 
         // SOLVE TOGETHER — one deterministic greedy pass places every overlay
@@ -487,9 +511,12 @@ compile_render_plan(
         definition.composition = spec;
         definition.scene = [plan, canvas, subtitles, resolved_video_paths,
                             prepared_texts, prepared_image_positions,
-                            prepared_images](
+                            prepared_images, font_engine](
                                const FrameContext& ctx) {
                 SceneBuilder scene(ctx);
+                // Cascade the resolver-backed engine through every layer
+                // builder, including subtitle tracks created by authoring.
+                scene.font_engine(font_engine.get());
 
                 // User-provided backgrounds are emitted first, so they sit
                 // behind every overlay regardless of the owning layer's
@@ -513,6 +540,7 @@ compile_render_plan(
                 for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                     const auto& layer = plan.layers[index];
                     scene.layer(layer.id, [&](LayerBuilder& builder) {
+                        builder.font_engine(font_engine.get());
                         switch (layer.type) {
                             case LayerType::Image: {
                                 ImageParams params;
@@ -575,8 +603,9 @@ compile_render_plan(
                                 // path.  The older TextDefinition builder
                                 // emits a legacy SourceNode and would force a
                                 // CPU draw_node fallback in strict Vulkan.
-                                (void)builder.text_run(
-                                    "text", chronon3d::prepare_text(*prepared_texts[index]));
+                                builder.text_run(
+                                    "text", chronon3d::prepare_text(*prepared_texts[index]))
+                                    .font_engine(font_engine.get());
                                 break;
                             case LayerType::SubtitleTrack: {
                                 if (!subtitles[index])
@@ -600,6 +629,7 @@ compile_render_plan(
                                     subtitle_font_size = *subtitle_style->font_size;
                                 }
                                 authoring::Layer authoring_layer(builder, canvas);
+                                authoring_layer.font_engine(font_engine.get());
                                 auto track = authoring_layer.subtitles(*subtitles[index]);
                                 track.preset(layer.preset.empty() ? "minimal_white" : layer.preset)
                                     .font(layer.font, subtitle_font_size)
