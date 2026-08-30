@@ -79,6 +79,8 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 static_cast<uint64_t>(profiling::duration_ms(enc_t0, enc_t1) * 1000.0),
                 std::memory_order_relaxed);
             if (!encoded) {
+                spdlog::error("[video] Direct-YUV encoder rejected frame {}",
+                              static_cast<int>(direct->frame_number));
                 if (ctx.counters) {
                     ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);

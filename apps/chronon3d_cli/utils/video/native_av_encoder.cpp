@@ -539,12 +539,18 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         !direct.decoded || direct.decoded->format != AV_PIX_FMT_CUDA ||
         !direct.decoded->data[0] || !direct.decoded->data[1] ||
-        !direct.program || direct.program->batch.empty() ||
-        direct.program->resources.empty()) {
+        !direct.program ||
+        (direct.program->batch.instances.empty() !=
+         direct.program->resources.empty())) {
         spdlog::error("[native_av] invalid DirectCudaYuv frame contract");
         return false;
     }
-    if (!direct_yuv_compositor_) {
+    if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
+        spdlog::error("[native_av] DirectYuv failed to activate CUDA context on writer thread");
+        return false;
+    }
+    const bool has_overlay = !direct.program->batch.instances.empty();
+    if (has_overlay && !direct_yuv_compositor_) {
         try {
             direct_yuv_compositor_ =
                 std::make_unique<media::CudaDirectNv12Compositor>(
@@ -555,7 +561,10 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
             return false;
         }
     }
-    if (!drain_ready_cuda_frames(false)) return false;
+    if (!drain_ready_cuda_frames(false)) {
+        spdlog::error("[native_av] DirectYuv initial CUDA queue drain failed");
+        return false;
+    }
     if (pending_cuda_frames_.size() >= kCudaEncodeRingSlots &&
         !drain_ready_cuda_frames(true)) {
         ++cuda_backpressure_wait_count_;
@@ -572,7 +581,10 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
         gpu_frame = av_frame_alloc();
     }
     encoder_surface_acquire_ms_ += elapsed_ms(acq_t0);
-    if (!gpu_frame) return false;
+    if (!gpu_frame) {
+        spdlog::error("[native_av] DirectYuv output AVFrame allocation failed");
+        return false;
+    }
     gpu_frame->format = AV_PIX_FMT_CUDA;
     gpu_frame->width = options_.width;
     gpu_frame->height = options_.height;
@@ -581,6 +593,9 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     const int hw_rc = av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0);
     encoder_hwframe_get_buffer_ms_ += elapsed_ms(hw_t0);
     if (hw_rc < 0 || !gpu_frame->data[0] || !gpu_frame->data[1]) {
+        char error[AV_ERROR_MAX_STRING_SIZE]{};
+        av_strerror(hw_rc, error, sizeof(error));
+        spdlog::error("[native_av] DirectYuv output hw frame allocation failed: {}", error);
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
@@ -596,7 +611,9 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
         return false;
     }
     const auto launch_t0 = Clock::now();
-    const bool launch_ok = direct_yuv_compositor_->composite_direct_nv12_batch(
+    bool launch_ok = false;
+    if (has_overlay) {
+        launch_ok = direct_yuv_compositor_->composite_direct_nv12_batch(
             direct.program->batch, direct.program->resources,
             reinterpret_cast<CUdeviceptr>(direct.decoded->data[0]),
             direct.decoded->linesize[0],
@@ -608,6 +625,44 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
             gpu_frame->linesize[1],
             static_cast<std::uint32_t>(options_.width),
             static_cast<std::uint32_t>(options_.height), cuda_stream_);
+    } else {
+        CUDA_MEMCPY2D copy{};
+        copy.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+        copy.srcDevice = reinterpret_cast<CUdeviceptr>(direct.decoded->data[0]);
+        copy.srcPitch = direct.decoded->linesize[0];
+        copy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+        copy.dstDevice = reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]);
+        copy.dstPitch = gpu_frame->linesize[0];
+        copy.WidthInBytes = static_cast<std::size_t>(options_.width);
+        copy.Height = static_cast<std::size_t>(options_.height);
+        CUresult copy_result = cuMemcpy2DAsync(&copy, cuda_stream_);
+        launch_ok = copy_result == CUDA_SUCCESS;
+        if (!launch_ok) {
+            const char* name = nullptr;
+            const char* detail = nullptr;
+            cuGetErrorName(copy_result, &name);
+            cuGetErrorString(copy_result, &detail);
+            spdlog::error("[native_av] DirectYuv luma copy failed: {} ({})",
+                          name ? name : "CUDA error", detail ? detail : "unknown");
+        }
+        if (launch_ok) {
+            copy.srcDevice = reinterpret_cast<CUdeviceptr>(direct.decoded->data[1]);
+            copy.srcPitch = direct.decoded->linesize[1];
+            copy.dstDevice = reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]);
+            copy.dstPitch = gpu_frame->linesize[1];
+            copy.Height = static_cast<std::size_t>(options_.height / 2);
+            copy_result = cuMemcpy2DAsync(&copy, cuda_stream_);
+            launch_ok = copy_result == CUDA_SUCCESS;
+            if (!launch_ok) {
+                const char* name = nullptr;
+                const char* detail = nullptr;
+                cuGetErrorName(copy_result, &name);
+                cuGetErrorString(copy_result, &detail);
+                spdlog::error("[native_av] DirectYuv chroma copy failed: {} ({})",
+                              name ? name : "CUDA error", detail ? detail : "unknown");
+            }
+        }
+    }
     direct_yuv_cuda_launch_ms_ += elapsed_ms(launch_t0);
     if (!launch_ok) {
         spdlog::error("[native_av] DirectCudaYuv kernel dispatch failed");
@@ -617,8 +672,16 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     }
     gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
     CUevent ready = nullptr;
-    if (cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING) != CUDA_SUCCESS ||
-        cuEventRecord(ready, cuda_stream_) != CUDA_SUCCESS) {
+    const CUresult event_create = cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING);
+    const CUresult event_record = event_create == CUDA_SUCCESS
+        ? cuEventRecord(ready, cuda_stream_) : event_create;
+    if (event_create != CUDA_SUCCESS || event_record != CUDA_SUCCESS) {
+        const char* name = nullptr;
+        const char* detail = nullptr;
+        cuGetErrorName(event_record, &name);
+        cuGetErrorString(event_record, &detail);
+        spdlog::error("[native_av] DirectYuv CUDA event setup failed: {} ({})",
+                      name ? name : "CUDA error", detail ? detail : "unknown");
         if (ready) cuEventDestroy(ready);
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
