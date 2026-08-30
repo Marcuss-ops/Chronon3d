@@ -22,6 +22,7 @@ if(CHRONON3D_ENABLE_VIDEO)
             video/native_video_frame_decoder.cpp
             video/hw_frame_ref.cpp
             video/video_device_runtime.cpp
+            video/packet_assembler.cpp
         )
         target_include_directories(chronon3d_media_native PRIVATE
             ${CMAKE_SOURCE_DIR}

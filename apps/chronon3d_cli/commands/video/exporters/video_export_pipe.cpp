@@ -33,7 +33,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
-    runtime::DeviceScheduler* device_scheduler)
+    runtime::DeviceScheduler* device_scheduler,
+    std::shared_ptr<media::VideoJobExecutionContext> execution)
 {
     const auto wall_t0 = profiling::now();
 
@@ -69,7 +70,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     auto session = setup_pipe_export_session(
         registry, compiled, settings, opts, start, end, cpu_budget,
-        std::move(video_runtimes), device_scheduler, nullptr);
+        std::move(video_runtimes), device_scheduler, std::move(execution));
     if (!session || !session->encoder ||
         (!session->renderer_ptr() && !session->direct_yuv_selected()) ||
         (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {
