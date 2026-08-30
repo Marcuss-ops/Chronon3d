@@ -349,7 +349,7 @@ std::optional<LoadedArtifact> hydrate_from_flatbuffer(
     reconstituted->composition = composition;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    reconstituted->definition = composition;
+    reconstituted->composition = composition;
 #pragma GCC diagnostic pop
     reconstituted->execution_mode = static_cast<SceneExecutionMode>(
         comp->execution_mode());

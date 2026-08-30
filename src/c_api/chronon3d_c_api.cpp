@@ -419,7 +419,7 @@ void chronon_plan_destroy(chronon_plan* plan) { delete plan; }
 
 chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* plan,
                                     uint64_t frame, chronon_frame_buffer* output) {
-    if (!engine || !plan || !plan->prepared.compiled_composition.definition || !output)
+    if (!engine || !plan || !plan->prepared.compiled_composition.composition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
     EngineUseGuard use(engine->in_use);
     if (!use.acquired())
@@ -454,7 +454,7 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
                                           uint64_t frame, void* destination,
                                           uint64_t destination_size,
                                           chronon_frame_info* output) {
-    if (!engine || !plan || !plan->prepared.compiled_composition.definition || !output)
+    if (!engine || !plan || !plan->prepared.compiled_composition.composition || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT,
                          "invalid render-into arguments");
     EngineUseGuard use(engine->in_use);
@@ -488,7 +488,7 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
                                    const char* output_path, uint64_t start_frame,
                                    uint64_t end_frame, uint32_t fps_num,
                                    uint32_t fps_den, const chronon_render_callbacks* cb) {
-    if (!engine || !plan || !plan->prepared.compiled_composition.definition ||
+    if (!engine || !plan || !plan->prepared.compiled_composition.composition ||
         !output_path || fps_num == 0 || fps_den == 0)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid file render arguments");
     EngineUseGuard use(engine->in_use);
