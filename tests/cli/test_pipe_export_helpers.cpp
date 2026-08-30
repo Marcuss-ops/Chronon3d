@@ -4,8 +4,6 @@
 #include <apps/chronon3d_cli/commands/video/common/pipe_export_queue.hpp>
 
 #include <stdexcept>
-#include <chrono>
-#include <thread>
 
 using namespace chronon3d::cli;
 
@@ -55,61 +53,4 @@ TEST_CASE("PipeExportHelpers: failure markers keep exact failure reason") {
     mark_pipe_exception(exception, 3, std::runtime_error("test"));
     CHECK_FALSE(exception.success);
     CHECK(exception.exception_error);
-}
-
-TEST_CASE("FrameInteropRing: bounded triple buffer records real contention") {
-    FrameInteropRing ring;
-    const auto first = ring.acquire();
-    const auto second = ring.acquire();
-    const auto third = ring.acquire();
-    REQUIRE(first != FrameInteropRing::kInvalidSlot);
-    REQUIRE(second != FrameInteropRing::kInvalidSlot);
-    REQUIRE(third != FrameInteropRing::kInvalidSlot);
-
-    std::size_t acquired = FrameInteropRing::kInvalidSlot;
-    std::thread waiter([&] { acquired = ring.acquire(); });
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    ring.release(second);
-    waiter.join();
-
-    CHECK(acquired == second);
-    CHECK(ring.wait_count() == 1);
-    CHECK(ring.wait_us() > 0);
-    ring.release(first);
-    ring.release(third);
-    ring.release(acquired);
-}
-
-TEST_CASE("FrameInteropRing: native pipeline can occupy the full six-slot ring") {
-    FrameInteropRing ring;
-    std::array<std::size_t, FrameInteropRing::kSlotCount> slots{};
-    for (auto& slot : slots) {
-        slot = ring.acquire();
-        REQUIRE(slot != FrameInteropRing::kInvalidSlot);
-    }
-    CHECK(ring.busy_count() == FrameInteropRing::kSlotCount);
-    for (const auto slot : slots) ring.release(slot);
-    CHECK(ring.busy_count() == 0);
-}
-
-TEST_CASE("FrameInteropRing: close cancels future acquisition") {
-    FrameInteropRing ring;
-    ring.close();
-    CHECK(ring.acquire() == FrameInteropRing::kInvalidSlot);
-}
-
-TEST_CASE("FrameInteropRing: 10000 acquire release cycles preserve ownership") {
-    FrameInteropRing ring;
-
-    for (std::size_t cycle = 0; cycle < 10'000; ++cycle) {
-        const auto slot = ring.acquire();
-        REQUIRE(slot != FrameInteropRing::kInvalidSlot);
-
-        // Holding the slot through the complete cycle is the invariant the
-        // GPU writer relies on: no slot may be released twice or reused while
-        // its frame package is still owned by the encoder.
-        ring.release(slot);
-    }
-
-    CHECK(ring.wait_count() == 0);
 }

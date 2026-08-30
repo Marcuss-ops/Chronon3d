@@ -193,10 +193,10 @@ Result<bool, VisualUnitReportError> validate_visual_unit_report(
     const VisualUnitReport& report) {
     if (report.scene_id.empty()) return error("scene_id", "must not be empty");
     if (report.visual_unit_id.empty()) return error("visual_unit_id", "must not be empty");
-    if (report.start_ms < 0) return error("start_ms", "must be non-negative");
-    if (report.end_ms <= report.start_ms)
+    if (report.time.start_ms < 0) return error("start_ms", "must be non-negative");
+    if (report.time.end_ms <= report.time.start_ms)
         return error("end_ms", "must be greater than start_ms");
-    if (report.target_duration_ms <= 0)
+    if (report.time.target_duration_ms <= 0)
         return error("target_duration_ms", "must be positive");
     if (report.provider_decision.selected.empty())
         return error("provider_decision.selected", "must not be empty");
