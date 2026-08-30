@@ -81,6 +81,13 @@ void synchronize_native_output(RenderGraphContext& ctx,
     if (ctx.policy.disable_pixel_readback) {
         return;
     }
+    // A framebuffer may retain a pooled native handle while its CPU pixels
+    // are already the authoritative render result.  Downloading that stale
+    // handle makes Vulkan reject an otherwise valid FullGraph frame as an
+    // uninitialized surface.
+    if (framebuffer->is_cpu_authoritative()) {
+        return;
+    }
     std::vector<float> rgba(static_cast<std::size_t>(framebuffer->width()) *
                             framebuffer->height() * 4);
     const auto result = ctx.services.backend->download_surface(

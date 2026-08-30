@@ -47,6 +47,15 @@ void setup_render_job(const CompositionRegistry& registry,
         return;
     }
 
+    // The plan preparation snapshot and the renderer runtime are separate
+    // ownership boundaries.  Re-assert the job's explicit mount here so the
+    // runtime-owned FontEngine and every frame-evaluation path observe the
+    // same AssetResolver root, including renderers created through a warm
+    // or alternate CLI setup path.
+    if (job.execution.assets_root) {
+        out.renderer->runtime().resolver().mount(*job.execution.assets_root);
+    }
+
     if (out.renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
             profiling::duration_ms(out.setup_t0, renderer_t1));
