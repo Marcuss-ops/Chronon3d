@@ -21,6 +21,7 @@ struct DirectYuvTemplate {
     // built from this template is still in flight.  Typed replacement for
     // the old `std::shared_ptr<void> resources_owner`.
     std::shared_ptr<const media::CudaImageResource> resource_owner;
+    std::vector<std::shared_ptr<const media::CudaImageResource>> resource_owners;
 #endif
 };
 
