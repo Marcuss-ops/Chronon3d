@@ -143,10 +143,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.first_frame,
                     job.last_frame + Frame{1},
                     opts,
-                    job.execution.cpu_budget,
-                    job.video_execution,
-                    nullptr,
-                    nullptr);
+                    job.execution.cpu_budget);
             } catch (const std::exception& error) {
                 return RenderJobError{
                     RenderJobErrorCode::RenderFailed,
