@@ -32,7 +32,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
-#include <chronon3d/runtime/frame_slot_pipeline.hpp>
+#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -47,6 +47,7 @@
 #include <spdlog/spdlog.h>
 
 #include <optional>
+#include <array>
 #include <stdexcept>
 #include <condition_variable>
 #include <mutex>
@@ -56,13 +57,35 @@
 namespace chronon3d {
 
 struct PreparedRenderJob::Impl {
+    struct SlotPayload {
+        FrameArena arena{4u * 1024u * 1024u, true};
+        std::optional<EvaluatedCompositionFrame> evaluated{};
+        std::shared_ptr<Framebuffer> rendered{};
+
+        void reset() noexcept {
+            evaluated.reset();
+            rendered.reset();
+            arena.reset();
+        }
+    };
+
     RenderEngine* engine{nullptr};
     std::shared_ptr<const CompiledComposition> compiled;
     Frame count{0};
     bool finished{false};
     runtime::ResourcePlan resource_plan;
-    runtime::FrameSlotPipeline<3> slots;
+    runtime::FrameExecutionSlotRing slots{3};
+    std::array<SlotPayload, 3> payloads{};
     std::uint64_t next_sequence{0};
+
+    [[nodiscard]] SlotPayload& payload(const runtime::FrameExecutionSlot& slot) noexcept {
+        return payloads[slot.slot_id];
+    }
+
+    void reset_slots() noexcept {
+        for (auto& payload : payloads) payload.reset();
+        slots.reset();
+    }
 
     [[nodiscard]] bool can_split_evaluation() const noexcept;
     [[nodiscard]] EvaluatedCompositionFrame evaluate_frame(
@@ -277,7 +300,7 @@ std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
 PreparedRenderJob RenderEngine::prepare(
     const Composition& comp,
     const PreparedRenderJobOptions& options) {
-    if (options.pipeline_depth != runtime::FrameSlotPipeline<3>::depth()) {
+    if (options.pipeline_depth != 3) {
         throw std::invalid_argument(
             "PreparedRenderJob currently requires a pipeline depth of exactly 3");
     }
