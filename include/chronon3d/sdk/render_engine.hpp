@@ -39,15 +39,6 @@
 #include <cstdint>
 #include <string_view>
 
-namespace chronon3d {
-// Forward-declare the canonical `Composition` type
-// (`<chronon3d/timeline/composition.hpp>`).  Forward-declared here so
-// this header never pulls the camera_v1 / asset_registry / asset
-// transitives from the timeline umbrella.
-class Composition;
-struct CompiledComposition;
-}
-
 namespace chronon3d::sdk {
 
 enum class LogLevel : std::uint8_t { Trace, Debug, Info, Warning, Error };
