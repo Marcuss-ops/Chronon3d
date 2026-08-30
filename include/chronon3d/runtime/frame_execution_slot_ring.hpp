@@ -115,7 +115,9 @@ public:
     };
 
     explicit FrameExecutionSlotRing(std::size_t capacity = kDefaultCapacity)
-        : m_slots(capacity) {
+        : m_slots(capacity), m_evaluated(), m_rendered() {
+        m_evaluated.reserve(capacity);
+        m_rendered.reserve(capacity);
         for (std::size_t i = 0; i < m_slots.size(); ++i) {
             m_slots[i].slot_id = i;
             m_slots[i].state.store(FrameSlotState::Free, std::memory_order_relaxed);
@@ -123,6 +125,8 @@ public:
     }
 
     [[nodiscard]] std::size_t capacity() const noexcept { return m_slots.size(); }
+
+    [[nodiscard]] std::size_t depth() const noexcept { return m_slots.size(); }
 
     /// Acquire a Free slot. Blocks if all slots are currently in flight (backpressure).
     [[nodiscard]] FrameExecutionSlot* acquire_free_slot(
@@ -170,6 +174,74 @@ public:
         return SlotLease(this, acquire_free_slot(token));
     }
 
+    // Non-blocking evaluate -> render -> encode transitions used by the
+    // prepared CPU job.  The same ring therefore owns both video surface
+    // lifetime and prepared-frame backpressure; payloads remain external and
+    // typed by the caller.
+    [[nodiscard]] FrameExecutionSlot* acquire_for_evaluation() noexcept {
+        std::lock_guard lock(m_mutex);
+        for (std::size_t i = 0; i < m_slots.size(); ++i) {
+            const std::size_t index = (m_producer_cursor + i) % m_slots.size();
+            auto& candidate = m_slots[index];
+            if (candidate.state.load(std::memory_order_acquire) == FrameSlotState::Free) {
+                m_producer_cursor = (index + 1) % m_slots.size();
+                candidate.state.store(FrameSlotState::Evaluating, std::memory_order_release);
+                return &candidate;
+            }
+        }
+        return nullptr;
+    }
+
+    [[nodiscard]] bool publish_evaluated(FrameExecutionSlot& slot) noexcept {
+        std::lock_guard lock(m_mutex);
+        if (slot.state.load(std::memory_order_acquire) != FrameSlotState::Evaluating) return false;
+        slot.state.store(FrameSlotState::Evaluated, std::memory_order_release);
+        enqueue(m_evaluated, m_evaluated_head, &slot);
+        m_cv_free.notify_all();
+        return true;
+    }
+
+    [[nodiscard]] FrameExecutionSlot* acquire_for_render() noexcept {
+        std::lock_guard lock(m_mutex);
+        if (m_evaluated.empty()) return nullptr;
+        auto* slot = dequeue(m_evaluated, m_evaluated_head);
+        return slot;
+    }
+
+    [[nodiscard]] bool publish_rendered(FrameExecutionSlot& slot) noexcept {
+        std::lock_guard lock(m_mutex);
+        if (slot.state.load(std::memory_order_acquire) != FrameSlotState::Evaluated) return false;
+        slot.state.store(FrameSlotState::Rendered, std::memory_order_release);
+        enqueue(m_rendered, m_rendered_head, &slot);
+        m_cv_free.notify_all();
+        return true;
+    }
+
+    [[nodiscard]] FrameExecutionSlot* acquire_for_encoding() noexcept {
+        std::lock_guard lock(m_mutex);
+        if (m_rendered.empty()) return nullptr;
+        auto* slot = dequeue(m_rendered, m_rendered_head);
+        return slot;
+    }
+
+    [[nodiscard]] bool begin_encoding(FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) != FrameSlotState::Rendered) return false;
+        slot.state.store(FrameSlotState::Encoding, std::memory_order_release);
+        return true;
+    }
+
+    [[nodiscard]] bool release_encoded(FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) != FrameSlotState::Encoding) return false;
+        release_slot(&slot);
+        return true;
+    }
+
+    [[nodiscard]] bool abort(FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) == FrameSlotState::Free) return false;
+        release_slot(&slot);
+        return true;
+    }
+
     /// Transition a slot from GpuWriting to ReadyForEncode.
     void mark_ready(FrameExecutionSlot* slot) noexcept {
         if (slot) {
@@ -212,6 +284,28 @@ public:
         return m_wait_us.load(std::memory_order_relaxed);
     }
 
+    [[nodiscard]] std::size_t in_flight() const noexcept { return busy_count(); }
+
+    [[nodiscard]] std::size_t rendered_depth() const noexcept {
+        std::lock_guard lock(m_mutex);
+        return m_rendered.size() - m_rendered_head;
+    }
+
+    void reset() noexcept {
+        std::lock_guard lock(m_mutex);
+        m_evaluated.clear();
+        m_evaluated_head = 0;
+        m_rendered.clear();
+        m_rendered_head = 0;
+        m_completions.clear();
+        for (auto& slot : m_slots) {
+            slot.state.store(FrameSlotState::Free, std::memory_order_release);
+            slot.frame_index = std::numeric_limits<std::uint64_t>::max();
+        }
+        m_producer_cursor = 0;
+        m_cv_free.notify_all();
+    }
+
     void retire_slot(FrameExecutionSlot* slot,
                      std::shared_ptr<GpuCompletion> completion) noexcept {
         if (!slot) return;
@@ -245,9 +339,36 @@ private:
 
     std::vector<FrameExecutionSlot> m_slots;
     std::size_t m_producer_cursor{0};
-    std::mutex m_mutex;
+    mutable std::mutex m_mutex;
     std::condition_variable m_cv_free;
     mutable std::unordered_map<FrameExecutionSlot*, std::shared_ptr<GpuCompletion>> m_completions;
+    std::vector<FrameExecutionSlot*> m_evaluated;
+    std::vector<FrameExecutionSlot*> m_rendered;
+    std::size_t m_evaluated_head{0};
+    std::size_t m_rendered_head{0};
+
+    static void enqueue(std::vector<FrameExecutionSlot*>& queue,
+                        std::size_t& head,
+                        FrameExecutionSlot* slot) noexcept {
+        if (head != 0 && queue.size() == queue.capacity()) {
+            const auto live = queue.size() - head;
+            std::move(queue.begin() + static_cast<std::ptrdiff_t>(head),
+                      queue.end(), queue.begin());
+            queue.resize(live);
+            head = 0;
+        }
+        queue.push_back(slot);
+    }
+
+    static FrameExecutionSlot* dequeue(std::vector<FrameExecutionSlot*>& queue,
+                                       std::size_t& head) noexcept {
+        auto* slot = queue[head++];
+        if (head == queue.size()) {
+            queue.clear();
+            head = 0;
+        }
+        return slot;
+    }
     mutable std::atomic<std::uint64_t> m_wait_count{0};
     mutable std::atomic<std::uint64_t> m_wait_us{0};
     bool m_closed{false};
