@@ -44,8 +44,8 @@ bool validate_video_job(const RenderJob& job) {
             spdlog::error("[video] gop_copy_only requires a non-empty gop_source.");
             return false;
         }
-        spdlog::error("[video] gop_copy_only is unavailable without the legacy PNG/chunked exporter.");
-        return false;
+        // Packet copy is resolved by the canonical video execution resolver;
+        // do not reject it at generic job validation time.
     }
     return true;
 }

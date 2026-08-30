@@ -376,8 +376,8 @@ namespace chronon3d {
     X(video_native_fallback_frames) \
     X(gpu_surface_create_failures) \
     X(gpu_encode_failures) \
-    X(interop_ring_wait_count) \
-    X(interop_ring_wait_us) \
+    X(frame_slot_wait_count) \
+    X(frame_slot_wait_us) \
     X(cuda_vulkan_wait_count) \
     X(cuda_vulkan_wait_submit_us) \
     X(cuda_vulkan_signal_count) \

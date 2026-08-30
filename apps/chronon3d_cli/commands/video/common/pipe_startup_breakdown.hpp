@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 
 namespace chronon3d::cli {
 
@@ -27,6 +28,9 @@ struct StartupBreakdown {
     double renderer_runtime_init_ms{0.0};
     double other_startup_ms{0.0};
     double total_startup_ms{0.0};
+    double accounted_ms{0.0};
+    double unaccounted_ms{0.0};
+    std::uint32_t phases_observed{0};
 };
 
 struct PrepareBreakdown {
