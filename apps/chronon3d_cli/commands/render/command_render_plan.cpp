@@ -175,8 +175,8 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             spdlog::error("Render plan job failed: {}", job.error().message);
             return 1;
         }
-        job.value().video_execution = args.video_execution;
-        auto result = execute_render_job(*job, std::move(args.warm_renderer));
+        auto result = execute_render_job(
+            *job, std::move(args.warm_renderer), std::move(args.video_execution));
         if (!result) {
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
