@@ -3,12 +3,12 @@
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <array>
 
-#include "utils/video/packet_assembler.hpp"
+#include <chronon3d/media/video/packet_assembler.hpp>
 #include "utils/video/gop_smart_copy.hpp"
 #include "utils/video/variant_batch.hpp"
 
-using chronon3d::cli::AudioExecutionPath;
-using chronon3d::cli::resolve_audio_execution;
+using chronon3d::media::AudioExecutionPath;
+using chronon3d::media::resolve_audio_execution;
 using chronon3d::media::VideoExecutionPath;
 using chronon3d::media::VideoExecutionRequest;
 using chronon3d::media::resolve_video_execution;
@@ -34,13 +34,13 @@ TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") 
 }
 
 TEST_CASE("PacketAssembler exposes one mux finalization boundary") {
-    CHECK(requires(chronon3d::cli::PacketAssembler& assembler) {
+    CHECK(requires(chronon3d::media::PacketAssembler& assembler) {
         assembler.finalize();
     });
 }
 
 TEST_CASE("PacketAssembler exposes a distinct copied-video submission path") {
-    CHECK(requires(chronon3d::cli::PacketAssembler& assembler, AVPacket& packet,
+    CHECK(requires(chronon3d::media::PacketAssembler& assembler, AVPacket& packet,
                    AVRational time_base) {
         assembler.submit_copied_video(packet, time_base);
     });
