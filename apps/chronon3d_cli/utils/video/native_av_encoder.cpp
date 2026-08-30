@@ -1,5 +1,4 @@
 #include "native_av_encoder.hpp"
-#include "native_av_encoder_lifecycle.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
