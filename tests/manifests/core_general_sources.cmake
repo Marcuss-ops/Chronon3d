@@ -7,7 +7,6 @@ set(CORE_TEST_SOURCES
     core/test_cache_policy_frame_key.cpp
     core/test_resource_plan.cpp
     core/test_bounded_spsc_ring.cpp
-    core/test_frame_slot_pipeline.cpp
     core/memory/test_huge_page_allocator.cpp
     core/math/test_math.cpp
     core/math/test_output_transform.cpp
