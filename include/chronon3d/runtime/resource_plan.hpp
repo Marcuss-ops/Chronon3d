@@ -14,12 +14,6 @@ using ResourceId = std::uint32_t;
 
 /// Compatibility domain for a planned allocation. External resources are
 /// described for dependency analysis but never receive an arena slot.
-enum class ResourceLifetime : std::uint8_t {
-    Transient,
-    Persistent,
-    External,
-};
-
 struct ResourceDesc {
     std::uint32_t width{0};
     std::uint32_t height{0};
@@ -27,7 +21,7 @@ struct ResourceDesc {
     ResourceUsage usage{ResourceUsage::Generic};
     std::size_t bytes{0};
     std::size_t alignment{alignof(std::max_align_t)};
-    ResourceLifetime lifetime{ResourceLifetime::Transient};
+    LifetimeClass lifetime{LifetimeClass::FrameTransient};
 };
 
 /// Graph-facing logical resource.  The planner deliberately keeps this
@@ -137,7 +131,7 @@ public:
             const auto& request = m_requests[index];
             const auto request_bytes = request.bytes != 0
                 ? request.bytes : request.desc.bytes;
-            if (request.desc.lifetime == ResourceLifetime::External) {
+            if (request.desc.lifetime == LifetimeClass::External) {
                 plan.allocations[index] = ResourceAllocation{
                     index, std::numeric_limits<std::size_t>::max(), request.surface};
                 continue;
@@ -145,7 +139,7 @@ public:
             std::size_t selected = std::numeric_limits<std::size_t>::max();
             for (std::size_t slot = 0; slot < plan.slots.size(); ++slot) {
                 const auto& physical = plan.slots[slot];
-                if (request.desc.lifetime == ResourceLifetime::Transient &&
+                if (request.desc.lifetime == LifetimeClass::FrameTransient &&
                     compatible(physical, request) &&
                     physical.last < request.first) {
                     selected = slot;

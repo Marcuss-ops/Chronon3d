@@ -50,7 +50,6 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.pipe = std::move(pipe);
     opts.warmup = std::move(warmup);
     opts.sink = std::move(sink);
-    opts.video_execution = job.video_execution;
     opts.assets_root = job.execution.assets_root;
     opts.gop_source = job.video_settings.gop_source;
     opts.gop_copy_only = job.video_settings.gop_copy_only;
@@ -98,7 +97,8 @@ int render_and_encode_ffmpeg(
     if (opts.sink.ffmpeg_mode == "pipe") {
         auto result = render_and_encode_ffmpeg_pipe(
             registry, compiled, composition_id,
-            settings, start, end, opts, cpu_budget);
+            settings, start, end, opts, cpu_budget,
+            nullptr, nullptr, nullptr);
         return result.return_code;
     }
     return 1;

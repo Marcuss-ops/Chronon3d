@@ -6,12 +6,11 @@
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/backends/assets/image_cache.hpp>
-#include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <spdlog/spdlog.h>
@@ -21,21 +20,18 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <array>
-#include <unordered_set>
 #include <optional>
 
 namespace chronon3d::cli {
 
 /// State owned exclusively by the Direct-YUV execution mode.  Keeping this
 /// state together makes the mode boundary explicit: the direct path owns
-/// only its program, asset cache and counters, never renderer resources.
+/// only its program, job-scoped asset resolver and counters, never renderer
+/// or worker-owned image-cache resources.
 struct DirectYuvSession {
     std::shared_ptr<DirectYuvProgram> program;
     RenderCounters counters;
     std::unique_ptr<assets::AssetResolver> asset_resolver;
-    std::unique_ptr<ImageCache> image_cache;
-    std::shared_ptr<image::ImageBackend> image_backend;
     bool required_but_unavailable{false};
 };
 
@@ -49,37 +45,25 @@ struct FullGraphSession {
     // sufficient: Vulkan/CUDA may still own the physical allocation.
     graph::RenderBackend* surface_backend{nullptr};
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
-    FrameInteropRing interop_ring;
-    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
-        native_encode_surfaces{};
-    std::array<runtime::RenderSurfaceHandle, FrameInteropRing::kSlotCount>
-        native_source_surfaces{};
+    runtime::FrameExecutionSlotRing execution_slots;
     std::unique_ptr<TripleBufferArena> triple_arena;
 
-    FullGraphSession() : interop_ring(FrameInteropRing::kSlotCount) {
-        native_encode_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
-        native_source_surfaces.fill(runtime::kInvalidRenderSurfaceHandle);
-    }
+    FullGraphSession()
+        : execution_slots(runtime::FrameExecutionSlotRing::kDefaultCapacity) {}
 
     ~FullGraphSession() {
-        std::unordered_set<runtime::RenderSurfaceHandle> handles;
-        for (const auto handle : native_encode_surfaces) {
-            if (handle != runtime::kInvalidRenderSurfaceHandle) handles.insert(handle);
-        }
-        for (const auto handle : native_source_surfaces) {
-            if (handle != runtime::kInvalidRenderSurfaceHandle) handles.insert(handle);
-        }
-        // Backend first: the logical registry must not forget a handle while
-        // the physical backend binding is still alive.
-        if (surface_backend) {
-            for (const auto handle : handles) {
-                (void)surface_backend->release_surface(handle);
+        execution_slots.close();
+        if (!surface_backend || !surface_registry) return;
+        for (std::size_t i = 0; i < execution_slots.capacity(); ++i) {
+            auto& slot = execution_slots.slot(i);
+            for (const auto handle : {slot.native_surface, slot.source_surface}) {
+                if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                    (void)surface_backend->release_surface(handle);
+                    (void)surface_registry->release(handle);
+                }
             }
-        }
-        if (surface_registry) {
-            for (const auto handle : handles) {
-                (void)surface_registry->release(handle);
-            }
+            slot.native_surface = runtime::kInvalidRenderSurfaceHandle;
+            slot.source_surface = runtime::kInvalidRenderSurfaceHandle;
         }
     }
 };
@@ -183,7 +167,6 @@ struct PipeExportSession {
     // path (run_pipe_export_loop already closes + joins).
     ~PipeExportSession() {
         queue.close();
-        if (full_graph_session) full_graph_session->interop_ring.close();
         if (writer_thread.joinable()) {
             writer_thread.join();
         }

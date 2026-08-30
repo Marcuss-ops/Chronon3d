@@ -19,7 +19,12 @@ struct UploadTicket {
 };
 
 enum class ResourceKind : std::uint8_t { Color, Depth, Yuv, Bytes };
-enum class LifetimeClass : std::uint8_t { FrameTransient, PipelineSlot, JobPersistent };
+enum class LifetimeClass : std::uint8_t {
+    FrameTransient,
+    PipelineSlot,
+    JobPersistent,
+    External,
+};
 enum class ResourceUsage : std::uint8_t {
     Generic, ColorAttachment, DepthAttachment, Storage
 };

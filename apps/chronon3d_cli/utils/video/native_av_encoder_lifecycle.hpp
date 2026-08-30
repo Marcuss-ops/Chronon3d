@@ -2,7 +2,6 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
 #include <libavutil/hwcontext.h>
 }
 
@@ -10,12 +9,28 @@ extern "C" {
 
 namespace chronon3d::cli::native_av {
 
+/// Cleanup helpers for codec/frame resources. Container lifetime belongs to
+/// media::MuxSession and is intentionally absent from this header.
+#if 0
+inline void close_io(AVFormatContext* value) noexcept {
+    if (value && value->pb && value->oformat &&
+        !(value->oformat->flags & AVFMT_NOFILE)) {
+        avio_closep(&value->pb);
+    }
+}
+
+inline void free_format(AVFormatContext*& value) noexcept {
+    if (value) {
+        close_io(value);
+        avformat_free_context(value);
+        value = nullptr;
+    }
+}
+
 struct FormatContextDeleter {
     void operator()(AVFormatContext* value) const noexcept {
         if (value) {
-            if (value->pb && value->oformat && !(value->oformat->flags & AVFMT_NOFILE)) {
-                avio_closep(&value->pb);
-            }
+            close_io(value);
             avformat_free_context(value);
         }
     }
@@ -71,5 +86,6 @@ using unique_codec_context = unique_resource<AVCodecContext, CodecContextDeleter
 using unique_frame = unique_resource<AVFrame, FrameDeleter>;
 using unique_packet = unique_resource<AVPacket, PacketDeleter>;
 using unique_buffer_ref = unique_resource<AVBufferRef, BufferRefDeleter>;
+#endif
 
 } // namespace chronon3d::cli::native_av

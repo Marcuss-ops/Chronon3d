@@ -94,4 +94,20 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
         target_include_directories(chronon3d_native_decoder_tests PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
     endif()
+
+    # Isolated decoder teardown stress harness (CASE A-D + bisection matrix).
+    # Kept as a separate target so it can be run standalone under ASan:
+    #   cmake --build ... --target chronon3d_native_decoder_teardown_tests
+    #   ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 .../chronon3d_native_decoder_teardown_tests
+    chronon3d_add_test_suite(
+        NAME chronon3d_native_decoder_teardown_tests
+        TIER INTEGRATION
+        LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
+        SOURCES video/test_native_decoder_teardown_stress.cpp
+                video/test_native_av_encoder_teardown_stress.cpp
+    )
+    if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
+        target_include_directories(chronon3d_native_decoder_teardown_tests PRIVATE
+            "${CHRONON3D_CUDA_INCLUDE_DIR}")
+    endif()
 endif()

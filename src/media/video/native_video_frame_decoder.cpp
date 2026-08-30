@@ -34,8 +34,15 @@ enum AVPixelFormat select_cuda_format(AVCodecContext*, const enum AVPixelFormat*
 
 std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const AVFrame* frame, SwsContext*& sws, std::vector<uint8_t>& rgba,
-    RenderCounters* counters) {
+    RenderCounters* counters, bool enable_swscale = true) {
     if (!frame || frame->width <= 0 || frame->height <= 0) return nullptr;
+    // Stress-harness bisection: when swscale is disabled, return a bare
+    // framebuffer without exercising the SwsContext allocation/conversion
+    // path. This isolates whether the sws cache/context lifetime is the
+    // heap-corruption source independently of prefetch and frame cache.
+    if (!enable_swscale) {
+        return std::make_shared<Framebuffer>(frame->width, frame->height, false);
+    }
     sws = sws_getCachedContext(sws, frame->width, frame->height,
         static_cast<AVPixelFormat>(frame->format), frame->width, frame->height,
         AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
@@ -281,10 +288,17 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     session->decoded = av_frame_alloc();
     session->closest_frame = av_frame_alloc();
     session->packet = av_packet_alloc();
+    session->test_options = m_test_options;
     // Direct-YUV owns the sequential codec access.  Starting the ordinary
     // framebuffer prefetch worker here would race the native-frame capture
-    // path on the same AVCodecContext.
-    if (m_gpu_hot_path_mode != GpuHotPathMode::RequireDirectYuv) {
+    // path on the same AVCodecContext.  The stress-harness prefetch flag
+    // (NativeDecoderTestOptions::enable_prefetch) additionally disables the
+    // worker so a corruption source can be bisected independently of the
+    // GPU hot-path policy.
+    const bool prefetch_enabled =
+        m_test_options.enable_prefetch &&
+        m_gpu_hot_path_mode != GpuHotPathMode::RequireDirectYuv;
+    if (prefetch_enabled) {
         session->start_prefetch_worker(this);
     } else {
         session->direct_prefetch_disabled = true;
@@ -412,7 +426,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
                         }
                     }
                 }
-                result = frame_to_framebuffer(render, session.sws, session.rgba, m_counters); break;
+                result = frame_to_framebuffer(render, session.sws, session.rgba, m_counters, session.test_options.enable_swscale); break;
             }
             if (pts != AV_NOPTS_VALUE) {
                 const int64_t delta = std::llabs(pts - target_pts);
@@ -447,7 +461,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
                             m_counters->video_decode_hw_transfer_frames.fetch_add(1, std::memory_order_relaxed);
                             m_counters->hwframe_transfer_to_cpu_frames.fetch_add(1, std::memory_order_relaxed);
                         }
-                        result = frame_to_framebuffer(session.hw_transfer_frame, session.sws, session.rgba, m_counters);
+                        result = frame_to_framebuffer(session.hw_transfer_frame, session.sws, session.rgba, m_counters, session.test_options.enable_swscale);
                     }
                 }
             }
@@ -460,7 +474,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(Sess
                 }
                 return nullptr;
             }
-            result = frame_to_framebuffer(closest, session.sws, session.rgba, m_counters);
+            result = frame_to_framebuffer(closest, session.sws, session.rgba, m_counters, session.test_options.enable_swscale);
         }
     }
     if (!result && session.eof_frame) {
@@ -516,14 +530,17 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(const std::st
     if (!session) return {};
     std::unique_lock lock(session->mutex);
     if (session->prefetch_inflight == target) session->prefetch_cv.wait(lock, [&session, target] { return session->prefetch_inflight != target || session->prefetch_stop.load(); });
-    if (auto cached = session->cache.get(target)) return *cached;
+    if (session->test_options.enable_frame_cache) {
+        if (auto cached = session->cache.get(target)) return *cached;
+    }
     while (!session->prefetch_queue.empty() && session->prefetch_queue.front().target < target) session->prefetch_queue.pop_front();
     if (!session->prefetch_queue.empty() && session->prefetch_queue.front().target == target) {
         auto result = std::move(session->prefetch_queue.front().framebuffer); session->prefetch_queue.pop_front(); return result;
     }
     session->prefetch_queue.clear(); ++session->prefetch_generation; session->prefetch_next = target + 1;
     lock.unlock(); auto result = decode_frame_internal(*session, target); lock.lock(); session->prefetch_cv.notify_all();
-    if (result && result->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+    if (result && result->surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
+        session->test_options.enable_frame_cache) {
         session->cache.put(target, result);
     }
     return result;

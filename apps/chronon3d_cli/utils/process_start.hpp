@@ -2,11 +2,18 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#include <cstdint>
+
 namespace chronon3d::cli {
 
 /// Fine-grained process-bootstrap timings.  This is thread-local on purpose:
 /// daemon requests may prepare plans concurrently and must not overwrite the
 /// timing belonging to another request.
+enum class StartupMeasurementKind : std::uint8_t {
+    ColdProcess,
+    WarmProcess,
+};
+
 struct StartupTrace {
     double logger_init_ms{0.0};
     double cli_bootstrap_ms{0.0};
@@ -17,6 +24,10 @@ struct StartupTrace {
     double plan_decode_validate_ms{0.0};
     double plan_asset_resolve_ms{0.0};
     double plan_compile_ms{0.0};
+    double process_wall_ms{0.0};
+    double accounted_ms{0.0};
+    double unaccounted_ms{0.0};
+    StartupMeasurementKind measurement_kind{StartupMeasurementKind::ColdProcess};
 };
 
 inline StartupTrace& startup_trace() {
@@ -40,6 +51,14 @@ inline profiling::Clock::time_point process_start_time() {
 /// CLI boot work (TBB init, registry registration, argument parsing).
 inline void record_process_start() {
     (void)process_start_time();
+}
+
+inline void reset_startup_trace() {
+    startup_trace() = StartupTrace{};
+}
+
+inline const char* startup_measurement_kind_name(StartupMeasurementKind kind) noexcept {
+    return kind == StartupMeasurementKind::WarmProcess ? "warm_process" : "cold_process";
 }
 
 } // namespace chronon3d::cli

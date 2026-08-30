@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/media/video/packet_assembler.hpp>
+
 #include <cstdint>
 
 extern "C" {
@@ -8,6 +10,8 @@ extern "C" {
 }
 
 namespace chronon3d::cli {
+
+using PacketAssembler = chronon3d::media::PacketAssembler;
 
 enum class AudioExecutionPath : std::uint8_t {
     CopyPackets,
@@ -31,12 +35,12 @@ constexpr AudioExecutionPath resolve_audio_execution(
     return AudioExecutionPath::FullReencode;
 }
 
-/// Packet-level video mux boundary used by native encoders.
-///
-/// The assembler deliberately does not own the format context: the encoder
-/// owns codec/container lifetime, while this class owns the packet contract.
-/// That makes copied compressed GOP packets and encoded packets converge on
-/// the same mux operation in a later phase without adding another exporter.
+/// Canonical packet-level mux boundary shared by native encoding and
+/// BitstreamCopy. The assembler does not own the format context; its caller
+/// owns container lifetime while all encoded and copied packets converge on
+/// these operations.
+/* PacketAssembler is the canonical media::PacketAssembler. */
+#if 0
 class PacketAssembler final {
 public:
     PacketAssembler(AVFormatContext* format, AVStream* video_stream,
@@ -62,5 +66,6 @@ private:
     AVStream* video_stream_{nullptr};
     AVStream* audio_stream_{nullptr};
 };
+#endif
 
 } // namespace chronon3d::cli

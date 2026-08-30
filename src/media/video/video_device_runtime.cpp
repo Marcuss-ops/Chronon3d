@@ -4,6 +4,7 @@
 #endif
 
 #include <spdlog/spdlog.h>
+#include <chronon3d/backends/image/stb_image_backend.hpp>
 
 extern "C" {
 #include <libavutil/buffer.h>
@@ -39,7 +40,9 @@ VideoDeviceRuntime::VideoDeviceRuntime(
     runtime::DeviceId device,
     std::shared_ptr<runtime::GpuRuntime> gpu,
     std::int32_t cuda_device_ordinal)
-    : device_(device), cuda_device_ordinal_(cuda_device_ordinal), gpu_(std::move(gpu)) {}
+    : device_(device), cuda_device_ordinal_(cuda_device_ordinal), gpu_(std::move(gpu)) {
+    image_cache_.set_backend(std::make_shared<image::StbImageBackend>());
+}
 
 VideoDeviceRuntime::~VideoDeviceRuntime() {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

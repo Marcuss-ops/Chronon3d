@@ -3,6 +3,7 @@
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/device_scheduler.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/backends/image/image_backend.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -47,6 +48,11 @@ public:    /// Creates a runtime for `device`. If `gpu` is null a new GpuRuntime
     VideoDeviceRuntime& operator=(const VideoDeviceRuntime&) = delete;
 
     [[nodiscard]] runtime::DeviceId device_id() const noexcept { return device_; }
+
+    /// Worker-owned decoded image cache. It is shared by all DirectYuv jobs
+    /// using this persistent per-device runtime.
+    [[nodiscard]] ImageCache& image_cache() noexcept { return image_cache_; }
+    [[nodiscard]] const ImageCache& image_cache() const noexcept { return image_cache_; }
 
     /// The GpuRuntime backing this device (null only if creation/init failed
     /// in a CUDA-less build). Callers check null as FAIL_CLOSED. Never
@@ -105,6 +111,7 @@ private:
     bool initialized_{false};
     bool init_ok_{false};
     std::mutex mutex_;
+    ImageCache image_cache_;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     struct CudaFramesKey {
         std::uint32_t width{0};

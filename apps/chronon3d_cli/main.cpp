@@ -22,6 +22,7 @@
 
 int main(int argc, char** argv) {
     chronon3d::cli::record_process_start();
+    chronon3d::cli::reset_startup_trace();
 
     // Force construction of the default logger at the process boundary so
     // logger setup is measured separately from CLI parsing and registration.

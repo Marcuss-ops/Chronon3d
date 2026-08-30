@@ -2,6 +2,7 @@
 
 namespace chronon3d::cli {
 
+#if 0
 bool PacketAssembler::submit(AVPacket& packet, AVRational source_time_base,
                              AVStream* target, bool default_duration) const noexcept {
     if (!format_ || !target) return false;
@@ -29,5 +30,7 @@ bool PacketAssembler::submit_audio(AVPacket& packet,
 bool PacketAssembler::finalize() const noexcept {
     return format_ && av_write_trailer(format_) >= 0;
 }
+
+#endif
 
 } // namespace chronon3d::cli

@@ -4,6 +4,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/media/video/cuda_image_resource.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -134,28 +135,26 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         reason = "no video source";
         return nullptr;
     }
-    if (!have_overlay) {
-        reason = "direct program currently requires one static image overlay";
-        return nullptr;
-    }
-
-    const auto img_t0 = profiling::now();
-    auto cached = image_cache.get_or_load(
-        overlay.path, overlay.options);
-    const double watermark_load_ms = profiling::duration_ms(img_t0, profiling::now());
-    if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
-        reason = "watermark is not available through the canonical ImageCache";
-        return nullptr;
-    }
+    double watermark_load_ms = 0.0;
     bool cache_hit = false;
     double watermark_upload_ms = 0.0;
-    auto resource = video_runtime->get_or_upload_image(
-        cached->gpu_key.content_digest, overlay.options,
-        static_cast<std::uint32_t>(cached->width),
-        static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
-        cache_hit, watermark_upload_ms, reason);
-    if (!resource) return nullptr;
-    (void)cache_hit;
+    std::shared_ptr<const media::CudaImageResource> resource;
+    if (have_overlay) {
+        const auto img_t0 = profiling::now();
+        auto cached = image_cache.get_or_load(overlay.path, overlay.options);
+        watermark_load_ms = profiling::duration_ms(img_t0, profiling::now());
+        if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
+            reason = "watermark is not available through the canonical ImageCache";
+            return nullptr;
+        }
+        resource = video_runtime->get_or_upload_image(
+            cached->gpu_key.content_digest, overlay.options,
+            static_cast<std::uint32_t>(cached->width),
+            static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
+            cache_hit, watermark_upload_ms, reason);
+        if (!resource) return nullptr;
+        (void)cache_hit;
+    }
 
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
     program->video_path_ = std::move(video_path);
@@ -165,21 +164,23 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     program->watermark_load_ms_ = watermark_load_ms;
     program->watermark_upload_ms_ = watermark_upload_ms;
     auto template_frame = std::make_shared<DirectYuvTemplate>();
-    template_frame->batch.instances.push_back(runtime::LayerInstance{
-        .kind = runtime::PrimitiveKind::Image,
-        .resource_index = 0,
-        .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
-        .dst_x0 = overlay.x0, .dst_y0 = overlay.y0,
-        .dst_x1 = overlay.x1, .dst_y1 = overlay.y1,
-        .opacity = overlay.opacity,
-        .blend = BlendMode::Normal});
-    media::CudaLayerResource layer;
-    layer.rgba = resource->ptr;
-    layer.pitch_bytes = static_cast<int>(resource->pitch_bytes);
-    layer.width = resource->width;
-    layer.height = resource->height;
-    template_frame->resources.push_back(layer);
-    template_frame->resource_owner = std::move(resource);
+    if (resource) {
+        template_frame->batch.instances.push_back(runtime::LayerInstance{
+            .kind = runtime::PrimitiveKind::Image,
+            .resource_index = 0,
+            .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
+            .dst_x0 = overlay.x0, .dst_y0 = overlay.y0,
+            .dst_x1 = overlay.x1, .dst_y1 = overlay.y1,
+            .opacity = overlay.opacity,
+            .blend = BlendMode::Normal});
+        media::CudaLayerResource layer;
+        layer.rgba = resource->ptr;
+        layer.pitch_bytes = static_cast<int>(resource->pitch_bytes);
+        layer.width = resource->width;
+        layer.height = resource->height;
+        template_frame->resources.push_back(layer);
+        template_frame->resource_owner = std::move(resource);
+    }
     program->template_frame_ = std::move(template_frame);
     return program;
 #endif
