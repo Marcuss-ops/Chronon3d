@@ -223,10 +223,26 @@ private:
 // safety net; the CLI links this TU only when the flag is on).
 class NativeVideoFrameDecoder final : public MediaFrameProvider {
 public:
+    struct DecodeProfilingStats {
+        std::uint64_t decoded_frames{0};
+        double container_open_ms{0.0};
+        double stream_probe_ms{0.0};
+        double decoder_open_ms{0.0};
+        double demux_read_packet_ms{0.0};
+        double avcodec_send_packet_ms{0.0};
+        double avcodec_receive_frame_ms{0.0};
+        double nvdec_wait_ms{0.0};
+        double decode_total_ms{0.0};
+        std::vector<double> frame_durations_ms;
+    };
     std::shared_ptr<Framebuffer> decode_frame(
         const std::string&, Frame, int, int, float) override {
         return nullptr;
     }
+    void set_video_runtime(std::shared_ptr<VideoDeviceRuntime>) noexcept {}
+    [[nodiscard]] HwFrameRef decode_native_frame(
+        const std::string&, Frame, int, int, float) { return {}; }
+    [[nodiscard]] DecodeProfilingStats decode_profiling_stats() const { return {}; }
     void set_trace_job_id(std::uint64_t) noexcept {}  // no-op stub
 };
 

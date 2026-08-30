@@ -79,6 +79,8 @@ FfmpegPipeOptions make_pipe_options(
         .width = compiled.composition->width(),
         .height = compiled.composition->height(),
         .fps = opts.output.fps,
+        .fps_num = opts.output.fps_num,
+        .fps_den = opts.output.fps_den,
         .rate_control_mode = opts.encoder.rate_control_mode,
         .crf = opts.encoder.crf,
         .qp = opts.encoder.qp,

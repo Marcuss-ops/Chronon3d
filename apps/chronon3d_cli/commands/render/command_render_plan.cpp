@@ -43,6 +43,7 @@ struct RenderPlanState {
     // Trace capture level: pipeline | nodes | full.
     std::string trace_level{"pipeline"};
     std::string gpu_hot_path_mode{"auto"};
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution;
 };
 
 graph::BackendPreference backend_preference_from_name(const std::string& value) {
@@ -110,9 +111,13 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.execution.report = args.report;
         request.execution.trace_output = std::filesystem::path(args.trace_output);
         request.execution.trace_level = args.trace_level;
-        request.video_settings.fps = args.fps_num == 30 && args.fps_den == 1
-            ? static_cast<int>(std::lround(prepared.canvas.fps.fps()))
-            : static_cast<int>(args.fps_num / args.fps_den);
+        request.video_settings.fps_num = args.fps_num == 30 && args.fps_den == 1
+            ? prepared.canvas.fps.num() : args.fps_num;
+        request.video_settings.fps_den = args.fps_num == 30 && args.fps_den == 1
+            ? prepared.canvas.fps.den() : args.fps_den;
+        request.video_settings.fps = static_cast<int>(std::lround(
+            static_cast<double>(request.video_settings.fps_num) /
+            request.video_settings.fps_den));
         request.video_settings.codec = codec_name(prepared.output.codec);
         request.video_settings.rate_control_mode = prepared.output.rate_control == render_plan::RateControlMode::ConstantQp ? "qp" :
             (prepared.output.rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");
@@ -170,6 +175,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             spdlog::error("Render plan job failed: {}", job.error().message);
             return 1;
         }
+        job.value().video_execution = args.video_execution;
         auto result = execute_render_job(*job, std::move(args.warm_renderer));
         if (!result) {
             spdlog::error("Render plan job failed: {}", result.error().message);
@@ -228,7 +234,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          RenderPlanVideoOverrides video,
                          const std::string& trace_output,
                          const std::string& trace_level,
-                         const std::string& gpu_hot_path_mode) {
+                         const std::string& gpu_hot_path_mode,
+                         std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
@@ -240,6 +247,7 @@ int run_render_plan_file(const CompositionRegistry& registry,
     state.trace_output = trace_output;
     state.trace_level = trace_level;
     state.gpu_hot_path_mode = gpu_hot_path_mode;
+    state.video_execution = std::move(video_execution);
     return execute_render_plan(registry, state);
 }
 
@@ -250,7 +258,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
 
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const std::string& payload,
-                          std::shared_ptr<SoftwareRenderer> warm_renderer) {
+                          std::shared_ptr<SoftwareRenderer> warm_renderer,
+                          std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
     try {
         const auto request = nlohmann::json::parse(payload);
         const std::string plan_path = request.value("plan_path", "");
@@ -283,7 +292,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                                             report, std::move(warm_renderer), backend,
                                             std::move(video), /*trace_output=*/"",
                                             /*trace_level=*/"pipeline",
-                                            gpu_hot_path_mode);
+                                            gpu_hot_path_mode,
+                                            std::move(video_execution));
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};

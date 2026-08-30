@@ -271,7 +271,9 @@ struct JobTimings {
     CpuBreakdownMetrics cpu_breakdown;
     HardwareMetrics hardware;
     chronon3d::runtime::RenderPreparationTimings prepare;
-    std::optional<int> target_fps;
+    std::optional<double> target_fps;
+    std::optional<int> target_fps_num;
+    std::optional<int> target_fps_den;
     ExclusiveWallTimeline exclusive_wall;
     InternalDecodeProfiling internal_decode;
     InternalDirectYuvProfiling internal_direct_yuv;

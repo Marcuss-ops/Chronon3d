@@ -21,6 +21,16 @@
 #include <algorithm>
 #include <filesystem>
 #include <sstream>
+#include <array>
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
+#endif
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
 
 namespace chronon3d::cli {
 
@@ -62,6 +72,64 @@ namespace {
         return result;
     }
 
+#ifdef CHRONON3D_ENABLE_VULKAN
+    struct ProbedVideoCapabilities {
+        bool cuda{false};
+        bool nvdec{false};
+        bool nvenc{false};
+        bool nv12{false};
+        bool p010{false};
+        bool h264{false};
+        bool hevc{false};
+        bool av1{false};
+        std::int32_t cuda_ordinal{-1};
+    };
+
+    ProbedVideoCapabilities probe_video_capabilities(
+        const backends::vulkan::VulkanDeviceInfo& device) {
+        ProbedVideoCapabilities result;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        if (cuInit(0) != CUDA_SUCCESS || !device.has_device_uuid) return result;
+        int count = 0;
+        if (cuDeviceGetCount(&count) != CUDA_SUCCESS) return result;
+        for (int ordinal = 0; ordinal < count; ++ordinal) {
+            CUdevice cuda_device{};
+            CUuuid cuda_uuid{};
+            if (cuDeviceGet(&cuda_device, ordinal) != CUDA_SUCCESS ||
+                cuDeviceGetUuid(&cuda_uuid, cuda_device) != CUDA_SUCCESS) continue;
+            if (std::equal(device.device_uuid.begin(), device.device_uuid.end(),
+                           reinterpret_cast<const std::uint8_t*>(cuda_uuid.bytes))) {
+                result.cuda = true;
+                result.cuda_ordinal = ordinal;
+                break;
+            }
+        }
+#endif
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+        // Codec registration is not a capability claim: the concrete FFmpeg
+        // codec must be present in this build before it is advertised.
+        const auto has_encoder = [](const char* name) {
+            return avcodec_find_encoder_by_name(name) != nullptr;
+        };
+        const auto has_decoder = [](const char* name) {
+            return avcodec_find_decoder_by_name(name) != nullptr;
+        };
+        result.h264 = has_encoder("h264_nvenc") || has_decoder("h264_cuvid");
+        result.hevc = has_encoder("hevc_nvenc") || has_decoder("hevc_cuvid");
+        result.av1 = has_encoder("av1_nvenc") || has_decoder("av1_cuvid");
+        result.nvenc = has_encoder("h264_nvenc") || has_encoder("hevc_nvenc") ||
+                      has_encoder("av1_nvenc");
+        result.nvdec = has_decoder("h264_cuvid") || has_decoder("hevc_cuvid") ||
+                       has_decoder("av1_cuvid");
+        // These formats are advertised only for a CUDA-backed device with a
+        // real NVENC/NVDEC path; Vulkan enumeration alone is insufficient.
+        result.nv12 = result.cuda && (result.nvenc || result.nvdec);
+        result.p010 = result.cuda && (result.nvenc || result.nvdec);
+#endif
+        return result;
+    }
+#endif
+
 } // anonymous namespace
 
 // ── Construction ──────────────────────────────────────────────────────────────
@@ -71,6 +139,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     : m_registry(registry)
     , m_options(std::move(options))
     , m_backend(m_options.backend.empty() ? "auto" : m_options.backend)
+    , m_video_runtimes(std::make_shared<media::VideoRuntimeRegistry>())
 {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::vector<backends::vulkan::VulkanDeviceInfo> discovered_devices;
@@ -111,33 +180,35 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     // Physical-device discovery remains owned by the backend; this service
     // advertises the selected Vulkan lane and keeps software fail-closed for
     // native GPU requests.
-    const auto register_device = [this](runtime::DeviceId id,
-                                        std::string name,
-                                        std::uint64_t vram_bytes) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const auto register_device = [this](const backends::vulkan::VulkanDeviceInfo& device) {
+        const auto probed = probe_video_capabilities(device);
         runtime::DeviceCapabilities capabilities;
-        capabilities.id = id;
-        capabilities.name = std::move(name);
-        capabilities.cuda = true;
-        capabilities.vulkan_interop = true;
-        capabilities.nvdec = true;
-        capabilities.nvenc = true;
-        capabilities.nv12 = true;
-        capabilities.p010 = true;
-        capabilities.h264 = true;
-        capabilities.hevc = true;
-        capabilities.av1 = true;
+        capabilities.physical_device_index = device.index;
+        capabilities.name = device.name;
+        capabilities.uuid = device.device_uuid;
+        capabilities.has_uuid = device.has_device_uuid;
+        capabilities.cuda_device_ordinal = probed.cuda_ordinal;
+        capabilities.cuda = probed.cuda;
+        capabilities.vulkan_interop = device.has_device_uuid && probed.cuda;
+        capabilities.nvdec = probed.nvdec && probed.cuda;
+        capabilities.nvenc = probed.nvenc && probed.cuda;
+        capabilities.nv12 = probed.nv12;
+        capabilities.p010 = probed.p010;
+        capabilities.h264 = probed.h264 && probed.cuda;
+        capabilities.hevc = probed.hevc && probed.cuda;
+        capabilities.av1 = probed.av1 && probed.cuda;
         m_device_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
                 .compute_units = 1.0f,
-                .vram_bytes = vram_bytes,
-                .nvdec_sessions = 2U,
-                .nvenc_sessions = 2U,
+                .vram_bytes = device.device_memory_bytes,
+                .nvdec_sessions = probed.nvdec ? 2U : 0U,
+                .nvenc_sessions = probed.nvenc ? 2U : 0U,
                 .pcie_bandwidth = 1.0f});
     };
-#ifdef CHRONON3D_ENABLE_VULKAN
     for (const auto& device : discovered_devices) {
-        register_device(device.index, device.name, device.device_memory_bytes);
+        register_device(device);
     }
 #endif
     if (m_device_scheduler.device_count() == 0) {
@@ -162,7 +233,8 @@ std::shared_ptr<SoftwareRenderer> DaemonService::warm_renderer_for_device(
 
     Config config = Config::from_environment();
     config.set_backend_preference(backend_preference_from_name(m_backend));
-    config.set_gpu_device_id(device);
+    const auto capabilities = m_device_scheduler.capability_snapshot(device);
+    config.set_gpu_device_id(capabilities ? capabilities->physical_device_index : device);
     auto renderer = create_renderer(
         m_registry, RenderSettings{}, std::move(config),
         m_options.assets_root.empty()
@@ -465,6 +537,11 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                 (hardware == "nvenc" || hardware == "auto") &&
                 encoder_backend == "native";
             runtime::DeviceSelectionRequirements requirements;
+            // A render is a share of the GPU, not an exclusive whole-device
+            // lock. NVENC/NVDEC session counts remain hard limits; compute
+            // pressure at 0.5 allows two independent jobs when those engines
+            // have capacity instead of serialising every export at 1.0.
+            requirements.resources.compute_units = native_nvenc ? 0.5f : 0.0f;
             requirements.cuda = native_nvenc;
             requirements.vulkan_interop = native_nvenc &&
                 hot_path != "require_direct_yuv";
@@ -487,8 +564,18 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                 return ipc::Reply{ipc::Status::Error,
                                   "RENDER_JOB rejected: no device satisfies requested capabilities"};
             }
+            const auto reserved_device = reservation->device();
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={})",
-                          reservation->device(), native_nvenc);
+                          reserved_device, native_nvenc);
+            auto video_execution =
+                std::make_shared<media::VideoJobExecutionContext>();
+            video_execution->device_id = reserved_device;
+            if (const auto caps = m_device_scheduler.capability_snapshot(reserved_device)) {
+                video_execution->cuda_device_ordinal = caps->cuda_device_ordinal;
+                video_execution->physical_device_index = caps->physical_device_index;
+            }
+            video_execution->reservation = std::move(reservation);
+            video_execution->video_runtimes = m_video_runtimes;
             // Direct-YUV owns its CUDA video runtime and deliberately must not
             // receive a SoftwareRenderer.  This keeps the worker lightweight
             // for the common native video lane while preserving a warm
@@ -497,17 +584,18 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             std::shared_ptr<SoftwareRenderer> warm_renderer;
             if (!direct_yuv) {
-                warm_renderer = warm_renderer_for_device(reservation->device());
+                warm_renderer = warm_renderer_for_device(reserved_device);
             } else {
                 spdlog::debug("[daemon] Direct-YUV job: renderer construction skipped");
             }
             auto& warm_dispatcher = warm_render_job_dispatcher();
             if (warm_dispatcher) {
-                return warm_dispatcher(req.payload, std::move(warm_renderer));
+                return warm_dispatcher(req.payload, std::move(warm_renderer),
+                                       std::move(video_execution));
             }
             auto& dispatcher = render_job_dispatcher();
             if (dispatcher) {
-                return dispatcher(req.payload);
+                return dispatcher(req.payload, std::move(video_execution));
             }
             return ipc::Reply{ipc::Status::NotFound,
                               "RENDER_JOB unavailable: render group not compiled"};

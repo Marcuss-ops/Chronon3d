@@ -3,6 +3,7 @@
 #include "../../../utils/video/direct_yuv_frame.hpp"
 
 #include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/media/video/video_device_runtime.hpp>
 
 #include <memory>
 #include <string>
@@ -24,7 +25,7 @@ public:
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,
         ImageCache& image_cache,
-        void* cuda_context,
+        std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
         std::string& reason);
 
     [[nodiscard]] std::shared_ptr<DirectYuvFrame> execute(

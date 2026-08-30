@@ -47,6 +47,10 @@ chronon3d_add_test_suite(
 # include dirs; this explicit add covers the /apps/chronon3d_cli subset
 # the test sources need to compile.
 target_include_directories(chronon3d_media_video_tests PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
+if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
+    target_include_directories(chronon3d_media_video_tests PRIVATE
+        "${CHRONON3D_CUDA_INCLUDE_DIR}")
+endif()
 
 # Backend text + Blend2D are needed when those features are enabled
 # (transitive deps of chronon3d_backend_software that don't propagate

@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 #include <string>
+#include <chronon3d/core/types/time.hpp>
 
 namespace chronon3d::cli {
 
@@ -24,6 +25,19 @@ struct OutputOptions {
 
     /// Output frame rate (frames per second).
     int fps{30};
+    int fps_num{30};
+    int fps_den{1};
+
+    [[nodiscard]] chronon3d::FrameRate frame_rate() const noexcept {
+        const int n = (fps_num == 30 && fps_den == 1 && fps != 30) ? fps : fps_num;
+        return chronon3d::FrameRate{n, fps_den};
+    }
+
+    [[nodiscard]] double fps_value() const noexcept {
+        const auto rate = frame_rate();
+        return rate.denominator > 0
+            ? static_cast<double>(rate.numerator) / rate.denominator : 0.0;
+    }
 };
 
 } // namespace chronon3d::cli

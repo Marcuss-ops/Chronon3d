@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -33,6 +34,17 @@ struct DeviceResourceState {
 struct DeviceCapabilities {
     DeviceId id{0};
     std::string name{};
+    std::uint32_t physical_device_index{0};
+    // CUDA ordinal is an implementation detail of this process and is not
+    // interchangeable with the scheduler's stable logical DeviceId.
+    std::int32_t cuda_device_ordinal{-1};
+    std::array<std::uint8_t, 16> uuid{};
+    bool has_uuid{false};
+    std::uint32_t pci_domain{0};
+    std::uint32_t pci_bus{0};
+    std::uint32_t pci_device{0};
+    std::uint32_t pci_function{0};
+    bool has_pci_identity{false};
     bool cuda{false};
     bool vulkan_interop{false};
     bool nvdec{false};
@@ -122,6 +134,7 @@ public:
 
     [[nodiscard]] std::size_t device_count() const noexcept;
     [[nodiscard]] const DeviceCapabilities* capabilities(DeviceId id) const noexcept;
+    [[nodiscard]] std::optional<DeviceCapabilities> capability_snapshot(DeviceId id) const;
     [[nodiscard]] std::optional<DeviceResourceState> resource_state(DeviceId id) const noexcept;
 
     /// Calculate deterministic pressure score for candidate evaluation [0.0 .. 1.0+]
