@@ -141,7 +141,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         spdlog::error("[video] bitstream-copy execution must use the packet pipeline");
         return session;
     }
-    const bool direct_yuv_requested = path_decision.path == media::VideoExecutionPath::DirectYuv;
+    bool direct_yuv_requested = path_decision.path == media::VideoExecutionPath::DirectYuv;
 
     // Placement is decided once per job by DeviceScheduler. Keep the RAII
     // reservation in the session so it spans setup, encode, drain and close.
@@ -374,13 +374,29 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {
-            spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}",
-                          direct_reason);
-            session->direct_yuv_session->required_but_unavailable = true;
-            return session;
+            if (opts.gpu_hot_path_mode == GpuHotPathMode::Auto) {
+                // Auto is allowed to probe Direct-YUV, but an ineligible
+                // composition must continue through the canonical FullGraph
+                // renderer. RequireDirectYuv remains fail-closed below.
+                spdlog::info("[direct-yuv] auto candidate rejected; falling back to FullGraph: {}",
+                             direct_reason);
+                // Clear the non-owning ImageCache hook before releasing the
+                // probe-only session. FullGraph must not retain a pointer to
+                // the Direct-YUV session's resolver after the probe fails.
+                session->device_runtime->image_cache().set_asset_resolver(nullptr);
+                session->direct_yuv_session.reset();
+                direct_yuv_requested = false;
+            } else {
+                spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}",
+                              direct_reason);
+                session->direct_yuv_session->required_but_unavailable = true;
+                return session;
+            }
         }
-        spdlog::info("[direct-yuv] selected for video source '{}'",
-                     session->direct_yuv_session->program->video_path());
+        if (session->direct_yuv_selected()) {
+            spdlog::info("[direct-yuv] selected for video source '{}'",
+                         session->direct_yuv_session->program->video_path());
+        }
     }
 
     // ── Create renderer only for FullGraph ───────────────────────────────
@@ -498,7 +514,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             .require_native_gpu =
                 opts.backend_preference == graph::BackendPreference::GPU &&
                 opts.encoder.encoder_backend == "native" &&
-                opts.encoder.hardware_encoder == "nvenc",
+                opts.encoder.hardware_encoder == "nvenc" &&
+                opts.gpu_hot_path_mode != GpuHotPathMode::Auto,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
             .trace_job_id = session->trace_job_id,
         });

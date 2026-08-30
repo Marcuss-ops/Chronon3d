@@ -34,8 +34,27 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
-    // 1. Make the AVFrame writable (FFmpeg internal ref-counting)
-    if (av_frame_make_writable(frame_) < 0) {
+    // NVENC consumes CUDA frames, while the Chronon framebuffer converter
+    // writes host YUV planes.  Trying to make the CUDA frame writable (or
+    // writing its device pointers as if they were host memory) fails before
+    // the first FullGraph frame.  Convert into a host staging frame, then
+    // upload it through FFmpeg's CUDA frames context.
+    AVFrame* conversion_frame = frame_;
+    AVFrame* cpu_staging = nullptr;
+    if (gpu_nvenc_) {
+        cpu_staging = av_frame_alloc();
+        if (!cpu_staging) return false;
+        cpu_staging->format = AV_PIX_FMT_YUV420P;
+        cpu_staging->width = options_.width;
+        cpu_staging->height = options_.height;
+        if (av_frame_get_buffer(cpu_staging, 32) < 0 ||
+            av_frame_make_writable(cpu_staging) < 0) {
+            av_frame_free(&cpu_staging);
+            spdlog::error("[native_av] CPU staging frame allocation failed");
+            return false;
+        }
+        conversion_frame = cpu_staging;
+    } else if (av_frame_make_writable(frame_) < 0) {
         spdlog::error("[native_av] av_frame_make_writable failed");
         return false;
     }
@@ -50,6 +69,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     const int      color_matrix = resolve_color_matrix(options_);
 
     const bool same_as_last =
+        !gpu_nvenc_ &&
         digest != 0 &&
         digest == last_converted_digest_ &&
         options_.width                           == last_converted_width_ &&
@@ -85,13 +105,13 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         video::ConvertFrameRequest req{
             .src           = fb,
             .planes        = video::FramePlanes{
-                .y         = frame_->data[0],
-                .u         = frame_->data[1],
-                .v         = frame_->data[2],
+                .y         = conversion_frame->data[0],
+                .u         = conversion_frame->data[1],
+                .v         = conversion_frame->data[2],
                 .uv        = nullptr,
-                .stride_y  = frame_->linesize[0],
-                .stride_u  = frame_->linesize[1],
-                .stride_v  = frame_->linesize[2],
+                .stride_y  = conversion_frame->linesize[0],
+                .stride_u  = conversion_frame->linesize[1],
+                .stride_v  = conversion_frame->linesize[2],
                 .stride_uv = 0,
             },
             .width         = options_.width,
@@ -104,6 +124,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
 
         auto conv_result = video::convert_frame(req);
         if (!conv_result.success) {
+            av_frame_free(&cpu_staging);
             spdlog::error("[native_av] convert_frame failed");
             return false;
         }
@@ -138,6 +159,21 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
             profiling::g_current_counters->native_av_convert_wall_ms.fetch_add(
                 static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         }
+    }
+
+    if (gpu_nvenc_) {
+        av_frame_unref(frame_);
+        frame_->format = AV_PIX_FMT_CUDA;
+        frame_->width = options_.width;
+        frame_->height = options_.height;
+        frame_->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
+        if (!cuda_frames_ref_ || av_hwframe_get_buffer(cuda_frames_ref_, frame_, 0) < 0 ||
+            av_hwframe_transfer_data(frame_, cpu_staging, 0) < 0) {
+            av_frame_free(&cpu_staging);
+            spdlog::error("[native_av] CPU-to-CUDA frame transfer failed");
+            return false;
+        }
+        av_frame_free(&cpu_staging);
     }
 
     // 3. Set PTS (presentation timestamp) in frame number units
