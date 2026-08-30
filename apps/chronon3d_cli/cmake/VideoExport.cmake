@@ -9,11 +9,17 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/exporters/pipe_export_finalize.cpp
     commands/video/common/pipe_export_session.cpp
     commands/video/common/direct_yuv_program.cpp
+    commands/video/common/video_execution_resolver.cpp
     commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
     utils/video/video_sink_adapter.cpp
     utils/video/gop_smart_copy.cpp
 )
+if(NOT CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_sources(chronon3d_cli_video_export PRIVATE
+        utils/video/video_runtime_stubs.cpp
+        utils/video/hw_frame_ref_stubs.cpp)
+endif()
 # Keep each exporter/encoder translation unit independent.  This is
 # intentional: these files are large and include optional FFmpeg/CUDA APIs;
 # Unity builds otherwise make a small edit fan out to the whole video
@@ -87,6 +93,13 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
     # visible on that compile target as well, not only on the video library.
     target_include_directories(chronon3d_cli_render PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
+    # Daemon-side capability probing uses the CUDA driver API to match
+    # Vulkan physical-device UUIDs to CUDA ordinals.  Keep the include and
+    # link contract on the target that owns daemon_service.cpp.
+    target_include_directories(chronon3d_cli_core PRIVATE
+        "${CHRONON3D_CUDA_INCLUDE_DIR_CLI}")
+    target_link_libraries(chronon3d_cli_core PRIVATE
+        "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}")
     target_link_libraries(chronon3d_cli_video_export PRIVATE
         "${CHRONON3D_CUDA_DRIVER_LIBRARY_CLI}"
         "${CHRONON3D_NVRTC_LIBRARY_CLI}")

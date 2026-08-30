@@ -15,6 +15,7 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -36,6 +37,10 @@ enum class RenderMode : std::uint8_t {
 /// Video-specific plain settings carried through the canonical request/job.
 struct VideoSettings {
     int         fps{30};
+    // Canonical media clock. `fps` remains only as a CLI compatibility alias
+    // until command parsing is fully rational; execution must use these.
+    int         fps_num{30};
+    int         fps_den{1};
     std::string rate_control_mode{"crf"};
     int         crf{16};
     int         qp{-1};
@@ -161,6 +166,8 @@ struct RenderJob {
     VideoSettings video_settings;
     RenderExecutionOptions execution;
     RenderDiagnostics diagnostics{};
+
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution;
 
     static RenderJob still(std::string id,
                            std::shared_ptr<const CompiledComposition> c,

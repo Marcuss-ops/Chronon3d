@@ -16,6 +16,10 @@
 #include <optional>
 #include <nlohmann/json.hpp>
 
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
+
 
 namespace chronon3d::cli {
 
@@ -116,9 +120,11 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
     if (session->opts.encoder.encoder_backend == "native" && session->renderer_ptr()) {
         auto& backend = session->renderer_ptr()->runtime().backend();
+#ifdef CHRONON3D_ENABLE_VULKAN
         if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend)) {
             (void)vulkan->wait_for_pending_submissions();
         }
+#endif
         session->native_decoder.reset();
         backend.release_frame_transient_surfaces();
     }
@@ -197,7 +203,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.validation_ms = result.validation_ms;
     timings.ffprobe_ms = result.ffprobe_ms;
     timings.sha256_ms = result.sha256_ms;
-    timings.target_fps = session->opts.output.fps;
+    timings.target_fps = session->opts.output.fps_value();
+    timings.target_fps_num = session->opts.output.frame_rate().numerator;
+    timings.target_fps_den = session->opts.output.frame_rate().denominator;
     timings.prepare = session->prepare_timings;
     // The preparation barrier already measures these compiler phases. Keep
     // them at the canonical job level as well; otherwise the sidecar loses

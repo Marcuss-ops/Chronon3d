@@ -4,6 +4,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/runtime/device_scheduler.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 #include "chronon_ipc.hpp"
 #include <functional>
 #include <string>
@@ -25,10 +26,12 @@ namespace chronon3d::cli {
 /// linked into the executable. Unset by default so a render-less build
 /// answers RENDER_JOB with NotFound. Keeps chronon3d_cli_core free of any
 /// render-group link dependency.
-using RenderJobDispatcher = std::function<ipc::Reply(const std::string&)>;
+using RenderJobDispatcher = std::function<ipc::Reply(
+    const std::string&, std::shared_ptr<media::VideoJobExecutionContext>)>;
 RenderJobDispatcher& render_job_dispatcher();
 using WarmRenderJobDispatcher = std::function<ipc::Reply(
-    const std::string&, std::shared_ptr<SoftwareRenderer>)>;
+    const std::string&, std::shared_ptr<SoftwareRenderer>,
+    std::shared_ptr<media::VideoJobExecutionContext>)>;
 WarmRenderJobDispatcher& warm_render_job_dispatcher();
 
 struct DaemonOptions {
@@ -117,7 +120,7 @@ private:
     // One owner of CUDA context + FFmpeg hwdevice per device, process-wide.
     // Resolution chain: DeviceScheduler → DeviceReservation → device() →
     // VideoRuntimeRegistry::get_or_create(device).
-    media::VideoRuntimeRegistry m_video_runtimes;
+    std::shared_ptr<media::VideoRuntimeRegistry> m_video_runtimes;
     std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
     mutable std::mutex m_ipc_state_mutex;                 // warm session ownership

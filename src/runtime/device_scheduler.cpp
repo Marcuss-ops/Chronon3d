@@ -175,6 +175,12 @@ const DeviceCapabilities* DeviceScheduler::capabilities(DeviceId id) const noexc
     return &m_devices[id].caps;
 }
 
+std::optional<DeviceCapabilities> DeviceScheduler::capability_snapshot(DeviceId id) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (id >= m_devices.size()) return std::nullopt;
+    return m_devices[id].caps;
+}
+
 std::optional<DeviceResourceState> DeviceScheduler::resource_state(DeviceId id) const noexcept {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (id >= m_devices.size()) return std::nullopt;
