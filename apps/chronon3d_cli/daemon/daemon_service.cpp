@@ -525,12 +525,32 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
             }
             const auto requested_backend = request.value("backend", m_backend);
-            const auto hardware = request.value(
-                "hardware_encoder", request.value("hardware", std::string{"none"}));
-            const auto encoder_backend = request.value(
-                "encoder_backend", std::string{"pipe"});
-            const auto codec = request.value("codec", std::string{"auto"});
-            const auto hot_path = request.value("gpu_hot_path_mode", "auto");
+            // New IPC clients describe requirements, not Chronon's backend
+            // implementation. Keep the legacy fields as a compatibility
+            // fallback for older workers and direct CLI integrations.
+            const bool semantic_contract = request.contains("execution_requirements");
+            const auto semantic_requirements = request.value(
+                "execution_requirements", nlohmann::json::object());
+            const bool gpu_required = semantic_requirements.value("gpu_required", false);
+            const bool composition_required = semantic_requirements.value(
+                "composition_required", true);
+            const std::string hardware = semantic_contract
+                ? (gpu_required ? "nvenc" : "none")
+                : request.value("hardware_encoder",
+                    request.value("hardware", std::string{"none"}));
+            const std::string encoder_backend = semantic_contract
+                ? (gpu_required ? "native" : "pipe")
+                : request.value("encoder_backend", std::string{"pipe"});
+            const auto output_spec = request.value(
+                "output_spec", nlohmann::json::object());
+            const std::string codec = semantic_contract
+                ? output_spec.value("codec", std::string{"auto"})
+                : request.value("codec", std::string{"auto"});
+            const std::string hot_path = semantic_contract
+                ? (gpu_required
+                    ? (composition_required ? "require_gpu_native" : "require_direct_yuv")
+                    : "auto")
+                : request.value("gpu_hot_path_mode", std::string{"auto"});
             const bool native_nvenc =
                 (requested_backend == "vulkan" ||
                  (requested_backend == "auto" && m_backend == "vulkan")) &&

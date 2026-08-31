@@ -1000,7 +1000,8 @@ struct alignas(16) GpuLayerInstance {
     void VulkanBackend::Impl::composite(Framebuffer& destination, const Framebuffer& source) {
         const auto width = static_cast<std::uint32_t>(destination.width());
         const auto height = static_cast<std::uint32_t>(destination.height());
-        const VkDeviceSize image_bytes = static_cast<VkDeviceSize>(width) * height * sizeof(float) * 4;
+        const VkDeviceSize image_bytes = static_cast<VkDeviceSize>(
+            runtime::tight_surface_bytes(runtime::PixelFormat::Rgba32Float, width, height));
         ensure_images(width, height);
         ensure_staging(image_bytes * 3);
 

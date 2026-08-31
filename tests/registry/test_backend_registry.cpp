@@ -2333,6 +2333,22 @@ TEST_CASE("tight_surface_bytes calculates correct sizes for all formats") {
     CHECK(tight_surface_bytes(PixelFormat::Nv12, odd_w, odd_h) == expected_nv12_odd);
 }
 
+TEST_CASE("SurfaceDesc::make centralizes format size and slot ownership") {
+    using namespace chronon3d::runtime;
+    const auto desc = SurfaceDesc::make(
+        1920, 1080, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::PipelineSlot);
+    CHECK(desc.bytes == tight_surface_bytes(desc.format, desc.width, desc.height));
+    CHECK(desc.bytes == 1920 * 1080 * 16);
+    CHECK(desc.lifetime == LifetimeClass::PipelineSlot);
+
+    const auto resource = ResourceDesc::make(
+        1920, 1080, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::PipelineSlot);
+    CHECK(resource.bytes == desc.bytes);
+    CHECK(resource.lifetime == desc.lifetime);
+}
+
 TEST_CASE("RenderSurfaceRegistry supports NV12 and P010 multi-format surfaces with ColorMetadata") {
     using namespace chronon3d::runtime;
     RenderSurfaceRegistry registry;

@@ -5,6 +5,7 @@
 #include "direct_yuv_program.hpp"
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 
 #include <atomic>
@@ -74,6 +75,7 @@ struct WriterThreadContext {
     SoftwareRenderer* renderer{nullptr};
     RenderCounters* counters{nullptr};
     GpuHotPathMode hot_path_mode{GpuHotPathMode::Auto};
+    std::optional<media::VideoExecutionPlan> execution_plan;
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
     bool require_native_gpu{false};
@@ -95,11 +97,13 @@ struct RenderLoopContext {
     Frame start;
     Frame end;
     const FfmpegExportOptions& opts;
+    std::optional<media::VideoExecutionPlan> execution_plan;
     SoftwareRenderer* sw_renderer;
     runtime::BoundedChannel<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     std::atomic<int>& frames_encoded;
     runtime::FrameExecutionSlotRing& execution_slots;
+    std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
     TripleBufferArena* triple_arena{nullptr};
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;

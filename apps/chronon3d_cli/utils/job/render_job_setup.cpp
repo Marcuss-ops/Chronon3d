@@ -95,8 +95,7 @@ void setup_render_job(const CompositionRegistry& registry,
     // the same logical-resource contract as execution.
     if (const auto* graph = out.renderer->graph_cache().peek(
             job.metadata.width, job.metadata.height); graph != nullptr) {
-        const auto bytes_per_resource = static_cast<std::size_t>(job.metadata.width) *
-            static_cast<std::size_t>(job.metadata.height) * sizeof(Color);
+        const auto desc_lifetime = runtime::LifetimeClass::FrameTransient;
         runtime::ResourcePlanner planner;
         for (std::size_t id = 0;
              id < graph->physical_framebuffer_plan.resources.size(); ++id) {
@@ -110,22 +109,25 @@ void setup_render_job(const CompositionRegistry& registry,
             runtime::ResourceRequest request;
             request.id = "GraphNode[" + std::to_string(id) + "]";
             request.kind = runtime::ResourceKind::Color;
-            request.bytes = bytes_per_resource;
+            request.bytes = runtime::tight_surface_bytes(
+                runtime::PixelFormat::Rgba32Float,
+                static_cast<std::uint32_t>(job.metadata.width),
+                static_cast<std::uint32_t>(job.metadata.height));
             request.lifetime = persistent
                 ? runtime::LifetimeClass::JobPersistent
                 : runtime::LifetimeClass::FrameTransient;
             request.first = persistent ? 0 : lifetime.first_level;
             request.last = persistent ? 0 : lifetime.last_level;
             request.alignment = alignof(Color);
-            request.desc = runtime::ResourceDesc{
+            request.desc = runtime::ResourceDesc::make(
                 static_cast<std::uint32_t>(job.metadata.width),
                 static_cast<std::uint32_t>(job.metadata.height),
                 runtime::PixelFormat::Rgba32Float,
                 runtime::ResourceUsage::ColorAttachment,
-                bytes_per_resource,
-                alignof(Color),
                 persistent ? runtime::LifetimeClass::JobPersistent
-                           : runtime::LifetimeClass::FrameTransient};
+                           : desc_lifetime,
+                alignof(Color));
+            request.bytes = request.desc.bytes;
             planner.add(std::move(request));
         }
         out.resource_plan = planner.build();

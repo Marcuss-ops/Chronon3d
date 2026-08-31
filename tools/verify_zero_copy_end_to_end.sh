@@ -127,18 +127,38 @@ if [[ -z "$REPORT_JSON" ]]; then
 
     # Run video export with telemetry
     if ! "$CLI_BIN" render "$SCENE" \
-        --frames "$FRAMES" \
-        --warmup "$WARMUP" \
+        --frames "0-$((FRAMES - 1))" \
+        --assets-root "$PWD" \
+        --warmup-renderer \
+        --warmup-framebuffers "$WARMUP" \
+        --backend vulkan \
+        --hardware nvenc \
+        --encoder-backend native \
+        --gpu-hot-path-mode require_gpu_native \
         --report \
-        --output-format nv12 \
-        -o "$OUTPUT_DIR/zero_copy_####.nv12" \
+        -o "$OUTPUT_DIR/zero_copy.mp4" \
         > "$OUTPUT_DIR/render.log" 2>&1; then
         _warn "Video export failed — see $OUTPUT_DIR/render.log"
-        # Continue to check if partial report was generated
+        echo "GATE_BLOCKED"
+        exit 2
     fi
 
-    # Try to extract report from render log or sidecar
-    if [[ -f "$OUTPUT_DIR/zero_copy_report.json" ]]; then
+    if [[ ! -s "$OUTPUT_DIR/zero_copy.mp4" ]]; then
+        _fail "Video export completed without a non-empty output artifact"
+        echo "GATE_BLOCKED"
+        exit 2
+    fi
+
+    # The timing sidecar is authoritative; render.log is diagnostic only and
+    # does not reliably contain aggregate counters.
+    TIMING_JSON="$OUTPUT_DIR/zero_copy.mp4.timing.json"
+    if [[ -f "$TIMING_JSON" ]]; then
+        cp "$TIMING_JSON" "$REPORT_JSON"
+        _info "Using authoritative timing sidecar: $TIMING_JSON"
+    fi
+
+    # Fall back to the log only when no sidecar was produced.
+    if [[ -f "$REPORT_JSON" ]]; then
         _info "Report found at $REPORT_JSON"
     else
         # Fallback: extract counters from render log

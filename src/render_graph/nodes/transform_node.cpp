@@ -274,13 +274,12 @@ NodeExecResult TransformNode::execute(
             // perspective, and filtered affine paths.
             if (input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
                 ctx.services.backend && ctx.services.surface_registry) {
-                const runtime::SurfaceDesc desc{
+                const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
                     static_cast<std::uint32_t>(result->width()),
                     static_cast<std::uint32_t>(result->height()),
                     runtime::PixelFormat::Rgba32Float,
                     runtime::ResourceUsage::Storage,
-                    runtime::LifetimeClass::FrameTransient,
-                    static_cast<std::size_t>(result->width()) * result->height() * sizeof(float) * 4};
+                    runtime::LifetimeClass::FrameTransient);
                 const auto handle = ctx.services.surface_registry->create(desc);
                 const auto created = handle != runtime::kInvalidRenderSurfaceHandle
                     ? ctx.services.backend->create_surface(handle, desc)
@@ -358,13 +357,12 @@ NodeExecResult TransformNode::execute(
             transform.clip_rect[3] = ctx.node_exec.clip_rect->y1;
         }
 
-        const runtime::SurfaceDesc desc{
+        const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
             static_cast<std::uint32_t>(result->width()),
             static_cast<std::uint32_t>(result->height()),
             runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::FrameTransient,
-            static_cast<std::size_t>(result->width()) * result->height() * sizeof(float) * 4};
+            runtime::LifetimeClass::FrameTransient);
         const auto handle = ctx.services.surface_registry->create(desc);
         const auto created = handle != runtime::kInvalidRenderSurfaceHandle
             ? ctx.services.backend->create_surface(handle, desc)

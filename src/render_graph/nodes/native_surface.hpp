@@ -35,14 +35,12 @@ namespace chronon3d::graph {
 /// Build the canonical Rgba32Float / Storage / FrameTransient surface
 /// description used by every native full-frame effect/composite fast-path.
 inline runtime::SurfaceDesc native_surface_desc(i32 width, i32 height) {
-    return runtime::SurfaceDesc{
+    return runtime::SurfaceDesc::make(
         static_cast<std::uint32_t>(width),
         static_cast<std::uint32_t>(height),
         runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient,
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height) *
-            sizeof(float) * 4};
+        runtime::LifetimeClass::FrameTransient);
 }
 
 /// Pack a framebuffer's pixels into a tightly-packed RGBA float buffer in
