@@ -47,6 +47,10 @@ struct GopExecutionPlan {
 
 struct VideoExecutionDecision {
     VideoExecutionPath path{VideoExecutionPath::FullGraph};
+    // Path used when the selected packet-copy path cannot be safely executed.
+    // The executor must honor this resolver-owned fallback rather than infer
+    // FullGraph from any path other than DirectYuv.
+    VideoExecutionPath render_fallback{VideoExecutionPath::FullGraph};
     std::string_view reason{"full_graph_default"};
     bool valid{true};
     // Populated when path == SmartGopCopy or BitstreamCopy. Null otherwise.

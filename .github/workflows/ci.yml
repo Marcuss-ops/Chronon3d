@@ -184,12 +184,16 @@ jobs:
         with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
       - uses: lukka/run-vcpkg@v11
         with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
-      - run: cmake --preset linux-ci
-      - run: cmake --build build/chronon/linux-ci
-      - name: Install to local PREFIX
+      - name: Configure SDK distribution build
+        run: cmake --preset linux-ci -DCMAKE_INSTALL_PREFIX=$PWD/sdk-dist
+      - name: Build SDK distribution
+        run: cmake --build build/chronon/linux-ci --target chronon3d_sdk_impl chronon3d_c
+      - name: Install SDK distribution
         run: |
-          mkdir -p consumer-install
-          DESTDIR=$PWD/consumer-install cmake --install build/chronon/linux-ci
+          rm -rf sdk-dist
+          cmake --install build/chronon/linux-ci --prefix "$PWD/sdk-dist"
+          test -f sdk-dist/lib/cmake/Chronon3D/Chronon3DConfig.cmake
+          test -f sdk-dist/include/chronon3d/c_api/chronon3d.h
       - name: Build external consumer project
         run: |
           mkdir -p consumer
@@ -197,12 +201,12 @@ jobs:
           printf 'project(chronon_consumer LANGUAGES CXX)\n' >> consumer/CMakeLists.txt
           printf 'set(CMAKE_CXX_STANDARD 20 CACHE STRING \"\")\n' >> consumer/CMakeLists.txt
           printf 'set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL \"\")\n' >> consumer/CMakeLists.txt
-          printf 'find_package(Chronon3D CONFIG REQUIRED PATHS ${CMAKE_SOURCE_DIR}/../consumer-install/usr/local/lib/cmake/Chronon3D NO_DEFAULT_PATH)\n' >> consumer/CMakeLists.txt
+          printf 'find_package(Chronon3D CONFIG REQUIRED)\n' >> consumer/CMakeLists.txt
           printf 'add_executable(chronon_consumer main.cpp)\n' >> consumer/CMakeLists.txt
           printf 'target_link_libraries(chronon_consumer PRIVATE Chronon3D::SDK)\n' >> consumer/CMakeLists.txt
           printf '#include <chronon3d/sdk/render_settings.hpp>\n' > consumer/main.cpp
           printf 'int main() { chronon3d::Color c{}; (void)c; return 0; }\n' >> consumer/main.cpp
-          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/sdk-dist
           cmake --build consumer/build
 
   # ═══════════════════════════════════════════════════════════════════════════

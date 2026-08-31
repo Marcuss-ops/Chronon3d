@@ -142,8 +142,8 @@ PipeExportResult make_pipe_export_result(
         // P1-B: OutputContract verification before rename.
         // The canonical production contract (h264/yuv420p/24fps) is resolved
         // once; runtime geometry/fps/frame count override it. The pipe export
-        // is video-only (audio is muxed by the external mux boundary later),
-        // so audio is not required at this stage.
+        // Native A/V is finalized inside the production encoder before
+        // validation; no external mux step is part of this flow.
         const auto validation_t0 = profiling::now();
         auto contract_result =
             media::video::resolve_output_contract("youtube_overlay_v1");
@@ -161,8 +161,9 @@ PipeExportResult make_pipe_export_result(
         contract.height = session.canvas_height;
         contract.fps = session.opts.output.frame_rate();
         contract.frame_count = session.total_frames;
-        contract.audio_required = false;
-        contract.audio_streams = 0;
+        contract.audio_required = session.opts.encoder.encoder_backend == "native" &&
+            !session.opts.gop_source.empty();
+        contract.audio_streams = contract.audio_required ? 1 : 0;
 
         // The encoder writes the temporary `.partial.mp4` path. Verify that
         // durable bytes before the atomic rename to the final output path;

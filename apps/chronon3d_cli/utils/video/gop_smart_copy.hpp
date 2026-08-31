@@ -28,6 +28,36 @@ enum class GopExecutionMode : std::uint8_t {
 ///
 /// The gate is fail-closed: safe_to_splice() returns false unless every
 /// field has been explicitly verified (no default-true).
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+using BitstreamCodecId = AVCodecID;
+using BitstreamPixelFormat = AVPixelFormat;
+#else
+enum class BitstreamCodecId : int {};
+enum class BitstreamPixelFormat : int {};
+#endif
+
+/// Encoder-owned bitstream contract used as the single target authority for
+/// source inspection and GOP splice validation.
+struct BitstreamTargetContract {
+    BitstreamCodecId codec{static_cast<BitstreamCodecId>(0)};
+    int profile{-1};
+    int level{-1};
+    std::uint32_t width{0};
+    std::uint32_t height{0};
+    BitstreamPixelFormat pixel_format{static_cast<BitstreamPixelFormat>(-1)};
+    std::vector<std::uint8_t> parameter_sets{};
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    AVColorRange color_range{ AVCOL_RANGE_UNSPECIFIED };
+    AVColorSpace color_space{ AVCOL_SPC_UNSPECIFIED };
+    AVColorPrimaries color_primaries{ AVCOL_PRI_UNSPECIFIED };
+    AVColorTransferCharacteristic color_trc{ AVCOL_TRC_UNSPECIFIED };
+#endif
+
+    [[nodiscard]] bool valid() const noexcept {
+        return width > 0 && height > 0 && profile >= 0 && level >= 0;
+    }
+};
+
 struct BitstreamCompatibility {
     bool codec_match{false};
     bool profile_match{false};
@@ -53,7 +83,7 @@ struct BitstreamCompatibility {
 /// rejected.
 [[nodiscard]] BitstreamCompatibility compare_bitstream_compatibility(
     const AVCodecParameters& source,
-    const AVCodecParameters& output,
+    const BitstreamTargetContract& target,
     bool random_access_safe) noexcept;
 #endif
 
@@ -170,7 +200,7 @@ struct GopCopyResult {
 /// to match the requested output.
 [[nodiscard]] std::optional<GopSourceAnalysis> inspect_gop_source(
     const std::string& path,
-    std::string_view requested_codec,
+    const BitstreamTargetContract& target,
     double edit_start_seconds,
     double edit_end_seconds);
 

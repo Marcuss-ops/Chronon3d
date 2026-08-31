@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 extern "C" {
@@ -47,6 +48,14 @@ struct AudioStreamConfig {
     AVRational time_base{1, 1};
 };
 
+/// Complete mux opening contract. All streams are declared before the
+/// container header is written; audio is optional but cannot be added later.
+struct MuxOpenConfig {
+    std::string output_path;
+    const AVCodecContext* video_codec{nullptr};  ///< borrowed, not owned
+    std::optional<AudioStreamConfig> audio{};
+};
+
 class MuxSession final {
 public:
     MuxSession() = default;
@@ -56,32 +65,16 @@ public:
 
     /// Open the mux session with a video stream derived from the encoder
     /// context. After this call the session is ready to accept video
-    /// packets. Audio is added separately via add_audio_stream() BEFORE
-    /// the header is written (see open_with_audio for the combined path).
-    [[nodiscard]] bool open(const std::string& output_path,
-                            const AVCodecContext& codec,
+    /// packets. Optional audio is declared in the same config before the
+    /// container header is written.
+    [[nodiscard]] bool open(const MuxOpenConfig& config,
                             std::string& reason);
 
-    /// Open the mux session with both video and audio in one call. The
-    /// audio stream is created and its parameters copied BEFORE
-    /// avformat_write_header runs, so the muxer sees the complete stream
-    /// list. Use this when the audio source is known at open time.
-    [[nodiscard]] bool open_with_audio(const std::string& output_path,
-                                       const AVCodecContext& codec,
-                                       const AudioStreamConfig& audio,
-                                       std::string& reason);
-
-    /// Add an audio stream to a session opened via open() (no audio). The
-    /// audio stream is registered in the format context. IMPORTANT: the
-    /// caller MUST call write_header() after this to finalise the stream
-    /// list. Returns false if the header was already written or the
-    /// audio stream already exists.
-    [[nodiscard]] bool add_audio_stream(const AudioStreamConfig& audio,
-                                         std::string& reason);
+    /// All stream declarations, including optional audio, are registered
+    /// before the header is written.
 
     /// Write the mux header (avformat_write_header + avio_open). Called
-    /// automatically by open() and open_with_audio(); exposed for the
-    /// incremental open → add_audio_stream → write_header path.
+    /// automatically by open(); retained for internal/test compatibility.
     [[nodiscard]] bool write_header(const std::string& output_path,
                                      std::string& reason);
 

@@ -357,7 +357,12 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     .qp = render_args.video_settings.qp,
                     .bitrate = render_args.video_settings.bitrate},
                 render_args.trace_output, render_args.trace_level,
-                render_args.gpu_hot_path_mode);
+                render_args.gpu_hot_path_mode,
+                [&ctx] {
+                    auto execution = std::make_shared<media::VideoJobExecutionContext>();
+                    execution->video_runtimes = ctx.video_runtimes;
+                    return execution;
+                }());
             return;
         }
         if (render_args.comp_id.empty()) {
@@ -406,7 +411,9 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             ctx.exit_code = 1;
             return;
         }
-        auto result = execute_render_job(*job);
+        auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
+        video_execution->video_runtimes = ctx.video_runtimes;
+        auto result = execute_render_job(*job, {}, std::move(video_execution));
         if (!result) {
             if (job->mode == RenderMode::Video) {
                 print_render_error(result.error(), *job);

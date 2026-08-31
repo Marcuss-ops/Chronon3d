@@ -19,11 +19,29 @@ TEST_CASE("VideoExecutionResolver: direct YUV is fail-closed") {
         .codec = "h264", .hot_path = chronon3d::GpuHotPathMode::RequireDirectYuv});
     CHECK(accepted.valid);
     CHECK(accepted.path == VideoExecutionPath::DirectYuv);
+    CHECK(accepted.render_fallback == VideoExecutionPath::FullGraph);
 
     const auto rejected = chronon3d::media::resolve_video_execution({
         .encoder_backend = "pipe", .hardware_encoder = "nvenc",
         .codec = "h264", .hot_path = chronon3d::GpuHotPathMode::RequireDirectYuv});
     CHECK_FALSE(rejected.valid);
+}
+
+TEST_CASE("VideoExecutionResolver: Smart GOP renders through DirectYuv fallback") {
+    const auto decision = resolve_video_execution({
+        .encoder_backend = "native", .hardware_encoder = "nvenc",
+        .codec = "h264", .has_gop_source = true,
+        .allow_hybrid_gop = true});
+    CHECK(decision.valid);
+    CHECK(decision.path == VideoExecutionPath::SmartGopCopy);
+    CHECK(decision.render_fallback == VideoExecutionPath::DirectYuv);
+
+    const auto copy = resolve_video_execution({
+        .encoder_backend = "native", .hardware_encoder = "nvenc",
+        .codec = "h264", .has_gop_source = true,
+        .gop_copy_only = true});
+    CHECK(copy.path == VideoExecutionPath::BitstreamCopy);
+    CHECK(copy.render_fallback == VideoExecutionPath::DirectYuv);
 }
 
 TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") {
@@ -144,32 +162,146 @@ TEST_CASE("BitstreamCompatibility compares codec parameters fail-closed") {
     output.extradata = const_cast<std::uint8_t*>(extradata.data());
     source.extradata_size = output.extradata_size = static_cast<int>(extradata.size());
 
-    CHECK(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+    const auto target_from_output = [&] {
+        chronon3d::cli::BitstreamTargetContract target;
+        target.codec = output.codec_id;
+        target.profile = output.profile;
+        target.level = output.level;
+        target.width = output.width;
+        target.height = output.height;
+        target.pixel_format = static_cast<chronon3d::cli::BitstreamPixelFormat>(output.format);
+        if (output.extradata && output.extradata_size > 0) {
+            target.parameter_sets.assign(output.extradata,
+                                         output.extradata + output.extradata_size);
+        }
+        target.color_range = output.color_range;
+        target.color_space = output.color_space;
+        target.color_primaries = output.color_primaries;
+        target.color_trc = output.color_trc;
+        return target;
+    };
+
+    CHECK(chronon3d::cli::compare_bitstream_compatibility(source, target_from_output(), true)
               .safe_to_splice());
-    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, false)
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, target_from_output(), false)
                     .safe_to_splice());
 
     output.profile++;
-    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, target_from_output(), true)
                     .safe_to_splice());
     output.profile--;
     output.width++;
-    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, target_from_output(), true)
                     .safe_to_splice());
     output.width--;
     output.format = AV_PIX_FMT_NV12;
-    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, target_from_output(), true)
                     .safe_to_splice());
     output.format = source.format;
     output.extradata = nullptr;
-    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, output, true)
+    CHECK_FALSE(chronon3d::cli::compare_bitstream_compatibility(source, target_from_output(), true)
                     .safe_to_splice());
 }
 #endif
 
+TEST_CASE("Smart GOP compatible source produces copy candidates") {
+    const auto compatible = chronon3d::cli::plan_gop({
+        .first_pts = 0,
+        .last_pts = 29,
+        .codec_parameters_match = true,
+        .compatibility = {
+            .codec_match = true,
+            .profile_match = true,
+            .level_compatible = true,
+            .dimensions_match = true,
+            .pixel_format_match = true,
+            .parameter_sets_compatible = true,
+            .color_params_match = true,
+            .random_access_safe = true},
+        .closed = true,
+        .safe_random_access = true,
+        .intersects_edit = false});
+
+    chronon3d::cli::GopSourceAnalysis result;
+    result.plans.push_back(compatible);
+    result.copy_count = compatible.copy_packets() ? 1 : 0;
+    result.reencode_count = compatible.reencode_packets() ? 1 : 0;
+    result.all_copy_eligible = result.valid() && result.copy_count == result.plans.size();
+
+    CHECK(compatible.copy_packets());
+    CHECK(result.valid());
+    CHECK(result.copy_count == 1);
+    CHECK(result.reencode_count == 0);
+    CHECK(result.all_copy_eligible);
+}
+
+TEST_CASE("Smart GOP hybrid source produces copy and reencode candidates") {
+    const auto copied = chronon3d::cli::plan_gop({
+        .first_pts = 0,
+        .last_pts = 29,
+        .codec_parameters_match = true,
+        .compatibility = {
+            .codec_match = true,
+            .profile_match = true,
+            .level_compatible = true,
+            .dimensions_match = true,
+            .pixel_format_match = true,
+            .parameter_sets_compatible = true,
+            .color_params_match = true,
+            .random_access_safe = true},
+        .closed = true,
+        .safe_random_access = true,
+        .intersects_edit = false});
+    const auto reencoded = chronon3d::cli::plan_gop({
+        .first_pts = 30,
+        .last_pts = 59,
+        .codec_parameters_match = true,
+        .compatibility = copied.compatibility,
+        .closed = true,
+        .safe_random_access = true,
+        .intersects_edit = true});
+
+    chronon3d::cli::GopSourceAnalysis result;
+    result.plans = {copied, reencoded};
+    result.copy_count = copied.copy_packets() + reencoded.copy_packets();
+    result.reencode_count = copied.reencode_packets() + reencoded.reencode_packets();
+
+    CHECK(result.valid());
+    CHECK(result.copy_count == 1);
+    CHECK(result.reencode_count == 1);
+    CHECK(result.is_hybrid());
+    CHECK_FALSE(result.all_copy_eligible);
+}
+
+TEST_CASE("Smart GOP incompatible source produces no copy candidates") {
+    const auto incompatible = chronon3d::cli::plan_gop({
+        .first_pts = 0,
+        .last_pts = 29,
+        .codec_parameters_match = false,
+        .compatibility = {},
+        .closed = true,
+        .safe_random_access = true,
+        .intersects_edit = false});
+
+    chronon3d::cli::GopSourceAnalysis result;
+    result.plans.push_back(incompatible);
+    result.copy_count = incompatible.copy_packets() ? 1 : 0;
+    result.reencode_count = incompatible.reencode_packets() ? 1 : 0;
+    result.all_copy_eligible = result.valid() && result.copy_count == result.plans.size();
+
+    CHECK_FALSE(incompatible.copy_packets());
+    CHECK(incompatible.reencode_packets());
+    CHECK(result.valid());
+    CHECK(result.copy_count == 0);
+    CHECK(result.reencode_count == 1);
+    CHECK_FALSE(result.is_hybrid());
+    CHECK_FALSE(result.all_copy_eligible);
+}
+
 TEST_CASE("GOP source analyzer exposes packet-level demux planning") {
     CHECK(requires(const std::string& path) {
-        chronon3d::cli::inspect_gop_source(path, "h264", 0.0, 100.0);
+        chronon3d::cli::inspect_gop_source(
+            path, chronon3d::cli::BitstreamTargetContract{}, 0.0, 100.0);
     });
 }
 

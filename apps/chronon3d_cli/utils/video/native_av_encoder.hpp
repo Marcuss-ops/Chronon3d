@@ -146,6 +146,8 @@ private:
     AVCodecContext*  codec_{nullptr};
     AVFrame*         frame_{nullptr};
     AVPacket*        packet_{nullptr};
+    AVFormatContext* audio_input_{nullptr};
+    int audio_input_stream_{-1};
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     static constexpr std::size_t kCudaEncodeRingSlots = 6;
@@ -200,6 +202,7 @@ private:
 
     /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();
+    bool mux_source_audio();
     bool drain_ready_cuda_frames(bool wait_for_one);
     void abort_open() noexcept;
     bool write_native_surface_impl(

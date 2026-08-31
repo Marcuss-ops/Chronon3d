@@ -127,15 +127,15 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // not call the resolver or create a second authority. The caller has
     // already handled BitstreamCopy/SmartGopCopy and selected DirectYuv or
     // FullGraph before entering this function.
-    const bool direct_yuv_requested =
+    bool direct_yuv_requested =
         opts.resolved_execution_path ==
             FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
 
     // Placement is decided once per job by DeviceScheduler. Keep the RAII
     // reservation in the session so it spans setup, encode, drain and close.
-    if (execution) {
+    if (execution && execution->reservation) {
         auto& injected_execution = *execution;
-        if (!injected_execution.reservation || !injected_execution.video_runtimes) {
+        if (!injected_execution.video_runtimes) {
             spdlog::error("[video] incomplete injected execution context: "
                           "reservation and persistent registry are required");
             return session;
@@ -146,6 +146,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
         session->device_id = injected_execution.device_id;
         session->device_reservation = std::move(injected_execution.reservation);
+    } else if (execution && execution->video_runtimes) {
+        // Standalone CLI: the process owns the persistent registry, but no
+        // daemon scheduler has injected a reservation. Use the canonical
+        // default device; the registry still owns/reuses its runtime.
+        session->device_id = 0;
     } else if (device_scheduler) {
         runtime::DeviceSelectionRequirements requirements;
         requirements.resources.compute_units =
@@ -325,6 +330,10 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
     pipe_options.direct_yuv_mode = direct_yuv_requested;
+    pipe_options.audio_start_seconds = static_cast<double>(start.integral()) /
+        (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
+    pipe_options.audio_end_seconds = static_cast<double>(end.integral()) /
+        (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
     if (!session->encoder->open(pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
