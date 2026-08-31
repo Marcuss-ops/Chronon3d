@@ -184,8 +184,7 @@ NativeSurfacePrep prepare_frame(
     prep.video_settings.retain_native_surface_for_video =
         ctx.opts.encoder.encoder_backend == "native" &&
         ctx.opts.encoder.hardware_encoder == "nvenc" &&
-        ctx.backend.supports_native_video_surface() &&
-        ctx.opts.gpu_hot_path_mode != GpuHotPathMode::Auto;
+        ctx.backend.supports_native_video_surface();
     prep.video_settings.require_native_gpu =
         prep.video_settings.retain_native_surface_for_video;
     auto* surface_registry = ctx.sw_renderer
@@ -206,11 +205,11 @@ NativeSurfacePrep prepare_frame(
         const runtime::SurfaceDesc encode_desc{
             static_cast<std::uint32_t>(ctx.compiled.composition->width()),
             static_cast<std::uint32_t>(ctx.compiled.composition->height()),
-            runtime::PixelFormat::Rgba8Unorm,
+            runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::FrameTransient,
             static_cast<std::size_t>(ctx.compiled.composition->width()) *
-                ctx.compiled.composition->height() * 4};
+                ctx.compiled.composition->height() * 16};
         persistent_native_surface = surface_registry->create(encode_desc);
         const auto created = ctx.backend.create_video_encode_surface(
             persistent_native_surface, encode_desc);
@@ -421,6 +420,9 @@ EncodeOutcome encode_frame(
                 source_surface = runtime::kInvalidRenderSurfaceHandle;
             }
         }
+    }
+    if (execution_slot && execution_slot->native_surface != runtime::kInvalidRenderSurfaceHandle) {
+        execution_slot->native_surface_ready = true;
     }
     out.package.emplace<FullGraphFramePackage>();
     auto& full_package = std::get<FullGraphFramePackage>(out.package);
@@ -669,12 +671,9 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 mark_pipe_writer_failed(status, current_frame);
                 break;
             }
-            // Retire only resources whose submission fence has completed;
-            // the blocking device drain is reserved for final job cleanup.
-            ctx.backend.retire_frame_transient_surfaces();
             // Do not release FrameTransient registry handles here.  They are
-            // still owned by queued RenderFramePackage instances and may be
-            // referenced by the Vulkan/CUDA/NVENC pipeline after this
+            // still owned by queued RenderFramePackage instances, previous-frame
+            // reuse buffers, and the Vulkan/CUDA/NVENC pipeline after this
             // producer iteration. Final job cleanup runs after the writer has
             // joined and retires/releases the remaining transients.
 

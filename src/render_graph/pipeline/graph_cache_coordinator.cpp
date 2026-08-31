@@ -373,6 +373,10 @@ GraphBuildResult build_or_reuse_graph(
         graph_cache != nullptr &&
         graph_cache->has(width, height);
 
+    spdlog::info("[build_or_reuse] frame={} can_reuse={} scene_structure_unchanged={} has_cache={}",
+                 static_cast<int>(ctx.frame_input.frame), result.can_reuse,
+                 scene_structure_unchanged, (graph_cache && graph_cache->has(width, height)));
+
     const auto t_graph0 = profiling::now();
 
     if (result.can_reuse) {
@@ -399,6 +403,10 @@ GraphBuildResult build_or_reuse_graph(
             result.compiled, ctx, "build_fresh",
             "graph:" + std::to_string(width) + "x" + std::to_string(height));
     }
+
+    spdlog::info("[build_or_reuse_done] frame={} graph_reused={} compiled_nodes={} levels={}",
+                 static_cast<int>(ctx.frame_input.frame), result.graph_reused,
+                 result.compiled.graph.size(), result.compiled.levels.size());
 
     // Count only the final decision on the checked-out candidate. A
     // topology-rejected candidate is a rebuild/miss, not a cache hit.

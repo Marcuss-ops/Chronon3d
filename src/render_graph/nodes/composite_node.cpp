@@ -325,7 +325,7 @@ NodeExecResult CompositeNode::execute(
             bottom->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
             ctx.services.backend &&
             ctx.services.backend->is_native_surface_valid(bottom->surface_handle());
-        if (!result_native_valid && bottom_native_valid) {
+        if (result->surface_handle() != bottom->surface_handle() && bottom_native_valid) {
             if (!seed_native_destination(ctx, *result, *bottom)) {
                 if (ctx.policy.require_native_gpu) {
                     return NodeExecutionError{

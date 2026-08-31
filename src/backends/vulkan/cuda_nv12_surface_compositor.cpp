@@ -313,6 +313,11 @@ extern "C" __global__ void nv12_composite_layer_batch_2x2(
   out_uv[uv+1] = (unsigned char)fminf(fmaxf(roundf((1.0f-a)*bg_uv[bg_uv_index+1] + a*v), 16.0f), 240.0f);
 }
 
+__device__ inline float to_srgb_channel(float v) {
+  v = fminf(fmaxf(v, 0.0f), 1.0f);
+  return (v <= 0.0031308f) ? (v * 12.92f) : (1.055f * __powf(v, 1.0f / 2.4f) - 0.055f);
+}
+
 extern "C" __global__ void rgba_surface_to_nv12_2x2(
     cudaSurfaceObject_t fg_rgba,
     unsigned char* out_y, int out_yp, unsigned char* out_uv, int out_uvp,
@@ -329,25 +334,26 @@ extern "C" __global__ void rgba_surface_to_nv12_2x2(
   const float4 fs[4] = {f00, f10, f01, f11};
   const int xs[4] = {x, x1, x, x1};
   const int ys[4] = {y, y, y1, y1};
+  float3 srgb[4];
   for (int i = 0; i < 4; ++i) {
     const float a = fminf(fmaxf(fs[i].w, 0.0f), 1.0f);
-    const float y_value = 16.0f + 219.0f * a *
-        (0.2126f * fs[i].x + 0.7152f * fs[i].y + 0.0722f * fs[i].z);
+    const float inv_a = (a > 1e-5f) ? (1.0f / a) : 0.0f;
+    srgb[i].x = to_srgb_channel(fs[i].x * inv_a);
+    srgb[i].y = to_srgb_channel(fs[i].y * inv_a);
+    srgb[i].z = to_srgb_channel(fs[i].z * inv_a);
+    const float y_value = 16.0f + 219.0f *
+        (0.2126f * srgb[i].x + 0.7152f * srgb[i].y + 0.0722f * srgb[i].z);
     out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(
         fmaxf(roundf(y_value), 16.0f), 235.0f);
   }
-  const float a = (f00.w + f10.w + f01.w + f11.w) * 0.25f;
-  const float r = (f00.x*f00.w + f10.x*f10.w + f01.x*f01.w + f11.x*f11.w) /
-      fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
-  const float g = (f00.y*f00.w + f10.y*f10.w + f01.y*f01.w + f11.y*f11.w) /
-      fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
-  const float b = (f00.z*f00.w + f10.z*f10.w + f01.z*f01.w + f11.z*f11.w) /
-      fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
+  const float r = (srgb[0].x + srgb[1].x + srgb[2].x + srgb[3].x) * 0.25f;
+  const float g = (srgb[0].y + srgb[1].y + srgb[2].y + srgb[3].y) * 0.25f;
+  const float b = (srgb[0].z + srgb[1].z + srgb[2].z + srgb[3].z) * 0.25f;
   const int uv = (y >> 1) * out_uvp + x;
   out_uv[uv] = (unsigned char)fminf(fmaxf(roundf(
-      (1.0f-a) * 128.0f + a * (128.0f + 224.0f * (-0.1146f*r - 0.3854f*g + 0.5f*b))), 16.0f), 240.0f);
+      128.0f + 224.0f * (-0.1146f * r - 0.3854f * g + 0.5f * b)), 16.0f), 240.0f);
   out_uv[uv + 1] = (unsigned char)fminf(fmaxf(roundf(
-      (1.0f-a) * 128.0f + a * (128.0f + 224.0f * (0.5f*r - 0.4542f*g - 0.0458f*b))), 16.0f), 240.0f);
+      128.0f + 224.0f * (0.5f * r - 0.4542f * g - 0.0458f * b)), 16.0f), 240.0f);
 }
 
 __device__ float4 overlay_load_u8(cudaSurfaceObject_t surface, int x, int y,
@@ -718,7 +724,12 @@ bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
     std::uint32_t width, std::uint32_t height, CUstream stream) {
     const CUfunction kernel = surface_u8_ ? rgba_u8_to_nv12_kernel_ : rgba_to_nv12_kernel_;
     if (!bridge_ || !kernel || !out_y || !out_uv ||
-        width == 0 || height == 0) return false;
+        width == 0 || height == 0) {
+        spdlog::error("[nv12_diag] invalid compositor args: bridge={} kernel={} out_y={} out_uv={} width={} height={}",
+                      static_cast<void*>(bridge_.get()), static_cast<void*>(kernel),
+                      out_y, out_uv, width, height);
+        return false;
+    }
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     const CUstream active = stream ? stream : stream_;
     // The imported surface was populated by Vulkan immediately before the
@@ -732,6 +743,18 @@ bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
                               (height + 31) / 32, 1, 16, 16, 1, 0, active,
                               args, nullptr),
                "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
+
+    static std::atomic<int> s_sample_count{0};
+    if (s_sample_count.fetch_add(1) < 3) {
+        unsigned char sample_y[64]{};
+        cuMemcpyDtoHAsync(sample_y, out_y, sizeof(sample_y), active);
+        cuStreamSynchronize(active);
+        spdlog::info("[nv12_diag] surface_u8={} w={} h={} out_yp={} sample_y[0..7]={:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}",
+                     surface_u8_, width, height, out_yp,
+                     sample_y[0], sample_y[1], sample_y[2], sample_y[3],
+                     sample_y[4], sample_y[5], sample_y[6], sample_y[7]);
+    }
+
     bridge_->signal_for_vulkan(active);
     first_write_ = false;
     if (auto* counters = profiling::g_current_counters) {

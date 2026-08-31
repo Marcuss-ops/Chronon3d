@@ -173,10 +173,17 @@ namespace chronon3d::backends::vulkan {
         VkMemoryRequirements requirements{};
         vkGetImageMemoryRequirements(device, image_it->second.image.image,
                                      &requirements);
+        const auto fmt = image_it->second.image.format;
+        const bool is_u8 = (fmt == VK_FORMAT_R8G8B8A8_UNORM ||
+                            fmt == VK_FORMAT_R8G8B8A8_SRGB ||
+                            fmt == VK_FORMAT_B8G8R8A8_UNORM ||
+                            fmt == VK_FORMAT_B8G8R8A8_SRGB ||
+                            fmt == VK_FORMAT_A8B8G8R8_UNORM_PACK32 ||
+                            fmt == VK_FORMAT_A8B8G8R8_SRGB_PACK32);
         return CudaExternalMemoryInfo{
             fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
             image_it->second.image.width, image_it->second.image.height,
-            image_it->second.image.format == VK_FORMAT_B8G8R8A8_UNORM ? 2u : 1u};
+            is_u8 ? 2u : 1u};
     }
 
     void VulkanBackend::Impl::prepare_cuda_surface_for_vulkan(runtime::RenderSurfaceHandle handle) {
@@ -204,32 +211,53 @@ namespace chronon3d::backends::vulkan {
         const auto destination_slot = bound_slot(destination);
         auto& src = surfaces.physical_surfaces.at(source_slot).image;
         auto& dst = surfaces.physical_surfaces.at(destination_slot).image;
-        if (!dst.exportable || dst.format != VK_FORMAT_B8G8R8A8_UNORM) {
-            throw std::invalid_argument("CUDA encoder destination must be exportable B8G8R8A8");
+        if (!dst.exportable || (dst.format != VK_FORMAT_B8G8R8A8_UNORM &&
+                                dst.format != VK_FORMAT_R32G32B32A32_SFLOAT)) {
+            throw std::invalid_argument("CUDA encoder destination must be exportable B8G8R8A8 or R32G32B32A32_SFLOAT");
+        }
+        if (!src.initialized) {
+            spdlog::error("[copy_cuda_diag] FAILED: src_handle={} src_slot={} src_init={} dst_slot={}",
+                          source, source_slot, src.initialized, destination_slot);
+            throw std::runtime_error(
+                "copy_surface_to_cuda_encoder: source surface is uninitialized");
         }
         const bool record_in_frame_batch = frame_batch.active;
         if (!record_in_frame_batch) begin_command_buffer();
+        static std::atomic<int> s_copy_count{0};
+        if (s_copy_count.fetch_add(1) < 5) {
+            spdlog::info("[copy_cuda_diag] src_slot={} dst_slot={} src_w={} src_h={} src_fmt={} dst_w={} dst_h={} batch_active={}",
+                         source_slot, destination_slot, src.width, src.height, static_cast<int>(src.format),
+                         dst.width, dst.height, record_in_frame_batch);
+        }
         const VkCommandBuffer command = record_in_frame_batch
             ? active_command_buffer() : command_buffer;
         transition(command, src.image,
-                   src.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         transition(command, dst.image,
                    dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        VkImageBlit region{};
-        region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.srcOffsets[1] = {static_cast<int>(src.width), static_cast<int>(src.height), 1};
-        region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.dstOffsets[1] = {static_cast<int>(dst.width), static_cast<int>(dst.height), 1};
-        vkCmdBlitImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                       dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
-                       VK_FILTER_NEAREST);
+        if (src.format == dst.format && src.width == dst.width && src.height == dst.height) {
+            VkImageCopy copy_region{};
+            copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            copy_region.extent = {src.width, src.height, 1};
+            vkCmdCopyImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+        } else {
+            VkImageBlit region{};
+            region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            region.srcOffsets[1] = {static_cast<int>(src.width), static_cast<int>(src.height), 1};
+            region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            region.dstOffsets[1] = {static_cast<int>(dst.width), static_cast<int>(dst.height), 1};
+            vkCmdBlitImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                           VK_FILTER_NEAREST);
+        }
         transition(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
         transition(command, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
-        src.initialized = true;
         dst.initialized = true;
         surfaces.cuda_export_ready_surfaces.insert(destination_slot);
         // Zero-copy gate 6: this vkCmdBlitImage is the D2D Vulkan→CUDA
