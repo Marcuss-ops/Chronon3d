@@ -375,13 +375,11 @@ void execute_single_node(
         *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
     }
 
-    if (ctx.policy.diagnostics_enabled) {
-        spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-            static_cast<int>(ctx.frame_input.frame), node.name(), id, to_string(node.kind()),
-            cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
-            cache_eval.use_cache ? 1 : 0,
-            cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
-    }
+    spdlog::info("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
+        static_cast<int>(ctx.frame_input.frame), node.name(), id, to_string(node.kind()),
+        cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
+        cache_eval.use_cache ? 1 : 0,
+        cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
 
     const auto t_bbox0 = profiling::now();
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);

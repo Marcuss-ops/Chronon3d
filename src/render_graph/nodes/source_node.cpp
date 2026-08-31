@@ -34,6 +34,10 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     RenderGraphContext& ctx, Framebuffer& fb,
     const RenderNode& node, const RenderState& state) {
     const auto& image = node.shape.image();
+    spdlog::info("[native_image_diag] path='{}' matrix3=[{:.1f},{:.1f},{:.1f},{:.1f}] anchor=[{:.1f},{:.1f}] op={:.2f} state_op={:.2f}",
+                 image.path, state.matrix[3][0], state.matrix[3][1], state.matrix[0][0], state.matrix[1][1],
+                 node.world_transform.anchor.x, node.world_transform.anchor.y,
+                 image.opacity, state.opacity);
     if (!ctx.services.image_cache || !ctx.services.gpu_asset_cache ||
         !ctx.services.backend || !ctx.services.surface_registry ||
         image.path.empty() || image.radius > 0.0f ||
@@ -129,6 +133,8 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
     const auto img_y0 = static_cast<std::int32_t>(std::floor(std::min(dst_y0, dst_y1)));
     const auto img_x1 = static_cast<std::int32_t>(std::ceil(std::max(dst_x0, dst_x1)));
     const auto img_y1 = static_cast<std::int32_t>(std::ceil(std::max(dst_y0, dst_y1)));
+    spdlog::info("[native_image_bounds] dst=[{:.1f},{:.1f} -> {:.1f},{:.1f}] img=[{},{} -> {},{}] sx={:.3f} sy={:.3f} tx={:.1f} ty={:.1f}",
+                 dst_x0, dst_y0, dst_x1, dst_y1, img_x0, img_y0, img_x1, img_y1, sx, sy, tx, ty);
 
     std::int32_t effective_clip_x0 = img_x0;
     std::int32_t effective_clip_y0 = img_y0;
@@ -605,9 +611,8 @@ NodeExecResult SourceNode::execute(
             state.projection  = ctx.frame_input.projection_ctx;
         }
 
-        // GPU solid-rect fast-path: fill the surface directly instead of
-        // rasterizing on CPU.  Software backends (no surface support) fail
-        // the predicate and keep the legacy draw_node() path.
+        spdlog::info("[source_node_exec] node='{}' shape_type={} frame={}",
+                     m_name, static_cast<int>(m_node.shape.type()), static_cast<int>(ctx.frame_input.frame));
         const bool native_filled = try_native_rect_fill(ctx, *fb, m_node, state);
         const bool native_image = !native_filled &&
             m_node.shape.type() == ShapeType::Image &&

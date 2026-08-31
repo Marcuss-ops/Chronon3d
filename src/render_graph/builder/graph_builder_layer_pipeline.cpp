@@ -202,6 +202,11 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     // invisible by resolve_layer_graph_item(); do not build or composite its
     // source in that case.  Without this guard BackfaceMode::Hidden emitted
     // the correct diagnostic but the stale source still reached the output.
+    spdlog::info("[append_layer_pipe] frame={} layer='{}' item_vis={} layer_vis={} anim_op_td={} opacity={}",
+                 static_cast<int>(ctx.frame_input.frame), layer.name.c_str(),
+                 item.visible, layer.visible,
+                 layer.anim_transform.opacity.is_time_dependent(),
+                 layer.transform.opacity);
     if (!item.visible || !layer.visible) {
         return;
     }
@@ -243,9 +248,12 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     GraphNodeId layer_output = build_layer_output_node(
         graph, item, ctx, cam25d, casters, depth_grade, node_ctx);
+    spdlog::info("[append_layer_pipe] layer='{}' layer_output={} current={}",
+                 layer.name.c_str(), layer_output, current);
 
     const bool is_static = layer.cache_static || item.is_static;
     append_composite_pass(graph, current, layer_output, layer, is_static, ctx, item.world_z, node_ctx);
+    spdlog::info("[append_layer_pipe] after composite current={}", current);
 }
 
 void sort_camera25d_layers(std::vector<LayerGraphItem>& items) {

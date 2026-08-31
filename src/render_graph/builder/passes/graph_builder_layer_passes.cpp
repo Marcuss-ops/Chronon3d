@@ -22,7 +22,10 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            bool is_static, const RenderGraphContext& ctx,
                            float world_z,
                            const BuilderContext& node_ctx) {
-    if (layer_output == k_invalid_node || layer_output == current) return;
+    if (layer_output == k_invalid_node || layer_output == current) {
+        spdlog::info("[append_composite_pass] skipped layer='{}' layer_output={} current={}", layer.name.c_str(), layer_output, current);
+        return;
+    }
 
     if (!ctx.policy.dirty_rects_enabled &&
         current < graph.size() &&

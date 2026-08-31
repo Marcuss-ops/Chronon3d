@@ -4,24 +4,6 @@ graph::RenderOpResult draw_cached_text_run(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
-    // The fused Vulkan TextBatch path currently reports a successful dispatch
-    // for coverage atlases while producing an empty surface on the deployed
-    // driver (the resulting MP4 is valid but all-black).  Do not let that
-    // false success reach the compositor.  Returning UnsupportedCapability
-    // deliberately routes this text run through the canonical Blend2D
-    // rasterizer, after which Chronon uploads the text surface and the rest
-    // of the composition remains Vulkan/NVENC.  This is fail-closed and can
-    // be removed only together with a pixel-verified TextBatch regression.
-    (void)ctx;
-    (void)destination;
-    (void)shape;
-    (void)model_matrix;
-    (void)opacity;
-    return graph::RenderOpResult(graph::RenderBackendError{
-        graph::RenderBackendErrorCode::UnsupportedCapability,
-        "draw_cached_text_run: TextBatch disabled until pixel output is verified"});
-
-    #if 0
     if (!ctx.services.text_render_resources || !shape.layout ||
         shape.layout->placed.glyphs.empty() ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
@@ -338,5 +320,4 @@ graph::RenderOpResult draw_cached_text_run(
         ctx, destination.surface_handle(), glyphs, current_frame,
         highlight_plan.color, highlight_plan.enabled);
     return result;
-    #endif
 }
