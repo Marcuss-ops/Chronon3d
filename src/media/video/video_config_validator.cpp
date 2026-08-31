@@ -141,7 +141,12 @@ ValidationResult validate_video_sink_config(
         return {false, "encoder.bitrate must be >= 0"};
     }
 
-    switch (enc.rate_control_mode) {
+    // Raw/uncompressed sinks do not have an encoder, so rate-control fields
+    // are intentionally ignored.  Requiring a positive bitrate here would
+    // reject the canonical RawFile adapter configuration.
+    if (enc.codec == VideoCodec::Uncompressed) {
+        // Keep the generic range checks above, but skip codec rate control.
+    } else switch (enc.rate_control_mode) {
         case RateControlMode::Crf:
             if (enc.qp >= 0 || enc.bitrate > 0) {
                 return {false, "CRF mode cannot be combined with QP or bitrate"};

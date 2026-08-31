@@ -3,6 +3,8 @@
 # ==============================================================================
 
 # ── FlatBuffers schema for compiled artifacts ────────────────────────────
+find_package(flatbuffers CONFIG REQUIRED)
+
 if(NOT DEFINED CHRONON3D_FLATC)
     find_program(CHRONON3D_FLATC flatc REQUIRED)
 endif()

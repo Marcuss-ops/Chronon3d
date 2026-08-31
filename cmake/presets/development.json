@@ -6,7 +6,7 @@
   "configurePresets": [
     {
       "name": "linux-ci-core-gate",
-      "hidden": true,
+      "hidden": false,
       "inherits": "base-linux",
       "displayName": "Linux CI Core Gate (1.3.C/D/E migration target; replaces gates.yml Linux Core Dev reference)",
       "description": "Pre-merge core gate preset for .github/workflows/gates.yml Gate 1 (formerly linux-core-dev). Text/Video/Content/Diagnostics OFF; tests ON. BuildType=Debug, unity OFF.",
@@ -29,12 +29,12 @@
         "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
-        "VCPKG_MANIFEST_FEATURES": "tests"
+        "VCPKG_MANIFEST_FEATURES": "tests;ipc"
       }
     },
     {
       "name": "linux-ci-lean-gate",
-      "hidden": true,
+      "hidden": false,
       "inherits": "base-linux",
       "displayName": "Linux CI Lean Gate (1.3.C/D/E migration target; replaces gates.yml Linux Lean Dev reference)",
       "description": "Pre-merge lean gate preset for .github/workflows/gates.yml Gate 2 (formerly linux-lean-dev). CLI + text + blend2d + tests; no benchmarks/diagnostics/video. BuildType=Debug, ninja, ccache, unity ON. vcpkg CMAKE_PREFIX_PATH is consolidated into cmake/Chronon3DVcpkgToolchain.cmake (single source of truth, TICKET-UNIFIED-VCPKG-TOOLCHAIN); preset no longer hardcodes the vcpkg_installed/ substring.",

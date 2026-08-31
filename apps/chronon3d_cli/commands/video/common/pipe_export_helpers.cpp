@@ -96,6 +96,7 @@ FfmpegPipeOptions make_pipe_options(
         },
         .tune = effective_tune,
         .pipe_writer = opts.pipe.pipe_writer,
+        .audio_source_path = opts.gop_source,
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
 

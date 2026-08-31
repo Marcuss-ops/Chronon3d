@@ -21,7 +21,9 @@ VideoSinkEncoderAdapter::map_codec(const std::string& codec) {
     using media::video::VideoCodec;
 
     if (codec == "h264_nvenc") {
-        return VideoCodec::H264Nvenc;
+        spdlog::warn("[video_adapter] Hardware codec '{}' is unavailable in CPU-only mode; "
+                     "falling back to libx264", codec);
+        return VideoCodec::H264;
     }
     // Other hardware codecs are not available in this adapter yet — warn and
     // fall back to the equivalent software encoder.

@@ -109,7 +109,9 @@ int main(int argc, char** argv) {
     chronon3d::cli::startup_trace().composition_registration_ms =
         chronon3d::profiling::duration_ms(composition_t0, chronon3d::profiling::now());
     int exit_code = 0;
-    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets, cpu_budget};
+    auto video_runtimes = std::make_shared<chronon3d::media::VideoRuntimeRegistry>();
+    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets,
+                                   cpu_budget, std::move(video_runtimes)};
 
     // Explicit group registration — only linked groups get registered.
     // Build profiles control which groups are compiled/linked:

@@ -65,5 +65,43 @@ bool NativeAvEncoder::drain_packets() {
     }
 }
 
+bool NativeAvEncoder::mux_source_audio() {
+    if (!audio_input_ || audio_input_stream_ < 0 || !mux_ || !mux_->has_audio()) {
+        return false;
+    }
+    const AVRational time_base = audio_input_->streams[audio_input_stream_]->time_base;
+    const auto to_pts = [time_base](double seconds) {
+        return static_cast<std::int64_t>(std::llround(seconds / av_q2d(time_base)));
+    };
+    const std::int64_t start_pts = to_pts(options_.audio_start_seconds);
+    const std::int64_t end_pts = options_.audio_end_seconds > options_.audio_start_seconds
+        ? to_pts(options_.audio_end_seconds) : AV_NOPTS_VALUE;
+    AVPacket* packet = av_packet_alloc();
+    if (!packet) return false;
+    bool ok = true;
+    while (av_read_frame(audio_input_, packet) >= 0) {
+        if (packet->stream_index == audio_input_stream_) {
+            const std::int64_t pts = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
+            if (pts != AV_NOPTS_VALUE && pts >= start_pts &&
+                (end_pts == AV_NOPTS_VALUE || pts < end_pts)) {
+                if (packet->pts != AV_NOPTS_VALUE) packet->pts -= start_pts;
+                if (packet->dts != AV_NOPTS_VALUE) packet->dts -= start_pts;
+                if (!mux_->submit_audio({
+                        std::shared_ptr<AVPacket>(packet, [](AVPacket*) {}),
+                        time_base, false})) {
+                    ok = false;
+                    av_packet_unref(packet);
+                    break;
+                }
+            }
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    avformat_close_input(&audio_input_);
+    audio_input_stream_ = -1;
+    return ok;
+}
+
 
 } // namespace chronon3d::cli
