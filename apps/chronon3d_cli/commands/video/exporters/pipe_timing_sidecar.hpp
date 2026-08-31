@@ -95,6 +95,7 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_submissions;
     std::optional<std::uint64_t> passes_executed;
     std::optional<std::uint64_t> gpu_nodes;
+    std::optional<std::uint64_t> software_fallback_nodes;
     std::optional<std::uint64_t> gpu_native_surface_frames;
     std::optional<std::uint64_t> gpu_native_encode_frames;
     std::optional<std::uint64_t> nv12_to_rgba_frames;

@@ -436,10 +436,7 @@ void NativeAvEncoder::abort_open() noexcept {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     for (auto& pending : pending_cuda_frames_) {
         if (pending.frame) av_frame_free(&pending.frame);
-        if (pending.ready) {
-            (void)cuEventDestroy(pending.ready);
-            pending.ready = nullptr;
-        }
+        cuda::destroy(pending.ready);
     }
     pending_cuda_frames_.clear();
     for (auto* reusable : reusable_cuda_frames_) {
@@ -478,13 +475,22 @@ void NativeAvEncoder::abort_open() noexcept {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
+    // FFmpeg/NVENC may leave a different CUDA context current after
+    // avcodec_send_frame(). CUDA events are owned by the context in which
+    // they were created; querying one from another context reports the
+    // misleading CUDA_ERROR_INVALID_HANDLE. Re-activate the borrowed
+    // process-persistent context at every queue boundary.
+    if (!cuda_context_ || cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
+        spdlog::error("[native_av] failed to activate CUDA context before event drain");
+        return false;
+    }
     while (!pending_cuda_frames_.empty()) {
         auto& pending = pending_cuda_frames_.front();
-        const CUresult ready = cuEventQuery(pending.ready);
+        const CUresult ready = cuda::query(pending.ready);
         if (ready == CUDA_ERROR_NOT_READY) {
             if (!wait_for_one) return true;
             const auto wait_t0 = Clock::now();
-            const CUresult sync_result = cuEventSynchronize(pending.ready);
+            const CUresult sync_result = cuda::synchronize(pending.ready);
             if (sync_result != CUDA_SUCCESS) {
                 const char* name = nullptr;
                 const char* text = nullptr;
@@ -521,8 +527,7 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         av_frame_unref(pending.frame);
         reusable_cuda_frames_.push_back(pending.frame);
         pending.frame = nullptr;
-        cuEventDestroy(pending.ready);
-        pending.ready = nullptr;
+        cuda::destroy(pending.ready);
         pending_cuda_frames_.pop_front();
         if (send_ret < 0) {
             char error[AV_ERROR_MAX_STRING_SIZE]{};
@@ -701,10 +706,10 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
         return false;
     }
     gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
-    CUevent ready = nullptr;
-    const CUresult event_create = cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING);
-    const CUresult event_record = event_create == CUDA_SUCCESS
-        ? cuEventRecord(ready, cuda_stream_) : event_create;
+    cuda::OwnedCudaEvent ready{};
+    const CUresult event_create = cuda::create_recorded(
+        ready, reinterpret_cast<CUcontext>(cuda_context_), cuda_stream_);
+    const CUresult event_record = event_create;
     if (event_create != CUDA_SUCCESS || event_record != CUDA_SUCCESS) {
         const char* name = nullptr;
         const char* detail = nullptr;
@@ -712,7 +717,7 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
         cuGetErrorString(event_record, &detail);
         spdlog::error("[native_av] DirectYuv CUDA event setup failed: {} ({})",
                       name ? name : "CUDA error", detail ? detail : "unknown");
-        if (ready) cuEventDestroy(ready);
+        cuda::destroy(ready);
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
@@ -722,10 +727,10 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     // until the encoder consumes the outputs exhausts the decoder pool and
     // regresses the render loop. The output remains queued for NVENC.
     const auto sync_t0 = Clock::now();
-    const CUresult sync_res = cuEventSynchronize(ready);
+    const CUresult sync_res = cuda::synchronize(ready);
     direct_yuv_cuda_wait_ms_ += elapsed_ms(sync_t0);
     if (sync_res != CUDA_SUCCESS) {
-        cuEventDestroy(ready);
+        cuda::destroy(ready);
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
@@ -766,6 +771,10 @@ bool NativeAvEncoder::write_native_surface_impl(
         spdlog::error("[native_av] invalid GPU frame contract source={} destination={} gpu_nvenc={} cuda_context={} frames_ctx={}",
                       source, destination, gpu_nvenc_, cuda_context_ != nullptr,
                       cuda_frames_ref_ != nullptr);
+        return false;
+    }
+    if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
+        spdlog::error("[native_av] failed to activate CUDA context before surface handoff");
         return false;
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
@@ -858,30 +867,40 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
-        CUevent ready = nullptr;
-        if (cuEventCreate(&ready, CU_EVENT_DISABLE_TIMING) != CUDA_SUCCESS ||
-            cuEventRecord(ready, cuda_stream_) != CUDA_SUCCESS) {
-            if (ready) cuEventDestroy(ready);
-            spdlog::error("[native_av] CUDA completion event failed for GPU frame {}",
+        // The Vulkan external-memory interop path can invalidate CUDA event
+        // handles when ownership is published back to Vulkan. Do not carry
+        // an event across that boundary. A stream synchronization gives
+        // NVENC the same ordering guarantee while keeping the complete
+        // compositor -> NV12 -> encoder path on GPU and avoiding any CPU
+        // fallback.
+        if (cuStreamSynchronize(cuda_stream_) != CUDA_SUCCESS) {
+            spdlog::error("[native_av] CUDA stream synchronization failed for GPU frame {}",
                           frames_submitted_);
             av_frame_unref(gpu_frame);
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
-        pending_cuda_frames_.push_back(PendingCudaFrame{gpu_frame, ready, destination});
-        cuda_pending_peak_ = std::max<std::uint64_t>(
-            cuda_pending_peak_, pending_cuda_frames_.size());
-        if (counters_) {
-            auto observed = counters_->cuda_encode_queue_peak.load(std::memory_order_relaxed);
-            const auto current = static_cast<std::uint64_t>(pending_cuda_frames_.size());
-            while (observed < current &&
-                   !counters_->cuda_encode_queue_peak.compare_exchange_weak(
-                       observed, current, std::memory_order_relaxed)) {}
+        const auto send_t0 = Clock::now();
+        const int send_ret = avcodec_send_frame(codec_, gpu_frame);
+        const double send_ms = elapsed_ms(send_t0);
+        native_send_frame_ms_ += send_ms;
+        encoder_nvenc_submit_ms_ += send_ms;
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        if (send_ret < 0) {
+            char error[AV_ERROR_MAX_STRING_SIZE]{};
+            av_strerror(send_ret, error, sizeof(error));
+            spdlog::error("[native_av] avcodec_send_frame failed for GPU frame {}: {}",
+                          frames_written_, error);
+            return false;
         }
-        // Poll only; the bounded queue applies backpressure on the oldest
-        // event when it reaches three frames in flight.
-        if (!drain_ready_cuda_frames(false)) return false;
+        if (!drain_packets()) {
+            spdlog::error("[native_av] NVENC packet drain failed after GPU frame {}",
+                          frames_written_);
+            return false;
+        }
+        ++frames_written_;
         return true;
     } catch (const std::exception& error) {
         spdlog::error("[native_av] CUDA/Vulkan frame handoff failed: {}", error.what());
@@ -930,7 +949,7 @@ bool NativeAvEncoder::poll_native_surface(
             return pending.surface == destination;
         });
     if (it == pending_cuda_frames_.end()) return true;
-    return cuEventQuery(it->ready) == CUDA_SUCCESS;
+    return cuda::query(it->ready) == CUDA_SUCCESS;
 #endif
 }
 

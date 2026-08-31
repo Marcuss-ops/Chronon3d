@@ -410,6 +410,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.runtime.cuda_frames_cache_miss = c->cuda_frames_cache_miss.load(std::memory_order_relaxed);
         timings.runtime.cuda_image_cache_hit = c->cuda_image_cache_hit.load(std::memory_order_relaxed);
         timings.runtime.cuda_image_cache_miss = c->cuda_image_cache_miss.load(std::memory_order_relaxed);
+        timings.gpu.software_fallback_nodes =
+            c->gpu_text_fallback_count.load(std::memory_order_relaxed);
     }
     // encoder_open_nvenc_ms is already measured in startup_breakdown.
     timings.runtime.encoder_open_nvenc_ms =
@@ -458,6 +460,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.passes_executed = value;
             } else if (name == "gpu_nodes") {
                 timings.gpu.gpu_nodes = value;
+            } else if (name == "gpu_text_fallback_count") {
+                timings.gpu.software_fallback_nodes = value;
             }
         }
     }

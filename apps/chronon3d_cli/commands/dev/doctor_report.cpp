@@ -374,7 +374,7 @@ void collect_deep_check(DoctorReport& report, const DoctorOptions& options) {
     static constexpr const char* kSmokePlan = R"JSON({
   "schema": "chronon.render-plan",
   "version": 1,
-  "canvas": {"width": 320, "height": 180, "fps": 30, "duration_frames": 1},
+  "canvas": {"width": 320, "height": 180, "fps_num": 30, "fps_den": 1, "duration_frames": 1},
   "layers": [{"id": "bg", "type": "color", "color": [0.1, 0.2, 0.3, 1.0]}],
   "output": {"path": "doctor_smoke.png"}
 })JSON";
