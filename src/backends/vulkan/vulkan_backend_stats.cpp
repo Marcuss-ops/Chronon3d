@@ -50,6 +50,11 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
     s.vma_block_count = vma_stats.block_count;
     s.vma_budget_bytes = vma_stats.budget_bytes;
     s.vma_usage_bytes = vma_stats.usage_bytes;
+    s.physical_surfaces_live = m_impl->surfaces.physical_count();
+    s.surface_bindings_live = m_impl->surfaces.binding_count();
+    s.deferred_surface_release_count = m_impl->surfaces.deferred_release_count();
+    s.command_batch_active = m_impl->command_batch_active;
+    s.command_batch_started = m_impl->command_batch_started;
     return s;
 #else
     return {};
@@ -94,6 +99,9 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("gpu_asset_cache_evicted_bytes", m_impl->stats.gpu_asset_cache_evicted_bytes);
     out.emplace_back("gpu_asset_cache_resident_bytes", m_impl->stats.gpu_asset_cache_resident_bytes);
     out.emplace_back("physical_surfaces_peak", m_impl->stats.physical_surfaces_peak);
+    out.emplace_back("physical_surfaces_live", m_impl->surfaces.physical_count());
+    out.emplace_back("surface_bindings_live", m_impl->surfaces.binding_count());
+    out.emplace_back("deferred_surface_release_count", m_impl->surfaces.deferred_release_count());
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
     out.emplace_back("standalone_wait_count", m_impl->stats.standalone_wait_count);

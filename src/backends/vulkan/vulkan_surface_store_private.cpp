@@ -262,7 +262,9 @@ namespace chronon3d::backends::vulkan {
     }
 
     void VulkanBackend::Impl::release_surface_now(runtime::RenderSurfaceHandle handle) {
-        spdlog::info("[release_surface_now_diag] handle={}", handle);
+        if (surface_lifecycle_diag_enabled()) {
+            spdlog::info("[surface-lifecycle] release-now handle={}", handle);
+        }
         const auto binding = surfaces.surface_bindings.find(handle);
         if (binding == surfaces.surface_bindings.end()) return;
         wait_for_pending();
@@ -363,7 +365,9 @@ namespace chronon3d::backends::vulkan {
                 }
             }
             for (const auto handle : handles) {
-                spdlog::info("[retire_transient_diag] handle={}", handle);
+                if (surface_lifecycle_diag_enabled()) {
+                    spdlog::info("[surface-lifecycle] retire handle={}", handle);
+                }
                 const auto binding = surfaces.surface_bindings.find(handle);
                 if (binding == surfaces.surface_bindings.end()) continue;
                 const auto slot = binding->second;

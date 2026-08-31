@@ -121,6 +121,26 @@ void synchronize_native_output(RenderGraphContext& ctx,
     framebuffer->mark_cpu_gpu_synchronized();
 }
 
+// The graph may materialize a per-frame FrameTransient output before the
+// video exporter copies it into the persistent execution-slot encode surface.
+// Once that device-to-device copy has been recorded, the temporary graph
+// handle is no longer needed. Never release either persistent handoff surface.
+void release_temporary_native_output(RenderGraphContext& ctx,
+                                     const std::shared_ptr<Framebuffer>& framebuffer,
+                                     runtime::RenderSurfaceHandle source) {
+    if (!framebuffer || source == runtime::kInvalidRenderSurfaceHandle ||
+        source == ctx.policy.native_video_source_surface ||
+        source == ctx.policy.native_video_encode_surface ||
+        !ctx.services.backend || !ctx.services.surface_registry) {
+        return;
+    }
+    (void)ctx.services.backend->release_surface(source);
+    (void)ctx.services.surface_registry->release(source);
+    if (framebuffer->surface_handle() == source) {
+        framebuffer->clear_surface_handle();
+    }
+}
+
 } // namespace
 
 std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
@@ -368,6 +388,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 native_encode_batch_active = false;
                 return std::shared_ptr<Framebuffer>{};
             }
+            release_temporary_native_output(ctx, framebuffer, source);
             backend.end_frame_batch();
             native_encode_batch_active = false;
             return framebuffer;
@@ -634,6 +655,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 spdlog::error("[backend] native encode copy failed for frame {}: {}",
                               static_cast<int>(frame), copy.error().message);
                 exec_result.fb.reset();
+            } else {
+                release_temporary_native_output(ctx, exec_result.fb, source);
             }
             }
         } else if (ctx.policy.native_video_encode_surface !=
