@@ -25,6 +25,7 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <string>
 #include <filesystem>
 #include <optional>
@@ -78,6 +79,9 @@ struct FfmpegExportOptions {
         FullGraph,
     };
     ResolvedExecutionPath resolved_execution_path{ResolvedExecutionPath::FullGraph};
+    // The resolver's authoritative orthogonal plan. It is optional only for
+    // legacy direct callers that predate the resolver boundary.
+    std::optional<chronon3d::media::VideoExecutionPlan> resolved_execution_plan;
     // Pooling remains opt-in until benchmark evidence demonstrates a
     // material win over job-local NativeAvEncoder ownership.
     bool encoder_session_pool_enabled{false};

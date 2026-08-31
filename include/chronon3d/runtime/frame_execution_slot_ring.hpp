@@ -38,6 +38,47 @@ enum class FrameSlotState : std::uint8_t {
     Encoding
 };
 
+/// Protocol state for a native surface crossing Vulkan/CUDA/NVENC.  A valid
+/// handle is not evidence that the producer has completed its work.
+enum class InteropFrameState : std::uint8_t {
+    Allocated,
+    VulkanRecording,
+    VulkanSubmitted,
+    VulkanComplete,
+    CudaAcquired,
+    CudaReady,
+    EncodeSubmitted,
+    EncodeConsumed,
+    Recyclable,
+};
+
+[[nodiscard]] constexpr bool valid_interop_transition(
+    InteropFrameState from, InteropFrameState to) noexcept {
+    if (to == InteropFrameState::Recyclable) return true;
+    switch (from) {
+        case InteropFrameState::Recyclable:
+            return to == InteropFrameState::Allocated;
+        case InteropFrameState::Allocated:
+            return to == InteropFrameState::VulkanRecording;
+        case InteropFrameState::VulkanRecording:
+            return to == InteropFrameState::VulkanSubmitted;
+        case InteropFrameState::VulkanSubmitted:
+            return to == InteropFrameState::VulkanComplete;
+        case InteropFrameState::VulkanComplete:
+            return to == InteropFrameState::CudaAcquired ||
+                   to == InteropFrameState::EncodeSubmitted;
+        case InteropFrameState::CudaAcquired:
+            return to == InteropFrameState::CudaReady;
+        case InteropFrameState::CudaReady:
+            return to == InteropFrameState::EncodeSubmitted;
+        case InteropFrameState::EncodeSubmitted:
+            return to == InteropFrameState::EncodeConsumed;
+        case InteropFrameState::EncodeConsumed:
+            return false;
+    }
+    return false;
+}
+
 /// A single execution slot containing surface identity, synchronization tokens,
 /// and metadata for non-blocking GPU rendering and asynchronous encoding.
 struct FrameExecutionSlot {
@@ -46,11 +87,29 @@ struct FrameExecutionSlot {
     RenderSurfaceHandle source_surface{kInvalidRenderSurfaceHandle};
     RenderSurfaceHandle native_surface{kInvalidRenderSurfaceHandle};
     graph::RenderBackend* backend{nullptr};
-    bool native_surface_ready{false};
+    std::atomic<InteropFrameState> interop_state{InteropFrameState::Recyclable};
     std::uintptr_t native_surface_ptr{0};  // e.g. AVFrame* or VkImage/CUdeviceptr
     std::uintptr_t gpu_ready_sync{0};       // e.g. CUevent or VkSemaphore
     std::uint64_t frame_index{std::numeric_limits<std::uint64_t>::max()};
     std::atomic<FrameSlotState> state{FrameSlotState::Free};
+
+    [[nodiscard]] bool native_surface_prepared() const noexcept {
+        const auto current = interop_state.load(std::memory_order_acquire);
+        return current == InteropFrameState::VulkanComplete ||
+               current == InteropFrameState::CudaReady;
+    }
+
+    [[nodiscard]] bool transition_interop_state(InteropFrameState next) noexcept {
+        auto current = interop_state.load(std::memory_order_acquire);
+        while (valid_interop_transition(current, next)) {
+            if (interop_state.compare_exchange_weak(
+                    current, next, std::memory_order_acq_rel,
+                    std::memory_order_acquire)) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 /// Generic bounded slot ring implementing bidirectional producer-consumer
@@ -116,6 +175,9 @@ public:
 
     explicit FrameExecutionSlotRing(std::size_t capacity = kDefaultCapacity)
         : m_slots(capacity), m_evaluated(), m_rendered() {
+        if (capacity == 0) {
+            throw std::invalid_argument("FrameExecutionSlotRing: capacity must be positive");
+        }
         m_evaluated.reserve(capacity);
         m_rendered.reserve(capacity);
         for (std::size_t i = 0; i < m_slots.size(); ++i) {
@@ -158,6 +220,10 @@ public:
             auto completion = m_completions.find(&m_slots[idx]);
             if (completion != m_completions.end() && completion->second->ready()) {
                 m_completions.erase(completion);
+                m_slots[idx].interop_state.store(InteropFrameState::Recyclable,
+                                                 std::memory_order_release);
+                m_slots[idx].native_surface_ptr = 0;
+                m_slots[idx].gpu_ready_sync = 0;
                 m_slots[idx].state.store(FrameSlotState::Free, std::memory_order_release);
             }
             if (m_slots[idx].state.load(std::memory_order_acquire) == FrameSlotState::Free) {
@@ -252,6 +318,10 @@ public:
     /// Release slot back to Free pool (called by consumer/encoder when finished with surface).
     void release_slot(FrameExecutionSlot* slot) noexcept {
         if (!slot) return;
+        slot->interop_state.store(InteropFrameState::Recyclable,
+                                  std::memory_order_release);
+        slot->native_surface_ptr = 0;
+        slot->gpu_ready_sync = 0;
         slot->state.store(FrameSlotState::Free, std::memory_order_release);
         {
             std::lock_guard lock(m_mutex);
@@ -300,6 +370,8 @@ public:
         m_completions.clear();
         for (auto& slot : m_slots) {
             slot.state.store(FrameSlotState::Free, std::memory_order_release);
+            slot.interop_state.store(InteropFrameState::Recyclable,
+                                     std::memory_order_release);
             slot.frame_index = std::numeric_limits<std::uint64_t>::max();
         }
         m_producer_cursor = 0;
@@ -329,6 +401,10 @@ private:
     void reap_ready_completions_locked() const noexcept {
         for (auto it = m_completions.begin(); it != m_completions.end();) {
             if (it->second && it->second->ready()) {
+                it->first->interop_state.store(InteropFrameState::Recyclable,
+                                               std::memory_order_release);
+                it->first->native_surface_ptr = 0;
+                it->first->gpu_ready_sync = 0;
                 it->first->state.store(FrameSlotState::Free, std::memory_order_release);
                 it = m_completions.erase(it);
             } else {

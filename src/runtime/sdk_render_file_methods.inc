@@ -61,7 +61,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                                    "render job memory estimate overflow",
                                    "memory"});
     }
-    const auto estimated_frame_bytes = width * height * 16;
+    const auto estimated_frame_bytes = runtime::tight_surface_bytes(
+        runtime::PixelFormat::Rgba32Float, width, height);
     if (request.limits.max_memory_bytes != 0 &&
         estimated_frame_bytes > request.limits.max_memory_bytes) {
         return reject(RenderError{RenderErrorCode::BudgetExceeded,

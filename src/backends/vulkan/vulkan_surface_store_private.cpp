@@ -408,7 +408,8 @@ namespace chronon3d::backends::vulkan {
     std::uint64_t VulkanBackend::Impl::upload(runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
                          std::span<const float> rgba, bool wait_for_completion) {
         auto& image = ensure_surface(handle, desc);
-        const VkDeviceSize bytes = static_cast<VkDeviceSize>(desc.width) * desc.height * sizeof(float) * 4;
+        const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
+            runtime::PixelFormat::Rgba32Float, desc.width, desc.height));
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan upload size does not match surface");
         ++stats.upload_calls;
         stats.upload_bytes += bytes;
@@ -531,7 +532,8 @@ namespace chronon3d::backends::vulkan {
         if (!image.initialized) {
             throw std::invalid_argument("Vulkan download references an uninitialized surface");
         }
-        const VkDeviceSize bytes = static_cast<VkDeviceSize>(image.width) * image.height * sizeof(float) * 4;
+        const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
+            runtime::PixelFormat::Rgba32Float, image.width, image.height));
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan download size does not match surface");
         ++stats.readback_calls;
         stats.readback_bytes += bytes;

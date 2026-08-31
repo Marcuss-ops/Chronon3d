@@ -25,6 +25,17 @@ AVBufferRef* VideoDeviceRuntime::ref_cuda_hwdevice() {
     return nullptr;
 }
 
+bool VideoDeviceRuntime::acquire_slot_surfaces(
+    runtime::FrameExecutionSlot&,
+    runtime::RenderSurfaceRegistry&,
+    graph::RenderBackend&,
+    std::uint32_t,
+    std::uint32_t,
+    std::string& reason) {
+    reason = "native video surfaces unavailable in this build";
+    return false;
+}
+
 bool VideoDeviceRuntime::context_matches(std::uintptr_t) const noexcept {
     return false;
 }

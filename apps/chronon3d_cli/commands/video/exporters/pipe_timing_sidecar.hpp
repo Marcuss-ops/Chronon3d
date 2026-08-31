@@ -263,6 +263,7 @@ struct JobTimings {
     // counter heuristics. This is the single authoritative field; the
     // gpu.effective_backend field is kept as a compatibility projection.
     std::optional<std::string> execution_path;
+    std::optional<std::string> surface_handoff_path;
     std::optional<double> job_wall_ms;
     std::optional<double> engine_init_ms;
     std::optional<double> backend_init_ms;

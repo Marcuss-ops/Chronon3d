@@ -115,6 +115,21 @@ struct SurfaceDesc {
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     std::size_t bytes{0};
     ColorMetadata color{};
+
+    /// Construct a descriptor with the canonical tight allocation size.  A
+    /// caller may still provide an explicit byte count for padded/externally
+    /// owned memory, but ordinary surfaces must not duplicate format math.
+    [[nodiscard]] static constexpr SurfaceDesc make(
+        std::uint32_t width,
+        std::uint32_t height,
+        PixelFormat format,
+        ResourceUsage usage = ResourceUsage::Generic,
+        LifetimeClass lifetime = LifetimeClass::FrameTransient,
+        ColorMetadata color = {}) noexcept {
+        return SurfaceDesc{
+            width, height, format, usage, lifetime,
+            tight_surface_bytes(format, width, height), color};
+    }
 };
 
 /// Physical representation carried by a backend-neutral render plan.
