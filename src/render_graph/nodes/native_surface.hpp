@@ -29,9 +29,21 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::graph {
+
+inline bool native_surface_promotion_diag_enabled() noexcept {
+    static const bool enabled = [] {
+        const char* value = std::getenv("CHRONON3D_NATIVE_SURFACE_PROMOTION_DIAG");
+        if (!value) return false;
+        const std::string_view setting(value);
+        return setting == "1" || setting == "true" || setting == "on";
+    }();
+    return enabled;
+}
 
 /// Build the canonical Rgba32Float / Storage / FrameTransient surface
 /// description used by every native full-frame effect/composite fast-path.
@@ -77,7 +89,9 @@ inline std::span<const float> framebuffer_rgba_view(
 /// (leaving the framebuffer untouched) when the backend/registry are absent,
 /// or any native step fails.  Returns true immediately when the framebuffer
 /// already carries a handle.
-inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
+inline bool ensure_native_surface(
+    RenderGraphContext& ctx, Framebuffer& framebuffer,
+    std::string_view promotion_reason = "unspecified") {
     if (!ctx.services.backend || !ctx.services.surface_registry || !ctx.services.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
@@ -156,6 +170,11 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         ctx.node_exec.counters->native_surface_promotion_wall_us.fetch_add(
             static_cast<std::uint64_t>(profiling::duration_us(
                 promotion_t0, profiling::now())), std::memory_order_relaxed);
+    }
+    if (native_surface_promotion_diag_enabled()) {
+        spdlog::info("[native-surface-promotion] frame={} reason={} bytes={}",
+                     static_cast<int>(ctx.frame_input.frame), promotion_reason,
+                     pixels.size_bytes());
     }
     framebuffer.set_surface_handle(handle);
     framebuffer.mark_cpu_gpu_synchronized();
