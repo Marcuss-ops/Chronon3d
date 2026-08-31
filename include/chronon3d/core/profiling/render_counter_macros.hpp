@@ -323,6 +323,11 @@ namespace chronon3d {
     X(video_surface_upload_count) \
     X(video_surface_upload_bytes) \
     X(video_surface_upload_wall_ms) \
+    X(native_surface_promotion_count) \
+    X(native_surface_promotion_bytes) \
+    X(native_surface_promotion_wall_us) \
+    X(native_surface_empty_create_count) \
+    X(native_surface_reuse_count) \
     X(frame_conversion_copy_wall_ms) \
     X(video_graph_eval_wall_ms) \
     X(video_conversion_wall_ms) \
