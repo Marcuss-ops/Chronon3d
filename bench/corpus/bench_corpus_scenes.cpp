@@ -831,6 +831,37 @@ Composition bench_perf_empty() {
     });
 }
 
+// ── Perf_NativePromotion1080p ──────────────────────────────────────────
+// Mirrors the original Workload A signature: a full-frame black color layer
+// plus a full-canvas text layer.  In the legacy native bridge this produces
+// one 1920x1080 RGBA32F promotion per frame (33,177,600 bytes).
+Composition bench_perf_native_promotion_1080p() {
+    return composition({
+        .name = "Perf_NativePromotion1080p",
+        .width = 1920, .height = 1080,
+        .frame_rate = {30, 1},
+        .duration = 60,
+    }, [](const FrameContext& ctx) -> Scene {
+        SceneBuilder s(ctx);
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
+
+        // Keep this composition byte-for-byte representative of Workload A:
+        // one full-canvas opaque color source, with no gradient/glow layers.
+        s.screen_layer("bg", [](LayerBuilder& l) {
+            l.fullscreen_rect("fill", {0.0f, 0.0f, 0.0f, 1.0f});
+        });
+        s.layer("text_a", [](LayerBuilder& l) {
+            l.screen_dimensions(1920.0f, 1080.0f);
+            l.text("text_a", text_preset(
+                "VELOX BENCHMARK THROUGHPUT", 72.0f, 700,
+                {1.0f, 1.0f, 1.0f, 1.0f},
+                TextAlign::Center, {1600.0f, 200.0f}, {0.0f, 0.0f, 0.0f}
+            ));
+        });
+        return s.build();
+    });
+}
+
 // ── Perf_IMG_same_100 ───────────────────────────────────────────────────
 Composition bench_perf_img_same_100() {
     return composition({
@@ -1118,6 +1149,11 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
         .id          = "Perf_EMPTY",
         .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
             return bench_perf_empty();
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id          = "Perf_NativePromotion1080p",
+        .category    = "bench/perf"}, [](const chronon3d::CompositionProps&) {
+            return bench_perf_native_promotion_1080p();
         }));
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "Perf_IMG_same_100",
