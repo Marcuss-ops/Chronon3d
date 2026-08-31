@@ -204,6 +204,8 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                         1, std::memory_order_relaxed);
                     ctx.counters->nvenc_frames.fetch_add(
                         1, std::memory_order_relaxed);
+                    ctx.counters->vulkan_frames.fetch_add(
+                        1, std::memory_order_relaxed);
                 } else {
                     ctx.counters->video_pipe_fallback_frames.fetch_add(
                         1, std::memory_order_relaxed);
