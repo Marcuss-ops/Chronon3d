@@ -3,6 +3,7 @@
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace chronon3d::media {
@@ -137,5 +138,22 @@ struct VideoExecutionDecision {
     bool has_gop_source = false,
     bool gop_copy_only = false,
     bool allow_hybrid_gop = false) noexcept;
+
+struct ResolvedExecutionParameters {
+    std::string backend{"auto"};
+    std::string hardware_encoder{"none"};
+    std::string encoder_backend{"pipe"};
+    std::string gpu_hot_path_mode{"auto"};
+    std::string codec{"auto"};
+    bool native_nvenc{false};
+    bool direct_yuv{false};
+    bool cpu_fallback_forbidden{false};
+};
+
+[[nodiscard]] ResolvedExecutionParameters resolve_canonical_execution_parameters(
+    const ExecutionRequirements& requirements,
+    std::string_view requested_codec = "",
+    std::string_view requested_backend = "auto",
+    std::string_view daemon_backend = "auto") noexcept;
 
 } // namespace chronon3d::media

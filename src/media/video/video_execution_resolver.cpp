@@ -153,4 +153,38 @@ VideoExecutionDecision resolve_video_execution(
     return result;
 }
 
+ResolvedExecutionParameters resolve_canonical_execution_parameters(
+    const ExecutionRequirements& requirements,
+    std::string_view requested_codec,
+    std::string_view requested_backend,
+    std::string_view daemon_backend) noexcept {
+    ResolvedExecutionParameters params;
+    if (requirements.gpu_required) {
+        params.backend = (requested_backend != "auto" && !requested_backend.empty())
+            ? std::string{requested_backend}
+            : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "vulkan");
+        params.hardware_encoder = "nvenc";
+        params.encoder_backend = "native";
+        params.gpu_hot_path_mode = requirements.composition_required
+            ? "require_gpu_native"
+            : "require_direct_yuv";
+        params.native_nvenc = true;
+        params.direct_yuv = !requirements.composition_required;
+        params.cpu_fallback_forbidden = !requirements.cpu_fallback_allowed;
+        params.codec = requested_codec.empty() ? "h264" : std::string{requested_codec};
+    } else {
+        params.backend = (requested_backend != "auto" && !requested_backend.empty())
+            ? std::string{requested_backend}
+            : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "auto");
+        params.hardware_encoder = "none";
+        params.encoder_backend = "pipe";
+        params.gpu_hot_path_mode = "auto";
+        params.native_nvenc = false;
+        params.direct_yuv = false;
+        params.cpu_fallback_forbidden = false;
+        params.codec = requested_codec.empty() ? "auto" : std::string{requested_codec};
+    }
+    return params;
+}
+
 } // namespace chronon3d::media

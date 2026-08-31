@@ -10,6 +10,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/verification/render_receipt.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
@@ -265,8 +266,8 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         const std::string plan_path = request.value("plan_path", "");
         const std::string assets_root = request.value("assets_root", "");
         const std::string output = request.value("output", "");
-        const std::string backend = request.value("backend", "auto");
-        const std::string gpu_hot_path_mode = request.value(
+        std::string backend = request.value("backend", "auto");
+        std::string gpu_hot_path_mode = request.value(
             "gpu_hot_path_mode", "auto");
         const bool report = request.value("report", false);
         RenderPlanVideoOverrides video;
@@ -279,6 +280,25 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
         video.crf = request.value("crf", -1);
         video.qp = request.value("qp", -1);
         video.bitrate = request.value("bitrate", std::int64_t{0});
+
+        if (request.contains("execution_requirements")) {
+            media::ExecutionRequirements exec_reqs;
+            const auto& sr = request["execution_requirements"];
+            exec_reqs.gpu_required = sr.value("gpu_required", false);
+            exec_reqs.cpu_fallback_allowed = sr.value("cpu_fallback_allowed", true);
+            exec_reqs.composition_required = sr.value("composition_required", true);
+            exec_reqs.packet_copy_allowed = sr.value("packet_copy_allowed", true);
+            const std::string req_codec = request.contains("output_spec")
+                ? request["output_spec"].value("codec", "")
+                : request.value("codec", "");
+            const auto canon = media::resolve_canonical_execution_parameters(
+                exec_reqs, req_codec, backend, "auto");
+            if (backend == "auto") backend = canon.backend;
+            if (video.hardware_encoder.empty()) video.hardware_encoder = canon.hardware_encoder;
+            if (video.encoder_backend.empty()) video.encoder_backend = canon.encoder_backend;
+            if (gpu_hot_path_mode == "auto") gpu_hot_path_mode = canon.gpu_hot_path_mode;
+            if (video.codec.empty()) video.codec = canon.codec;
+        }
         if (plan_path.empty()) {
             return ipc::Reply{ipc::Status::BadRequest,
                               "RENDER_JOB requires a plan_path"};

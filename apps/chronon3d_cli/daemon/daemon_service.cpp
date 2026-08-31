@@ -5,6 +5,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
@@ -525,37 +526,28 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
             }
             const auto requested_backend = request.value("backend", m_backend);
-            // New IPC clients describe requirements, not Chronon's backend
-            // implementation. Keep the legacy fields as a compatibility
-            // fallback for older workers and direct CLI integrations.
-            const bool semantic_contract = request.contains("execution_requirements");
-            const auto semantic_requirements = request.value(
-                "execution_requirements", nlohmann::json::object());
-            const bool gpu_required = semantic_requirements.value("gpu_required", false);
-            const bool composition_required = semantic_requirements.value(
-                "composition_required", true);
-            const std::string hardware = semantic_contract
-                ? (gpu_required ? "nvenc" : "none")
-                : request.value("hardware_encoder",
+            // Single source of truth: canonical execution parameter resolver.
+            media::ExecutionRequirements exec_reqs;
+            if (request.contains("execution_requirements")) {
+                const auto& sr = request["execution_requirements"];
+                exec_reqs.gpu_required = sr.value("gpu_required", false);
+                exec_reqs.cpu_fallback_allowed = sr.value("cpu_fallback_allowed", true);
+                exec_reqs.composition_required = sr.value("composition_required", true);
+                exec_reqs.packet_copy_allowed = sr.value("packet_copy_allowed", true);
+            } else {
+                const std::string hw = request.value("hardware_encoder",
                     request.value("hardware", std::string{"none"}));
-            const std::string encoder_backend = semantic_contract
-                ? (gpu_required ? "native" : "pipe")
-                : request.value("encoder_backend", std::string{"pipe"});
-            const auto output_spec = request.value(
-                "output_spec", nlohmann::json::object());
-            const std::string codec = semantic_contract
-                ? output_spec.value("codec", std::string{"auto"})
-                : request.value("codec", std::string{"auto"});
-            const std::string hot_path = semantic_contract
-                ? (gpu_required
-                    ? (composition_required ? "require_gpu_native" : "require_direct_yuv")
-                    : "auto")
-                : request.value("gpu_hot_path_mode", std::string{"auto"});
-            const bool native_nvenc =
-                (requested_backend == "vulkan" ||
-                 (requested_backend == "auto" && m_backend == "vulkan")) &&
-                (hardware == "nvenc" || hardware == "auto") &&
-                encoder_backend == "native";
+                exec_reqs.gpu_required = (hw == "nvenc");
+            }
+            const std::string requested_codec = request.contains("output_spec")
+                ? request["output_spec"].value("codec", "")
+                : request.value("codec", "");
+
+            const auto canon = media::resolve_canonical_execution_parameters(
+                exec_reqs, requested_codec, requested_backend, m_backend);
+            const bool native_nvenc = canon.native_nvenc;
+            const std::string hot_path = canon.gpu_hot_path_mode;
+            const std::string codec = canon.codec;
             runtime::DeviceSelectionRequirements requirements;
             // A render is a share of the GPU, not an exclusive whole-device
             // lock. NVENC/NVDEC session counts remain hard limits; compute
@@ -600,7 +592,7 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             // receive a SoftwareRenderer.  This keeps the worker lightweight
             // for the common native video lane while preserving a warm
             // renderer for FullGraph jobs.
-            const bool direct_yuv = native_nvenc && hot_path == "require_direct_yuv";
+            const bool direct_yuv = canon.direct_yuv;
             std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             std::shared_ptr<SoftwareRenderer> warm_renderer;
             if (!direct_yuv) {
@@ -608,14 +600,21 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             } else {
                 spdlog::debug("[daemon] Direct-YUV job: renderer construction skipped");
             }
+            request["backend"] = canon.backend;
+            request["hardware_encoder"] = canon.hardware_encoder;
+            request["encoder_backend"] = canon.encoder_backend;
+            request["codec"] = canon.codec;
+            request["gpu_hot_path_mode"] = canon.gpu_hot_path_mode;
+            const std::string forward_payload = request.dump();
+
             auto& warm_dispatcher = warm_render_job_dispatcher();
             if (warm_dispatcher) {
-                return warm_dispatcher(req.payload, std::move(warm_renderer),
+                return warm_dispatcher(forward_payload, std::move(warm_renderer),
                                        std::move(video_execution));
             }
             auto& dispatcher = render_job_dispatcher();
             if (dispatcher) {
-                return dispatcher(req.payload, std::move(video_execution));
+                return dispatcher(forward_payload, std::move(video_execution));
             }
             return ipc::Reply{ipc::Status::NotFound,
                               "RENDER_JOB unavailable: render group not compiled"};
