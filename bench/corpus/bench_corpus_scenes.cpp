@@ -855,7 +855,8 @@ Composition bench_perf_native_promotion_1080p() {
             l.text("text_a", text_preset(
                 "VELOX BENCHMARK THROUGHPUT", 72.0f, 700,
                 {1.0f, 1.0f, 1.0f, 1.0f},
-                TextAlign::Center, {1600.0f, 200.0f}, {0.0f, 0.0f, 0.0f}
+                TextAlign::Center, {1600.0f, 200.0f}, {0.0f, 0.0f, 0.0f},
+                "assets/fonts/Poppins-Bold.ttf", "Poppins", "normal"
             ));
         });
         return s.build();
