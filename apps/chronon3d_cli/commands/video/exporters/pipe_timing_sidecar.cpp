@@ -365,6 +365,7 @@ void write_frame_timing_sidecar(
     put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
     put_gpu_u64("passes_executed", timings.gpu.passes_executed);
     put_gpu_u64("gpu_nodes", timings.gpu.gpu_nodes);
+    put_gpu_u64("software_fallback_nodes", timings.gpu.software_fallback_nodes);
     put_gpu_u64("gpu_native_surface_frames", timings.gpu.gpu_native_surface_frames);
     put_gpu_u64("gpu_native_encode_frames", timings.gpu.gpu_native_encode_frames);
     put_gpu_u64("nv12_to_rgba_frames", timings.gpu.nv12_to_rgba_frames);

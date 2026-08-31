@@ -3,6 +3,7 @@
 #include "ffmpeg_pipe_encoder.hpp"
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include "direct_yuv_frame.hpp"
+#include "cuda_context_guard.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <cstddef>
 #include <deque>
@@ -164,7 +165,7 @@ private:
     std::deque<AVFrame*> reusable_cuda_frames_;
     struct PendingCudaFrame {
         AVFrame* frame{nullptr};
-        CUevent ready{nullptr};
+        cuda::OwnedCudaEvent ready{};
         runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
         // Keep the Direct-YUV overlay program (batch, resources and the
         // device-resident watermark image) alive until NVENC has consumed the
