@@ -55,6 +55,12 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     build_execution_levels(graph, compiled.output, compiled);
     build_node_metadata(graph, ctx, compiled, options);
 
+    for (size_t l = 0; l < compiled.levels.size(); ++l) {
+        for (GraphNodeId id : compiled.levels[l]) {
+            spdlog::info("[compiled_level] level={} id={} node='{}'", l, id, graph.node(id).name());
+        }
+    }
+
     // Temp graph assignment to allow lifetime calculation
     compiled.graph = std::move(graph);
 

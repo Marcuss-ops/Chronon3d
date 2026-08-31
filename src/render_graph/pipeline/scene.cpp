@@ -237,6 +237,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         [&](const std::shared_ptr<Framebuffer>& framebuffer) {
             if (!framebuffer) return runtime::kInvalidRenderSurfaceHandle;
             auto handle = framebuffer->surface_handle();
+            spdlog::info("[ensure_source_diag] fb={} handle={} valid={} persistent={}",
+                         static_cast<const void*>(framebuffer.get()), handle,
+                         backend.is_native_surface_valid(handle),
+                         ctx.policy.native_video_source_surface);
             // Native graph outputs are already resident and synchronized;
             // never copy them through the CPU-source ring a second time.
             if (handle != runtime::kInvalidRenderSurfaceHandle &&
@@ -373,7 +377,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
 
     // ── 1-3. Canonical early execution-plan resolution ──
     FrameExecutionPlan execution_plan;
-    if (!isolated_temporal_sample) {
+    if (!isolated_temporal_sample && !ctx.policy.require_native_gpu) {
         execution_plan = ExecutionResolver::resolve_early_reuse(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
@@ -508,7 +512,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             ctx.node_exec.clip_rect.reset();
             ctx.node_exec.dirty_rect.reset();
         }
-        if (execution_plan.reuse_surface) {
+        if (execution_plan.reuse_surface && !ctx.policy.require_native_gpu) {
             sw_renderer->commit_prev_frame_state(
                 frame, resolved.camera.camera,
                 execution_plan.frame_fingerprints.combined_fp,
@@ -642,17 +646,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         }
         backend.end_frame_batch();
         native_encode_batch_active = false;
-        // The encoder copy has been recorded and submitted.  The final
-        // per-frame source surface is no longer needed; retaining it here
-        // leaks one RGBA32F image per frame and eventually exhausts VRAM on
-        // subtitle/watermark renders.  Keep the persistent decode/source
-        // surface owned by the job, but release transient frame outputs.
-        if (exec_result.fb &&
-            frame_encode_source != runtime::kInvalidRenderSurfaceHandle &&
-            frame_encode_source != ctx.policy.native_video_encode_surface &&
-            frame_encode_source != ctx.policy.native_video_source_surface) {
-            release_native_surface(ctx, *exec_result.fb);
-        }
     }
     // Native surfaces remain authoritative across composite nodes. The public
     // render API still returns a CPU Framebuffer, so perform exactly one

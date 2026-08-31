@@ -260,7 +260,8 @@ FrameReuseEligibility compute_reuse_eligibility(
 
     result.structure_unchanged =
         previous.fingerprints.static_fp != 0 &&
-        previous.fingerprints.structure_fp == current.fingerprints.structure_fp;
+        previous.fingerprints.structure_fp == current.fingerprints.structure_fp &&
+        active_at_unchanged;
 
     if (projected) {
         result.reason = "projected_surface";

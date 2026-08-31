@@ -12,18 +12,18 @@ class ScopedCudaContext {
 public:
     explicit ScopedCudaContext(CUcontext target) noexcept {
         current_target_ = target;
-        if (!target || cuCtxGetCurrent(&previous_) != CUDA_SUCCESS ||
-            previous_ == target) {
-            valid_ = target && previous_ == target;
+        if (!target) return;
+        if (cuCtxGetCurrent(&previous_) != CUDA_SUCCESS) return;
+        if (previous_ == target) {
+            valid_ = true;
             return;
         }
-        valid_ = cuCtxPushCurrent(target) == CUDA_SUCCESS;
+        valid_ = (cuCtxSetCurrent(target) == CUDA_SUCCESS);
     }
 
     ~ScopedCudaContext() noexcept {
-        if (valid_ && previous_ != current_target_) {
-            CUcontext ignored = nullptr;
-            (void)cuCtxPopCurrent(&ignored);
+        if (valid_ && previous_ != nullptr && previous_ != current_target_) {
+            (void)cuCtxSetCurrent(previous_);
         }
     }
 
