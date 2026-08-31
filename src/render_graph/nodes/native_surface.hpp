@@ -21,6 +21,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <spdlog/spdlog.h>
@@ -89,6 +90,10 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         // the native surface before issuing a command.
         if (ctx.services.surface_registry->lookup(handle) &&
             ctx.services.backend->is_native_surface_valid(handle)) {
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->native_surface_reuse_count.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
             return true;
         }
         if (ctx.services.surface_registry->lookup(handle)) {
@@ -128,6 +133,7 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
     std::vector<float> packed;
     const auto pixels = framebuffer_rgba_view(framebuffer, packed);
     runtime::UploadTicket upload_ticket{};
+    const auto promotion_t0 = profiling::now();
     const auto uploaded = ctx.policy.retain_native_surface_for_video
         ? ctx.services.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
         : ctx.services.backend->upload_surface(handle, desc, pixels);
@@ -140,6 +146,16 @@ inline bool ensure_native_surface(RenderGraphContext& ctx, Framebuffer& framebuf
         (void)ctx.services.backend->release_surface(handle);
         ctx.services.surface_registry->release(handle);
         return false;
+    }
+    if (ctx.node_exec.counters) {
+        const auto bytes = static_cast<std::uint64_t>(pixels.size_bytes());
+        ctx.node_exec.counters->native_surface_promotion_count.fetch_add(
+            1, std::memory_order_relaxed);
+        ctx.node_exec.counters->native_surface_promotion_bytes.fetch_add(
+            bytes, std::memory_order_relaxed);
+        ctx.node_exec.counters->native_surface_promotion_wall_us.fetch_add(
+            static_cast<std::uint64_t>(profiling::duration_us(
+                promotion_t0, profiling::now())), std::memory_order_relaxed);
     }
     framebuffer.set_surface_handle(handle);
     framebuffer.mark_cpu_gpu_synchronized();
@@ -176,6 +192,10 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                       framebuffer.width(), framebuffer.height(), created.error().message);
         ctx.services.surface_registry->release(handle);
         return false;
+    }
+    if (ctx.node_exec.counters) {
+        ctx.node_exec.counters->native_surface_empty_create_count.fetch_add(
+            1, std::memory_order_relaxed);
     }
     framebuffer.set_surface_handle(handle);
     framebuffer.mark_gpu_authoritative();
