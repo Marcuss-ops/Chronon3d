@@ -12,50 +12,42 @@ MuxSession::~MuxSession() {
     avformat_free_context(format_);
 }
 
-bool MuxSession::open(const std::string& output_path,
-                      const AVCodecContext& codec, std::string& reason) {
+bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
     const auto started = std::chrono::steady_clock::now();
+    if (config.output_path.empty() || !config.video_codec) {
+        reason = "mux open requires output path and video codec";
+        return false;
+    }
     if (avformat_alloc_output_context2(&format_, nullptr, nullptr,
-                                       output_path.c_str()) < 0 || !format_) {
+                                       config.output_path.c_str()) < 0 || !format_) {
         reason = "failed to allocate output format context";
         return false;
     }
     video_stream_ = avformat_new_stream(format_, nullptr);
-    if (!video_stream_ || avcodec_parameters_from_context(video_stream_->codecpar, &codec) < 0) {
+    if (!video_stream_ || avcodec_parameters_from_context(
+            video_stream_->codecpar, config.video_codec) < 0) {
         reason = "failed to create output video stream";
         return false;
     }
-    video_stream_->time_base = codec.time_base;
-    return write_header(output_path, reason) ?
-        (open_header_ms_ = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - started).count(), true)
-        : false;
-}
-
-bool MuxSession::open_with_audio(const std::string& output_path,
-                                 const AVCodecContext& codec,
-                                 const AudioStreamConfig& audio,
-                                 std::string& reason) {
-    const auto started = std::chrono::steady_clock::now();
-    if (avformat_alloc_output_context2(&format_, nullptr, nullptr,
-                                       output_path.c_str()) < 0 || !format_) {
-        reason = "failed to allocate output format context";
-        return false;
+    video_stream_->time_base = config.video_codec->time_base;
+    if (config.audio) {
+        const auto& audio = *config.audio;
+        if (!audio.params) {
+            reason = "audio stream requires codec parameters";
+            return false;
+        }
+        audio_stream_ = avformat_new_stream(format_, nullptr);
+        if (!audio_stream_) {
+            reason = "avformat_new_stream failed for audio";
+            return false;
+        }
+        if (avcodec_parameters_copy(audio_stream_->codecpar, audio.params) < 0) {
+            reason = "avcodec_parameters_copy failed for audio";
+            return false;
+        }
+        audio_stream_->time_base = audio.time_base;
     }
-    video_stream_ = avformat_new_stream(format_, nullptr);
-    if (!video_stream_ || avcodec_parameters_from_context(video_stream_->codecpar, &codec) < 0) {
-        reason = "failed to create output video stream";
-        return false;
-    }
-    video_stream_->time_base = codec.time_base;
-    // Register the audio stream BEFORE write_header so the muxer sees the
-    // complete stream list and can compute interleaving correctly.
-    if (!add_audio_stream(audio, reason)) {
-        return false;
-    }
-    if (!write_header(output_path, reason)) {
-        return false;
-    }
+    if (!write_header(config.output_path, reason)) return false;
     open_header_ms_ = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     return true;
@@ -76,34 +68,6 @@ bool MuxSession::write_header(const std::string& output_path,
         reason = "failed to write mux header";
         return false;
     }
-    return true;
-}
-
-bool MuxSession::add_audio_stream(const AudioStreamConfig& audio,
-                                   std::string& reason) {
-    if (!format_) {
-        reason = "audio stream cannot be added before open()";
-        return false;
-    }
-    if (!audio.params) {
-        reason = "audio stream requires codec parameters";
-        return false;
-    }
-    if (audio_stream_) {
-        reason = "audio stream already added";
-        return false;
-    }
-    audio_stream_ = avformat_new_stream(format_, nullptr);
-    if (!audio_stream_) {
-        reason = "avformat_new_stream failed for audio";
-        return false;
-    }
-    if (avcodec_parameters_copy(audio_stream_->codecpar, audio.params) < 0) {
-        reason = "avcodec_parameters_copy failed for audio";
-        audio_stream_ = nullptr;
-        return false;
-    }
-    audio_stream_->time_base = audio.time_base;
     return true;
 }
 

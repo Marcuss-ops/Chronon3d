@@ -15,6 +15,12 @@
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/media/video/output_contract.hpp>
+#include <chronon3d/media/video/packet_assembler.hpp>
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+}
 
 #include <atomic>
 #include <cstdlib>
@@ -53,6 +59,106 @@ TEST_CASE("resolve_output_contract: youtube_overlay_v1 resolves canonically") {
     CHECK(c.pixel_format == "yuv420p");
     CHECK(c.audio_required);
     CHECK(c.audio_streams == 1);
+}
+
+TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg/ffprobe required");
+        return;
+    }
+
+    const auto artifact = temp_path("av_smoke.mp4");
+    AVCodecContext* video_codec = avcodec_alloc_context3(nullptr);
+    REQUIRE(video_codec != nullptr);
+    video_codec->codec_type = AVMEDIA_TYPE_VIDEO;
+    video_codec->codec_id = AV_CODEC_ID_MPEG4;
+    video_codec->width = 32;
+    video_codec->height = 32;
+    video_codec->pix_fmt = AV_PIX_FMT_YUV420P;
+    video_codec->time_base = AVRational{1, 10};
+
+    AVCodecParameters* audio_params = avcodec_parameters_alloc();
+    REQUIRE(audio_params != nullptr);
+    audio_params->codec_type = AVMEDIA_TYPE_AUDIO;
+    audio_params->codec_id = AV_CODEC_ID_AAC;
+    audio_params->sample_rate = 8000;
+    audio_params->channel_layout = AV_CH_LAYOUT_MONO;
+    audio_params->format = AV_SAMPLE_FMT_FLTP;
+    audio_params->bit_rate = 64000;
+
+    chronon3d::media::MuxSession mux;
+    chronon3d::media::AudioStreamConfig audio{
+        .params = audio_params, .time_base = AVRational{1, 8000}};
+    std::string reason;
+    REQUIRE(mux.open(chronon3d::media::MuxOpenConfig{
+        .output_path = artifact,
+        .video_codec = video_codec,
+        .audio = audio}, reason));
+    CHECK(mux.has_audio());
+
+    auto packet = [](int stream, int64_t pts, int duration, int size) {
+        auto owned = std::shared_ptr<AVPacket>(av_packet_alloc(), [](AVPacket* p) {
+            av_packet_free(&p);
+        });
+        REQUIRE(owned != nullptr);
+        REQUIRE(av_new_packet(owned.get(), size) >= 0);
+        owned->pts = pts;
+        owned->dts = pts;
+        owned->duration = duration;
+        owned->stream_index = stream;
+        return owned;
+    };
+
+    for (int64_t pts = 0; pts < 10; ++pts) {
+        auto video = packet(0, pts, 1, 4);
+        REQUIRE(mux.submit_video({video, AVRational{1, 10}, pts == 0}));
+        auto audio_packet = packet(1, pts * 800, 800, 2);
+        REQUIRE(mux.submit_audio({audio_packet, AVRational{1, 8000}, true}));
+    }
+    REQUIRE(mux.finalize());
+
+    AVFormatContext* input = nullptr;
+    REQUIRE(avformat_open_input(&input, artifact.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+    REQUIRE(input->nb_streams == 2);
+    int video_index = -1;
+    int audio_index = -1;
+    for (unsigned i = 0; i < input->nb_streams; ++i) {
+        if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) video_index = static_cast<int>(i);
+        if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) audio_index = static_cast<int>(i);
+    }
+    REQUIRE(video_index >= 0);
+    REQUIRE(audio_index >= 0);
+    CHECK(input->streams[video_index]->duration > 0);
+    CHECK(input->streams[audio_index]->duration > 0);
+
+    int64_t last_video = AV_NOPTS_VALUE;
+    int64_t last_audio = AV_NOPTS_VALUE;
+    AVPacket* read_packet = av_packet_alloc();
+    REQUIRE(read_packet != nullptr);
+    while (av_read_frame(input, read_packet) >= 0) {
+        if (read_packet->stream_index == video_index) {
+            const bool video_monotonic = last_video == AV_NOPTS_VALUE ||
+                read_packet->dts >= last_video;
+            CHECK(video_monotonic);
+            last_video = read_packet->dts;
+        } else if (read_packet->stream_index == audio_index) {
+            const bool audio_monotonic = last_audio == AV_NOPTS_VALUE ||
+                read_packet->dts >= last_audio;
+            CHECK(audio_monotonic);
+            last_audio = read_packet->dts;
+        }
+        av_packet_unref(read_packet);
+    }
+    av_packet_free(&read_packet);
+    avformat_close_input(&input);
+    avcodec_free_context(&video_codec);
+    avcodec_parameters_free(&audio_params);
+
+    CHECK(last_video >= 0);
+    CHECK(last_audio >= 0);
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
 }
 
 TEST_CASE("resolve_output_contract: unknown profile fails loud") {

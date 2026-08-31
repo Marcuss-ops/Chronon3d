@@ -289,10 +289,36 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
     open_nvenc_ms_ = elapsed_ms(nvenc_t0);
 
+    // Declare optional source audio before the mux header is written. MP4
+    // stream topology is immutable after avformat_write_header().
+    std::optional<chronon3d::media::AudioStreamConfig> audio_config;
+    if (!options_.audio_source_path.empty()) {
+        if (avformat_open_input(&audio_input_, options_.audio_source_path.c_str(),
+                                nullptr, nullptr) < 0 ||
+            avformat_find_stream_info(audio_input_, nullptr) < 0) {
+            spdlog::error("[native_av] audio source open failed: {}",
+                          options_.audio_source_path);
+            return false;
+        }
+        audio_input_stream_ = av_find_best_stream(
+            audio_input_, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+        if (audio_input_stream_ < 0) {
+            spdlog::error("[native_av] audio source has no audio stream: {}",
+                          options_.audio_source_path);
+            return false;
+        }
+        audio_config = chronon3d::media::AudioStreamConfig{
+            .params = audio_input_->streams[audio_input_stream_]->codecpar,
+            .time_base = audio_input_->streams[audio_input_stream_]->time_base};
+    }
+
     // MuxSession owns all libavformat state and container I/O.
     mux_ = std::make_unique<chronon3d::media::MuxSession>();
     std::string mux_reason;
-    if (!mux_->open(filename, *codec_, mux_reason)) {
+    if (!mux_->open(chronon3d::media::MuxOpenConfig{
+            .output_path = filename,
+            .video_codec = codec_,
+            .audio = audio_config}, mux_reason)) {
         spdlog::error("[native_av] mux session open failed: {}", mux_reason);
         return false;
     }
@@ -352,6 +378,9 @@ bool NativeAvEncoder::close() {
     // 2. Receive and write remaining packets (timing tracked inside drain_packets)
     drain_packets();
     spdlog::info("[native_av] close: packets drained");
+    if (audio_input_ && !mux_source_audio()) {
+        spdlog::error("[native_av] failed to mux source audio");
+    }
     const double flush_ms = elapsed_ms(t_flush0);
     native_flush_ms_ += flush_ms;
 
@@ -431,6 +460,8 @@ void NativeAvEncoder::abort_open() noexcept {
     av_packet_free(&packet_);
     av_frame_free(&frame_);
     avcodec_free_context(&codec_);
+    avformat_close_input(&audio_input_);
+    audio_input_stream_ = -1;
     mux_.reset();
     packet_ = nullptr;
     frame_ = nullptr;

@@ -48,24 +48,28 @@ namespace chronon3d::cli {
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 BitstreamCompatibility compare_bitstream_compatibility(
     const AVCodecParameters& source,
-    const AVCodecParameters& output,
+    const BitstreamTargetContract& target,
     bool random_access_safe) noexcept {
     BitstreamCompatibility result;
     result.codec_match = source.codec_id != AV_CODEC_ID_NONE &&
-        source.codec_id == output.codec_id;
+        source.codec_id == target.codec;
     result.profile_match = source.profile >= 0 &&
-        source.profile == output.profile;
+        source.profile == target.profile;
     result.level_compatible = source.level >= 0 &&
-        output.level >= 0 && source.level == output.level;
+        target.level >= 0 && source.level == target.level;
     result.dimensions_match = source.width > 0 && source.height > 0 &&
-        source.width == output.width && source.height == output.height;
+        source.width == target.width && source.height == target.height;
     result.pixel_format_match = source.format >= 0 &&
-        source.format == output.format;
-    result.parameter_sets_compatible = extradata_equal(source, output);
-    result.color_params_match = source.color_range == output.color_range &&
-        source.color_space == output.color_space &&
-        source.color_primaries == output.color_primaries &&
-        source.color_trc == output.color_trc;
+        source.format == target.pixel_format;
+    result.parameter_sets_compatible = source.extradata &&
+        source.extradata_size > 0 &&
+        source.extradata_size == static_cast<int>(target.parameter_sets.size()) &&
+        std::memcmp(source.extradata, target.parameter_sets.data(),
+                    target.parameter_sets.size()) == 0;
+    result.color_params_match = source.color_range == target.color_range &&
+        source.color_space == target.color_space &&
+        source.color_primaries == target.color_primaries &&
+        source.color_trc == target.color_trc;
     result.random_access_safe = random_access_safe;
     return result;
 }
@@ -73,12 +77,12 @@ BitstreamCompatibility compare_bitstream_compatibility(
 
 std::optional<GopSourceAnalysis> inspect_gop_source(
     const std::string& path,
-    std::string_view requested_codec,
+    const BitstreamTargetContract& target,
     double edit_start_seconds,
     double edit_end_seconds) {
 #ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
     (void)path;
-    (void)requested_codec;
+    (void)target;
     (void)edit_start_seconds;
     (void)edit_end_seconds;
     return std::nullopt;
@@ -105,12 +109,9 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         return std::nullopt;
     }
     const auto* source_params = format->streams[video_stream_index]->codecpar;
-    const bool codec_parameters_match = codec_matches(
-        source_params->codec_id, requested_codec);
-    // No output encoder parameters are available during source inspection.
-    // Keep this aggregate only for diagnostics; plan_gop remains fail-closed
-    // until the caller supplies an actual output configuration.
-    const BitstreamCompatibility unavailable_compatibility{};
+    const bool codec_parameters_match = source_params->codec_id == target.codec;
+    const auto source_compatibility = compare_bitstream_compatibility(
+        *source_params, target, true);
     const auto time_base = format->streams[video_stream_index]->time_base;
     const double time_base_seconds = av_q2d(time_base);
     if (!(time_base_seconds > 0.0)) {
@@ -155,7 +156,7 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         const bool intersects = edit_end > edit_start &&
             last.pts >= edit_start && first.pts < edit_end;
         auto analysis = analyze_gop(group, codec_parameters_match, intersects);
-        analysis.compatibility = unavailable_compatibility;
+        analysis.compatibility = source_compatibility;
         auto plan = plan_gop(analysis);
         plan.ordinal = result.plans.size();
         result.plans.push_back(plan);

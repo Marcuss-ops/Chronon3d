@@ -161,6 +161,12 @@ struct FfmpegPipeOptions {
     // Direct-YUV owns its CUDA-only compositor and must not warm the
     // Vulkan/FullGraph compositor while opening the encoder.
     bool direct_yuv_mode{false};
+    // Optional source audio for the native A/V mux path. The source is
+    // opened before the mux header so its codec parameters are declared in
+    // the same MuxOpenConfig as video.
+    std::string audio_source_path;
+    double audio_start_seconds{0.0};
+    double audio_end_seconds{0.0};
 
     [[nodiscard]] int canonical_fps_num() const noexcept {
         return (fps_num == 30 && fps_den == 1 && fps != 30) ? fps : fps_num;
