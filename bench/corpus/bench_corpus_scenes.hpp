@@ -163,6 +163,9 @@ Composition bench_canon5_heavy();
 
 // ── 6 Microbenchmark scenes (Perf_*) ─────────────────────────────────────
 Composition bench_perf_empty();
+
+// Canonical CPU→GPU promotion reproducer: full-frame color + text at 1080p.
+Composition bench_perf_native_promotion_1080p();
 Composition bench_perf_img_same_100();
 Composition bench_perf_img_move_100();
 Composition bench_perf_txt_static_100();
