@@ -18,6 +18,7 @@ chronon3d_add_test_suite(
 )
 
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_text_core)
     target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_backend_text)
 endif()
 
