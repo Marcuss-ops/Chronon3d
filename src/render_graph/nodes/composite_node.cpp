@@ -36,13 +36,13 @@ bool try_native_affine_composite(
         return false;
     }
     const auto original_destination = destination.surface_handle();
-    if (!ensure_native_surface(ctx, destination)) return false;
+    if (!ensure_native_surface(ctx, destination, "CompositeNode.affine.destination")) return false;
 
     OwnedFB source_copy;
     runtime::RenderSurfaceHandle source_handle = source.surface_handle();
     if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
         source_copy = ctx.acquire_owned_fb(source);
-        if (!ensure_native_surface(ctx, *source_copy)) {
+        if (!ensure_native_surface(ctx, *source_copy, "CompositeNode.affine.source_copy")) {
             if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
                 release_native_surface(ctx, destination);
             }
@@ -121,8 +121,8 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     }
     const auto original_handle = destination.surface_handle();
     const auto original_source_handle = source.surface_handle();
-    if (!ensure_native_surface(ctx, destination) ||
-        !ensure_native_surface(ctx, source)) {
+    if (!ensure_native_surface(ctx, destination, "CompositeNode.destination") ||
+        !ensure_native_surface(ctx, source, "CompositeNode.source")) {
         if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
             release_native_surface(ctx, destination);
         }
@@ -340,9 +340,9 @@ NodeExecResult CompositeNode::execute(
         if (ctx.services.backend) {
             if (!try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
                 if (ctx.services.surface_registry && ctx.services.backend->supports_native_surfaces()) {
-                    const bool destination_ready = ensure_native_surface(ctx, *result);
+                    const bool destination_ready = ensure_native_surface(ctx, *result, "CompositeNode.dimension.destination");
                     auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
-                    const bool source_ready = ensure_native_surface(ctx, mutable_bottom);
+                    const bool source_ready = ensure_native_surface(ctx, mutable_bottom, "CompositeNode.dimension.source");
                     if (ctx.policy.require_native_gpu &&
                         (!destination_ready || !source_ready)) {
                         return NodeExecutionError{
@@ -443,9 +443,9 @@ NodeExecResult CompositeNode::execute(
             // The operator is passed along so the backend can apply the
             // appropriate matte-style coverage to the backdrop.
             if (ctx.services.backend && ctx.services.surface_registry && ctx.services.backend->supports_native_surfaces()) {
-                const bool destination_ready = ensure_native_surface(ctx, *result);
+                const bool destination_ready = ensure_native_surface(ctx, *result, "CompositeNode.operator.destination");
                 auto& mutable_top = const_cast<Framebuffer&>(*top);
-                const bool source_ready = ensure_native_surface(ctx, mutable_top);
+                const bool source_ready = ensure_native_surface(ctx, mutable_top, "CompositeNode.operator.source");
                 if (ctx.policy.require_native_gpu &&
                     (!destination_ready || !source_ready)) {
                     return NodeExecutionError{
@@ -462,9 +462,9 @@ NodeExecResult CompositeNode::execute(
         // before dispatching that fallback; otherwise the backend receives
         // the framebuffer sentinel 0 and fails later in resolve_image().
         if (ctx.services.backend && ctx.services.surface_registry && ctx.services.backend->supports_native_surfaces()) {
-            const bool destination_ready = ensure_native_surface(ctx, *result);
+            const bool destination_ready = ensure_native_surface(ctx, *result, "CompositeNode.fallback.destination");
             auto& mutable_top = const_cast<Framebuffer&>(*top);
-            const bool source_ready = ensure_native_surface(ctx, mutable_top);
+            const bool source_ready = ensure_native_surface(ctx, mutable_top, "CompositeNode.fallback.source");
             if (!destination_ready || !source_ready) {
                 spdlog::error("[composite] native fallback could not materialize surfaces "
                               "destination={} source={}",

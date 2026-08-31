@@ -166,7 +166,7 @@ void execute_fused_batch(
         }
 
         auto dest_fb = ctx.acquire_framebuffer(ctx.frame_input.width, ctx.frame_input.height, true);
-        ensure_native_surface(ctx, *dest_fb);
+        ensure_native_surface(ctx, *dest_fb, "execute_fused_batch.text");
         ctx.services.backend->draw_text_batch(dest_fb->surface_handle(), all_glyphs, all_runs, atlas_pages);
 
         state.temp[id] = dest_fb;
@@ -253,7 +253,7 @@ void execute_fused_batch(
     }
 
     auto dest_fb = ctx.acquire_framebuffer(ctx.frame_input.width, ctx.frame_input.height, true);
-    ensure_native_surface(ctx, *dest_fb);
+    ensure_native_surface(ctx, *dest_fb, "execute_fused_batch.image");
     ctx.services.backend->execute_layer_batch(
         dest_fb->surface_handle(), gpu_batch, resources, {}, {});
 
