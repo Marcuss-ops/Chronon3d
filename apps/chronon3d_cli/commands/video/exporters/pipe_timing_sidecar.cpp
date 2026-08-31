@@ -318,6 +318,7 @@ void write_frame_timing_sidecar(
     // execution mode. Eliminates the ambiguity where Direct-YUV jobs
     // (native NVENC, no Vulkan) were reported as "GPU Vulkan".
     job["execution_path"] = timings.execution_path.value_or("unknown");
+    job["surface_handoff_path"] = timings.surface_handoff_path.value_or("unknown");
     put_ms("job_wall_ms", timings.job_wall_ms);
     put_ms("engine_init_ms", timings.engine_init_ms);
     put_ms("backend_init_ms", timings.backend_init_ms);

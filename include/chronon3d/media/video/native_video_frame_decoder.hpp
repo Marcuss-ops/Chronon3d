@@ -81,7 +81,7 @@ struct NativeDecoderTestOptions {
 /// handoff.
 [[nodiscard]] inline runtime::SurfaceDesc native_decode_surface_desc(
     std::uint32_t width, std::uint32_t height) noexcept {
-    return runtime::SurfaceDesc{
+    return runtime::SurfaceDesc::make(
         width,
         height,
         runtime::PixelFormat::Rgba32Float,
@@ -90,10 +90,7 @@ struct NativeDecoderTestOptions {
         // retired by the end-of-job Vulkan drain before CUDA destroys its
         // external semaphore imports; keeping them JobPersistent leaves the
         // Vulkan semaphore alive across the CUDA teardown boundary.
-        runtime::LifetimeClass::FrameTransient,
-        runtime::tight_surface_bytes(
-            runtime::PixelFormat::Rgba32Float, width, height),
-    };
+        runtime::LifetimeClass::FrameTransient);
 }
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG

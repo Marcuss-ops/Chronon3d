@@ -171,6 +171,22 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     } else {
         timings.execution_path = "full_graph";
     }
+    if (session->execution_plan) {
+        switch (session->execution_plan->handoff) {
+        case media::SurfaceHandoffPath::None:
+            timings.surface_handoff_path = "none";
+            break;
+        case media::SurfaceHandoffPath::Direct:
+            timings.surface_handoff_path = "direct";
+            break;
+        case media::SurfaceHandoffPath::VulkanCopy:
+            timings.surface_handoff_path = "vulkan_copy";
+            break;
+        case media::SurfaceHandoffPath::HostUpload:
+            timings.surface_handoff_path = "host_upload";
+            break;
+        }
+    }
     // Bump the frame counter for the selected path so the sidecar can
     // distinguish zero-GPU paths (bitstream_copy_frames > 0) from GPU
     // paths (nvenc_frames > 0, vulkan_frames > 0).

@@ -181,10 +181,14 @@ NativeSurfacePrep prepare_frame(
     Frame current_frame) {
     NativeSurfacePrep prep;
     prep.video_settings = settings;
+    const bool plan_requests_native_graph = ctx.execution_plan
+        ? (ctx.execution_plan->composite == media::CompositePath::VulkanGraph &&
+           ctx.execution_plan->encode == media::EncodePath::Nvenc &&
+           ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
+        : (ctx.opts.encoder.encoder_backend == "native" &&
+           ctx.opts.encoder.hardware_encoder == "nvenc");
     prep.video_settings.retain_native_surface_for_video =
-        ctx.opts.encoder.encoder_backend == "native" &&
-        ctx.opts.encoder.hardware_encoder == "nvenc" &&
-        ctx.backend.supports_native_video_surface();
+        plan_requests_native_graph && ctx.backend.supports_native_video_surface();
     prep.video_settings.require_native_gpu =
         prep.video_settings.retain_native_surface_for_video;
     auto* surface_registry = ctx.sw_renderer
@@ -199,69 +203,26 @@ NativeSurfacePrep prepare_frame(
     }
 
     auto& execution_slot = prep.slot.slot();
-    execution_slot.backend = &ctx.backend;
-    auto& persistent_native_surface = execution_slot.native_surface;
-    if (persistent_native_surface == runtime::kInvalidRenderSurfaceHandle) {
-        const runtime::SurfaceDesc encode_desc{
-            static_cast<std::uint32_t>(ctx.compiled.composition->width()),
-            static_cast<std::uint32_t>(ctx.compiled.composition->height()),
-            runtime::PixelFormat::Rgba32Float,
-            runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::FrameTransient,
-            static_cast<std::size_t>(ctx.compiled.composition->width()) *
-                ctx.compiled.composition->height() * 16};
-        persistent_native_surface = surface_registry->create(encode_desc);
-        const auto created = ctx.backend.create_video_encode_surface(
-            persistent_native_surface, encode_desc);
-        if (!created.ok()) {
-            spdlog::error("[video] failed to create CUDA encode surface slot {}: {}",
-                          execution_slot.slot_id, created.error().message);
-            (void)surface_registry->release(persistent_native_surface);
-            persistent_native_surface = runtime::kInvalidRenderSurfaceHandle;
-        }
-    }
-    if (persistent_native_surface != runtime::kInvalidRenderSurfaceHandle) {
-        prep.video_settings.native_video_encode_surface = persistent_native_surface;
-    } else {
+    if (!ctx.device_runtime) {
+        spdlog::error("[video] native surface acquisition requires a device runtime");
         prep.slot.release();
         return prep;
     }
-    {
-        auto& persistent_source = execution_slot.source_surface;
-        if (persistent_source == runtime::kInvalidRenderSurfaceHandle) {
-            const runtime::SurfaceDesc source_desc{
-                static_cast<std::uint32_t>(ctx.compiled.composition->width()),
-                static_cast<std::uint32_t>(ctx.compiled.composition->height()),
-                runtime::PixelFormat::Rgba32Float,
-                runtime::ResourceUsage::Storage,
-                runtime::LifetimeClass::JobPersistent,
-                static_cast<std::size_t>(ctx.compiled.composition->width()) *
-                    ctx.compiled.composition->height() * sizeof(float) * 4};
-            persistent_source = surface_registry->create(source_desc);
-            const auto created = ctx.backend.create_surface(persistent_source, source_desc);
-            if (!created.ok()) {
-                spdlog::error(
-                    "[video] failed to create native source surface slot {} ({}x{}, format={}): {}",
-                    execution_slot.slot_id,
-                    source_desc.width,
-                    source_desc.height,
-                    static_cast<int>(source_desc.format),
-                    created.error().message);
-                (void)surface_registry->release(persistent_source);
-                persistent_source = runtime::kInvalidRenderSurfaceHandle;
-            }
-        }
-        if (persistent_source != runtime::kInvalidRenderSurfaceHandle) {
-            prep.video_settings.native_video_source_surface = persistent_source;
-        }
+    std::string reason;
+    if (!ctx.device_runtime->acquire_slot_surfaces(
+            execution_slot, *surface_registry, ctx.backend,
+            static_cast<std::uint32_t>(ctx.compiled.composition->width()),
+            static_cast<std::uint32_t>(ctx.compiled.composition->height()), reason)) {
+        spdlog::error("[video] failed to acquire native surfaces for slot {}: {}",
+                      execution_slot.slot_id, reason);
+        prep.slot.release();
+        return prep;
     }
-    // Allocation is not preparation.  The render graph owns the Vulkan
-    // copy into the encoder surface for this mode; until that copy has been
-    // observed by the writer, it must use the ordinary native-surface path.
-    // Marking this true merely because the handle existed let the writer
-    // hand an unprepared surface to NVENC and made FullGraph crash in the
-    // Vulkan/CUDA interop path.
-    execution_slot.native_surface_ready = false;
+    prep.video_settings.native_video_encode_surface = execution_slot.native_surface;
+    prep.video_settings.native_video_source_surface = execution_slot.source_surface;
+    // Allocation is not preparation.  The runtime has already advanced the
+    // slot to Allocated; the graph owns the Vulkan copy into the encoder
+    // surface and advances the protocol only after submission/completion.
     return prep;
 }
 
@@ -372,13 +333,12 @@ EncodeOutcome encode_frame(
             fb->clear_surface_handle();
             source_surface = runtime::kInvalidRenderSurfaceHandle;
         }
-        const runtime::SurfaceDesc source_desc{
+        const auto source_desc = runtime::SurfaceDesc::make(
             static_cast<std::uint32_t>(fb->width()),
             static_cast<std::uint32_t>(fb->height()),
             runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::FrameTransient,
-            static_cast<std::size_t>(fb->width()) * fb->height() * sizeof(float) * 4};
+            runtime::LifetimeClass::PipelineSlot);
         if (source_surface == runtime::kInvalidRenderSurfaceHandle) {
             if (video_settings.require_native_gpu) {
                 spdlog::error(
@@ -422,7 +382,20 @@ EncodeOutcome encode_frame(
         }
     }
     if (execution_slot && execution_slot->native_surface != runtime::kInvalidRenderSurfaceHandle) {
-        execution_slot->native_surface_ready = true;
+        const bool submitted =
+            execution_slot->transition_interop_state(
+                runtime::InteropFrameState::VulkanRecording) &&
+            execution_slot->transition_interop_state(
+                runtime::InteropFrameState::VulkanSubmitted) &&
+            execution_slot->transition_interop_state(
+                runtime::InteropFrameState::VulkanComplete);
+        if (!submitted) {
+            spdlog::error(
+                "[video] invalid Vulkan interop lifecycle for slot {} at frame {}",
+                execution_slot->slot_id, static_cast<int>(current_frame));
+            out.source_residency_failed = true;
+            return out;
+        }
     }
     out.package.emplace<FullGraphFramePackage>();
     auto& full_package = std::get<FullGraphFramePackage>(out.package);
