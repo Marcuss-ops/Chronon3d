@@ -90,6 +90,11 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_upload_bytes;
     std::optional<std::uint64_t> gpu_upload_full_surface_bytes;
     std::optional<std::uint64_t> gpu_upload_region_bytes;
+    std::optional<std::uint64_t> native_surface_promotion_count;
+    std::optional<std::uint64_t> native_surface_promotion_bytes;
+    std::optional<std::uint64_t> native_surface_promotion_wall_us;
+    std::optional<std::uint64_t> native_surface_empty_create_count;
+    std::optional<std::uint64_t> native_surface_reuse_count;
     // Common backend upload accounting, keyed by gpu_upload_<producer>_<metric>.
     std::map<std::string, std::uint64_t> upload_breakdown;
     std::optional<std::uint64_t> gpu_submissions;

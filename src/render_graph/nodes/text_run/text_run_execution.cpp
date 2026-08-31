@@ -267,7 +267,7 @@ graph::RenderOpResult render_text_run_item(
                 frame_number, promoted);
         }
         if (!promoted &&
-            !ensure_native_surface(mutable_ctx, fb)) {
+            !ensure_native_surface(mutable_ctx, fb, "TextRun.execution.fallback")) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "TextRun fallback rendered but could not be uploaded to the native surface"});

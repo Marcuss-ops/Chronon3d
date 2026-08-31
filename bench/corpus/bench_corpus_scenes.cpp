@@ -852,6 +852,13 @@ Composition bench_perf_native_promotion_1080p() {
         });
         s.layer("text_a", [](LayerBuilder& l) {
             l.screen_dimensions(1920.0f, 1080.0f);
+            // The original render-plan workload is evaluated every frame.
+            // Keep the pixels visually static while carrying an explicit
+            // frame-dependent transform so the composition registry follows
+            // the same non-reusable execution path.
+            auto& position = l.position_anim();
+            position.key(Frame{0}, {0.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear});
+            position.key(Frame{59}, {0.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear});
             l.text("text_a", text_preset(
                 "VELOX BENCHMARK THROUGHPUT", 72.0f, 700,
                 {1.0f, 1.0f, 1.0f, 1.0f},
