@@ -1315,6 +1315,18 @@ TEST_CASE("FrameExecutionSlotRing: state machine and RAII lease management") {
     CHECK(lease0.valid());
     CHECK(lease0.slot().state.load() == FrameSlotState::GpuWriting);
     CHECK(lease0.slot().slot_id == 0);
+    CHECK(lease0.slot().interop_state.load() == InteropFrameState::Recyclable);
+
+    CHECK(lease0.slot().transition_interop_state(InteropFrameState::Allocated));
+    CHECK(lease0.slot().transition_interop_state(InteropFrameState::VulkanRecording));
+    CHECK(lease0.slot().transition_interop_state(InteropFrameState::VulkanSubmitted));
+    CHECK(!lease0.slot().native_surface_prepared());
+    CHECK(lease0.slot().transition_interop_state(InteropFrameState::VulkanComplete));
+    CHECK(lease0.slot().native_surface_prepared());
+    CHECK(lease0.slot().transition_interop_state(InteropFrameState::EncodeSubmitted));
+    CHECK_FALSE(lease0.slot().transition_interop_state(InteropFrameState::CudaReady));
+    CHECK(lease0.slot().transition_interop_state(InteropFrameState::EncodeConsumed));
+    CHECK_FALSE(lease0.slot().transition_interop_state(InteropFrameState::Allocated));
 
     lease0.mark_ready();
     CHECK(lease0.slot().state.load() == FrameSlotState::ReadyForEncode);
@@ -1322,6 +1334,62 @@ TEST_CASE("FrameExecutionSlotRing: state machine and RAII lease management") {
     lease0.release();
     CHECK(!lease0.valid());
     CHECK(ring.slot(0).state.load() == FrameSlotState::Free);
+    CHECK(ring.slot(0).interop_state.load() == InteropFrameState::Recyclable);
+}
+
+TEST_CASE("FrameExecutionSlotRing rejects an unbounded zero-capacity ring") {
+    CHECK_THROWS_AS(chronon3d::runtime::FrameExecutionSlotRing(0),
+                    std::invalid_argument);
+}
+
+TEST_CASE("FrameExecutionSlotRing: 500-frame stress keeps slot and interop bounds") {
+    using namespace chronon3d::runtime;
+    constexpr std::size_t kCapacity = 3;
+    FrameExecutionSlotRing ring(kCapacity);
+
+    for (std::uint64_t frame = 0; frame < 500; ++frame) {
+        auto lease = ring.acquire_lease();
+        REQUIRE(lease.valid());
+        CHECK(ring.capacity() == kCapacity);
+        CHECK(lease.slot().interop_state.load() == InteropFrameState::Recyclable);
+        CHECK(lease.slot().transition_interop_state(InteropFrameState::Allocated));
+        CHECK(lease.slot().transition_interop_state(InteropFrameState::VulkanRecording));
+        CHECK(lease.slot().transition_interop_state(InteropFrameState::VulkanSubmitted));
+        CHECK(lease.slot().transition_interop_state(InteropFrameState::VulkanComplete));
+        CHECK(lease.slot().native_surface_prepared());
+        CHECK(lease.slot().transition_interop_state(InteropFrameState::EncodeSubmitted));
+        CHECK(lease.slot().transition_interop_state(InteropFrameState::EncodeConsumed));
+        lease.release();
+    }
+
+    CHECK(ring.capacity() == kCapacity);
+    for (std::size_t i = 0; i < kCapacity; ++i) {
+        CHECK(ring.slot(i).state.load() == FrameSlotState::Free);
+        CHECK(ring.slot(i).interop_state.load() == InteropFrameState::Recyclable);
+    }
+}
+
+TEST_CASE("FrameExecutionSlotRing: completed encoder lease recycles interop state") {
+    using namespace chronon3d::runtime;
+    struct ImmediateCompletion final : GpuCompletion {
+        [[nodiscard]] bool ready() const noexcept override { return true; }
+        void wait() override {}
+    };
+
+    FrameExecutionSlotRing ring(1);
+    auto lease = ring.acquire_lease();
+    REQUIRE(lease.valid());
+    CHECK(lease.slot().transition_interop_state(InteropFrameState::Allocated));
+    CHECK(lease.slot().transition_interop_state(InteropFrameState::VulkanRecording));
+    CHECK(lease.slot().transition_interop_state(InteropFrameState::VulkanSubmitted));
+    CHECK(lease.slot().transition_interop_state(InteropFrameState::VulkanComplete));
+    CHECK(lease.slot().transition_interop_state(InteropFrameState::EncodeSubmitted));
+    lease.retire(std::make_shared<ImmediateCompletion>());
+
+    auto recycled = ring.acquire_lease();
+    REQUIRE(recycled.valid());
+    CHECK(recycled.slot().state.load() == FrameSlotState::GpuWriting);
+    CHECK(recycled.slot().interop_state.load() == InteropFrameState::Recyclable);
 }
 
 TEST_CASE("MediaSessionPool: key hashing and registration") {
@@ -1625,4 +1693,3 @@ TEST_CASE("FrameGraphCompiler - compiled frame program is deterministic (golden)
     // the fused batch work this fixture is designed to produce.
     CHECK_FALSE(normalized_first.empty());
 }
-

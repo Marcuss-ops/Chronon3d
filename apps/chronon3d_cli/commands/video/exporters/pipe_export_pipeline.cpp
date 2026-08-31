@@ -12,6 +12,7 @@
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/native_frame_importer_factory.hpp>
+#include <chronon3d/media/video/detail/video_execution_legacy.hpp>
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <cuda.h>
@@ -27,6 +28,28 @@
 namespace chronon3d::cli {
 
 namespace {
+
+[[nodiscard]] media::VideoExecutionPlan render_graph_fallback_plan(
+    const FfmpegExportOptions& opts) {
+    const bool native_gpu_graph =
+        opts.backend_preference == graph::BackendPreference::GPU &&
+        opts.encoder.encoder_backend == "native" &&
+        opts.encoder.hardware_encoder == "nvenc";
+    if (native_gpu_graph) {
+        return {
+            media::DecodePath::Nvdec,
+            media::CompositePath::VulkanGraph,
+            media::EncodePath::Nvenc,
+            media::InteropPath::VulkanCuda,
+            media::SurfaceHandoffPath::VulkanCopy};
+    }
+    return {
+        media::DecodePath::Software,
+        media::CompositePath::SoftwareGraph,
+        media::EncodePath::Pipe,
+        media::InteropPath::None,
+        media::SurfaceHandoffPath::HostUpload};
+}
 
 /// Encoder-side SIMO fanout. The render queue carries one framebuffer and
 /// every child receives the same shared owner; preparation, decode, shaping
@@ -122,6 +145,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // blocks instead of busy-waiting when all arenas are queued.
     constexpr size_t kArenaPoolCount = 4;
     auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
+    session->execution_plan = opts.resolved_execution_plan;
     // Execution-path dispatch is owned exclusively by video_job_execute.cpp.
     // This lower-level session builder receives only renderable work; it must
     // not call the resolver or create a second authority. The caller has
@@ -394,6 +418,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                 session->device_runtime->image_cache().set_asset_resolver(nullptr);
                 session->direct_yuv_session.reset();
                 direct_yuv_requested = false;
+                // The resolver's DirectYuv candidate was only a probe. Once
+                // composition eligibility rejects it, replace the carried
+                // plan before constructing the RenderGraph session so the
+                // runtime, writer and sidecar share the effective handoff.
+                session->execution_plan = render_graph_fallback_plan(opts);
             } else {
                 spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}",
                               direct_reason);
@@ -517,6 +546,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             .renderer = sw_renderer,
             .counters = sw_renderer ? sw_renderer->counters() : &session->direct_yuv_session->counters,
             .hot_path_mode = opts.gpu_hot_path_mode,
+            .execution_plan = session->execution_plan,
             .writer_encode_us_total = session->writer_encode_us_total,
             .frames_encoded = session->frames_encoded,
             .require_native_gpu =
@@ -607,11 +637,13 @@ RenderLoopOutput run_pipe_export_loop(
         .start = start,
         .end = end,
         .opts = opts,
+        .execution_plan = session.execution_plan,
         .sw_renderer = session.renderer_ptr(),
         .queue = session.queue,
         .writer_failed = session.writer_failed,
         .frames_encoded = session.frames_encoded,
         .execution_slots = session.full_graph_session->execution_slots,
+        .device_runtime = session.device_runtime,
         .triple_arena = session.full_graph_session->triple_arena.get(),
         .counters = session.renderer_ptr()->counters(),
         .telemetry_frames = telemetry_frames,

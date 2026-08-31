@@ -161,6 +161,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         }
     }
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (gpu_nvenc_) {
         av_frame_unref(frame_);
         frame_->format = AV_PIX_FMT_CUDA;
@@ -175,6 +176,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         }
         av_frame_free(&cpu_staging);
     }
+#endif
 
     // 3. Set PTS (presentation timestamp) in frame number units
     frame_->pts = static_cast<int64_t>(frames_written_);

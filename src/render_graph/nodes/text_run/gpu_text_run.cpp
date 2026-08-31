@@ -311,10 +311,10 @@ graph::RenderOpResult draw_packed_text_run_surface(
         // per-frame instance records are rebuilt here.
         atlas_handle = persistent_atlas.handle;
         cached_atlas = true;
-        atlas_desc = runtime::SurfaceDesc{
+        atlas_desc = runtime::SurfaceDesc::make(
             persistent_atlas.width, persistent_atlas.height,
             runtime::PixelFormat::Rgba32Float, runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::JobPersistent, 0};
+            runtime::LifetimeClass::JobPersistent);
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& glyph = glyphs[i];
             instances.push_back(runtime::GlyphInstance{
@@ -340,13 +340,12 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 "draw_packed_text_run_surface: atlas dimensions overflow"});
         }
         atlas_buffer.assign(atlas_bytes, 0.0f);
-        atlas_desc = runtime::SurfaceDesc{
+        atlas_desc = runtime::SurfaceDesc::make(
             dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
             ctx.services.gpu_asset_cache
                 ? runtime::LifetimeClass::JobPersistent
-                : runtime::LifetimeClass::FrameTransient,
-            0};
+                : runtime::LifetimeClass::FrameTransient);
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& glyph = glyphs[i];
             const auto& place = packed[i];
@@ -376,7 +375,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
     if (profiling::g_current_counters &&
         (!persistent_available || !persistent_atlas.cache_hit)) {
         const auto repack_bytes = atlas_buffer.empty()
-            ? static_cast<std::uint64_t>(atlas_desc.width) * atlas_desc.height * sizeof(float) * 4
+            ? static_cast<std::uint64_t>(atlas_desc.bytes)
             : static_cast<std::uint64_t>(atlas_buffer.size() * sizeof(float));
         profiling::g_current_counters->gpu_text_atlas_repack_count.fetch_add(
             1, std::memory_order_relaxed);
@@ -389,7 +388,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
         profiling::g_current_counters->gpu_text_atlas_upload_count.fetch_add(
             1, std::memory_order_relaxed);
         profiling::g_current_counters->gpu_text_atlas_upload_bytes.fetch_add(
-            static_cast<std::uint64_t>(atlas_desc.width) * atlas_desc.height * sizeof(float) * 4,
+            static_cast<std::uint64_t>(atlas_desc.bytes),
             std::memory_order_relaxed);
     }
 

@@ -10,38 +10,58 @@
 using chronon3d::media::AudioExecutionPath;
 using chronon3d::media::resolve_audio_execution;
 using chronon3d::media::VideoExecutionPath;
-using chronon3d::media::VideoExecutionRequest;
 using chronon3d::media::resolve_video_execution;
 
-TEST_CASE("VideoExecutionResolver: direct YUV is fail-closed") {
-    const auto accepted = chronon3d::media::resolve_video_execution({
-        .encoder_backend = "native", .hardware_encoder = "nvenc",
-        .codec = "h264", .hot_path = chronon3d::GpuHotPathMode::RequireDirectYuv});
-    CHECK(accepted.valid);
-    CHECK(accepted.path == VideoExecutionPath::DirectYuv);
-    CHECK(accepted.render_fallback == VideoExecutionPath::FullGraph);
-
-    const auto rejected = chronon3d::media::resolve_video_execution({
-        .encoder_backend = "pipe", .hardware_encoder = "nvenc",
-        .codec = "h264", .hot_path = chronon3d::GpuHotPathMode::RequireDirectYuv});
-    CHECK_FALSE(rejected.valid);
+TEST_CASE("VideoExecutionResolver: semantic GPU contract selects direct composition") {
+    const auto decision = resolve_video_execution(
+        chronon3d::media::ExecutionRequirements{
+            .gpu_required = true, .cpu_fallback_allowed = false,
+            .composition_required = false, .packet_copy_allowed = false},
+        chronon3d::media::OutputSpec{.codec = "h264"},
+        chronon3d::media::VideoCapabilities{
+            .nvdec = true, .nvenc = true, .vulkan_graph = true, .cuda_native = true});
+    CHECK(decision.valid);
+    CHECK(decision.plan.decode == chronon3d::media::DecodePath::Nvdec);
+    CHECK(decision.plan.composite == chronon3d::media::CompositePath::DirectYuv);
+    CHECK(decision.plan.encode == chronon3d::media::EncodePath::Nvenc);
+    CHECK(decision.plan.interop == chronon3d::media::InteropPath::CudaNative);
+    CHECK(decision.plan.handoff == chronon3d::media::SurfaceHandoffPath::Direct);
 }
 
-TEST_CASE("VideoExecutionResolver: Smart GOP renders through DirectYuv fallback") {
-    const auto decision = resolve_video_execution({
-        .encoder_backend = "native", .hardware_encoder = "nvenc",
-        .codec = "h264", .has_gop_source = true,
-        .allow_hybrid_gop = true});
-    CHECK(decision.valid);
-    CHECK(decision.path == VideoExecutionPath::SmartGopCopy);
-    CHECK(decision.render_fallback == VideoExecutionPath::DirectYuv);
+TEST_CASE("VideoExecutionResolver: semantic GPU graph is orthogonal") {
+    const auto decision = resolve_video_execution(
+        chronon3d::media::ExecutionRequirements{
+            .gpu_required = true, .cpu_fallback_allowed = false,
+            .composition_required = true, .packet_copy_allowed = false},
+        chronon3d::media::OutputSpec{.codec = "h264"},
+        chronon3d::media::VideoCapabilities{
+            .nvdec = true, .nvenc = true, .vulkan_graph = true, .cuda_native = true});
+    CHECK(decision.plan.decode == chronon3d::media::DecodePath::Nvdec);
+    CHECK(decision.plan.composite == chronon3d::media::CompositePath::VulkanGraph);
+    CHECK(decision.plan.encode == chronon3d::media::EncodePath::Nvenc);
+    CHECK(decision.plan.interop == chronon3d::media::InteropPath::VulkanCuda);
+    CHECK(decision.plan.handoff == chronon3d::media::SurfaceHandoffPath::VulkanCopy);
+    CHECK(decision.plan.uses_gpu());
+}
 
-    const auto copy = resolve_video_execution({
-        .encoder_backend = "native", .hardware_encoder = "nvenc",
-        .codec = "h264", .has_gop_source = true,
-        .gop_copy_only = true});
-    CHECK(copy.path == VideoExecutionPath::BitstreamCopy);
-    CHECK(copy.render_fallback == VideoExecutionPath::DirectYuv);
+TEST_CASE("VideoExecutionResolver: public contract hides backend selection") {
+    using namespace chronon3d::media;
+    const auto gpu = resolve_video_execution(
+        ExecutionRequirements{.gpu_required = true, .cpu_fallback_allowed = false,
+                              .composition_required = true},
+        OutputSpec{.codec = "h264", .width = 1920, .height = 1080,
+                   .fps_num = 30, .fps_den = 1},
+        VideoCapabilities{.nvdec = true, .nvenc = true,
+                          .vulkan_graph = true, .cuda_native = true});
+    CHECK(gpu.valid);
+    CHECK(gpu.plan.composite == CompositePath::VulkanGraph);
+    CHECK(gpu.plan.interop == InteropPath::VulkanCuda);
+
+    const auto rejected = resolve_video_execution(
+        ExecutionRequirements{.gpu_required = true, .cpu_fallback_allowed = false,
+                              .composition_required = true},
+        OutputSpec{}, VideoCapabilities{.nvdec = true, .nvenc = false});
+    CHECK_FALSE(rejected.valid);
 }
 
 TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") {

@@ -307,14 +307,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 (void)ctx.services.surface_registry->release(handle);
                 framebuffer->clear_surface_handle();
             }
-            const runtime::SurfaceDesc desc{
+            const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
                 static_cast<std::uint32_t>(framebuffer->width()),
                 static_cast<std::uint32_t>(framebuffer->height()),
                 runtime::PixelFormat::Rgba32Float,
                 runtime::ResourceUsage::Storage,
-                runtime::LifetimeClass::FrameTransient,
-                static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() *
-                    sizeof(float) * 4};
+                runtime::LifetimeClass::FrameTransient);
             handle = ctx.services.surface_registry->create(desc);
             if (!backend.create_surface(handle, desc).ok()) {
                 (void)ctx.services.surface_registry->release(handle);

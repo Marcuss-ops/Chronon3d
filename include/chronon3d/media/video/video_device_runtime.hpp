@@ -2,6 +2,8 @@
 
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/device_scheduler.hpp>
+#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 
@@ -14,6 +16,8 @@
 #include <unordered_map>
 
 struct AVBufferRef;
+
+namespace chronon3d::graph { class RenderBackend; }
 
 namespace chronon3d::media {
 
@@ -65,6 +69,17 @@ public:    /// Creates a runtime for `device`. If `gpu` is null a new GpuRuntime
     /// caller owns (av_buffer_unref), or null when CUDA is unavailable or the
     /// FAIL_CLOSED assertion failed. Creates the hwdevice on first use.
     AVBufferRef* ref_cuda_hwdevice();
+
+    /// Acquire the backend surfaces owned by an execution slot. Format,
+    /// allocation size, lifetime and partial-failure cleanup stay here;
+    /// callers only provide the engine-owned registry/backend and dimensions.
+    bool acquire_slot_surfaces(
+        runtime::FrameExecutionSlot& slot,
+        runtime::RenderSurfaceRegistry& registry,
+        graph::RenderBackend& backend,
+        std::uint32_t width,
+        std::uint32_t height,
+        std::string& reason);
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     /// Borrow a persistent FFmpeg CUDA frames context for one exact surface

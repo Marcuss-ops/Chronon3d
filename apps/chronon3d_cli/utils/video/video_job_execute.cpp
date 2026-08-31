@@ -5,6 +5,7 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/media/video/detail/video_execution_legacy.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -188,8 +189,8 @@ int render_and_encode_ffmpeg(
     // the packet pipeline") because the pipe renderer cannot do packet
     // copy. Routing here ensures copy_gop_source() is the single entry.
     if (opts.sink.ffmpeg_mode == "pipe") {
-        const auto path_decision = media::resolve_video_execution(
-            media::VideoExecutionRequest{
+        const auto path_decision = media::detail::resolve_legacy_video_execution(
+            media::detail::LegacyVideoExecutionRequest{
                 .encoder_backend = opts.encoder.encoder_backend,
                 .hardware_encoder = opts.encoder.hardware_encoder,
                 .codec = opts.encoder.codec,
@@ -223,6 +224,12 @@ int render_and_encode_ffmpeg(
                 fallback_opts.gop_source.clear();
                 fallback_opts.resolved_execution_path =
                     FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
+                fallback_opts.resolved_execution_plan = media::detail::resolve_legacy_video_execution(
+                    media::detail::LegacyVideoExecutionRequest{
+                        .encoder_backend = opts.encoder.encoder_backend,
+                        .hardware_encoder = opts.encoder.hardware_encoder,
+                        .codec = opts.encoder.codec,
+                        .hot_path = opts.gpu_hot_path_mode}).plan;
                 auto fallback = render_and_encode_ffmpeg_pipe(
                     registry, compiled, composition_id, settings,
                     start, end, fallback_opts, cpu_budget,
@@ -430,6 +437,7 @@ int render_and_encode_ffmpeg(
             render_path == media::VideoExecutionPath::DirectYuv
                 ? FfmpegExportOptions::ResolvedExecutionPath::DirectYuv
                 : FfmpegExportOptions::ResolvedExecutionPath::FullGraph;
+        render_opts.resolved_execution_plan = path_decision.plan;
         auto result = render_and_encode_ffmpeg_pipe(
             registry, compiled, composition_id,
             settings, start, end, render_opts, cpu_budget,

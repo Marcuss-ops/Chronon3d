@@ -133,7 +133,10 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 ctx.counters->gpu_native_surface_frames.fetch_add(
                     1, std::memory_order_relaxed);
             }
-            if (!gpu_frame && (ctx.require_native_gpu ||
+            const bool plan_requires_native = ctx.execution_plan &&
+                ctx.execution_plan->encode == media::EncodePath::Nvenc &&
+                ctx.execution_plan->interop != media::InteropPath::None;
+            if (!gpu_frame && (ctx.require_native_gpu || plan_requires_native ||
                                ctx.hot_path_mode == GpuHotPathMode::RequireGpuNative ||
                                ctx.hot_path_mode == GpuHotPathMode::RequireDirectYuv)) {
                 if (ctx.counters) {
@@ -151,7 +154,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             }
 
             const bool encoded = gpu_frame
-                ? (slot->native_surface_ready
+                ? (slot->native_surface_prepared()
                     ? ctx.encoder.write_prepared_native_surface(
                         *slot->backend, slot->source_surface, slot->native_surface)
                     : ctx.encoder.write_native_surface(
@@ -167,12 +170,32 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 ctx.queue.close();
                 return;
             }
+            if (gpu_frame && !slot->transition_interop_state(
+                    runtime::InteropFrameState::EncodeSubmitted)) {
+                spdlog::error(
+                    "[video] invalid encode submission lifecycle for slot {}",
+                    slot->slot_id);
+                ctx.writer_failed.store(true);
+                ctx.queue.close();
+                return;
+            }
             const bool surface_ready = !gpu_frame || ctx.encoder.poll_native_surface(
                 *slot->backend, slot->native_surface);
             if (gpu_frame && !surface_ready) {
                 full->slot.retire(std::make_shared<EncoderGpuCompletion>(
                     ctx.encoder, *slot->backend, slot->native_surface));
             } else {
+                if (gpu_frame) {
+                    if (!slot->transition_interop_state(
+                            runtime::InteropFrameState::EncodeConsumed)) {
+                        spdlog::error(
+                            "[video] invalid encode completion lifecycle for slot {}",
+                            slot->slot_id);
+                        ctx.writer_failed.store(true);
+                        ctx.queue.close();
+                        return;
+                    }
+                }
                 full->slot.release();
             }
             if (ctx.counters) {

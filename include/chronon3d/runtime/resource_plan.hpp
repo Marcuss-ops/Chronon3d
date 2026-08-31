@@ -22,6 +22,18 @@ struct ResourceDesc {
     std::size_t bytes{0};
     std::size_t alignment{alignof(std::max_align_t)};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
+
+    [[nodiscard]] static constexpr ResourceDesc make(
+        std::uint32_t width,
+        std::uint32_t height,
+        PixelFormat format,
+        ResourceUsage usage = ResourceUsage::Generic,
+        LifetimeClass lifetime = LifetimeClass::FrameTransient,
+        std::size_t alignment = alignof(std::max_align_t)) noexcept {
+        return ResourceDesc{
+            width, height, format, usage,
+            tight_surface_bytes(format, width, height), alignment, lifetime};
+    }
 };
 
 /// Graph-facing logical resource.  The planner deliberately keeps this

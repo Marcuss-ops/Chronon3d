@@ -18,6 +18,7 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include "../nodes/detail/preflight_bbox.hpp"
 #include <algorithm>
 #include <string>
@@ -146,9 +147,14 @@ void populate_node_basics(
         int64_t w = rec.predicted_bbox.x1 - rec.predicted_bbox.x0;
         int64_t h = rec.predicted_bbox.y1 - rec.predicted_bbox.y0;
         if (w > 0 && h > 0) {
-            mem_bytes = static_cast<size_t>(w * h * 16);
+            mem_bytes = runtime::tight_surface_bytes(
+                runtime::PixelFormat::Rgba32Float,
+                static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h));
         } else if (node.kind() == RenderGraphNodeKind::Output) {
-            mem_bytes = static_cast<size_t>(ctx.frame_input.width * ctx.frame_input.height * 16);
+            mem_bytes = runtime::tight_surface_bytes(
+                runtime::PixelFormat::Rgba32Float,
+                static_cast<std::uint32_t>(ctx.frame_input.width),
+                static_cast<std::uint32_t>(ctx.frame_input.height));
         }
         rec.predicted_memory_bytes = mem_bytes;
 

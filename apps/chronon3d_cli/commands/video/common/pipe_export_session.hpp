@@ -39,6 +39,12 @@ struct DirectYuvSession {
 /// never constructs this object, so renderer/Vulkan surface lifetime cannot
 /// accidentally leak into the direct execution mode.
 struct FullGraphSession {
+    // Keep the encoder-facing Vulkan/CUDA surface pool bounded to the same
+    // depth as the Vulkan submission ring.  A larger queue allows many
+    // 1920x1080 RGBA32F interop images to remain resident while NVENC drains,
+    // which can exhaust device-local memory before backpressure is applied.
+    static constexpr std::size_t kGpuEncodeSlotCapacity = 3;
+
     std::shared_ptr<SoftwareRenderer> renderer;
     // The pool owns the logical handles and their backend bindings for the
     // complete FullGraph job. Releasing the registry entry alone is not
@@ -49,7 +55,7 @@ struct FullGraphSession {
     std::unique_ptr<TripleBufferArena> triple_arena;
 
     FullGraphSession()
-        : execution_slots(runtime::FrameExecutionSlotRing::kDefaultCapacity) {}
+        : execution_slots(kGpuEncodeSlotCapacity) {}
 
     ~FullGraphSession() {
         execution_slots.close();
@@ -86,6 +92,9 @@ struct PipeExportSession {
 
     // State
     FfmpegExportOptions opts;
+    // The resolver's plan is carried through the session so telemetry and
+    // teardown observe the same handoff contract as the render loop.
+    std::optional<media::VideoExecutionPlan> execution_plan;
     std::string original_output_path;  // P1-B: final path (before .partial suffix)
     SystemMetricsCollector sys_metrics;
     std::string started_at_iso;

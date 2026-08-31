@@ -276,11 +276,8 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             ? request_desc.format : planned.format;
         const auto usage = request_desc.usage != runtime::ResourceUsage::Generic
             ? request_desc.usage : planned.usage;
-        const runtime::SurfaceDesc desc{
-            width, height, format,
-            usage, runtime::LifetimeClass::FrameTransient,
-            static_cast<std::size_t>(width) * height *
-                sizeof(float) * 4};
+        const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
+            width, height, format, usage, runtime::LifetimeClass::FrameTransient);
         m_impl->bind_surface_to_slot(allocation.surface, allocation.physical_slot, desc);
     }
     // Rebinding a plan can leave the pre-plan pool slots orphaned. They are
