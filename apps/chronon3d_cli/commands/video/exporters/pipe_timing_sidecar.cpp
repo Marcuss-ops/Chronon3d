@@ -359,6 +359,11 @@ void write_frame_timing_sidecar(
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
     put_gpu_u64("gpu_upload_full_surface_bytes", timings.gpu.gpu_upload_full_surface_bytes);
     put_gpu_u64("gpu_upload_region_bytes", timings.gpu.gpu_upload_region_bytes);
+    put_gpu_u64("native_surface_promotion_count", timings.gpu.native_surface_promotion_count);
+    put_gpu_u64("native_surface_promotion_bytes", timings.gpu.native_surface_promotion_bytes);
+    put_gpu_u64("native_surface_promotion_wall_us", timings.gpu.native_surface_promotion_wall_us);
+    put_gpu_u64("native_surface_empty_create_count", timings.gpu.native_surface_empty_create_count);
+    put_gpu_u64("native_surface_reuse_count", timings.gpu.native_surface_reuse_count);
     auto& upload_breakdown = gpu["upload_breakdown"];
     for (const auto& [key, value] : timings.gpu.upload_breakdown) {
         upload_breakdown[key] = value;

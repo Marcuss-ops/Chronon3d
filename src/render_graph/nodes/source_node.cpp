@@ -300,7 +300,17 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
         y1 = std::min(y1, ctx.node_exec.clip_rect->y1);
     }
 
-    if (!ensure_native_surface(ctx, fb)) return false;
+    const bool covers_full_destination =
+        x0 <= 0 && y0 <= 0 && x1 >= fb.width() && y1 >= fb.height();
+    // A full-frame solid rect writes every destination pixel.  It therefore
+    // needs no CPU seed: allocate an empty native surface and let the GPU
+    // fill kernel produce the result.  Partial rects retain the legacy
+    // promotion because their untouched pixels still carry source state.
+    if (covers_full_destination) {
+        if (!ensure_empty_native_surface(ctx, fb)) return false;
+    } else if (!ensure_native_surface(ctx, fb, "SourceNode.rect.partial")) {
+        return false;
+    }
 
     if (x0 >= x1 || y0 >= y1) {
         return true;  // fully off-canvas: surface attached, nothing to fill
@@ -625,7 +635,7 @@ NodeExecResult SourceNode::execute(
             // can select its native shape path instead of seeing a CPU-only
             // framebuffer and reporting a misleading unsupported capability.
             if (ctx.services.backend->supports_native_surfaces() &&
-                ctx.services.surface_registry && !ensure_native_surface(ctx, *fb)) {
+                ctx.services.surface_registry && !ensure_native_surface(ctx, *fb, "SourceNode.image.fallback")) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,
                     m_name,
