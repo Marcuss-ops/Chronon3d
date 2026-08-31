@@ -352,6 +352,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 // ---------------------------------------------------------------------------
 
 bool NativeAvEncoder::close() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!codec_) {
         // Already closed or never opened — not an error.
         if (!open_complete_) abort_open();
@@ -475,6 +476,7 @@ void NativeAvEncoder::abort_open() noexcept {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     // FFmpeg/NVENC may leave a different CUDA context current after
     // avcodec_send_frame(). CUDA events are owned by the context in which
     // they were created; querying one from another context reports the
@@ -486,6 +488,8 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
     }
     while (!pending_cuda_frames_.empty()) {
         auto& pending = pending_cuda_frames_.front();
+        CUcontext cur_ctx = nullptr;
+        cuCtxGetCurrent(&cur_ctx);
         const CUresult ready = cuda::query(pending.ready);
         if (ready == CUDA_ERROR_NOT_READY) {
             if (!wait_for_one) return true;
@@ -496,8 +500,11 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
                 const char* text = nullptr;
                 cuGetErrorName(sync_result, &name);
                 cuGetErrorString(sync_result, &text);
-                spdlog::error("[native_av] CUDA encode event wait failed: {} ({})",
-                              name ? name : "unknown", text ? text : "unknown");
+                spdlog::error("[native_av] CUDA encode event wait failed: {} ({}) event={} owner_ctx={} cur_ctx={}",
+                              name ? name : "unknown", text ? text : "unknown",
+                              static_cast<void*>(pending.ready.event),
+                              static_cast<void*>(pending.ready.owner_context),
+                              static_cast<void*>(cur_ctx));
                 return false;
             }
             const auto wait_ms = elapsed_ms(wait_t0);
@@ -514,8 +521,11 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             const char* text = nullptr;
             cuGetErrorName(ready, &name);
             cuGetErrorString(ready, &text);
-            spdlog::error("[native_av] CUDA encode event query failed: {} ({})",
-                          name ? name : "unknown", text ? text : "unknown");
+            spdlog::error("[native_av] CUDA encode event query failed: {} ({}) event={} owner_ctx={} cur_ctx={}",
+                          name ? name : "unknown", text ? text : "unknown",
+                          static_cast<void*>(pending.ready.event),
+                          static_cast<void*>(pending.ready.owner_context),
+                          static_cast<void*>(cur_ctx));
             return false;
         }
 
@@ -524,9 +534,14 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         const double send_dur = elapsed_ms(send_t0);
         native_send_frame_ms_ += send_dur;
         encoder_nvenc_submit_ms_ += send_dur;
+        const int64_t popped_pts = pending.frame ? pending.frame->pts : -1;
         av_frame_unref(pending.frame);
         reusable_cuda_frames_.push_back(pending.frame);
         pending.frame = nullptr;
+        spdlog::info("[native_av_diag] pop frame_pts={} event={} owner_ctx={}",
+                     popped_pts,
+                     static_cast<void*>(pending.ready.event),
+                     static_cast<void*>(pending.ready.owner_context));
         cuda::destroy(pending.ready);
         pending_cuda_frames_.pop_front();
         if (send_ret < 0) {
@@ -569,6 +584,7 @@ bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
     (void)direct;
     return false;
 #else
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto direct_submit_t0 = Clock::now();
     last_frame_telemetry_ = EncoderFrameTelemetry{};
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
@@ -765,6 +781,7 @@ bool NativeAvEncoder::write_native_surface_impl(
     (void)backend; (void)source; (void)destination;
     return false;
 #else
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         source == runtime::kInvalidRenderSurfaceHandle ||
         destination == runtime::kInvalidRenderSurfaceHandle) {
@@ -867,41 +884,37 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
-        // The Vulkan external-memory interop path can invalidate CUDA event
-        // handles when ownership is published back to Vulkan. Do not carry
-        // an event across that boundary. A stream synchronization gives
-        // NVENC the same ordering guarantee while keeping the complete
-        // compositor -> NV12 -> encoder path on GPU and avoiding any CPU
-        // fallback.
-        if (cuStreamSynchronize(cuda_stream_) != CUDA_SUCCESS) {
-            spdlog::error("[native_av] CUDA stream synchronization failed for GPU frame {}",
-                          frames_submitted_);
+        gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
+        cuda::OwnedCudaEvent ready{};
+        const CUresult event_create = cuda::create_recorded(
+            ready, reinterpret_cast<CUcontext>(cuda_context_), cuda_stream_);
+        if (event_create != CUDA_SUCCESS) {
+            const char* name = nullptr;
+            const char* detail = nullptr;
+            cuGetErrorName(event_create, &name);
+            cuGetErrorString(event_create, &detail);
+            spdlog::error("[native_av] CUDA encode event setup failed: {} ({})",
+                          name ? name : "CUDA error", detail ? detail : "unknown");
+            cuda::destroy(ready);
             av_frame_unref(gpu_frame);
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
-        gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
-        const auto send_t0 = Clock::now();
-        const int send_ret = avcodec_send_frame(codec_, gpu_frame);
-        const double send_ms = elapsed_ms(send_t0);
-        native_send_frame_ms_ += send_ms;
-        encoder_nvenc_submit_ms_ += send_ms;
-        av_frame_unref(gpu_frame);
-        reusable_cuda_frames_.push_back(gpu_frame);
-        if (send_ret < 0) {
-            char error[AV_ERROR_MAX_STRING_SIZE]{};
-            av_strerror(send_ret, error, sizeof(error));
-            spdlog::error("[native_av] avcodec_send_frame failed for GPU frame {}: {}",
-                          frames_written_, error);
-            return false;
+        spdlog::info("[native_av_diag] push frame_pts={} event={} owner_ctx={} dest={}",
+                     gpu_frame->pts, static_cast<void*>(ready.event),
+                     static_cast<void*>(ready.owner_context), destination);
+        pending_cuda_frames_.push_back(
+            PendingCudaFrame{gpu_frame, ready, destination, nullptr, {}});
+        cuda_pending_peak_ = std::max<std::uint64_t>(
+            cuda_pending_peak_, pending_cuda_frames_.size());
+        if (counters_) {
+            auto observed = counters_->cuda_encode_queue_peak.load(std::memory_order_relaxed);
+            const auto current = static_cast<std::uint64_t>(pending_cuda_frames_.size());
+            while (observed < current &&
+                   !counters_->cuda_encode_queue_peak.compare_exchange_weak(
+                       observed, current, std::memory_order_relaxed)) {}
         }
-        if (!drain_packets()) {
-            spdlog::error("[native_av] NVENC packet drain failed after GPU frame {}",
-                          frames_written_);
-            return false;
-        }
-        ++frames_written_;
-        return true;
+        return drain_ready_cuda_frames(false);
     } catch (const std::exception& error) {
         spdlog::error("[native_av] CUDA/Vulkan frame handoff failed: {}", error.what());
         return false;
@@ -916,6 +929,7 @@ bool NativeAvEncoder::finish_native_surface(
     (void)backend; (void)destination;
     return true;
 #else
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     (void)backend;
     spdlog::info("[native_av] finish_native_surface destination={} pending={}",
                  destination, pending_cuda_frames_.size());
@@ -941,6 +955,7 @@ bool NativeAvEncoder::poll_native_surface(
     (void)backend; (void)destination;
     return true;
 #else
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     (void)backend;
     if (!drain_ready_cuda_frames(false)) return false;
     const auto it = std::find_if(

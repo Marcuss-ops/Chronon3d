@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -224,6 +225,7 @@ private:
     int      last_converted_color_matrix_{-1};
     uint64_t cache_hits_{0};
     uint64_t cache_misses_{0};
+    mutable std::recursive_mutex mutex_;
 };
 
 } // namespace chronon3d::cli

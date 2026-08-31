@@ -173,6 +173,7 @@ graph::RenderOpResult VulkanBackend::release_surface(
         // A command buffer may still reference any surface created during the
         // active batch.  "Unplanned" only means that the barrier planner does
         // not know the handle; it must never shorten the Vulkan lifetime.
+        spdlog::info("[release_surface_diag] handle={} defer={}", handle, (m_impl->frame_batch.active || m_impl->command_batch_active));
         if (m_impl->frame_batch.active || m_impl->command_batch_active) {
             m_impl->defer_surface_release(handle);
             return graph::RenderOpResult(graph::RenderOpOutcome{});
