@@ -45,6 +45,9 @@ struct VulkanBackendStats {
     std::array<std::uint64_t, kUploadProducerCount> upload_producer_initial_bytes{};
     std::uint64_t readback_calls{0};
     std::uint64_t readback_bytes{0};
+    std::uint64_t physical_surfaces_live{0};
+    std::uint64_t surface_bindings_live{0};
+    std::uint64_t deferred_surface_release_count{0};
     std::uint64_t physical_surfaces_peak{0};
     std::uint64_t submissions{0};
     /// Cumulative number of GPU command-plan passes executed. Incremented
@@ -93,6 +96,8 @@ struct VulkanBackendStats {
     std::uint64_t gpu_asset_cache_evictions{0};
     std::uint64_t gpu_asset_cache_evicted_bytes{0};
     std::uint64_t gpu_asset_cache_resident_bytes{0};
+    bool command_batch_active{false};
+    bool command_batch_started{false};
 };
 
 /// Hardware descriptors returned by the backend-owned physical-device
