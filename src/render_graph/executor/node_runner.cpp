@@ -30,11 +30,27 @@
 #include "../nodes/text_run/text_run_execution.hpp"
 #include <spdlog/spdlog.h>
 #include <cmath>
+#include <cstdlib>
+#include <string_view>
 #include <unordered_map>
 
 namespace chronon3d::graph {
 
 namespace {
+
+// The per-node execution diagnostic is intentionally opt-out at runtime so
+// existing diagnostic runs keep their historical output.  The value is read
+// once, before the first node is executed; when disabled, neither fmt argument
+// evaluation nor spdlog locking/formatting occurs in the hot path.
+[[nodiscard]] bool diag_exec_logging_enabled() noexcept {
+    static const bool enabled = [] {
+        const char* value = std::getenv("CHRONON3D_DIAG_EXEC_LOG");
+        if (!value) return true;
+        const std::string_view setting(value);
+        return setting != "0" && setting != "false" && setting != "off";
+    }();
+    return enabled;
+}
 
 [[nodiscard]] std::string memory_node_id(
     const CompiledFrameGraph& compiled,
@@ -375,11 +391,13 @@ void execute_single_node(
         *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
     }
 
-    spdlog::info("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-        static_cast<int>(ctx.frame_input.frame), node.name(), id, to_string(node.kind()),
-        cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
-        cache_eval.use_cache ? 1 : 0,
-        cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
+    if (diag_exec_logging_enabled()) {
+        spdlog::info("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
+            static_cast<int>(ctx.frame_input.frame), node.name(), id, to_string(node.kind()),
+            cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
+            cache_eval.use_cache ? 1 : 0,
+            cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
+    }
 
     const auto t_bbox0 = profiling::now();
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);

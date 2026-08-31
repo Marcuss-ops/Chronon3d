@@ -30,11 +30,13 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <spdlog/spdlog.h>
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -42,6 +44,14 @@
 #include <vector>
 
 namespace chronon3d::backends::vulkan {
+
+inline bool surface_lifecycle_diag_enabled() noexcept {
+    static const bool enabled = [] {
+        const char* value = std::getenv("CHRONON3D_SURFACE_LIFECYCLE_DIAG");
+        return value && *value && std::string_view(value) != "0";
+    }();
+    return enabled;
+}
 
 // Shared failure helper — was an anonymous-namespace function inside
 // vulkan_backend.cpp; every fragment TU needs it, so it is inline here.
@@ -364,6 +374,14 @@ struct VulkanBackend::Impl {
 
         [[nodiscard]] std::size_t physical_count() const noexcept {
             return physical_surfaces.size();
+        }
+
+        [[nodiscard]] std::size_t binding_count() const noexcept {
+            return surface_bindings.size();
+        }
+
+        [[nodiscard]] std::size_t deferred_release_count() const noexcept {
+            return deferred_surface_releases.size();
         }
 
         void clear_access_state() noexcept { slot_last_access.clear(); }

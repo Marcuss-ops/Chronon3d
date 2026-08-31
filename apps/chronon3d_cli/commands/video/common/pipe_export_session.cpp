@@ -4,6 +4,9 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
 #include "temporal_render_bridge.hpp"
 #include <spdlog/spdlog.h>
 
@@ -651,6 +654,29 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             // joined and retires/releases the remaining transients.
 
             ++status.frames_enqueued;
+
+            // Aggregate lifecycle snapshot on the real video exporter path.
+            // Keep this out of the per-surface hot path: one sample per 25
+            // frames is sufficient to reveal linear growth before OOM.
+            if (done_count % 25 == 0) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+                if (const auto* vulkan = dynamic_cast<const backends::vulkan::VulkanBackend*>(&ctx.backend)) {
+                    const auto s = vulkan->stats();
+                    const auto registry_live = ctx.sw_renderer->runtime().surface_registry().size();
+                    spdlog::info(
+                        "[vulkan-lifecycle] frame={} vram_bytes={} live_surfaces={} "
+                        "surface_bindings={} registry_live_handles={} physical_images={} "
+                        "deferred_releases={} vma_allocations={} surfaces_created={} "
+                        "surfaces_released={} queue_packages={} execution_slots_busy={} "
+                        "command_batch_active={}",
+                        done_count, s.vma_usage_bytes, s.physical_surfaces_live,
+                        s.surface_bindings_live, registry_live, s.physical_surfaces_live,
+                        s.deferred_surface_release_count, s.vma_allocation_count,
+                        s.surface_creations, s.surface_releases, ctx.queue.size_approx(),
+                        ctx.execution_slots.busy_count(), s.command_batch_active);
+                }
+#endif
+            }
 
             // Real cache-hit signal: fast-path reuse or at least one NodeCache hit.
             const bool cache_hit = shot.fast_path_reused ||
