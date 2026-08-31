@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <cmath>
 
 namespace chronon3d::verification {
 
@@ -186,9 +187,20 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
                  receipt.media.height == receipt.height) ? "pass" : "fail";
 
             // Frame-rate contract vs the requested fps.
-            const bool fps_ok =
-                receipt.media.fps_num == receipt.fps_num &&
-                receipt.media.fps_den == receipt.fps_den;
+            // FFmpeg may expose a reduced rational (e.g. 4500/149) for a
+            // constant-rate 30 fps stream because of container time-base
+            // rounding. Compare the effective rates within one milliframe
+            // while preserving the exact requested rate in `render`.
+            const double media_fps = receipt.media.fps_den > 0
+                ? static_cast<double>(receipt.media.fps_num) /
+                    static_cast<double>(receipt.media.fps_den)
+                : 0.0;
+            const double requested_fps = receipt.fps_den > 0
+                ? static_cast<double>(receipt.fps_num) /
+                    static_cast<double>(receipt.fps_den)
+                : 0.0;
+            const bool fps_ok = requested_fps > 0.0 &&
+                std::abs(media_fps - requested_fps) <= 0.001;
             receipt.verification.fps = fps_ok ? "pass" : "fail";
 
             // Audio policy: an output with audio tracks requires an audio
