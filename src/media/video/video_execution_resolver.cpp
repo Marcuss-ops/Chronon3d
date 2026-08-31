@@ -41,6 +41,13 @@ VideoExecutionDecision resolve_video_execution(
         return {VideoExecutionPath::DirectYuv, VideoExecutionPath::FullGraph,
                 "required_direct_yuv", true};
     }
+    // RequireGpuNative means FullGraph on Vulkan with native GPU encoding. It
+    // must never be interpreted as DirectYuv: FullGraph is required for text,
+    // image overlays and any other non-trivial composition.
+    if (request.hot_path == GpuHotPathMode::RequireGpuNative) {
+        return {VideoExecutionPath::FullGraph, VideoExecutionPath::FullGraph,
+                "required_gpu_native_full_graph", true};
+    }
     // Auto is a resolver decision, not an alias for FullGraph. The direct
     // program performs the composition-specific eligibility check after this
     // decision and fails closed when the compiled scene is unsupported.
