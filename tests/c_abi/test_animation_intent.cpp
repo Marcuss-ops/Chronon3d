@@ -219,3 +219,133 @@ TEST_CASE("build_unit_reveal_animator is deterministic") {
     CHECK(oa.value.first_keyframe_time() == ob.value.first_keyframe_time());
     CHECK(oa.value.last_keyframe_time() == ob.value.last_keyframe_time());
 }
+
+TEST_CASE("resolve_animation: zero-duration enter and exit semantics and boundary tests") {
+    // Total layer lifetime = 30 frames
+    const Frame total{30};
+
+    SUBCASE("enter absent -> default 8 clamped to lifetime") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.enter_duration == Frame{8});
+    }
+
+    SUBCASE("enter 0 -> explicit zero disables enter duration") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{0};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.enter_duration == Frame{0});
+    }
+
+    SUBCASE("enter 1 -> minimal positive value preserved") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{1};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.enter_duration == Frame{1});
+    }
+
+    SUBCASE("enter positive normal") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{15};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.enter_duration == Frame{15});
+    }
+
+    SUBCASE("enter >= total -> clamped to total") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{45};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.enter_duration == total);
+    }
+
+    SUBCASE("exit absent -> default disabled (Frame{0})") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.exit_duration == Frame{0});
+    }
+
+    SUBCASE("exit 0 -> explicit zero disables exit duration") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.exit_duration_frames = Frame{0};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.exit_duration == Frame{0});
+    }
+
+    SUBCASE("exit 1 -> minimal positive value with enter 8") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{8};
+        timing.exit_duration_frames = Frame{1};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.exit_duration == Frame{1});
+    }
+
+    SUBCASE("exit positive normal with stable gap") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{8};
+        timing.exit_duration_frames = Frame{6};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.exit_duration == Frame{6});
+    }
+
+    SUBCASE("exit boundary: enter + exit >= total -> dropped to Frame{0}") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{15};
+        timing.exit_duration_frames = Frame{15};  // 15 + 15 == 30 == total -> no stable gap
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.exit_duration == Frame{0});
+    }
+
+    SUBCASE("exit >= total -> dropped to Frame{0}") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.exit_duration_frames = Frame{50};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.exit_duration == Frame{0});
+    }
+
+    SUBCASE("both enter and exit explicit zero") {
+        AnimationTiming timing;
+        timing.preset = "fade_in";
+        timing.enter_duration_frames = Frame{0};
+        timing.exit_duration_frames = Frame{0};
+        auto layer = layer_with_animation(timing);
+        layer.duration_frames = total;
+        const auto res = resolve_animation(std::nullopt, layer, total);
+        CHECK(res.enter_duration == Frame{0});
+        CHECK(res.exit_duration == Frame{0});
+        CHECK_FALSE(res.text_intent);
+    }
+}
+

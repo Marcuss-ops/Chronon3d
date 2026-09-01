@@ -170,7 +170,7 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
             preset_animation = registry.get_for_profile(layer.preset, style_profile).animation;
         }
     }
-    if (!layer.animation && !preset_animation) return;
+    if (!layer.animation && !preset_animation && !layer.transition_in && !layer.transition_out) return;
 
     const auto resolved = resolve_animation(preset_animation, layer, composition_frames);
     if (!resolved.preset.empty()) {
@@ -178,13 +178,11 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
         motion_params.duration = resolved.enter_duration;
         builder.motion(resolved.preset, motion_params);
     }
-    if (resolved.exit_duration > Frame{0}) {
-        chronon3d::LayerTransitionSpec exit_spec;
-        exit_spec.transition_id = "crossfade";
-        exit_spec.direction = chronon3d::TransitionDirection::None;
-        exit_spec.duration = builder.frame_rate().to_seconds(resolved.exit_duration);
-        exit_spec.easing = chronon3d::Easing::InCubic;
-        builder.transition_out(std::move(exit_spec));
+    if (layer.transition_in) {
+        builder.transition_in(*layer.transition_in);
+    }
+    if (layer.transition_out) {
+        builder.transition_out(*layer.transition_out);
     }
 }
 
