@@ -2,7 +2,6 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <algorithm>

@@ -14,26 +14,32 @@
                 auto materialized = materialize_text(
                     layer, canvas, plan.style_profile,
                     plan.canvas.duration.value, *font_engine);
-                if (materialized.layout) {
+                if (layer.position_dimensions > 0) {
+                    materialized.definition.frame.anchor = chronon3d::TextAnchor::Center;
+                    materialized.definition.frame.align = chronon3d::TextAlign::Center;
+                    materialized.definition.frame.placement = chronon3d::TextPlacement{
+                        chronon3d::TextPlacementKind::Absolute,
+                        {0.0f, 0.0f}};
+                } else if (materialized.layout) {
                     layout_requests.push_back(layout_request(
                         layer, *materialized.layout, plan.canvas.duration.value));
                     layout_targets.push_back({index, false});
                 }
                 prepared_texts[index] = std::move(materialized.definition);
-            } else if (layer.type == LayerType::Image && !layer.preset.empty()) {
-                const auto& visual_registry = chronon3d::registry::builtin_visual_preset_registry();
-                if (!visual_registry.contains(layer.preset)) {
-                    throw std::runtime_error("unknown visual preset '" + layer.preset +
-                                             "' for image layer '" + layer.id + "'");
-                }
-                if (visual_registry.get(layer.preset).supported_layer !=
-                    chronon3d::registry::VisualLayerKind::Image) {
-                    throw std::runtime_error("visual preset '" + layer.preset +
-                                             "' is not valid for image layer '" + layer.id + "'");
-                }
-                const auto resolved = VisualPresetMaterializer{}.materialize_image(
-                    layer, canvas, plan.style_profile, visual_registry,
-                    Frame{plan.canvas.duration.value});
+            } else if (layer.type == LayerType::Image) {
+                ResolvedImageLayer resolved;
+                resolved.box_width = layer.box_width.value_or(320.0f);
+                resolved.box_height = layer.box_height.value_or(320.0f);
+                ResolvedLayoutIntent image_layout;
+                image_layout.intent = layer.anchor ? layer.anchor->type : "center";
+                image_layout.width = resolved.box_width;
+                image_layout.height = resolved.box_height;
+                image_layout.safe_margin = layer.anchor ? layer.anchor->safe_margin : 0.06f;
+                image_layout.fallback_intents = {};
+                resolved.layout.intent = image_layout.intent;
+                resolved.layout.width = image_layout.width;
+                resolved.layout.height = image_layout.height;
+                resolved.layout.safe_margin = image_layout.safe_margin;
                 if (layer.position_dimensions > 0) {
                     prepared_images[index] = resolved;
                     const float box_width = resolved.box_width;

@@ -2,7 +2,6 @@
 
 #include <chronon3d/render_plan/animation_intent.hpp>
 #include <chronon3d/render_plan/subtitle_style.hpp>
-#include <chronon3d/render_plan/visual_preset_materializer.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/authoring/layer.hpp>
@@ -10,7 +9,6 @@
 #include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/presets/text/text_presets_v1.hpp>
 #include <chronon3d/layout/overlay_layout_resolver.hpp>
-#include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
