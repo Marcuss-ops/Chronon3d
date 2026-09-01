@@ -41,9 +41,7 @@ set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_draw_text_run_crossfade_stroke.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_font_io_fence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_draw_text_run_scratch_state.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_text_preset_registry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/registry/test_text_preset_descriptor.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 

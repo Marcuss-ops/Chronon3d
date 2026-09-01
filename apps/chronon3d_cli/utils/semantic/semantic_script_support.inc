@@ -38,7 +38,6 @@ std::string kind_name(render_plan::LayerType type) {
         case render_plan::LayerType::Video: return "video";
         case render_plan::LayerType::Text: return "text";
         case render_plan::LayerType::Color: return "color";
-        case render_plan::LayerType::SubtitleTrack: return "subtitle_track";
     }
     return "color";
 }

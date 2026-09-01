@@ -37,15 +37,15 @@ using chronon3d::render_plan::ValidationIssueKind;
 
 namespace {
 
-// Minimal valid plan per `schemas/chronon.render-plan.v1.schema.json`.
+// Minimal valid plan per `schemas/chronon.render-plan.v2.schema.json`.
 // All required fields (schema, version, canvas, layers, output) present,
 // each with all sub-required fields; one optional `color` layer as a
 // smoke-test that nested property walking does not produce spurious
 // issues.
 json make_minimal_valid_plan() {
     return json{
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {
             {"width", 1920},
             {"height", 1080},
@@ -210,18 +210,21 @@ TEST_CASE("render_plan: non-object root emits WrongType without crashing") {
 // builder that only manifested at depth-3 would silently rot.
 TEST_CASE("render_plan: nested array > object > object path built correctly") {
     auto plan = make_minimal_valid_plan();
-    // Force an animation block on layer[0] so the path is layers[0].animation.X
+    // Force an animation block on layer[0] so the path is layers[0].animation.tracks[0].property
     plan["layers"][0]["animation"] = {
-        {"preset", ""}  // empty preset → minLength violation at layers[0].animation.preset
+        {"tracks", json::array({
+            {{"property", "invalid_property"}, {"keyframes", json::array({
+                {{"frame", 0}, {"value", 1.0}}
+            })}}
+        })}
     };
     const auto result = validate_render_plan(plan);
     INFO(result.format());
     CHECK_FALSE(result.ok());
-    // At minimum: layers[0].animation.preset has StringTooShort.
     bool found_path = false;
     for (const auto& issue : result.issues) {
-        if (issue.path == "layers[0].animation.preset"
-            && issue.kind == ValidationIssueKind::StringTooShort) {
+        if (issue.path == "layers[0].animation.tracks[0].property"
+            && issue.kind == ValidationIssueKind::EnumMismatch) {
             found_path = true;
             break;
         }

@@ -43,6 +43,12 @@ enum class SemanticKind : std::uint8_t {
     ImageOverlay,     ///< "immagine importante" → image: contain
 };
 
+struct SemanticAnimation {
+    std::string preset;
+    std::optional<Frame> start_frame;
+    std::optional<Frame> duration_frames;
+};
+
 /// One semantic overlay event — the analyzer's output for a phrase, a word or
 /// an image, with its timeline placement already resolved in frames.
 struct SemanticOverlay {
@@ -57,7 +63,7 @@ struct SemanticOverlay {
     std::optional<float> box_width;
     std::optional<float> box_height;
     std::optional<std::array<float, 2>> position;
-    std::optional<render_plan::AnimationTiming> animation;
+    std::optional<SemanticAnimation> animation;
 };
 
 /// Full-canvas backdrop for the rendered plan.  Either an image asset or a

@@ -35,18 +35,18 @@
 // ── RenderPlan fixtures ────────────────────────────────────────────────────
 
 static const char kPlan[] =
-    "{\"schema\":\"chronon.render-plan\",\"version\":1,"
-    "\"canvas\":{\"width\":320,\"height\":180,\"fps\":30,\"duration_frames\":2},"
+    "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
+    "\"canvas\":{\"width\":320,\"height\":180,\"fps_num\":30,\"fps_den\":1,\"duration_frames\":2},"
     "\"layers\":[{\"id\":\"bg\",\"type\":\"color\",\"color\":[0.2,0.4,0.6,1.0]}],"
     "\"output\":{\"path\":\"out.png\"}}";
 
 static const char kInvalidPlan[] =
-    "{\"schema\":\"chronon.render-plan\",\"version\":1,"
+    "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
     "\"layers\":[],\"output\":{\"path\":\"out.png\"}}";
 
 static const char kMissingAssetPlan[] =
-    "{\"schema\":\"chronon.render-plan\",\"version\":1,"
-    "\"canvas\":{\"width\":320,\"height\":180,\"fps\":30,\"duration_frames\":1},"
+    "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
+    "\"canvas\":{\"width\":320,\"height\":180,\"fps_num\":30,\"fps_den\":1,\"duration_frames\":1},"
     "\"layers\":[{\"id\":\"img\",\"type\":\"image\","
     "\"asset\":\"cabi_missing_asset_never_exists.png\"}],"
     "\"output\":{\"path\":\"out.png\"}}";
@@ -475,8 +475,8 @@ static void* busy_thread_main(void* user) {
 
 static size_t build_busy_plan(char* buffer, size_t capacity, int layer_count) {
     int written = snprintf(buffer, capacity,
-        "{\"schema\":\"chronon.render-plan\",\"version\":1,"
-        "\"canvas\":{\"width\":1920,\"height\":1080,\"fps\":30,"
+        "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
+        "\"canvas\":{\"width\":1920,\"height\":1080,\"fps_num\":30,\"fps_den\":1,"
         "\"duration_frames\":2},\"layers\":[");
     int i;
     for (i = 0; i < layer_count; ++i) {

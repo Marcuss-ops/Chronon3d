@@ -18,7 +18,7 @@ namespace chronon3d::ipc {
 
 enum class ContractId {
     CompositionV1,
-    RenderPlanV1,
+    RenderPlanV2,
     RenderSettingsV1,
 };
 

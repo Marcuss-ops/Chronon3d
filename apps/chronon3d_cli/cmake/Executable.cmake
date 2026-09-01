@@ -39,6 +39,10 @@ foreach(_target IN ITEMS
 endforeach()
 target_link_libraries(chronon3d_cli PRIVATE chronon3d_cli_core)
 
+if(TARGET chronon3d_media_video)
+    target_link_libraries(chronon3d_cli PRIVATE chronon3d_media_video)
+endif()
+
 if(TARGET chronon3d_cli_render)
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_RENDER)
 endif()

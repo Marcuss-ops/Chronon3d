@@ -52,7 +52,7 @@ TEST_CASE("C ABI v2 exposes the engine's last structured error") {
     REQUIRE(engine != nullptr);
 
     const std::string invalid =
-        R"({"schema":"chronon.render-plan","version":1,"layers":[],"output":{"path":"out.png"}})";
+        R"({"schema":"chronon.render-plan.v2","version":2,"layers":[],"output":{"path":"out.png"}})";
     chronon_plan* plan = nullptr;
     CHECK(chronon_plan_compile_json_n(
               engine, invalid.data(), invalid.size(), &plan) != CHRONON_OK);
@@ -81,7 +81,7 @@ TEST_CASE("C ABI v2 maps a missing asset to ASSET_NOT_FOUND") {
     REQUIRE(engine != nullptr);
 
     const std::string missing =
-        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"img","type":"image","asset":"cabi_missing_asset_never_exists.png"}],"output":{"path":"out.png"}})";
+        R"({"schema":"chronon.render-plan.v2","version":2,"canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"img","type":"image","asset":"cabi_missing_asset_never_exists.png","size":[32,32]}],"output":{"path":"out.png"}})";
     chronon_plan* plan = nullptr;
     const chronon_status status = chronon_plan_compile_json_n(
         engine, missing.data(), missing.size(), &plan);
@@ -101,7 +101,7 @@ TEST_CASE("C ABI v2 maps a missing asset to ASSET_NOT_FOUND") {
 }
 
 constexpr char kPlan[] =
-    "{\"schema\":\"chronon.render-plan\",\"version\":1,"
+    "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
     "\"canvas\":{\"width\":320,\"height\":180,\"fps_num\":30,\"fps_den\":1,"
     "\"duration_frames\":2},\"layers\":[{\"id\":\"bg\","
     "\"type\":\"color\",\"color\":[0.2,0.4,0.6,1.0]}],"
@@ -192,7 +192,7 @@ TEST_CASE("C ABI v2 rejects a prepared asset changed before render") {
     REQUIRE(chronon_engine_create_v2(&config, &engine, &error) == CHRONON_OK);
 
     const std::string source =
-        R"({"schema":"chronon.render-plan","version":1,"canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"image","type":"image","asset":"assets/test_image.png"}],"output":{"path":"out.png"}})";
+        R"({"schema":"chronon.render-plan.v2","version":2,"canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"image","type":"image","asset":"assets/test_image.png","size":[32,32]}],"output":{"path":"out.png"}})";
     REQUIRE(chronon_plan_compile_json_n(
         engine, source.data(), source.size(), &plan) == CHRONON_OK);
 
@@ -368,7 +368,7 @@ TEST_CASE("C ABI v2 two engines render in parallel") {
 
 std::string make_busy_plan() {
     std::string plan =
-        "{\"schema\":\"chronon.render-plan\",\"version\":1,"
+        "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
         "\"canvas\":{\"width\":1920,\"height\":1080,\"fps_num\":30,\"fps_den\":1,"
         "\"duration_frames\":2},\"layers\":[";
     for (int index = 0; index < 64; ++index) {

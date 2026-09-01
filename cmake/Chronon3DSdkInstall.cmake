@@ -132,7 +132,7 @@ install(FILES
 )
 
 install(FILES
-    "${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v1.schema.json"
+    "${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v2.schema.json"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/chronon3d/schemas
 )
 
@@ -238,7 +238,7 @@ file(WRITE "${_chronon3d_sdk_manifest}"
 "  \"product\": \"chronon3d-sdk\",\n"
 "  \"version\": \"${PROJECT_VERSION}\",\n"
 "  \"abi\": 2,\n"
-"  \"render_plan_schema\": \"chronon.render-plan.v1\",\n"
+"  \"render_plan_schema\": \"chronon.render-plan.v2\",\n"
 "  \"platform\": \"${_chronon3d_sdk_os}-${_chronon3d_sdk_arch}\",\n"
 "  \"build\": {\n"
 "    \"git_sha\": \"${_chronon3d_sdk_git_sha}\",\n"

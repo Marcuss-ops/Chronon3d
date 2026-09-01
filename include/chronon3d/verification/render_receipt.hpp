@@ -68,7 +68,7 @@ struct RenderReceiptInput {
     std::string chronon_version{"unknown"};
     int chronon_abi{2};
     std::string git_sha{"unknown"};
-    std::string render_plan_schema{"chronon.render-plan.v1"};
+    std::string render_plan_schema{"chronon.render-plan.v2"};
     std::string content_digest;
     std::string request_digest;
     std::string asset_manifest_digest;
@@ -95,7 +95,7 @@ struct RenderReceipt {
     std::string chronon_version{"unknown"};
     int chronon_abi{2};
     std::string git_sha{"unknown"};
-    std::string render_plan_schema{"chronon.render-plan.v1"};
+    std::string render_plan_schema{"chronon.render-plan.v2"};
     std::string content_digest;
     std::string request_digest;
     std::string asset_manifest_digest;

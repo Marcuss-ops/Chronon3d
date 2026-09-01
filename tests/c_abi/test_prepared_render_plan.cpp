@@ -4,7 +4,6 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/subtitle_style.hpp>
-#include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <chrono>
@@ -290,7 +289,7 @@ TEST_CASE("prepared fingerprint includes schema, engine, and render settings") {
     REQUIRE(baseline);
 
     auto schema_changed = base;
-    schema_changed.schema_version = "chronon.render-plan.v2";
+    schema_changed.schema_version = "chronon.render-plan.v3";
     auto engine_changed = base;
     engine_changed.engine_compatibility_version = "chronon3d.engine.v2";
     auto settings_changed = base;
@@ -311,146 +310,37 @@ TEST_CASE("prepared fingerprint includes schema, engine, and render settings") {
     CHECK(baseline->fingerprint.content_digest != settings->fingerprint.content_digest);
 }
 
-TEST_CASE("render_plan_compiler: architectural decoupling of animation timing and layer transitions") {
+TEST_CASE("render_plan_compiler: animation tracks map to animated transforms") {
     chronon3d::assets::AssetResolver resolver;
 
-    struct InspectedLayer {
-        chronon3d::LayerTransitionSpec transition_in;
-        chronon3d::LayerTransitionSpec transition_out;
-        bool opacity_animated{false};
-    };
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "anim_layer";
+    layer.type = chronon3d::render_plan::LayerType::Color;
+    layer.color = {1.0f, 0.0f, 0.0f, 1.0f};
 
-    auto compile_and_inspect = [&](chronon3d::render_plan::LayerPlan layer) -> std::vector<InspectedLayer> {
-        chronon3d::render_plan::RenderPlan plan;
-        plan.job_id = "test_decoupling";
-        plan.canvas = {.width = 1280, .height = 720,
-                       .fps = chronon3d::FrameRate{30, 1},
-                       .duration = chronon3d::Frame{30}};
-        plan.layers.push_back(std::move(layer));
-        auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
-        REQUIRE(prepared);
-        auto evaluated = chronon3d::evaluate(
-            prepared->compiled_composition,
-            chronon3d::CompositionEvaluateContext{},
-            chronon3d::Frame{0});
-        REQUIRE(evaluated);
-        std::vector<InspectedLayer> res;
-        for (const auto& l : evaluated.value().scene.layers()) {
-            res.push_back(InspectedLayer{
-                .transition_in = l.transition_in,
-                .transition_out = l.transition_out,
-                .opacity_animated = l.anim_transform.opacity.is_animated()
-            });
-        }
-        return res;
-    };
+    chronon3d::render_plan::AnimationTrackPlan track;
+    track.property = "opacity";
+    track.easing = "in_quad";
+    track.keyframes.push_back({chronon3d::Frame{0}, {0.0f}});
+    track.keyframes.push_back({chronon3d::Frame{15}, {1.0f}});
+    layer.animation = chronon3d::render_plan::AnimationPlan{.tracks = {std::move(track)}};
 
-    SUBCASE("1. animation=fade_in, explicit transition=none -> animation present, transition absent") {
-        chronon3d::render_plan::LayerPlan layer;
-        layer.id = "fade_layer";
-        layer.type = chronon3d::render_plan::LayerType::Color;
-        layer.color = {1.0f, 0.0f, 0.0f, 1.0f};
-        chronon3d::render_plan::AnimationTiming anim;
-        anim.preset = "fade_in";
-        anim.enter_duration_frames = chronon3d::Frame{8};
-        anim.exit_duration_frames = chronon3d::Frame{6};
-        layer.animation = anim;
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "test_anim";
+    plan.canvas = {.width = 1280, .height = 720,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{30}};
+    plan.layers.push_back(std::move(layer));
 
-        const auto layers = compile_and_inspect(layer);
-        REQUIRE(layers.size() == 1u);
-        const auto& l = layers.front();
-        CHECK((l.transition_in.transition_id.empty() || l.transition_in.transition_id == "none"));
-        CHECK((l.transition_out.transition_id.empty() || l.transition_out.transition_id == "none"));
-        CHECK(l.opacity_animated);
-    }
-
-    SUBCASE("2. animation=none, explicit transition=crossfade -> TransitionNode present") {
-        chronon3d::render_plan::LayerPlan layer;
-        layer.id = "trans_layer";
-        layer.type = chronon3d::render_plan::LayerType::Color;
-        layer.color = {0.0f, 1.0f, 0.0f, 1.0f};
-        chronon3d::LayerTransitionSpec trans;
-        trans.transition_id = "crossfade";
-        trans.duration = 0.5f;
-        layer.transition_out = trans;
-
-        const auto layers = compile_and_inspect(layer);
-        REQUIRE(layers.size() == 1u);
-        const auto& l = layers.front();
-        CHECK(l.transition_out.transition_id == "crossfade");
-        CHECK(l.transition_out.duration == 0.5f);
-        CHECK_FALSE(l.opacity_animated);
-    }
-
-    SUBCASE("3. animation=fade_in, explicit transition=crossfade -> both present as explicitly authored") {
-        chronon3d::render_plan::LayerPlan layer;
-        layer.id = "both_layer";
-        layer.type = chronon3d::render_plan::LayerType::Color;
-        layer.color = {0.0f, 0.0f, 1.0f, 1.0f};
-        chronon3d::render_plan::AnimationTiming anim;
-        anim.preset = "fade_in";
-        anim.enter_duration_frames = chronon3d::Frame{8};
-        layer.animation = anim;
-        chronon3d::LayerTransitionSpec trans;
-        trans.transition_id = "crossfade";
-        trans.duration = 0.4f;
-        layer.transition_out = trans;
-
-        const auto layers = compile_and_inspect(layer);
-        REQUIRE(layers.size() == 1u);
-        const auto& l = layers.front();
-        CHECK(l.transition_out.transition_id == "crossfade");
-        CHECK(l.opacity_animated);
-    }
-
-    SUBCASE("4. image_fade_in official preset -> no implicit transition") {
-        FingerprintTempDir temp_dir;
-        write_asset(temp_dir.path, "test-image-bytes");
-        resolver.mount(temp_dir.path);
-
-        chronon3d::render_plan::LayerPlan layer;
-        layer.id = "img_preset_layer";
-        layer.type = chronon3d::render_plan::LayerType::Image;
-        layer.asset = "images/source.png";
-        layer.preset = "image_fade_in";
-
-        const auto layers = compile_and_inspect(layer);
-        REQUIRE(layers.size() == 1u);
-        const auto& l = layers.front();
-        CHECK((l.transition_in.transition_id.empty() || l.transition_in.transition_id == "none"));
-        CHECK((l.transition_out.transition_id.empty() || l.transition_out.transition_id == "none"));
-    }
-
-    SUBCASE("5. Audit all 8 image presets: zero implicit transitions") {
-        FingerprintTempDir temp_dir;
-        write_asset(temp_dir.path, "test-image-bytes");
-        resolver.mount(temp_dir.path);
-
-        const std::vector<std::string> image_presets = {
-            "image_fade_in",
-            "image_slide_left",
-            "image_slide_right",
-            "image_scale_in",
-            "image_focus_in",
-            "modern_rounded_pop",
-            "bottom_card_rise",
-            "image_fast_fade"
-        };
-        for (const auto& preset_name : image_presets) {
-            CAPTURE(preset_name);
-            chronon3d::render_plan::LayerPlan layer;
-            layer.id = "image_" + preset_name;
-            layer.type = chronon3d::render_plan::LayerType::Image;
-            layer.asset = "images/source.png";
-            layer.preset = preset_name;
-
-            const auto layers = compile_and_inspect(layer);
-            REQUIRE(layers.size() == 1u);
-            const auto& l = layers.front();
-            CHECK((l.transition_in.transition_id.empty() || l.transition_in.transition_id == "none"));
-            CHECK((l.transition_out.transition_id.empty() || l.transition_out.transition_id == "none"));
-        }
-    }
+    auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    auto evaluated = chronon3d::evaluate(
+        prepared->compiled_composition,
+        chronon3d::CompositionEvaluateContext{},
+        chronon3d::Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated.value().scene.layers().size() == 1u);
+    CHECK(evaluated.value().scene.layers().front().anim_transform.opacity.is_animated());
 }
 
 

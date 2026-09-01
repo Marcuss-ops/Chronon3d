@@ -16,16 +16,19 @@ SCHEMA_DIR = ROOT / "schemas"
 EXPECTED = {
     "chronon.composition.v1.schema.json": (
         "chronon.composition",
+        1,
         {"schema", "version", "id"},
         {"id", "category", "width", "height", "fps", "duration"},
     ),
-    "chronon.render-plan.v1.schema.json": (
-        "chronon.render-plan",
+    "chronon.render-plan.v2.schema.json": (
+        "chronon.render-plan.v2",
+        2,
         {"schema", "version", "canvas", "layers", "output"},
-        {"job_id", "style_profile", "canvas", "layers", "budget", "output"},
+        {"job_id", "canvas", "layers", "budget", "output"},
     ),
     "chronon.render-settings.v1.schema.json": (
         "chronon.render-settings",
+        1,
         {"schema", "version"},
         {
             "width",
@@ -40,7 +43,7 @@ EXPECTED = {
 
 
 def main() -> None:
-    for filename, (schema_name, required, fields) in EXPECTED.items():
+    for filename, (schema_name, version, required, fields) in EXPECTED.items():
         path = SCHEMA_DIR / filename
         document = json.loads(path.read_text(encoding="utf-8"))
 
@@ -49,7 +52,7 @@ def main() -> None:
         assert document["type"] == "object"
         assert document["additionalProperties"] is False
         assert document["properties"]["schema"]["const"] == schema_name
-        assert document["properties"]["version"]["const"] == 1
+        assert document["properties"]["version"]["const"] == version
         assert set(document["required"]) == required
         assert fields.issubset(document["properties"])
 
@@ -62,7 +65,7 @@ def main() -> None:
     assert "encoder" not in settings["properties"]
     assert "backend" not in settings["properties"]
 
-    print("IPC schema document checks: PASS (3 v1 schemas)")
+    print("IPC schema document checks: PASS (boundary schemas)")
 
 
 if __name__ == "__main__":
