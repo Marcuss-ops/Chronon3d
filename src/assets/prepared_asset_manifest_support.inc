@@ -87,16 +87,6 @@ struct RequestedAsset {
             add(layer.font, PreparedAssetKind::Font);
             if (layer.font_asset)
                 add(layer.font_asset->asset, PreparedAssetKind::Font);
-            // The visual preset's canonical font asset is an implicit plan
-            // reference: it must be hashed into the manifest so every worker
-            // resolves identical bytes (no system-font fallback).
-            if (!layer.preset.empty()) {
-                const auto& registry =
-                    chronon3d::registry::builtin_visual_preset_registry();
-                if (registry.contains(layer.preset))
-                    add(registry.get(layer.preset).style.font_asset,
-                        PreparedAssetKind::Font);
-            }
         }
     }
     std::sort(result.begin(), result.end(), [](const auto& left, const auto& right) {

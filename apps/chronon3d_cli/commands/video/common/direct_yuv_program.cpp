@@ -8,7 +8,6 @@
 #include <chronon3d/media/video/cuda_image_resource.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <chronon3d/text/text_definition.hpp>
-#include <chronon3d/registry/visual_preset_registry.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -22,8 +21,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
 #include <stdexcept>
+#include <filesystem>
 #include <utility>
 
 namespace chronon3d::cli {
@@ -39,30 +38,11 @@ bool is_2d_transform(const Transform& t) {
 }
 
 std::string resolve_font_file(const std::string& requested) {
-    if (!requested.empty() && std::filesystem::exists(requested)) {
-        return requested;
+    if (requested.empty()) {
+        throw std::runtime_error("text layer has no prepared font asset");
     }
-    const std::vector<std::string> candidates = {
-        requested,
-        "Chronon3d/" + requested,
-        "Chronon3d/assets/fonts/" + requested,
-        "assets/fonts/" + requested,
-        "RenderingGen/testdata/golden/fonts/" + requested,
-        "RenderingGen/testdata/golden/" + requested,
-        "Chronon3d/assets/fonts/Poppins-Bold.ttf",
-        "Chronon3d/assets/fonts/Poppins-Regular.ttf",
-        "Chronon3d/assets/fonts/DejaVuSans.ttf",
-        "RenderingGen/testdata/golden/Poppins-Bold.ttf",
-        "RenderingGen/testdata/golden/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-    };
-    for (const auto& path : candidates) {
-        if (!path.empty() && std::filesystem::exists(path)) {
-            return path;
-        }
+    if (!std::filesystem::exists(requested)) {
+        throw std::runtime_error("prepared font asset not found: " + requested);
     }
     return requested;
 }
@@ -96,7 +76,7 @@ DirectRasterizedText rasterize_text_direct(
     BLFontFace face;
     BLResult face_res = face.createFromFile(font_file.c_str());
     if (face_res != BL_SUCCESS) {
-        face.createFromFile("Chronon3d/assets/fonts/Poppins-Bold.ttf");
+        throw std::runtime_error("prepared font asset could not be loaded: " + font_file);
     }
 
     const float effective_font_size = font_size > 0.0f ? font_size : 58.0f;
@@ -304,9 +284,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 
     std::string video_path;
     for (const auto& layer : scene_0.layers()) {
-        if (layer.uses_2_5d_projection || layer.screen_space ||
-            layer.mask.enabled() || !layer.effects().empty()) {
-            reason = "layer uses unsupported 3D, mask, or effect";
+        if (layer.uses_2_5d_projection || layer.mask.enabled()) {
+            reason = "layer '" + std::string(layer.name) + "' uses unsupported 3D (" +
+                     (layer.uses_2_5d_projection ? "yes" : "no") + ") or mask (" +
+                     (layer.mask.enabled() ? "yes" : "no") + ")";
             return nullptr;
         }
         if (!is_2d_transform(layer.transform)) {
@@ -389,7 +370,11 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     entry.gpu_resource = resource;
                     entry.native_width = static_cast<float>(cached->width);
                     entry.native_height = static_cast<float>(cached->height);
-                    entry.is_text = false;
+                    float corner_radius = 0.0f;
+                    if (node.shape.type() == ShapeType::RoundedRect) {
+                        corner_radius = node.shape.rounded_rect().radius;
+                    }
+                    entry.corner_radius = corner_radius;
                     layer_resources[layer_name] = entry;
                     persistent_resources.push_back(resource);
                 }
@@ -397,7 +382,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                        active_layer->kind == LayerKind::Text) {
 #ifdef CHRONON3D_USE_BLEND2D
                 std::string text_content;
-                std::string font_path = "assets/fonts/Poppins-Bold.ttf";
+                std::string font_path;
                 float font_size = 58.0f;
                 Color fill_color{1.0f, 1.0f, 1.0f, 1.0f};
                 Color stroke_color{0.0f, 0.0f, 0.0f, 0.0f};
@@ -431,6 +416,15 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     }
                 }
 
+                if (font_path.empty()) {
+                    reason = "text layer has no prepared font asset: " + layer_name;
+                    return nullptr;
+                }
+
+                if (node.color.a > 0.0f) {
+                    fill_color = node.color;
+                }
+
                 if (text_content.empty()) {
                     text_content = layer_name;
                 }
@@ -455,7 +449,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 entry.gpu_resource = resource;
                 entry.native_width = static_cast<float>(rasterized.width);
                 entry.native_height = static_cast<float>(rasterized.height);
-                entry.is_text = true;
                 layer_resources[layer_name] = entry;
                 persistent_resources.push_back(resource);
 #else
@@ -536,7 +529,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             cx += node.world_transform.position.x;
             cy += node.world_transform.position.y;
             opacity = std::clamp(opacity * node.world_transform.opacity, 0.0f, 1.0f);
-            if (node.shape.type() == ShapeType::Image && !entry.is_text) {
+            if (node.shape.type() == ShapeType::Image) {
                 const auto& img = node.shape.image();
                 if (img.size.x > 0.0f && img.size.y > 0.0f) {
                     base_w = img.size.x;
@@ -546,26 +539,12 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             }
         }
 
-        float dst_x0 = 0.0f;
-        float dst_y0 = 0.0f;
-        float dst_x1 = 0.0f;
-        float dst_y1 = 0.0f;
-
-        if (entry.is_text && !layer.nodes.empty() &&
-            layer.nodes[0].world_transform.position.x > 0.0f &&
-            layer.nodes[0].world_transform.position.y > 0.0f) {
-            dst_x0 = layer.transform.position.x + layer.nodes[0].world_transform.position.x;
-            dst_y0 = layer.transform.position.y + layer.nodes[0].world_transform.position.y;
-            dst_x1 = dst_x0 + base_w * scale_x;
-            dst_y1 = dst_y0 + base_h * scale_y;
-        } else {
-            const float half_w = (base_w * 0.5f) * scale_x;
-            const float half_h = (base_h * 0.5f) * scale_y;
-            dst_x0 = cx - half_w;
-            dst_y0 = cy - half_h;
-            dst_x1 = cx + half_w;
-            dst_y1 = cy + half_h;
-        }
+        const float half_w = (base_w * 0.5f) * scale_x;
+        const float half_h = (base_h * 0.5f) * scale_y;
+        float dst_x0 = cx - half_w;
+        float dst_y0 = cy - half_h;
+        float dst_x1 = cx + half_w;
+        float dst_y1 = cy + half_h;
 
         if (opacity <= 0.001f || dst_x1 <= dst_x0 || dst_y1 <= dst_y0) continue;
 
@@ -577,7 +556,8 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             .dst_x0 = dst_x0, .dst_y0 = dst_y0,
             .dst_x1 = dst_x1, .dst_y1 = dst_y1,
             .opacity = opacity,
-            .blend = layer.blend_mode == BlendMode::Add ? BlendMode::Add : BlendMode::Normal});
+            .blend = layer.blend_mode == BlendMode::Add ? BlendMode::Add : BlendMode::Normal,
+            .corner_radius = entry.corner_radius});
 
         media::CudaLayerResource res;
         res.rgba = entry.gpu_resource->ptr;

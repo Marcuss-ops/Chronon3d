@@ -24,7 +24,7 @@ struct DirectLayerResourceEntry {
     float native_height{0.0f};
     float local_offset_x{0.0f};
     float local_offset_y{0.0f};
-    bool is_text{false};
+    float corner_radius{0.0f};
 };
 
 /// Resolver-owned, precompiled program for the direct CUDA NV12 compositor.

@@ -55,6 +55,7 @@ struct LayerInstance {
     float           opacity{1.0f};
 
     BlendMode       blend{BlendMode::Normal};
+    float           corner_radius{0.0f};
 
     [[nodiscard]] bool operator==(const LayerInstance&) const noexcept = default;
 };

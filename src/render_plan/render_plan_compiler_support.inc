@@ -38,25 +38,9 @@ MaterializedText materialize_text(const LayerPlan& layer,
                                   std::int64_t composition_frames,
                                   chronon3d::FontEngine& font_engine) {
     MaterializedText out;
-    std::string base_preset = layer.preset;
-    if (!layer.preset.empty()) {
-        const auto& visual_registry = chronon3d::registry::builtin_visual_preset_registry();
-        if (!visual_registry.contains(layer.preset)) {
-            throw std::runtime_error("unknown visual preset '" + layer.preset +
-                                     "' for text layer '" + layer.id + "'");
-        }
-        auto resolved = VisualPresetMaterializer{}.materialize(
-            layer, canvas, style_profile, visual_registry,
-            Frame{composition_frames});
-        if (layer.anchor || !layer.preset.empty()) {
-            const auto bounds = measure_visual_bounds(resolved, font_engine);
-            resolved.layout.width = bounds.width;
-            resolved.layout.height = bounds.height;
-            out.layout = std::move(resolved.layout);
-        }
-        out.definition = std::move(resolved.text);
-        return out;
-    }
+    // RenderingGen has already lowered editorial presets into generic text
+    // style/layout data. Chronon only consumes those primitives.
+    std::string base_preset;
     if (base_preset == "title_centered")
         out.definition = chronon3d::presets::text::title_centered(layer.text, canvas);
     else if (base_preset == "subtitle_bottom")
@@ -163,14 +147,10 @@ void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer
         if (layer.animation->start_frame) builder.from(*layer.animation->start_frame);
     }
 
+    // RenderingGen lowers preset motion into generic layer animation data;
+    // Chronon does not resolve editorial preset ids here.
     std::optional<chronon3d::registry::AnimationSpec> preset_animation;
-    if (!layer.preset.empty()) {
-        const auto& registry = chronon3d::registry::builtin_visual_preset_registry();
-        if (registry.contains(layer.preset)) {
-            preset_animation = registry.get_for_profile(layer.preset, style_profile).animation;
-        }
-    }
-    if (!layer.animation && !preset_animation && !layer.transition_in && !layer.transition_out) return;
+    if (!layer.animation && !layer.transition_in && !layer.transition_out) return;
 
     const auto resolved = resolve_animation(preset_animation, layer, composition_frames);
     if (!resolved.preset.empty()) {
