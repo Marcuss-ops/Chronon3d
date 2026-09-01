@@ -2,9 +2,9 @@
 #include <chronon3d/core/types/time.hpp>
 
 #include <chronon3d/presets/text/word_emphasis_animators.hpp>
-#include <chronon3d/registry/text_preset_registry.hpp>
-#include <chronon3d/registry/text_preset_resolver.hpp>
 #include <chronon3d/text/glyph_selector_spec.hpp>
+#include <chronon3d/text/prepared_text.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include "subtitle_render_plan.hpp"
 
 #include <algorithm>
@@ -241,15 +241,6 @@ void SubtitleTrackBuilder::build() {
     // centred origin when the layer is materialized by LayerBuilder.
     builder_->screen_dimensions(canvas_->width, canvas_->height);
 
-    const registry::TextPresetRegistry& preset_registry =
-        registry::builtin_text_preset_registry();
-
-    if (!preset_registry.contains(preset_id_)) {
-        throw std::runtime_error(
-            "SubtitleTrackBuilder::build: unknown preset id '" +
-            preset_id_ + "'");
-    }
-
     const bool is_karaoke_preset =
         preset_id_ == "karaoke_fill" ||
         preset_id_ == "active_word_pop";
@@ -300,22 +291,21 @@ void SubtitleTrackBuilder::build() {
         };
         plan.words.bindings = build_word_bindings(cue);
 
-        TextDefaults spec;
+        TextDefinition spec;
         spec.content.value = cue.text;
-        spec.font.font_path = font_path_;
-        spec.font.font_size = plan.layout.font_size;
-        spec.appearance.color = color_;
+        spec.style.font.font_path = font_path_;
+        spec.style.font.font_size = plan.layout.font_size;
+        spec.style.color = color_;
         // The plan style shadow replaces the cue's shadow stack, mirroring
         // the text materializer's single-enabled-TextShadow lowering.
-        if (shadow_) spec.appearance.shadows = {*shadow_};
-        spec.layout.box = plan.layout.box_size;
-        spec.layout.align = plan.layout.align;
-        spec.layout.vertical_align = plan.layout.vertical_align;
-        spec.layout.anchor = plan.layout.anchor;
-        spec.placement = plan.layout.placement;
+        if (shadow_) spec.style.shadows = {*shadow_};
+        spec.frame.size = plan.layout.box_size;
+        spec.frame.align = plan.layout.align;
+        spec.frame.vertical_align = plan.layout.vertical_align;
+        spec.frame.anchor = plan.layout.anchor;
+        spec.frame.placement = plan.layout.placement;
 
-        plan.text =
-            registry::wire_preset_text_run_params(preset_id_, spec);
+        plan.text = prepare_text(spec);
 
         // Existing timed-word selectors drive preset-specific active-word
         // effects such as karaoke fill and active-word pop.

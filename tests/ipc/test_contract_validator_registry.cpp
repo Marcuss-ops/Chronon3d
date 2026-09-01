@@ -29,8 +29,8 @@ nlohmann::json composition() {
 
 nlohmann::json render_plan() {
     return {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {
             {"width", 640}, {"height", 360}, {"fps_num", 30},
             {"fps_den", 1}, {"duration_frames", 30}
@@ -65,7 +65,7 @@ TEST_CASE("IPC contract registry compiles the three schemas once") {
     CHECK(&first == &second);
     CHECK(first.compiled_validator_count() == 3);
     CHECK(first.validate(chronon3d::ipc::ContractId::CompositionV1, composition()));
-    CHECK(first.validate(chronon3d::ipc::ContractId::RenderPlanV1, render_plan()));
+    CHECK(first.validate(chronon3d::ipc::ContractId::RenderPlanV2, render_plan()));
     CHECK(first.validate(chronon3d::ipc::ContractId::RenderSettingsV1, render_settings()));
 }
 
@@ -89,8 +89,8 @@ TEST_CASE("IPC contract registry rejects structural drift") {
     auto bad_plan = render_plan();
     bad_plan["output"].erase("path");
     CHECK_FALSE(registry.validate(
-        chronon3d::ipc::ContractId::RenderPlanV1, bad_plan, &error));
-    CHECK(error.contract == "chronon.render-plan.v1");
+        chronon3d::ipc::ContractId::RenderPlanV2, bad_plan, &error));
+    CHECK(error.contract == "chronon.render-plan.v2");
 }
 
 TEST_CASE("IPC contract registry supports concurrent request validation") {
@@ -106,7 +106,7 @@ TEST_CASE("IPC contract registry supports concurrent request validation") {
             const auto contract = index % 3 == 0
                 ? chronon3d::ipc::ContractId::CompositionV1
                 : index % 3 == 1
-                    ? chronon3d::ipc::ContractId::RenderPlanV1
+                    ? chronon3d::ipc::ContractId::RenderPlanV2
                     : chronon3d::ipc::ContractId::RenderSettingsV1;
             return registry.validate(contract, document);
         }));

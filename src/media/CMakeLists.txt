@@ -6,13 +6,23 @@
 # instead of leaking the source-tree path.
 # ==============================================================================
 
-# Item 19: media interface target (header-only — abstract provider contract)
+add_library(chronon3d_media_execution OBJECT
+    video/video_execution_resolver.cpp
+)
+set_target_properties(chronon3d_media_execution PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_media_execution PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(chronon3d_media_execution PUBLIC chronon3d)
+
+# Item 19: media interface target (abstract provider contract)
 add_library(chronon3d_media_interface INTERFACE)
 target_include_directories(chronon3d_media_interface INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
+target_link_libraries(chronon3d_media_interface INTERFACE chronon3d chronon3d_media_execution)
 
 if(CHRONON3D_ENABLE_VIDEO)
     # Native decoding belongs to the media subsystem. The CLI consumes the
@@ -76,8 +86,6 @@ if(CHRONON3D_ENABLE_VIDEO)
         video/process_runner_posix.cpp
         video/output_contract.cpp
         video/video_sink_factory.cpp            video/video_config_validator.cpp
-        video/video_execution_resolver.cpp
-
     )
     set_target_properties(chronon3d_media_video PROPERTIES UNITY_BUILD OFF)
     target_link_libraries(chronon3d_media_video PUBLIC

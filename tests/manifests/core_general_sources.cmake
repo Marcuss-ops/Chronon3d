@@ -79,12 +79,6 @@ set(CORE_TEST_SOURCES
     core/test_cpu_budget.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
-    test_text_preset_registry.cpp
-    registry/test_text_preset_descriptor.cpp
-    registry/test_visual_preset_registry.cpp
-    registry/test_style_resolver.cpp
-    registry/test_resolved_plan_contract.cpp
-    registry/test_visual_preset_materializer.cpp
     text/test_text_run_umbrella_contract.cpp
     text/test_text_run_multi_run_failure_policy.cpp
     ${CORE_BLEND2D_TESTS}

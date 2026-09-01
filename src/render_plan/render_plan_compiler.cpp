@@ -9,6 +9,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/prepared_text.hpp>
+#include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 

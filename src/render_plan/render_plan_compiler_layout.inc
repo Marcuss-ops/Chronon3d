@@ -5,7 +5,7 @@
             if (layer.type != LayerType::Text) continue;
             auto definition = materialize_text(layer, canvas);
             const auto resolved = resolver.resolve_logical(
-                std::filesystem::path{definition.style.font.font_path});
+                std::filesystem::path(definition.style.font.font_path));
             if (!resolved) {
                 throw std::runtime_error(
                     "font asset was not prepared: " + definition.style.font.font_path);

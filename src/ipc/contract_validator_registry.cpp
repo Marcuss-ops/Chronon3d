@@ -44,7 +44,7 @@ struct ErrorHandler final : nlohmann::json_schema::basic_error_handler {
 std::string_view embedded_schema(ContractId contract) noexcept {
     switch (contract) {
         case ContractId::CompositionV1: return detail::kCompositionV1Schema;
-        case ContractId::RenderPlanV1: return detail::kRenderPlanV1Schema;
+        case ContractId::RenderPlanV2: return detail::kRenderPlanV2Schema;
         case ContractId::RenderSettingsV1: return detail::kRenderSettingsV1Schema;
     }
     return {};
@@ -80,7 +80,7 @@ ContractValidatorRegistry::ContractValidatorRegistry()
     : m_impl(std::make_unique<Impl>()) {
     for (const auto contract : {
              ContractId::CompositionV1,
-             ContractId::RenderPlanV1,
+             ContractId::RenderPlanV2,
              ContractId::RenderSettingsV1}) {
         m_impl->validators.emplace(contract, compile_schema(contract));
     }
@@ -145,7 +145,7 @@ std::size_t ContractValidatorRegistry::compiled_validator_count() const noexcept
 std::string_view ContractValidatorRegistry::contract_name(ContractId contract) noexcept {
     switch (contract) {
         case ContractId::CompositionV1: return "chronon.composition.v1";
-        case ContractId::RenderPlanV1: return "chronon.render-plan.v1";
+        case ContractId::RenderPlanV2: return "chronon.render-plan.v2";
         case ContractId::RenderSettingsV1: return "chronon.render-settings.v1";
     }
     return "unknown";

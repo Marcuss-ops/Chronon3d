@@ -73,7 +73,7 @@ Result<SemanticScript, SemanticError> decode_semantic_script(
         }
         if (value.contains("animation")) {
             const auto& animation = value.at("animation");
-            render_plan::AnimationTiming timing;
+            SemanticAnimation timing;
             timing.preset = animation.value("preset", std::string{});
             if (animation.contains("start_frame"))
                 timing.start_frame = Frame{animation.at("start_frame").get<std::int64_t>()};
