@@ -102,6 +102,9 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
     # ── Extension (src/extension) ────────────────────────────────────
     chronon3d_extension
 
+    # ── Media Execution (src/media) ──────────────────────────────────
+    chronon3d_media_execution
+
     # ── Backends (src/backends/{assets,image,software}) ───────────────
     chronon3d_backend_assets
     chronon3d_backend_image

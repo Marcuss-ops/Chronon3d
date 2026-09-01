@@ -1,7 +1,7 @@
 nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
     nlohmann::json root;
-    root["schema"] = "chronon.render-plan";
-    root["version"] = 1;
+    root["schema"] = "chronon.render-plan.v2";
+    root["version"] = 2;
     root["job_id"] = plan.job_id;
 
     root["canvas"] = {
@@ -20,11 +20,16 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
         if (!layer.asset.empty()) value["asset"] = layer.asset;
         if (!layer.source.empty()) value["source"] = layer.source;
         if (!layer.text.empty()) value["text"] = layer.text;
-        if (!layer.font.empty()) value["font"] = layer.font;
-        if (!layer.preset.empty()) value["preset"] = layer.preset;
-        if (layer.font_size) value["font_size"] = *layer.font_size;
-        if (layer.box_width) value["box_width"] = *layer.box_width;
-        if (layer.box_height) value["box_height"] = *layer.box_height;
+        if (layer.style) {
+            nlohmann::json style;
+            style["font"] = layer.style->font;
+            if (layer.style->font_size) style["font_size"] = *layer.style->font_size;
+            style["fill"] = layer.style->fill;
+            value["style"] = std::move(style);
+        }
+        if (layer.size_dimensions == 2) {
+            value["size"] = {layer.size[0], layer.size[1]};
+        }
         if (layer.type == render_plan::LayerType::Color) {
             value["color"] = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
         }
@@ -41,11 +46,22 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
         if (layer.fit) value["fit"] = fit_name(*layer.fit);
         if (layer.animation) {
             nlohmann::json animation;
-            animation["preset"] = layer.animation->preset;
-            if (layer.animation->start_frame)
-                animation["start_frame"] = layer.animation->start_frame->integral();
-            if (layer.animation->duration_frames)
-                animation["duration_frames"] = layer.animation->duration_frames->integral();
+            nlohmann::json tracks = nlohmann::json::array();
+            for (const auto& track : layer.animation->tracks) {
+                nlohmann::json track_json;
+                track_json["property"] = track.property;
+                track_json["easing"] = track.easing;
+                nlohmann::json kfs = nlohmann::json::array();
+                for (const auto& kf : track.keyframes) {
+                    if (kf.value.size() == 1)
+                        kfs.push_back({{"frame", kf.frame.integral()}, {"value", kf.value[0]}});
+                    else
+                        kfs.push_back({{"frame", kf.frame.integral()}, {"value", kf.value}});
+                }
+                track_json["keyframes"] = std::move(kfs);
+                tracks.push_back(std::move(track_json));
+            }
+            animation["tracks"] = std::move(tracks);
             value["animation"] = std::move(animation);
         }
         root["layers"].push_back(std::move(value));

@@ -330,6 +330,13 @@ constexpr std::string_view kConformingAllowlist[] = {
     "process_cpu_sys_ms",
     "cuda_vulkan_wait_submit_us",
     "cuda_vulkan_signal_submit_us",
+    "decode_submit_ms",
+    "hwframe_transfer_ms",
+    "swscale_ms",
+    "cpu_pixel_conversion_ms",
+    "full_surface_upload_ms",
+    "video_composite_ms",
+    "encode_submit_ms",
 };
 
 bool mentions_timing_unit(std::string_view name) {

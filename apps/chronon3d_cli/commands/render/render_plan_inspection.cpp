@@ -19,7 +19,6 @@ std::string layer_type_name(render_plan::LayerType type) {
         case render_plan::LayerType::Video:         return "video";
         case render_plan::LayerType::Text:          return "text";
         case render_plan::LayerType::Color:         return "color";
-        case render_plan::LayerType::SubtitleTrack: return "subtitle_track";
     }
     return "unknown";
 }
@@ -91,7 +90,7 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
     const auto& prepared = context.prepared;
 
     inspection.job.id = prepared.job_id;
-    inspection.job.schema = "chronon.render-plan.v1";
+    inspection.job.schema = "chronon.render-plan.v2";
     inspection.job.content_digest = prepared.fingerprint.content_digest.hex();
     inspection.job.request_digest = prepared.fingerprint.request_digest.hex();
     inspection.job.asset_manifest_digest = prepared.assets.manifest_digest().hex();
@@ -111,26 +110,14 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
         ResolvedLayerInspection resolved;
         resolved.id = layer.id;
         resolved.type = layer_type_name(layer.type);
-        resolved.semantic_role = layer.semantic_role;
-        resolved.preset.requested = layer.preset;
         resolved.asset = layer.asset;
         resolved.source = layer.source;
         resolved.text = layer.text;
 
-        const std::string font_path = layer.font_asset
-            ? layer.font_asset->asset
-            : layer.font;
+        const std::string font_path = layer.font;
         resolved.font.asset = font_path;
-        if (layer.font_asset) {
-            resolved.font.family = layer.font_asset->family;
-            resolved.font.weight = layer.font_asset->weight;
-        } else if (layer.style) {
-            resolved.font.family = layer.style->font_family;
-            resolved.font.weight = layer.style->font_weight;
-        }
         resolved.font.resolved = font_is_resolved(context, font_path);
 
-        resolved.font_size = layer.font_size;
         if (layer.style) {
             if (layer.style->font_size) {
                 resolved.font_size = layer.style->font_size;
@@ -148,36 +135,17 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
             }
         }
 
-        if (layer.anchor) {
-            resolved.layout.requested_anchor = layer.anchor->type;
-            resolved.layout.alignment = layer.anchor->alignment;
-        }
         if (layer.position_dimensions >= 2) {
             resolved.layout.x = layer.position[0];
             resolved.layout.y = layer.position[1];
         }
-        if (layer.box_width) {
-            resolved.layout.width = *layer.box_width;
-        }
-        if (layer.box_height) {
-            resolved.layout.height = *layer.box_height;
-        }
-        if (layer.offset_dimensions >= 2) {
-            resolved.layout.offset_x = layer.offset[0];
-            resolved.layout.offset_y = layer.offset[1];
+        if (layer.size_dimensions == 2) {
+            resolved.layout.width = layer.size[0];
+            resolved.layout.height = layer.size[1];
         }
 
-        if (layer.animation) {
-            resolved.motion.preset = layer.animation->preset;
-            resolved.motion.unit = layer.animation->unit;
-            if (layer.animation->enter_duration_frames) {
-                resolved.motion.enter_frames =
-                    static_cast<int>(layer.animation->enter_duration_frames->integral());
-            }
-            if (layer.animation->exit_duration_frames) {
-                resolved.motion.exit_frames =
-                    static_cast<int>(layer.animation->exit_duration_frames->integral());
-            }
+        if (layer.animation && !layer.animation->tracks.empty()) {
+            resolved.motion.preset = layer.animation->tracks[0].property;
         }
 
         if (layer.blend_mode) {

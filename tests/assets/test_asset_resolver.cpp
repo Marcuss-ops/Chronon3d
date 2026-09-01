@@ -85,13 +85,13 @@ const chronon3d::assets::PreparedAsset& only_asset(
     return manifest.assets().front();
 }
 
-chronon3d::render_plan::RenderPlan text_plan(std::string preset = {}) {
+chronon3d::render_plan::RenderPlan text_plan(std::string font = {}) {
     chronon3d::render_plan::RenderPlan plan;
     chronon3d::render_plan::LayerPlan layer;
     layer.id = "text";
     layer.type = chronon3d::render_plan::LayerType::Text;
     layer.text = "HELLO";
-    layer.preset = std::move(preset);
+    layer.font = std::move(font);
     plan.layers.push_back(std::move(layer));
     return plan;
 }
@@ -307,17 +307,12 @@ TEST_CASE("PreparedAssetManifest digest cache hits and invalidates safely") {
           only_asset(warm.value()).content_digest);
 }
 
-TEST_CASE("PreparedAssetManifest hashes font_asset references as Font assets") {
+TEST_CASE("PreparedAssetManifest hashes font references as Font assets") {
     write_file(g_temp.path, "fonts/custom.ttf", "font-bytes");
     chronon3d::assets::AssetResolver resolver;
     resolver.mount(g_temp.path);
 
-    auto plan = text_plan();
-    chronon3d::render_plan::FontAssetPlan font_asset;
-    font_asset.asset = "fonts/custom.ttf";
-    font_asset.family = "Custom";
-    font_asset.weight = 700;
-    plan.layers.front().font_asset = std::move(font_asset);
+    auto plan = text_plan("fonts/custom.ttf");
 
     auto result = chronon3d::assets::prepare_asset_manifest(plan, resolver);
     REQUIRE(result);
@@ -326,21 +321,6 @@ TEST_CASE("PreparedAssetManifest hashes font_asset references as Font assets") {
     CHECK(asset.logical_path == "fonts/custom.ttf");
     CHECK(asset.kind == chronon3d::assets::PreparedAssetKind::Font);
     CHECK(asset.content_digest == chronon3d::assets::sha256_string("font-bytes"));
-}
-
-TEST_CASE("PreparedAssetManifest hashes the visual preset's default font asset") {
-    write_file(g_temp.path, "assets/fonts/Poppins-Bold.ttf", "poppins-bold-bytes");
-    chronon3d::assets::AssetResolver resolver;
-    resolver.mount(g_temp.path);
-
-    auto plan = text_plan("caption_card");
-    auto result = chronon3d::assets::prepare_asset_manifest(plan, resolver);
-    REQUIRE(result);
-    REQUIRE(result->assets().size() == 1);
-    const auto& asset = result->assets().front();
-    CHECK(asset.logical_path == "assets/fonts/Poppins-Bold.ttf");
-    CHECK(asset.kind == chronon3d::assets::PreparedAssetKind::Font);
-    CHECK(asset.content_digest == chronon3d::assets::sha256_string("poppins-bold-bytes"));
 }
 
 TEST_CASE("PreparedAssetManifest rejects invalid logical paths") {
@@ -525,16 +505,15 @@ TEST_CASE("PreparedAssetManifest detects bytes changed after preflight") {
     CHECK(verified.error().logical_path == "images/changed.png");
 }
 
-TEST_CASE("PreparedAssetStore owns subtitle bytes and keeps media metadata") {
-    write_file(g_temp.path, "captions.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
+TEST_CASE("PreparedAssetStore owns asset metadata and keeps media metadata") {
+    write_file(g_temp.path, "image.png", "PNGDATA");
     write_file(g_temp.path, "clip.mp4", "media");
     chronon3d::render_plan::RenderPlan plan;
-    chronon3d::render_plan::LayerPlan subtitle;
-    subtitle.id = "captions";
-    subtitle.type = chronon3d::render_plan::LayerType::SubtitleTrack;
-    subtitle.source = "captions.srt";
-    subtitle.subtitle_format = chronon3d::render_plan::SubtitleFormat::Srt;
-    plan.layers.push_back(subtitle);
+    chronon3d::render_plan::LayerPlan image;
+    image.id = "image";
+    image.type = chronon3d::render_plan::LayerType::Image;
+    image.asset = "image.png";
+    plan.layers.push_back(image);
     chronon3d::render_plan::LayerPlan video;
     video.id = "video";
     video.type = chronon3d::render_plan::LayerType::Video;
@@ -546,30 +525,24 @@ TEST_CASE("PreparedAssetStore owns subtitle bytes and keeps media metadata") {
     auto result = chronon3d::assets::prepare_asset_store(plan, resolver);
     REQUIRE(result);
 
-    const auto captions = result->find(
-        "captions.srt", chronon3d::assets::PreparedAssetKind::Subtitle);
-    REQUIRE(captions);
-    CHECK(std::string(reinterpret_cast<const char*>(captions->bytes.data()),
-                      captions->bytes.size()) ==
-          "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
-    CHECK(captions->content_digest == only_asset(
-        chronon3d::assets::prepare_asset_manifest(plan, resolver).value()).content_digest);
+    const auto img = result->find(
+        "image.png", chronon3d::assets::PreparedAssetKind::Image);
+    REQUIRE(img);
+    CHECK(img->byte_size == 7);
 
     const auto media = result->find(
         "clip.mp4", chronon3d::assets::PreparedAssetKind::Video);
     REQUIRE(media);
-    CHECK(media->bytes.empty());
     CHECK(media->byte_size == 5);
 }
 
-TEST_CASE("PreparedAssetStore recovers after a failed preflight and keeps prepared bytes immutable") {
-    const auto subtitle = std::filesystem::path("recovery/captions.srt");
+TEST_CASE("PreparedAssetStore recovers after a failed preflight") {
+    const auto image = std::filesystem::path("recovery/image.png");
     chronon3d::render_plan::RenderPlan plan;
     chronon3d::render_plan::LayerPlan layer;
-    layer.id = "recovery-captions";
-    layer.type = chronon3d::render_plan::LayerType::SubtitleTrack;
-    layer.source = subtitle.generic_string();
-    layer.subtitle_format = chronon3d::render_plan::SubtitleFormat::Srt;
+    layer.id = "recovery-image";
+    layer.type = chronon3d::render_plan::LayerType::Image;
+    layer.asset = image.generic_string();
     plan.layers.push_back(layer);
 
     chronon3d::assets::AssetResolver resolver;
@@ -580,20 +553,14 @@ TEST_CASE("PreparedAssetStore recovers after a failed preflight and keeps prepar
     CHECK(failed.error().code ==
           chronon3d::assets::AssetPreflightErrorCode::MissingAsset);
 
-    const std::string original = "1\n00:00:00,000 --> 00:00:01,000\nRecover me\n";
-    write_file(g_temp.path, subtitle, original);
+    const std::string original = "PNGDATA";
+    write_file(g_temp.path, image, original);
     auto recovered = chronon3d::assets::prepare_asset_store(plan, resolver);
     REQUIRE(recovered);
 
     const auto view = recovered->find(
-        subtitle.generic_string(), chronon3d::assets::PreparedAssetKind::Subtitle);
+        image.generic_string(), chronon3d::assets::PreparedAssetKind::Image);
     REQUIRE(view);
-    CHECK(std::string(reinterpret_cast<const char*>(view->bytes.data()),
-                      view->bytes.size()) == original);
-
-    write_file(g_temp.path, subtitle, "changed after preparation");
-    CHECK(std::string(reinterpret_cast<const char*>(view->bytes.data()),
-                      view->bytes.size()) == original);
     CHECK(view->content_digest == chronon3d::assets::sha256_string(original));
 }
 

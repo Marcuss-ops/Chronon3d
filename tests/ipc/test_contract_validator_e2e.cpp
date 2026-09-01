@@ -31,8 +31,8 @@ static nlohmann::json make_valid_composition() {
 
 static nlohmann::json make_valid_render_plan() {
     return {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 1920}, {"height", 1080},
                      {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 150}}},
@@ -77,7 +77,7 @@ TEST_CASE("e2e: all three schemas pass valid documents") {
     SUBCASE("render_plan") {
         auto doc = make_valid_render_plan();
         ContractValidationError err;
-        bool ok = v.validate(ContractId::RenderPlanV1, doc, &err);
+        bool ok = v.validate(ContractId::RenderPlanV2, doc, &err);
         INFO("Error: ", err.contract, " — ", err.message);
         CHECK(ok);
     }

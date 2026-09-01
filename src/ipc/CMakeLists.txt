@@ -13,7 +13,7 @@ set(CHRONON3D_IPC_GENERATED_HEADER "${CHRONON3D_IPC_GENERATED_DIR}/chronon_ipc_g
 set(CHRONON3D_COMPOSITION_SCHEMA_FILE
     ${CMAKE_SOURCE_DIR}/schemas/chronon.composition.v1.schema.json)
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
-    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v1.schema.json)
+    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v2.schema.json)
 set(CHRONON3D_RENDER_SETTINGS_SCHEMA_FILE
     ${CMAKE_SOURCE_DIR}/schemas/chronon.render-settings.v1.schema.json)
 file(READ "${CHRONON3D_COMPOSITION_SCHEMA_FILE}"
