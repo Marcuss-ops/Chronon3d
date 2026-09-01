@@ -40,8 +40,10 @@ void apply_resolved_visual_style(
         definition.style.font.font_weight = *style.font_weight;
     if (style.font_size)
         definition.style.font.font_size = *style.font_size;
-    if (const auto fill = parse_hex_color(style.fill))
+    if (const auto fill = parse_hex_color(style.fill)) {
         definition.style.color = *fill;
+        definition.style.paint.fill = *fill;
+    }
 
     if (style.stroke_enabled) {
         definition.style.paint.stroke_enabled = true;
@@ -93,6 +95,10 @@ void apply_visual_plan_overrides(chronon3d::TextDefinition& definition,
     }
     if (!layer.font.empty()) definition.style.font.font_path = layer.font;
     if (layer.font_size) definition.style.font.font_size = *layer.font_size;
+    if (layer.color[0] != 0.0f || layer.color[1] != 0.0f || layer.color[2] != 0.0f || layer.color[3] != 0.0f) {
+        definition.style.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+        definition.style.paint.fill = definition.style.color;
+    }
 }
 
 }  // namespace

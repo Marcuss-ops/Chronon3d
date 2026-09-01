@@ -28,8 +28,10 @@ struct alignas(8) DirectYuvLayerHost {
     float src_x0{0.0f}, src_y0{0.0f}, src_x1{1.0f}, src_y1{1.0f};
     float opacity{1.0f};
     int blend_mode{0};
+    float corner_radius{0.0f};
+    float _pad{0.0f};
 };
-static_assert(sizeof(DirectYuvLayerHost) == 64);
+static_assert(sizeof(DirectYuvLayerHost) == 72);
 
 constexpr const char* kDirectKernel = R"CUDA(
 struct DirectYuvLayer {
@@ -41,6 +43,8 @@ struct DirectYuvLayer {
   float src_x0, src_y0, src_x1, src_y1;
   float opacity;
   int blend_mode;
+  float corner_radius;
+  float _pad;
 };
 
 __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
@@ -67,7 +71,26 @@ __device__ float4 direct_layer_pixel(const DirectYuvLayer* layers, int count,
     if (x < layer.dst_x0 || x >= layer.dst_x1 ||
         y < layer.dst_y0 || y >= layer.dst_y1) continue;
     float4 src = direct_layer_load(layer, x, y, width, height);
-    src.w = fminf(fmaxf(src.w * layer.opacity, 0.0f), 1.0f);
+    float alpha = src.w * layer.opacity;
+
+    if (layer.corner_radius > 0.0f) {
+      const float half_w = (layer.dst_x1 - layer.dst_x0) * 0.5f;
+      const float half_h = (layer.dst_y1 - layer.dst_y0) * 0.5f;
+      const float cx = (layer.dst_x0 + layer.dst_x1) * 0.5f;
+      const float cy = (layer.dst_y0 + layer.dst_y1) * 0.5f;
+      const float r = fminf(layer.corner_radius, fminf(half_w, half_h));
+      const float dx = fabsf((float)x + 0.5f - cx) - (half_w - r);
+      const float dy = fabsf((float)y + 0.5f - cy) - (half_h - r);
+      const float ax = fmaxf(dx, 0.0f);
+      const float ay = fmaxf(dy, 0.0f);
+      const float dist = sqrtf(ax * ax + ay * ay) + fminf(fmaxf(dx, dy), 0.0f) - r;
+      const float clip = fminf(fmaxf(0.5f - dist, 0.0f), 1.0f);
+      alpha *= clip;
+    }
+
+    src.w = fminf(fmaxf(alpha, 0.0f), 1.0f);
+    if (src.w <= 0.0f) continue;
+
     if (layer.blend_mode == 1) {
       accum.x += src.x * src.w;
       accum.y += src.y * src.w;
@@ -102,11 +125,11 @@ extern "C" __global__ void nv12_composite_layer_batch_2x2(
   const int xs[4] = {x, x1, x, x1};
   const int ys[4] = {y, y, y1, y1};
   for (int i = 0; i < 4; ++i) {
-    const float y_fg = 16.0f + 219.0f *
+    const float y_fg = 255.0f *
         (0.2126f * fs[i].x + 0.7152f * fs[i].y + 0.0722f * fs[i].z);
     const float bg = (float)bg_y[ys[i] * bg_yp + xs[i]];
     out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(fmaxf(roundf(
-        (1.0f - fs[i].w) * bg + fs[i].w * y_fg), 16.0f), 235.0f);
+        (1.0f - fs[i].w) * bg + fs[i].w * y_fg), 0.0f), 255.0f);
   }
   const float a = (f00.w + f10.w + f01.w + f11.w) * 0.25f;
   const int uv = (y >> 1) * out_uvp + x;
@@ -122,10 +145,10 @@ extern "C" __global__ void nv12_composite_layer_batch_2x2(
       fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
   const float b = (f00.z*f00.w + f10.z*f10.w + f01.z*f01.w + f11.z*f11.w) /
       fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
-  const float u = 128.0f + 224.0f * (-0.1146f*r - 0.3854f*g + 0.5000f*b);
-  const float v = 128.0f + 224.0f * ( 0.5000f*r - 0.4542f*g - 0.0458f*b);
-  out_uv[uv] = (unsigned char)fminf(fmaxf(roundf((1.0f-a)*bg_uv[bg_uv_index] + a*u), 16.0f), 240.0f);
-  out_uv[uv+1] = (unsigned char)fminf(fmaxf(roundf((1.0f-a)*bg_uv[bg_uv_index+1] + a*v), 16.0f), 240.0f);
+  const float u = 128.0f + 255.0f * (-0.1146f*r - 0.3854f*g + 0.5000f*b);
+  const float v = 128.0f + 255.0f * ( 0.5000f*r - 0.4542f*g - 0.0458f*b);
+  out_uv[uv] = (unsigned char)fminf(fmaxf(roundf((1.0f-a)*bg_uv[bg_uv_index] + a*u), 0.0f), 255.0f);
+  out_uv[uv+1] = (unsigned char)fminf(fmaxf(roundf((1.0f-a)*bg_uv[bg_uv_index+1] + a*v), 0.0f), 255.0f);
 }
 )CUDA";
 
@@ -263,6 +286,7 @@ bool CudaDirectNv12Compositor::composite_direct_nv12_batch(
             ? 1.0f : instance.src_y1;
         layer.opacity = instance.opacity;
         layer.blend_mode = instance.blend == BlendMode::Add ? 1 : 0;
+        layer.corner_radius = instance.corner_radius;
         host_layers.push_back(layer);
     }
 

@@ -64,7 +64,11 @@ bool MuxSession::write_header(const std::string& output_path,
         reason = "failed to open output";
         return false;
     }
-    if (avformat_write_header(format_, nullptr) < 0) {
+    AVDictionary* opts = nullptr;
+    av_dict_set(&opts, "movflags", "+faststart", 0);
+    const int ret = avformat_write_header(format_, &opts);
+    av_dict_free(&opts);
+    if (ret < 0) {
         reason = "failed to write mux header";
         return false;
     }
