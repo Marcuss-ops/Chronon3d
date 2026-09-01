@@ -182,7 +182,7 @@ if(CHRONON3D_ENABLE_VULKAN)
 endif()
 
 if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_video)
+    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_video chronon3d_media_video)
 endif()
 
 add_library(chronon3d_pipeline INTERFACE)

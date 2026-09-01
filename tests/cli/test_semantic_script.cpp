@@ -82,7 +82,7 @@ TEST_CASE("decode_semantic_script rejects an unknown kind") {
     CHECK(decoded.error().path == "events[0].kind");
 }
 
-TEST_CASE("compile_semantic_script maps kinds onto canonical presets") {
+TEST_CASE("compile_semantic_script maps kinds onto canonical primitives") {
     const auto script = semantic::decode_semantic_script(make_script()).value();
     const auto plan = semantic::compile_semantic_script(script);
 
@@ -99,32 +99,30 @@ TEST_CASE("compile_semantic_script maps kinds onto canonical presets") {
 
     const auto& phrase = plan.layers[1];
     CHECK(phrase.type == c3d::render_plan::LayerType::Text);
-    CHECK(phrase.preset == "caption_safe_area");
+    CHECK(phrase.text == "UNA NUOVA RIVOLUZIONE");
     CHECK(phrase.animation.has_value());
-    CHECK(phrase.animation->preset == "fade_in");
+    CHECK(phrase.style.has_value());
 
     const auto& image = plan.layers[2];
     CHECK(image.type == c3d::render_plan::LayerType::Image);
     CHECK(image.asset == "images/vision_pro.png");
     CHECK(image.fit == c3d::render_plan::FitMode::Contain);
-    REQUIRE(image.box_width.has_value());
-    CHECK(*image.box_width == 700.0f);
+    CHECK(image.size_dimensions == 2);
+    CHECK(image.size[0] == 700.0f);
     CHECK(image.position_dimensions == 2);
     CHECK(image.position[0] == 430.0f);
 
     const auto& word = plan.layers[3];
     CHECK(word.type == c3d::render_plan::LayerType::Text);
-    CHECK(word.preset == "kinetic_word");
+    CHECK(word.text == "VISION PRO");
 }
 
-TEST_CASE("compile_semantic_script honors preset and fit overrides") {
+TEST_CASE("compile_semantic_script honors fit overrides") {
     auto root = make_script();
-    root["events"][0]["preset"] = "title_centered";
     root["events"][1]["fit"] = "cover";
     const auto script = semantic::decode_semantic_script(root).value();
     const auto plan = semantic::compile_semantic_script(script);
 
-    CHECK(plan.layers[1].preset == "title_centered");
     CHECK(plan.layers[2].fit == c3d::render_plan::FitMode::Cover);
 }
 
@@ -144,14 +142,14 @@ TEST_CASE("render_plan_to_json round-trips through the canonical decoder") {
     const auto plan = semantic::compile_semantic_script(script);
     const auto json = semantic::render_plan_to_json(plan);
 
-    CHECK(json.at("schema") == "chronon.render-plan");
-    CHECK(json.at("version") == 1);
+    CHECK(json.at("schema") == "chronon.render-plan.v2");
+    CHECK(json.at("version") == 2);
 
     const auto decoded = c3d::render_plan::decode_render_plan(json);
     REQUIRE(decoded.has_value());
     CHECK(decoded->job_id == "first_script_overlay");
     REQUIRE(decoded->layers.size() == plan.layers.size());
-    CHECK(decoded->layers[1].preset == "caption_safe_area");
-    CHECK(decoded->layers[3].preset == "kinetic_word");
+    CHECK(decoded->layers[1].text == "UNA NUOVA RIVOLUZIONE");
+    CHECK(decoded->layers[3].text == "VISION PRO");
     CHECK(decoded->output.path == "output.mp4");
 }

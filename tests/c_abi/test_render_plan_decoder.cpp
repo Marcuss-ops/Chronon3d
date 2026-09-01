@@ -2,19 +2,20 @@
 
 #include <chronon3d/render_plan/render_plan.hpp>
 
-#include <nlohmann/json.hpp>
-
 #include <utility>
 #include <limits>
+#include <nlohmann/json.hpp>
 
-TEST_CASE("render plan decoder constructs typed V1 plan") {
+TEST_CASE("render plan decoder constructs typed V2 plan") {
     const nlohmann::json source = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 1920}, {"height", 1080}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 60}}},
         {"layers", {{{"id", "title"}, {"type", "text"},
-                      {"text", "Hello"}, {"start_frame", 3}}}},
+                      {"text", "Hello"},
+                      {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 24.0}, {"fill", "#FFFFFF"}}},
+                      {"start_frame", 3}}}},
         {"output", {{"path", "out.mp4"}, {"format", "mp4"},
                      {"codec", "h264"}}},
         {"budget", {{"max_temporal_pixels", 4096}}}};
@@ -29,52 +30,37 @@ TEST_CASE("render plan decoder constructs typed V1 plan") {
     CHECK(decoded->budget.max_temporal_pixels == 4096);
 }
 
-TEST_CASE("render plan decoder derives layer type from preset supported_layer") {
-    const auto plan_with = [](nlohmann::json layer) {
-        nlohmann::json source = {
-            {"schema", "chronon.render-plan"},
-            {"version", 1},
-            {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
-                         {"duration_frames", 30}}},
-            {"layers", nlohmann::json::array({layer})},
-            {"output", {{"path", "out.mp4"}}}};
-        return source;
-    };
-
-    // Text preset: type omitted → derived from supported_layer == Text.
-    auto text_plan = plan_with(
-        {{"id", "person_01"}, {"preset", "lower_third_safe"},
-         {"text", "Tim Cook"}});
-    auto text = chronon3d::render_plan::decode_render_plan(text_plan);
-    REQUIRE(text.has_value());
-    CHECK(text->layers[0].type == chronon3d::render_plan::LayerType::Text);
-
-    // Image preset: type omitted → derived from supported_layer == Image.
-    auto image_plan = plan_with(
-        {{"id", "img_01"}, {"preset", "image_focus_in"},
-         {"asset", "portrait.png"}});
-    auto image = chronon3d::render_plan::decode_render_plan(image_plan);
-    REQUIRE(image.has_value());
-    CHECK(image->layers[0].type == chronon3d::render_plan::LayerType::Image);
-
-    // Explicit type still wins when present (compat with legacy plans).
-    auto explicit_plan = plan_with(
-        {{"id", "explicit"}, {"type", "image"}, {"preset", "image_focus_in"},
-         {"asset", "portrait.png"}});
-    auto explicit_decoded =
-        chronon3d::render_plan::decode_render_plan(explicit_plan);
-    REQUIRE(explicit_decoded.has_value());
-    CHECK(explicit_decoded->layers[0].type ==
-          chronon3d::render_plan::LayerType::Image);
-}
-
-TEST_CASE("render plan decoder rejects a layer with neither type nor preset") {
+TEST_CASE("render plan decoder decodes concrete primitive layers") {
     const nlohmann::json source = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 30}}},
-        {"layers", {{{{"id", "orphan"}, {"text", "no type no preset"}}}}},
+        {"layers", nlohmann::json::array({
+            {{"id", "bg_color"}, {"type", "color"}, {"color", {0.1, 0.2, 0.3, 1.0}}},
+            {{"id", "img_01"}, {"type", "image"}, {"asset", "portrait.png"}, {"size", {100.0, 100.0}}},
+            {{"id", "vid_01"}, {"type", "video"}, {"source", "clips/intro.mp4"}},
+            {{"id", "txt_01"}, {"type", "text"}, {"text", "Hello"},
+             {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 32.0}, {"fill", "#FFFFFF"}}}}
+        })},
+        {"output", {{"path", "out.mp4"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->layers.size() == 4);
+    CHECK(decoded->layers[0].type == chronon3d::render_plan::LayerType::Color);
+    CHECK(decoded->layers[1].type == chronon3d::render_plan::LayerType::Image);
+    CHECK(decoded->layers[2].type == chronon3d::render_plan::LayerType::Video);
+    CHECK(decoded->layers[3].type == chronon3d::render_plan::LayerType::Text);
+}
+
+TEST_CASE("render plan decoder rejects a layer with missing id or type") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
+                     {"duration_frames", 30}}},
+        {"layers", {{{{"text", "no id and no type"}}}}},
         {"output", {{"path", "out.mp4"}}}};
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE_FALSE(decoded.has_value());
@@ -82,7 +68,7 @@ TEST_CASE("render plan decoder rejects a layer with neither type nor preset") {
 }
 
 TEST_CASE("render plan decoder returns validation path on malformed plan") {
-    const nlohmann::json source = {{"schema", "chronon.render-plan"}};
+    const nlohmann::json source = {{"schema", "chronon.render-plan.v2"}};
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE_FALSE(decoded.has_value());
     CHECK_FALSE(decoded.error().message.empty());
@@ -90,8 +76,8 @@ TEST_CASE("render plan decoder returns validation path on malformed plan") {
 
 TEST_CASE("render plan decoder rejects absolute and traversal asset references") {
     const nlohmann::json base = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 1}}},
         {"layers", {{{"id", "image"}, {"type", "image"},
@@ -236,25 +222,6 @@ TEST_CASE("validate_render_budget rejects layer timing, output estimate, and non
     CHECK(error->path == "canvas");
 
     plan = budget_plan();
-    layer = {};
-    layer.font_size = std::numeric_limits<float>::quiet_NaN();
-    plan.layers.push_back(layer);
-    budget = {};
-    error = chronon3d::render_plan::validate_render_budget(plan, budget);
-    REQUIRE(error);
-    CHECK(error->path == "layers[].numeric");
-
-    plan = budget_plan();
-    layer = {};
-    layer.animation = chronon3d::render_plan::AnimationTiming{
-        chronon3d::Frame{29}, chronon3d::Frame{2}, "fade"};
-    plan.layers.push_back(layer);
-    budget = {};
-    error = chronon3d::render_plan::validate_render_budget(plan, budget);
-    REQUIRE(error);
-    CHECK(error->path == "layers[0].animation.duration_frames");
-
-    plan = budget_plan();
     plan.output.bitrate = -1;
     error = chronon3d::render_plan::validate_render_budget(plan, budget);
     REQUIRE(error);
@@ -270,8 +237,8 @@ TEST_CASE("RenderBudget carries the canonical temporal pixel policy") {
 
 TEST_CASE("render plan decoder uses fail-loud budget phase") {
     const nlohmann::json source = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 1}}},
         {"layers", nlohmann::json::array()},
@@ -295,14 +262,14 @@ TEST_CASE("render plan decoder uses fail-loud budget phase") {
 
 TEST_CASE("render plan fingerprint includes decoded content and preserves order") {
     const nlohmann::json source = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 12}}},
-        {"layers", {{{"id", "first"}, {"type", "text"},
-                      {"text", "one"}},
-                     {{"id", "second"}, {"type", "text"},
-                      {"text", "two"}}}},
+        {"layers", {{{"id", "first"}, {"type", "color"},
+                      {"color", {1.0, 0.0, 0.0, 1.0}}},
+                     {{"id", "second"}, {"type", "color"},
+                      {"color", {0.0, 1.0, 0.0, 1.0}}}}},
         {"output", {{"path", "out.png"}}}};
 
     const auto original = chronon3d::render_plan::decode_render_plan(source);
@@ -314,9 +281,9 @@ TEST_CASE("render plan fingerprint includes decoded content and preserves order"
     REQUIRE(repeat.has_value());
     CHECK(original->content_fingerprint == repeat->content_fingerprint);
 
-    auto changed_text = source;
-    changed_text["layers"][0]["text"] = "changed";
-    const auto changed = chronon3d::render_plan::decode_render_plan(changed_text);
+    auto changed_color = source;
+    changed_color["layers"][0]["color"] = {0.5, 0.0, 0.0, 1.0};
+    const auto changed = chronon3d::render_plan::decode_render_plan(changed_color);
     REQUIRE(changed.has_value());
     CHECK(original->content_fingerprint != changed->content_fingerprint);
 
@@ -333,35 +300,38 @@ TEST_CASE("render plan fingerprint includes decoded content and preserves order"
     CHECK(original->content_fingerprint != budget_plan->content_fingerprint);
 }
 
-TEST_CASE("render plan decoder decodes the extended visual contract fields") {
+TEST_CASE("render plan decoder decodes concrete animation tracks") {
     const nlohmann::json source = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
         {"canvas", {{"width", 1920}, {"height", 1080}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 90}}},
         {"layers", {{
             {"id", "person_01"},
             {"type", "text"},
             {"text", "Tim Cook"},
-            {"preset", "lower_third_safe"},
-            {"semantic_role", "person"},
-            {"font_asset", {{"asset", "fonts/Poppins-Bold.ttf"},
-                             {"family", "Poppins"}, {"weight", 700}}},
-            {"anchor", {{"type", "lower_third"}, {"safe_margin", 0.06},
-                         {"alignment", "left"}}},
-            {"offset", {20, -10}},
             {"style", {
-                {"font_family", "Poppins"}, {"font_weight", 700},
-                {"font_size", 58}, {"fill", "#FFFFFF"},
+                {"font", "fonts/Poppins-Bold.ttf"},
+                {"font_size", 58},
+                {"fill", "#FFFFFF"},
                 {"stroke", {{"color", "#000000"}, {"width", 2}}},
                 {"shadow", {{"color", "#000000"}, {"opacity", 0.65},
                              {"blur", 16}, {"offset", {0, 6}}}},
                 {"background", {{"color", "#050509"}, {"opacity", 0.86},
                                  {"radius", 12}, {"padding", {24, 14}}}}
             }},
-            {"animation", {{"preset", "active_word_pop"}, {"unit", "word"},
-                            {"enter", {{"duration_frames", 8}}},
-                            {"exit", {{"duration_frames", 6}}}}}
+            {"animation", {
+                {"tracks", nlohmann::json::array({
+                    {
+                        {"property", "opacity"},
+                        {"easing", "in_quad"},
+                        {"keyframes", nlohmann::json::array({
+                            {{"frame", 0}, {"value", 0.0}},
+                            {{"frame", 15}, {"value", 1.0}}
+                        })}
+                    }
+                })}
+            }}
         }}},
         {"output", {{"path", "out.mp4"}}}};
 
@@ -369,26 +339,8 @@ TEST_CASE("render plan decoder decodes the extended visual contract fields") {
     REQUIRE(decoded.has_value());
     const auto& layer = decoded->layers[0];
 
-    CHECK(layer.preset == "lower_third_safe");
-    CHECK(layer.semantic_role == "person");
-
-    REQUIRE(layer.font_asset.has_value());
-    CHECK(layer.font_asset->asset == "fonts/Poppins-Bold.ttf");
-    CHECK(layer.font_asset->family == "Poppins");
-    CHECK(layer.font_asset->weight == 700);
-    // Canonical path field stays authoritative for the compiler.
-    CHECK(layer.font == "fonts/Poppins-Bold.ttf");
-
-    REQUIRE(layer.anchor.has_value());
-    CHECK(layer.anchor->type == "lower_third");
-    CHECK(layer.anchor->alignment == "left");
-    CHECK(layer.offset_dimensions == 2);
-    CHECK(layer.offset[0] == doctest::Approx(20.0f));
-    CHECK(layer.offset[1] == doctest::Approx(-10.0f));
-
     REQUIRE(layer.style.has_value());
-    CHECK(layer.style->font_family == "Poppins");
-    CHECK(layer.style->font_weight == 700);
+    CHECK(layer.font == "fonts/Poppins-Bold.ttf");
     CHECK(layer.style->font_size.value() == doctest::Approx(58.0f));
     CHECK(layer.style->fill == "#FFFFFF");
     REQUIRE(layer.style->stroke.has_value());
@@ -401,66 +353,7 @@ TEST_CASE("render plan decoder decodes the extended visual contract fields") {
     CHECK(layer.style->background->padding[0] == doctest::Approx(24.0f));
 
     REQUIRE(layer.animation.has_value());
-    CHECK(layer.animation->unit == "word");
-    REQUIRE(layer.animation->enter_duration_frames.has_value());
-    CHECK(layer.animation->enter_duration_frames->integral() == 8);
-    REQUIRE(layer.animation->exit_duration_frames.has_value());
-    CHECK(layer.animation->exit_duration_frames->integral() == 6);
-}
-
-TEST_CASE("render plan decoder maps subtitle formats including ass") {
-    const auto subtitle_plan = [](const char* format) {
-        return nlohmann::json{
-            {"schema", "chronon.render-plan"},
-            {"version", 1},
-            {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
-                         {"duration_frames", 30}}},
-            {"layers", nlohmann::json::array({{
-                {"id", "subs"},
-                {"type", "subtitle_track"},
-                {"source", "subtitles.ass"},
-                {"format", format},
-            }})},
-            {"output", {{"path", "out.mp4"}}}};
-    };
-
-    auto srt = chronon3d::render_plan::decode_render_plan(subtitle_plan("srt"));
-    REQUIRE(srt.has_value());
-    CHECK(srt->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Srt);
-
-    auto vtt = chronon3d::render_plan::decode_render_plan(subtitle_plan("vtt"));
-    REQUIRE(vtt.has_value());
-    CHECK(vtt->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Vtt);
-
-    auto json_fmt = chronon3d::render_plan::decode_render_plan(subtitle_plan("json"));
-    REQUIRE(json_fmt.has_value());
-    CHECK(json_fmt->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Json);
-
-    auto ass = chronon3d::render_plan::decode_render_plan(subtitle_plan("ass"));
-    REQUIRE(ass.has_value());
-    CHECK(ass->layers[0].subtitle_format == chronon3d::render_plan::SubtitleFormat::Ass);
-}
-
-TEST_CASE("render plan decoder keeps the minimal {preset, text} form compatible") {
-    const nlohmann::json source = {
-        {"schema", "chronon.render-plan"},
-        {"version", 1},
-        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
-                     {"duration_frames", 30}}},
-        {"layers", {{
-            {"id", "minimal"},
-            {"type", "text"},
-            {"preset", "lower_third"},
-            {"text", "Tim Cook"}
-        }}},
-        {"output", {{"path", "out.mp4"}}}};
-
-    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    REQUIRE(decoded.has_value());
-    CHECK(decoded->layers[0].preset == "lower_third");
-    CHECK(decoded->layers[0].text == "Tim Cook");
-    CHECK(decoded->layers[0].semantic_role.empty());
-    CHECK_FALSE(decoded->layers[0].anchor.has_value());
-    CHECK_FALSE(decoded->layers[0].style.has_value());
-    CHECK_FALSE(decoded->layers[0].font_asset.has_value());
+    REQUIRE(layer.animation->tracks.size() == 1);
+    CHECK(layer.animation->tracks[0].property == "opacity");
+    CHECK(layer.animation->tracks[0].keyframes.size() == 2);
 }

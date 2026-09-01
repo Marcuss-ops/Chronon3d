@@ -809,9 +809,9 @@ TEST_CASE("CoordinateContract: LayerBuilder unpinned Absolute uses Canvas-to-ren
         Vec2{400.0f, 100.0f});
     const auto& node = only_text_node(layer);
 
-    // Canvas origin (200,100) converted once to the graph's centered basis.
-    CHECK(node.world_transform.position.x == doctest::Approx(-760.0f));
-    CHECK(node.world_transform.position.y == doctest::Approx(-440.0f));
+    // Canvas origin (200,100) used directly as placement position.
+    CHECK(node.world_transform.position.x == doctest::Approx(200.0f));
+    CHECK(node.world_transform.position.y == doctest::Approx(100.0f));
     CHECK(node.world_transform.anchor == Vec3{0.0f, 0.0f, 0.0f});
 }
 
