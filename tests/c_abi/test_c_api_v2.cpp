@@ -102,7 +102,7 @@ TEST_CASE("C ABI v2 maps a missing asset to ASSET_NOT_FOUND") {
 
 constexpr char kPlan[] =
     "{\"schema\":\"chronon.render-plan\",\"version\":1,"
-    "\"canvas\":{\"width\":320,\"height\":180,\"fps\":30,"
+    "\"canvas\":{\"width\":320,\"height\":180,\"fps_num\":30,\"fps_den\":1,"
     "\"duration_frames\":2},\"layers\":[{\"id\":\"bg\","
     "\"type\":\"color\",\"color\":[0.2,0.4,0.6,1.0]}],"
     "\"output\":{\"path\":\"out.png\"}}";
@@ -369,7 +369,7 @@ TEST_CASE("C ABI v2 two engines render in parallel") {
 std::string make_busy_plan() {
     std::string plan =
         "{\"schema\":\"chronon.render-plan\",\"version\":1,"
-        "\"canvas\":{\"width\":1920,\"height\":1080,\"fps\":30,"
+        "\"canvas\":{\"width\":1920,\"height\":1080,\"fps_num\":30,\"fps_den\":1,"
         "\"duration_frames\":2},\"layers\":[";
     for (int index = 0; index < 64; ++index) {
         if (index != 0) plan += ',';

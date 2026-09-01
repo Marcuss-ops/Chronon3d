@@ -35,27 +35,36 @@ ResolvedAnimation resolve_animation(
             exit = Frame{*preset_animation->exit_duration_frames};
     }
 
-    // Any explicit unit/enter/exit intent anywhere → the per-unit text
-    // animator is emitted; a bare layer motion preset keeps the text static.
-    out.text_intent =
-        !out.unit.empty() || enter.has_value() || exit.has_value();
-
-    // Deterministic clamp into the layer window — the SAME rule
-    // build_unit_reveal_animator() applies (enter-only when the window is
-    // too short for a stable gap):
-    //   enter ∈ [1, total]; exit kept only when enter + exit < total.
-    // Exit defaults to 0 (no exit transition) when NEITHER the plan NOR the
-    // registry preset carries an exit intent — a bare `preset: fade_in`
-    // stays a one-shot entry, it is never turned into a double animation.
+    // Explicit 0 disables the duration; positive values are clamped to [1, total].
+    // Unspecified enter defaults to Frame{8}, unspecified exit defaults to Frame{0}.
     const i64 total = std::max<i64>(out.layer_duration.integral(), 1);
-    const i64 e = std::clamp<i64>(enter.value_or(Frame{8}).integral(), 1, total);
-    out.enter_duration = Frame{e};
+    if (enter.has_value()) {
+        const i64 raw = enter->integral();
+        out.enter_duration = (raw <= 0) ? Frame{0} : Frame{std::clamp<i64>(raw, 1, total)};
+    } else {
+        out.enter_duration = Frame{std::clamp<i64>(8, 1, total)};
+    }
+
     if (exit.has_value()) {
-        const i64 x = std::clamp<i64>(exit->integral(), 1, total);
-        out.exit_duration = (e + x < total) ? Frame{x} : Frame{0};
+        const i64 raw = exit->integral();
+        if (raw <= 0) {
+            out.exit_duration = Frame{0};
+        } else {
+            const i64 x = std::clamp<i64>(raw, 1, total);
+            const i64 e = out.enter_duration.integral();
+            out.exit_duration = (e + x < total) ? Frame{x} : Frame{0};
+        }
     } else {
         out.exit_duration = Frame{0};
     }
+
+    // Any explicit unit or active enter/exit intent -> the per-unit text
+    // animator is emitted; a bare layer motion preset keeps the text static.
+    out.text_intent =
+        !out.unit.empty() ||
+        (enter.has_value() && enter->integral() > 0) ||
+        (exit.has_value() && exit->integral() > 0);
+
     return out;
 }
 
@@ -72,13 +81,13 @@ chronon3d::TextAnimatorSpec build_unit_reveal_animator(
     std::optional<Frame> enter_duration_frames,
     std::optional<Frame> exit_duration_frames) {
     const i64 total = std::max<i64>(duration_frames.integral(), 1);
-    // Clamp durations into [1, total]; absent values keep the preset
-    // defaults (8 enter / 6 exit) but never exceed the window.
+    // Durations <= 0 are treated as disabled (0 frames). Absent values keep
+    // defaults (8 enter / 6 exit) clamped into the window.
     const i64 enter = enter_duration_frames
-        ? std::clamp<i64>(enter_duration_frames->integral(), 1, total)
+        ? (enter_duration_frames->integral() <= 0 ? 0 : std::clamp<i64>(enter_duration_frames->integral(), 1, total))
         : std::min<i64>(8, total);
     const i64 exit = exit_duration_frames
-        ? std::clamp<i64>(exit_duration_frames->integral(), 1, total)
+        ? (exit_duration_frames->integral() <= 0 ? 0 : std::clamp<i64>(exit_duration_frames->integral(), 1, total))
         : std::min<i64>(6, total);
 
     const chronon3d::TextSelectorUnit scope = selector_unit(unit);
@@ -101,15 +110,19 @@ chronon3d::TextAnimatorSpec build_unit_reveal_animator(
     const Frame f0 = start_frame;
     const Frame end = start_frame + Frame{total};
 
-    // Enter ramp 0→1, then an exit ramp 1→0 when the window has a stable
-    // gap between them (enter + exit < total).  Monotonic keyframes satisfy
+    // Enter ramp 0->1 (or instant 1 if enter == 0), then exit ramp 1->0 when
+    // exit > 0 and enter + exit < total. Monotonic keyframes satisfy
     // TextAnimatorSpec::is_valid() Inv 2 (strictly increasing frames).
     chronon3d::OpacityProperty opacity;
     opacity.value.clear();
-    opacity.value.add_keyframe(f0, 0.0f);
-    opacity.value.add_keyframe(f0 + Frame{enter}, 1.0f,
-                               chronon3d::EasingCurve{chronon3d::Easing::OutCubic});
-    if (enter + exit < total) {
+    if (enter > 0) {
+        opacity.value.add_keyframe(f0, 0.0f);
+        opacity.value.add_keyframe(f0 + Frame{enter}, 1.0f,
+                                   chronon3d::EasingCurve{chronon3d::Easing::OutCubic});
+    } else {
+        opacity.value.add_keyframe(f0, 1.0f);
+    }
+    if (exit > 0 && enter + exit < total) {
         opacity.value.add_keyframe(end - Frame{exit}, 1.0f);
         opacity.value.add_keyframe(end, 0.0f,
                                    chronon3d::EasingCurve{chronon3d::Easing::InCubic});

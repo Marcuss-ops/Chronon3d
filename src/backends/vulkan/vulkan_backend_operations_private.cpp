@@ -664,20 +664,29 @@ struct alignas(16) GpuLayerInstance {
             throw std::invalid_argument("Vulkan layer batch references an invalid destination surface");
         }
 
-        // Process contiguous spans of instances that share the same resource handle
         std::size_t start_idx = 0;
         while (start_idx < instances.size()) {
             const auto res_idx = instances[start_idx].resource_index;
-            const auto source_handle = (res_idx < resources.size())
-                ? resources[res_idx] : runtime::kInvalidRenderSurfaceHandle;
+            if (res_idx >= resources.size()) {
+                throw std::invalid_argument(
+                    "Vulkan layer batch resource_index out of range");
+            }
+            const auto source_handle = resources[res_idx];
+            if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
+                throw std::invalid_argument(
+                    "Vulkan layer batch references an invalid image resource");
+            }
 
             std::size_t end_idx = start_idx + 1;
             while (end_idx < instances.size() && instances[end_idx].resource_index == res_idx) {
                 ++end_idx;
             }
 
-            auto& src_image = (source_handle != runtime::kInvalidRenderSurfaceHandle)
-                ? resolve_image(source_handle) : dst_image;
+            auto& src_image = resolve_image(source_handle);
+            if (!src_image.initialized || src_image.width == 0 || src_image.height == 0) {
+                throw std::invalid_argument(
+                    "Vulkan layer batch source image is not initialized");
+            }
 
             const std::size_t count = end_idx - start_idx;
             std::array<GpuLayerInstance, 512> local_instances;

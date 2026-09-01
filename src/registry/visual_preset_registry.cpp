@@ -47,7 +47,8 @@ VisualPresetDescriptor make_simple_2d_preset(
         .alignment = std::move(alignment)};
     preset.animation = AnimationSpec{
         .preset = std::move(animation), .unit = std::move(unit),
-        .enter_duration_frames = 8, .exit_duration_frames = 6};
+        .enter_duration_frames = 8,
+        .exit_duration_frames = (layer == VisualLayerKind::Text ? std::optional<int>{6} : std::nullopt)};
     preset.fallback_anchors = {"center", "top_left", "top_right", "bottom_left"};
     preset.capabilities = {"2d", "collision_avoid"};
 
