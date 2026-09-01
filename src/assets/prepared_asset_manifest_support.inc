@@ -72,21 +72,12 @@ struct RequestedAsset {
         if (!path.empty()) result.push_back({std::string(path), kind});
     };
     for (const auto& layer : plan.layers) {
-        if (layer.background)
-            add(layer.background->asset, PreparedAssetKind::Image);
-        if (layer.type == render_plan::LayerType::Image)
+        if (layer.type == render_plan::LayerType::Image) {
             add(layer.asset, PreparedAssetKind::Image);
-        else if (layer.type == render_plan::LayerType::Video)
+        } else if (layer.type == render_plan::LayerType::Video) {
             add(layer.source, PreparedAssetKind::Video);
-        else if (layer.type == render_plan::LayerType::SubtitleTrack) {
-            add(layer.source, PreparedAssetKind::Subtitle);
-            add(layer.font, PreparedAssetKind::Font);
-            if (layer.font_asset)
-                add(layer.font_asset->asset, PreparedAssetKind::Font);
         } else if (layer.type == render_plan::LayerType::Text) {
             add(layer.font, PreparedAssetKind::Font);
-            if (layer.font_asset)
-                add(layer.font_asset->asset, PreparedAssetKind::Font);
         }
     }
     std::sort(result.begin(), result.end(), [](const auto& left, const auto& right) {
@@ -109,10 +100,6 @@ struct RequestedAsset {
         return error(AssetPreflightErrorCode::AssetTooLarge, std::move(logical_path),
                      "asset exceeds the configured single-asset limit");
 
-    // Keep the manifest and artifact hashing paths on the same optimized
-    // implementation.  The old local 64 KiB scalar SHA implementation made
-    // a 13 MiB video take seconds to preflight even when OpenSSL was already
-    // available for output verification.
     const auto digest = sha256_file(path);
     if (!digest)
         return error(AssetPreflightErrorCode::HashFailed, std::move(logical_path),

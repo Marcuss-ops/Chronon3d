@@ -1,10 +1,5 @@
 # ==============================================================================
 # src/render_plan/CMakeLists.txt — chronon3d_render_plan
-#
-# Standalone OBJECT libraries for the render-plan JSON decoder, validator and
-# compiler. They have no SDK state or asset access. Their object files are
-# attached explicitly to the consumers that expose render-plan compilation;
-# this file does not link them into chronon3d_core.
 # ==============================================================================
 
 add_library(chronon3d_render_plan OBJECT
@@ -15,8 +10,6 @@ set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
 
 add_library(chronon3d_render_plan_compiler OBJECT
     render_plan_compiler.cpp
-    animation_intent.cpp
-    visual_preset_materializer.cpp
 )
 set_target_properties(chronon3d_render_plan_compiler PROPERTIES UNITY_BUILD OFF)
 set_source_files_properties(
@@ -25,7 +18,7 @@ set_source_files_properties(
 )
 
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
-    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v1.schema.json)
+    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v2.schema.json)
 file(READ "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"
      CHRONON3D_RENDER_PLAN_SCHEMA_JSON)
 configure_file(
@@ -59,12 +52,5 @@ target_link_libraries(chronon3d_render_plan_compiler
 )
 
 # Propagation: chronon3d_render_plan is intentionally NOT linked into
-# chronon3d_core (would require it in the SDK export set — see
-# Chronon3DTargets install/export wiring).  Instead, the validator's
-# OBJECT files reach consumers via direct link:
-#   - in-tree tests: tests/c_abi_tests.cmake LINK_TARGETS
-#   - C API SHARED lib (chronon3d_c): see
-#     cmake/Chronon3DSdkTargets.cmake — the C API SHARED is the only
-#     SDK consumer that actually needs the validator (the C++ SDK
-#     surface compiles plans in src/sdk_impl_marker.cpp + render_graph
-#     internals which don't touch JSON parsing).
+# chronon3d_core. Its object files are attached explicitly to consumers that
+# expose render-plan decoding/validation.

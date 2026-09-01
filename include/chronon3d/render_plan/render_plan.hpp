@@ -5,7 +5,6 @@
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
-#include <chronon3d/scene/model/core/transition.hpp>
 
 #include <array>
 #include <cstddef>
@@ -18,9 +17,10 @@
 
 namespace chronon3d::render_plan {
 
-enum class LayerType : std::uint8_t { Image, Video, Text, Color, SubtitleTrack };
+inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
+
+enum class LayerType : std::uint8_t { Image, Video, Text, Color };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
-enum class SubtitleFormat : std::uint8_t { Srt, Vtt, Json, Ass };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
 enum class RateControlMode : std::uint8_t { Crf, ConstantQp, Bitrate };
@@ -32,31 +32,6 @@ struct CanvasSpec {
     Frame duration{0};
 };
 
-struct AnimationTiming {
-    std::optional<Frame> start_frame;
-    std::optional<Frame> duration_frames;
-    std::string preset;
-    // Motion-intent extension (render-plan.v1): selector unit + enter/exit
-    // frame durations. Absent fields keep the preset defaults.
-    std::string unit;                        // "word" | "glyph" | "line"
-    std::optional<Frame> enter_duration_frames;
-    std::optional<Frame> exit_duration_frames;
-};
-
-// ── Visual contract extension (ADR-029) ────────────────────────────────────
-//
-// `anchor` is a layout INTENT, not absolute coordinates: the anchor resolver
-// maps it to final x/y through canvas → safe area → content bounds. Numeric
-// coordinates stay available as the legacy `position` override.
-struct AnchorPlan {
-    std::string type;                   // "center", "safe_area", "lower_third", ...
-    float safe_margin{0.06f};           // fraction of the canvas reserved per side
-    std::string alignment{"left"};      // "left" | "center" | "right"
-};
-
-// `style` carries per-job style OVERRIDES; the preset's VisualStyle defaults
-// (from VisualPresetRegistry) fill any absent field:
-//   preset defaults + job overrides = ResolvedVisualStyle.
 struct StrokeStyle {
     std::string color;
     std::optional<float> width;
@@ -78,9 +53,10 @@ struct BackgroundStyle {
     std::size_t padding_dimensions{0};
 };
 
+// Concrete text paint supplied by the caller. There is deliberately no
+// family/weight lookup or preset/profile fallback at the render-plan boundary.
 struct LayerStylePlan {
-    std::string font_family;
-    std::optional<int> font_weight;
+    std::string font;
     std::optional<float> font_size;
     std::string fill;
     std::optional<StrokeStyle> stroke;
@@ -88,22 +64,21 @@ struct LayerStylePlan {
     std::optional<BackgroundStyle> background;
 };
 
-// `font_asset` is the canonical font reference: the logical asset path plus
-// its family/weight metadata (deterministic across workers). The legacy
-// string `font` field remains the path-only spelling.
-struct FontAssetPlan {
-    std::string asset;                  // logical path, e.g. fonts/Poppins-Bold.ttf
-    std::string family;                 // "Poppins"
-    std::optional<int> weight;          // 700
+struct AnimationKeyframePlan {
+    Frame frame{0};
+    std::vector<float> value;
 };
 
-// Optional user-provided image background attached to one visual layer.
-// This is plan data (asset routing), not a second preset system. The compiler
-// materializes it behind the owning layer before the scene is rendered.
-struct LayerBackgroundPlan {
-    std::string asset;
-    std::optional<FitMode> fit;
-    std::optional<float> opacity;
+// Generic concrete property track. `property` names engine properties only;
+// editorial ids (preset/unit/role/profile) are intentionally not representable.
+struct AnimationTrackPlan {
+    std::string property;
+    std::vector<AnimationKeyframePlan> keyframes;
+    std::string easing{"linear"};
+};
+
+struct AnimationPlan {
+    std::vector<AnimationTrackPlan> tracks;
 };
 
 struct LayerPlan {
@@ -112,36 +87,30 @@ struct LayerPlan {
     std::string asset;
     std::string source;
     std::string text;
+
+    // Normalized concrete font asset path copied from style.font by decoder.
+    // Kept as an execution field so asset preflight remains simple.
     std::string font;
-    std::optional<FontAssetPlan> font_asset;
-    std::string preset;
-    std::string semantic_role;
-    std::optional<float> font_size;
-    std::optional<float> box_width;
-    std::optional<float> box_height;
+    std::optional<LayerStylePlan> style;
+
+    std::array<float, 2> size{0.0f, 0.0f};
+    std::size_t size_dimensions{0};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     std::array<float, 3> position{0.0f, 0.0f, 0.0f};
     std::size_t position_dimensions{0};
-    // Numeric override applied ON TOP of the anchor-resolved position (NOT
-    // absolute placement). `position` above is the legacy absolute spelling.
-    std::array<float, 2> offset{0.0f, 0.0f};
-    std::size_t offset_dimensions{0};
+    std::array<float, 3> scale{1.0f, 1.0f, 1.0f};
+    std::size_t scale_dimensions{0};
+    std::array<float, 3> rotation{0.0f, 0.0f, 0.0f};
+    std::size_t rotation_dimensions{0};
+
     std::optional<Frame> start_frame;
     std::optional<Frame> duration_frames;
     std::optional<FitMode> fit;
-    std::optional<SubtitleFormat> subtitle_format;
-    std::optional<AnimationTiming> animation;
-    std::optional<AnchorPlan> anchor;
-    std::optional<LayerStylePlan> style;
-    std::optional<LayerBackgroundPlan> background;
-    // Compositing hints exposed by the render-plan contract for effect
-    // layers (e.g. a light leak blended with BlendMode::Screen). Absent
-    // fields keep the renderer defaults (Normal blend, full opacity, no loop).
+    std::optional<AnimationPlan> animation;
+
     std::optional<chronon3d::BlendMode> blend_mode;
     std::optional<float> opacity;
     bool loop{false};
-    std::optional<chronon3d::LayerTransitionSpec> transition_in;
-    std::optional<chronon3d::LayerTransitionSpec> transition_out;
 };
 
 struct OutputSpec {
@@ -156,50 +125,30 @@ struct OutputSpec {
 };
 
 struct RenderPlan {
+    std::string schema{kRenderPlanSchemaV2};
     std::string job_id{"chronon_plan"};
-    // Editorial visual profile.  Chronon owns the profile registry; callers
-    // select only one of the three supported channel styles.
-    std::string style_profile{"discovery"};
-    // Deterministic identity of all decoded plan values. Asset bytes are not
-    // implied here; the asset-manifest preflight will add content hashes.
     std::uint64_t content_fingerprint{0};
     CanvasSpec canvas;
     std::vector<LayerPlan> layers;
     OutputSpec output;
-    /// Canonical job-level resource policy. Runtime renderers resolve the
-    /// temporal portion through TemporalBudgetResolver.
     RenderBudget budget{};
 };
 
 struct PlanDecodeError {
     std::string path;
     std::string message;
-    // Stable machine code for the failure category (e.g. "MissingAsset").
-    // Empty for generic decode/compile errors.  The C ABI maps it to a
-    // chronon_status (e.g. MissingAsset -> CHRONON_ERROR_ASSET_NOT_FOUND).
     std::string code;
-    // Originating subsystem for the structured C ABI error surface.  Asset
-    // preflight failures carry "asset_resolver"; empty means the C ABI falls
-    // back to "render_plan" (decode / budget / composition failures).
     std::string component;
 };
 
-/// Explicit fail-loud budget phase executed before render-plan compilation.
-/// It validates dimensions, frame/duration bounds, layer/audio counts and
-/// timing, text/reference bytes, memory, and estimated output size. Temporal
-/// sample-pixel limits are resolved at runtime by TemporalBudgetResolver.
 [[nodiscard]] std::optional<PlanDecodeError> validate_render_budget(
     const RenderPlan& plan,
     const RenderBudget& budget = {});
 
-/// Compatibility spelling for callers that used the original budget helper.
 [[nodiscard]] std::optional<PlanDecodeError> validate_render_plan_budget(
     const RenderPlan& plan,
     const RenderBudget& budget = {});
 
-/// Compute the deterministic identity of the decoded plan values.
-/// Asset bytes are deliberately not included until asset-manifest preflight
-/// supplies their content hashes.
 [[nodiscard]] std::uint64_t compute_render_plan_content_fingerprint(
     const RenderPlan& plan);
 

@@ -1,29 +1,25 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
-#include <chronon3d/render_plan/animation_intent.hpp>
-#include <chronon3d/render_plan/subtitle_style.hpp>
-#include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/text/prepared_text.hpp>
-#include <chronon3d/authoring/layer.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
-#include <chronon3d/presets/text/subtitle.hpp>
-#include <chronon3d/presets/text/text_presets_v1.hpp>
-#include <chronon3d/layout/overlay_layout_resolver.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
-#include <chronon3d/timeline/composition_definition.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/prepared_text.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/timeline/composition_definition.hpp>
 
-#include <filesystem>
 #include <algorithm>
-#include <cctype>
-#include <cmath>
+#include <filesystem>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
+
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::render_plan {

@@ -1,27 +1,5 @@
 namespace {
 
-struct MaterializedText {
-    chronon3d::TextDefinition definition;
-    std::optional<ResolvedLayoutIntent> layout;
-};
-
-chronon3d::layout::OverlayLayoutRequest layout_request(
-    const LayerPlan& layer,
-    const ResolvedLayoutIntent& layout,
-    std::int64_t composition_frames) {
-    chronon3d::layout::OverlayLayoutRequest request;
-    request.id = layer.id;
-    request.intent = layout.intent;
-    request.fallback_intents = layout.fallback_intents;
-    request.width = layout.width;
-    request.height = layout.height;
-    request.safe_margin = layout.safe_margin;
-    request.start_frame = layer.start_frame.value_or(Frame{0}).value;
-    request.end_frame = request.start_frame +
-        layer.duration_frames.value_or(Frame{composition_frames}).value;
-    return request;
-}
-
 chronon3d::FitMode fit_mode(FitMode value) {
     switch (value) {
         case FitMode::Contain: return chronon3d::FitMode::Contain;
@@ -32,42 +10,121 @@ chronon3d::FitMode fit_mode(FitMode value) {
     return chronon3d::FitMode::Cover;
 }
 
-MaterializedText materialize_text(const LayerPlan& layer,
-                                  const chronon3d::CanvasInfo& canvas,
-                                  std::string_view style_profile,
-                                  std::int64_t composition_frames,
-                                  chronon3d::FontEngine& font_engine) {
-    MaterializedText out;
-    // RenderingGen has already lowered editorial presets into generic text
-    // style/layout data. Chronon only consumes those primitives.
-    std::string base_preset;
-    if (base_preset == "title_centered")
-        out.definition = chronon3d::presets::text::title_centered(layer.text, canvas);
-    else if (base_preset == "subtitle_bottom")
-        out.definition = chronon3d::presets::text::subtitle_bottom(layer.text, canvas);
-    else if (base_preset == "caption_safe_area")
-        out.definition = chronon3d::presets::text::caption_safe_area(layer.text, canvas);
-    else if (base_preset == "kinetic_word")
-        out.definition = chronon3d::presets::text::kinetic_word(layer.text, canvas);
-    else if (base_preset == "lower_third")
-        out.definition = chronon3d::presets::text::lower_third(layer.text, canvas);
-    else {
-        out.definition.content.value = layer.text;
-        out.definition.style.font.font_size = layer.font_size.value_or(48.0f);
-        out.definition.style.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
-        out.definition.frame.size = {
-            layer.box_width.value_or(static_cast<float>(canvas.width)),
-            layer.box_height.value_or(static_cast<float>(canvas.height))};
-        out.definition.frame.align = chronon3d::TextAlign::Center;
-        out.definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
+chronon3d::EasingCurve track_easing(std::string_view value) {
+    using chronon3d::Easing;
+    if (value == "linear") return {Easing::Linear};
+    if (value == "in_quad") return {Easing::InQuad};
+    if (value == "out_quad") return {Easing::OutQuad};
+    if (value == "in_out_quad") return {Easing::InOutQuad};
+    if (value == "in_cubic") return {Easing::InCubic};
+    if (value == "out_cubic") return {Easing::OutCubic};
+    if (value == "in_out_cubic") return {Easing::InOutCubic};
+    if (value == "in_expo") return {Easing::InExpo};
+    if (value == "out_expo") return {Easing::OutExpo};
+    if (value == "in_out_expo") return {Easing::InOutExpo};
+    if (value == "in_sine") return {Easing::InSine};
+    if (value == "out_sine") return {Easing::OutSine};
+    if (value == "in_out_sine") return {Easing::InOutSine};
+    if (value == "in_back") return {Easing::InBack};
+    if (value == "out_back") return {Easing::OutBack};
+    if (value == "in_out_back") return {Easing::InOutBack};
+    if (value == "in_elastic") return {Easing::InElastic};
+    if (value == "out_elastic") return {Easing::OutElastic};
+    if (value == "in_out_elastic") return {Easing::InOutElastic};
+    if (value == "in_bounce") return {Easing::InBounce};
+    if (value == "out_bounce") return {Easing::OutBounce};
+    if (value == "in_out_bounce") return {Easing::InOutBounce};
+    if (value == "smoothstep") return {Easing::Smoothstep};
+    if (value == "hold") return {Easing::Hold};
+    throw std::runtime_error("unsupported animation easing: " + std::string(value));
+}
+
+float scalar_value(const AnimationKeyframePlan& key, std::string_view property) {
+    if (key.value.size() != 1)
+        throw std::runtime_error("animation property '" + std::string(property) +
+                                 "' requires scalar keyframe values");
+    return key.value.front();
+}
+
+chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
+                             std::string_view property,
+                             chronon3d::Vec3 fallback) {
+    if (key.value.size() < 2 || key.value.size() > 3)
+        throw std::runtime_error("animation property '" + std::string(property) +
+                                 "' requires 2 or 3 keyframe components");
+    fallback.x = key.value[0];
+    fallback.y = key.value[1];
+    if (key.value.size() == 3) fallback.z = key.value[2];
+    return fallback;
+}
+
+chronon3d::TextDefinition materialize_text(const LayerPlan& layer,
+                                           const chronon3d::CanvasInfo& canvas) {
+    if (!layer.style || layer.font.empty() || !layer.style->font_size ||
+        layer.style->fill.empty()) {
+        throw std::runtime_error("text layer '" + layer.id +
+                                 "' is missing concrete font/font_size/fill style");
     }
-    if (!layer.font.empty())
-        out.definition.style.font.font_path = layer.font;
-    if (layer.font_size)
-        out.definition.style.font.font_size = *layer.font_size;
-    apply_text_animation_intent(out.definition, layer, std::nullopt,
-                                composition_frames);
-    return out;
+
+    chronon3d::TextDefinition definition;
+    definition.content.value = layer.text;
+    definition.style.font.font_path = layer.font;
+    definition.style.font.font_size = *layer.style->font_size;
+    const auto fill = parse_hex_color(layer.style->fill);
+    if (!fill)
+        throw std::runtime_error("text layer '" + layer.id + "' has invalid fill color");
+    definition.style.color = *fill;
+    definition.style.paint.fill = *fill;
+
+    if (layer.style->stroke) {
+        const auto stroke_color = parse_hex_color(layer.style->stroke->color);
+        if (!stroke_color)
+            throw std::runtime_error("text layer '" + layer.id + "' has invalid stroke color");
+        definition.style.paint.stroke_enabled = true;
+        definition.style.paint.stroke_color = *stroke_color;
+        definition.style.paint.stroke_width = layer.style->stroke->width.value_or(1.0f);
+    }
+    if (layer.style->shadow) {
+        const auto shadow_color = parse_hex_color(
+            layer.style->shadow->color,
+            layer.style->shadow->opacity.value_or(1.0f));
+        if (!shadow_color)
+            throw std::runtime_error("text layer '" + layer.id + "' has invalid shadow color");
+        chronon3d::TextShadow shadow;
+        shadow.enabled = true;
+        shadow.color = *shadow_color;
+        shadow.opacity = layer.style->shadow->opacity.value_or(1.0f);
+        shadow.blur = layer.style->shadow->blur.value_or(0.0f);
+        if (layer.style->shadow->offset_dimensions == 2) {
+            shadow.offset = {layer.style->shadow->offset[0], layer.style->shadow->offset[1]};
+        }
+        definition.style.shadows.push_back(shadow);
+    }
+    if (layer.style->background) {
+        const auto background_color = parse_hex_color(
+            layer.style->background->color,
+            layer.style->background->opacity.value_or(1.0f));
+        if (!background_color)
+            throw std::runtime_error("text layer '" + layer.id + "' has invalid background color");
+        definition.style.box_style.enabled = true;
+        definition.style.box_style.background = *background_color;
+        definition.style.box_style.radius = layer.style->background->radius.value_or(0.0f);
+        if (layer.style->background->padding_dimensions == 2) {
+            definition.style.box_style.padding = {
+                layer.style->background->padding[0],
+                layer.style->background->padding[1]};
+        }
+    }
+
+    definition.frame.size = layer.size_dimensions == 2
+        ? chronon3d::Vec2{layer.size[0], layer.size[1]}
+        : chronon3d::Vec2{static_cast<float>(canvas.width), static_cast<float>(canvas.height)};
+    definition.frame.anchor = chronon3d::TextAnchor::Center;
+    definition.frame.align = chronon3d::TextAlign::Center;
+    definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
+    definition.frame.placement = chronon3d::TextPlacement{
+        chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}};
+    return definition;
 }
 
 std::uint64_t render_settings_fingerprint(
@@ -128,42 +185,109 @@ RenderJobFingerprint render_job_fingerprint(
     };
     return {
         chronon3d::assets::sha256_string(
-            material("chronon.render-content.v2", content_hash, false)),
+            material("chronon.render-content.v3", content_hash, false)),
         chronon3d::assets::sha256_string(
-            material("chronon.render-request.v2", request_hash, true))};
+            material("chronon.render-request.v3", request_hash, true))};
 }
 
-void apply_layer_timing(chronon3d::LayerBuilder& builder, const LayerPlan& layer,
-                        std::string_view style_profile,
-                        Frame composition_frames,
-                        bool position_already_resolved = false) {
+void apply_animation_tracks(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
+    if (!layer.animation) return;
+    const chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
+    const chronon3d::Vec3 base_scale{layer.scale[0], layer.scale[1], layer.scale[2]};
+    const chronon3d::Vec3 base_rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
+
+    bool position_claimed = false;
+    bool scale_claimed = false;
+    bool rotation_claimed = false;
+    bool opacity_claimed = false;
+
+    for (const auto& track : layer.animation->tracks) {
+        const auto easing = track_easing(track.easing);
+        const auto component_track = [&](std::string_view prefix) {
+            return track.property == std::string(prefix) + "_x" ||
+                   track.property == std::string(prefix) + "_y" ||
+                   track.property == std::string(prefix) + "_z";
+        };
+        if (track.property == "position" || component_track("position")) {
+            if (position_claimed)
+                throw std::runtime_error("layer '" + layer.id + "' has overlapping position tracks");
+            position_claimed = true;
+            auto& animated = builder.position_anim();
+            animated.set(base_position);
+            for (const auto& key : track.keyframes) {
+                auto value = base_position;
+                if (track.property == "position") {
+                    value = vector_value(key, track.property, base_position);
+                } else {
+                    const float offset = scalar_value(key, track.property);
+                    if (track.property == "position_x") value.x += offset;
+                    else if (track.property == "position_y") value.y += offset;
+                    else value.z += offset;
+                }
+                animated.add_keyframe(key.frame, value, easing);
+            }
+        } else if (track.property == "scale" || component_track("scale")) {
+            if (scale_claimed)
+                throw std::runtime_error("layer '" + layer.id + "' has overlapping scale tracks");
+            scale_claimed = true;
+            auto& animated = builder.scale_anim();
+            animated.set(base_scale);
+            for (const auto& key : track.keyframes) {
+                auto value = base_scale;
+                if (track.property == "scale") {
+                    value = vector_value(key, track.property, base_scale);
+                } else {
+                    const float scalar = scalar_value(key, track.property);
+                    if (track.property == "scale_x") value.x = scalar;
+                    else if (track.property == "scale_y") value.y = scalar;
+                    else value.z = scalar;
+                }
+                animated.add_keyframe(key.frame, value, easing);
+            }
+        } else if (track.property == "rotation" || component_track("rotation")) {
+            if (rotation_claimed)
+                throw std::runtime_error("layer '" + layer.id + "' has overlapping rotation tracks");
+            rotation_claimed = true;
+            auto& animated = builder.rotate_anim();
+            animated.set(base_rotation);
+            for (const auto& key : track.keyframes) {
+                auto value = base_rotation;
+                if (track.property == "rotation") {
+                    value = vector_value(key, track.property, base_rotation);
+                } else {
+                    const float scalar = scalar_value(key, track.property);
+                    if (track.property == "rotation_x") value.x = scalar;
+                    else if (track.property == "rotation_y") value.y = scalar;
+                    else value.z = scalar;
+                }
+                animated.add_keyframe(key.frame, value, easing);
+            }
+        } else if (track.property == "opacity") {
+            if (opacity_claimed)
+                throw std::runtime_error("layer '" + layer.id + "' has duplicate opacity tracks");
+            opacity_claimed = true;
+            auto& animated = builder.opacity_anim();
+            animated.set(layer.opacity.value_or(1.0f));
+            for (const auto& key : track.keyframes)
+                animated.add_keyframe(key.frame, scalar_value(key, track.property), easing);
+        } else {
+            throw std::runtime_error("unsupported primitive animation property: " + track.property);
+        }
+    }
+}
+
+void apply_layer_primitives(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
-    if (!position_already_resolved && layer.position_dimensions >= 2)
+    if (layer.position_dimensions >= 2)
         builder.position({layer.position[0], layer.position[1], layer.position[2]});
+    if (layer.scale_dimensions >= 2)
+        builder.scale({layer.scale[0], layer.scale[1], layer.scale[2]});
+    if (layer.rotation_dimensions > 0)
+        builder.rotate({layer.rotation[0], layer.rotation[1], layer.rotation[2]});
     if (layer.blend_mode) builder.blend(*layer.blend_mode);
     if (layer.opacity) builder.opacity(*layer.opacity);
-    if (layer.animation) {
-        if (layer.animation->start_frame) builder.from(*layer.animation->start_frame);
-    }
-
-    // RenderingGen lowers preset motion into generic layer animation data;
-    // Chronon does not resolve editorial preset ids here.
-    std::optional<chronon3d::registry::AnimationSpec> preset_animation;
-    if (!layer.animation && !layer.transition_in && !layer.transition_out) return;
-
-    const auto resolved = resolve_animation(preset_animation, layer, composition_frames);
-    if (!resolved.preset.empty()) {
-        presets::MotionParameters motion_params;
-        motion_params.duration = resolved.enter_duration;
-        builder.motion(resolved.preset, motion_params);
-    }
-    if (layer.transition_in) {
-        builder.transition_in(*layer.transition_in);
-    }
-    if (layer.transition_out) {
-        builder.transition_out(*layer.transition_out);
-    }
+    apply_animation_tracks(builder, layer);
 }
 
 } // namespace
