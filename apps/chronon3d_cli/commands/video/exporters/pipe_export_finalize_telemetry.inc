@@ -1,0 +1,209 @@
+namespace chronon3d::cli {
+
+void record_pipe_telemetry(
+    const std::string& composition_id,
+    PipeExportSession& session,
+    const RenderLoopResult& loop_result,
+    const EncoderCloseResult& close_result,
+    const std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
+    double wall_time_ms,
+    double render_ms,
+    double encode_ms,
+    const PipeExportResult& result)
+{
+    const bool is_native = (session.opts.encoder.encoder_backend == "native");
+    auto* counters = session.renderer_ptr() ? session.renderer_ptr()->counters()
+                                      : &session.direct_yuv_session->counters;
+    const double conv_copy_ms = counters
+        ? static_cast<double>(counters->frame_conversion_copy_wall_ms.load())
+        : 0.0;
+
+    std::vector<chronon3d::telemetry::FrameTelemetry> sorted_encoder = session.frame_encoder_telemetry;
+    std::sort(sorted_encoder.begin(), sorted_encoder.end(),
+              [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
+
+    auto mutable_frames = telemetry_frames;
+    auto encode_it = sorted_encoder.begin();
+    for (auto& frame : mutable_frames) {
+        while (encode_it != sorted_encoder.end() && encode_it->frame_number < frame.frame_number) {
+            ++encode_it;
+        }
+        if (encode_it == sorted_encoder.end() || encode_it->frame_number != frame.frame_number) {
+            continue;
+        }
+        frame.conversion_copy_ms = encode_it->conversion_copy_ms;
+        frame.encoder_ms = encode_it->encoder_ms;
+        frame.pipe_write_ms = encode_it->pipe_write_ms;
+        frame.backpressure_wait_ms = encode_it->backpressure_wait_ms;
+        frame.pipe_write_cpu_ms = encode_it->pipe_write_cpu_ms;
+        frame.pipe_backpressure_wait_ms = encode_it->pipe_backpressure_wait_ms;
+        frame.native_convert_ms = encode_it->native_convert_ms;
+        frame.native_send_ms = encode_it->native_send_ms;
+        frame.native_receive_ms = encode_it->native_receive_ms;
+        frame.native_mux_ms = encode_it->native_mux_ms;
+    }
+
+    std::sort(mutable_frames.begin(), mutable_frames.end(),
+              [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
+
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    auto telemetry = chronon3d::telemetry::collect_all_telemetry();
+#endif
+
+    std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
+    const bool direct_yuv = session.direct_yuv_selected();
+
+    if (!direct_yuv && session.renderer_ptr() && counters) {
+        auto graph_phases = cli::telemetry::capture_graph_phase_records(*counters);
+        phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
+    }
+
+    const double queue_wait_ms = loop_result.queue_wait_ms;
+    const double writer_encode_ms = static_cast<double>(
+        session.writer_encode_us_total.load(std::memory_order_relaxed)) / 1000.0;
+
+    phases.push_back({"rendering_loop", render_ms});
+    phases.push_back({"encoder_close_and_flush", encode_ms});
+    if (!direct_yuv) {
+        phases.push_back({"chronon_render_pure_ms", loop_result.render_graph_eval_ms});
+        phases.push_back({"chronon_render_only_ms", loop_result.render_graph_eval_ms});
+    }
+    phases.push_back({"chronon_render_loop_ms", render_ms});
+    phases.push_back({"chronon_conversion_copy_ms", conv_copy_ms});
+    phases.push_back({"chronon_queue_wait_ms", queue_wait_ms});
+    phases.push_back({"chronon_writer_encode_ms", writer_encode_ms});
+
+    if (is_native) {
+        phases.push_back({"native_av_convert_ms", close_result.native_convert_ms});
+        phases.push_back({"native_av_send_frame_ms", close_result.native_send_ms});
+        phases.push_back({"native_av_receive_packet_ms", close_result.native_receive_ms});
+        phases.push_back({"native_av_mux_write_ms", close_result.native_mux_ms});
+        phases.push_back({"native_av_trailer_ms", close_result.native_trailer_ms});
+    } else {
+        phases.push_back({"ffmpeg_encode_total_ms", close_result.write_blocked_ms});
+    }
+
+    const uint64_t node_execute_ms = counters
+        ? counters->node_execute_actual_wall_ms.load(std::memory_order_relaxed)
+        : 0ULL;
+
+    chronon3d::telemetry::RenderPhaseTimings phase_timings;
+    phase_timings.gpu_render_ms = direct_yuv
+        ? 0.0 : static_cast<double>(node_execute_ms);
+    phase_timings.scene_eval_ms = direct_yuv
+        ? 0.0
+        : std::max(0.0, loop_result.render_graph_eval_ms - phase_timings.gpu_render_ms);
+
+    double readback_sum = 0.0;
+    double codec_sum = 0.0;
+    double pipe_sum = 0.0;
+    for (const auto& f : session.frame_encoder_telemetry) {
+        if (is_native) {
+            readback_sum += f.native_convert_ms;
+            codec_sum += f.native_send_ms + f.native_receive_ms;
+            pipe_sum += f.native_mux_ms;
+        } else {
+            readback_sum += f.conversion_copy_ms;
+            codec_sum += f.encoder_ms;
+            pipe_sum += f.pipe_write_ms;
+        }
+    }
+    if (session.frame_encoder_telemetry.empty()) {
+        readback_sum = conv_copy_ms;
+        codec_sum = writer_encode_ms;
+        pipe_sum = is_native ? 0.0 : close_result.write_blocked_ms;
+    }
+    phase_timings.gpu_readback_ms = readback_sum;
+    phase_timings.encode_ms = codec_sum;
+    phase_timings.disk_io_ms = pipe_sum + encode_ms;
+
+    const auto canonical_phases = phase_timings.to_phase_records();
+    phases.insert(phases.end(), canonical_phases.begin(), canonical_phases.end());
+
+    if (counters) {
+        session.sys_metrics.fill_system_counters(*counters);
+
+        if (is_native) {
+            counters->native_av_convert_wall_ms.store(
+                static_cast<uint64_t>(close_result.native_convert_ms), std::memory_order_relaxed);
+            counters->native_av_receive_packet_wall_ms.store(
+                static_cast<uint64_t>(close_result.native_receive_ms), std::memory_order_relaxed);
+            counters->native_av_mux_write_wall_ms.store(
+                static_cast<uint64_t>(close_result.native_mux_ms), std::memory_order_relaxed);
+        } else {
+            counters->video_pipe_write_wall_ms.store(
+                static_cast<uint64_t>(close_result.write_blocked_ms), std::memory_order_relaxed);
+            counters->ffmpeg_pipe_write_wall_ms.store(
+                static_cast<uint64_t>(close_result.write_blocked_ms), std::memory_order_relaxed);
+        }
+    }
+
+    auto resolved_counters = telemetry::capture_counters(*counters);
+    resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms",
+        static_cast<uint64_t>(std::llround(close_result.write_blocked_ms))});
+    resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms",
+        static_cast<uint64_t>(std::llround(loop_result.queue_wait_ms))});
+
+    if (session.renderer_ptr() && session.renderer_ptr()->framebuffer_pool()) {
+        auto pool_stats = session.renderer_ptr()->framebuffer_pool()->stats();
+        resolved_counters.push_back({"framebuffer_pool_capacity", pool_stats.max_bytes});
+        resolved_counters.push_back({"framebuffer_pool_available_count", pool_stats.available_count});
+        resolved_counters.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});
+        resolved_counters.push_back({"framebuffer_pool_total_allocations", pool_stats.total_allocations});
+        resolved_counters.push_back({"framebuffer_pool_total_reuses", pool_stats.total_reuses});
+        const auto configured_pool_budget =
+            session.renderer_ptr()->runtime().config().cache().fb_pool_budget_bytes();
+        resolved_counters.push_back({
+            "framebuffer_pool_budget_bytes",
+            configured_pool_budget > 0 ? configured_pool_budget : pool_stats.budget_bytes});
+        resolved_counters.push_back({"framebuffer_pool_retained_bytes", pool_stats.retained_bytes});
+        resolved_counters.push_back({"framebuffer_pool_evicted_count", pool_stats.evicted_count});
+        resolved_counters.push_back({"framebuffer_pool_evicted_bytes", pool_stats.evicted_bytes});
+        resolved_counters.push_back({"framebuffer_pool_pressure_count", pool_stats.pressure_count});
+        resolved_counters.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
+    }
+
+    if (session.renderer_ptr() && session.renderer_ptr()->runtime().backend_attached()) {
+        std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
+        session.renderer_ptr()->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+        for (const auto& [name, value] : gpu_counters) {
+            resolved_counters.push_back({name, value});
+        }
+    }
+
+    std::vector<chronon3d::telemetry::RenderArtifactRecord> artifacts;
+    {
+        namespace fs = std::filesystem;
+        const std::string out_path = result.output_published
+            ? session.original_output_path
+            : session.opts.output.output;
+        chronon3d::telemetry::RenderArtifactRecord artifact;
+        artifact.run_id = "";
+        artifact.type = "video";
+        artifact.path = out_path;
+        artifact.sha256 = result.sha256;
+        std::error_code ec;
+        artifact.file_exists = fs::exists(out_path, ec);
+        if (artifact.file_exists) {
+            artifact.size_bytes = static_cast<int64_t>(fs::file_size(out_path, ec));
+            if (ec) artifact.size_bytes = 0;
+        }
+        artifacts.push_back(artifact);
+    }
+
+    const int encoded_frames = pipe_encoded_frame_count(loop_result.status);
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    cli::telemetry::record_output_run(
+        composition_id,
+        result.output_published ? session.original_output_path : session.opts.output.output,
+        result.success,
+        static_cast<int>(session.total_frames), encoded_frames,
+        wall_time_ms, render_ms, close_result.write_blocked_ms,
+        session.started_at_iso, phases, resolved_counters,
+        telemetry.node_events, counters, mutable_frames,
+        telemetry.layer_events, telemetry.cache_events, telemetry.culling_events,
+        telemetry.image_events, artifacts);
+#endif
+}
+
+} // namespace chronon3d::cli
