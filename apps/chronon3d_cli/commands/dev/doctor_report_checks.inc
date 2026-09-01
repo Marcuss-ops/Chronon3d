@@ -1,0 +1,270 @@
+void collect_engine_checks(DoctorReport& report) {
+#ifdef CHRONON3D_HAS_C_API
+    const char* version = chronon_version_string();
+    add_check(report, "engine.version",
+              version && *version ? DoctorStatus::Pass : DoctorStatus::Warn,
+              version && *version ? version : "version string unavailable");
+
+    const std::uint32_t abi = chronon_abi_version();
+    add_check(report, "engine.abi",
+              abi == 2 ? DoctorStatus::Pass : DoctorStatus::Fail,
+              "ABI " + std::to_string(abi));
+#else
+    add_check(report, "engine.version", DoctorStatus::Skip,
+              "C ABI not built (CHRONON3D_BUILD_C_API=OFF)");
+    add_check(report, "engine.abi", DoctorStatus::Skip,
+              "C ABI not built (CHRONON3D_BUILD_C_API=OFF)");
+#endif
+
+    add_check(report, "engine.render_plan_schema", DoctorStatus::Pass,
+              kRenderPlanSchema);
+
+    const std::string git_sha = telemetry::TelemetryManager::get_git_commit();
+    add_check(report, "engine.git_sha",
+              git_sha.empty() || git_sha == "unknown" ? DoctorStatus::Warn
+                                                       : DoctorStatus::Pass,
+              git_sha);
+}
+
+void collect_system_checks(DoctorReport& report) {
+    add_check(report, "system.os", DoctorStatus::Pass,
+              telemetry::TelemetryManager::get_os_name());
+    add_check(report, "system.arch", DoctorStatus::Pass, host_arch());
+    add_check(report, "system.cpu_model", DoctorStatus::Pass,
+              read_cpu_model_name());
+
+    const auto threads = std::thread::hardware_concurrency();
+    add_check(report, "system.logical_threads",
+              threads > 0 ? DoctorStatus::Pass : DoctorStatus::Warn,
+              threads > 0 ? std::to_string(threads) : "unknown");
+
+    const std::uint64_t ram = host_ram_bytes();
+    if (ram > 0) {
+        add_check(report, "system.ram_bytes", DoctorStatus::Pass,
+                  human_bytes(ram));
+    } else {
+        add_check(report, "system.ram_bytes", DoctorStatus::Skip,
+                  "physical memory not queryable on this platform");
+    }
+}
+
+void collect_backend_checks(DoctorReport& report) {
+    graph::BackendRegistry registry;
+    registry.register_backend(
+        graph::BackendType::Software,
+        graph::BackendCapabilities{.graphics = true,
+                                   .max_texture_width = 16384,
+                                   .max_texture_height = 16384},
+        []() -> std::unique_ptr<graph::RenderBackend> { return nullptr; });
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+    registry.register_backend(
+        graph::BackendType::Vulkan,
+        graph::BackendCapabilities{.graphics = true, .compute = true},
+        []() -> std::unique_ptr<graph::RenderBackend> { return nullptr; });
+#endif
+
+    add_check(report, "backend.software",
+              registry.contains(graph::BackendType::Software)
+                  ? DoctorStatus::Pass : DoctorStatus::Fail,
+              registry.contains(graph::BackendType::Software)
+                  ? "CPU-first software backend registered"
+                  : "software backend not registered");
+
+    if (registry.contains(graph::BackendType::Vulkan)) {
+        add_check(report, "backend.vulkan", DoctorStatus::Pass,
+                  "Vulkan backend registered");
+    } else {
+        add_check(report, "backend.vulkan", DoctorStatus::Skip,
+                  "Vulkan backend not built (CHRONON3D_ENABLE_VULKAN=OFF)");
+    }
+}
+
+void collect_encoder_checks(DoctorReport& report) {
+    const bool ffmpeg_ok =
+        command_succeeds("ffmpeg -version > /dev/null 2>&1");
+    add_check(report, "encoder.ffmpeg",
+              ffmpeg_ok ? DoctorStatus::Pass : DoctorStatus::Fail,
+              ffmpeg_ok ? "ffmpeg executable found on PATH"
+                        : "ffmpeg not found on PATH");
+
+    if (!ffmpeg_ok) {
+        add_check(report, "encoder.h264", DoctorStatus::Skip,
+                  "skipped: ffmpeg not found");
+        add_check(report, "encoder.h265", DoctorStatus::Skip,
+                  "skipped: ffmpeg not found");
+        add_check(report, "encoder.av1", DoctorStatus::Skip,
+                  "skipped: ffmpeg not found");
+        add_check(report, "encoder.nvenc", DoctorStatus::Skip,
+                  "skipped: ffmpeg not found");
+        return;
+    }
+
+    const bool h264_ok = encoder_available("libx264");
+    add_check(report, "encoder.h264",
+              h264_ok ? DoctorStatus::Pass : DoctorStatus::Fail,
+              h264_ok ? "libx264 software encoder available"
+                      : "libx264 encoder unavailable");
+
+    const bool h265_ok = encoder_available("libx265");
+    add_check(report, "encoder.h265",
+              h265_ok ? DoctorStatus::Pass : DoctorStatus::Skip,
+              h265_ok ? "libx265 software encoder available"
+                      : "libx265 encoder unavailable");
+
+    const bool av1_ok = encoder_available("libaom-av1");
+    add_check(report, "encoder.av1",
+              av1_ok ? DoctorStatus::Pass : DoctorStatus::Skip,
+              av1_ok ? "libaom-av1 software encoder available"
+                     : "libaom-av1 encoder unavailable");
+
+    const bool nvenc_ok = encoder_available("h264_nvenc");
+    add_check(report, "encoder.nvenc",
+              nvenc_ok ? DoctorStatus::Pass : DoctorStatus::Skip,
+              nvenc_ok ? "h264_nvenc hardware encoder available"
+                       : "h264_nvenc encoder unavailable (no NVIDIA/NVENC)");
+}
+
+void collect_asset_checks(DoctorReport& report, const DoctorOptions& options) {
+    std::string root = options.assets_root;
+    if (root.empty()) {
+        if (const char* env = std::getenv("CHRONON3D_CLI_ASSETS_ROOT")) {
+            root = env;
+        }
+    }
+    if (root.empty()) {
+        add_check(report, "assets.font_regular", DoctorStatus::Skip,
+                  "assets root not provided (use --assets-root)");
+        add_check(report, "assets.font_bold", DoctorStatus::Skip,
+                  "assets root not provided (use --assets-root)");
+        return;
+    }
+
+    assets::AssetResolver resolver;
+    try {
+        resolver.mount(std::filesystem::path{root});
+    } catch (const std::exception& error) {
+        add_check(report, "assets.font_regular", DoctorStatus::Fail,
+                  std::string{"cannot mount assets root: "} + error.what());
+        add_check(report, "assets.font_bold", DoctorStatus::Skip,
+                  "skipped: assets root mount failed");
+        return;
+    }
+
+    const auto regular = resolver.resolve(kFontRegular);
+    add_check(report, "assets.font_regular",
+              regular ? DoctorStatus::Pass : DoctorStatus::Fail,
+              regular ? "resolved " + std::string(kFontRegular)
+                      : "missing " + std::string(kFontRegular));
+
+    const auto bold = resolver.resolve(kFontBold);
+    add_check(report, "assets.font_bold",
+              bold ? DoctorStatus::Pass : DoctorStatus::Fail,
+              bold ? "resolved " + std::string(kFontBold)
+                   : "missing " + std::string(kFontBold));
+}
+
+void collect_filesystem_checks(DoctorReport& report) {
+    std::error_code ec;
+    const auto temp = std::filesystem::temp_directory_path(ec);
+    if (ec) {
+        add_check(report, "filesystem.temp_writable", DoctorStatus::Fail,
+                  "cannot resolve temp directory: " + ec.message());
+    } else {
+        add_check(report, "filesystem.temp_writable",
+                  directory_writable(temp) ? DoctorStatus::Pass
+                                           : DoctorStatus::Fail,
+                  directory_writable(temp) ? "temp directory writable"
+                                           : "temp directory not writable");
+    }
+
+    const auto cwd = std::filesystem::current_path(ec);
+    if (ec) {
+        add_check(report, "filesystem.output_writable", DoctorStatus::Fail,
+                  "cannot resolve current directory: " + ec.message());
+    } else {
+        add_check(report, "filesystem.output_writable",
+                  directory_writable(cwd) ? DoctorStatus::Pass
+                                          : DoctorStatus::Fail,
+                  directory_writable(cwd) ? "output directory writable"
+                                          : "output directory not writable");
+    }
+
+    const auto space = std::filesystem::space(
+        ec ? std::filesystem::path{"."} : cwd, ec);
+    if (ec) {
+        add_check(report, "filesystem.free_disk_bytes", DoctorStatus::Fail,
+                  "cannot query free disk: " + ec.message());
+    } else {
+        add_check(report, "filesystem.free_disk_bytes",
+                  space.available > 0 ? DoctorStatus::Pass : DoctorStatus::Fail,
+                  human_bytes(space.available) + " available");
+    }
+}
+
+void collect_deep_check(DoctorReport& report, const DoctorOptions& options) {
+    if (!options.deep) {
+        add_check(report, "deep.render_smoke", DoctorStatus::Skip,
+                  "skipped: pass --deep to run the render smoke test");
+        return;
+    }
+
+#ifdef CHRONON3D_HAS_C_API
+    static constexpr const char* kSmokePlan = R"JSON({
+  "schema": "chronon.render-plan",
+  "version": 1,
+  "canvas": {"width": 320, "height": 180, "fps_num": 30, "fps_den": 1, "duration_frames": 1},
+  "layers": [{"id": "bg", "type": "color", "color": [0.1, 0.2, 0.3, 1.0]}],
+  "output": {"path": "doctor_smoke.png"}
+})JSON";
+
+    LogSilencer silence_logs;
+
+    chronon_engine_config config{};
+    config.struct_size = sizeof(config);
+    config.abi_version = chronon_abi_version();
+    config.assets_root = nullptr;
+    config.flags = 0;
+
+    chronon_error_info error{};
+    error.struct_size = sizeof(error);
+
+    chronon_engine* engine = nullptr;
+    chronon_status status = chronon_engine_create_v2(&config, &engine, &error);
+    if (status != CHRONON_OK || !engine) {
+        add_check(report, "deep.render_smoke", DoctorStatus::Fail,
+                  "engine create failed: " + std::string(chronon_status_name(status)));
+        return;
+    }
+
+    chronon_plan* plan = nullptr;
+    status = chronon_plan_compile_json(engine, kSmokePlan, &plan);
+    if (status != CHRONON_OK || !plan) {
+        add_check(report, "deep.render_smoke", DoctorStatus::Fail,
+                  "plan compile failed: " + std::string(chronon_status_name(status)) +
+                      " (" + std::string(chronon_engine_last_error(engine)) + ")");
+        chronon_engine_destroy(engine);
+        return;
+    }
+
+    chronon_frame_buffer frame{};
+    status = chronon_render_frame(engine, plan, 0, &frame);
+    if (status == CHRONON_OK) {
+        add_check(report, "deep.render_smoke", DoctorStatus::Pass,
+                  "compiled + rendered 1 frame (" + std::to_string(frame.width) +
+                      "x" + std::to_string(frame.height) + ")");
+        chronon_buffer_free(engine, &frame);
+    } else {
+        add_check(report, "deep.render_smoke", DoctorStatus::Fail,
+                  "render frame failed: " + std::string(chronon_status_name(status)));
+    }
+
+    chronon_plan_destroy(plan);
+    chronon_engine_destroy(engine);
+#else
+    add_check(report, "deep.render_smoke", DoctorStatus::Skip,
+              "skipped: C ABI not built (CHRONON3D_BUILD_C_API=OFF)");
+#endif
+}
+
+} // namespace
