@@ -1,0 +1,202 @@
+namespace {
+
+class NullBuffer final : public std::streambuf {
+protected:
+    int overflow(int c) override { return traits_type::not_eof(c); }
+};
+
+class NullStream final : public std::ostream {
+public:
+    NullStream() : std::ostream(&m_buffer) {}
+
+private:
+    NullBuffer m_buffer;
+};
+
+class ScopedSpdlogLevel final {
+public:
+    explicit ScopedSpdlogLevel(spdlog::level::level_enum level)
+        : m_previous(spdlog::get_level()) {
+        spdlog::set_level(level);
+    }
+
+    ~ScopedSpdlogLevel() {
+        spdlog::set_level(m_previous);
+    }
+
+private:
+    spdlog::level::level_enum m_previous;
+};
+
+struct BenchRuntimeContext {
+    std::shared_ptr<const CompiledComposition> compiled;
+    std::shared_ptr<SoftwareRenderer> renderer;
+    int frames{0};
+    int warmup{0};
+    bool no_dirty_rects{false};
+};
+
+thread_local BenchRuntimeContext* g_bench_context = nullptr;
+
+struct BenchmarkSummary {
+    std::string name;
+    double real_time_ms{0.0};
+    double cpu_time_ms{0.0};
+    int64_t iterations{0};
+};
+
+std::optional<std::filesystem::path> make_temp_json_path() {
+    try {
+        auto dir = std::filesystem::temp_directory_path();
+        auto stamp = std::to_string(
+            static_cast<long long>(profiling::timestamp_ns()));
+        return dir / ("chronon3d_bench_" + stamp + ".json");
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+
+std::vector<BenchmarkSummary> load_benchmark_summaries(const std::filesystem::path& path) {
+    std::ifstream in(path);
+    if (!in.is_open()) {
+        throw std::runtime_error("Failed to open benchmark JSON: " + path.string());
+    }
+
+    nlohmann::json js;
+    in >> js;
+
+    std::vector<BenchmarkSummary> summaries;
+    if (!js.contains("benchmarks") || !js["benchmarks"].is_array()) {
+        return summaries;
+    }
+
+    for (const auto& entry : js["benchmarks"]) {
+        if (!entry.is_object()) continue;
+        if (entry.value("run_type", "") != "iteration") continue;
+
+        BenchmarkSummary summary;
+        summary.name = entry.value("name", "");
+        summary.real_time_ms = entry.value("real_time", 0.0);
+        summary.cpu_time_ms = entry.value("cpu_time", 0.0);
+        summary.iterations = entry.value("iterations", int64_t{0});
+        summaries.push_back(std::move(summary));
+    }
+
+    return summaries;
+}
+
+std::vector<BenchmarkSummary> load_grouped_summaries(const std::filesystem::path& path) {
+    auto rows = load_benchmark_summaries(path);
+    std::vector<BenchmarkSummary> grouped;
+    if (rows.empty()) return grouped;
+
+    std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) {
+        return a.name < b.name;
+    });
+
+    for (size_t i = 0; i < rows.size();) {
+        size_t j = i;
+        BenchmarkSummary summary;
+        summary.name = rows[i].name;
+        double real_total = 0.0;
+        double cpu_total = 0.0;
+        int64_t iterations_total = 0;
+        size_t count = 0;
+        while (j < rows.size() && rows[j].name == rows[i].name) {
+            real_total += rows[j].real_time_ms;
+            cpu_total += rows[j].cpu_time_ms;
+            iterations_total += rows[j].iterations;
+            ++count;
+            ++j;
+        }
+        summary.real_time_ms = real_total / static_cast<double>(count);
+        summary.cpu_time_ms = cpu_total / static_cast<double>(count);
+        summary.iterations = iterations_total;
+        grouped.push_back(std::move(summary));
+        i = j;
+    }
+
+    return grouped;
+}
+
+void run_render_benchmark(benchmark::State& state) {
+    auto& ctx = *g_bench_context;
+    auto* counters = ctx.renderer->counters();
+
+    for (auto _ : state) {
+        for (int i = 0; i < ctx.frames; ++i) {
+            const auto frame = static_cast<Frame>(ctx.warmup + i);
+            ctx.renderer->render_compiled(*ctx.compiled, frame);
+        }
+        benchmark::DoNotOptimize(counters);
+        benchmark::ClobberMemory();
+    }
+
+    const double iterations = static_cast<double>(state.iterations());
+    const double frames = iterations * static_cast<double>(ctx.frames);
+
+    state.SetItemsProcessed(static_cast<int64_t>(frames));
+    state.counters["cache_hits"] = static_cast<double>(counters->cache_hits.load(std::memory_order_relaxed));
+    state.counters["cache_misses"] = static_cast<double>(counters->cache_misses.load(std::memory_order_relaxed));
+    state.counters["nodes_executed"] = static_cast<double>(counters->nodes_executed.load(std::memory_order_relaxed));
+    state.counters["pixels_touched"] = static_cast<double>(counters->pixels_touched.load(std::memory_order_relaxed));
+    state.counters["blur_pixels"] = static_cast<double>(counters->blur_pixels.load(std::memory_order_relaxed));
+    state.counters["images_sampled"] = static_cast<double>(counters->images_sampled.load(std::memory_order_relaxed));
+    state.counters["text_glyphs_rasterized"] = static_cast<double>(counters->text_glyphs_rasterized.load(std::memory_order_relaxed));
+    state.counters["cache_hit_rate"] = (counters->cache_hits.load(std::memory_order_relaxed) + counters->cache_misses.load(std::memory_order_relaxed)) > 0
+        ? static_cast<double>(counters->cache_hits.load(std::memory_order_relaxed)) /
+              static_cast<double>(counters->cache_hits.load(std::memory_order_relaxed) + counters->cache_misses.load(std::memory_order_relaxed))
+        : 0.0;
+}
+
+std::vector<std::string> build_benchmark_argv(
+    const BenchArgs& args,
+    const std::filesystem::path& json_out_path) {
+    std::vector<std::string> argv;
+    argv.emplace_back("chronon3d_bench");
+    argv.emplace_back("--benchmark_min_time=0.1s");
+    argv.emplace_back("--benchmark_repetitions=1");
+    argv.emplace_back("--benchmark_report_aggregates_only=false");
+    argv.emplace_back("--benchmark_display_aggregates_only=false");
+    argv.emplace_back("--benchmark_out=" + json_out_path.string());
+    argv.emplace_back("--benchmark_out_format=json");
+
+    if (args.quiet) argv.emplace_back("--benchmark_color=false");
+    return argv;
+}
+
+void print_comparison(const std::vector<BenchmarkSummary>& current,
+                      const std::vector<BenchmarkSummary>& baseline,
+                      double fail_if_avg_slower_pct,
+                      bool quiet,
+                      int& exit_code) {
+    bool any_match = false;
+    for (const auto& cur : current) {
+        auto it = std::find_if(baseline.begin(), baseline.end(), [&](const auto& b) {
+            return b.name == cur.name;
+        });
+        if (it == baseline.end()) continue;
+
+        any_match = true;
+        const double baseline_ms = it->real_time_ms;
+        const double current_ms = cur.real_time_ms;
+        const double regression_pct = compute_regression_pct(baseline_ms, current_ms);
+
+        if (!quiet) {
+            fmt::print("  - {:32}: baseline={:10.3f} ms  current={:10.3f} ms  delta={:+7.2f}%\n",
+                       cur.name, baseline_ms, current_ms, regression_pct);
+        }
+
+        if (fail_if_avg_slower_pct > 0.0 && regression_pct > fail_if_avg_slower_pct) {
+            spdlog::error("Benchmark regression for {}: {:.2f}% (threshold: {:.2f}%)",
+                          cur.name, regression_pct, fail_if_avg_slower_pct);
+            exit_code = 2;
+        }
+    }
+
+    if (!any_match && !quiet) {
+        spdlog::warn("No benchmark names matched between current run and baseline");
+    }
+}
+
+} // namespace
