@@ -5,6 +5,7 @@
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
+#include <chronon3d/scene/model/core/transition.hpp>
 
 #include <array>
 #include <cstddef>
@@ -139,6 +140,8 @@ struct LayerPlan {
     std::optional<chronon3d::BlendMode> blend_mode;
     std::optional<float> opacity;
     bool loop{false};
+    std::optional<chronon3d::LayerTransitionSpec> transition_in;
+    std::optional<chronon3d::LayerTransitionSpec> transition_out;
 };
 
 struct OutputSpec {
