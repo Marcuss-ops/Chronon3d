@@ -18,9 +18,6 @@ struct RenderJobFingerprint {
     chronon3d::assets::ContentDigest request_digest{};
 };
 
-/// Backend-neutral settings identity used by the prepared-plan fingerprint.
-/// Callers map their effective SDK/backend settings into this value at the
-/// canonical compile boundary; paths and diagnostic destinations are omitted.
 struct RenderPlanFingerprintSettings {
     int width{1920};
     int height{1080};
@@ -38,25 +35,14 @@ struct RenderPlanFingerprintSettings {
     bool optimize_compositing{true};
 };
 
-/// Stable inputs that define a prepared render-plan fingerprint.  The
-/// defaults are compatibility identifiers, not build timestamps or machine
-/// paths, so the same logical plan remains reproducible across hosts.
 struct RenderPlanFingerprintOptions {
-    std::string schema_version{"chronon.render-plan.v1"};
+    std::string schema_version{"chronon.render-plan.v2"};
     std::string engine_compatibility_version{"chronon3d.engine.v1"};
     RenderPlanFingerprintSettings render_settings{};
 };
 
-/// Immutable output of render-plan preparation.
-///
-/// `compiled_composition` is the canonical execution value.  The
-/// `composition` member is a temporary source-compatibility view for the
-/// legacy CLI/runtime boundary; its scene callback delegates back to this
-/// immutable compiled value and has no independent compilation path.
 struct PreparedRenderPlan {
     CompiledComposition compiled_composition;
-
-    // Transitional adapter.  New consumers must use compiled_composition.
     std::shared_ptr<const Composition> composition;
     chronon3d::assets::PreparedAssetManifest assets;
     chronon3d::assets::PreparedAssetStore resources;
