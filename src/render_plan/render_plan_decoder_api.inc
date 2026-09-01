@@ -5,39 +5,50 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
 
     try {
         RenderPlan plan;
+        plan.schema = kRenderPlanSchemaV2;
         plan.job_id = root.value("job_id", std::string{"chronon_plan"});
-        plan.style_profile = root.value("style_profile", std::string{"discovery"});
-        if (plan.style_profile != "discovery" && plan.style_profile != "young" &&
-            plan.style_profile != "crime") {
-            return PlanDecodeError{"style_profile", "must be discovery, young, or crime"};
-        }
         const auto& canvas = root.at("canvas");
         plan.canvas = CanvasSpec{
             canvas.at("width").get<int>(),
             canvas.at("height").get<int>(),
             FrameRate{canvas.at("fps_num").get<int>(), canvas.at("fps_den").get<int>()},
             Frame{canvas.at("duration_frames").get<std::int64_t>()}};
-        for (const auto& layer : root.at("layers")) {
-            auto decoded_layer = decode_layer(layer);
-            if (invalid_logical_path(decoded_layer.asset)) {
+
+        for (const auto& layer_value : root.at("layers")) {
+            auto layer = decode_layer(layer_value);
+            if (invalid_logical_path(layer.asset)) {
                 return PlanDecodeError{"layers[].asset",
                     "asset references must be relative logical paths"};
             }
-            if (invalid_logical_path(decoded_layer.source)) {
+            if (invalid_logical_path(layer.source)) {
                 return PlanDecodeError{"layers[].source",
                     "source references must be relative logical paths"};
             }
-            if (decoded_layer.background &&
-                invalid_logical_path(decoded_layer.background->asset)) {
-                return PlanDecodeError{"layers[].background.asset",
-                    "background references must be relative logical paths"};
-            }
-            if (invalid_logical_path(decoded_layer.font)) {
-                return PlanDecodeError{"layers[].font",
+            if (invalid_logical_path(layer.font)) {
+                return PlanDecodeError{"layers[].style.font",
                     "font references must be relative logical paths"};
             }
-            plan.layers.push_back(std::move(decoded_layer));
+            if (layer.type == LayerType::Text) {
+                if (!layer.style) {
+                    return PlanDecodeError{"layers[].style",
+                        "text layers require a concrete style object"};
+                }
+                if (layer.font.empty()) {
+                    return PlanDecodeError{"layers[].style.font",
+                        "text layers require an explicit prepared font asset"};
+                }
+                if (!layer.style->font_size || *layer.style->font_size <= 0.0f) {
+                    return PlanDecodeError{"layers[].style.font_size",
+                        "text layers require a positive concrete font_size"};
+                }
+                if (layer.style->fill.empty()) {
+                    return PlanDecodeError{"layers[].style.fill",
+                        "text layers require a concrete fill color"};
+                }
+            }
+            plan.layers.push_back(std::move(layer));
         }
+
         const auto& output = root.at("output");
         plan.output.path = output.at("path").get<std::string>();
         if (output.contains("format"))
@@ -48,9 +59,9 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         plan.output.crf = output.value("crf", 0);
         plan.output.qp = output.value("qp", -1);
         const auto rate_control = output.value("rate_control", "crf");
-        if (rate_control == "qp") plan.output.rate_control = render_plan::RateControlMode::ConstantQp;
-        else if (rate_control == "bitrate") plan.output.rate_control = render_plan::RateControlMode::Bitrate;
-        else if (rate_control == "crf") plan.output.rate_control = render_plan::RateControlMode::Crf;
+        if (rate_control == "qp") plan.output.rate_control = RateControlMode::ConstantQp;
+        else if (rate_control == "bitrate") plan.output.rate_control = RateControlMode::Bitrate;
+        else if (rate_control == "crf") plan.output.rate_control = RateControlMode::Crf;
         else return PlanDecodeError{"output.rate_control", "must be crf, qp, or bitrate"};
         plan.output.profile_id = output.value("profile_id", std::string{});
         if (plan.output.profile_id == "velox-h264-1080p30-v1" &&

@@ -22,17 +22,18 @@ std::optional<PlanDecodeError> validate_render_budget(
         return fail("output.crf", "CRF must be between 0 and 51");
     if (plan.output.qp < -1 || plan.output.qp > 63)
         return fail("output.qp", "QP must be between 0 and 63");
-    if (plan.output.rate_control == render_plan::RateControlMode::Crf &&
+    if (plan.output.rate_control == RateControlMode::Crf &&
         (plan.output.qp >= 0 || plan.output.bitrate > 0))
         return fail("output.rate_control", "CRF mode cannot combine QP or bitrate");
-    if (plan.output.rate_control == render_plan::RateControlMode::ConstantQp &&
+    if (plan.output.rate_control == RateControlMode::ConstantQp &&
         (plan.output.crf > 0 || plan.output.bitrate > 0 || plan.output.qp < 0))
         return fail("output.rate_control", "QP mode requires only a valid QP value");
-    if (plan.output.rate_control == render_plan::RateControlMode::Bitrate &&
+    if (plan.output.rate_control == RateControlMode::Bitrate &&
         (plan.output.crf > 0 || plan.output.qp >= 0 || plan.output.bitrate <= 0))
         return fail("output.rate_control", "bitrate mode requires only a positive bitrate");
     if (plan.layers.size() > budget.max_layers)
         return fail("layers", "render budget max_layers exceeded");
+
     const auto duration_value = plan.canvas.duration.integral();
     if (duration_value <= 0)
         return fail("canvas.duration_frames", "duration must be positive");
@@ -55,36 +56,21 @@ std::optional<PlanDecodeError> validate_render_budget(
         total += static_cast<std::uint64_t>(value);
         return true;
     };
+
     for (std::size_t index = 0; index < plan.layers.size(); ++index) {
         const auto& layer = plan.layers[index];
+        const auto prefix = "layers[" + std::to_string(index) + "]";
         if (layer.start_frame && layer.start_frame->integral() < 0)
-            return fail("layers[" + std::to_string(index) + "].start_frame",
-                        "layer start frame cannot be negative");
+            return fail(prefix + ".start_frame", "layer start frame cannot be negative");
         if (layer.duration_frames && layer.duration_frames->integral() <= 0)
-            return fail("layers[" + std::to_string(index) + "].duration_frames",
-                        "layer duration must be positive");
+            return fail(prefix + ".duration_frames", "layer duration must be positive");
         if (layer.start_frame && layer.start_frame->integral() >= duration_value)
-            return fail("layers[" + std::to_string(index) + "].start_frame",
-                        "layer starts outside the composition duration");
+            return fail(prefix + ".start_frame", "layer starts outside the composition duration");
         if (layer.duration_frames &&
             layer.duration_frames->integral() >
-                duration_value - (layer.start_frame
-                    ? layer.start_frame->integral() : 0))
-            return fail("layers[" + std::to_string(index) + "].duration_frames",
-                        "layer duration exceeds composition duration");
-        if (layer.animation) {
-            const auto animation_start = layer.animation->start_frame
-                ? layer.animation->start_frame->integral() : 0;
-            if (animation_start < 0 || animation_start >= duration_value)
-                return fail("layers[" + std::to_string(index) + "].animation.start_frame",
-                            "animation starts outside the composition duration");
-            if (layer.animation->duration_frames &&
-                (layer.animation->duration_frames->integral() <= 0 ||
-                 layer.animation->duration_frames->integral() >
-                     duration_value - animation_start))
-                return fail("layers[" + std::to_string(index) + "].animation.duration_frames",
-                            "animation duration exceeds composition duration");
-        }
+                duration_value - (layer.start_frame ? layer.start_frame->integral() : 0))
+            return fail(prefix + ".duration_frames", "layer duration exceeds composition duration");
+
         if (!add_bytes(text_bytes, layer.text.size(), budget.max_text_bytes))
             return fail("layers[].text", "render budget max_text_bytes exceeded");
         for (const auto* reference : {&layer.asset, &layer.source, &layer.font}) {
@@ -92,26 +78,44 @@ std::optional<PlanDecodeError> validate_render_budget(
                            budget.max_asset_reference_bytes))
                 return fail("layers[]", "render budget max_asset_reference_bytes exceeded");
         }
-        if (layer.background) {
-            if (layer.background->asset.empty())
-                return fail("layers[" + std::to_string(index) + "].background.asset",
-                            "background asset must not be empty");
-            if (!add_bytes(asset_reference_bytes, layer.background->asset.size(),
-                           budget.max_asset_reference_bytes))
-                return fail("layers[].background.asset",
-                            "render budget max_asset_reference_bytes exceeded");
-            if (layer.background->opacity && !std::isfinite(*layer.background->opacity))
-                return fail("layers[].background.opacity", "value must be finite");
-        }
-        for (const auto* numeric : {&layer.font_size, &layer.box_width,
-                                    &layer.box_height}) {
-            if (numeric->has_value()) {
-                if (const auto invalid = fail_if_non_finite(
-                        static_cast<double>(numeric->value()), "layers[].numeric"))
-                    return invalid;
+
+        for (const auto value : layer.size)
+            if (const auto invalid = fail_if_non_finite(value, "layers[].size")) return invalid;
+        for (const auto value : layer.position)
+            if (const auto invalid = fail_if_non_finite(value, "layers[].position")) return invalid;
+        for (const auto value : layer.scale)
+            if (const auto invalid = fail_if_non_finite(value, "layers[].scale")) return invalid;
+        for (const auto value : layer.rotation)
+            if (const auto invalid = fail_if_non_finite(value, "layers[].rotation")) return invalid;
+        if (layer.opacity)
+            if (const auto invalid = fail_if_non_finite(*layer.opacity, "layers[].opacity")) return invalid;
+        if (layer.style && layer.style->font_size)
+            if (const auto invalid = fail_if_non_finite(*layer.style->font_size, "layers[].style.font_size")) return invalid;
+
+        if (layer.animation) {
+            for (const auto& track : layer.animation->tracks) {
+                if (track.keyframes.empty())
+                    return fail(prefix + ".animation.tracks", "tracks require at least one keyframe");
+                Frame previous{-1};
+                for (const auto& key : track.keyframes) {
+                    if (key.frame.integral() < 0 || key.frame.integral() >= duration_value)
+                        return fail(prefix + ".animation.tracks[].keyframes[].frame",
+                                    "keyframe lies outside the composition duration");
+                    if (previous.integral() >= 0 && key.frame < previous)
+                        return fail(prefix + ".animation.tracks[].keyframes",
+                                    "keyframes must be sorted by frame");
+                    previous = key.frame;
+                    if (key.value.empty() || key.value.size() > 4)
+                        return fail(prefix + ".animation.tracks[].keyframes[].value",
+                                    "keyframe value must contain 1 to 4 numeric components");
+                    for (const auto component : key.value)
+                        if (const auto invalid = fail_if_non_finite(component,
+                                "layers[].animation.tracks[].keyframes[].value")) return invalid;
+                }
             }
         }
     }
+
     if (total_pixels > budget.max_peak_memory_bytes / 16)
         return fail("canvas", "render budget max_peak_memory_bytes exceeded");
     if (total_pixels > std::numeric_limits<std::uint64_t>::max() / 4 / frames)
