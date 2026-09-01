@@ -1,20 +1,15 @@
 #include "direct_yuv_program.hpp"
+#include "text_texture_cache.hpp"
 
 #include <chronon3d/backends/assets/image_cache.hpp>
-#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/cuda_image_resource.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/text/text_definition.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
-#endif
-
-#ifdef CHRONON3D_USE_BLEND2D
-#include <blend2d.h>
 #endif
 
 #include <spdlog/spdlog.h>
@@ -22,222 +17,18 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
-#include <filesystem>
 #include <utility>
 
 namespace chronon3d::cli {
 namespace {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-
 bool is_2d_transform(const Transform& t) {
     return std::abs(t.rotation.x) < 1e-3f &&
            std::abs(t.rotation.y) < 1e-3f &&
            std::abs(t.position.z) < 1e-3f &&
            std::abs(t.anchor.z) < 1e-3f;
 }
-
-std::string resolve_font_file(const std::string& requested) {
-    if (requested.empty()) {
-        throw std::runtime_error("text layer has no prepared font asset");
-    }
-    if (!std::filesystem::exists(requested)) {
-        throw std::runtime_error("prepared font asset not found: " + requested);
-    }
-    return requested;
-}
-
-struct DirectRasterizedText {
-    int width{0};
-    int height{0};
-    std::vector<float> gpu_rgba;
-    assets::ContentDigest digest{};
-};
-
-#ifdef CHRONON3D_USE_BLEND2D
-DirectRasterizedText rasterize_text_direct(
-    const std::string& text,
-    const std::string& font_path_req,
-    float font_size,
-    const Color& fill_color,
-    const Color& stroke_color,
-    float stroke_width,
-    bool has_background,
-    const Color& bg_color,
-    float bg_opacity,
-    float bg_radius,
-    float pad_x,
-    float pad_y,
-    float box_w,
-    float box_h,
-    const std::string& alignment) {
-
-    const std::string font_file = resolve_font_file(font_path_req);
-    BLFontFace face;
-    BLResult face_res = face.createFromFile(font_file.c_str());
-    if (face_res != BL_SUCCESS) {
-        throw std::runtime_error("prepared font asset could not be loaded: " + font_file);
-    }
-
-    const float effective_font_size = font_size > 0.0f ? font_size : 58.0f;
-    BLFont font;
-    font.createFromFace(face, effective_font_size);
-    BLFontMetrics fm = font.metrics();
-
-    std::vector<std::string> lines;
-    size_t start = 0;
-    while (start < text.size()) {
-        size_t end = text.find('\n', start);
-        if (end == std::string::npos) {
-            lines.push_back(text.substr(start));
-            break;
-        }
-        lines.push_back(text.substr(start, end - start));
-        start = end + 1;
-    }
-    if (lines.empty()) lines.push_back(text.empty() ? " " : text);
-
-    std::vector<float> line_widths;
-    float max_line_w = 0.0f;
-    for (const auto& line : lines) {
-        BLGlyphBuffer gb;
-        gb.setUtf8Text(line.data(), line.size());
-        font.shape(gb);
-        BLTextMetrics tm{};
-        font.getTextMetrics(gb, tm);
-        float w = static_cast<float>(tm.advance.x);
-        if (w <= 0.0f) w = static_cast<float>(line.size()) * effective_font_size * 0.55f;
-        line_widths.push_back(w);
-        if (w > max_line_w) max_line_w = w;
-    }
-
-    const float line_spacing = fm.ascent + fm.descent + fm.lineGap;
-    const float total_text_h = lines.size() > 1
-        ? (fm.ascent + fm.descent + static_cast<float>(lines.size() - 1) * line_spacing)
-        : (fm.ascent + fm.descent);
-
-    float target_w = max_line_w;
-    float target_h = total_text_h;
-
-    if (has_background) {
-        target_w += pad_x * 2.0f;
-        target_h += pad_y * 2.0f;
-        if (box_w > target_w) target_w = box_w;
-        if (box_h > target_h) target_h = box_h;
-    } else {
-        target_w += stroke_width * 2.0f + 24.0f;
-        target_h += stroke_width * 2.0f + 16.0f;
-    }
-
-    int img_w = (static_cast<int>(std::ceil(target_w)) + 3) & ~3;
-    int img_h = (static_cast<int>(std::ceil(target_h)) + 1) & ~1;
-    if (img_w < 16) img_w = 16;
-    if (img_h < 16) img_h = 16;
-
-    BLImage bl_img(img_w, img_h, BL_FORMAT_PRGB32);
-    BLContext ctx(bl_img);
-    ctx.setCompOp(BL_COMP_OP_SRC_COPY);
-    ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
-    ctx.fillAll();
-
-    ctx.setCompOp(BL_COMP_OP_SRC_OVER);
-
-    if (has_background) {
-        const float card_w = max_line_w + pad_x * 2.0f;
-        const float card_h = total_text_h + pad_y * 2.0f;
-        const float card_x = (static_cast<float>(img_w) - card_w) * 0.5f;
-        const float card_y = (static_cast<float>(img_h) - card_h) * 0.5f;
-        const uint32_t bg_a_byte = static_cast<uint32_t>(std::clamp(bg_opacity * bg_color.a, 0.0f, 1.0f) * 255.0f);
-        const uint32_t bg_r_byte = static_cast<uint32_t>(std::clamp(bg_color.r, 0.0f, 1.0f) * 255.0f);
-        const uint32_t bg_g_byte = static_cast<uint32_t>(std::clamp(bg_color.g, 0.0f, 1.0f) * 255.0f);
-        const uint32_t bg_b_byte = static_cast<uint32_t>(std::clamp(bg_color.b, 0.0f, 1.0f) * 255.0f);
-        ctx.setFillStyle(BLRgba32(bg_r_byte, bg_g_byte, bg_b_byte, bg_a_byte));
-        ctx.fillRoundRect(BLRoundRect(card_x, card_y, card_w, card_h, bg_radius, bg_radius));
-    }
-
-    const uint32_t fill_a = static_cast<uint32_t>(std::clamp(fill_color.a, 0.0f, 1.0f) * 255.0f);
-    const uint32_t fill_r = static_cast<uint32_t>(std::clamp(fill_color.r, 0.0f, 1.0f) * 255.0f);
-    const uint32_t fill_g = static_cast<uint32_t>(std::clamp(fill_color.g, 0.0f, 1.0f) * 255.0f);
-    const uint32_t fill_b = static_cast<uint32_t>(std::clamp(fill_color.b, 0.0f, 1.0f) * 255.0f);
-    const BLRgba32 bl_fill(fill_r, fill_g, fill_b, fill_a);
-
-    const uint32_t str_a = static_cast<uint32_t>(std::clamp(stroke_color.a, 0.0f, 1.0f) * 255.0f);
-    const uint32_t str_r = static_cast<uint32_t>(std::clamp(stroke_color.r, 0.0f, 1.0f) * 255.0f);
-    const uint32_t str_g = static_cast<uint32_t>(std::clamp(stroke_color.g, 0.0f, 1.0f) * 255.0f);
-    const uint32_t str_b = static_cast<uint32_t>(std::clamp(stroke_color.b, 0.0f, 1.0f) * 255.0f);
-    const BLRgba32 bl_stroke(str_r, str_g, str_b, str_a);
-
-    float base_y = (static_cast<float>(img_h) - total_text_h) * 0.5f + fm.ascent;
-    for (size_t i = 0; i < lines.size(); ++i) {
-        const auto& line = lines[i];
-        float line_w = line_widths[i];
-        float tx = (static_cast<float>(img_w) - line_w) * 0.5f;
-        if (alignment == "left") {
-            tx = has_background
-                ? ((static_cast<float>(img_w) - (max_line_w + pad_x * 2.0f)) * 0.5f + pad_x)
-                : 12.0f;
-        } else if (alignment == "right") {
-            tx = has_background
-                ? ((static_cast<float>(img_w) + (max_line_w + pad_x * 2.0f)) * 0.5f - pad_x - line_w)
-                : (static_cast<float>(img_w) - 12.0f - line_w);
-        }
-        float ty = base_y + static_cast<float>(i) * line_spacing;
-
-        if (stroke_width > 0.0f && stroke_color.a > 0.0f) {
-            ctx.setStrokeStyle(bl_stroke);
-            ctx.setStrokeWidth(stroke_width);
-            ctx.strokeUtf8Text(BLPoint(tx, ty), font, line.data(), line.size());
-        }
-        ctx.setFillStyle(bl_fill);
-        ctx.fillUtf8Text(BLPoint(tx, ty), font, line.data(), line.size());
-    }
-    ctx.end();
-
-    BLImageData bl_data;
-    bl_img.getData(&bl_data);
-    std::vector<float> gpu_rgba(static_cast<size_t>(img_w) * img_h * 4);
-    const uint8_t* src = static_cast<const uint8_t*>(bl_data.pixelData);
-    size_t out_gpu = 0;
-    for (int y = 0; y < img_h; ++y) {
-        const uint8_t* row = src + y * bl_data.stride;
-        for (int x = 0; x < img_w; ++x) {
-            const float b_byte = row[x * 4 + 0];
-            const float g_byte = row[x * 4 + 1];
-            const float r_byte = row[x * 4 + 2];
-            const float a_byte = row[x * 4 + 3];
-            const float a = a_byte / 255.0f;
-            if (a <= 1e-5f) {
-                gpu_rgba[out_gpu++] = 0.0f;
-                gpu_rgba[out_gpu++] = 0.0f;
-                gpu_rgba[out_gpu++] = 0.0f;
-                gpu_rgba[out_gpu++] = 0.0f;
-            } else {
-                const float r = (r_byte / 255.0f) / a;
-                const float g = (g_byte / 255.0f) / a;
-                const float b = (b_byte / 255.0f) / a;
-                const auto color = Color{r, g, b, a}.to_linear().premultiplied();
-                gpu_rgba[out_gpu++] = color.r;
-                gpu_rgba[out_gpu++] = color.g;
-                gpu_rgba[out_gpu++] = color.b;
-                gpu_rgba[out_gpu++] = color.a;
-            }
-        }
-    }
-
-    const std::string_view bytes(
-        reinterpret_cast<const char*>(gpu_rgba.data()),
-        gpu_rgba.size() * sizeof(float));
-    assets::ContentDigest digest = assets::sha256_string(bytes);
-
-    DirectRasterizedText res;
-    res.width = img_w;
-    res.height = img_h;
-    res.gpu_rgba = std::move(gpu_rgba);
-    res.digest = digest;
-    return res;
-}
-#endif
-
 #endif
 
 } // namespace
@@ -370,11 +161,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     entry.gpu_resource = resource;
                     entry.native_width = static_cast<float>(cached->width);
                     entry.native_height = static_cast<float>(cached->height);
-                    float corner_radius = 0.0f;
-                    if (node.shape.type() == ShapeType::RoundedRect) {
-                        corner_radius = node.shape.rounded_rect().radius;
-                    }
-                    entry.corner_radius = corner_radius;
+                    entry.corner_radius = 0.0f;
                     layer_resources[layer_name] = entry;
                     persistent_resources.push_back(resource);
                 }
@@ -420,17 +207,11 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     reason = "text layer has no prepared font asset: " + layer_name;
                     return nullptr;
                 }
-
-                if (node.color.a > 0.0f) {
-                    fill_color = node.color;
-                }
-
-                if (text_content.empty()) {
-                    text_content = layer_name;
-                }
+                if (node.color.a > 0.0f) fill_color = node.color;
+                if (text_content.empty()) text_content = layer_name;
 
                 const auto text_t0 = profiling::now();
-                auto rasterized = rasterize_text_direct(
+                auto rasterized = rasterize_text_texture(
                     text_content, font_path, font_size, fill_color, stroke_color, stroke_width,
                     has_bg, bg_color, bg_opacity, bg_radius, pad_x, pad_y, box_w, box_h, align);
                 watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
@@ -541,14 +322,13 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
         const float half_w = (base_w * 0.5f) * scale_x;
         const float half_h = (base_h * 0.5f) * scale_y;
-        float dst_x0 = cx - half_w;
-        float dst_y0 = cy - half_h;
-        float dst_x1 = cx + half_w;
-        float dst_y1 = cy + half_h;
-
+        const float dst_x0 = cx - half_w;
+        const float dst_y0 = cy - half_h;
+        const float dst_x1 = cx + half_w;
+        const float dst_y1 = cy + half_h;
         if (opacity <= 0.001f || dst_x1 <= dst_x0 || dst_y1 <= dst_y0) continue;
 
-        uint32_t res_idx = static_cast<uint32_t>(template_frame->resources.size());
+        const uint32_t res_idx = static_cast<uint32_t>(template_frame->resources.size());
         template_frame->batch.instances.push_back(runtime::LayerInstance{
             .kind = runtime::PrimitiveKind::Image,
             .resource_index = res_idx,
@@ -577,4 +357,3 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 }
 
 } // namespace chronon3d::cli
-
