@@ -267,6 +267,7 @@ NodeExecResult CompositeNode::execute(
     // Skip-opaque optimization — only applies to SourceOver + Normal blend
     if (m_operator == CompositeOperator::SourceOver &&
         m_mode == BlendMode::Normal && top->is_opaque() &&
+        top->is_cpu_authoritative() &&
         input_bboxes.size() >= 2 && input_bboxes[1].has_value())
     {
         const auto& tb = *input_bboxes[1];
@@ -437,6 +438,7 @@ NodeExecResult CompositeNode::execute(
             // CPU pixels remain a reference snapshot for any legacy consumer;
             // the handle is the authoritative value for subsequent native
             // composite nodes.
+            result->mark_gpu_authoritative();
         } else if (m_operator != CompositeOperator::SourceOver) {
             // Stencil/Silhouette: use Normal blend to copy top first, then
             // apply the operator via the backend (which handles the masking).
@@ -455,6 +457,8 @@ NodeExecResult CompositeNode::execute(
                 }
             }
             ctx.services.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
+            if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
+                result->mark_gpu_authoritative();
     } else {
         // VulkanBackend::composite_layer is a native primitive even when the
         // fast-path probe above declined the optimized SourceOver route
@@ -478,6 +482,8 @@ NodeExecResult CompositeNode::execute(
             }
         }
         ctx.services.backend->composite_layer(*result, *top, m_mode, clip);
+        if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
+            result->mark_gpu_authoritative();
     }
 
         // ── Post-blend overhead ────────────────────────────────────────

@@ -2,6 +2,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/transition/transition_progress_sampler.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include "native_surface.hpp"
 #include <cmath>
 #include <algorithm>
 #include <span>
@@ -126,7 +127,7 @@ NodeExecResult TransitionNode::execute(
     const i32 w = src->width();
     const i32 h = src->height();
 
-    // Preserve the canvas-space origin of tight producer surfaces.  A
+    // Preserve the canvas-space origin of tight producer surfaces. A
     // transition only changes pixel values; it must not rebase the surface
     // to (0,0), otherwise screen-space TextRun/image overlays are composited
     // at the local origin after the transition.
@@ -135,12 +136,84 @@ NodeExecResult TransitionNode::execute(
         src->origin_x() + w, src->origin_y() + h};
     auto out_fb = ctx.acquire_owned_fb(w, h, false, output_bounds);
 
-    if (m_spec.transition_id.empty()) {
+    const bool has_native_backend = ctx.services.backend &&
+                                    ctx.services.surface_registry &&
+                                    ctx.services.backend->supports_native_surfaces();
+
+    if (m_spec.transition_id.empty() || m_spec.transition_id == "none") {
+        if (has_native_backend &&
+            (src->is_gpu_authoritative() || ctx.policy.require_native_gpu ||
+             src->surface_handle() != runtime::kInvalidRenderSurfaceHandle)) {
+            auto& mutable_src = const_cast<Framebuffer&>(*src);
+            const bool src_ready = ensure_native_surface(ctx, mutable_src, "TransitionNode.none.source");
+            const bool dst_ready = ensure_native_surface(ctx, *out_fb, "TransitionNode.none.destination");
+            if (src_ready && dst_ready) {
+                auto res = ctx.services.backend->copy_surface(out_fb->surface_handle(), src->surface_handle());
+                if (res.ok()) {
+                    out_fb->mark_gpu_authoritative();
+                    return NodeExecResult{std::move(out_fb)};
+                }
+            }
+            if (ctx.policy.require_native_gpu) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "TransitionNode",
+                    "native residency violation: transition 'none' copy failed"};
+            }
+        }
         *out_fb = *src;
         return NodeExecResult{std::move(out_fb)};
     }
 
     const float p = compute_progress(ctx);
+
+    // Native GPU crossfade path
+    if (m_spec.transition_id == "crossfade" && has_native_backend &&
+        (src->is_gpu_authoritative() || ctx.policy.require_native_gpu ||
+         src->surface_handle() != runtime::kInvalidRenderSurfaceHandle)) {
+        const float t = m_is_out ? (1.0f - p) : p;
+        auto& mutable_src = const_cast<Framebuffer&>(*src);
+        const bool src_ready = ensure_native_surface(ctx, mutable_src, "TransitionNode.crossfade.source");
+        const bool dst_ready = ensure_native_surface(ctx, *out_fb, "TransitionNode.crossfade.destination");
+        if (!src_ready || !dst_ready) {
+            if (ctx.policy.require_native_gpu) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "TransitionNode",
+                    "native residency violation: crossfade transition surfaces could not be materialized"};
+            }
+        } else {
+            auto res = ctx.services.backend->transform_surface(
+                out_fb->surface_handle(), src->surface_handle(), 0, 0, t);
+            if (res.ok()) {
+                out_fb->mark_gpu_authoritative();
+                return NodeExecResult{std::move(out_fb)};
+            }
+            if (ctx.policy.require_native_gpu) {
+                return NodeExecutionError{
+                    res.error().code,
+                    "TransitionNode",
+                    "native crossfade execution failed: " + res.error().message};
+            }
+        }
+    }
+
+    // Fail closed: CPU-only transition cannot read GPU-authoritative surface without sync
+    if (src->is_gpu_authoritative() && !src->is_cpu_authoritative()) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "TransitionNode",
+            "TransitionNode: transition '" + m_spec.transition_id +
+            "' requires CPU pixels but input is GPU-authoritative with no valid CPU shadow"};
+    }
+    if (ctx.policy.require_native_gpu) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "TransitionNode",
+            "TransitionNode: transition '" + m_spec.transition_id +
+            "' requires CPU pixels but input is GPU-authoritative while require_native_gpu=true"};
+    }
+
     const LayerTransitionProgram& program = resolve_program(ctx);
     program.execute(src, *out_fb, p, m_spec.direction, m_is_out, ctx);
 

@@ -141,6 +141,12 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     }
     layer.opacity = optional_value<float>(value, "opacity");
     layer.loop = value.value("loop", false);
+    if (value.contains("transition_in")) {
+        layer.transition_in = decode_transition(value.at("transition_in"));
+    }
+    if (value.contains("transition_out")) {
+        layer.transition_out = decode_transition(value.at("transition_out"));
+    }
     return layer;
 }
 

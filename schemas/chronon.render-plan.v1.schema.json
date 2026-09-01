@@ -111,8 +111,34 @@
               "start_frame": { "type": "integer", "minimum": 0 },
               "duration_frames": { "type": "integer", "minimum": 1 },
               "unit": { "enum": ["word", "glyph", "line"] },
-              "enter": { "type": "object", "additionalProperties": false, "properties": { "duration_frames": { "type": "integer", "minimum": 1 } } },
-              "exit": { "type": "object", "additionalProperties": false, "properties": { "duration_frames": { "type": "integer", "minimum": 1 } } }
+              "enter": { "type": "object", "additionalProperties": false, "properties": { "duration_frames": { "type": "integer", "minimum": 0 } } },
+              "exit": { "type": "object", "additionalProperties": false, "properties": { "duration_frames": { "type": "integer", "minimum": 0 } } }
+            }
+          },
+          "transition_in": {
+            "type": "object", "additionalProperties": true,
+            "properties": {
+              "type": { "type": "string" },
+              "transition_id": { "type": "string" },
+              "duration": { "type": "number", "minimum": 0 },
+              "duration_seconds": { "type": "number", "minimum": 0 },
+              "duration_frames": { "type": "number", "minimum": 0 },
+              "delay": { "type": "number" },
+              "direction": { "type": "string" },
+              "easing": { "type": "string" }
+            }
+          },
+          "transition_out": {
+            "type": "object", "additionalProperties": true,
+            "properties": {
+              "type": { "type": "string" },
+              "transition_id": { "type": "string" },
+              "duration": { "type": "number", "minimum": 0 },
+              "duration_seconds": { "type": "number", "minimum": 0 },
+              "duration_frames": { "type": "number", "minimum": 0 },
+              "delay": { "type": "number" },
+              "direction": { "type": "string" },
+              "easing": { "type": "string" }
             }
           },
           "blend_mode": { "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn"] },

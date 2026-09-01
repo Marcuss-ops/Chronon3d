@@ -165,6 +165,27 @@ FitMode fit_mode(const std::string& value) {
     return FitMode::Cover;
 }
 
+std::optional<chronon3d::LayerTransitionSpec> decode_transition(const nlohmann::json& value) {
+    if (!value.is_object()) return std::nullopt;
+    chronon3d::LayerTransitionSpec spec;
+    spec.transition_id = value.value("type", value.value("transition_id", std::string{"none"}));
+    if (value.contains("duration")) {
+        spec.duration = value.at("duration").get<double>();
+    } else if (value.contains("duration_seconds")) {
+        spec.duration = value.at("duration_seconds").get<double>();
+    }
+    if (value.contains("delay")) {
+        spec.delay = value.at("delay").get<double>();
+    }
+    if (value.contains("direction")) {
+        spec.direction = chronon3d::string_to_transition_direction(value.at("direction").get<std::string>());
+    }
+    if (value.contains("easing")) {
+        spec.easing = chronon3d::string_to_easing(value.at("easing").get<std::string>());
+    }
+    return spec;
+}
+
 std::optional<BlendMode> blend_mode(const std::string& value) {
     if (value == "normal") return BlendMode::Normal;
     if (value == "add") return BlendMode::Add;

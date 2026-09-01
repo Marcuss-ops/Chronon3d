@@ -280,6 +280,9 @@ public:
     void mark_gpu_authoritative() noexcept { m_cpu_authoritative = false; }
     void mark_cpu_gpu_synchronized() noexcept { m_cpu_authoritative = true; }
     [[nodiscard]] bool is_cpu_authoritative() const noexcept { return m_cpu_authoritative; }
+    [[nodiscard]] bool is_gpu_authoritative() const noexcept {
+        return !m_cpu_authoritative && m_surface_handle != runtime::kInvalidRenderSurfaceHandle;
+    }
     void set_surface_handle(runtime::RenderSurfaceHandle handle) noexcept {
         m_surface_handle = handle;
     }

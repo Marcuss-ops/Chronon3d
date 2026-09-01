@@ -119,18 +119,35 @@ void execute_fused_batch(
     auto& instances = gpu_batch.instances;
     auto& resources = gpu_batch.resources;
     std::unordered_map<runtime::RenderSurfaceHandle, uint32_t> resource_map;
+    std::optional<raster::BBox> image_bbox;
 
     for (const auto& inst : batch.instances) {
-        if (inst.node >= graph.size() || !graph.has_node(inst.node)) continue;
+        if (inst.node >= graph.size() || !graph.has_node(inst.node)) {
+            throw std::runtime_error("image batch references an invalid graph node");
+        }
         const auto& node = graph.node(inst.node);
-        if (node.kind() != RenderGraphNodeKind::Source) continue;
+        if (node.kind() != RenderGraphNodeKind::Source) {
+            throw std::runtime_error("image batch contains a non-source node");
+        }
         const auto& src_node = static_cast<const SourceNode&>(node);
-        if (src_node.render_node().shape.type() != ShapeType::Image) continue;
+        if (src_node.render_node().shape.type() != ShapeType::Image) {
+            throw std::runtime_error("image batch contains a non-image source");
+        }
         const auto& img = src_node.render_node().shape.image();
-        if (img.path.empty() || !ctx.services.image_cache || !ctx.services.gpu_asset_cache) continue;
+        if (img.path.empty()) {
+            throw std::runtime_error("image batch source has an empty asset path");
+        }
+        if (!ctx.services.image_cache) {
+            throw std::runtime_error("image batch requires image_cache");
+        }
+        if (!ctx.services.gpu_asset_cache) {
+            throw std::runtime_error("image batch requires gpu_asset_cache");
+        }
 
         const auto cached = ctx.services.image_cache->find(img.path, img.decode_options);
-        if (!cached || !cached->valid() || cached->gpu_rgba.empty() || !cached->fb_img) continue;
+        if (!cached || !cached->valid() || cached->gpu_rgba.empty() || !cached->fb_img) {
+            throw std::runtime_error("image asset unavailable for GPU batch: " + img.path);
+        }
 
         const auto& key = cached->gpu_key;
         const runtime::SurfaceDesc desc{
@@ -139,7 +156,10 @@ void execute_fused_batch(
             runtime::LifetimeClass::JobPersistent,
             cached->gpu_rgba.size() * sizeof(float)};
         const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
-        if (!acquired.ok()) continue;
+        if (!acquired.ok()) {
+            throw std::runtime_error("unable to acquire GPU image surface '" +
+                                     img.path + "': " + acquired.error);
+        }
 
         runtime::RenderSurfaceHandle handle = acquired.handle;
         uint32_t res_idx = 0;
@@ -176,23 +196,50 @@ void execute_fused_batch(
         gpu_inst.dst_y0 = world_y0;
         gpu_inst.dst_x1 = world_x1;
         gpu_inst.dst_y1 = world_y1;
-        gpu_inst.src_x0 = placement.src_rect.origin.x;
-        gpu_inst.src_y0 = placement.src_rect.origin.y;
-        gpu_inst.src_x1 = placement.src_rect.origin.x + placement.src_rect.size.x;
-        gpu_inst.src_y1 = placement.src_rect.origin.y + placement.src_rect.size.y;
+        // layer_batch.comp samples src_rect as normalized coordinates (0..1),
+        // while media placement is expressed in source pixels. Convert at
+        // this boundary so the Vulkan fused image path samples the authored
+        // image instead of clamping every lookup to an edge texel.
+        const float source_width = original_source_size.x;
+        const float source_height = original_source_size.y;
+        gpu_inst.src_x0 = placement.src_rect.origin.x / source_width;
+        gpu_inst.src_y0 = placement.src_rect.origin.y / source_height;
+        gpu_inst.src_x1 = (placement.src_rect.origin.x + placement.src_rect.size.x) /
+                          source_width;
+        gpu_inst.src_y1 = (placement.src_rect.origin.y + placement.src_rect.size.y) /
+                          source_height;
         gpu_inst.opacity = opacity;
         gpu_inst.blend = BlendMode::Normal;
         gpu_inst.kind = runtime::PrimitiveKind::Image;
         instances.push_back(gpu_inst);
+
+        raster::BBox bbox{
+            static_cast<i32>(std::floor(world_x0)),
+            static_cast<i32>(std::floor(world_y0)),
+            static_cast<i32>(std::ceil(world_x1)),
+            static_cast<i32>(std::ceil(world_y1))};
+        bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
+        if (!image_bbox) image_bbox = bbox;
+        else {
+            image_bbox->x0 = std::min(image_bbox->x0, bbox.x0);
+            image_bbox->y0 = std::min(image_bbox->y0, bbox.y0);
+            image_bbox->x1 = std::max(image_bbox->x1, bbox.x1);
+            image_bbox->y1 = std::max(image_bbox->y1, bbox.y1);
+        }
+    }
+
+    if (instances.empty()) {
+        throw std::runtime_error("image batch materialized zero GPU instances");
     }
 
     auto dest_fb = ctx.acquire_framebuffer(ctx.frame_input.width, ctx.frame_input.height, true);
     ensure_native_surface(ctx, *dest_fb, "execute_fused_batch.image");
     ctx.services.backend->execute_layer_batch(
         dest_fb->surface_handle(), gpu_batch, resources, {}, {});
+    dest_fb->mark_gpu_authoritative();
 
     state.temp[id] = dest_fb;
-    state.resolved_bboxes[id] = raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    state.resolved_bboxes[id] = image_bbox;
     if (parent_counters) {
         parent_counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
     }
