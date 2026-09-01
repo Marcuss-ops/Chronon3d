@@ -1,7 +1,6 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <chronon3d/core/hash/hash_builder.hpp>
-#include <chronon3d/registry/visual_preset_registry.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 
 #include <nlohmann/json.hpp>

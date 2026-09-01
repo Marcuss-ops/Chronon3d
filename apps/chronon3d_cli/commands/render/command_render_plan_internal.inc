@@ -151,33 +151,35 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
-        try {
-            verification::RenderReceiptInput receipt_input;
-            receipt_input.job_id = prepared.job_id;
-            receipt_input.content_digest = prepared.fingerprint.content_digest.hex();
-            receipt_input.request_digest = prepared.fingerprint.request_digest.hex();
-            receipt_input.asset_manifest_digest =
-                prepared.assets.manifest_digest().hex();
+        if (args.report) {
+            try {
+                verification::RenderReceiptInput receipt_input;
+                receipt_input.job_id = prepared.job_id;
+                receipt_input.content_digest = prepared.fingerprint.content_digest.hex();
+                receipt_input.request_digest = prepared.fingerprint.request_digest.hex();
+                receipt_input.asset_manifest_digest =
+                    prepared.assets.manifest_digest().hex();
 #ifdef CHRONON3D_CLI_PROJECT_VERSION
-            receipt_input.chronon_version = CHRONON3D_CLI_PROJECT_VERSION;
+                receipt_input.chronon_version = CHRONON3D_CLI_PROJECT_VERSION;
 #endif
-            receipt_input.git_sha = telemetry::TelemetryManager::get_git_commit();
-            receipt_input.backend = args.backend;
-            receipt_input.width = prepared.canvas.width;
-            receipt_input.height = prepared.canvas.height;
-            receipt_input.fps_num = prepared.canvas.fps.num();
-            receipt_input.fps_den = prepared.canvas.fps.den();
-            receipt_input.frames = prepared.canvas.duration.integral();
-            receipt_input.requested_codec = codec_name(prepared.output.codec);
-            receipt_input.has_audio_tracks = false;
+                receipt_input.git_sha = telemetry::TelemetryManager::get_git_commit();
+                receipt_input.backend = args.backend;
+                receipt_input.width = prepared.canvas.width;
+                receipt_input.height = prepared.canvas.height;
+                receipt_input.fps_num = prepared.canvas.fps.num();
+                receipt_input.fps_den = prepared.canvas.fps.den();
+                receipt_input.frames = prepared.canvas.duration.integral();
+                receipt_input.requested_codec = codec_name(prepared.output.codec);
+                receipt_input.has_audio_tracks = false;
 
-            const auto receipt = verification::build_render_receipt(
-                receipt_input, output, video_output(output));
-            const auto receipt_path =
-                verification::write_render_receipt(receipt, output);
-            spdlog::info("receipt: {}", receipt_path.string());
-        } catch (const std::exception& error) {
-            spdlog::warn("receipt generation failed: {}", error.what());
+                const auto receipt = verification::build_render_receipt(
+                    receipt_input, output, video_output(output));
+                const auto receipt_path =
+                    verification::write_render_receipt(receipt, output);
+                spdlog::info("receipt: {}", receipt_path.string());
+            } catch (const std::exception& error) {
+                spdlog::warn("receipt generation failed: {}", error.what());
+            }
         }
         return 0;
     } catch (const std::exception& error) {

@@ -6,18 +6,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     if (value.contains("type")) {
         layer.type = layer_type(value.at("type").get<std::string>());
     } else {
-        const std::string preset = value.value("preset", std::string{});
-        if (preset.empty()) {
-            throw std::runtime_error(
-                "layer '" + layer.id + "' has no type and no preset to derive one from");
-        }
-        const auto& registry = chronon3d::registry::builtin_visual_preset_registry();
-        if (!registry.contains(preset)) {
-            throw std::runtime_error(
-                "layer '" + layer.id + "' preset '" + preset +
-                "' is unknown (cannot derive layer type)");
-        }
-        layer.type = visual_layer_type(registry.get(preset).supported_layer);
+        throw std::runtime_error(
+            "layer '" + layer.id + "' must declare a generic type");
     }
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
