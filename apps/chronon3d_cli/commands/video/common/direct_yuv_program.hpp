@@ -4,9 +4,12 @@
 
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/media/video/cuda_image_resource.hpp>
 
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace chronon3d {
 class ImageCache;
@@ -15,11 +18,18 @@ namespace media { class NativeVideoFrameDecoder; }
 
 namespace chronon3d::cli {
 
-/// Resolver-owned, precompiled program for the deliberately small direct-YUV
-/// subset.  It is not a second scene renderer: eligibility is derived from
-/// the canonical compiled composition, assets are loaded through the runtime
-/// ImageCache, and execution only supplies decoded NV12 frames to the shared
-/// encoder contract.
+struct DirectLayerResourceEntry {
+    std::shared_ptr<const media::CudaImageResource> gpu_resource;
+    float native_width{0.0f};
+    float native_height{0.0f};
+    float local_offset_x{0.0f};
+    float local_offset_y{0.0f};
+    bool is_text{false};
+};
+
+/// Resolver-owned, precompiled program for the direct CUDA NV12 compositor.
+/// Supports 2D image overlays (scale, translate, opacity) and single-pass
+/// pre-rasterized text textures with zero CPU readback.
 class DirectYuvProgram final {
 public:
     static std::shared_ptr<DirectYuvProgram> prepare(
@@ -42,10 +52,13 @@ private:
     std::string video_path_;
     int width_{0};
     int height_{0};
-    std::shared_ptr<DirectYuvTemplate> template_frame_;
+    std::shared_ptr<const Composition> composition_;
+    std::unordered_map<std::string, DirectLayerResourceEntry> layer_resources_;
+    std::vector<std::shared_ptr<const media::CudaImageResource>> persistent_resources_;
     double scene_eval_ms_{0.0};
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};
 };
 
 } // namespace chronon3d::cli
+
