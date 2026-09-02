@@ -465,18 +465,47 @@ namespace chronon3d::backends::vulkan {
 
     void VulkanBackend::Impl::emit_conservative_pass_sync(VkCommandBuffer command,
                                      std::initializer_list<const Image*> images) {
-        std::vector<VkImageMemoryBarrier> barriers;
+        std::vector<VkImageMemoryBarrier2KHR> barriers;
         barriers.reserve(images.size());
         for (const Image* image : images) {
-            barriers.push_back(make_image_barrier(
-                *image,
-                image->initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+            if (!image || image->image == VK_NULL_HANDLE) continue;
+            const bool initialized = image->initialized;
+            barriers.push_back(VkImageMemoryBarrier2KHR{
+                VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+                nullptr,
+                initialized ? VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR
+                            : VK_PIPELINE_STAGE_2_NONE_KHR,
+                initialized ? (VK_ACCESS_2_MEMORY_READ_BIT_KHR |
+                               VK_ACCESS_2_MEMORY_WRITE_BIT_KHR)
+                            : VK_ACCESS_2_NONE_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+                initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_GENERAL,
-                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT));
+                VK_QUEUE_FAMILY_IGNORED,
+                VK_QUEUE_FAMILY_IGNORED,
+                image->image,
+                VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}});
         }
-        emit_barriers(command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, barriers);
+        if (barriers.empty()) return;
+        const auto pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
+            vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
+        if (!pipeline_barrier2) {
+            throw std::runtime_error(
+                "Vulkan: vkCmdPipelineBarrier2KHR unavailable after synchronization2 enablement");
+        }
+        const VkDependencyInfoKHR dependency{
+            VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+            nullptr,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(barriers.size()),
+            barriers.data()};
+        stats.barriers_emitted += barriers.size();
+        pipeline_barrier2(command, &dependency);
     }
 
     void VulkanBackend::Impl::emit_pass_sync(VkCommandBuffer command,
@@ -484,7 +513,12 @@ namespace chronon3d::backends::vulkan {
         if (frame_batch.sync_plan) {
             emit_plan_pass_barriers(command, *frame_batch.sync_plan,
                                     frame_batch.pass_count);
+            // Compiled resources are synchronized exclusively by BarrierPlan.
+            // Truly external/unplanned surfaces remain a narrow compatibility
+            // boundary and receive only their own Sync2 barrier; never fall
+            // back to re-barriering every image in the compiled pass.
             for (const Image* image : images) {
+                if (!image) continue;
                 bool unplanned = false;
                 for (const auto handle : surfaces.unplanned_surface_handles) {
                     const auto binding = surfaces.surface_bindings.find(handle);
@@ -497,28 +531,52 @@ namespace chronon3d::backends::vulkan {
                     }
                 }
                 if (unplanned) {
-                    emit_conservative_pass_sync(command, images);
-                    break;
+                    emit_conservative_pass_sync(command, {image});
                 }
             }
-        } else {
-            emit_conservative_pass_sync(command, images);
+            return;
         }
+        emit_conservative_pass_sync(command, images);
     }
 
     void VulkanBackend::Impl::emit_command_batch_boundary() {
-        std::vector<VkImageMemoryBarrier> barriers;
+        std::vector<VkImageMemoryBarrier2KHR> barriers;
         for (auto& [slot, physical] : surfaces.physical_surfaces) {
             (void)slot;
-            if (!physical.image.initialized) continue;
-            barriers.push_back(make_image_barrier(
-                physical.image,
-                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-                VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT));
+            if (!physical.image.initialized || physical.image.image == VK_NULL_HANDLE) continue;
+            barriers.push_back(VkImageMemoryBarrier2KHR{
+                VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+                nullptr,
+                VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+                VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+                VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_QUEUE_FAMILY_IGNORED,
+                VK_QUEUE_FAMILY_IGNORED,
+                physical.image.image,
+                VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}});
         }
-        emit_barriers(active_command_buffer(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, barriers);
+        if (barriers.empty()) return;
+        const auto pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
+            vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
+        if (!pipeline_barrier2) {
+            throw std::runtime_error(
+                "Vulkan: vkCmdPipelineBarrier2KHR unavailable after synchronization2 enablement");
+        }
+        const VkDependencyInfoKHR dependency{
+            VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+            nullptr,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(barriers.size()),
+            barriers.data()};
+        stats.barriers_emitted += barriers.size();
+        pipeline_barrier2(active_command_buffer(), &dependency);
     }
 
     // The single compiled BarrierPlan -> Vulkan mapper. Hazard selection,
