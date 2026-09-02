@@ -3,7 +3,7 @@
 #
 # PURPOSE
 #   Single source of truth for the *install* layer of the SDK:
-#     • Explicit public header FILE_SETs (core + focused authoring subset).
+#     • Explicit public header FILE_SET.
 #     • install(TARGETS) for every OBJECT + INTERFACE/STATIC aggregate
 #       listed in cmake/Chronon3DRegistry.cmake.
 #     • install(EXPORT Chronon3DTargets) → Chronon3DTargets.cmake.
@@ -36,10 +36,9 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 # ── Public headers ─────────────────────────────────────────────────────
-# Explicit manifests only; NO GLOB. The OPP-internal surface and any header
-# omitted from these manifests are deliberately not installed.
+# Explicit manifest only; NO GLOB. The OPP-internal surface and any header
+# omitted from this manifest are deliberately not installed.
 include("${CMAKE_SOURCE_DIR}/cmake/Chronon3DPublicHeaders.cmake")
-include("${CMAKE_SOURCE_DIR}/cmake/Chronon3DAuthoringPublicHeaders.cmake")
 
 # Core SDK/transitive public surface.
 target_sources(chronon3d_sdk INTERFACE
@@ -47,16 +46,6 @@ target_sources(chronon3d_sdk INTERFACE
     TYPE HEADERS
     BASE_DIRS "${CMAKE_SOURCE_DIR}/include"
     FILES ${CHRONON3D_PUBLIC_HEADERS}
-)
-
-# Focused authoring surface. This enables the documented explicit includes:
-# authoring/asset.hpp, authoring/layer.hpp, authoring/text.hpp and their exact
-# transitive authoring dependencies without introducing an umbrella header.
-target_sources(chronon3d_sdk INTERFACE
-    FILE_SET authoring_headers
-    TYPE HEADERS
-    BASE_DIRS "${CMAKE_SOURCE_DIR}/include"
-    FILES ${CHRONON3D_AUTHORING_PUBLIC_HEADERS}
 )
 
 # ── Aggregate install + export target list ────────────────────────────
@@ -74,12 +63,10 @@ foreach(_tgt IN LISTS _chronon3d_install_targets_raw)
     endif()
 endforeach()
 
-# Install + export both explicit header subsets from the single public target.
 install(TARGETS ${_chronon3d_install_targets}
     EXPORT Chronon3DTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILE_SET public_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILE_SET authoring_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 if(TARGET chronon3d_c)
