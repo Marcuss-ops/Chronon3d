@@ -62,26 +62,26 @@ if(NOT CMAKE_CXX_LINKER_LAUNCHER)
     endif()
 endif()
 
-# --- Opzioni del Progetto --
+# --- Opzioni del Progetto ---
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
-option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)
-option(CHRONON3D_BUILD_DIAGNOSTICS "Build diagnostic/debug compositions (tests, calibrations, A/B)" OFF)
+option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks and benchmark CLI" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz + ICU boundaries)" ON)
-option(CHRONON3D_ENABLE_SVG "Enable SVG path/document importing" ON)
+option(CHRONON3D_ENABLE_SVG "Enable SVG path/document importing" OFF)
 option(CHRONON3D_ENABLE_OCIO "Enable OpenColorIO colour-management transforms" OFF)
-option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" ON)
+option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" OFF)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event backend)" OFF)
 option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
-option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
-option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" ON)
-option(CHRONON3D_ENABLE_IPC "Build the FlatBuffers IPC boundary" ON)
-option(CHRONON3D_BUILD_DAEMON "Build the persistent IPC daemon" ON)
+option(CHRONON3D_ENABLE_VERIFICATION "Build canonical output verification and render receipts" OFF)
+option(CHRONON3D_ENABLE_VIDRUSH "Build the Vidrush provenance-report module" OFF)
+option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" OFF)
+option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" OFF)
+option(CHRONON3D_ENABLE_IPC "Build the FlatBuffers IPC boundary" OFF)
+option(CHRONON3D_BUILD_DAEMON "Build the persistent IPC daemon" OFF)
 option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
 option(CHRONON3D_BUILD_FUZZERS "Build libFuzzer targets (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CUDA_INTEROP
@@ -96,6 +96,7 @@ option(CHRONON3D_ENABLE_CRASH_HANDLER
        "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
 option(CHRONON3D_ENABLE_DEV_WATCH
        "Enable file-system watch mode for development (efsw) — CLI dev only" OFF)
+
 if(CHRONON3D_ENABLE_SVG)
     find_package(boost_spirit CONFIG REQUIRED)
     find_package(boost_math CONFIG REQUIRED)
@@ -132,10 +133,8 @@ if(CHRONON3D_REPRODUCIBLE_BUILD AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
 endif()
 
-# ── Optional heavy dependency: Blend2D ──────────────────────────────────
-# Blend2D is the only USE_ option because it is independent of its ENABLE_
-# counterpart (ENABLE_TEXT gates freetype+harfbuzz but not Blend2D).
-# All other optional deps use the ENABLE_* options exclusively.
+# Blend2D is independent from CHRONON3D_ENABLE_TEXT and remains part of the
+# lean software-rendering default.
 option(CHRONON3D_USE_BLEND2D "Enable Blend2D software rendering backend" ON)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
@@ -144,8 +143,6 @@ endif()
 if(CHRONON3D_ENABLE_CUDA_INTEROP)
     add_compile_definitions(CHRONON3D_ENABLE_CUDA_INTEROP)
 endif()
-
-# ── Propagate optional-dependency defines so code can guard #includes ──
 if(CHRONON3D_USE_BLEND2D)
     add_compile_definitions(CHRONON3D_USE_BLEND2D)
 endif()
@@ -159,15 +156,10 @@ if(CHRONON3D_ENABLE_VIDEO)
     add_compile_definitions(CHRONON3D_ENABLE_VIDEO)
 endif()
 if(CHRONON3D_BUILD_TESTS)
-    # Test suites assert against diagnostics snapshots and cache registration.
+    # Test suites assert against diagnostics snapshots and render receipts.
     set(CHRONON3D_ENABLE_DIAGNOSTICS ON CACHE BOOL "Enable engine-level diagnostics code" FORCE)
+    set(CHRONON3D_ENABLE_VERIFICATION ON CACHE BOOL "Build canonical output verification and render receipts" FORCE)
 endif()
-if(CHRONON3D_BUILD_DIAGNOSTICS)
-    add_compile_definitions(CHRONON3D_BUILD_DIAGNOSTICS)
-    # Content diagnostics require engine-level diagnostics code.
-    set(CHRONON3D_ENABLE_DIAGNOSTICS ON CACHE BOOL "Enable engine-level diagnostics code" FORCE)
-endif()
-
 if(CHRONON3D_ENABLE_DIAGNOSTICS)
     add_compile_definitions(CHRONON3D_ENABLE_DIAGNOSTICS)
 endif()
@@ -218,11 +210,6 @@ if(CHRONON3D_ENABLE_VULKAN)
     find_package(Vulkan REQUIRED)
     find_package(unofficial-spirv-reflect CONFIG REQUIRED)
     if(TARGET unofficial::spirv-reflect)
-        # Keep the imported vcpkg target immutable.  The port currently
-        # exports the legacy header below include/spirv-reflect while the
-        # code generator includes <spirv_reflect.h> from its parent.  This
-        # wrapper is the single local compatibility boundary and can be
-        # deleted once the port exports the canonical include root.
         add_library(chronon3d_spirv_reflect_headers INTERFACE)
         target_link_libraries(chronon3d_spirv_reflect_headers INTERFACE
             unofficial::spirv-reflect
@@ -290,39 +277,14 @@ endif()
 
 add_subdirectory(src)
 
-# 10. Content Generation (optional — proofs/demos, not core engine)
-if(CHRONON3D_BUILD_CONTENT OR CHRONON3D_BUILD_DIAGNOSTICS)
-    add_subdirectory(content)
-endif()
-
-# Late-binding: content is added AFTER src so its link deps exist,
-# but Chronon3DSdkTargets.cmake (inside src) already ran.  Explicitly
-# wire content objects into the SDK archive here.
-if(TARGET chronon3d_content AND TARGET chronon3d_sdk_impl)
-    target_sources(chronon3d_sdk_impl PRIVATE $<TARGET_OBJECTS:chronon3d_content>)
-endif()
-
-# Also wire content objects into chronon3d_pipeline so in-tree consumers
-# (tests, CLI via sdk→pipeline) that link only the pipeline target get
-# the register_content_modules symbol.  This mirrors the late-binding
-# pattern used for chronon3d_sdk_impl above.
-if(TARGET chronon3d_content AND TARGET chronon3d_pipeline)
-    target_sources(chronon3d_pipeline INTERFACE $<TARGET_OBJECTS:chronon3d_content>)
-endif()
-
 # ── Perfetto tracing backend ─────────────────────────────────────────────
-# Perfetto is the timeline-tracing backend for core_impl.
 if(CHRONON3D_ENABLE_TRACING)
     target_link_libraries(chronon3d_core_impl PRIVATE unofficial::perfetto::perfetto)
     target_compile_definitions(chronon3d_core_impl PRIVATE CHRONON3D_ENABLE_TRACING)
-    # Final link closure: the static perfetto archive must reach every
-    # consumer that pulls core_impl objects through the pipeline INTERFACE.
     target_link_libraries(chronon3d_pipeline INTERFACE unofficial::perfetto::perfetto)
 endif()
 
 # Build CLI command-group libraries before the test definitions are loaded.
-# Some focused SDK tests (notably render_job_contract_tests) intentionally link
-# against chronon3d_cli_render and must see that target during configuration.
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
@@ -333,16 +295,12 @@ if(CHRONON3D_BUILD_DAEMON)
     add_subdirectory(apps/chronon3d_daemon)
 endif()
 
-# Standalone benchmark CLI.
-if(CHRONON3D_BUILD_BENCHMARK_CLI)
+# The benchmark library/tests and standalone benchmark CLI share one SSOT gate.
+if(CHRONON3D_BUILD_BENCHMARKS)
     add_subdirectory(apps/chronon3d_bench)
 endif()
 
 # ── Test orchestration ───────────────────────────────────────────────────
-# enable_testing() is invoked BEFORE the BUILD_TESTS gate so the
-# standalone install-boundary test (add_test() registered further down)
-# is registered with CTest even when CHRONON3D_BUILD_TESTS=OFF.  When
-# BUILD_TESTS=ON, the per-area test executables still register as before.
 enable_testing()
 
 if(CHRONON3D_BUILD_TESTS)
@@ -352,26 +310,11 @@ if(CHRONON3D_BUILD_TESTS)
 endif()
 
 # ── Fuzz targets (libFuzzer + ASAN/UBSAN, Clang only) ───────────────────
-# Fuzzers belong to the IPC boundary, not to the optional CLI.
 if(CHRONON3D_BUILD_FUZZERS AND CHRONON3D_ENABLE_IPC)
     add_subdirectory(tests/fuzz)
 endif()
 
 # ── Install-boundary CI gate (TICKET-011) ─────────────────────────────────
-# Standalone consumer at `tests/install_consumer/` that uses ONLY the public
-# Chronon3D::SDK target namespaced alias.  The orchestrator script:
-#   1. Reuses the existing build artifact if `libchronon3d_sdk_impl.a` is
-#      already produced (fast path; ~seconds).
-#   2. Otherwise: cold reconfigure + build to an mktemp dir.
-#   3. `cmake --install` to an mktemp prefix.
-#   4. Validates that Chronon3DConfig.cmake + Chronon3DTargets.cmake +
-#      libchronon3d_sdk_impl.a are present under the install prefix.
-#   5. Configures + builds + runs the consumer and asserts the
-#      [BOUNDARY-OK] marker.
-#
-# Wired into CI via the linux-ci preset cache var
-# `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON`.  The consumer renders a
-# real composition (text + camera → PNG) and verifies the output.
 option(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST
     "Run the end-to-end SDK install-boundary check via tools/install_consumer_test.sh. CTest registers install_consumer_ci; orchestrator exit code 2 maps to CTEST SKIP. Enable via the linux-ci preset or -DCHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON."
     OFF)
@@ -380,9 +323,6 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         NAME install_consumer_ci
         COMMAND "${CMAKE_SOURCE_DIR}/tools/install_consumer_test.sh"
     )
-    # TIMEOUT 900s: cold path reconfigures + builds the full SDK from
-    # scratch (rare, but covered for legibility).  FAST path reuses the
-    # existing build artifact and completes in seconds.
     set_tests_properties(install_consumer_ci PROPERTIES
         TIMEOUT 900
         LABELS "boundary;ci"
@@ -391,17 +331,6 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 # ── Visual Regression Gate (two-tier: EXACT_SHA + VISUAL_SCORE) ──────────
-# CI-facing gate that compares a rendered actual PNG against a reference golden.
-# Tier 1: SHA-256 of raw RGBA (exact pixel identity).
-# Tier 2: SSIM perceptual score (cross-hardware tolerance).
-#
-# The gate is registered unconditionally (like install_consumer_ci) and
-# SKIPs when the CI environment hasn't set VISUAL_GATE_ACTUAL / REFERENCE.
-# When both are set, the Python tool validates the pair and emits:
-#   EXACT_SHA:PASS/FAIL + VISUAL_SCORE:PASS/FAIL
-#
-# Artifacts (actual.png, reference.png, diff.png, score.json) are written
-# to test_renders/visual_gate/ on any FAIL.
 option(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE
     "Register the two-tier visual regression CTest gate (requires Pillow + ImageMagick)" ON)
 if(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE)
@@ -424,12 +353,9 @@ if(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE)
 endif()
 
 # ── SDK Install / Export ─────────────────────────────────────────────────────
-# Install and export the public SDK target.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkInstall.cmake)
 
 # ── Aggregate developer target (CLI + fast tests) ──────────────────────────────
-# Convenience target for daily development: builds the CLI and the fast test suite
-# in a single invocation. Only created when both CLI and tests are enabled.
 if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
     add_custom_target(chronon3d_dev_fast
         DEPENDS
@@ -439,36 +365,9 @@ if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
 endif()
 
 # ── Hygiene gates ─────────────────────────────────────────────────────
-# check_refs: invoke tools/check_filename_drift.sh to ensure every cited
-# filename points to a path that exists on disk.  Complementary to
-# check_doc_sync.sh (which enforces co-update, not existence).  Kept
-# in a separate file to avoid mixing custom_targets with the
-# OBJECT/INTERFACE library registry in Chronon3DRegistry.cmake.
 include(cmake/Hygiene.cmake)
 
-# ── WP0 PR 0.1 — chronon3d_architecture_check aggregate target ────────────
-# The architecture-check target compiles (or verifies the previous build of)
-# every architectural boundary layer the project uses:
-#
-#   • chronon3d_runtime          ─ engine-lifetime state owner
-#   • chronon3d_graph_executor   ─ stateless graph executor
-#   • chronon3d_graph_pipeline   ─ scene orchestration + tile dispatch
-#   • chronon3d_backend_software ─ software backend core
-#   • chronon3d_tests_fast       ─ guard tests that no boundary regresses
-#   • chronon3d_sdk_impl         ─ single aggregated SDK archive (boundary proof)
-#
-# NO disjoint compile targets are introduced — every dependency listed above
-# either already exists in src/CMakeLists.txt or src/<sub>/CMakeLists.txt.
-# The custom_target is registered UNCONDITIONALLY so CI / `cmake --build
-# --target chronon3d_architecture_check` works without the BUILD_TESTS gate.
-# If a CONDITIONAL target is not present in the current configuration
-# (e.g. CHRONON3D_BUILD_TESTS=OFF), `if(TARGET …)` guards drop it silently.
-#
-# The companion `tools/check_architecture_boundaries.sh` script (WP0 PR 0.2)
-# is the RUNTIME boundary verifier — it is invoked by CI and the
-# `chronon3d_dev_fast` aggregate does NOT wrap it (the script is fast and
-# idempotent; running it directly is preferable to nesting it into a custom
-# target).
+# ── Architecture check aggregate target ─────────────────────────────────
 add_custom_target(chronon3d_architecture_check)
 if(TARGET chronon3d_runtime)
     add_dependencies(chronon3d_architecture_check chronon3d_runtime)

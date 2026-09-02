@@ -1,21 +1,21 @@
 # ── Chronon3D IPC module (ADR-024) ────────────────────────────────────────
 # FlatBuffers schema → generated C++ → OBJECT library
 #
-# Schema compilation: flatc --cpp schema/chronon_ipc.fbs → chronon_ipc_generated.h
+# Schema compilation: flatc --cpp schemas/flatbuffers/chronon_ipc.fbs → chronon_ipc_generated.h
 
 find_program(CHRONON3D_FLATC flatc REQUIRED)
 find_package(flatbuffers CONFIG REQUIRED)
 
 set(CHRONON3D_IPC_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(CHRONON3D_IPC_SCHEMA "${CMAKE_SOURCE_DIR}/schema/chronon_ipc.fbs")
+set(CHRONON3D_IPC_SCHEMA "${CMAKE_SOURCE_DIR}/schemas/flatbuffers/chronon_ipc.fbs")
 set(CHRONON3D_IPC_GENERATED_HEADER "${CHRONON3D_IPC_GENERATED_DIR}/chronon_ipc_generated.h")
 
 set(CHRONON3D_COMPOSITION_SCHEMA_FILE
-    ${CMAKE_SOURCE_DIR}/schemas/chronon.composition.v1.schema.json)
+    ${CMAKE_SOURCE_DIR}/schemas/json/chronon.composition.v1.schema.json)
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
-    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v2.schema.json)
+    ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v2.schema.json)
 set(CHRONON3D_RENDER_SETTINGS_SCHEMA_FILE
-    ${CMAKE_SOURCE_DIR}/schemas/chronon.render-settings.v1.schema.json)
+    ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-settings.v1.schema.json)
 file(READ "${CHRONON3D_COMPOSITION_SCHEMA_FILE}"
      CHRONON3D_COMPOSITION_SCHEMA_JSON)
 file(READ "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"

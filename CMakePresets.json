@@ -1,7 +1,13 @@
 {
   "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
   "include": [
     "cmake/presets/base.json",
+    "cmake/presets/lean.json",
     "cmake/presets/development.json",
     "cmake/presets/ci.json",
     "cmake/presets/release.json",
@@ -12,8 +18,5 @@
     "cmake/presets/build-profile.json",
     "cmake/presets/optimizations.json",
     "cmake/presets/hardening.json"
-  ],
-  "configurePresets": [],
-  "buildPresets": [],
-  "testPresets": []
+  ]
 }
