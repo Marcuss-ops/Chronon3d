@@ -325,7 +325,18 @@ namespace chronon3d::backends::vulkan {
             runtime::GlyphStatic gs;
             gs.run_index = static_cast<std::uint32_t>(i);
             gs.atlas_page = 0;
+            // The glyph atlas uses RGBA8 for MTSDF and R8 for coverage/SDF.
+            // Preserve that representation in the static metadata; treating
+            // MTSDF RGB channels as premultiplied color produces the
+            // characteristic half-glyph/striped output in the fallback text
+            // batch path.
+#ifdef CHRONON3D_ENABLE_VULKAN
+            const auto& atlas_image = resolve_image(atlas);
+            gs.flags = (atlas_image.format == VK_FORMAT_R8G8B8A8_UNORM ||
+                        atlas_image.format == VK_FORMAT_B8G8R8A8_UNORM) ? 1u : 0u;
+#else
             gs.flags = 0;
+#endif
             gs.atlas_x = static_cast<std::uint16_t>(g.atlas_x >= 0 ? g.atlas_x : 0);
             gs.atlas_y = static_cast<std::uint16_t>(g.atlas_y >= 0 ? g.atlas_y : 0);
             gs.atlas_w = static_cast<std::uint16_t>(g.width > 0 ? g.width : 0);
