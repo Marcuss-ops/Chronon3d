@@ -161,6 +161,8 @@ struct FontEngine::Impl {
     const chronon3d::assets::AssetResolver* m_resolver{nullptr};
     mutable std::unordered_map<FontSpec, FaceEntry, std::hash<FontSpec>> face_cache;
     mutable std::shared_mutex face_cache_mutex;
+    // Protect mutable FT_Face/HarfBuzz state; distinct from cache ownership.
+    mutable std::mutex font_ops_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
     std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache; // per-runtime
 
@@ -291,17 +293,21 @@ struct FontEngine::Impl {
         // preserves legacy `runtime::resolve_asset_path(relative)`
         // semantics for empty/unmounted-relative inputs.
         std::string resolved;
-        const auto& resolver = *m_resolver;
-        if (auto opt = resolver.resolve_lexical(spec.font_path)) {
-            resolved = opt->string();
+        const auto font_path = std::filesystem::path{spec.font_path};
+        if (font_path.is_absolute()) {
+            resolved = font_path.lexically_normal().string();
         } else {
-            resolved = spec.font_path.empty() ? std::string{}
-                                              : std::string{spec.font_path};
+            const auto& resolver = *m_resolver;
+            if (auto opt = resolver.resolve_lexical(font_path)) {
+                resolved = opt->string();
+            } else {
+                resolved = spec.font_path.empty() ? std::string{}
+                                                  : std::string{spec.font_path};
+            }
         }
         if (resolved.empty()) {
             resolved = spec.font_path;
         }
-
         FT_Face face = nullptr;
         FT_Error err = FT_New_Face(ft_library, resolved.c_str(), 0, &face);
         if (err != 0) {
@@ -380,26 +386,9 @@ std::optional<GlyphRun> FontEngine::shape_text(
     // ~0 shaping calls inside the profiled render loop).
     const auto shaping_start = profiling::now();
 
-    std::unique_lock<std::shared_mutex> face_lock(m_impl->face_cache_mutex);
-    auto it = m_impl->face_cache.find(spec);
-    // TICKET-CACHE-COUNTERS-V1 — font face cache hit/miss. Warm steady state
-    // should be ~0 misses (the face is resolved once at prepare time).
-    if (profiling::g_current_counters) {
-        if (it == m_impl->face_cache.end()) {
-            profiling::g_current_counters->font_cache_misses.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            profiling::g_current_counters->font_cache_hits.fetch_add(1, std::memory_order_relaxed);
-        }
-    }
-    if (it == m_impl->face_cache.end()) {
-        auto entry = m_impl->load_face(spec);
-        if (!entry) return std::nullopt;
-        auto [inserted_it, ok] = m_impl->face_cache.emplace(spec, std::move(*entry));
-        if (!ok) return std::nullopt;
-        it = inserted_it;
-    }
-    FaceEntry* entry = &it->second;
-    if (!entry->valid()) return std::nullopt;
+    FaceEntry* entry = m_impl->get_face_entry(spec);
+    if (!entry || !entry->valid()) return std::nullopt;
+    std::lock_guard<std::mutex> font_lock(m_impl->font_ops_mutex);
 
     FT_Face face = entry->ft_face;
     const float scale = Impl::pixel_scale_26_6();
@@ -544,17 +533,9 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
     FontMetrics metrics{};
     if (!m_impl || !m_impl->ft_library || font_size <= 0.0f) return metrics;
 
-    std::unique_lock<std::shared_mutex> face_lock(m_impl->face_cache_mutex);
-    auto it = m_impl->face_cache.find(spec);
-    if (it == m_impl->face_cache.end()) {
-        auto entry = m_impl->load_face(spec);
-        if (!entry) return metrics;
-        auto [inserted_it, ok] = m_impl->face_cache.emplace(spec, std::move(*entry));
-        if (!ok) return metrics;
-        it = inserted_it;
-    }
-    FaceEntry* entry = &it->second;
-    if (!entry->valid()) return metrics;
+    FaceEntry* entry = m_impl->get_face_entry(spec);
+    if (!entry || !entry->valid()) return metrics;
+    std::lock_guard<std::mutex> font_lock(m_impl->font_ops_mutex);
 
     FT_Face face = entry->ft_face;
     const float scale = Impl::pixel_scale_26_6();
@@ -604,22 +585,8 @@ TextLayoutCache& FontEngine::text_layout_cache() noexcept {
 
 bool FontEngine::can_load(const FontSpec& spec) {
     if (!m_impl || !m_impl->ft_library) return false;
-    {
-        std::shared_lock<std::shared_mutex> shared_lock(m_impl->face_cache_mutex);
-        auto it = m_impl->face_cache.find(spec);
-        if (it != m_impl->face_cache.end()) {
-            return it->second.valid();
-        }
-    }
-    std::unique_lock<std::shared_mutex> unique_lock(m_impl->face_cache_mutex);
-    auto it = m_impl->face_cache.find(spec);
-    if (it != m_impl->face_cache.end()) {
-        return it->second.valid();
-    }
-    auto entry = m_impl->load_face(spec);
-    if (!entry) return false;
-    auto [inserted_it, ok] = m_impl->face_cache.emplace(spec, std::move(*entry));
-    return ok && inserted_it->second.valid();
+    auto* entry = m_impl->get_face_entry(spec);
+    return entry != nullptr && entry->valid();
 }
 
 // Cat-5: glyph coverage probe is a free function in the

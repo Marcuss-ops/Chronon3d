@@ -7,8 +7,6 @@
 
             for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                 const auto& layer = plan.layers[index];
-                spdlog::info("[scene_build_layer] index={} id='{}' type={}",
-                             index, layer.id, static_cast<int>(layer.type));
                 scene.layer(layer.id, [&](LayerBuilder& builder) {
                     builder.font_engine(font_engine.get());
                     switch (layer.type) {
@@ -56,7 +54,6 @@
             }
 
             auto res_scene = scene.build();
-            spdlog::info("[scene_built] layer_count={}", res_scene.layers().size());
             return res_scene;
         };
         definition.scene_content_fingerprint = content_fingerprint;
