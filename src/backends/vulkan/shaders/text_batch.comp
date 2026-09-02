@@ -75,17 +75,20 @@ void main() {
         uint atlas_w = g.atlas_size & 0xFFFFu;
         uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
 
-        // The graph's GlyphInstance contract defines dst_x/dst_y as the
-        // top-left of the bitmap quad.  Sample it with the same integer
-        // mapping as the validated text_run kernel; deriving a second plane
-        // rectangle here caused glyphs to collapse into vertical strips when
-        // plane metrics and bitmap extents differed by a subpixel.
-        ivec2 local = pixel - ivec2(round(run.tx), round(run.ty));
-        ivec2 scaled_size = ivec2(ceil(vec2(atlas_w, atlas_h) * vec2(sx, sy)));
-        if (local.x >= 0 && local.y >= 0 &&
-            local.x < scaled_size.x && local.y < scaled_size.y &&
+        // Glyph plane bounds contain the shaped glyph's position within the
+        // run.  Using only the atlas bitmap dimensions here placed every
+        // glyph at run.tx/run.ty, producing vertical strips instead of text.
+        float plane_w = g.plane_right - g.plane_left;
+        float plane_h = g.plane_bottom - g.plane_top;
+        vec2 local = (vec2(pixel) + vec2(0.5) - vec2(run.tx, run.ty)) /
+            vec2(sx, sy);
+        if (local.x >= g.plane_left && local.y >= g.plane_top &&
+            local.x < g.plane_right && local.y < g.plane_bottom &&
+            plane_w > 0.0 && plane_h > 0.0 &&
             atlas_w > 0u && atlas_h > 0u) {
-            ivec2 sample_offset = ivec2(floor(vec2(local) / vec2(sx, sy)));
+            vec2 uv = (local - vec2(g.plane_left, g.plane_top)) /
+                vec2(plane_w, plane_h);
+            ivec2 sample_offset = ivec2(floor(uv * vec2(atlas_w, atlas_h)));
             sample_offset = clamp(sample_offset, ivec2(0),
                                   ivec2(atlas_w, atlas_h) - ivec2(1));
             ivec2 atlas_coord = ivec2(atlas_x, atlas_y) + sample_offset;
