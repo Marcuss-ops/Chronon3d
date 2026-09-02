@@ -15,9 +15,6 @@
 
 #include <chronon3d/authoring/animator.hpp>
 #include <chronon3d/authoring/material.hpp>
-#include <chronon3d/authoring/style_registry.hpp>
-#include <chronon3d/authoring/motion_registry.hpp>
-#include <chronon3d/authoring/resolution_outcome.hpp>
 #include <chronon3d/authoring/text_span_builder.hpp>
 #include <chronon3d/assets/asset_ref.hpp>
 
@@ -39,7 +36,6 @@ public:
 #include <chronon3d/authoring/detail/text_content_font.hpp>
 #include <chronon3d/authoring/detail/text_placement_layout.hpp>
 #include <chronon3d/authoring/detail/text_appearance_animation.hpp>
-#include <chronon3d/authoring/detail/text_registry_access.hpp>
 
     friend class TextSpanBuilder;
 

@@ -1,12 +1,8 @@
 // Included inside chronon3d::authoring::Text public section.
 
-Text(PendingTextRun& pending, const CanvasInfo* canvas,
-     const StyleRegistry* style_registry = nullptr,
-     const MotionRegistry* motion_registry = nullptr) noexcept
+Text(PendingTextRun& pending, const CanvasInfo* canvas) noexcept
     : pending_(&pending),
-      canvas_(canvas),
-      style_registry_(style_registry),
-      motion_registry_(motion_registry) {}
+      canvas_(canvas) {}
 
 Text(const Text&) = delete;
 Text& operator=(const Text&) = delete;

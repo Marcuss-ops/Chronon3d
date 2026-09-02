@@ -15,8 +15,8 @@ namespace chronon3d {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // One instance is the canonical "AE-style animator entry" carried through
-// the text pipeline. Engineered at authoring time (MotionRegistry,
-// Animator DSL, or hand-rolled) and consumed unchanged by the per-frame
+// the text pipeline. Engineered at authoring time (Animator DSL or
+// hand-rolled) and consumed unchanged by the per-frame
 // evaluator (`evaluate_animator` in text_animator_evaluator.cpp).
 //
 // Two independent blend modes by side, mirroring After Effects:

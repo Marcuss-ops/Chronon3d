@@ -45,9 +45,7 @@ using chronon3d::TextAnimatorSpec;
 
 using chronon3d::authoring::Animator;
 using chronon3d::authoring::Material;
-using chronon3d::authoring::MotionRegistry;
 using chronon3d::authoring::Selector;
-using chronon3d::authoring::StyleRegistry;
 
 using chronon3d::SceneBuilder;
 using chronon3d::FrameRate;

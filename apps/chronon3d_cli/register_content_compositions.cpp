@@ -30,8 +30,6 @@
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/authoring/style_registry.hpp>
-#include <chronon3d/authoring/motion_registry.hpp>
 // TICKET-BENCH-CORPUS-V1 — register the 12-scene benchmark corpus (B00-B11)
 // via the canonical bridge in bench/corpus/.  Hooked here so
 // the corpus is available everywhere the content module is built (same
@@ -48,17 +46,12 @@ void register_content_compositions(CompositionRegistry& registry) {
     // register functions only consume ctx.compositions; ctx.assets is a
     // real AssetRegistry instance but is unused by the composition
     // registration path — asset resolution happens at render time, not
-    // at registration time).  StyleRegistry + MotionRegistry are local
-    // statics (the ambient authoring handles from cli_init.hpp are not
-    // needed by the composition registration path).
+    // at registration time).
     static ExtensionCatalog       content_catalog;
     static graph::GraphNodeCatalog dummy_nodes;
     static effects::EffectCatalog  dummy_effects;
     static AssetRegistry          stub_assets;
-    static authoring::StyleRegistry  stub_styles;
-    static authoring::MotionRegistry stub_motions;
-    ExtensionContext ctx{registry, dummy_nodes, dummy_effects, stub_assets,
-                          &stub_styles, &stub_motions};
+    ExtensionContext ctx{registry, dummy_nodes, dummy_effects, stub_assets};
     chronon3d::register_content_modules(content_catalog, ctx);
     // F1.1 — 12-scene benchmark corpus + 3 B07 inner precomps (15 entries
     // total).  Same canonical `chronon3d_cli bench <scene>` consumer

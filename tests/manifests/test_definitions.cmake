@@ -43,7 +43,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     # useful assertions are migrated to concrete RenderPlan v2 fixtures.
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
-    presets_golden_tests.cmake
     precomp_focus_tests.cmake
     timeline_tests.cmake
     timeline_functional_v1_tests.cmake
@@ -54,7 +53,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     # migration gate; coverage must be re-authored against RenderPlan v2.
     animation_helpers_tests.cmake
     text/text_clip_policy_tests.cmake
-    text_canvas_aware_presets_tests.cmake
     text_layout_advanced_tests.cmake
     content_tests.cmake
     showcase/CMakeLists.txt

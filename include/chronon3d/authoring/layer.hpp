@@ -37,7 +37,6 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/node_handle.hpp>    // B1 — NodeHandle return from rect()
-#include <chronon3d/extension/extension_context.hpp>  // PR 3.5 — needed to read style_registry/motion_registry pointers from the host-side ExtensionContext.
 #include <chronon3d/text/font_engine.hpp>             // FontEngine — transitive via layer_builder.hpp -> text_run_builder.hpp; explicit here so the surface can document `FontEngine` in the doc-comment without an include-graph lookup
 #include <chronon3d/authoring/text.hpp>
 #include <chronon3d/authoring/subtitle_track_builder.hpp>
@@ -94,19 +93,7 @@ public:
         // `LayerBuilder::m_text_runs`).
         PendingTextRun& pending = builder.mutable_pending();
 
-        // ── PR 3.5 — pin ambient registries from ExtensionContext ────
-        //
-        // When the host has attached an ExtensionContext to the parent
-        // LayerBuilder (via `lb.extension_context(ctx)`), the Text
-        // handle returned here resolves `.style(id)` / `.motion(id)`
-        // ambient against the pinned pointers. When null, the ambient
-        // variants no-op gracefully and the user can supply an
-        // explicit registry as a method argument.
-        const chronon3d::ExtensionContext* ext = builder_->extension_context();
-        const StyleRegistry* sr = (ext && ext->style_registry   != nullptr) ? ext->style_registry   : nullptr;
-        const MotionRegistry* mr = (ext && ext->motion_registry != nullptr) ? ext->motion_registry : nullptr;
-
-        return Text{pending, &canvas_, sr, mr};
+        return Text{pending, &canvas_};
     }
 
     // ── B1 — Layer-level transforms (delegate to LayerBuilder) ─────────
