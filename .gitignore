@@ -1,136 +1,141 @@
-# ── Build ────────────────────────────────────────────────────────────────────
-/build/
-/build-*/
-/cmake-build-*/
-/.tmp/
-/.cmake/
-.tmp_*/
-.tmp_gate*/
-.build-tmp/
-.build-logs/
-build_output.txt
-build.ninja
-.ninja_deps
-.ninja_log
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-compile_commands.json
-CTestTestfile.cmake
-install_manifest.json
-install_manifest.txt
-/Testing/
-/tests/build/
-/Makefile
-/chronon
-/chronon-cli
+# ── Downloaded test-font artifacts ────────────────────────────────────────────
+# Legacy optional Poppins fixtures remain untracked.
+assets/fonts/Poppins-Regular.ttf
+assets/fonts/Poppins-SemiBold.ttf
+assets/fonts/Poppins-ExtraBold.ttf
+# Heavy multilingual/emoji fixtures are checksum-pinned by
+# tools/bootstrap_test_fonts.py and intentionally excluded from the core repo.
+assets/fonts/FreeSerif.ttf
+assets/fonts/NotoColorEmoji.ttf
+assets/fonts/NotoNaskhArabic-Bold.ttf
+assets/fonts/NotoNaskhArabic-Regular.ttf
+assets/fonts/NotoSansCJK-Regular.ttc
+assets/fonts/NotoSansHebrew-Bold.ttf
+assets/fonts/NotoSansHebrew-Regular.ttf
+assets/fonts/NotoSansSymbols2-Regular.ttf
+assets/fonts/UnifontUpper.otf
 
-# ── Dependencies ─────────────────────────────────────────────────────────────
-/vcpkg/
-/vcpkg_bootstrap
-vcpkg_installed/
-.venv/
-dist/
-
-# ── Generated renders ────────────────────────────────────────────────────────
-/output/
-/renders/
-/test_output/
-/test_output_*.png
-test_renders/
-*.mp4
-render_*.png
-sdk_consumer_output.png
-reference/chronon3d/*.png
-tests/visual/glow_with/
-tests/visual/glow_without/
-tests/golden/ae_parity/diff/
-tests/golden/**/*.png
-
-# ── Logs and reports ─────────────────────────────────────────────────────────
-*.log
-*.trace
-trace*.json
-render_debug_trace*.log
-render_trace*.log
-chronon3d-*.log
-*.build.log
-reports/perf/
-logs/
-/docs/audits/
-
-# ── Camera and test artifacts ────────────────────────────────────────────────
-camera_path*.json
-camera_shot_report*.json
-CameraTestReport.json
-*_report*.json
-*_state.bin
-/path.json
-temp_assets/
-artifacts/
-/build_text_res_*/
-# leftover of interrupted tools/regen_camera_golden.sh (cp-fallback snapshot then rm-f)
-tests/scene/camera/_golden/*.bak
-
-# ── Bootstrap artifacts (fetched checksum-pinned by tools/bootstrap_test_fonts.py) ─
-# Triggered by CHRONON3D_BOOTSTRAP_TEST_FONTS=1 during content-test builds; repo
-# intentionally does NOT ship font binaries; bootstrap fetches Google Fonts blobs.
-assets/fonts/Poppins-*.ttf
-assets/fonts/Poppins-OFL.txt
-
-# ── IDE and OS ───────────────────────────────────────────────────────────────
-.vscode/
+# ── IDE / Editor ───────────────────────────────────────────────────────────────
 .idea/
+.vscode/
 .vs/
+*.swp
+*.swo
+*~
+
+# ── CMake / build output ───────────────────────────────────────────────────────
+build/
+build-*/
+cmake-build-*/
+out/
+dist/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+Testing/
+
+# ── Binaries / libraries ──────────────────────────────────────────────────────
+*.o
+*.obj
+*.lo
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.dll.a
+*.exe
+*.out
+*.app
+*.pdb
+*.idb
+*.ilk
+
+# ── C++ coverage ───────────────────────────────────────────────────────────────
+*.gcda
+*.gcno
+*.gcov
+coverage/
+lcov.info
+
+# ── clang / tooling ────────────────────────────────────────────────────────────
+compile_commands.json
+.clangd/
+.cache/
+.mlcache/
+
+# ── Python (scripts / tests) ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# ── OS junk ────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-*.user
-*.suo
-*.sln
-*.vcxproj
-*.filters
-.history/
-.claude/
-.antigravitycli/
-.worktrees/
+desktop.ini
 
-# ── Python ───────────────────────────────────────────────────────────────────
-*.pyc
-__pycache__/
-tools/_*.py
+# ── Media / render output ──────────────────────────────────────────────────────
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.gif
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tga
+*.exr
+!assets/**
+!tests/**
+!docs/**
 
-# ── Archives ─────────────────────────────────────────────────────────────────
-*.7z
-*.iso
-*.tgz
-*.zip
-*.pdb
+renders/
+render_output/
+frames/
+output/
+outputs/
+screenshots/
+artifacts/
 
-# ── Misc (local binaries, scratch) ───────────────────────────────────────────
-bin/
-lib/
-obj/
-out/
-*.git_tmp_*
-# ISO timestamp temp files (accidentally created by scripts)
-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9]*
-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]*
-.ccache/
-/src/registry/text/
+# ── Logs & profiling ────────────────────────────────────────────────────────────
+*.log
+*.trace
+*.profraw
+*.profdata
+*.perf
+*.flamegraph
+*.speedscope.json
+/--hot-path*
+hot-path/
+profile-results/
 
-# SSoT test fixture for F1.2 schema validator (TICKET-BENCH-SCHEMA-V1)
-!bench/example_report.json
+# ── Temporary / generated ──────────────────────────────────────────────────────
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+generated/
 
-# ── SDK consumer projects (sdk_consumers/) ──────────────────────────────────
-sdk_consumers/02_c_minimal/c_minimal
-sdk_consumers/04_rust/target/
+# ── vcpkg / third-party ────────────────────────────────────────────────────────
+vcpkg_installed/
+downloads/
+tools/vcpkg/
+third_party/build/
+third_party/install/
 
-# ── Local telemetry dashboard WIP (untracked experiment) ────────────────
-tools/telemetry_dashboard/
-
-# ── Perfetto SDK + trace-gate build cache (CI-provisioned, not VCS) ──
-.perfetto-sdk/
-.trace-gate-cache/
-
-# Test output artifacts
-test_outputs/
+# ── Bazel (if used by tooling) ─────────────────────────────────────────────────
+bazel-*

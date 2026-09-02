@@ -11,7 +11,7 @@ import json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_DIR = ROOT / "schemas"
+SCHEMA_DIR = ROOT / "schemas" / "json"
 
 EXPECTED = {
     "chronon.composition.v1.schema.json": (
