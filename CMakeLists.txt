@@ -77,7 +77,6 @@ option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event b
 option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
 option(CHRONON3D_ENABLE_VERIFICATION "Build canonical output verification and render receipts" OFF)
-option(CHRONON3D_ENABLE_VIDRUSH "Build the Vidrush provenance-report module" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" OFF)
 option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" OFF)
 option(CHRONON3D_ENABLE_IPC "Build the FlatBuffers IPC boundary" OFF)
