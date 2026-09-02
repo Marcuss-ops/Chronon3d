@@ -27,7 +27,12 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: github/codeql-action/init@v3
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+
+      - uses: github/codeql-action/init@v4
         with:
           languages: cpp
           queries: security-and-quality
@@ -42,6 +47,6 @@ jobs:
       - name: Build
         run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline -j12
 
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: /language:cpp
