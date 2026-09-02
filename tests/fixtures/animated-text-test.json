@@ -1,0 +1,24 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "animated-text-test",
+  "canvas": {"width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1, "duration_frames": 120},
+  "layers": [{
+    "id": "title",
+    "type": "text",
+    "text": "STATIC TEXT CONTROL",
+    "position": [0, 0],
+    "style": {"font": "assets/fonts/Poppins-Bold.ttf", "font_size": 80, "fill": "#FFFFFF"},
+    "text_animators": [{
+      "id": "character_cascade",
+      "selectors": [{"id": "glyphs", "unit": "glyph", "order": "forward", "shape": "smooth"}],
+      "properties": [
+        {"property": "position_y", "keyframes": [{"frame": 0, "value": 34}, {"frame": 18, "value": 0}], "easing": "out_cubic"},
+        {"property": "opacity", "keyframes": [{"frame": 0, "value": 0}, {"frame": 12, "value": 1}], "easing": "out_cubic"}
+      ]
+    }],
+    "start_frame": 0,
+    "duration_frames": 120
+  }],
+  "output": {"path": "animated-text-test.mp4", "format": "mp4", "codec": "h264"}
+}

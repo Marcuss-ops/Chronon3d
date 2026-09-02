@@ -115,6 +115,20 @@ chronon3d::AnimatedValue<T> animated_text_value(
     return result;
 }
 
+chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_vec3_component(
+    const AnimationTrackPlan& track, chronon3d::Vec3 fallback,
+    std::string_view property) {
+    chronon3d::AnimatedValue<chronon3d::Vec3> result{fallback};
+    for (const auto& key : track.keyframes) {
+        auto value = fallback;
+        if (property == "position_x" || property == "scale_x") value.x = scalar_value(key, property);
+        else if (property == "position_y" || property == "scale_y") value.y = scalar_value(key, property);
+        else value.z = scalar_value(key, property);
+        result.add_keyframe(key.frame, value, track_easing(track.easing));
+    }
+    return result;
+}
+
 chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan) {
     chronon3d::GlyphSelectorSpec selector;
     selector.id = plan.id;
@@ -141,11 +155,15 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan) 
         if (track.property == "position" || track.property == "position_x" ||
             track.property == "position_y") {
             animator.properties.push_back(chronon3d::PositionProperty{
-                animated_text_value(track, chronon3d::Vec3{}, track.property)});
+                track.property == "position"
+                    ? animated_text_value(track, chronon3d::Vec3{}, track.property)
+                    : animated_text_vec3_component(track, chronon3d::Vec3{}, track.property)});
         } else if (track.property == "scale" || track.property == "scale_x" ||
                    track.property == "scale_y") {
             animator.properties.push_back(chronon3d::ScaleProperty{
-                animated_text_value(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)});
+                track.property == "scale"
+                    ? animated_text_value(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)
+                    : animated_text_vec3_component(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)});
         } else if (track.property == "opacity") {
             animator.properties.push_back(chronon3d::OpacityProperty{
                 animated_text_value(track, 1.0f, track.property)});

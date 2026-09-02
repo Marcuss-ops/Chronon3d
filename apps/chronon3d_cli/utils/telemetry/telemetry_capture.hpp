@@ -70,6 +70,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"native_surface_yuv_bytes", counters.native_surface_yuv_bytes.load(std::memory_order_relaxed)},
         {"native_batch_yuv_frames", counters.native_batch_yuv_frames.load(std::memory_order_relaxed)},
         {"native_batch_yuv_bytes", counters.native_batch_yuv_bytes.load(std::memory_order_relaxed)},
+        {"nv12_to_rgba_frames", counters.nv12_to_rgba_frames.load(std::memory_order_relaxed)},
+        {"rgba_to_nv12_frames", counters.rgba_to_nv12_frames.load(std::memory_order_relaxed)},
         {"simo_variant_submits", counters.simo_variant_submits.load(std::memory_order_relaxed)},
         {"video_decode_frames", counters.video_decode_frames.load(std::memory_order_relaxed)},
         {"video_decode_hw_frames", counters.video_decode_hw_frames.load(std::memory_order_relaxed)},

@@ -304,6 +304,10 @@ inline TextRunPlacement resolve_text_run_placement(
     // therefore already box-local and must carry a zero anchor: applying
     // Transform::to_mat4() here consumes no placement semantics twice.
     // item.world_matrix is the canonical evaluated layer matrix (already in canvas coordinates).
+    // Keep opacity explicit on this path as well. The source-pass initializes
+    // its out parameter defensively to zero; leaving it untouched silently
+    // turns every otherwise valid text run into a transparent draw.
+    out_opacity = node.world_transform.opacity;
     return TextRunPlacement{
         item.world_matrix * node.world_transform.to_mat4()};
 }
