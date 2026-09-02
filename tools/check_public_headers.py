@@ -233,9 +233,7 @@ def _gate_standalone_compile(
             "authoring/detail/text_content_font.hpp"
         ) or hdr.endswith("authoring/detail/text_placement_layout.hpp") or hdr.endswith(
             "authoring/detail/text_appearance_animation.hpp"
-        ) or hdr.endswith("authoring/detail/text_registry_access.hpp") or hdr.endswith(
-            "authoring/detail/text_private.hpp"
-        ):
+        ) or hdr.endswith("authoring/detail/text_private.hpp"):
             continue
         # Translate repo-relative path to the include form (the manifest
         # stores full paths; we need the angle-bracket form).

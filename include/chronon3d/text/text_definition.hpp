@@ -52,7 +52,7 @@ class TextDocument;
 //
 // Named TextDefStyle (not TextStyle) to avoid collision with the existing
 // chronon3d::TextStyle in shape.hpp (which is the registry-resolved style
-// used by the authoring facade's .style(id, registry) path).
+// used directly by the authoring facade).
 // TextDefStyle is the TextDefinition-internal representation that maps
 // from TextDefaults::font + TextDefaults::appearance fields.
 

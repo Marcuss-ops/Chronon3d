@@ -3,17 +3,8 @@
 if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
     return()
 endif()
-# End-to-end golden test for MinimalistImageTrackingBreathing at frame 50.
-# Kept separate from chronon3d_renderer_tests to avoid linker OOM.
-# Migrated: 3 add_executable → 3 chronon3d_add_test_suite(TIER INTEGRATION).
-
-chronon3d_add_test_suite(
-    NAME chronon3d_breathing_golden_tests
-    TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d_scene
-    SOURCES golden/test_breathing_golden.cpp
-)
-target_compile_definitions(chronon3d_breathing_golden_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+# The named breathing golden was removed with the authoring-preset registry.
+# Keep only engine-level determinism and concurrency coverage below.
 
 # ── Determinism Check: same frame 5 times, compare hashes ──
 chronon3d_add_test_suite(

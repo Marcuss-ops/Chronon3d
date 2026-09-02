@@ -56,7 +56,6 @@ foreach(_target IN ITEMS
     chronon3d_io_tests
     chronon3d_animation_tests
     chronon3d_content_tests
-    chronon3d_breathing_golden_tests
     chronon3d_visual_test_support_tests
     chronon3d_camera_visual_tests
     chronon3d_cinematic_motion_visual_tests
@@ -64,7 +63,6 @@ foreach(_target IN ITEMS
     chronon3d_rounded_rect_visual_tests
     chronon3d_render_graph_node_visual_tests
     chronon3d_pr3_composition_visual_tests
-    chronon3d_presets_golden_tests
     chronon3d_diagnostic_overlay_tests
 )
     chronon3d_append_target_if_present(CHRONON3D_RENDER_TEST_DEPS ${_target})

@@ -16,31 +16,11 @@
 //                        inner_shadow/highlight/emissive; external effects use EffectStack)
 //   - `material::*`    factories (premium/neon/glass/flat)
 //
-// PR 5 ships (promoted ahead of PR 3+4 per user direction):
-//   - `StyleRegistry`  (string key → TextStyle, e.g.
-//                       "youtube.hero.premium")
-//   - `MotionRegistry` (string key → TextAnimatorSpec, e.g.
-//                       "text.reveal.soft")
-//
 // PR 3 ships:
 //   - `Layer`  (thin handle over `LayerBuilder`; exposes `.text(content)`)
 //   - `Text`   (thin handle over `PendingTextRun`; mutates `spec.text`
 //               directly; consumes `Material` / `Animator` builders via
-//               their `release()` friends, and `StyleRegistry` / `MotionRegistry`
-//               via `resolve()` lookups).
-//
-// PR 3.5 ships (ambient-resolution round, after PR 3 review feedback):
-//   - `chronon3d::ExtensionContext` extended with optional `StyleRegistry*`
-//     + `MotionRegistry*` pointer fields (default nullptr; existing 12+
-//     construction sites unchanged).
-//   - `LayerBuilder::extension_context(...)` setter + getter.
-//   - `Layer::text(...)` pins the registries from the parent
-//     `LayerBuilder`'s `ExtensionContext` into the returned `Text` handle.
-//   - New ambient-resolution methods on `Text`: `.style(id)` and
-//     `.motion(id)` resolve against the pinned registries, no-op when
-//     the relevant pointer is null.  Existing explicit variants
-//     `.style(id, registry)` and `.motion(id, registry)` unchanged.
-//
+//               their `release()` friends).
 // PR 4 ships (top-of-tree composition factory):
 //   - `chronon3d::authoring::Scene` (typed facade over `SceneBuilder`;
 //     layer/screen-layer/precomp callbacks take `Layer&`, while sequence
@@ -72,8 +52,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────
 // Currently usable — PR 1 (Animator, Selector) + PR 2 (Material)
-// + PR 3 (Layer, Text) + PR 3.5 (ambient-ExtensionContext resolution) +
-//   PR 4 (Scene, Composition) + PR 5 (StyleRegistry, MotionRegistry).
+// + PR 3 (Layer, Text) + PR 4 (Scene, Composition).
 // Future PRs will add layer shape primitives (PR 7) and migration of
 // example compositions (PR 6); meanwhile, user code that includes only
 // this umbrella header gets the full authoring façade.
@@ -82,8 +61,6 @@
 #include <chronon3d/authoring/selector.hpp>
 #include <chronon3d/authoring/animator.hpp>
 #include <chronon3d/authoring/material.hpp>
-#include <chronon3d/authoring/style_registry.hpp>
-#include <chronon3d/authoring/motion_registry.hpp>
 #include <chronon3d/authoring/text.hpp>
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/authoring/scene.hpp>
