@@ -96,5 +96,5 @@
       ]
     }
   },
-  "default-features": ["mesh", "cli", "blend2d", "text", "exr", "svg", "ipc"]
+  "default-features": ["cli", "blend2d", "text"]
 }

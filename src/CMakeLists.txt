@@ -1,232 +1,89 @@
-# ==============================================================================
-# src/CMakeLists.txt — Thin dispatcher
-#
-# Each per-subsystem CMakeLists.txt defines its own OBJECT library target(s).
-# This file handles:
-#   1) External link flags (FFmpeg)
-#   2) The base chronon3d INTERFACE target
-#   3) add_subdirectory() calls in dependency order
-#   4) Final aggregate INTERFACE targets (chronon3d_core, chronon3d_software,
-#      chronon3d_pipeline) — each propagates a per-subsystem OBJECT set as a
-#      logical grouping
-#
-# The SDK consumer-facing surface (`chronon3d_sdk_impl`,
-# `chronon3d_sdk`, `Chronon3D::SDK` alias) lives in
-# `cmake/Chronon3DSdkTargets.cmake` and is included below AFTER every
-# per-subsystem OBJECT target has been registered. See the header of that
-# file for the (TICKET-011 cmake-boundary) contract — the SINGLE aggregated
-# `libchronon3d_sdk_impl.a` is the only ARCHIVE installed under
-# `<prefix>/<libdir>`; per-subsystem OBJECT libraries are build-time-only.
-#
-# The SDK install / export / package-config layer lives in
-# `cmake/Chronon3DSdkInstall.cmake`, included from the root CMakeLists.txt
-# with full visibility of every built/installable target.
-# ==============================================================================
+# src/CMakeLists.txt
 
-# ==============================================================================
-# CENTRALIZED EXTERNAL LINK FLAGS
-# These are bare linker flags that don't have a CMake imported target. Keep
-# all references to a given system library routed through these variables so
-# the dependency set lives in one place (and the README build instructions
-# stay in sync with the actual link command).
-#
-# As IMPORTED targets (so callers can target_link_libraries them like any
-# other modern CMake target — no more raw "-l" strings in the graph).
-# The targets exist with the CHRONON3D_ prefix so they don't collide with
-# the system / vcpkg-provided FFmpeg imported targets (avcodec, avformat, ...).
-#
-# Only defined when native FFmpeg is enabled — otherwise the code paths
-# that use swscale/avutil are compiled out via #ifdef guards.
-# ==============================================================================
-if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    add_library(chronon3d_ffmpeg_light INTERFACE)
-    target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
-    add_library(chronon3d_ffmpeg_full  INTERFACE)
-    target_link_libraries(chronon3d_ffmpeg_full  INTERFACE swscale avcodec avformat avutil)
-endif()
-
-
-
-# ==============================================================================
-# Base Interface (must be defined before any add_subdirectory that uses it)
-# ==============================================================================
-add_library(chronon3d_base INTERFACE)
-target_include_directories(chronon3d_base INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-# CHRONON3D_ENABLE_MESH is defined in the root CMakeLists.txt.
-
-# Only link meshoptimizer when mesh support is active
-set(CHRONON3D_MESHOPTIMIZER_LINK "")
-if(CHRONON3D_ENABLE_MESH)
-    set(CHRONON3D_MESHOPTIMIZER_LINK meshoptimizer::meshoptimizer)
-    target_compile_definitions(chronon3d_base INTERFACE CHRONON3D_ENABLE_MESH)
-endif()
-
-target_link_libraries(chronon3d_base INTERFACE
-    glm::glm
-    ${CHRONON3D_MESHOPTIMIZER_LINK}
-    xxHash::xxhash
-    magic_enum::magic_enum
-)
-
-add_library(chronon3d INTERFACE)
-target_link_libraries(chronon3d INTERFACE
-    chronon3d_base
-    chronon3d_core_impl
-)
-
-# Tracing is an engine-wide compile-time capability.  Publish it from the
-# canonical base interface so every OBJECT/static target that already links
-# `chronon3d` compiles CHRONON_TRACE_* call sites against Perfetto instead of
-# silently reducing them to no-ops.  `chronon3d_core_impl` keeps its explicit
-# PRIVATE definition in the root CMakeLists.txt because this target is an
-# OBJECT aggregate referenced by, rather than linked from, the interface.
-if(CHRONON3D_ENABLE_TRACING)
-    target_compile_definitions(chronon3d INTERFACE
-        CHRONON3D_ENABLE_TRACING
-    )
-    target_link_libraries(chronon3d INTERFACE
-        unofficial::perfetto::perfetto
-    )
-endif()
-
-if(CHRONON3D_ENABLE_CUDA_INTEROP)
-    include("${CMAKE_SOURCE_DIR}/cmake/ChrononCuda.cmake")
-    chronon3d_configure_cuda()
-endif()
-
-# ==============================================================================
-# Per-subsystem targets (ordered by dependency graph)
-# ==============================================================================
-# Render-plan structural validation and IPC contracts share the same official
-# JSON Schema implementation. Keep the package available independently of IPC
-# so the C ABI/render-plan target does not inherit a false feature gate.
-find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
-
-add_subdirectory(core)              # chronon3d_core_impl
-add_subdirectory(cache)             # chronon3d_cache
-add_subdirectory(effects)           # chronon3d_effects
-add_subdirectory(registry)          # chronon3d_registry
-add_subdirectory(assets)            # chronon3d_assets
-add_subdirectory(backends/image)    # chronon3d_backend_image
-add_subdirectory(media)             # chronon3d_media_interface + chronon3d_backend_video
+add_subdirectory(core)
+add_subdirectory(cache)
+add_subdirectory(effects)
+add_subdirectory(registry)
+add_subdirectory(assets)
+add_subdirectory(backends/image)
+add_subdirectory(media)
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
-    add_subdirectory(backends/text)     # chronon3d_backend_text (needs Blend2D for glyph rasteriser)
+    add_subdirectory(backends/text)
 endif()
-add_subdirectory(backends/assets)   # chronon3d_backend_assets
+add_subdirectory(backends/assets)
 if(CHRONON3D_ENABLE_VULKAN)
-    add_subdirectory(backends/vulkan) # chronon3d_backend_vulkan
+    add_subdirectory(backends/vulkan)
 endif()
-add_subdirectory(render_graph)      # chronon3d_graph
-add_subdirectory(runtime)           # chronon3d_runtime
-add_subdirectory(verification)      # chronon3d_verification (render receipt)
-add_subdirectory(vidrush)           # chronon3d_vidrush (provenance report contracts)
-add_subdirectory(render_plan)      # chronon3d_render_plan (JSON Schema validator)
-add_subdirectory(extension)        # chronon3d_extension (Fase 5)
-add_subdirectory(backends/software) # chronon3d_backend_software
-add_subdirectory(scene)             # chronon3d_scene
-add_subdirectory(timeline)          # TICKET-034: composes `<chronon3d/timeline/composition.cpp>` into chronon3d_scene OBJECT
-add_subdirectory(animations)        # chronon3d_animations
+add_subdirectory(render_graph)
+add_subdirectory(runtime)
+if(CHRONON3D_ENABLE_VERIFICATION)
+    add_subdirectory(verification)
+endif()
+if(CHRONON3D_ENABLE_VIDRUSH)
+    add_subdirectory(vidrush)
+endif()
+add_subdirectory(render_plan)
+add_subdirectory(extension)
+add_subdirectory(backends/software)
+add_subdirectory(scene)
+add_subdirectory(timeline)
+add_subdirectory(animations)
 if(CHRONON3D_ENABLE_TEXT)
-    add_subdirectory(text)              # chronon3d_text_core
+    add_subdirectory(text)
 endif()
 if(CHRONON3D_ENABLE_IPC)
-    add_subdirectory(ipc)               # chronon3d_ipc (ADR-024: daemon IPC)
+    add_subdirectory(ipc)
 endif()
 
-# ==============================================================================
-# Final aggregate INTERFACE targets (logical groupers; the SDK surface is
-# defined separately in cmake/Chronon3DSdkTargets.cmake).
-# ==============================================================================
-
-add_library(chronon3d_core INTERFACE)
-target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_assets
-    chronon3d_registry
-    chronon3d_scene
-    chronon3d_runtime
-    chronon3d_graph
-    chronon3d_cache
-    chronon3d_animations
-    chronon3d_core_impl
-    # chronon3d_render_plan is intentionally NOT here — adding an OBJECT
-    # library to chronon3d_core would require it in the SDK export set
-    # (cmake/Chronon3DSdkInstall.cmake), which is not desired for the
-    # pure-function validator.  The validator's OBJECT files reach the
-    # C API SHARED via direct link in cmake/Chronon3DSdkTargets.cmake
-    # and in-tree tests via tests/c_abi_tests.cmake LINK_TARGETS.
-    # chronon3d_backend_video is linked via chronon3d_software, not core.
-    # Core should be dependency-minimal for server-side / headless use.
-)
-if(TARGET chronon3d_text_core)
-    target_link_libraries(chronon3d_core INTERFACE chronon3d_text_core)
+if(MSVC AND CHRONON3D_PARALLEL_MSVC)
+    file(GLOB_RECURSE CHRONON3D_SRC_CPP CONFIGURE_DEPENDS
+         "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+    if(CHRONON3D_SRC_CPP)
+        set_source_files_properties(${CHRONON3D_SRC_CPP} PROPERTIES COMPILE_OPTIONS "/MP")
+    endif()
 endif()
 
-# P1-CMAKE-01 — chronon3d_backend_video was previously linked to chronon3d_core
-# despite the contract stating "video is linked via chronon3d_software, not core".
-# chronon3d_software already links chronon3d_backend_video below, and
-# chronon3d_pipeline links both core + software, so no consumer loses video.
-# Core is now truly dependency-minimal for server-side / headless use.
-
-add_library(chronon3d_software INTERFACE)
-target_link_libraries(chronon3d_software INTERFACE
-    chronon3d_backend_software
-    chronon3d_backend_assets
-    chronon3d_backend_image
+add_library(chronon3d_core
+    scene3d/scene3d.cpp
+    scene3d/manifest.cpp
+    scene3d/import_gltf.cpp
+    scene3d/material.cpp
+    scene3d/mesh_cache.cpp
+    scene3d/animation.cpp
+    scene3d/loader/obj_loader.cpp
+    scene3d/loader/mtl_loader.cpp
 )
 
-if(CHRONON3D_ENABLE_VULKAN)
-    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_vulkan)
-endif()
+add_library(chronon3d::core ALIAS chronon3d_core)
 
-if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_video chronon3d_media_video)
-endif()
-
-add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline INTERFACE
-    chronon3d_core
-    chronon3d_software
+target_include_directories(chronon3d_core PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
 )
-if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_NVRTC_LIBRARY)
-    # Vulkan is exposed to in-tree consumers as OBJECT files through this
-    # aggregate; carry NVRTC to the final executable that owns those objects.
-    target_link_libraries(chronon3d_pipeline INTERFACE
-        "${CHRONON3D_NVRTC_LIBRARY}")
-endif()
-if(CHRONON3D_ENABLE_IPC)
-    # The IPC OBJECT files are exposed through the aggregate build interface;
-    # carry their non-transitive validator dependency to every in-tree
-    # consumer that receives those objects.
-    target_link_libraries(chronon3d_pipeline INTERFACE
-        nlohmann_json_schema_validator::validator
-    )
-endif()
-# ── OBJECT .o propagation for in-tree consumers ──────────────────────
-# CMake ≥3.12 supports target_link_libraries(INTERFACE objlib) but
-# OBJECT files do NOT reliably propagate through a chain of INTERFACE
-# targets (INTERFACE → INTERFACE → OBJECT).  Tests that link only
-# chronon3d_pipeline (e.g. chronon3d_authoring_tests) would see
-# undefined references to symbols from chronon3d_scene,
-# chronon3d_backend_software, etc.  The in-tree workaround is to attach
-# the objects to chronon3d_pipeline so ALL in-tree consumers (tests,
-# CLI via sdk→pipeline) get them without each target needing to also
-# link chronon3d_sdk_impl.  The SDK archive uses a separate helper that
-# links the same OBJECT targets into libchronon3d_sdk_impl.a (see
-# chronon3d_link_registered_objects_into_archive in
-# cmake/Chronon3DRegistry.cmake).
-chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
 
-# ==============================================================================
-# SDK consumer-facing surface — moved to `cmake/Chronon3DSdkTargets.cmake`.
-# This `include()` must come AFTER the per-subsystem `add_subdirectory()`
-# calls above because target_link_libraries(target_sources) requires the
-# targets to already exist on the graph.  See the header of that file for the
-# (TICKET-011 cmake-boundary) contract; the SINGLE aggregated
-# `libchronon3d_sdk_impl.a` is the only ARCHIVE installed under
-# `<prefix>/<libdir>`.  The InstAll / EXPORT / package-config layer lives in
-# `cmake/Chronon3DSdkInstall.cmake` (included from the root CMakeLists.txt).
-# ==============================================================================
-include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkTargets.cmake)
+target_link_libraries(chronon3d_core
+    PUBLIC chronon3d_compile_config
+    PRIVATE nlohmann_json::nlohmann_json
+)
+
+if (CHRONON3D_ENABLE_MESH)
+  target_link_libraries(chronon3d_core PUBLIC meshoptimizer::meshoptimizer)
+  target_compile_definitions(chronon3d_core PUBLIC CHRONON3D_ENABLE_MESH=1)
+endif()
+
+if(MSVC)
+    target_compile_options(chronon3d_core PRIVATE /W4 /permissive-)
+    if(CHRONON3D_WARNINGS_AS_ERRORS)
+        target_compile_options(chronon3d_core PRIVATE /WX)
+    endif()
+else()
+    target_compile_options(chronon3d_core PRIVATE
+        -Wall -Wextra -Wshadow -Wconversion -Wpedantic)
+    if(CHRONON3D_WARNINGS_AS_ERRORS)
+        target_compile_options(chronon3d_core PRIVATE -Werror)
+    endif()
+endif()
+
+set_target_properties(chronon3d_core PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)

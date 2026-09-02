@@ -9,14 +9,21 @@
       "hidden": true,
       "inherits": "base-linux",
       "displayName": "V0.1 release-only base (hidden helper)",
-      "description": "Shared hidden base for the V0.1 release-validation surface. Forces Release buildType, disables experimental, telemetry, profiling, benchmarks, diagnostics. VCPKG manifest features = `tests`; defaults (cli, blend2d, text, mesh, exr) are merged automatically by vcpkg.",
+      "description": "Release validation base for the external-content architecture. Keeps the core dependency surface lean while enabling tests and IPC explicitly for release verification.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_SVG": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_BUILD_DAEMON": "OFF",
+        "CHRONON3D_BUILD_C_API": "OFF",
+        "CHRONON3D_ENABLE_VERIFICATION": "ON",
+        "CHRONON3D_ENABLE_VIDRUSH": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests;ipc"
       }
     },
@@ -24,11 +31,10 @@
       "name": "linux-release-validation",
       "inherits": "__release-base",
       "displayName": "Linux Release Validation (V0.1)",
-      "description": "V0.1 release-only validation surface: CLI + text + Blend2D + software renderer + camera (via content) + install consumer + test obbligatori. Disables experimental / telemetry / profiling / benchmarks / diagnostics / expressions-v2. BuildType Release.",
+      "description": "Release validation of the engine core: CLI + text + Blend2D + software renderer + IPC + install consumer + required tests. Bundled compositions are intentionally external.",
       "cacheVariables": {
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
       }
     }

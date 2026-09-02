@@ -1,0 +1,35 @@
+{
+  "version": 6,
+  "include": ["base.json"],
+  "configurePresets": [
+    {
+      "name": "chronon-lean",
+      "inherits": "base-linux",
+      "displayName": "Chronon3d Lean Core",
+      "description": "Server/headless core: CLI + video + text + Blend2D, with heavyweight optional subsystems disabled.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_SVG": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_IPC": "OFF",
+        "CHRONON3D_BUILD_DAEMON": "OFF",
+        "CHRONON3D_BUILD_C_API": "OFF",
+        "CHRONON3D_ENABLE_VERIFICATION": "OFF",
+        "CHRONON3D_ENABLE_VIDRUSH": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "chronon-lean",
+      "configurePreset": "chronon-lean",
+      "jobs": 16
+    }
+  ]
+}
