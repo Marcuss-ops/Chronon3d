@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/enum_utils.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/core/cache_policy.hpp>
@@ -61,18 +62,14 @@ enum class RenderGraphNodeKind {
     return enum_utils::enum_name_exact(kind);
 }
 
-
 class RenderGraphNode {
 public:
-    /// Every node MUST be constructed with an explicit cache policy.
-    /// The policy is immutable after construction — changing it requires a
-    /// graph rebuild (see SourceNode::refresh() for the warning path).
     explicit RenderGraphNode(RenderNodeCachePolicy p = frame_variant_cache("default"))
         : m_cache_policy(p) {}
 
     virtual ~RenderGraphNode() = default;
 
-    [[nodiscard]]    virtual std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const {
+    [[nodiscard]] virtual std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const {
         return std::nullopt;
     }
     [[nodiscard]] virtual std::optional<raster::BBox> predicted_bbox(
@@ -86,6 +83,13 @@ public:
     virtual RenderGraphNodeKind kind() const noexcept = 0;
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
+    /// Explicit history/preroll contract. The default is frame-local. Any
+    /// node that reads frames other than the current presentation instant must
+    /// override this so compiler/distributed execution can see the dependency.
+    [[nodiscard]] virtual TemporalRequirements temporal_requirements() const noexcept {
+        return TemporalRequirements{};
+    }
+
     [[nodiscard]] std::string_view layer_id() const noexcept { return m_layer_id; }
     void set_layer_id(std::string id) { m_layer_id = std::move(id); }
 
@@ -96,9 +100,6 @@ public:
         m_item_index = item_index;
     }
 
-    /// Callback that evaluates the owning layer's animated opacity at a given frame.
-    /// Set by the graph builder via set_opacity_evaluator().  Defaults to an empty
-    /// callable; evaluate_opacity() returns 1.0f when unset.
     using OpacityEvaluator = std::function<float(const RenderFrameInfo&)>;
 
     void set_opacity_evaluator(OpacityEvaluator eval) { m_opacity_eval = std::move(eval); }
@@ -107,9 +108,6 @@ public:
         return m_opacity_eval ? m_opacity_eval(info) : 1.0f;
     }
 
-    /// Returns true when the node can serve as a fully opaque full-frame seed
-    /// for the first layer in a composition.  Lets the builder skip the
-    /// initial clear/composite pass for static full-frame backgrounds.
     [[nodiscard]] virtual bool can_seed_full_frame(const RenderGraphContext&) const noexcept {
         return false;
     }
@@ -118,9 +116,6 @@ public:
         return false;
     }
 
-    /// Immutable cache descriptor set at construction time.
-    /// Subclasses must NOT override this — pass the policy to the base-class
-    /// constructor instead.  Changing cache policy requires a graph rebuild.
     [[nodiscard]] RenderNodeCachePolicy cache_policy() const noexcept {
         return m_cache_policy;
     }
@@ -134,9 +129,6 @@ public:
     ) = 0;
 
 protected:
-    /// Cache policy is immutable after construction.  Subclasses may read
-    /// it directly (e.g. cache_key() checks frame_dependent()).
-    /// The base-class cache_policy() accessor is the canonical read path.
     RenderNodeCachePolicy m_cache_policy{frame_variant_cache("default")};
 
 private:
