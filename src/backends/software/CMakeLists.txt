@@ -57,7 +57,7 @@ if(CHRONON3D_ENABLE_VULKAN)
     target_compile_definitions(chronon3d_backend_software PUBLIC CHRONON3D_ENABLE_VULKAN)
 endif()
 
-if(CHRONON3D_BUILD_DIAGNOSTICS)
+if(CHRONON3D_ENABLE_DIAGNOSTICS)
     target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_backend_software_diagnostics)
 endif()
 # Expose internal bridge headers only to in-tree consumers.

@@ -5,15 +5,16 @@
     {
       "name": "linux-ci",
       "inherits": "base-linux",
-      "displayName": "Linux CI (daily install-consumer gate)",
-      "description": "Daily CI: CLI + content + tests + install consumer.",
+      "displayName": "Linux CI (daily core + install-consumer gate)",
+      "description": "Daily CI for the engine core: CLI + tests + install consumer, without bundled content.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "ON",
-        "VCPKG_MANIFEST_FEATURES": "tests;ipc",
         "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_ENABLE_VERIFICATION": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;ipc",
         "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
       }
     },
@@ -21,10 +22,7 @@
       "name": "linux-ci-nocontent",
       "hidden": true,
       "inherits": "linux-ci",
-      "displayName": "Linux CI no-content (legacy)",
-      "cacheVariables": {
-        "CHRONON3D_BUILD_CONTENT": "OFF"
-      }
+      "displayName": "Linux CI core (legacy no-content alias)"
     },
     {
       "name": "linux-ci-release-build",
@@ -34,9 +32,10 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_ENABLE_VERIFICATION": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests;ipc"
       }
     },
@@ -50,18 +49,23 @@
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "ON",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_VERIFICATION": "ON",
+        "CHRONON3D_ENABLE_VIDRUSH": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_SVG": "ON",
         "CHRONON3D_ENABLE_EXR": "ON",
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_MESH": "ON",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_BUILD_C_API": "ON",
+        "CHRONON3D_BUILD_DAEMON": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;svg;exr;telemetry;tests;benchmarks;ipc"
       }
     },
     {
@@ -73,17 +77,17 @@
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_CLI_RENDER": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TEXT": "OFF",
         "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_SVG": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_IPC": "OFF",
         "CHRONON3D_BUILD_DAEMON": "OFF",
+        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli;tests"
       }
@@ -105,17 +109,19 @@
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_CLI_RENDER": "OFF",
         "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TEXT": "OFF",
         "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_SVG": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_IPC": "OFF",
         "CHRONON3D_BUILD_DAEMON": "OFF",
+        "CHRONON3D_BUILD_C_API": "OFF",
+        "CHRONON3D_ENABLE_VERIFICATION": "OFF",
+        "CHRONON3D_ENABLE_VIDRUSH": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli"
       }
@@ -124,7 +130,7 @@
       "name": "linux-fuzz",
       "inherits": "base-linux",
       "displayName": "Linux libFuzzer regressions (Clang + ASan/UBSan)",
-      "description": "Builds the three fuzz targets with Clang + -fsanitize=fuzzer,address,undefined and replays the committed regression corpus (tests/fuzz/regressions/).",
+      "description": "Builds the fuzz targets with Clang + -fsanitize=fuzzer,address,undefined and replays the committed regression corpus.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_COMPILER": "clang",
@@ -133,19 +139,21 @@
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_CLI_RENDER": "OFF",
         "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_CRASH_HANDLER": "OFF",
         "CHRONON3D_ENABLE_DEV_WATCH": "OFF",
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TEXT": "OFF",
         "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_SVG": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_VULKAN": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_BUILD_DAEMON": "OFF",
+        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli;ipc"
       }

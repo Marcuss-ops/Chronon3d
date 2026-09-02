@@ -54,8 +54,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     animation_helpers_tests.cmake
     text/text_clip_policy_tests.cmake
     text_layout_advanced_tests.cmake
-    content_tests.cmake
-    showcase/CMakeLists.txt
     bench_corpus/CMakeLists.txt
     video_tests.cmake
     media_tests.cmake
