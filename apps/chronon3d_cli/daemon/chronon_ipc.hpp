@@ -76,6 +76,7 @@ enum class Command : std::uint32_t {
     Status        = 4,   ///< no payload → engine statistics
     Shutdown      = 5,   ///< no payload → stop serving
     RenderJob     = 6,   ///< payload: JSON {plan_path, assets_root, output}
+    AssembleSegments = 7, ///< payload: JSON {input_paths, output_path}
 };
 
 enum class Status : std::uint32_t {
