@@ -151,13 +151,10 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
         .queueCount = 1,
         .pQueuePriorities = &queue_priority};
     const VkPhysicalDeviceFeatures features{};
-    const VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features{
+    VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
         nullptr, VK_TRUE};
-    // VK_EXT_calibrated_timestamps — optional. When the device exposes it we
-    // enable it so real GPU timestamps can be anchored on the Perfetto CPU
-    // timeline (Fase 6).  When absent, the backend keeps reporting only the
-    // CPU-side submit/fence-wait events — never fake GPU bars.
+
     std::uint32_t device_extension_count = 0;
     vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr,
                                          &device_extension_count, nullptr);
@@ -165,6 +162,37 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
     vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr,
                                          &device_extension_count,
                                          device_extensions.data());
+    const auto has_device_extension = [&](const char* name) {
+        return std::any_of(device_extensions.begin(), device_extensions.end(),
+                           [name](const VkExtensionProperties& ext) {
+                               return std::strcmp(ext.extensionName, name) == 0;
+                           });
+    };
+
+    // Chronon targets Vulkan 1.2, therefore Synchronization2 is an explicit
+    // backend requirement rather than a parallel optional barrier path.
+    if (!has_device_extension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME)) {
+        throw std::runtime_error(
+            "Vulkan: VK_KHR_synchronization2 is required by the compiled barrier plan");
+    }
+    VkPhysicalDeviceSynchronization2FeaturesKHR available_sync2{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR};
+    VkPhysicalDeviceFeatures2 available_features{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    available_features.pNext = &available_sync2;
+    vkGetPhysicalDeviceFeatures2(m_physical_device, &available_features);
+    if (available_sync2.synchronization2 != VK_TRUE) {
+        throw std::runtime_error(
+            "Vulkan: synchronization2 feature is unavailable on the selected device");
+    }
+    VkPhysicalDeviceSynchronization2FeaturesKHR synchronization2_features{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
+        &timeline_features,
+        VK_TRUE};
+
+    // VK_EXT_calibrated_timestamps — optional. When the device exposes it we
+    // enable it so real GPU timestamps can be anchored on the Perfetto CPU
+    // timeline. When absent, the backend reports only CPU-side timing.
     m_calibrated_timestamps_supported = false;
     for (const auto& ext : device_extensions) {
         if (std::strcmp(ext.extensionName,
@@ -173,14 +201,9 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
             break;
         }
     }
-    std::vector<const char*> enabled_extensions;
+    std::vector<const char*> enabled_extensions{
+        VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    const auto has_device_extension = [&](const char* name) {
-        return std::any_of(device_extensions.begin(), device_extensions.end(),
-                           [name](const VkExtensionProperties& ext) {
-                               return std::strcmp(ext.extensionName, name) == 0;
-                           });
-    };
     const std::array<const char*, 4> cuda_extensions{
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
@@ -201,7 +224,7 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
     }
     const VkDeviceCreateInfo device_info{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = &timeline_features,
+        .pNext = &synchronization2_features,
         .flags = 0,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queue_info,
