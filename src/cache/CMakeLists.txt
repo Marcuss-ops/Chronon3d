@@ -10,7 +10,7 @@ if(NOT DEFINED CHRONON3D_FLATC)
 endif()
 
 set(CHRONON3D_ARTIFACT_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(CHRONON3D_ARTIFACT_SCHEMA "${CMAKE_SOURCE_DIR}/schema/chronon_artifact.fbs")
+set(CHRONON3D_ARTIFACT_SCHEMA "${CMAKE_SOURCE_DIR}/schemas/flatbuffers/chronon_artifact.fbs")
 set(CHRONON3D_ARTIFACT_GENERATED_HEADER
     "${CHRONON3D_ARTIFACT_GENERATED_DIR}/chronon_artifact_generated.h")
 

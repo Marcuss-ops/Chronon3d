@@ -1,6 +1,30 @@
 # src/CMakeLists.txt
 
+# Render-plan validation is a first-class Chronon contract, independent of IPC.
+find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
+
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    add_library(chronon3d_ffmpeg_light INTERFACE)
+    target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
+    add_library(chronon3d_ffmpeg_full INTERFACE)
+    target_link_libraries(chronon3d_ffmpeg_full INTERFACE swscale avcodec avformat avutil)
+endif()
+
 add_subdirectory(core)
+
+# Base engine boundary must exist before every subsystem that consumes it.
+add_library(chronon3d_base INTERFACE)
+target_include_directories(chronon3d_base INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+target_link_libraries(chronon3d_base INTERFACE
+    glm::glm xxHash::xxhash magic_enum::magic_enum)
+
+add_library(chronon3d INTERFACE)
+target_link_libraries(chronon3d INTERFACE chronon3d_base chronon3d_core_impl)
+
+add_library(chronon3d_core INTERFACE)
+target_link_libraries(chronon3d_core INTERFACE chronon3d_core_impl)
 add_subdirectory(cache)
 add_subdirectory(effects)
 add_subdirectory(registry)
@@ -35,6 +59,45 @@ if(CHRONON3D_ENABLE_IPC)
     add_subdirectory(ipc)
 endif()
 
+# Logical aggregate targets consumed by the CLI, tests, and SDK facade.
+add_library(chronon3d_software INTERFACE)
+target_link_libraries(chronon3d_software INTERFACE
+    chronon3d_backend_software
+    chronon3d_backend_assets
+    chronon3d_backend_image
+)
+if(CHRONON3D_ENABLE_VULKAN)
+    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_vulkan)
+endif()
+if(CHRONON3D_ENABLE_VIDEO)
+    target_link_libraries(chronon3d_software INTERFACE
+        chronon3d_backend_video chronon3d_media_video)
+endif()
+
+add_library(chronon3d_pipeline INTERFACE)
+target_link_libraries(chronon3d_pipeline INTERFACE
+    chronon3d_core
+    chronon3d_software
+)
+if(CHRONON3D_ENABLE_IPC)
+    target_link_libraries(chronon3d_pipeline INTERFACE
+        nlohmann_json_schema_validator::validator)
+endif()
+chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
+
+if(CHRONON3D_ENABLE_VULKAN AND CHRONON3D_ENABLE_CUDA_INTEROP
+   AND CHRONON3D_ENABLE_NATIVE_FFMPEG
+   AND CHRONON3D_NVRTC_INCLUDE_DIR AND CHRONON3D_NVRTC_LIBRARY)
+    # The Vulkan backend is an OBJECT library, so publish NVRTC through the
+    # canonical pipeline interface after that target has been created.
+    target_link_libraries(chronon3d_pipeline INTERFACE
+        "${CHRONON3D_NVRTC_LIBRARY}")
+endif()
+
+# Define the consumer-facing SDK targets after every registry-backed component
+# has registered its object libraries, and before the root install/export pass.
+include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkTargets.cmake)
+
 if(MSVC AND CHRONON3D_PARALLEL_MSVC)
     file(GLOB_RECURSE CHRONON3D_SRC_CPP CONFIGURE_DEPENDS
          "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
@@ -42,48 +105,3 @@ if(MSVC AND CHRONON3D_PARALLEL_MSVC)
         set_source_files_properties(${CHRONON3D_SRC_CPP} PROPERTIES COMPILE_OPTIONS "/MP")
     endif()
 endif()
-
-add_library(chronon3d_core
-    scene3d/scene3d.cpp
-    scene3d/manifest.cpp
-    scene3d/import_gltf.cpp
-    scene3d/material.cpp
-    scene3d/mesh_cache.cpp
-    scene3d/animation.cpp
-    scene3d/loader/obj_loader.cpp
-    scene3d/loader/mtl_loader.cpp
-)
-
-add_library(chronon3d::core ALIAS chronon3d_core)
-
-target_include_directories(chronon3d_core PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
-)
-
-target_link_libraries(chronon3d_core
-    PUBLIC chronon3d_compile_config
-    PRIVATE nlohmann_json::nlohmann_json
-)
-
-if (CHRONON3D_ENABLE_MESH)
-  target_link_libraries(chronon3d_core PUBLIC meshoptimizer::meshoptimizer)
-  target_compile_definitions(chronon3d_core PUBLIC CHRONON3D_ENABLE_MESH=1)
-endif()
-
-if(MSVC)
-    target_compile_options(chronon3d_core PRIVATE /W4 /permissive-)
-    if(CHRONON3D_WARNINGS_AS_ERRORS)
-        target_compile_options(chronon3d_core PRIVATE /WX)
-    endif()
-else()
-    target_compile_options(chronon3d_core PRIVATE
-        -Wall -Wextra -Wshadow -Wconversion -Wpedantic)
-    if(CHRONON3D_WARNINGS_AS_ERRORS)
-        target_compile_options(chronon3d_core PRIVATE -Werror)
-    endif()
-endif()
-
-set_target_properties(chronon3d_core PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-)
