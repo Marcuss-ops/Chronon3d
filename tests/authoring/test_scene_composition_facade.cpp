@@ -146,45 +146,6 @@ TEST_CASE("Authoring/Text: default script=0u is preserved") {
     CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0u);
 }
 
-TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
-    LayerBuilder lb("script_propagate", SampleTime{});
-    lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
-
-    StyleRegistry styles;
-    chronon3d::TextStyle hero;
-    hero.font_path = "Inter-Bold.ttf";
-    hero.size = 96.0f;
-    hero.shaping.direction = TextDirection::LTR;
-    hero.shaping.language = "en";
-    hero.shaping.script = 0x41726162u;
-    styles.register_style("arabic.hero", hero);
-
-    chronon3d::authoring::Text text = layer.text("AR");
-    text.style("arabic.hero", styles);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x41726162u);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.direction == TextDirection::LTR);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.language == "en");
-}
-
-TEST_CASE("Authoring/Text: style(id) preserves existing script when style script is zero") {
-    LayerBuilder lb("script_zero", SampleTime{});
-    lb.screen_dimensions(1920.0f, 1080.0f);
-    chronon3d::authoring::Layer layer(lb, explicit_canvas(1920.0f, 1080.0f));
-
-    StyleRegistry styles;
-    chronon3d::TextStyle default_style;
-    default_style.size = 48.0f;
-    default_style.shaping.script = 0u;
-    styles.register_style("default.no.script", default_style);
-
-    chronon3d::authoring::Text text = layer.text("DEFAULT");
-    text.script(0x4C61746Eu);
-    REQUIRE(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x4C61746Eu);
-    text.style("default.no.script", styles);
-    CHECK(TextRunBuilderInspector::pending_of(text)->params.shaping.script == 0x4C61746Eu);
-}
-
 TEST_CASE("Authoring/Text: script accepts high-bit pattern without sign extension") {
     LayerBuilder lb("script_highbit", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);

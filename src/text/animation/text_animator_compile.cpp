@@ -12,7 +12,7 @@
 //
 // ── §5.0a — compile() ────────────────────────────────────────────────────
 // Self-reference return for fluent chaining. Two responsibilities:
-//   (1) Provide a hook for downstream code (MotionRegistry, Animator DSL,
+//   (1) Provide a hook for downstream code (Animator DSL,
 //       hand-rolled authoring) to MARK an authored spec as "fully compiled"
 //       without polluting the struct with extra state. We do NOT add an
 //       explicit `bool compiled = false` because that would be a NEW
