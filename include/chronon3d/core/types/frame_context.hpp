@@ -15,14 +15,13 @@ namespace registry { class ShapeRegistry; }
 class AssetRegistry;
 class FontEngine;
 
-/// Parameters for constructing a FrameContext. `frame_time` is the canonical
-/// exact media-time contract when supplied by ingest/compiler boundaries.
-/// SampleTime remains as the animation/sub-frame compatibility coordinate.
+/// Parameters for constructing a FrameContext. `frame_time` is appended to the
+/// legacy aggregate layout so existing positional/designated construction stays
+/// source-compatible while exact media time is available to new callers.
 struct FrameContextParams {
     SampleTime global_time{};
     std::optional<SampleTime> local_time{};
     Frame duration{0};
-    std::optional<FrameTimeContext> frame_time{};
 
     i32 width{1920};
     i32 height{1080};
@@ -32,6 +31,8 @@ struct FrameContextParams {
     registry::ShapeRegistry* shape_registry{nullptr};
     FontEngine* font_engine{nullptr};
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
+
+    std::optional<FrameTimeContext> frame_time{};
 };
 
 /// Evaluation context for a single frame. Exact presentation time is carried
@@ -108,9 +109,6 @@ private:
     friend FrameContext make_frame_context(const FrameContextParams&);
 
     [[nodiscard]] static FrameTimeContext frame_time_from_sample(SampleTime time) {
-        // SampleTime is a compatibility coordinate. Quantize it once at the
-        // boundary to the existing deterministic 1/65536-frame sub-frame grid;
-        // exact media ingest should instead supply FrameContextParams::frame_time.
         constexpr i64 kSubframeTicks = 65536;
         const i64 subframe_value = static_cast<i64>(
             std::llround(time.frame * static_cast<double>(kSubframeTicks)));
