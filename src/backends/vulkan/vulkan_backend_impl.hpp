@@ -369,7 +369,10 @@ struct VulkanBackend::Impl {
         std::unordered_map<std::size_t, runtime::ResourceAccess> slot_last_access{};
 
         [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {
-            return surface_bindings.contains(handle);
+            const auto binding = surface_bindings.find(handle);
+            if (binding == surface_bindings.end()) return false;
+            const auto surface = physical_surfaces.find(binding->second);
+            return surface != physical_surfaces.end() && surface->second.image.initialized;
         }
 
         [[nodiscard]] std::size_t physical_count() const noexcept {

@@ -13,7 +13,12 @@
 
 namespace chronon3d {
 class ImageCache;
-namespace media { class NativeVideoFrameDecoder; }
+namespace media {
+class NativeVideoFrameDecoder;
+// The resource type is CUDA-only at implementation level, but the public
+// program holder also needs to compile in the non-CUDA video preset.
+class CudaImageResource;
+}
 }
 
 namespace chronon3d::cli {
@@ -61,4 +66,3 @@ private:
 };
 
 } // namespace chronon3d::cli
-

@@ -18,6 +18,7 @@
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_SVG": "OFF",
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CHRONON3D_ENABLE_VULKAN": "ON",
@@ -64,13 +65,13 @@
       "name": "linux-video-fast-dev",
       "configurePreset": "linux-video-fast-dev",
       "targets": ["chronon3d_cli"],
-      "jobs": 8
+      "jobs": 20
     },
     {
       "name": "linux-video-test",
       "configurePreset": "linux-video-test",
       "targets": ["chronon3d_cli", "chronon3d_tests_video", "chronon3d_tests"],
-      "jobs": 8
+      "jobs": 20
     },
     {
       "name": "linux-video-release",

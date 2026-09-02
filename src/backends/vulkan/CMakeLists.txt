@@ -170,11 +170,6 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
                 "${CHRONON3D_NVRTC_LIBRARY}")
         endif()
         if(CHRONON3D_NVRTC_INCLUDE_DIR AND CHRONON3D_NVRTC_LIBRARY)
-            # The Vulkan backend is an OBJECT library, so its private link
-            # interface does not reach the final CLI link line. Publish the
-            # NVRTC dependency through the canonical engine interface too.
-            target_link_libraries(chronon3d INTERFACE
-                "${CHRONON3D_NVRTC_LIBRARY}")
             target_link_libraries(chronon3d_backend_vulkan PUBLIC
                 "${CHRONON3D_NVRTC_LIBRARY}")
             add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench

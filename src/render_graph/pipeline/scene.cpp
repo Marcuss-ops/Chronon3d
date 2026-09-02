@@ -275,10 +275,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                     (void)ctx.services.surface_registry->release(handle);
                 }
                 handle = persistent_source;
-                if (!backend.is_native_surface_valid(handle)) {
+                const auto desc = native_surface_desc(framebuffer->width(), framebuffer->height());
+                // The encoder-owned source handle can be bound before its
+                // first upload. Ensure its Vulkan image exists, then populate
+                // it from the CPU framebuffer instead of treating the bound
+                // but uninitialized image as a ready source.
+                if (!backend.is_native_surface_valid(handle) &&
+                    !backend.create_surface(handle, desc).ok()) {
                     return runtime::kInvalidRenderSurfaceHandle;
                 }
-                const auto desc = native_surface_desc(framebuffer->width(), framebuffer->height());
                 raster::BBox clip{0, 0, framebuffer->width(), framebuffer->height()};
                 if (native_source_upload_clip) clip = *native_source_upload_clip;
                 clip.x0 = std::clamp(clip.x0, 0, framebuffer->width());
