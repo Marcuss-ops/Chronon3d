@@ -83,10 +83,14 @@ public:
     virtual RenderGraphNodeKind kind() const noexcept = 0;
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
-    /// Explicit history/preroll contract. The default is frame-local. Any
-    /// node that reads frames other than the current presentation instant must
-    /// override this so compiler/distributed execution can see the dependency.
+    /// Explicit history/preroll contract. Frame-local nodes default to zero.
+    /// MotionBlur is intrinsically temporal, so the base contract guarantees
+    /// at least one history frame instead of allowing a hidden state dependency.
+    /// Specialized temporal nodes may override with larger frame/duration windows.
     [[nodiscard]] virtual TemporalRequirements temporal_requirements() const noexcept {
+        if (kind() == RenderGraphNodeKind::MotionBlur) {
+            return TemporalRequirements{.history_frames = 1};
+        }
         return TemporalRequirements{};
     }
 
