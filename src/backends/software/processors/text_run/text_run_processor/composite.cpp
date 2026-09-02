@@ -20,6 +20,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 
 namespace chronon3d::renderer::text_run_stages {
@@ -113,9 +114,49 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
         params.model_matrix, s.offset_x, s.offset_y,
         s.min_x, s.min_y, s.max_x, s.max_y);
 
+    if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+        std::size_t scratch_nonzero = 0;
+        std::size_t scratch_alpha = 0;
+        BLImageData scratch_data{};
+        const bool scratch_data_valid = s.img.getData(&scratch_data) == BL_SUCCESS;
+        for (int y = 0; y < s.img.height(); ++y) {
+            const auto* row = scratch_data_valid
+                ? reinterpret_cast<const std::uint32_t*>(
+                    static_cast<const std::uint8_t*>(scratch_data.pixelData) +
+                    static_cast<std::size_t>(y) * scratch_data.stride)
+                : nullptr;
+            if (!row) continue;
+            for (int x = 0; x < s.img.width(); ++x) {
+                scratch_nonzero += row[x] != 0;
+                scratch_alpha += ((row[x] >> 24u) & 0xffu) != 0;
+            }
+        }
+        spdlog::info(
+            "[text-composite] glyphs={} scratch={}x{} fb={}x{} offset=({}, {}) "
+            "local_bbox=({}, {}, {}, {}) matrix=({}, {}) canvas_bbox={} scratch_pixels={} scratch_alpha_pixels={}",
+            s.glyphs_drawn, s.img.width(), s.img.height(), params.fb.width(), params.fb.height(),
+            s.offset_x, s.offset_y, s.min_x, s.min_y, s.max_x, s.max_y,
+            params.model_matrix[3][0], params.model_matrix[3][1],
+            actual_ink_bbox.has_value(), scratch_nonzero, scratch_alpha);
+        spdlog::info("[text-composite] full_matrix diag=({}, {}, {}, {}) translation=({}, {})",
+            full_model[0][0], full_model[1][1], full_model[2][2], full_model[3][3],
+            full_model[3][0], full_model[3][1]);
+    }
+
     chronon3d::blend2d_bridge::composite_bl_image_transformed(
         params.fb, s.img, full_model,
         params.opacity, BlendMode::Normal);
+
+    if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+        std::size_t destination_nonzero = 0;
+        for (int y = 0; y < params.fb.height(); ++y) {
+            const Color* row = params.fb.pixels_row(y);
+            if (!row) continue;
+            for (int x = 0; x < params.fb.width(); ++x)
+                destination_nonzero += row[x].a > 0.001f;
+        }
+        spdlog::info("[text-composite] destination_alpha_pixels={}", destination_nonzero);
+    }
 
     // perf(text): explicit release back to the per-call pool on the
     // SUCCESS path, not just on early-out.  The image data has been
