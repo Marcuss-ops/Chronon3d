@@ -28,7 +28,6 @@ set(CHRONON3D_SDK_API_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/evaluated_composition_frame.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_definition.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/text.hpp"
 )
 
 # Headers required to compile the supported API. They are package closure,
@@ -133,9 +132,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projector_2_5d.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/raster_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/transform.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/motion_animation.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/motion_object.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/motion_state.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_ids.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_registry.hpp"
@@ -146,11 +142,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     # internal pipeline topology used by the OPP renderer; the public
     # surface exposes only `chronon3d::sdk::RenderEngine::render(...)`.
     # "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"  # HIDDEN
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/depth_grade.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/light_context.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/lighting_rig.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/projected_card.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/shadow_settings.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/builder_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/scene_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/sequence_builder.hpp"
@@ -169,7 +160,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_presets.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_preset_params.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/animations/camera_motion_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_projection.hpp"
@@ -282,17 +272,11 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     #                                   convenience struct for the spec example)
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/scene_camera_facade.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_descriptor_builder.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/animator.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/material.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/selector.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/text.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/text_span_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/assets/image_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_backend.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_decode_options.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/text/text_render_resources.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/motion_parameters.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_catalog.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_module.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/node_handle.hpp"
@@ -308,12 +292,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/parallel_tracked.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/random/deterministic_random.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/raster/bbox.hpp"
-
-    # Header-only authoring closure required by the supported API.
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_content_font.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_placement_layout.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_appearance_animation.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_private.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/shape_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/media_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/text_params.hpp"
