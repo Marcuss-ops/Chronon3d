@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/runtime/resource_residency.hpp>
 
 namespace chronon3d::runtime {
 
@@ -22,6 +23,7 @@ struct ResourceDesc {
     std::size_t bytes{0};
     std::size_t alignment{alignof(std::max_align_t)};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
+    ResourceResidency residency{};
 
     [[nodiscard]] static constexpr ResourceDesc make(
         std::uint32_t width,
@@ -29,10 +31,12 @@ struct ResourceDesc {
         PixelFormat format,
         ResourceUsage usage = ResourceUsage::Generic,
         LifetimeClass lifetime = LifetimeClass::FrameTransient,
-        std::size_t alignment = alignof(std::max_align_t)) noexcept {
+        std::size_t alignment = alignof(std::max_align_t),
+        ResourceResidency residency = {}) noexcept {
         return ResourceDesc{
             width, height, format, usage,
-            tight_surface_bytes(format, width, height), alignment, lifetime};
+            tight_surface_bytes(format, width, height), alignment, lifetime,
+            residency};
     }
 };
 
@@ -78,6 +82,8 @@ struct PhysicalResourceSlot {
     std::uint32_t width{0};
     std::uint32_t height{0};
     std::size_t offset{0};
+    ResourceResidency residency{};
+    bool dedicated{false};
 };
 
 using PhysicalSlot = PhysicalResourceSlot;
@@ -116,8 +122,10 @@ struct ResourcePlan {
 };
 
 /// Deterministic first-fit interval planner for job/pipeline resources.
-/// Requests alias only when kind/alignment are compatible and lifetimes do not
-/// overlap. The planner allocates no backing memory; pools own that lifecycle.
+/// Requests alias only when kind/alignment/residency are compatible and
+/// lifetimes do not overlap. Exportable/external residency is compiler-visible
+/// and therefore never participates in transient aliasing. The planner
+/// allocates no backing memory; pools/backends own that lifecycle.
 class ResourcePlanner {
 public:
     void add(ResourceRequest request) { m_requests.push_back(request); }
@@ -149,13 +157,16 @@ public:
                 continue;
             }
             std::size_t selected = std::numeric_limits<std::size_t>::max();
-            for (std::size_t slot = 0; slot < plan.slots.size(); ++slot) {
-                const auto& physical = plan.slots[slot];
-                if (request.desc.lifetime == LifetimeClass::FrameTransient &&
-                    compatible(physical, request) &&
-                    physical.last < request.first) {
-                    selected = slot;
-                    break;
+            if (request.desc.residency.allows_transient_aliasing()) {
+                for (std::size_t slot = 0; slot < plan.slots.size(); ++slot) {
+                    const auto& physical = plan.slots[slot];
+                    if (!physical.dedicated &&
+                        request.desc.lifetime == LifetimeClass::FrameTransient &&
+                        compatible(physical, request) &&
+                        physical.last < request.first) {
+                        selected = slot;
+                        break;
+                    }
                 }
             }
             if (selected == std::numeric_limits<std::size_t>::max()) {
@@ -164,7 +175,9 @@ public:
                     request.kind, request.lifetime, request_bytes,
                     request.alignment, request.last,
                     request.desc.format, request.desc.usage,
-                    request.desc.width, request.desc.height, 0});
+                    request.desc.width, request.desc.height, 0,
+                    request.desc.residency,
+                    request.desc.residency.requires_dedicated_allocation()});
                 ++plan.telemetry.buffer_new_allocations;
             } else {
                 auto& physical = plan.slots[selected];
@@ -243,10 +256,11 @@ private:
             desc.width == 0 || desc.height == 0 || slot.width == 0 ||
             slot.height == 0 ||
             (slot.width == desc.width && slot.height == desc.height);
+        const bool residency_compatible = slot.residency == desc.residency;
         return slot.kind == request.kind &&
                slot.lifetime == request.lifetime &&
                format_compatible && usage_compatible && alignment_compatible &&
-               dimensions_compatible;
+               dimensions_compatible && residency_compatible;
     }
 
     static std::size_t align_up(std::size_t value, std::size_t alignment) noexcept {

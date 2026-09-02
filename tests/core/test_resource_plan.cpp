@@ -114,3 +114,58 @@ TEST_CASE("ResourcePlanner keeps persistent resources distinct and excludes exte
     CHECK(plan.slots[0].offset == 0);
     CHECK(plan.slots[1].offset >= plan.slots[0].offset + plan.slots[0].bytes);
 }
+
+TEST_CASE("ResourcePlanner makes exportable residency dedicated and non-aliasable") {
+    using namespace chronon3d::runtime;
+    ResourcePlanner planner;
+
+    ResourceRequest first{"export-a", ResourceKind::Yuv, 256, {}, 0, 0, 16};
+    first.desc = ResourceDesc::make(
+        16, 8, PixelFormat::Nv12, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 16,
+        ResourceResidency{
+            .domain = MemoryDomain::Vulkan,
+            .device = 0,
+            .exportable = true,
+            .encoder_compatible = true,
+        });
+    ResourceRequest second{"export-b", ResourceKind::Yuv, 256, {}, 1, 1, 16};
+    second.desc = first.desc;
+
+    planner.add(first);
+    planner.add(second);
+    const auto plan = planner.build();
+
+    REQUIRE(plan.slots.size() == 2);
+    CHECK(plan.allocation_for(0)->physical_slot != plan.allocation_for(1)->physical_slot);
+    CHECK(plan.slots[0].dedicated);
+    CHECK(plan.slots[1].dedicated);
+    CHECK(plan.slots[0].residency.exportable);
+    CHECK(plan.slots[0].residency.encoder_compatible);
+    CHECK(plan.telemetry.buffer_reuse_count == 0);
+    CHECK(plan.telemetry.alias_saved_bytes == 0);
+}
+
+TEST_CASE("ResourcePlanner only aliases resources with identical residency contracts") {
+    using namespace chronon3d::runtime;
+    ResourcePlanner planner;
+
+    ResourceRequest vulkan{"vulkan", ResourceKind::Color, 128, {}, 0, 0, 16};
+    vulkan.desc = ResourceDesc::make(
+        4, 4, PixelFormat::Rgba16Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 16,
+        ResourceResidency{.domain = MemoryDomain::Vulkan, .device = 0});
+    ResourceRequest cuda{"cuda", ResourceKind::Color, 128, {}, 1, 1, 16};
+    cuda.desc = ResourceDesc::make(
+        4, 4, PixelFormat::Rgba16Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 16,
+        ResourceResidency{.domain = MemoryDomain::Cuda, .device = 0});
+
+    planner.add(vulkan);
+    planner.add(cuda);
+    const auto plan = planner.build();
+
+    REQUIRE(plan.slots.size() == 2);
+    CHECK(plan.slots[0].residency.domain == MemoryDomain::Vulkan);
+    CHECK(plan.slots[1].residency.domain == MemoryDomain::Cuda);
+}
