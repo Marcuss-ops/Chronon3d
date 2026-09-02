@@ -71,13 +71,10 @@ std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
     }
     BLBoxI bounds{};
     if (font.getGlyphBounds(&glyph_id, 0, &bounds, 1) != BL_SUCCESS) return std::nullopt;
-    const double units_per_em = static_cast<double>(handle.bl_face->unitsPerEm());
-    if (units_per_em <= 0.0) return std::nullopt;
-    const double kGlyphUnit = static_cast<double>(font_size) / units_per_em;
-    const int x0 = static_cast<int>(std::floor(bounds.x0 * kGlyphUnit));
-    const int y0 = static_cast<int>(std::floor(bounds.y0 * kGlyphUnit));
-    const int x1 = static_cast<int>(std::ceil(bounds.x1 * kGlyphUnit));
-    const int y1 = static_cast<int>(std::ceil(bounds.y1 * kGlyphUnit));
+    const int x0 = bounds.x0;
+    const int y0 = bounds.y0;
+    const int x1 = bounds.x1;
+    const int y1 = bounds.y1;
     const int width = x1 - x0;
     const int height = y1 - y0;
     if (width <= 0 || height <= 0) return std::nullopt;
@@ -89,9 +86,9 @@ std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
     context.fillAll();
     context.setCompOp(BL_COMP_OP_SRC_OVER);
     context.setFillStyle(BLRgba32(
-        static_cast<std::uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f),
-        static_cast<std::uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f),
         static_cast<std::uint32_t>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f),
+        static_cast<std::uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f),
+        static_cast<std::uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f),
         static_cast<std::uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f)));
     BLGlyphPlacement placement{};
     placement.placement.reset(0.0, 0.0);

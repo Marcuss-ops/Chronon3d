@@ -303,12 +303,9 @@ inline TextRunPlacement resolve_text_run_placement(
     // box anchor before this graph-level lowering. The node transform is
     // therefore already box-local and must carry a zero anchor: applying
     // Transform::to_mat4() here consumes no placement semantics twice.
-    out_opacity = item.transform.opacity * node.world_transform.opacity;
-    // item.world_matrix is the canonical evaluated layer matrix for explicit
-    // and pinned placement.  Unpinned text additionally uses the centered
-    // authoring basis described above.
+    // item.world_matrix is the canonical evaluated layer matrix (already in canvas coordinates).
     return TextRunPlacement{
-        canvas_center * item.world_matrix * node.world_transform.to_mat4()};
+        item.world_matrix * node.world_transform.to_mat4()};
 }
 
 } // namespace chronon3d::graph::detail

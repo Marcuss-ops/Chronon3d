@@ -81,6 +81,29 @@ struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
 };
 
+// Generic AE-style text animator contract. Editorial motion ids are lowered
+// into these primitives before Chronon sees the plan.
+struct TextSelectorPlan {
+    std::string id;
+    std::string unit{"glyph"};
+    std::string shape{"smooth"};
+    std::string order{"forward"};
+    std::string combine{"replace"};
+    AnimationTrackPlan start;
+    AnimationTrackPlan end;
+    AnimationTrackPlan offset;
+    AnimationTrackPlan amount;
+    bool exclude_spaces{true};
+    bool randomize_order{false};
+    std::uint64_t random_seed{0};
+};
+
+struct TextAnimatorPlan {
+    std::string id;
+    std::vector<TextSelectorPlan> selectors;
+    std::vector<AnimationTrackPlan> properties;
+};
+
 struct LayerPlan {
     std::string id;
     LayerType type{LayerType::Color};
@@ -107,6 +130,7 @@ struct LayerPlan {
     std::optional<Frame> duration_frames;
     std::optional<FitMode> fit;
     std::optional<AnimationPlan> animation;
+    std::vector<TextAnimatorPlan> text_animators;
 
     std::optional<chronon3d::BlendMode> blend_mode;
     std::optional<float> opacity;

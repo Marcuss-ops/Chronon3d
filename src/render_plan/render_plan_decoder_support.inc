@@ -73,6 +73,31 @@ std::uint64_t fingerprint_render_plan_impl(const RenderPlan& plan,
                 }
             }
         }
+        hash.add(layer.text_animators.size());
+        for (const auto& animator : layer.text_animators) {
+            hash.add(animator.id).add(animator.selectors.size()).add(animator.properties.size());
+            for (const auto& selector : animator.selectors) {
+                hash.add(selector.id).add(selector.unit).add(selector.shape)
+                    .add(selector.order).add(selector.combine)
+                    .add(selector.exclude_spaces).add(selector.randomize_order)
+                    .add(selector.random_seed);
+                for (const auto* track : {&selector.start, &selector.end,
+                                          &selector.offset, &selector.amount}) {
+                    hash.add(track->property).add(track->easing).add(track->keyframes.size());
+                    for (const auto& key : track->keyframes) {
+                        hash.add(key.frame).add(key.value.size());
+                        for (const auto v : key.value) hash.add(v);
+                    }
+                }
+            }
+            for (const auto& track : animator.properties) {
+                hash.add(track.property).add(track.easing).add(track.keyframes.size());
+                for (const auto& key : track.keyframes) {
+                    hash.add(key.frame).add(key.value.size());
+                    for (const auto v : key.value) hash.add(v);
+                }
+            }
+        }
         hash.add(layer.blend_mode.has_value());
         if (layer.blend_mode) hash.add_enum(*layer.blend_mode);
         hash.add(layer.opacity.has_value());

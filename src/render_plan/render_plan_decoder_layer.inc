@@ -1,5 +1,54 @@
 namespace {
 
+AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
+    AnimationTrackPlan track;
+    track.property = value.at("property").get<std::string>();
+    track.easing = value.value("easing", std::string{"linear"});
+    for (const auto& key_value : value.at("keyframes")) {
+        AnimationKeyframePlan key;
+        key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
+        const auto& raw = key_value.at("value");
+        if (raw.is_array()) {
+            for (const auto& component : raw) key.value.push_back(component.get<float>());
+        } else {
+            key.value.push_back(raw.get<float>());
+        }
+        track.keyframes.push_back(std::move(key));
+    }
+    return track;
+}
+
+TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
+    TextSelectorPlan selector;
+    selector.id = value.value("id", std::string{});
+    selector.unit = value.value("unit", std::string{"glyph"});
+    selector.shape = value.value("shape", std::string{"smooth"});
+    selector.order = value.value("order", std::string{"forward"});
+    selector.combine = value.value("combine", std::string{"replace"});
+    if (value.contains("start")) selector.start = decode_animation_track(value.at("start"));
+    if (value.contains("end")) selector.end = decode_animation_track(value.at("end"));
+    if (value.contains("offset")) selector.offset = decode_animation_track(value.at("offset"));
+    if (value.contains("amount")) selector.amount = decode_animation_track(value.at("amount"));
+    selector.exclude_spaces = value.value("exclude_spaces", true);
+    selector.randomize_order = value.value("randomize_order", false);
+    selector.random_seed = value.value("random_seed", std::uint64_t{0});
+    return selector;
+}
+
+TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
+    TextAnimatorPlan animator;
+    animator.id = value.value("id", std::string{});
+    if (value.contains("selectors")) {
+        for (const auto& selector : value.at("selectors"))
+            animator.selectors.push_back(decode_text_selector(selector));
+    }
+    if (value.contains("properties")) {
+        for (const auto& property : value.at("properties"))
+            animator.properties.push_back(decode_animation_track(property));
+    }
+    return animator;
+}
+
 LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
@@ -88,24 +137,14 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
     if (value.contains("animation")) {
         AnimationPlan animation;
-        for (const auto& track_value : value.at("animation").at("tracks")) {
-            AnimationTrackPlan track;
-            track.property = track_value.at("property").get<std::string>();
-            track.easing = track_value.value("easing", std::string{"linear"});
-            for (const auto& key_value : track_value.at("keyframes")) {
-                AnimationKeyframePlan key;
-                key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
-                const auto& raw = key_value.at("value");
-                if (raw.is_array()) {
-                    for (const auto& component : raw) key.value.push_back(component.get<float>());
-                } else {
-                    key.value.push_back(raw.get<float>());
-                }
-                track.keyframes.push_back(std::move(key));
-            }
-            animation.tracks.push_back(std::move(track));
-        }
+        for (const auto& track_value : value.at("animation").at("tracks"))
+            animation.tracks.push_back(decode_animation_track(track_value));
         layer.animation = std::move(animation);
+    }
+
+    if (value.contains("text_animators")) {
+        for (const auto& animator : value.at("text_animators"))
+            layer.text_animators.push_back(decode_text_animator(animator));
     }
 
     if (value.contains("blend_mode")) {
