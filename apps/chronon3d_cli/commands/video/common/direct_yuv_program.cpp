@@ -260,7 +260,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     auto template_frame = std::make_shared<DirectYuvTemplate>();
     const auto rate = composition_->frame_rate();
     const auto context = make_frame_context({
-        .global_time = SampleTime::from_frame(static_cast<double>(frame.value), rate),
+        .global_time = SampleTime::from_frame(static_cast<double>(frame.integral()), rate),
         .duration = composition_->duration(),
         .width = width_,
         .height = height_,
@@ -276,8 +276,8 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
     for (const auto& layer : scene.layers()) {
         if (!layer.visible || layer.video_source) continue;
-        if (frame.value < layer.from.value ||
-            (layer.duration.value > 0 && frame.value >= layer.from.value + layer.duration.value)) {
+        if (frame.integral() < layer.from.integral() ||
+            (layer.duration.integral() > 0 && frame.integral() >= layer.from.integral() + layer.duration.integral())) {
             continue;
         }
         if (layer.transform.opacity <= 0.001f) continue;
