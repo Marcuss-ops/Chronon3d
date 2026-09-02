@@ -113,10 +113,6 @@ namespace chronon3d::backends::vulkan {
         physical.image.vulkan_to_cuda = make_external_binary_semaphore();
         physical.desc = desc;
         surfaces.surface_bindings.emplace(handle, slot);
-        // Encode surfaces are created outside the render graph and are fully
-        // consumed by copy_surface_to_cuda_encoder before their release.
-        // Mark them unplanned so the writer can reclaim them immediately even
-        // while the render thread records the next frame batch.
         surfaces.unplanned_surface_handles.insert(handle);
         ++stats.surface_creations;
     }
@@ -194,12 +190,6 @@ namespace chronon3d::backends::vulkan {
             it->second.image.vulkan_to_cuda == VK_NULL_HANDLE) {
             throw std::invalid_argument("surface is not a CUDA external surface");
         }
-        // CUDA signals cuda_to_vulkan after writing the imported image. The
-        // next Vulkan submit consumes that signal and signals vulkan_to_cuda
-        // after its compositing work completes.
-        // The CUDA producer has fully populated the image, so subsequent
-        // Vulkan operations must transition from GENERAL rather than treat
-        // the imported image as undefined on the first composite.
         it->second.image.initialized = true;
         surfaces.cuda_ready_surfaces.insert(slot);
     }
@@ -260,10 +250,6 @@ namespace chronon3d::backends::vulkan {
                    VK_IMAGE_LAYOUT_GENERAL);
         dst.initialized = true;
         surfaces.cuda_export_ready_surfaces.insert(destination_slot);
-        // Zero-copy gate 6: this vkCmdBlitImage is the D2D Vulkan→CUDA
-        // surface copy.  The direct-YUV encode handoff (composite_direct_
-        // nv12*) renders the overlay into the CUDA-visible surface without
-        // this copy and keeps the counter at zero.
         if (auto* counters = profiling::g_current_counters) {
             counters->gpu_surface_copy_frames.fetch_add(1, std::memory_order_relaxed);
         }
@@ -295,7 +281,6 @@ namespace chronon3d::backends::vulkan {
         vkUpdateDescriptorSets(device, 2, writes, 0, nullptr);
     }
 
-    // fill_rect has a single-image binding (destination only, no source).
     void VulkanBackend::Impl::write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination) {
         const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
         const VkWriteDescriptorSet writes[] = {
@@ -384,18 +369,10 @@ namespace chronon3d::backends::vulkan {
         return set;
     }
 
-    // The command buffer of the slot currently being recorded.  next_slot is
-    // stable during a batch; it only advances in submit_batch(), so this is
-    // the correct target for every record_* call of the active frame.
     [[nodiscard]] VkCommandBuffer VulkanBackend::Impl::active_command_buffer() const noexcept {
         return frame_batch.command_buffers[frame_batch.next_slot];
     }
 
-    // Allocate a descriptor set for one recorded pass of the active frame
-    // batch from the CURRENT slot's allocator.  Each pass binds its own set
-    // so the image bindings written now stay valid until end_frame_batch()
-    // submits the whole batch; the sets are tracked so begin_frame_batch()
-    // invalidates them with the slot's next allocator reset.
     VkDescriptorSet VulkanBackend::Impl::allocate_pass_descriptor_set() {
         const auto set =
             frame_batch.descriptor_allocators[frame_batch.next_slot].allocate();
@@ -463,13 +440,6 @@ namespace chronon3d::backends::vulkan {
         vkUpdateDescriptorSets(device, 6, writes, 0, nullptr);
     }
 
-    // ── synchronization helpers (single emission site) ───────────────────────
-    // Layout transitions and memory barriers for the pass pipeline are built
-    // ONLY here.  Kernels (record_*) never synchronize; the operation
-    // wrappers route through either the BarrierPlan mapper (plan-driven
-    // batches via begin_plan_batch) or the conservative fallback (standalone
-    // ops and direct op calls without a plan).
-
     VkImageMemoryBarrier VulkanBackend::Impl::make_image_barrier(const Image& image,
                                             VkImageLayout old_layout,
                                             VkImageLayout new_layout,
@@ -493,11 +463,6 @@ namespace chronon3d::backends::vulkan {
                              barriers.data());
     }
 
-    // Conservative fallback for plan-less paths (standalone ops and direct
-    // op calls inside a plain begin_frame_batch): one full image memory
-    // barrier per accessed surface plus the first-write layout transition.
-    // This reproduces the legacy per-pass synchronization exactly, but lives
-    // in ONE place instead of being duplicated inside every kernel.
     void VulkanBackend::Impl::emit_conservative_pass_sync(VkCommandBuffer command,
                                      std::initializer_list<const Image*> images) {
         std::vector<VkImageMemoryBarrier> barriers;
@@ -514,8 +479,6 @@ namespace chronon3d::backends::vulkan {
                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, barriers);
     }
 
-    // Route one pass's synchronization: the BarrierPlan mapper when the
-    // batch is plan-driven, the conservative fallback otherwise.
     void VulkanBackend::Impl::emit_pass_sync(VkCommandBuffer command,
                         std::initializer_list<const Image*> images) {
         if (frame_batch.sync_plan) {
@@ -543,12 +506,6 @@ namespace chronon3d::backends::vulkan {
         }
     }
 
-    // Cross-overlay boundary inside a command batch.  When the next overlay
-    // begins, every physical image the previous overlay wrote must be visible
-    // before any of the next overlay's passes sample it, regardless of how
-    // logical handles alias slots across the two overlays.  A single
-    // conservative full-barrier over all initialized images is the safe,
-    // per-boundary cost (once per overlay, not per pass).
     void VulkanBackend::Impl::emit_command_batch_boundary() {
         std::vector<VkImageMemoryBarrier> barriers;
         for (auto& [slot, physical] : surfaces.physical_surfaces) {
@@ -564,69 +521,123 @@ namespace chronon3d::backends::vulkan {
                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, barriers);
     }
 
-    // The single BarrierPlan→Vulkan mapper.  Emits, into `command`, the
-    // image memory barriers the plan requires before the pass at
-    // `pass_index` records its dispatch:
-    //   * an in-frame previous access becomes a compute-stage memory barrier
-    //     (SHADER_WRITE / SHADER_READ source access from the previous
-    //     transition, destination access from the current one) — this covers
-    //     the write→read / read→write / write→write chains between passes;
-    //   * a first write to a never-initialized surface becomes an
-    //     UNDEFINED→GENERAL layout transition (contents discarded);
-    //   * a first read needs no barrier: every previous submission (uploads,
-    //     earlier batches) is queued before this one on the same queue, so
-    //     FIFO ordering already made it visible.
+    // The single compiled BarrierPlan -> Vulkan mapper. Hazard selection,
+    // before/after state and subresource range are already resolved by the
+    // planner; Vulkan only translates that contract to Synchronization2.
     void VulkanBackend::Impl::emit_plan_pass_barriers(VkCommandBuffer command,
                                  const runtime::BarrierPlan& plan,
                                  std::size_t pass_index) {
-        std::vector<VkImageMemoryBarrier> barriers;
+        const auto to_stage = [](runtime::PipelineStage stage) -> VkPipelineStageFlags2KHR {
+            VkPipelineStageFlags2KHR result = VK_PIPELINE_STAGE_2_NONE_KHR;
+            if ((stage & runtime::PipelineStage::ComputeShader) != runtime::PipelineStage::None) {
+                result |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR;
+            }
+            if ((stage & runtime::PipelineStage::Transfer) != runtime::PipelineStage::None) {
+                result |= VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+            }
+            if ((stage & runtime::PipelineStage::Host) != runtime::PipelineStage::None) {
+                result |= VK_PIPELINE_STAGE_2_HOST_BIT_KHR;
+            }
+            if ((stage & runtime::PipelineStage::AllCommands) != runtime::PipelineStage::None) {
+                result |= VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
+            }
+            return result;
+        };
+        const auto to_access = [](runtime::AccessMask access) -> VkAccessFlags2KHR {
+            VkAccessFlags2KHR result = VK_ACCESS_2_NONE_KHR;
+            if (runtime::any(access, runtime::AccessMask::ShaderRead)) {
+                result |= VK_ACCESS_2_SHADER_READ_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::ShaderWrite)) {
+                result |= VK_ACCESS_2_SHADER_WRITE_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::TransferRead)) {
+                result |= VK_ACCESS_2_TRANSFER_READ_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::TransferWrite)) {
+                result |= VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::HostRead)) {
+                result |= VK_ACCESS_2_HOST_READ_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::HostWrite)) {
+                result |= VK_ACCESS_2_HOST_WRITE_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::MemoryRead)) {
+                result |= VK_ACCESS_2_MEMORY_READ_BIT_KHR;
+            }
+            if (runtime::any(access, runtime::AccessMask::MemoryWrite)) {
+                result |= VK_ACCESS_2_MEMORY_WRITE_BIT_KHR;
+            }
+            return result;
+        };
+        const auto to_layout = [](runtime::ResourceLayout layout) {
+            switch (layout) {
+                case runtime::ResourceLayout::Undefined: return VK_IMAGE_LAYOUT_UNDEFINED;
+                case runtime::ResourceLayout::General: return VK_IMAGE_LAYOUT_GENERAL;
+                case runtime::ResourceLayout::ShaderReadOnly: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                case runtime::ResourceLayout::TransferSource: return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                case runtime::ResourceLayout::TransferDestination: return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            }
+            return VK_IMAGE_LAYOUT_GENERAL;
+        };
+        const auto to_aspects = [](runtime::ResourceAspect aspects) {
+            VkImageAspectFlags result = 0;
+            if (runtime::any(aspects, runtime::ResourceAspect::Color)) result |= VK_IMAGE_ASPECT_COLOR_BIT;
+            if (runtime::any(aspects, runtime::ResourceAspect::Depth)) result |= VK_IMAGE_ASPECT_DEPTH_BIT;
+            if (runtime::any(aspects, runtime::ResourceAspect::Stencil)) result |= VK_IMAGE_ASPECT_STENCIL_BIT;
+            return result;
+        };
+
+        std::vector<VkImageMemoryBarrier2KHR> barriers;
         for (const auto& transition : plan.transitions) {
             if (transition.pass_index != pass_index) continue;
             if (transition.surface == runtime::kInvalidRenderSurfaceHandle) continue;
             const auto binding = surfaces.surface_bindings.find(transition.surface);
             if (binding == surfaces.surface_bindings.end()) continue;
-            const auto slot = binding->second;
-            const auto physical_it = surfaces.physical_surfaces.find(slot);
+            const auto physical_it = surfaces.physical_surfaces.find(binding->second);
             if (physical_it == surfaces.physical_surfaces.end()) continue;
             const auto& image = physical_it->second.image;
-            const bool is_write =
-                transition.access == runtime::ResourceAccess::Write ||
-                transition.access == runtime::ResourceAccess::ReadWrite;
-            const auto prev_it = surfaces.slot_last_access.find(slot);
-            if (prev_it != surfaces.slot_last_access.end()) {
-                const bool prev_write =
-                    prev_it->second == runtime::ResourceAccess::Write ||
-                    prev_it->second == runtime::ResourceAccess::ReadWrite;
-                // Read-after-read has no memory dependency.  In particular,
-                // a terminal native-video hold surface is sampled by several
-                // consecutive frames without being modified between them.
-                // Emitting a full image barrier for every READ -> READ edge
-                // needlessly serializes command recording and can turn the
-                // tail of a held clip into a CPU fence stall.
-                if (prev_write || is_write) {
-                    barriers.push_back(make_image_barrier(
-                        image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-                        prev_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT,
-                        is_write ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT));
-                }
-            } else if (is_write && !image.initialized) {
-                barriers.push_back(make_image_barrier(
-                    image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-                    VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT));
-            }
-            surfaces.slot_last_access[slot] = transition.access;
+            const auto& range = transition.after.range;
+            barriers.push_back(VkImageMemoryBarrier2KHR{
+                VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+                nullptr,
+                to_stage(transition.before.stages),
+                to_access(transition.before.access),
+                to_stage(transition.after.stages),
+                to_access(transition.after.access),
+                to_layout(transition.before.layout),
+                to_layout(transition.after.layout),
+                VK_QUEUE_FAMILY_IGNORED,
+                VK_QUEUE_FAMILY_IGNORED,
+                image.image,
+                VkImageSubresourceRange{
+                    to_aspects(range.aspects),
+                    range.first_mip,
+                    range.mip_count,
+                    range.first_layer,
+                    range.layer_count}});
         }
-        emit_barriers(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, barriers);
-    }
+        if (barriers.empty()) return;
 
-    // ── record-only kernel primitives ────────────────────────────────────────
-    // These functions only append Vulkan commands to the given command
-    // buffer: pipeline bind, descriptor bind, push constants, dispatch.
-    // They NEVER submit and they NEVER synchronize — layout transitions and
-    // memory barriers are emitted by the caller through the single sync
-    // helpers below (the BarrierPlan mapper, or the conservative fallback
-    // for plan-less calls).  They also never mutate surface state (the
-    // `initialized` flags are updated by the operation wrappers).
+        const auto pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
+            vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
+        if (!pipeline_barrier2) {
+            throw std::runtime_error(
+                "Vulkan: vkCmdPipelineBarrier2KHR unavailable after synchronization2 enablement");
+        }
+        const VkDependencyInfoKHR dependency{
+            VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+            nullptr,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(barriers.size()),
+            barriers.data()};
+        stats.barriers_emitted += barriers.size();
+        pipeline_barrier2(command, &dependency);
+    }
 
 } // namespace chronon3d::backends::vulkan

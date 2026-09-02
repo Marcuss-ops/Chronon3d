@@ -3,26 +3,26 @@
 // ---------------------------------------------------------------------------
 // runtime/gpu_command_plan.hpp
 //
-// Backend-neutral GPU command plan.  The graph compiler emits one CommandPlan
-// per frame:
+// Backend-neutral GPU command plan. The graph/compiler boundary owns the
+// structural plan; backends translate its resource states into native sync.
 //
-//   PassPlan     — the ordered list of GPU passes (what to run)
-//   ResourcePlan — which logical surfaces alias which physical slots
-//   BarrierPlan  — where each surface transitions between read/write access
+//   PassPlan     — ordered GPU work
+//   ResourcePlan — logical-to-physical resource bindings
+//   BarrierPlan  — resolved resource-state transitions only
 //
-// The Vulkan backend consumes a CommandPlan to batch every pass of a frame
-// into a single submission instead of one operation-per-submit.  No Vulkan
-// type leaks into this contract; surfaces are referenced by opaque
-// RenderSurfaceHandle only.
+// No Vulkan type leaks into this contract.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
+#include <chronon3d/runtime/resource_state.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -51,14 +51,10 @@ enum class GpuPassKind : std::uint8_t {
     YuvOverlay = 11,
 };
 
-// ── Per-kind pass payloads ────────────────────────────────────────────────
-// Each references logical surfaces by opaque handle and carries only the
-// scalar/vector parameters the kernel needs.
-
 struct CompositePass {
     RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
     RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
-    std::int32_t blend_mode{0};  // 0 = Normal, 1 = Add
+    std::int32_t blend_mode{0};
 };
 
 struct TransformPass {
@@ -132,7 +128,7 @@ struct FusedCompositePass {
 struct ScalePass {
     RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
     RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
-    std::int32_t filter_mode{1};  // 0 = Nearest, 1 = Linear, 2 = Bicubic
+    std::int32_t filter_mode{1};
     float scale_x{1.0f};
     float scale_y{1.0f};
 };
@@ -160,8 +156,6 @@ using GpuPassParams = std::variant<
 struct GpuPass {
     GpuPassKind kind{GpuPassKind::Composite};
     GpuPassParams params{CompositePass{}};
-    // Offset into CommandPlan::dynamic_parameters. Zero-size means that the
-    // pass uses only structural/static state.
     ::chronon3d::graph::FrameParameterSlice dynamic_parameters{};
 };
 
@@ -170,16 +164,23 @@ struct PassPlan {
     [[nodiscard]] std::size_t size() const noexcept { return passes.size(); }
 };
 
-enum class ResourceAccess : std::uint8_t {
-    Read,
-    Write,
-    ReadWrite,
+enum class ResourceHazard : std::uint8_t {
+    FirstWrite = 0,
+    ReadAfterWrite,
+    WriteAfterRead,
+    WriteAfterWrite,
+    ReadWriteHazard,
+    StateTransition,
 };
 
+/// A barrier is already resolved by planning. The backend translates the two
+/// states; it does not rediscover RAW/WAR/WAW from a second access history.
 struct BarrierTransition {
     std::size_t pass_index{0};
     RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
-    ResourceAccess access{ResourceAccess::ReadWrite};
+    ResourceState before{};
+    ResourceState after{};
+    ResourceHazard hazard{ResourceHazard::StateTransition};
 };
 
 struct BarrierPlan {
@@ -187,15 +188,11 @@ struct BarrierPlan {
     [[nodiscard]] std::size_t size() const noexcept { return transitions.size(); }
 };
 
-/// The frame-level plan the graph compiler emits and the backend consumes.
 struct CommandPlan {
     PassPlan passes;
     ResourcePlan resources;
     BarrierPlan barriers;
     std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> dynamic_parameters;
-
-    // Optional per-frame decision from the canonical render-graph resolver.
-    // CommandPlan remains structural when this metadata is absent.
     std::optional<::chronon3d::graph::ExecutionDecision> execution_decision;
 
     [[nodiscard]] std::size_t pass_count() const noexcept { return passes.size(); }
@@ -245,16 +242,12 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const FusedCompositePass& p) {
     out.push_back(p.destination);
     out.push_back(p.source);
-    for (const auto& h : p.layer_sources) {
-        out.push_back(h);
-    }
+    for (const auto& h : p.layer_sources) out.push_back(h);
 }
 inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const LayerBatchPass& p) {
     out.push_back(p.destination);
-    for (const auto& h : p.sources) {
-        out.push_back(h);
-    }
+    for (const auto& h : p.sources) out.push_back(h);
 }
 inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const ScalePass& p) {
@@ -269,9 +262,7 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
 inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const TextBatchPass& p) {
     out.push_back(p.destination);
-    for (const auto& h : p.atlas_pages) {
-        out.push_back(h);
-    }
+    for (const auto& h : p.atlas_pages) out.push_back(h);
 }
 
 inline RenderSurfaceHandle destination_of(const CompositePass& p) { return p.destination; }
@@ -299,12 +290,45 @@ inline RenderSurfaceHandle destination_handle(const GpuPass& pass) {
                       pass.params);
 }
 
+inline ResourceHazard classify_hazard(const ResourceState& before,
+                                      const ResourceState& after) noexcept {
+    if (before.undefined()) return ResourceHazard::FirstWrite;
+    const bool before_reads = before.reads();
+    const bool before_writes = before.writes();
+    const bool after_reads = after.reads();
+    const bool after_writes = after.writes();
+    if (before_writes && after_reads && after_writes) {
+        return ResourceHazard::ReadWriteHazard;
+    }
+    if (before_writes && after_reads) return ResourceHazard::ReadAfterWrite;
+    if (before_reads && after_writes) return ResourceHazard::WriteAfterRead;
+    if (before_writes && after_writes) return ResourceHazard::WriteAfterWrite;
+    return ResourceHazard::StateTransition;
+}
+
+inline bool requires_barrier(const ResourceState& before,
+                             const ResourceState& after) noexcept {
+    // Preserve externally/previously initialized first reads. A first write
+    // owns the contents and must establish the initial layout.
+    if (before.undefined()) return after.writes();
+    if (before.writes() || after.writes()) return true;
+    return before.layout != after.layout || before.queue != after.queue ||
+           before.range != after.range;
+}
+
+inline void merge_state(ResourceState& target, const ResourceState& incoming) noexcept {
+    target.stages = target.stages | incoming.stages;
+    target.access = target.access | incoming.access;
+    if (target.layout == ResourceLayout::Undefined) target.layout = incoming.layout;
+    if (target.queue != incoming.queue) target.queue = incoming.queue;
+    target.range = incoming.range;
+}
+
 } // namespace detail
 
-/// Deterministic builder that accumulates GPU passes and derives the resource
-/// and barrier plans.  Callers declare each logical surface once, then append
-/// passes in execution order; build() aliases transient surfaces with
-/// non-overlapping lifetimes via the canonical ResourcePlanner.
+/// Deterministic GPU plan builder. ResourcePlanner still materializes the
+/// ResourcePlan for this legacy command-builder boundary, but barrier hazards
+/// are resolved exactly once here and never rediscovered in a backend.
 class GpuCommandPlanner {
 public:
     void set_execution_decision(
@@ -334,9 +358,6 @@ public:
     void text_batch(TextBatchPass pass) { append(GpuPass{GpuPassKind::TextBatch, std::move(pass)}); }
     void yuv_overlay(YuvOverlayPass pass) { append(GpuPass{GpuPassKind::YuvOverlay, std::move(pass)}); }
 
-    /// Attach an external parameter span to the most recently appended pass.
-    /// The span is metadata only; the structural pass remains reusable across
-    /// frames and the backend receives the bytes at execution time.
     void bind_last_pass_parameters(::chronon3d::graph::FrameParameterSlice slice) {
         if (!m_passes.empty()) m_passes.back().dynamic_parameters = slice;
     }
@@ -357,7 +378,7 @@ public:
             request.id = "surface:" + std::to_string(handle);
             request.kind = ResourceKind::Color;
             request.bytes = desc.bytes;
-            request.lifetime = LifetimeClass::FrameTransient;
+            request.lifetime = desc.lifetime;
             request.first = liveness.first;
             request.last = liveness.last;
             request.alignment = desc.alignment;
@@ -368,28 +389,7 @@ public:
         plan.resources = planner.build();
         plan.dynamic_parameters = m_dynamic_parameters;
         plan.execution_decision = m_execution_decision;
-
-        // Emit one transition per surface access so the backend can place
-        // image barriers: a Read transition for every non-destination surface
-        // a pass samples (sources + scratch), then a Write transition for the
-        // destination.  Together these describe the per-pass read/write
-        // access — e.g. a surface written in pass N and read in pass N+1
-        // surfaces as Write@N followed by Read@N+1, which the consumer turns
-        // into a write→read barrier.
-        for (std::size_t index = 0; index < m_passes.size(); ++index) {
-            const auto& pass = m_passes[index];
-            const auto destination = detail::destination_handle(pass);
-            for (const auto handle : detail::referenced_handles(pass)) {
-                if (handle == kInvalidRenderSurfaceHandle) continue;
-                if (handle == destination) continue;
-                plan.barriers.transitions.push_back(BarrierTransition{
-                    index, handle, ResourceAccess::Read});
-            }
-            if (destination != kInvalidRenderSurfaceHandle) {
-                plan.barriers.transitions.push_back(BarrierTransition{
-                    index, destination, ResourceAccess::Write});
-            }
-        }
+        build_barrier_plan(plan);
         return plan;
     }
 
@@ -399,6 +399,93 @@ private:
         std::size_t first{0};
         std::size_t last{0};
     };
+
+    struct DesiredAccess {
+        RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
+        ResourceState state{};
+    };
+
+    static std::size_t physical_slot_for(const ResourcePlan& resources,
+                                         RenderSurfaceHandle surface) noexcept {
+        for (const auto& allocation : resources.allocations) {
+            if (allocation.surface == surface) return allocation.physical_slot;
+        }
+        return std::numeric_limits<std::size_t>::max();
+    }
+
+    static void add_desired(std::vector<DesiredAccess>& accesses,
+                            RenderSurfaceHandle surface,
+                            const ResourceState& state) {
+        for (auto& existing : accesses) {
+            if (existing.surface == surface) {
+                detail::merge_state(existing.state, state);
+                return;
+            }
+        }
+        accesses.push_back(DesiredAccess{surface, state});
+    }
+
+    void build_barrier_plan(CommandPlan& plan) const {
+        std::unordered_map<std::size_t, ResourceState> physical_states;
+        std::unordered_map<std::size_t, RenderSurfaceHandle> physical_owners;
+        std::unordered_map<RenderSurfaceHandle, ResourceState> external_states;
+
+        for (std::size_t index = 0; index < m_passes.size(); ++index) {
+            const auto& pass = m_passes[index];
+            const auto destination = detail::destination_handle(pass);
+            const auto references = detail::referenced_handles(pass);
+            std::vector<DesiredAccess> desired;
+            desired.reserve(references.size());
+
+            // collect_surface_refs always emits destination first. Skip only
+            // that occurrence; an in-place source using the same handle must
+            // still become a read+write state rather than silently losing its read.
+            bool skipped_destination_occurrence = false;
+            for (const auto handle : references) {
+                if (handle == kInvalidRenderSurfaceHandle) continue;
+                if (!skipped_destination_occurrence && handle == destination) {
+                    skipped_destination_occurrence = true;
+                    continue;
+                }
+                add_desired(desired, handle, ResourceState::compute_read());
+            }
+            if (destination != kInvalidRenderSurfaceHandle) {
+                add_desired(desired, destination, ResourceState::compute_write());
+            }
+
+            for (const auto& access : desired) {
+                const auto physical_slot = physical_slot_for(plan.resources, access.surface);
+                ResourceState before = ResourceState::undefined_state(access.state.range);
+
+                if (physical_slot != std::numeric_limits<std::size_t>::max()) {
+                    const auto owner_it = physical_owners.find(physical_slot);
+                    const auto state_it = physical_states.find(physical_slot);
+                    if (owner_it != physical_owners.end() &&
+                        owner_it->second == access.surface &&
+                        state_it != physical_states.end()) {
+                        before = state_it->second;
+                    }
+                    // A physical slot reused by a different logical resource
+                    // starts a new logical lifetime. Old contents are not a
+                    // valid dependency of the new resource.
+                    physical_owners[physical_slot] = access.surface;
+                    physical_states[physical_slot] = access.state;
+                } else {
+                    const auto state_it = external_states.find(access.surface);
+                    if (state_it != external_states.end()) before = state_it->second;
+                    external_states[access.surface] = access.state;
+                }
+
+                if (!detail::requires_barrier(before, access.state)) continue;
+                plan.barriers.transitions.push_back(BarrierTransition{
+                    index,
+                    access.surface,
+                    before,
+                    access.state,
+                    detail::classify_hazard(before, access.state)});
+            }
+        }
+    }
 
     void append(GpuPass pass) {
         const auto index = m_passes.size();
@@ -423,19 +510,11 @@ private:
     std::unordered_map<RenderSurfaceHandle, SurfaceLiveness> m_liveness;
 };
 
-/// Propagate a ResourcePlan's physical-slot assignments onto the surface
-/// registry.  This is the bridge the backend consumes for memory aliasing:
-/// two transient surfaces whose lifetimes never overlap share a physical
-/// slot, and the backend can back them with the same device memory.  The
-/// registry owns identity only; backing storage remains the backend's
-/// responsibility.
 inline void bind_plan_slots(const ResourcePlan& plan,
                             RenderSurfaceRegistry& registry) {
     for (const auto& allocation : plan.allocations) {
         if (allocation.surface == kInvalidRenderSurfaceHandle) continue;
-        if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) {
-            continue;
-        }
+        if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) continue;
         registry.bind_physical_slot(allocation.surface, allocation.physical_slot);
     }
 }
