@@ -31,29 +31,72 @@ enum class ResourceUsage : std::uint8_t {
 };
 
 /// Backend-neutral description used by the lifetime planner and resource
-/// resolvers. It contains no Framebuffer or Vulkan type.
+/// resolvers. Image semantics travel as one canonical FrameFormat; there is no
+/// side-channel color metadata that can diverge from the pixel representation.
 struct SurfaceDesc {
     std::uint32_t width{0};
     std::uint32_t height{0};
-    PixelFormat format{PixelFormat::Unknown};
+    FrameFormat format{};
     ResourceUsage usage{ResourceUsage::Generic};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     std::size_t bytes{0};
-    ColorMetadata color{};
 
-    /// Construct a descriptor with the canonical tight allocation size. A
-    /// caller may still provide an explicit byte count for padded/externally
-    /// owned memory, but ordinary surfaces must not duplicate format math.
+    constexpr SurfaceDesc() noexcept = default;
+
+    constexpr SurfaceDesc(
+        std::uint32_t width_value,
+        std::uint32_t height_value,
+        FrameFormat format_value,
+        ResourceUsage usage_value,
+        LifetimeClass lifetime_value,
+        std::size_t bytes_value) noexcept
+        : width(width_value),
+          height(height_value),
+          format(format_value),
+          usage(usage_value),
+          lifetime(lifetime_value),
+          bytes(bytes_value) {}
+
+    // Source-compatible constructor for the retired PixelFormat+ColorMetadata
+    // split. Both values are folded immediately into the single FrameFormat.
+    constexpr SurfaceDesc(
+        std::uint32_t width_value,
+        std::uint32_t height_value,
+        PixelFormat pixel,
+        ResourceUsage usage_value,
+        LifetimeClass lifetime_value,
+        std::size_t bytes_value,
+        ColorMetadata color) noexcept
+        : SurfaceDesc(width_value, height_value,
+                      make_frame_format(pixel, color, color.alpha),
+                      usage_value, lifetime_value, bytes_value) {}
+
+    [[nodiscard]] constexpr std::size_t tight_bytes() const noexcept {
+        return tight_surface_bytes(format, width, height);
+    }
+
+    /// Construct a descriptor with the canonical tight allocation size.
     [[nodiscard]] static constexpr SurfaceDesc make(
         std::uint32_t width,
         std::uint32_t height,
-        PixelFormat format,
+        FrameFormat format,
         ResourceUsage usage = ResourceUsage::Generic,
-        LifetimeClass lifetime = LifetimeClass::FrameTransient,
-        ColorMetadata color = {}) noexcept {
+        LifetimeClass lifetime = LifetimeClass::FrameTransient) noexcept {
         return SurfaceDesc{
             width, height, format, usage, lifetime,
-            tight_surface_bytes(format, width, height), color};
+            tight_surface_bytes(format, width, height)};
+    }
+
+    /// Compatibility overload: old pixel+color inputs are merged immediately.
+    [[nodiscard]] static constexpr SurfaceDesc make(
+        std::uint32_t width,
+        std::uint32_t height,
+        PixelFormat pixel,
+        ResourceUsage usage,
+        LifetimeClass lifetime,
+        ColorMetadata color) noexcept {
+        const auto format = make_frame_format(pixel, color, color.alpha);
+        return make(width, height, format, usage, lifetime);
     }
 };
 
@@ -66,20 +109,37 @@ enum class RenderSurfaceKind : std::uint8_t {
 };
 
 [[nodiscard]] constexpr bool is_rgb_surface_format(PixelFormat format) noexcept {
-    return format == PixelFormat::Rgba32Float ||
-           format == PixelFormat::Rgba16Float ||
-           format == PixelFormat::Rgba8Unorm;
+    return is_rgb_pixel_format(format);
+}
+
+[[nodiscard]] constexpr bool is_rgb_surface_format(FrameFormat format) noexcept {
+    return is_rgb_pixel_format(format.pixel);
 }
 
 [[nodiscard]] constexpr bool is_yuv_surface_format(PixelFormat format) noexcept {
     return format == PixelFormat::Nv12 || format == PixelFormat::P010;
 }
 
+[[nodiscard]] constexpr bool is_yuv_surface_format(FrameFormat format) noexcept {
+    return is_yuv_surface_format(format.pixel);
+}
+
 [[nodiscard]] inline SurfaceDesc normalize_surface_desc(SurfaceDesc desc) noexcept {
     if (desc.bytes == 0) {
-        desc.bytes = tight_surface_bytes(desc.format, desc.width, desc.height);
+        desc.bytes = desc.tight_bytes();
     }
     return desc;
+}
+
+/// GPU graphic color surfaces are always normalized into Chronon's one render
+/// domain. Media/external adapters must convert before entering this contract.
+[[nodiscard]] inline SurfaceDesc normalize_render_color_surface_desc(
+    SurfaceDesc desc) noexcept {
+    if (is_rgb_surface_format(desc.format)) {
+        desc.format = canonical_render_format();
+        desc.bytes = desc.tight_bytes();
+    }
+    return normalize_surface_desc(std::move(desc));
 }
 
 /// Backend-neutral surface abstraction. It describes ownership and format
@@ -102,13 +162,14 @@ public:
 
     [[nodiscard]] virtual bool valid() const noexcept {
         const auto& surface = desc();
-        return surface.width != 0 && surface.height != 0 &&
-               surface.format != PixelFormat::Unknown;
+        return surface.width != 0 && surface.height != 0 && surface.format.valid();
     }
 };
 
 /// CPU RGB implementation and compatibility bridge for the existing
-/// high-precision Framebuffer. No second pixel store is introduced.
+/// high-precision Framebuffer. No second pixel store is introduced. The CPU
+/// fallback is float32 storage but observes the same linear/premultiplied
+/// working semantics as the canonical GPU render domain.
 class CpuRgbSurface final : public RenderSurface {
 public:
     explicit CpuRgbSurface(std::shared_ptr<Framebuffer> framebuffer)
@@ -117,11 +178,18 @@ public:
               ? SurfaceDesc{
                     static_cast<std::uint32_t>(m_framebuffer->width()),
                     static_cast<std::uint32_t>(m_framebuffer->height()),
-                    PixelFormat::Rgba32Float,
+                    FrameFormat{
+                        PixelFormat::Rgba32Float,
+                        ColorPrimaries::Bt709,
+                        TransferFunction::Linear,
+                        ColorMatrix::Identity,
+                        ColorRange::Full,
+                        ChromaLocation::Left,
+                        AlphaMode::Premultiplied,
+                        PixelAspectRatio{1, 1}},
                     ResourceUsage::ColorAttachment,
                     LifetimeClass::FrameTransient,
-                    m_framebuffer->size_bytes(),
-                    {}}
+                    m_framebuffer->size_bytes()}
               : SurfaceDesc{}) {}
 
     [[nodiscard]] RenderSurfaceKind kind() const noexcept override {
@@ -153,11 +221,13 @@ private:
 };
 
 /// GPU RGB contract. The logical handle is resolved by RenderSurfaceRegistry
-/// and the selected backend; this type owns no device resource.
+/// and the selected backend; this type owns no device resource. All RGB inputs
+/// are normalized to RGBA16F Linear Premultiplied at construction.
 class GpuRgbSurface final : public RenderSurface {
 public:
     GpuRgbSurface(RenderSurfaceHandle handle, SurfaceDesc desc)
-        : m_handle(handle), m_desc(normalize_surface_desc(std::move(desc))) {}
+        : m_handle(handle),
+          m_desc(normalize_render_color_surface_desc(std::move(desc))) {}
 
     [[nodiscard]] RenderSurfaceKind kind() const noexcept override {
         return RenderSurfaceKind::GpuRgb;
@@ -170,7 +240,8 @@ public:
     }
     [[nodiscard]] bool valid() const noexcept override {
         return m_handle != kInvalidRenderSurfaceHandle &&
-               is_rgb_surface_format(m_desc.format) && RenderSurface::valid();
+               is_canonical_render_format(m_desc.format) &&
+               RenderSurface::valid();
     }
 
 private:
@@ -353,11 +424,11 @@ struct SurfaceRecord {
 class RenderSurfaceRegistry {
 public:
     [[nodiscard]] RenderSurfaceHandle create(SurfaceDesc desc) {
-        if (desc.width == 0 || desc.height == 0 || desc.format == PixelFormat::Unknown) {
+        if (desc.width == 0 || desc.height == 0 || !desc.format.valid()) {
             return kInvalidRenderSurfaceHandle;
         }
         if (desc.bytes == 0) {
-            desc.bytes = tight_surface_bytes(desc.format, desc.width, desc.height);
+            desc.bytes = desc.tight_bytes();
         }
         const auto handle = m_next_handle++;
         m_surfaces.emplace(handle, SurfaceRecord{

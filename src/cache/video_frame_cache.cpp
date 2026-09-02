@@ -15,7 +15,7 @@ VideoFrame::VideoFrame(i32 width, i32 height, runtime::FrameFormat format) {
 size_t VideoFrame::expected_size() const {
     const auto width = static_cast<std::uint32_t>(std::max<i32>(m_width, 0));
     const auto height = static_cast<std::uint32_t>(std::max<i32>(m_height, 0));
-    return runtime::tight_surface_bytes(m_format.pixel, width, height);
+    return runtime::tight_surface_bytes(m_format, width, height);
 }
 
 void VideoFrame::resize(i32 width, i32 height, runtime::FrameFormat format) {
@@ -38,6 +38,8 @@ u64 VideoFrameKey::digest() const {
         .add_enum(format.range)
         .add_enum(format.chroma)
         .add_enum(format.alpha)
+        .add(format.pixel_aspect.numerator)
+        .add(format.pixel_aspect.denominator)
         .add(scene_hash)
         .add(render_hash)
         .finish();
