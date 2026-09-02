@@ -58,6 +58,7 @@ f32 evaluate_selector_shape(
     }
     if (unit_position >= end) {
         if (shape == TextSelectorShape::RampUp) return 1.0f;
+        if (shape == TextSelectorShape::RampDown) return 0.0f;
         return 0.0f;
     }
 
