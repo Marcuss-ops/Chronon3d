@@ -61,6 +61,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     simd/cpu_isa_tests.cmake
     render_graph/compiler/fusion_pass_tests.cmake
     render_graph/compiler/template_program_tests.cmake
+    render_graph/compiler/segment_execution_tests.cmake
     runtime/template_program_cache_tests.cmake
     runtime/gpu_layer_batch_tests.cmake
     runtime/async_encoder_sink_tests.cmake
