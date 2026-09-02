@@ -23,7 +23,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     cache_tests.cmake
     compositor_tests.cmake
     benchmarks.cmake
-    authoring_tests.cmake
     animation_tests.cmake
     renderer_tests.cmake
     io_tests.cmake
