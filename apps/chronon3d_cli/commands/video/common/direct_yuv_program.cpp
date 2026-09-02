@@ -104,138 +104,129 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     double watermark_load_ms = 0.0;
     double watermark_upload_ms = 0.0;
 
-    for (const auto& layer : scene_0.layers()) {
-        if (layer.video_source) continue;
-        const std::string layer_name = std::string(layer.name);
-        if (layer_resources.find(layer_name) != layer_resources.end()) continue;
-
-        const auto ctx_from = make_frame_context({
-            .global_time = SampleTime::from_frame(static_cast<double>(layer.from.value), rate),
+    // Discover and prepare layer resources across all frames of the composition.
+    for (int64_t f = 0; f < duration.value; ++f) {
+        const auto ctx_f = make_frame_context({
+            .global_time = SampleTime::from_frame(static_cast<double>(f), rate),
             .duration = duration,
             .width = width,
             .height = height,
         });
-        Scene scene_from;
-        bool eval_from_ok = false;
+        Scene scene_f;
         try {
-            scene_from = compiled.composition->evaluate(ctx_from);
-            eval_from_ok = true;
+            scene_f = compiled.composition->evaluate(ctx_f);
         } catch (...) {
-            eval_from_ok = false;
+            continue;
         }
 
-        const Layer* active_layer = nullptr;
-        if (eval_from_ok) {
-            for (const auto& l : scene_from.layers()) {
-                if (l.name == layer.name) {
-                    active_layer = &l;
-                    break;
-                }
-            }
-        }
-        if (!active_layer) active_layer = &layer;
+        for (const auto& layer : scene_f.layers()) {
+            if (layer.video_source) continue;
+            const std::string layer_name = std::string(layer.name);
+            if (layer_resources.find(layer_name) != layer_resources.end()) continue;
 
-        if (!active_layer->nodes.empty()) {
-            const auto& node = active_layer->nodes[0];
-            if (node.shape.type() == ShapeType::Image) {
-                const auto& image = node.shape.image();
-                if (!image.path.empty()) {
-                    const auto img_t0 = profiling::now();
-                    auto cached = image_cache.get_or_load(image.path, image.decode_options);
-                    watermark_load_ms += profiling::duration_ms(img_t0, profiling::now());
-                    if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
-                        reason = "overlay is not available through the canonical ImageCache: " + image.path;
+            const Layer* active_layer = &layer;
+            if (!active_layer->nodes.empty()) {
+                const auto& node = active_layer->nodes[0];
+                if (node.shape.type() == ShapeType::Image) {
+                    const auto& image = node.shape.image();
+                    if (!image.path.empty()) {
+                        const auto img_t0 = profiling::now();
+                        auto cached = image_cache.get_or_load(image.path, image.decode_options);
+                        watermark_load_ms += profiling::duration_ms(img_t0, profiling::now());
+                        if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
+                            reason = "overlay is not available through the canonical ImageCache: " + image.path;
+                            return nullptr;
+                        }
+                        bool cache_hit = false;
+                        double upload_ms = 0.0;
+                        auto resource = video_runtime->get_or_upload_image(
+                            cached->gpu_key.content_digest, image.decode_options,
+                            static_cast<std::uint32_t>(cached->width),
+                            static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
+                            cache_hit, upload_ms, reason);
+                        if (!resource) return nullptr;
+                        watermark_upload_ms += upload_ms;
+
+                        DirectLayerResourceEntry entry;
+                        entry.gpu_resource = resource;
+                        entry.native_width = static_cast<float>(cached->width);
+                        entry.native_height = static_cast<float>(cached->height);
+                        entry.corner_radius = 0.0f;
+                        layer_resources[layer_name] = entry;
+                        persistent_resources.push_back(resource);
+                    }
+                } else if (node.shape.type() == ShapeType::TextRun ||
+                           active_layer->kind == LayerKind::Text) {
+#ifdef CHRONON3D_USE_BLEND2D
+                    std::string text_content;
+                    std::string font_path;
+                    float font_size = 58.0f;
+                    Color fill_color{1.0f, 1.0f, 1.0f, 1.0f};
+                    Color stroke_color{0.0f, 0.0f, 0.0f, 0.0f};
+                    float stroke_width = 0.0f;
+                    bool has_bg = false;
+                    Color bg_color{0.05f, 0.05f, 0.09f, 0.88f};
+                    float bg_opacity = 0.88f;
+                    float bg_radius = 10.0f;
+                    float pad_x = 20.0f;
+                    float pad_y = 12.0f;
+                    float box_w = 0.0f;
+                    float box_h = 0.0f;
+                    std::string align = "center";
+
+                    if (node.shape.type() == ShapeType::TextRun) {
+                        const auto handle = node.shape.text_run_shape_handle();
+                        if (handle.value) {
+                            const auto& s = *handle.value;
+                            if (s.layout) {
+                                text_content = s.layout->source_text;
+                                if (!s.layout->font.font_path.empty()) font_path = s.layout->font.font_path;
+                                if (s.layout->font_size > 0.0f) font_size = s.layout->font_size;
+                                box_w = s.layout->bounds.x;
+                                box_h = s.layout->bounds.y;
+                            }
+                            fill_color = s.paint.fill;
+                            if (s.paint.stroke_enabled && s.paint.stroke_width > 0.0f) {
+                                stroke_color = s.paint.stroke_color;
+                                stroke_width = s.paint.stroke_width;
+                            }
+                        }
+                    }
+
+                    if (font_path.empty()) {
+                        reason = "text layer has no prepared font asset: " + layer_name;
                         return nullptr;
                     }
+                    if (node.color.a > 0.0f) fill_color = node.color;
+                    if (text_content.empty()) text_content = layer_name;
+
+                    const auto text_t0 = profiling::now();
+                    auto rasterized = rasterize_text_texture(
+                        text_content, font_path, font_size, fill_color, stroke_color, stroke_width,
+                        has_bg, bg_color, bg_opacity, bg_radius, pad_x, pad_y, box_w, box_h, align);
+                    watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
+
                     bool cache_hit = false;
                     double upload_ms = 0.0;
                     auto resource = video_runtime->get_or_upload_image(
-                        cached->gpu_key.content_digest, image.decode_options,
-                        static_cast<std::uint32_t>(cached->width),
-                        static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
+                        rasterized.digest, ImageDecodeOptions{},
+                        static_cast<std::uint32_t>(rasterized.width),
+                        static_cast<std::uint32_t>(rasterized.height), rasterized.gpu_rgba,
                         cache_hit, upload_ms, reason);
                     if (!resource) return nullptr;
                     watermark_upload_ms += upload_ms;
 
                     DirectLayerResourceEntry entry;
                     entry.gpu_resource = resource;
-                    entry.native_width = static_cast<float>(cached->width);
-                    entry.native_height = static_cast<float>(cached->height);
-                    entry.corner_radius = 0.0f;
+                    entry.native_width = static_cast<float>(rasterized.width);
+                    entry.native_height = static_cast<float>(rasterized.height);
                     layer_resources[layer_name] = entry;
                     persistent_resources.push_back(resource);
-                }
-            } else if (node.shape.type() == ShapeType::TextRun ||
-                       active_layer->kind == LayerKind::Text) {
-#ifdef CHRONON3D_USE_BLEND2D
-                std::string text_content;
-                std::string font_path;
-                float font_size = 58.0f;
-                Color fill_color{1.0f, 1.0f, 1.0f, 1.0f};
-                Color stroke_color{0.0f, 0.0f, 0.0f, 0.0f};
-                float stroke_width = 0.0f;
-                bool has_bg = false;
-                Color bg_color{0.05f, 0.05f, 0.09f, 0.88f};
-                float bg_opacity = 0.88f;
-                float bg_radius = 10.0f;
-                float pad_x = 20.0f;
-                float pad_y = 12.0f;
-                float box_w = 0.0f;
-                float box_h = 0.0f;
-                std::string align = "center";
-
-                if (node.shape.type() == ShapeType::TextRun) {
-                    const auto handle = node.shape.text_run_shape_handle();
-                    if (handle.value) {
-                        const auto& s = *handle.value;
-                        if (s.layout) {
-                            text_content = s.layout->source_text;
-                            if (!s.layout->font.font_path.empty()) font_path = s.layout->font.font_path;
-                            if (s.layout->font_size > 0.0f) font_size = s.layout->font_size;
-                            box_w = s.layout->bounds.x;
-                            box_h = s.layout->bounds.y;
-                        }
-                        fill_color = s.paint.fill;
-                        if (s.paint.stroke_enabled && s.paint.stroke_width > 0.0f) {
-                            stroke_color = s.paint.stroke_color;
-                            stroke_width = s.paint.stroke_width;
-                        }
-                    }
-                }
-
-                if (font_path.empty()) {
-                    reason = "text layer has no prepared font asset: " + layer_name;
-                    return nullptr;
-                }
-                if (node.color.a > 0.0f) fill_color = node.color;
-                if (text_content.empty()) text_content = layer_name;
-
-                const auto text_t0 = profiling::now();
-                auto rasterized = rasterize_text_texture(
-                    text_content, font_path, font_size, fill_color, stroke_color, stroke_width,
-                    has_bg, bg_color, bg_opacity, bg_radius, pad_x, pad_y, box_w, box_h, align);
-                watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
-
-                bool cache_hit = false;
-                double upload_ms = 0.0;
-                auto resource = video_runtime->get_or_upload_image(
-                    rasterized.digest, ImageDecodeOptions{},
-                    static_cast<std::uint32_t>(rasterized.width),
-                    static_cast<std::uint32_t>(rasterized.height), rasterized.gpu_rgba,
-                    cache_hit, upload_ms, reason);
-                if (!resource) return nullptr;
-                watermark_upload_ms += upload_ms;
-
-                DirectLayerResourceEntry entry;
-                entry.gpu_resource = resource;
-                entry.native_width = static_cast<float>(rasterized.width);
-                entry.native_height = static_cast<float>(rasterized.height);
-                layer_resources[layer_name] = entry;
-                persistent_resources.push_back(resource);
 #else
-                reason = "Blend2D is required for direct text rasterization";
-                return nullptr;
+                    reason = "Blend2D is required for direct text rasterization";
+                    return nullptr;
 #endif
+                }
             }
         }
     }
@@ -266,7 +257,6 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
     auto result = std::make_shared<DirectYuvFrame>();
     result->decoded = std::move(decoded);
-
     auto template_frame = std::make_shared<DirectYuvTemplate>();
     const auto rate = composition_->frame_rate();
     const auto context = make_frame_context({
@@ -307,10 +297,9 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             const auto& node = layer.nodes[0];
             scale_x *= node.world_transform.scale.x;
             scale_y *= node.world_transform.scale.y;
-            cx += node.world_transform.position.x;
-            cy += node.world_transform.position.y;
-            opacity = std::clamp(opacity * node.world_transform.opacity, 0.0f, 1.0f);
             if (node.shape.type() == ShapeType::Image) {
+                cx += node.world_transform.position.x;
+                cy += node.world_transform.position.y;
                 const auto& img = node.shape.image();
                 if (img.size.x > 0.0f && img.size.y > 0.0f) {
                     base_w = img.size.x;
