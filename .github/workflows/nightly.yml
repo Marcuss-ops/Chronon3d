@@ -118,12 +118,12 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci
       - run: cmake --build build/chronon/linux-ci --target chronon3d_cinematic_camera_showcase_tests --target chronon3d_tests_render -j$(nproc)
-      - name: Verify cinematic showcase (FULL: 5 × 6)
+      - name: 'Verify cinematic showcase (FULL: 5 × 6)'
         env:
           CHRONON3D_CINEMATIC_FRAME_COUNT: '6'
           CHRONON3D_CINEMATIC_COMP_COUNT: '5'
         run: bash tools/verify_cinematic_showcase.sh
-      - name: Render contact sheet (FULL: 5760×2160)
+      - name: 'Render contact sheet (FULL: 5760×2160)'
         env:
           CHRONON3D_CINEMATIC_FRAME_COUNT: '6'
           CHRONON3D_CINEMATIC_COMP_COUNT: '5'
