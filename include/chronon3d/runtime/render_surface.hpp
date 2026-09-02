@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/runtime/frame_format.hpp>
 #include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 
@@ -28,82 +29,6 @@ enum class LifetimeClass : std::uint8_t {
 enum class ResourceUsage : std::uint8_t {
     Generic, ColorAttachment, DepthAttachment, Storage
 };
-enum class PixelFormat : std::uint8_t {
-    Unknown,
-    Rgba32Float,
-    Rgba8Unorm,
-    R8Unorm,
-    Nv12,
-    P010,
-    Depth32Float,
-    Bytes
-};
-
-/// Color metadata according to video/broadcast standards.
-enum class ColorMatrix : std::uint8_t {
-    Identity,
-    Bt601,
-    Bt709,
-    Bt2020Ncl
-};
-
-enum class ColorRange : std::uint8_t {
-    Limited,
-    Full
-};
-
-enum class TransferFunction : std::uint8_t {
-    Srgb,
-    Bt1886,
-    Pq,
-    Hlg
-};
-
-enum class ColorPrimaries : std::uint8_t {
-    Bt709,
-    Bt2020
-};
-
-enum class ChromaLocation : std::uint8_t {
-    Left,
-    Center,
-    TopLeft
-};
-
-struct ColorMetadata {
-    ColorMatrix matrix{ColorMatrix::Bt709};
-    ColorRange range{ColorRange::Limited};
-    TransferFunction transfer{TransferFunction::Srgb};
-    ColorPrimaries primaries{ColorPrimaries::Bt709};
-    ChromaLocation chroma_location{ChromaLocation::Left};
-};
-
-/// Single canonical calculation of tight surface bytes across all backends.
-[[nodiscard]] constexpr std::size_t tight_surface_bytes(
-    PixelFormat fmt, std::uint32_t width, std::uint32_t height) noexcept {
-    const std::size_t w = static_cast<std::size_t>(width);
-    const std::size_t h = static_cast<std::size_t>(height);
-    switch (fmt) {
-        case PixelFormat::Rgba32Float: return w * h * 16;
-        case PixelFormat::Rgba8Unorm:   return w * h * 4;
-        case PixelFormat::R8Unorm:      return w * h;
-        case PixelFormat::Nv12: {
-            const std::size_t chroma_w = (w + 1) & ~static_cast<std::size_t>(1);
-            const std::size_t chroma_h = (h + 1) / 2;
-            return w * h + chroma_w * chroma_h;
-        }
-        case PixelFormat::P010: {
-            const std::size_t chroma_w = (w + 1) & ~static_cast<std::size_t>(1);
-            const std::size_t chroma_h = (h + 1) / 2;
-            return w * h * 2 + chroma_w * chroma_h * 2;
-        }
-        case PixelFormat::Depth32Float: return w * h * 4;
-        case PixelFormat::Bytes:
-        case PixelFormat::Unknown:
-        default:
-            return w * h;
-    }
-}
 
 /// Backend-neutral description used by the lifetime planner and resource
 /// resolvers. It contains no Framebuffer or Vulkan type.
@@ -116,7 +41,7 @@ struct SurfaceDesc {
     std::size_t bytes{0};
     ColorMetadata color{};
 
-    /// Construct a descriptor with the canonical tight allocation size.  A
+    /// Construct a descriptor with the canonical tight allocation size. A
     /// caller may still provide an explicit byte count for padded/externally
     /// owned memory, but ordinary surfaces must not duplicate format math.
     [[nodiscard]] static constexpr SurfaceDesc make(
@@ -142,6 +67,7 @@ enum class RenderSurfaceKind : std::uint8_t {
 
 [[nodiscard]] constexpr bool is_rgb_surface_format(PixelFormat format) noexcept {
     return format == PixelFormat::Rgba32Float ||
+           format == PixelFormat::Rgba16Float ||
            format == PixelFormat::Rgba8Unorm;
 }
 
@@ -383,8 +309,8 @@ struct alignas(16) GlyphStatic {
 static_assert(sizeof(GlyphStatic) == 48,
               "GlyphStatic must be 48 bytes matching std430 layout");
 
-/// Per-run dynamic data, updated once per frame.  24 bytes per text run
-/// (NOT per glyph).  All glyphs in a run share the same transform.
+/// Per-run dynamic data, updated once per frame. 24 bytes per text run
+/// (NOT per glyph). All glyphs in a run share the same transform.
 struct TextRunDynamic {
     float tx{0.0f};
     float ty{0.0f};
@@ -396,7 +322,7 @@ struct TextRunDynamic {
 static_assert(sizeof(TextRunDynamic) == 24,
               "TextRunDynamic must be 24 bytes");
 
-/// Legacy per-glyph instance for the GPU text-run kernel.  Kept for
+/// Legacy per-glyph instance for the GPU text-run kernel. Kept for
 /// backward compatibility; new code uses GlyphStatic + TextRunDynamic.
 struct GlyphInstance {
     std::int32_t dst_x{0};     // destination canvas origin (pixels)
