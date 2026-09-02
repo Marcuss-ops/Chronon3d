@@ -8,36 +8,21 @@
 
 namespace chronon3d::cache {
 
-namespace {
-
-[[nodiscard]] size_t bytes_for_format(i32 width, i32 height, VideoPixelFormat format) {
-    const size_t w = static_cast<size_t>(std::max<i32>(width, 0));
-    const size_t h = static_cast<size_t>(std::max<i32>(height, 0));
-    switch (format) {
-        case VideoPixelFormat::RGBA8:
-            return w * h * 4u;
-        case VideoPixelFormat::YUV420P:
-        case VideoPixelFormat::NV12:
-            return w * h * 3u / 2u;
-    }
-    return 0;
-}
-
-} // namespace
-
-VideoFrame::VideoFrame(i32 width, i32 height, VideoPixelFormat format) {
+VideoFrame::VideoFrame(i32 width, i32 height, runtime::FrameFormat format) {
     resize(width, height, format);
 }
 
 size_t VideoFrame::expected_size() const {
-    return bytes_for_format(m_width, m_height, m_format);
+    const auto width = static_cast<std::uint32_t>(std::max<i32>(m_width, 0));
+    const auto height = static_cast<std::uint32_t>(std::max<i32>(m_height, 0));
+    return runtime::tight_surface_bytes(m_format.pixel, width, height);
 }
 
-void VideoFrame::resize(i32 width, i32 height, VideoPixelFormat format) {
+void VideoFrame::resize(i32 width, i32 height, runtime::FrameFormat format) {
     m_width = width;
     m_height = height;
     m_format = format;
-    m_bytes.assign(bytes_for_format(width, height, format), 0);
+    m_bytes.assign(expected_size(), 0);
 }
 
 u64 VideoFrameKey::digest() const {
@@ -46,7 +31,13 @@ u64 VideoFrameKey::digest() const {
         .add(frame_index)
         .add(width)
         .add(height)
-        .add_enum(format)
+        .add_enum(format.pixel)
+        .add_enum(format.primaries)
+        .add_enum(format.transfer)
+        .add_enum(format.matrix)
+        .add_enum(format.range)
+        .add_enum(format.chroma)
+        .add_enum(format.alpha)
         .add(scene_hash)
         .add(render_hash)
         .finish();
