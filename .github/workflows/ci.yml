@@ -1,34 +1,10 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-# ci.yml — Chronon3D CI Pipeline (merged: CI + Gates + Full Validation + Lint
-#          + Render Contract + Visual CI).  10→3 workflow consolidation 2026-08-22.
-#
-# Job catalog:
-#   1.  build-matrix              — Linux/Win build + test matrix
-#   2.  core-build                — Gate 1: no text/video/content/diagnostics
-#   3.  sdk-build                 — Gate 2: Text+Blend2D ON, no Content/Video
-#   4.  public-header-check       — Gate 3: every header compiled standalone
-#   5.  install-consumer-check    — Gate 4: cmake --install + find_package
-#   6.  architecture-check        — Gate 5: static rules + boundary scripts
-#   7.  install-consumer-script   — Gate 6: tools/install_consumer_test.sh
-#   8.  sdk-product-certification — Gate 7: C/C++/Go/Rust/Python consumers (push)
-#   9.  trace-gates               — Gate 8: Perfetto correctness + overhead
-#   9b. fuzz-regressions          — Replay committed crash corpus (Clang + libFuzzer)
-#  10.  gate-status               — Machine-readable gate summary (P3-A)
-#  11.  full-validation           — Gate 6/heavy: full preset on critical paths
-#  12.  validate                  — Lint: bash syntax, CMake format, stale docs
-#  13.  render-contract           — RenderJob contract matrix (video/image/core)
-#  14.  golden                    — Visual regression golden matrix
-#  15.  benchmarks                — Blend + scene program benchmarks (advisory)
-#  16.  visual-verdict            — Final visual gate (blocks on golden failure)
-# ═══════════════════════════════════════════════════════════════════════════════
-
 name: Chronon CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -38,9 +14,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 1. Build matrix (from ci.yml — Linux/Win build + test)
-  # ═══════════════════════════════════════════════════════════════════════════
   build-matrix:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
@@ -48,20 +21,29 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { name: 'Linux (Release)',   os: ubuntu-latest, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
-          - { name: 'Linux (Debug/CI)',  os: ubuntu-latest, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
+          - { name: 'Linux (Release)', os: ubuntu-latest, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
+          - { name: 'Linux (Debug/CI)', os: ubuntu-latest, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
           - { name: 'Linux (No Content)', os: ubuntu-latest, preset: linux-ci-nocontent, build_preset: linux-ci-nocontent, test_preset: linux-ci-nocontent-test, slug: linux-nocontent }
           - { name: 'Windows (Release)', os: windows-latest, preset: win-release, build_preset: win, test_preset: win-test, slug: windows-release }
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
 
       - name: Gate / Test Hygiene
         if: runner.os == 'Linux'
         run: bash tools/check_test_hygiene.sh
 
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure
         run: cmake --preset ${{ matrix.config.preset }}
@@ -116,50 +98,62 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 2. Gate 1 — Core build (no text/video/content/diagnostics)
-  # ═══════════════════════════════════════════════════════════════════════════
   core-build:
     name: Gate 1 / core-build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-core-gate
       - run: cmake --build --preset linux-ci-core-gate
       - run: ctest --preset linux-ci-core-gate-test --output-on-failure
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 3. Gate 2 — SDK build (Text+Blend2D ON, no Content/Video)
-  # ═══════════════════════════════════════════════════════════════════════════
   sdk-build:
     name: Gate 2 / sdk-build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-lean-gate
       - run: cmake --build --preset linux-ci-lean-gate
       - run: ctest --preset linux-ci-lean-gate-test --output-on-failure
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 4. Gate 3 — Public-header check
-  # ═══════════════════════════════════════════════════════════════════════════
   public-header-check:
     name: Gate 3 / public-header-check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-lean-gate -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline
       - run: find include/chronon3d -maxdepth 3 -name '*.hpp' | sort > headers.txt && wc -l headers.txt
@@ -169,21 +163,27 @@ jobs:
             --compile-commands build/chronon/linux-ci-lean-gate/compile_commands.json \
             --headers-list headers.txt --out out
           if [ -s out/failures.txt ]; then
-            echo "::error::Public headers that fail to compile standalone:"; cat out/failures.txt; exit 1
+            echo "::error::Public headers that fail to compile standalone:"
+            cat out/failures.txt
+            exit 1
           fi
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 5. Gate 4 — Install + consumer
-  # ═══════════════════════════════════════════════════════════════════════════
   install-consumer-check:
     name: Gate 4 / install-consumer-check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - name: Configure SDK distribution build
         run: cmake --preset linux-ci -DCMAKE_INSTALL_PREFIX=$PWD/sdk-dist
       - name: Build SDK distribution
@@ -209,9 +209,6 @@ jobs:
           cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/sdk-dist
           cmake --build consumer/build
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 6. Gate 5 — Architecture check
-  # ═══════════════════════════════════════════════════════════════════════════
   architecture-check:
     name: Gate 5 / architecture-check
     runs-on: ubuntu-latest
@@ -225,23 +222,24 @@ jobs:
       - name: Public-target rule (Chronon3D::SDK / Chronon3D::C only)
         run: bash tools/check_public_targets.sh
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 7. Gate 6 — Install consumer (tools/install_consumer_test.sh)
-  # ═══════════════════════════════════════════════════════════════════════════
   install-consumer-script:
     name: Gate 6 / install-consumer
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: bash tools/install_consumer_test.sh
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 8. Gate 7 — SDK product certification (push only, release gate)
-  # ═══════════════════════════════════════════════════════════════════════════
   sdk-product-certification:
     name: Gate 7 / sdk-product-certification
     if: github.event_name == 'push'
@@ -249,26 +247,35 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: true }
+        with:
+          submodules: recursive
+          lfs: true
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - uses: actions/setup-go@v5
-        with: { go-version-file: sdk_consumers/03_go/go.mod }
+        with:
+          go-version-file: sdk_consumers/03_go/go.mod
       - uses: dtolnay/rust-toolchain@stable
       - run: bash tools/verify_sdk_product.sh
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 9. Gate 8 — Trace gates (Perfetto correctness + overhead)
-  # ═══════════════════════════════════════════════════════════════════════════
   trace-gates:
     name: Gate 8 / trace-gates
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: ${{ github.event_name == 'push' }} }
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
       - uses: actions/cache@v4
-        with: { path: .trace-gate-cache, key: trace-gates-${{ runner.os }}-perfetto-v53.0-v1 }
+        with:
+          path: .trace-gate-cache
+          key: trace-gates-${{ runner.os }}-perfetto-v53.0-v1
       - name: Provision Perfetto v53.0 amalgamated SDK
         run: |
           mkdir -p .perfetto-sdk
@@ -288,31 +295,25 @@ jobs:
           CHRONON3D_TRACE_GATES=1 PERFETTO_SDK_DIR=$PWD/.perfetto-sdk \
           CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache bash tools/check_trace_overhead.sh
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 9b. Fuzz regressions — replay committed crash corpus under ASan/UBSan
-  #     Every crash found by the fuzzers is committed under tests/fuzz/regressions/
-  #     and replayed here as a permanent regression test (Clang + libFuzzer).
-  # ═══════════════════════════════════════════════════════════════════════
   fuzz-regressions:
     name: Fuzz regressions
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive }
-      - name: Install Clang
+        with:
+          submodules: recursive
+      - name: Install fuzz toolchain
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang
+          sudo apt-get install -y -qq clang ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-fuzz
       - run: cmake --build --preset linux-fuzz
       - run: ctest --preset linux-fuzz-test --output-on-failure
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 10. Gate status summary (P3-A machine-readable JSON)
-  # ═══════════════════════════════════════════════════════════════════════
   gate-status:
     name: Gate Status Summary
     if: ${{ !cancelled() }}
@@ -357,10 +358,6 @@ jobs:
           path: ci_gates_status.json
           retention-days: 90
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 11. Full validation — heavy preset on critical paths (push only)
-  #     (from gates-full-validation.yml)
-  # ═══════════════════════════════════════════════════════════════════════
   full-validation:
     name: Full validation
     if: github.event_name == 'push'
@@ -368,11 +365,18 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: true }
+        with:
+          submodules: recursive
+          lfs: true
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - name: Test Suite Registration gate
         run: bash tools/check_test_suite_registration.sh
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-full-validation
       - run: cmake --build --preset linux-ci-full-validation
       - name: Configure production tracing propagation probe
@@ -394,9 +398,6 @@ jobs:
       - name: Run full test suite
         run: ctest --preset linux-ci-full-validation-test --output-on-failure
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 12. Validate — Lint & validation (from validation.yml)
-  # ═══════════════════════════════════════════════════════════════════════
   validate:
     name: Lint & Validation
     runs-on: ubuntu-latest
@@ -414,16 +415,18 @@ jobs:
               echo "$path" | grep -qE '^\.\./|^/|\.(h|cpp|py|jsx|ts|json|md|sh)$' || continue
               if [ ! -f "$path" ] && [ ! -d "$path" ]; then
                 if [ ! -f "docs/$path" ] && [ ! -f "src/$path" ] && [ ! -f "tests/$path" ]; then
-                  echo "WARNING: Possible stale path in docs: $path"; ERRORS=$((ERRORS + 1))
+                  echo "WARNING: Possible stale path in docs: $path"
+                  ERRORS=$((ERRORS + 1))
                 fi
               fi
             done
           done < <(find docs/ -name '*.md' -exec cat {} \;)
-          if [ "$ERRORS" -gt 0 ]; then echo "Found $ERRORS potential stale paths in documentation"; else echo "All documentation paths appear valid"; fi
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "Found $ERRORS potential stale paths in documentation"
+          else
+            echo "All documentation paths appear valid"
+          fi
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 13. Render contract matrix (from render-contract-matrix.yml)
-  # ═══════════════════════════════════════════════════════════════════════
   render-contract:
     name: RenderJob / ${{ matrix.config.name }}
     runs-on: ubuntu-latest
@@ -431,16 +434,22 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { name: 'Video enabled',   preset: linux-ci-render-video-contract,  build_preset: linux-ci-render-video-contract,  test_preset: linux-ci-render-video-contract-test,  core_only: false }
-          - { name: 'Video disabled',  preset: linux-ci-render-image-contract,  build_preset: linux-ci-render-image-contract,  test_preset: linux-ci-render-image-contract-test,  core_only: false }
-          - { name: 'CLI core-only',   preset: linux-ci-cli-core-only,          build_preset: linux-ci-cli-core-only,          test_preset: '',                                       core_only: true }
+          - { name: 'Video enabled', preset: linux-ci-render-video-contract, build_preset: linux-ci-render-video-contract, test_preset: linux-ci-render-video-contract-test, core_only: false }
+          - { name: 'Video disabled', preset: linux-ci-render-image-contract, build_preset: linux-ci-render-image-contract, test_preset: linux-ci-render-image-contract-test, core_only: false }
+          - { name: 'CLI core-only', preset: linux-ci-cli-core-only, build_preset: linux-ci-cli-core-only, test_preset: '', core_only: true }
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive }
+        with:
+          submodules: recursive
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - name: Architecture regression guard
         run: python3 tools/check_render_asset_architecture.py
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset ${{ matrix.config.preset }}
       - run: cmake --build --preset ${{ matrix.config.build_preset }}
       - name: Run RenderJob contract
@@ -450,9 +459,6 @@ jobs:
         if: ${{ matrix.config.core_only }}
         run: build/chronon/${{ matrix.config.preset }}/apps/chronon3d_cli/chronon3d_cli --help
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 14. Golden matrix — visual regression (from visual_ci.yml)
-  # ═══════════════════════════════════════════════════════════════════════
   golden:
     name: Golden (${{ matrix.golden.label }})
     runs-on: ubuntu-latest
@@ -460,25 +466,30 @@ jobs:
       fail-fast: false
       matrix:
         golden:
-          - { name: breathing, label: 'Breathing',      ctest_filter: '-R chronon3d_breathing_golden_tests', golden_subdir: breathing }
-          - { name: camera,    label: 'Camera',         ctest_filter: '-R chronon3d_camera_visual_tests',   golden_subdir: camera }
-          - { name: glow,      label: 'Glow+Suite',     ctest_filter: '-R chronon3d_renderer_tests',        golden_subdir: glow_suite }
-          - { name: support,   label: 'Visual Support', ctest_filter: '-R chronon3d_visual_test_support_tests', golden_subdir: '' }
+          - { name: breathing, label: 'Breathing', ctest_filter: '-R chronon3d_breathing_golden_tests', golden_subdir: breathing }
+          - { name: camera, label: 'Camera', ctest_filter: '-R chronon3d_camera_visual_tests', golden_subdir: camera }
+          - { name: glow, label: 'Glow+Suite', ctest_filter: '-R chronon3d_renderer_tests', golden_subdir: glow_suite }
+          - { name: support, label: 'Visual Support', ctest_filter: '-R chronon3d_visual_test_support_tests', golden_subdir: '' }
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: true }
+        with:
+          submodules: recursive
+          lfs: true
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
       - run: pip install --upgrade pip pillow numpy
       - name: Install system deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libgtk-3-0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config \
+            libgtk-3-0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
             libxcb-xinerama0 libxcb-xinput0 2>/dev/null || true
         continue-on-error: true
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci
       - run: cmake --build --preset linux-ci -j$(nproc)
       - name: Run ${{ matrix.golden.label }} tests
@@ -502,18 +513,22 @@ jobs:
           path: artifacts/
           retention-days: 14
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 15. Benchmarks — advisory (from visual_ci.yml)
-  # ═══════════════════════════════════════════════════════════════════════
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive, lfs: true }
+        with:
+          submodules: recursive
+          lfs: true
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
-        with: { vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }} }
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON
       - run: cmake --build build/chronon/linux-ci --target chronon3d_benchmarks --target chronon3d_scene_program_benchmarks -j$(nproc)
       - name: Run blend benchmark
@@ -537,9 +552,6 @@ jobs:
           path: output/benchmarks/
           retention-days: 30
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # 16. Visual verdict — blocks on golden failure
-  # ═══════════════════════════════════════════════════════════════════════
   visual-verdict:
     name: Visual Verdict
     runs-on: ubuntu-latest
@@ -548,6 +560,7 @@ jobs:
     steps:
       - run: |
           if [ "${{ needs.golden.result }}" != "success" ]; then
-            echo "::error::One or more golden test variants FAILED."; exit 1
+            echo "::error::One or more golden test variants FAILED."
+            exit 1
           fi
           echo "All golden test variants PASSED."
