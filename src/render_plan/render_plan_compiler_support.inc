@@ -49,6 +49,11 @@ float scalar_value(const AnimationKeyframePlan& key, std::string_view property) 
 chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
                              std::string_view property,
                              chronon3d::Vec3 fallback) {
+    // Text scale is commonly authored as one scalar and means uniform XYZ.
+    // Keep vector properties strict, but accept that canonical shorthand for
+    // ScaleProperty so declarative text motions do not need duplicate tracks.
+    if (key.value.size() == 1 && property == "scale")
+        return chronon3d::Vec3{key.value[0], key.value[0], key.value[0]};
     if (key.value.size() < 2 || key.value.size() > 3)
         throw std::runtime_error("animation property '" + std::string(property) +
                                  "' requires 2 or 3 keyframe components");
