@@ -6,6 +6,45 @@
 
 namespace chronon3d::backends::vulkan {
 
+namespace {
+
+void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buffer,
+                          VkPipelineStageFlags2KHR src_stage, VkAccessFlags2KHR src_access,
+                          VkPipelineStageFlags2KHR dst_stage, VkAccessFlags2KHR dst_access) {
+    if (buffer == VK_NULL_HANDLE) return;
+    const auto pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
+        vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
+    if (!pipeline_barrier2) {
+        throw std::runtime_error(
+            "Vulkan: vkCmdPipelineBarrier2KHR unavailable after synchronization2 enablement");
+    }
+    const VkBufferMemoryBarrier2KHR barrier{
+        VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR,
+        nullptr,
+        src_stage,
+        src_access,
+        dst_stage,
+        dst_access,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        buffer,
+        0,
+        VK_WHOLE_SIZE};
+    const VkDependencyInfoKHR dependency{
+        VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        nullptr,
+        0,
+        0,
+        nullptr,
+        1,
+        &barrier,
+        0,
+        nullptr};
+    pipeline_barrier2(command, &dependency);
+}
+
+} // namespace
+
     void VulkanBackend::Impl::record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           std::int32_t blend_mode, float source_scale,
@@ -216,30 +255,20 @@ namespace chronon3d::backends::vulkan {
         // watermark followed by subtitles). They intentionally share the
         // per-frame instance buffer, but the previous dispatch may still be
         // reading it when the next vkCmdUpdateBuffer records its write.
-        // Make that shader-read -> transfer-write dependency explicit before
-        // publishing the new instance data below. Without this barrier the
-        // hazard that can surface later as VK_ERROR_DEVICE_LOST.
+        // Keep both halves of that dependency on Synchronization2.
         if (instance_updated) {
-            const VkBufferMemoryBarrier reuse_barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                instance_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
-        }
-        // The glyph instances were written by a preceding vkCmdUpdateBuffer
-        // (transfer stage); publish them to the compute shader before dispatch.
-        if (instance_updated) {
-            const VkBufferMemoryBarrier barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                instance_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-                                 0, nullptr, 1, &barrier, 0, nullptr);
+            emit_buffer_barrier2(
+                device, command, instance_buffer,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
+            emit_buffer_barrier2(
+                device, command, instance_buffer,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR);
         }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::TextRun)));
@@ -280,22 +309,18 @@ namespace chronon3d::backends::vulkan {
                             std::int32_t dispatch_end_x,
                             std::int32_t dispatch_end_y) {
         if (instance_updated) {
-            const VkBufferMemoryBarrier reuse_barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                instance_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
-            const VkBufferMemoryBarrier barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                instance_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-                                 0, nullptr, 1, &barrier, 0, nullptr);
+            emit_buffer_barrier2(
+                device, command, instance_buffer,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
+            emit_buffer_barrier2(
+                device, command, instance_buffer,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR);
         }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::LayerBatch)));
@@ -333,40 +358,32 @@ namespace chronon3d::backends::vulkan {
                            std::int32_t dispatch_end_x,
                            std::int32_t dispatch_end_y) {
         if (glyph_updated) {
-            const VkBufferMemoryBarrier reuse_barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                glyph_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
-            const VkBufferMemoryBarrier barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                glyph_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-                                 0, nullptr, 1, &barrier, 0, nullptr);
+            emit_buffer_barrier2(
+                device, command, glyph_buffer,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
+            emit_buffer_barrier2(
+                device, command, glyph_buffer,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR);
         }
         if (run_updated) {
-            const VkBufferMemoryBarrier reuse_barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                run_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                                 0, nullptr, 1, &reuse_barrier, 0, nullptr);
-            const VkBufferMemoryBarrier barrier{
-                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                run_buffer, 0, VK_WHOLE_SIZE};
-            vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-                                 0, nullptr, 1, &barrier, 0, nullptr);
+            emit_buffer_barrier2(
+                device, command, run_buffer,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
+            emit_buffer_barrier2(
+                device, command, run_buffer,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR);
         }
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::TextBatch)));
