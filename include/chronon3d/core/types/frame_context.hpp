@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <algorithm>
+#include <cmath>
 #include <memory_resource>
 #include <optional>
 #include <string>
@@ -11,20 +12,17 @@ namespace chronon3d {
 
 namespace runtime { class RenderRuntime; }
 namespace registry { class ShapeRegistry; }
-class AssetRegistry;  // forward declaration for migration path
-class FontEngine;     // TICKET-A4 follow-up — codex/agent2-font-bind-fixes:
-                      // WP-8 PR 8.0 strict binding means composition
-                      // lambdas MUST see a FontEngine in ctx (engine is
-                      // injected by the render pipeline).  Forward-declare
-                      // here so the existing include budget stays constant.
+class AssetRegistry;
+class FontEngine;
 
-/// Parameters for constructing a FrameContext. Keeps designated-initializer
-/// syntax available for callers while allowing FrameContext itself to have
-/// private temporal fields.
+/// Parameters for constructing a FrameContext. `frame_time` is the canonical
+/// exact media-time contract when supplied by ingest/compiler boundaries.
+/// SampleTime remains as the animation/sub-frame compatibility coordinate.
 struct FrameContextParams {
     SampleTime global_time{};
     std::optional<SampleTime> local_time{};
     Frame duration{0};
+    std::optional<FrameTimeContext> frame_time{};
 
     i32 width{1920};
     i32 height{1080};
@@ -36,33 +34,30 @@ struct FrameContextParams {
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 };
 
-/// Evaluation context for a single frame.
-///
-/// Temporal state is private and accessed through canonical accessors.
-/// `global_time()` is the timeline coordinate in absolute terms;
-/// `local_time()` is the coordinate after applying sequence/layer remapping.
-/// They coincide whenever no remapping is in effect.
+/// Evaluation context for a single frame. Exact presentation time is carried
+/// independently from SampleTime so original media PTS/time-base information
+/// is not collapsed into floating-point seconds. DTS intentionally has no
+/// representation here.
 class FrameContext {
 public:
-    // ── Non-temporal public data ───────────────────────────────────────────
     i32 width{1920};
     i32 height{1080};
     std::string assets_root{};
     AssetRegistry* assets{nullptr};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
     registry::ShapeRegistry* shape_registry{nullptr};
-    // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
-    // The runtime is the canonical owner of shared render services. The
-    // direct pointer remains available for isolated contexts that do not
-    // have a runtime (for example, small authoring and unit-test scenes).
     FontEngine* font_engine{nullptr};
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 
-    // ── Temporal accessors ───────────────────────────────────────────────
     [[nodiscard]] SampleTime global_time() const noexcept { return global_time_; }
     [[nodiscard]] SampleTime local_time() const noexcept { return local_time_; }
-
     [[nodiscard]] Frame duration() const noexcept { return duration_; }
+
+    [[nodiscard]] const FrameTimeContext& frame_time() const noexcept { return frame_time_; }
+    [[nodiscard]] RationalTime presentation_time() const noexcept { return frame_time_.presentation_time; }
+    [[nodiscard]] RationalTime presentation_duration() const noexcept { return frame_time_.duration; }
+    [[nodiscard]] i64 timeline_tick() const noexcept { return frame_time_.timeline_tick; }
+    [[nodiscard]] bool discontinuity() const noexcept { return frame_time_.discontinuity; }
 
     [[nodiscard]] Frame frame() const noexcept { return local_time_.integral_frame(); }
     [[nodiscard]] double frame_fraction() const noexcept { return local_time_.fraction(); }
@@ -74,24 +69,17 @@ public:
 
     [[nodiscard]] double progress() const {
         if (duration_ <= 0) return 0.0;
-        return std::clamp(
-            local_time_.frame / static_cast<double>(duration_),
-            0.0,
-            1.0
-        );
+        return std::clamp(local_time_.frame / static_cast<double>(duration_), 0.0, 1.0);
     }
 
     [[nodiscard]] bool is_first_frame() const { return frame() == 0; }
     [[nodiscard]] bool is_last_frame() const { return duration_ > 0 && frame() >= duration_ - 1; }
 
-    // ── Structural helpers ───────────────────────────────────────────────
-    // Return a copy of this context with a new global/local time pair.
-    // Useful for tests and animation loops that need to move the evaluation
-    // frame without rebuilding the whole context.
     [[nodiscard]] FrameContext with_global_time(SampleTime new_global) const {
         FrameContext dup = *this;
         dup.global_time_ = new_global;
         dup.local_time_ = new_global;
+        dup.frame_time_ = frame_time_from_sample(new_global);
         return dup;
     }
 
@@ -109,9 +97,6 @@ public:
         return dup;
     }
 
-    // Returns a copy of this context with a new local_time and duration.
-    // Useful for sequence/layer remapping without rebuilding non-temporal
-    // state.
     [[nodiscard]] FrameContext with_local_time(SampleTime new_local, Frame new_duration) const {
         FrameContext dup = *this;
         dup.local_time_ = new_local;
@@ -122,14 +107,36 @@ public:
 private:
     friend FrameContext make_frame_context(const FrameContextParams&);
 
+    [[nodiscard]] static FrameTimeContext frame_time_from_sample(SampleTime time) {
+        // SampleTime is a compatibility coordinate. Quantize it once at the
+        // boundary to the existing deterministic 1/65536-frame sub-frame grid;
+        // exact media ingest should instead supply FrameContextParams::frame_time.
+        constexpr i64 kSubframeTicks = 65536;
+        const i64 subframe_value = static_cast<i64>(
+            std::llround(time.frame * static_cast<double>(kSubframeTicks)));
+        const RationalTime pts{
+            subframe_value,
+            Rational{
+                static_cast<i64>(time.frame_rate.denominator),
+                static_cast<i64>(time.frame_rate.numerator) * kSubframeTicks}}
+        ;
+        return FrameTimeContext{
+            .output_frame = time.integral_frame(),
+            .presentation_time = pts,
+            .duration = RationalTime{
+                1,
+                Rational{time.frame_rate.denominator, time.frame_rate.numerator}},
+            .timeline_tick = subframe_value,
+            .discontinuity = false,
+        };
+    }
+
     SampleTime global_time_{};
     SampleTime local_time_{};
     Frame duration_{0};
+    FrameTimeContext frame_time_{};
 };
 
-/// Centralized factory for FrameContext. All production code should construct
-/// FrameContext through this function so that temporal invariants are kept in
-/// a single place.
 [[nodiscard]] inline FrameContext make_frame_context(const FrameContextParams& p) {
     FrameContext ctx;
     ctx.width = p.width;
@@ -144,6 +151,7 @@ private:
     ctx.global_time_ = p.global_time;
     ctx.local_time_ = p.local_time.value_or(p.global_time);
     ctx.duration_ = p.duration;
+    ctx.frame_time_ = p.frame_time.value_or(FrameContext::frame_time_from_sample(p.global_time));
     return ctx;
 }
 
