@@ -44,6 +44,19 @@
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests"
       }
+    },
+    {
+      "name": "linux-video-release",
+      "inherits": "linux-video-fast-dev",
+      "displayName": "Linux Video GPU Release",
+      "description": "Optimized Vulkan/CUDA/NVENC Chronon worker runtime.",
+      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "32",
+        "CHRONON3D_DEV_SPLIT_DWARF": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -58,6 +71,12 @@
       "configurePreset": "linux-video-test",
       "targets": ["chronon3d_cli", "chronon3d_tests_video", "chronon3d_tests"],
       "jobs": 8
+    },
+    {
+      "name": "linux-video-release",
+      "configurePreset": "linux-video-release",
+      "targets": ["chronon3d_cli"],
+      "jobs": 20
     }
   ]
 }

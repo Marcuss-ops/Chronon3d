@@ -32,7 +32,8 @@ resolve_target_paragraph(
 ) {
     const ResolvedTextTree& tree = pre_resolved
         ? *pre_resolved
-        : (local_storage = resolve_text_run_tree(doc, *services.engine, services.bundled_fonts_root), local_storage);
+        : (local_storage = resolve_text_run_tree(
+               doc, *services.engine, services.bundled_fonts_root), local_storage);
 
     if (tree.paragraphs.empty()) {
         return TextLayoutError{

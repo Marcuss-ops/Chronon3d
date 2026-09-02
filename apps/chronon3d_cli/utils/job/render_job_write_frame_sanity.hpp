@@ -75,13 +75,11 @@ inline FramebufferSanityReport scan_framebuffer_sanity(const Framebuffer& fb) {
     const float nan_inf_frac     = (r.sampled_pixels == 0)
         ? 0.0f
         : static_cast<float>(r.nan_or_inf_pixels)     / static_cast<float>(r.sampled_pixels);
-    if (alpha_zero_frac > kAlphaZeroRejectFraction) {
-        r.ok = false;
-        spdlog::error(
-            "scan_framebuffer_sanity: rejecting — {:.1f}% of sampled pixels "
-            "have alpha==0 (threshold {:.1f}%)",
-            alpha_zero_frac * 100.0f, kAlphaZeroRejectFraction * 100.0f);
-    }
+    // A transparent framebuffer is a valid result for overlay renders: the
+    // canvas is intentionally empty outside the glyphs.  Semantic content
+    // gates belong to the overlay benchmark, not to this generic image
+    // writer.  Keep alpha statistics for diagnostics, but do not reject a
+    // frame solely because most pixels are transparent.
     if (nan_inf_frac > kNanInfRejectFraction) {
         r.ok = false;
         spdlog::error(

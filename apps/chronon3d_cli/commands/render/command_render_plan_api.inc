@@ -131,5 +131,11 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--gpu-hot-path-mode", state->gpu_hot_path_mode,
                         "GPU hot-path mode: auto, require_gpu_native, or require_direct_yuv")
         ->check(CLI::IsMember({"auto", "require_gpu_native", "require_direct_yuv"}));
-    command->callback([state, &ctx] { ctx.exit_code = execute_render_plan(ctx.registry, *state); });
+    command->callback([state, &ctx] {
+        if (!state->video_execution) {
+            state->video_execution = std::make_shared<media::VideoJobExecutionContext>();
+            state->video_execution->video_runtimes = ctx.video_runtimes;
+        }
+        ctx.exit_code = execute_render_plan(ctx.registry, *state);
+    });
 }

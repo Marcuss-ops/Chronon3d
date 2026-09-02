@@ -40,6 +40,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::text::resolver {
 
@@ -102,8 +103,8 @@ std::size_t emit_via_bidi(
     // (canonicalization + file-family fallback).  Then build the
     // cluster-level stack around it.
     FontRequest req;
-    req.primary       = sub.font;
-    req.extra_family_candidates      = kResolverExtras;
+    req.primary = sub.font;
+    req.extra_family_candidates = kResolverExtras;
     req.extra_family_candidates_count = kResolverExtrasCnt;
     auto resolved = FontResolver{engine}.resolve(req);
 

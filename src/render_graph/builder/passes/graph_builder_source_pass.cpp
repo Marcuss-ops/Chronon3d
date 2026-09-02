@@ -160,8 +160,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
                 if (ctx.policy.diagnostics_enabled) {
                     spdlog::info(
-                        "[source-pass] layer='{}' routed to TextRunNode "
-                        "glyphs={}",
+                        "[source-pass] layer='{}' routed to TextRunNode glyphs={}",
                         layer.name.c_str(),
                         node.shape.text_run_shape_handle().value->glyphs.size()
                     );

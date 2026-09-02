@@ -56,12 +56,6 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, PreparedText params) {
             std::string(m_layer.name) + "/" + name);
     }
 
-    if (params.animation.animators.empty() &&
-        m_layer.transition_in.transition_id == "none" &&
-        m_layer.transition_out.transition_id == "none") {
-        m_layer.cache_static = true;
-    }
-
     auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
         .params = std::move(params),
