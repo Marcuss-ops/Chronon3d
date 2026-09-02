@@ -2,6 +2,7 @@
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <array>
+#include <string>
 
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include "utils/video/gop_smart_copy.hpp"
@@ -62,6 +63,12 @@ TEST_CASE("VideoExecutionResolver: public contract hides backend selection") {
                               .composition_required = true},
         OutputSpec{}, VideoCapabilities{.nvdec = true, .nvenc = false});
     CHECK_FALSE(rejected.valid);
+}
+
+TEST_CASE("Segment assembly request rejects empty input") {
+    const auto result = chronon3d::media::assemble_segments({{}, "/tmp/final.mp4"});
+    CHECK_FALSE(result.success);
+    CHECK(result.reason.find("requires inputs") != std::string::npos);
 }
 
 TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") {

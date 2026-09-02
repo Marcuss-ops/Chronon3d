@@ -100,8 +100,12 @@ try:
     if '$counter_name' in counters:
         print(counters['$counter_name'])
         sys.exit(0)
-    # Try job.gpu.<name> (the *.timing.json sidecar layout)
-    gpu = data.get('job', {}).get('gpu', {})
+    # Try job.<name> and job.gpu.<name> (the *.timing.json sidecar layout)
+    job = data.get('job', {})
+    if '$counter_name' in job:
+        print(job['$counter_name'])
+        sys.exit(0)
+    gpu = job.get('gpu', {})
     if '$counter_name' in gpu:
         print(gpu['$counter_name'])
         sys.exit(0)
@@ -180,6 +184,9 @@ patterns = {
     'video_surface_upload_bytes': r'video_surface_upload_bytes[=:]\s*(\d+)',
     'gpu_native_surface_frames': r'gpu_native_surface_frames[=:]\s*(\d+)',
     'gpu_native_encode_frames': r'gpu_native_encode_frames[=:]\s*(\d+)',
+    'effective_backend': r'effective_backend[=:]\s*([A-Za-z0-9_-]+)',
+    'encoder_backend': r'encoder_backend[=:]\s*([A-Za-z0-9_-]+)',
+    'surface_handoff_path': r'surface_handoff_path[=:]\s*([A-Za-z0-9_-]+)',
 }
 
 try:
@@ -189,12 +196,8 @@ try:
         match = re.search(pattern, content)
         if match:
             counters[name] = int(match.group(1))
-        else:
-            counters[name] = 0
 except Exception as e:
     print(f'Error reading log: {e}', file=sys.stderr)
-    for name in patterns:
-        counters[name] = 0
 
 report = {
     'schema': 'chronon3d.zero_copy.v1',
@@ -232,17 +235,9 @@ VIDEO_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "video_surface_upload_bytes"
 NATIVE_SURFACE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_surface_frames")
 NATIVE_ENCODE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_encode_frames")
 
-# Default to 0 if empty
-HOST_UPLOAD_BYTES="${HOST_UPLOAD_BYTES:-0}"
-HOST_READBACK_BYTES="${HOST_READBACK_BYTES:-0}"
-NV12_TO_RGBA_FRAMES="${NV12_TO_RGBA_FRAMES:-0}"
-RGBA_TO_NV12_FRAMES="${RGBA_TO_NV12_FRAMES:-0}"
-ENCODER_STAGING_COPY="${ENCODER_STAGING_COPY:-0}"
-GPU_SURFACE_COPY="${GPU_SURFACE_COPY:-0}"
-CPU_READBACK_BYTES="${CPU_READBACK_BYTES:-0}"
-VIDEO_UPLOAD_BYTES="${VIDEO_UPLOAD_BYTES:-0}"
-NATIVE_SURFACE_FRAMES="${NATIVE_SURFACE_FRAMES:-0}"
-NATIVE_ENCODE_FRAMES="${NATIVE_ENCODE_FRAMES:-0}"
+EFFECTIVE_BACKEND=$(extract_counter "$REPORT_JSON" "effective_backend")
+ENCODER_BACKEND=$(extract_counter "$REPORT_JSON" "encoder_backend")
+SURFACE_HANDOFF_PATH=$(extract_counter "$REPORT_JSON" "surface_handoff_path")
 
 # ── Evaluate gates ───────────────────────────────────────────────────────
 PASS_COUNT=0
@@ -279,18 +274,30 @@ check_gate "gpu_surface_copy_frames"  "$GPU_SURFACE_COPY"         "0"
 check_gate "cpu_pixel_readback_bytes" "$CPU_READBACK_BYTES"       "0"
 check_gate "video_surface_upload_bytes" "$VIDEO_UPLOAD_BYTES"     "0"
 
-_info "── Optional Gates (informational) ──"
-if [[ "$NATIVE_SURFACE_FRAMES" -gt 0 ]]; then
-    _pass "  gpu_native_surface_frames = $NATIVE_SURFACE_FRAMES (> 0: native surfaces active)"
-else
-    _warn "  gpu_native_surface_frames = $NATIVE_SURFACE_FRAMES (= 0: no native surfaces)"
-fi
+_info "── Required Native Zero-Copy Identity Gates ──"
+check_gate "effective_backend" "$EFFECTIVE_BACKEND" "vulkan"
+check_gate "encoder_backend" "$ENCODER_BACKEND" "nvenc"
+check_gate "surface_handoff_path" "$SURFACE_HANDOFF_PATH" "direct"
 
-if [[ "$NATIVE_ENCODE_FRAMES" -gt 0 ]]; then
-    _pass "  gpu_native_encode_frames = $NATIVE_ENCODE_FRAMES (> 0: native encoding active)"
-else
-    _warn "  gpu_native_encode_frames = $NATIVE_ENCODE_FRAMES (= 0: no native encoding)"
-fi
+check_positive_gate() {
+    local name="$1"
+    local value="$2"
+    if [[ "$value" == "" ]]; then
+        _warn "  $name: MISSING (cannot verify)"
+        BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
+    elif ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        _fail "  $name = $value (not a non-negative integer)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    elif [[ "$value" -gt 0 ]]; then
+        _pass "  $name = $value (> 0)"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    else
+        _fail "  $name = $value (must be > 0)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+}
+check_positive_gate "gpu_native_surface_frames" "$NATIVE_SURFACE_FRAMES"
+check_positive_gate "gpu_native_encode_frames" "$NATIVE_ENCODE_FRAMES"
 
 # ── Verdict ──────────────────────────────────────────────────────────────
 _info "── Summary ──"

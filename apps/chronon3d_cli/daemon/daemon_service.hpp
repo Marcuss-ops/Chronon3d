@@ -5,6 +5,7 @@
 #include <chronon3d/runtime/device_scheduler.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
+#include <chronon3d/media/video/packet_assembler.hpp>
 #include "chronon_ipc.hpp"
 #include <functional>
 #include <string>
@@ -107,6 +108,7 @@ private:
     ipc::Reply ipc_prepare_plan(const std::string& comp_id);
     ipc::Reply ipc_render_overlay(const std::string& args);
     ipc::Reply ipc_status();
+    ipc::Reply ipc_assemble_segments(const std::string& payload);
     [[nodiscard]] std::shared_ptr<SoftwareRenderer> warm_renderer_for_device(
         runtime::DeviceId device);
 

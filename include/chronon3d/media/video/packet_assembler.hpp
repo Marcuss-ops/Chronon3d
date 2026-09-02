@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -55,6 +56,19 @@ struct MuxOpenConfig {
     const AVCodecContext* video_codec{nullptr};  ///< borrowed, not owned
     std::optional<AudioStreamConfig> audio{};
 };
+
+struct SegmentAssemblyRequest {
+    std::vector<std::string> input_paths;
+    std::string output_path;
+};
+
+struct SegmentAssemblyResult {
+    bool success{false};
+    std::string reason;
+};
+
+/// Assemble compatible encoded segments through Chronon's canonical mux path.
+SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request);
 
 class MuxSession final {
 public:
