@@ -9,9 +9,7 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
     SOURCES authoring/test_selector_animator_dsl.cpp
             authoring/test_material_dsl.cpp
-            authoring/test_registry_dsl.cpp
             authoring/test_text_layer_facade.cpp
-            authoring/test_text_registry_resolution.cpp
             authoring/test_scene_composition_facade.cpp
             authoring/test_asset_api.cpp
             authoring/test_scene_sequence.cpp
