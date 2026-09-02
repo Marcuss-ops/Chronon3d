@@ -109,3 +109,58 @@ TEST_CASE("FrameContext edge cases") {
         CHECK(ctx.frame_fraction() == doctest::Approx(0.25));
     }
 }
+
+TEST_CASE("RationalTime preserves original presentation time base") {
+    const RationalTime pts{90000, Rational{1, 90000}};
+    CHECK(pts.seconds() == doctest::Approx(1.0));
+    CHECK(rational_time_to_ticks_exact(pts, 960000) == 960000);
+
+    const FrameTimeContext exact{
+        .output_frame = Frame{30},
+        .presentation_time = pts,
+        .duration = RationalTime{3003, Rational{1, 90000}},
+        .timeline_tick = 960000,
+        .discontinuity = true,
+    };
+    const FrameContext ctx = make_frame_context({
+        .global_time = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}),
+        .duration = Frame{100},
+        .frame_time = exact,
+    });
+
+    CHECK(ctx.presentation_time() == pts);
+    CHECK(ctx.presentation_duration() == exact.duration);
+    CHECK(ctx.timeline_tick() == 960000);
+    CHECK(ctx.discontinuity());
+}
+
+TEST_CASE("FrameRate exposes exact per-frame rational time") {
+    const FrameRate ntsc{30000, 1001};
+    CHECK(ntsc.frame_time_base() == Rational{1001, 30000});
+    CHECK(ntsc.presentation_time(Frame{1001}) ==
+          RationalTime{1001, Rational{1001, 30000}});
+    CHECK(ntsc.frame_duration() == RationalTime{1, Rational{1001, 30000}});
+}
+
+TEST_CASE("Exact rational conversion rejects implicit rounding") {
+    CHECK_THROWS_AS(
+        rational_time_to_ticks_exact(RationalTime{1, Rational{1, 3}}, 10),
+        std::invalid_argument);
+}
+
+TEST_CASE("TemporalRequirements are explicit and non-negative") {
+    const TemporalRequirements frame_local{};
+    CHECK(frame_local.valid());
+    CHECK_FALSE(frame_local.is_temporal());
+
+    const TemporalRequirements history{
+        .history_frames = 1,
+        .future_frames = 0,
+        .history_duration = RationalTime{1, Rational{1, 30}},
+    };
+    CHECK(history.valid());
+    CHECK(history.is_temporal());
+
+    const TemporalRequirements invalid{.history_frames = -1};
+    CHECK_FALSE(invalid.valid());
+}
