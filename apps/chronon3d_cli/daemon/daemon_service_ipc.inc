@@ -145,6 +145,8 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             return ipc::Reply{ipc::Status::NotFound,
                               "RENDER_JOB unavailable: render group not compiled"};
         }
+        case ipc::Command::AssembleSegments:
+            return ipc_assemble_segments(req.payload);
         case ipc::Command::Status: {
             std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
             return ipc_status();
@@ -236,6 +238,21 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
 
     m_render_count++;
     return ipc::Reply{ipc::Status::Ok, output};
+}
+
+ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
+    try {
+        const auto request = nlohmann::json::parse(payload);
+        const auto paths = request.value("input_paths", std::vector<std::string>{});
+        const auto output = request.value("output_path", std::string{});
+        std::string joined;
+        for (const auto& path : paths) { if (!joined.empty()) joined += ", "; joined += path; }
+        const auto result = media::assemble_segments(media::SegmentAssemblyRequest{paths, output});
+        if (!result.success) return ipc::Reply{ipc::Status::Error, result.reason};
+        return ipc::Reply{ipc::Status::Ok, output};
+    } catch (const std::exception& e) {
+        return ipc::Reply{ipc::Status::BadRequest, std::string{"ASSEMBLE_SEGMENTS parse failed: "} + e.what()};
+    }
 }
 
 ipc::Reply DaemonService::ipc_status() {
