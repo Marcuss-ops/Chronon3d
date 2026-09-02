@@ -15,20 +15,29 @@ using ResourceId = std::uint32_t;
 
 /// Compatibility domain for a planned allocation. External resources are
 /// described for dependency analysis but never receive an arena slot.
+///
+/// FrameFormat is the single image-semantic authority: pixel encoding, color,
+/// alpha and pixel aspect can no longer drift apart while a resource moves
+/// through planning. `bytes` is retained only as a source-compatible cached
+/// observation; allocation decisions derive tight bytes from this descriptor.
 struct ResourceDesc {
     std::uint32_t width{0};
     std::uint32_t height{0};
-    PixelFormat format{PixelFormat::Unknown};
+    FrameFormat format{};
     ResourceUsage usage{ResourceUsage::Generic};
     std::size_t bytes{0};
     std::size_t alignment{alignof(std::max_align_t)};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     ResourceResidency residency{};
 
+    [[nodiscard]] constexpr std::size_t tight_bytes() const noexcept {
+        return tight_surface_bytes(format, width, height);
+    }
+
     [[nodiscard]] static constexpr ResourceDesc make(
         std::uint32_t width,
         std::uint32_t height,
-        PixelFormat format,
+        FrameFormat format,
         ResourceUsage usage = ResourceUsage::Generic,
         LifetimeClass lifetime = LifetimeClass::FrameTransient,
         std::size_t alignment = alignof(std::max_align_t),
@@ -40,7 +49,7 @@ struct ResourceDesc {
     }
 };
 
-/// Graph-facing logical resource.  The planner deliberately keeps this
+/// Graph-facing logical resource. The planner deliberately keeps this
 /// description separate from the physical slot that backs it.
 struct LogicalResource {
     ResourceId id{0};
@@ -54,7 +63,11 @@ struct LogicalResource {
 struct ResourceRequest {
     std::string id{};
     ResourceKind kind{ResourceKind::Bytes};
+    /// Explicit allocation-size override for padded/external layouts. Zero
+    /// means derive tightly from ResourceDesc; desc.bytes is never authoritative.
     std::size_t bytes{0};
+    /// Legacy request-level mirror. ResourcePlanner::add folds this into
+    /// desc.lifetime and thereafter the descriptor is authoritative.
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     std::size_t first{0};
     std::size_t last{0};
@@ -77,7 +90,7 @@ struct PhysicalResourceSlot {
     std::size_t bytes{0};
     std::size_t alignment{alignof(std::max_align_t)};
     std::size_t last{0};
-    PixelFormat format{PixelFormat::Unknown};
+    FrameFormat format{};
     ResourceUsage usage{ResourceUsage::Generic};
     std::uint32_t width{0};
     std::uint32_t height{0};
@@ -122,13 +135,36 @@ struct ResourcePlan {
 };
 
 /// Deterministic first-fit interval planner for job/pipeline resources.
-/// Requests alias only when kind/alignment/residency are compatible and
-/// lifetimes do not overlap. Exportable/external residency is compiler-visible
-/// and therefore never participates in transient aliasing. The planner
-/// allocates no backing memory; pools/backends own that lifecycle.
+/// Requests alias only when kind/alignment/full FrameFormat/residency are
+/// compatible and lifetimes do not overlap. Exportable/external residency is
+/// compiler-visible and therefore never participates in transient aliasing.
+/// The planner allocates no backing memory; pools/backends own that lifecycle.
 class ResourcePlanner {
 public:
-    void add(ResourceRequest request) { m_requests.push_back(request); }
+    void add(ResourceRequest request) {
+        // ResourceDesc is the semantic authority. Fold the historical request
+        // mirror into it only when the descriptor still has its default value.
+        if (request.desc.lifetime == LifetimeClass::FrameTransient &&
+            request.lifetime != LifetimeClass::FrameTransient) {
+            request.desc.lifetime = request.lifetime;
+        }
+        request.lifetime = request.desc.lifetime;
+
+        // Graphic color resources enter one working domain. Boundary media
+        // resources keep NV12/P010/YUV semantics; masks/depth/bytes are not
+        // normalized by this rule.
+        if (request.kind == ResourceKind::Color &&
+            is_rgb_surface_format(request.desc.format)) {
+            request.desc.format = canonical_render_format();
+        }
+
+        // Keep the compatibility observation coherent, while build() still
+        // derives authoritative bytes from the descriptor every time.
+        request.desc.bytes = request.desc.tight_bytes();
+        request.desc.alignment = request.alignment != 0
+            ? request.alignment : request.desc.alignment;
+        m_requests.push_back(std::move(request));
+    }
 
     [[nodiscard]] ResourcePlan build() const {
         ResourcePlan plan;
@@ -149,8 +185,7 @@ public:
 
         for (const auto index : order) {
             const auto& request = m_requests[index];
-            const auto request_bytes = request.bytes != 0
-                ? request.bytes : request.desc.bytes;
+            const auto request_bytes = allocation_bytes(request);
             if (request.desc.lifetime == LifetimeClass::External) {
                 plan.allocations[index] = ResourceAllocation{
                     index, std::numeric_limits<std::size_t>::max(), request.surface};
@@ -172,8 +207,8 @@ public:
             if (selected == std::numeric_limits<std::size_t>::max()) {
                 selected = plan.slots.size();
                 plan.slots.push_back(PhysicalResourceSlot{
-                    request.kind, request.lifetime, request_bytes,
-                    request.alignment, request.last,
+                    request.kind, request.desc.lifetime, request_bytes,
+                    request.desc.alignment, request.last,
                     request.desc.format, request.desc.usage,
                     request.desc.width, request.desc.height, 0,
                     request.desc.residency,
@@ -183,8 +218,8 @@ public:
                 auto& physical = plan.slots[selected];
                 physical.bytes = physical.bytes < request_bytes ? request_bytes : physical.bytes;
                 physical.last = request.last;
-                physical.alignment = physical.alignment < request.alignment
-                    ? request.alignment : physical.alignment;
+                physical.alignment = physical.alignment < request.desc.alignment
+                    ? request.desc.alignment : physical.alignment;
                 physical.width = std::max(physical.width, request.desc.width);
                 physical.height = std::max(physical.height, request.desc.height);
                 ++plan.telemetry.buffer_reuse_count;
@@ -193,13 +228,15 @@ public:
         }
 
         std::size_t max_point = 0;
-        for (const auto& request : m_requests) max_point = max_point < request.last ? request.last : max_point;
+        for (const auto& request : m_requests) {
+            max_point = max_point < request.last ? request.last : max_point;
+        }
         for (std::size_t point = 0; point <= max_point; ++point) {
             std::size_t live = 0;
             for (const auto& request : m_requests) {
-                const auto request_bytes = request.bytes != 0
-                    ? request.bytes : request.desc.bytes;
-                if (request.first <= point && point <= request.last) live += request_bytes;
+                if (request.first <= point && point <= request.last) {
+                    live += allocation_bytes(request);
+                }
             }
             if (live > plan.peak_live_bytes) plan.peak_live_bytes = live;
         }
@@ -217,8 +254,7 @@ public:
         plan.telemetry.logical_count = plan.requests.size();
         plan.telemetry.physical_count = plan.slots.size();
         for (const auto& request : plan.requests) {
-            plan.telemetry.logical_bytes += request.bytes != 0
-                ? request.bytes : request.desc.bytes;
+            plan.telemetry.logical_bytes += allocation_bytes(request);
         }
         plan.telemetry.physical_bytes = plan.planned_physical_bytes;
         plan.telemetry.arena_peak_bytes = plan.planned_physical_bytes;
@@ -230,6 +266,11 @@ public:
     }
 
 private:
+    [[nodiscard]] static std::size_t allocation_bytes(
+        const ResourceRequest& request) noexcept {
+        return request.bytes != 0 ? request.bytes : request.desc.tight_bytes();
+    }
+
     static bool less(const ResourceRequest& lhs, const ResourceRequest& rhs) noexcept {
         if (lhs.first != rhs.first) return lhs.first < rhs.first;
         return lhs.id < rhs.id;
@@ -239,18 +280,14 @@ private:
                            const ResourceRequest& request) noexcept {
         const auto& desc = request.desc;
         const bool format_compatible =
-            desc.format == PixelFormat::Unknown ||
-            slot.format == PixelFormat::Unknown || slot.format == desc.format;
+            desc.format.pixel == PixelFormat::Unknown ||
+            slot.format.pixel == PixelFormat::Unknown || slot.format == desc.format;
         const bool usage_compatible =
             desc.usage == ResourceUsage::Generic ||
             slot.usage == ResourceUsage::Generic || slot.usage == desc.usage;
         // A slot may grow in bytes/alignment, but dimensions are part of the
-        // row-pitch contract.  Do not alias distinct concrete extents; a
-        // zero extent is the legacy/wildcard form used by byte resources.
-        // A slot can be promoted to the stricter alignment when it is
-        // reused; the final arena offset is recomputed after all bindings.
-        // This is safe for ordinary power-of-two alignments and preserves
-        // the planner's first-fit behavior.
+        // row-pitch contract. Do not alias distinct concrete extents; a zero
+        // extent is the legacy/wildcard form used by byte resources.
         const bool alignment_compatible = desc.alignment != 0;
         const bool dimensions_compatible =
             desc.width == 0 || desc.height == 0 || slot.width == 0 ||
@@ -258,7 +295,7 @@ private:
             (slot.width == desc.width && slot.height == desc.height);
         const bool residency_compatible = slot.residency == desc.residency;
         return slot.kind == request.kind &&
-               slot.lifetime == request.lifetime &&
+               slot.lifetime == desc.lifetime &&
                format_compatible && usage_compatible && alignment_compatible &&
                dimensions_compatible && residency_compatible;
     }
