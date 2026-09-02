@@ -32,7 +32,6 @@ FrameExecutionOutput GraphExecutor::execute_with_result(
     RenderSession& session,
     ExecutionScheduler& scheduler
 ) const {
-    session.clear_last_frame_error();
     auto framebuffer = execute_internal(compiled, ctx, session, session.arena(), scheduler);
     if (framebuffer) {
         return FrameExecutionOutput{
@@ -53,7 +52,6 @@ FrameExecutionOutput GraphExecutor::execute_with_scope_result(
     ExecutionScheduler& scheduler
 ) const {
     auto& session = scope.session();
-    session.clear_last_frame_error();
     auto framebuffer = execute_internal(
         compiled, ctx, session, scope.arena(), scheduler);
     if (framebuffer) {
