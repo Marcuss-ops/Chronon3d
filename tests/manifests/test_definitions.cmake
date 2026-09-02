@@ -36,10 +36,11 @@ set(CHRONON3D_TEST_DEFINITIONS
     text_production_v1_tests.cmake
     text_health_tests.cmake
     text_fallback_tests.cmake
-    golden_matrix_subtitle_tests.cmake
-    golden_matrix_emphasis_tests.cmake
-    golden_matrix_cinematic_tests.cmake
-    golden_matrix_reveal_tests.cmake
+    # LEGACY AUTHORING GOLDEN: this matrix still depends on the removed
+    # TextPresetRegistry contract. Keep the sources for later v2 migration,
+    # but do not register the obsolete authoring test in the standard build.
+    # Legacy authoring golden matrices are intentionally excluded until their
+    # useful assertions are migrated to concrete RenderPlan v2 fixtures.
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
     presets_golden_tests.cmake
@@ -49,7 +50,8 @@ set(CHRONON3D_TEST_DEFINITIONS
     text_definition_tests.cmake
     safe_area_placement_tests.cmake
     text_rich_authoring_tests.cmake
-    subtitle_productive_tests.cmake
+    # Legacy subtitle authoring/registry tests are excluded with the same
+    # migration gate; coverage must be re-authored against RenderPlan v2.
     animation_helpers_tests.cmake
     text/text_clip_policy_tests.cmake
     text_canvas_aware_presets_tests.cmake
