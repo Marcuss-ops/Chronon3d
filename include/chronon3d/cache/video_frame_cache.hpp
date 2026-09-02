@@ -6,23 +6,18 @@
 #pragma once
 
 // =============================================================================
-// video_frame_cache.hpp — LruCache-backed cache of encoded video frames
-// (RGBA8/YUV420P/NV12) keyed by (composition_id, frame_index, dimensions,
-// format, scene_hash, render_hash).
+// LruCache-backed cache of converted video frames keyed by
+// (composition_id, frame_index, dimensions, canonical FrameFormat,
+// scene_hash, render_hash).
 //
-// Commit 2 of the cache refactor: previously this was an `unordered_map` with
-// NO eviction (unbounded growth).  After the collapse it is backed by LruCache
-// in CapacityMode::Weight (byte-weighted via VideoFrame::size()) with capacity
-// resolved centrally by resolve_cache_policy(CacheDomain::VideoFrames).
-//
-// Breaking API change (zero prod callers currently):
-//   find() now returns std::shared_ptr<VideoFrame> (nullptr on miss) instead
-//   of a pointer into a stable unordered_map.
+// Pixel/color semantics are owned by runtime::FrameFormat. The cache no longer
+// defines a parallel video pixel taxonomy.
 // =============================================================================
 
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/runtime/frame_format.hpp>
 
 #include <atomic>
 #include <cstddef>
@@ -34,18 +29,13 @@
 
 namespace chronon3d::cache {
 
-enum class VideoPixelFormat {
-    RGBA8,
-    YUV420P,
-    NV12,
-};
-
 struct VideoFrameKey {
     std::string composition_id;
     u64 frame_index{0};
     i32 width{0};
     i32 height{0};
-    VideoPixelFormat format{VideoPixelFormat::YUV420P};
+    runtime::FrameFormat format{
+        runtime::make_frame_format(runtime::PixelFormat::Yuv420P)};
     u64 scene_hash{0};
     u64 render_hash{0};
 
@@ -57,15 +47,16 @@ struct VideoFrameKeyHash {
     [[nodiscard]] size_t operator()(const VideoFrameKey& key) const noexcept;
 };
 
-/// Raw encoded bytes for one video frame.
+/// Raw bytes for one converted video frame. Format semantics are canonical and
+/// shared with runtime/media boundaries rather than re-declared by the cache.
 class VideoFrame {
 public:
     VideoFrame() = default;
-    VideoFrame(i32 width, i32 height, VideoPixelFormat format);
+    VideoFrame(i32 width, i32 height, runtime::FrameFormat format);
 
     [[nodiscard]] i32 width() const { return m_width; }
     [[nodiscard]] i32 height() const { return m_height; }
-    [[nodiscard]] VideoPixelFormat format() const { return m_format; }
+    [[nodiscard]] const runtime::FrameFormat& format() const { return m_format; }
     [[nodiscard]] const std::vector<uint8_t>& bytes() const { return m_bytes; }
     [[nodiscard]] std::vector<uint8_t>& bytes() { return m_bytes; }
     [[nodiscard]] const uint8_t* data() const { return m_bytes.data(); }
@@ -74,38 +65,32 @@ public:
     [[nodiscard]] bool empty() const { return m_bytes.empty(); }
 
     [[nodiscard]] size_t expected_size() const;
-    void resize(i32 width, i32 height, VideoPixelFormat format);
+    void resize(i32 width, i32 height, runtime::FrameFormat format);
 
 private:
     i32 m_width{0};
     i32 m_height{0};
-    VideoPixelFormat m_format{VideoPixelFormat::YUV420P};
+    runtime::FrameFormat m_format{
+        runtime::make_frame_format(runtime::PixelFormat::Yuv420P)};
     std::vector<uint8_t> m_bytes;
 };
 
-/// Thread-safe (sharded) LRU-bounded cache of encoded video frames.
+/// Thread-safe (sharded) LRU-bounded cache of converted video frames.
 class VideoFrameCache {
 public:
     using Value = std::shared_ptr<VideoFrame>;
 
-    /// See FrameCache ctor for Config-driven fallback semantics.
     /// When `max_entries == 0` the cap is resolved centrally via
     /// resolve_cache_policy(CacheDomain::VideoFrames).
-    /// P1-10 — `diag` is the nullable observer (defaults to nullptr =
-    /// no-op registration).  Positioned LAST so existing call sites that
-    /// pass `max_entries` + `num_shards` continue to work unchanged.
     explicit VideoFrameCache(size_t max_entries = 0,
                              size_t num_shards  = 2,
                              CacheDiagnostics* diag = nullptr);
-    /// P1-10 — re-registers with the new diagnostics.  See NodeCache.
     void set_diagnostics(CacheDiagnostics& diag);
     VideoFrameCache(VideoFrameCache&&) noexcept = default;
     VideoFrameCache& operator=(VideoFrameCache&&) noexcept = default;
     ~VideoFrameCache() { m_diag_alive.store(false, std::memory_order_release); }
 
     [[nodiscard]] bool contains(const VideoFrameKey& key) const;
-    /// Look up a key. Promotes the entry to MRU on hit, so this method is
-    /// intentionally non-const (matches LruCache::get's semantics).
     [[nodiscard]] std::shared_ptr<VideoFrame> find(const VideoFrameKey& key);
     void store(VideoFrameKey key, Value value);
     [[nodiscard]] bool erase(const VideoFrameKey& key);
