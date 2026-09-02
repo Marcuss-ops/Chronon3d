@@ -46,8 +46,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/interpolate.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/animated_transform.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/stagger.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/api/composition.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/api/scene.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_metadata.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_manifest.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/prepared_asset_manifest.hpp"
