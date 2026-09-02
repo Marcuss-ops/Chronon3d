@@ -5,6 +5,58 @@
   "description": "Primitive execution contract. Callers must lower editorial semantics into concrete assets, geometry, style and animation tracks before invoking Chronon.",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "text_track": {
+      "type": "object", "additionalProperties": false,
+      "required": ["property", "keyframes"],
+      "properties": {
+        "property": { "type": "string" },
+        "easing": { "type": "string" },
+        "keyframes": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["frame", "value"],
+            "properties": {
+              "frame": { "type": "integer", "minimum": 0 },
+              "value": {
+                "oneOf": [
+                  { "type": "number" },
+                  { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "text_selector": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "unit": { "enum": ["glyph", "grapheme", "character", "word", "line"] },
+        "shape": { "enum": ["square", "ramp_up", "ramp_down", "triangle", "round", "smooth"] },
+        "order": { "enum": ["forward", "reverse", "from_center", "to_center", "random"] },
+        "combine": { "enum": ["replace", "add", "subtract", "intersect", "min", "max"] },
+        "start": { "$ref": "#/$defs/text_track" },
+        "end": { "$ref": "#/$defs/text_track" },
+        "offset": { "$ref": "#/$defs/text_track" },
+        "amount": { "$ref": "#/$defs/text_track" },
+        "exclude_spaces": { "type": "boolean" },
+        "randomize_order": { "type": "boolean" },
+        "random_seed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "text_animator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selectors", "properties"],
+      "properties": {
+        "id": { "type": "string" },
+        "selectors": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text_selector" } },
+        "properties": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text_track" } }
+      }
+    }
+  },
   "required": ["schema", "version", "canvas", "layers", "output"],
   "properties": {
     "schema": { "const": "chronon.render-plan.v2" },
@@ -159,6 +211,9 @@
                 }
               }
             }
+          },
+          "text_animators": {
+            "type": "array", "items": { "$ref": "#/$defs/text_animator" }
           },
           "blend_mode": {
             "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn"]

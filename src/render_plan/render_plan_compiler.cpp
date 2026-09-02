@@ -7,6 +7,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
@@ -18,6 +19,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
