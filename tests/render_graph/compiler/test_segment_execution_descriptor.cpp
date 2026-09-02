@@ -124,7 +124,9 @@ TEST_CASE("segment descriptor clamps required preroll at timeline start") {
     CHECK(descriptor.preroll == Frame{5});
     CHECK(descriptor.required_range().start == Frame{0});
     CHECK(descriptor.seek_anchor == Frame{0});
-    CHECK(descriptor.decode_range() == TimeRange{Frame{0}, Frame{10}});
+    const auto decode = descriptor.decode_range();
+    CHECK(decode.start == Frame{0});
+    CHECK(decode.end == Frame{10});
 }
 
 TEST_CASE("segment descriptor accepts earlier GOP anchor and rejects a late one") {
