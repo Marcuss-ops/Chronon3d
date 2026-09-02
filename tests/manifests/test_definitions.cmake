@@ -63,6 +63,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     render_graph/compiler/template_program_tests.cmake
     runtime/template_program_cache_tests.cmake
     runtime/gpu_layer_batch_tests.cmake
+    runtime/async_encoder_sink_tests.cmake
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
     sabotage_tests.cmake
     # CapCut-grade parity test (TICKET-CAPCUT-REFERENCE-CORPUS, FU09 verdict CapCut-grade §Fase 9)
