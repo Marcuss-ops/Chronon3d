@@ -32,6 +32,18 @@
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan"
       }
+    },
+    {
+      "name": "linux-video-test",
+      "inherits": "linux-video-fast-dev",
+      "displayName": "Linux Video GPU Tests",
+      "description": "GPU/video test build using the existing aggregate test targets.",
+      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "cacheVariables": {
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests"
+      }
     }
   ],
   "buildPresets": [
@@ -39,6 +51,12 @@
       "name": "linux-video-fast-dev",
       "configurePreset": "linux-video-fast-dev",
       "targets": ["chronon3d_cli"],
+      "jobs": 8
+    },
+    {
+      "name": "linux-video-test",
+      "configurePreset": "linux-video-test",
+      "targets": ["chronon3d_cli", "chronon3d_tests_video", "chronon3d_tests"],
       "jobs": 8
     }
   ]
