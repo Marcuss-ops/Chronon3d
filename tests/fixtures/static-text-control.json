@@ -1,0 +1,16 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "static-text-control",
+  "canvas": {"width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1, "duration_frames": 120},
+  "layers": [{
+    "id": "title",
+    "type": "text",
+    "text": "STATIC TEXT CONTROL",
+    "position": [0, 0],
+    "style": {"font": "assets/fonts/Poppins-Bold.ttf", "font_size": 80, "fill": "#FFFFFF"},
+    "start_frame": 0,
+    "duration_frames": 120
+  }],
+  "output": {"path": "static-text-control.mp4", "format": "mp4", "codec": "h264"}
+}
