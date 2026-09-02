@@ -58,6 +58,117 @@ chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
     return fallback;
 }
 
+chronon3d::TextSelectorUnit text_selector_unit(std::string_view value) {
+    using chronon3d::TextSelectorUnit;
+    if (value == "glyph") return TextSelectorUnit::Glyph;
+    if (value == "grapheme") return TextSelectorUnit::Grapheme;
+    if (value == "character") return TextSelectorUnit::Character;
+    if (value == "word") return TextSelectorUnit::Word;
+    if (value == "line") return TextSelectorUnit::Line;
+    throw std::runtime_error("unsupported text selector unit: " + std::string(value));
+}
+
+chronon3d::TextSelectorShape text_selector_shape(std::string_view value) {
+    using chronon3d::TextSelectorShape;
+    if (value == "square") return TextSelectorShape::Square;
+    if (value == "ramp_up") return TextSelectorShape::RampUp;
+    if (value == "ramp_down") return TextSelectorShape::RampDown;
+    if (value == "triangle") return TextSelectorShape::Triangle;
+    if (value == "round") return TextSelectorShape::Round;
+    if (value == "smooth") return TextSelectorShape::Smooth;
+    throw std::runtime_error("unsupported text selector shape: " + std::string(value));
+}
+
+chronon3d::TextSelectorOrder text_selector_order(std::string_view value) {
+    using chronon3d::TextSelectorOrder;
+    if (value == "forward") return TextSelectorOrder::Forward;
+    if (value == "reverse") return TextSelectorOrder::Reverse;
+    if (value == "from_center") return TextSelectorOrder::FromCenter;
+    if (value == "to_center") return TextSelectorOrder::ToCenter;
+    if (value == "random") return TextSelectorOrder::Random;
+    throw std::runtime_error("unsupported text selector order: " + std::string(value));
+}
+
+chronon3d::SelectorCombineMode text_selector_combine(std::string_view value) {
+    using chronon3d::SelectorCombineMode;
+    if (value == "replace") return SelectorCombineMode::Replace;
+    if (value == "add") return SelectorCombineMode::Add;
+    if (value == "subtract") return SelectorCombineMode::Subtract;
+    if (value == "intersect") return SelectorCombineMode::Intersect;
+    if (value == "min") return SelectorCombineMode::Min;
+    if (value == "max") return SelectorCombineMode::Max;
+    throw std::runtime_error("unsupported text selector combine mode: " + std::string(value));
+}
+
+template <typename T>
+chronon3d::AnimatedValue<T> animated_text_value(
+    const AnimationTrackPlan& track, T fallback, std::string_view property) {
+    chronon3d::AnimatedValue<T> result{fallback};
+    for (const auto& key : track.keyframes) {
+        const auto easing = track_easing(track.easing);
+        if constexpr (std::is_same_v<T, float>) {
+            result.add_keyframe(key.frame, scalar_value(key, property), easing);
+        } else {
+            result.add_keyframe(key.frame, vector_value(key, property, fallback), easing);
+        }
+    }
+    return result;
+}
+
+chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan) {
+    chronon3d::GlyphSelectorSpec selector;
+    selector.id = plan.id;
+    selector.unit = text_selector_unit(plan.unit);
+    selector.shape = text_selector_shape(plan.shape);
+    selector.order = text_selector_order(plan.order);
+    selector.combine = text_selector_combine(plan.combine);
+    selector.start = animated_text_value(plan.start, 0.0f, "selector.start");
+    selector.end = animated_text_value(plan.end, 100.0f, "selector.end");
+    selector.offset = animated_text_value(plan.offset, 0.0f, "selector.offset");
+    selector.amount = animated_text_value(plan.amount, 100.0f, "selector.amount");
+    selector.exclude_spaces = plan.exclude_spaces;
+    selector.randomize_order = plan.randomize_order;
+    selector.random_seed = plan.random_seed;
+    return selector;
+}
+
+chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan) {
+    chronon3d::TextAnimatorSpec animator;
+    animator.id = plan.id;
+    for (const auto& selector : plan.selectors)
+        animator.selectors.push_back(compile_text_selector(selector));
+    for (const auto& track : plan.properties) {
+        if (track.property == "position" || track.property == "position_x" ||
+            track.property == "position_y") {
+            animator.properties.push_back(chronon3d::PositionProperty{
+                animated_text_value(track, chronon3d::Vec3{}, track.property)});
+        } else if (track.property == "scale" || track.property == "scale_x" ||
+                   track.property == "scale_y") {
+            animator.properties.push_back(chronon3d::ScaleProperty{
+                animated_text_value(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)});
+        } else if (track.property == "opacity") {
+            animator.properties.push_back(chronon3d::OpacityProperty{
+                animated_text_value(track, 1.0f, track.property)});
+        } else if (track.property == "blur") {
+            animator.properties.push_back(chronon3d::BlurProperty{
+                animated_text_value(track, 0.0f, track.property)});
+        } else if (track.property == "tracking") {
+            animator.properties.push_back(chronon3d::TrackingProperty{
+                animated_text_value(track, 0.0f, track.property)});
+        } else {
+            throw std::runtime_error("unsupported text animator property: " + track.property);
+        }
+    }
+    if (animator.selectors.empty() || animator.properties.empty())
+        throw std::runtime_error("text animator '" + animator.id + "' requires selectors and properties");
+    return animator;
+}
+
+void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer) {
+    for (const auto& animator : layer.text_animators)
+        builder.animator(compile_text_animator(animator));
+}
+
 chronon3d::TextDefinition materialize_text(const LayerPlan& layer,
                                            const chronon3d::CanvasInfo& canvas) {
     if (!layer.style || layer.font.empty() || !layer.style->font_size ||

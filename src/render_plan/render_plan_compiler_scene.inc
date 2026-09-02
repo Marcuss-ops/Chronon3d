@@ -44,9 +44,10 @@
                             builder.kind(LayerKind::Text);
                             if (!prepared_texts[index])
                                 throw std::runtime_error("text layer was not prepared");
-                            builder.text_run(
+                            auto& text_builder = builder.text_run(
                                 "text", chronon3d::prepare_text(*prepared_texts[index]))
                                 .font_engine(font_engine.get());
+                            apply_text_animators(text_builder, layer);
                             break;
                         }
                     }
