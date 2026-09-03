@@ -9,6 +9,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <tests/helpers/test_utils.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <string>
