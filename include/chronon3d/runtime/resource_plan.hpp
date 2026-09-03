@@ -13,14 +13,10 @@ namespace chronon3d::runtime {
 
 using ResourceId = std::uint32_t;
 
-/// Compatibility domain for a planned allocation. External resources are
-/// described for dependency analysis but never receive an arena slot.
-///
-/// FrameFormat is the single image-semantic authority: pixel encoding, color,
-/// alpha and pixel aspect can no longer drift apart while a resource moves
-/// through planning. `bytes` is retained only as a source-compatible cached
-/// observation; allocation decisions derive tight bytes from this descriptor.
-struct ResourceDesc {
+/// Transitional planner-local descriptor. It is intentionally isolated under
+/// a distinct name so ResourceDesc can become the single runtime authority in
+/// the next commit without a type-name collision.
+struct PlannerResourceDesc {
     std::uint32_t width{0};
     std::uint32_t height{0};
     FrameFormat format{};
@@ -34,7 +30,7 @@ struct ResourceDesc {
         return tight_surface_bytes(format, width, height);
     }
 
-    [[nodiscard]] static constexpr ResourceDesc make(
+    [[nodiscard]] static constexpr PlannerResourceDesc make(
         std::uint32_t width,
         std::uint32_t height,
         FrameFormat format,
@@ -42,7 +38,7 @@ struct ResourceDesc {
         LifetimeClass lifetime = LifetimeClass::FrameTransient,
         std::size_t alignment = alignof(std::max_align_t),
         ResourceResidency residency = {}) noexcept {
-        return ResourceDesc{
+        return PlannerResourceDesc{
             width, height, format, usage,
             tight_surface_bytes(format, width, height), alignment, lifetime,
             residency};
@@ -54,7 +50,7 @@ struct ResourceDesc {
 struct LogicalResource {
     ResourceId id{0};
     RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
-    ResourceDesc desc{};
+    PlannerResourceDesc desc{};
     std::size_t first_use{0};
     std::size_t last_use{0};
     bool persistent{false};
@@ -64,7 +60,7 @@ struct ResourceRequest {
     std::string id{};
     ResourceKind kind{ResourceKind::Bytes};
     /// Explicit allocation-size override for padded/external layouts. Zero
-    /// means derive tightly from ResourceDesc; desc.bytes is never authoritative.
+    /// means derive tightly from the descriptor; desc.bytes is never authoritative.
     std::size_t bytes{0};
     /// Legacy request-level mirror. ResourcePlanner::add folds this into
     /// desc.lifetime and thereafter the descriptor is authoritative.
@@ -72,7 +68,7 @@ struct ResourceRequest {
     std::size_t first{0};
     std::size_t last{0};
     std::size_t alignment{alignof(std::max_align_t)};
-    ResourceDesc desc{};
+    PlannerResourceDesc desc{};
     RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
 };
 
@@ -116,9 +112,6 @@ struct ResourcePlan {
     std::vector<ResourceRequest> requests;
     std::vector<ResourceAllocation> allocations;
     std::vector<PhysicalResourceSlot> slots;
-    // Sum of the physical slots that must be backed after liveness aliasing.
-    // This is the capacity commitment; peak_live_bytes remains the logical
-    // overlap peak useful for comparing graph pressure before reuse.
     std::size_t planned_physical_bytes{0};
     std::size_t peak_live_bytes{0};
     ResourcePlanTelemetry telemetry{};
@@ -135,31 +128,20 @@ struct ResourcePlan {
 };
 
 /// Deterministic first-fit interval planner for job/pipeline resources.
-/// Requests alias only when kind/alignment/full FrameFormat/residency are
-/// compatible and lifetimes do not overlap. Exportable/external residency is
-/// compiler-visible and therefore never participates in transient aliasing.
-/// The planner allocates no backing memory; pools/backends own that lifecycle.
 class ResourcePlanner {
 public:
     void add(ResourceRequest request) {
-        // ResourceDesc is the semantic authority. Fold the historical request
-        // mirror into it only when the descriptor still has its default value.
         if (request.desc.lifetime == LifetimeClass::FrameTransient &&
             request.lifetime != LifetimeClass::FrameTransient) {
             request.desc.lifetime = request.lifetime;
         }
         request.lifetime = request.desc.lifetime;
 
-        // Graphic color resources enter one working domain. Boundary media
-        // resources keep NV12/P010/YUV semantics; masks/depth/bytes are not
-        // normalized by this rule.
         if (request.kind == ResourceKind::Color &&
             is_rgb_surface_format(request.desc.format)) {
             request.desc.format = canonical_render_format();
         }
 
-        // Keep the compatibility observation coherent, while build() still
-        // derives authoritative bytes from the descriptor every time.
         request.desc.bytes = request.desc.tight_bytes();
         request.desc.alignment = request.alignment != 0
             ? request.alignment : request.desc.alignment;
@@ -285,9 +267,6 @@ private:
         const bool usage_compatible =
             desc.usage == ResourceUsage::Generic ||
             slot.usage == ResourceUsage::Generic || slot.usage == desc.usage;
-        // A slot may grow in bytes/alignment, but dimensions are part of the
-        // row-pitch contract. Do not alias distinct concrete extents; a zero
-        // extent is the legacy/wildcard form used by byte resources.
         const bool alignment_compatible = desc.alignment != 0;
         const bool dimensions_compatible =
             desc.width == 0 || desc.height == 0 || slot.width == 0 ||
@@ -309,8 +288,6 @@ private:
     std::vector<ResourceRequest> m_requests;
 };
 
-/// Canonical graph terminology; kept as an alias so existing preparation
-/// code and the new compiled-graph planner share one implementation.
 using ResourceLifetimePlanner = ResourcePlanner;
 
 } // namespace chronon3d::runtime
