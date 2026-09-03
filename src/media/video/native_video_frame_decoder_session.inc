@@ -46,6 +46,17 @@ bool build_source_sample_table(AVFormatContext* fmt, int stream_index,
     return !out.empty();
 }
 
+void set_decode_diagnostic(DecodeDiagnostic* out,
+                           DecodeFailureReason reason,
+                           int ffmpeg_error,
+                           std::int64_t pts,
+                           std::int64_t dts,
+                           std::uint64_t source_order,
+                           std::string message) {
+    if (!out) return;
+    *out = DecodeDiagnostic{reason, ffmpeg_error, pts, dts, source_order, std::move(message)};
+}
+
 } // namespace
 
 NativeVideoFrameDecoder::~NativeVideoFrameDecoder() = default;
@@ -68,7 +79,7 @@ NativeVideoFrameDecoder::Session::~Session() {
 }
 
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
-    Session& session, AVFrame* frame) {
+    Session& session, AVFrame* frame, DecodeDiagnostic* diagnostic) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
     if (!frame || frame->format != AV_PIX_FMT_CUDA) return nullptr;
@@ -77,7 +88,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
         const int ref_result = captured ? av_frame_ref(captured, frame) : AVERROR(ENOMEM);
         if (!captured || ref_result < 0) {
             if (captured) av_frame_free(&captured);
-            publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable,
+            set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable,
                 ref_result, frame->pts, frame->pkt_dts, 0,
                 "failed to retain native decoded frame");
             return nullptr;
@@ -97,7 +108,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
         if (frames) {
             if (frames->sw_format == AV_PIX_FMT_P010) format = runtime::PixelFormat::P010;
             else if (frames->sw_format != AV_PIX_FMT_NV12) {
-                publish_decode_failure(DecodeFailureReason::UnsupportedFormatChange, 0,
+                set_decode_diagnostic(diagnostic, DecodeFailureReason::UnsupportedFormatChange, 0,
                     frame->pts, frame->pkt_dts, 0,
                     "native decoded frame changed to an unsupported pixel format");
                 return nullptr;
@@ -106,7 +117,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     }
     if (!session.native_import_session) session.native_import_session = m_native_importer->create_session();
     if (!session.native_import_session) {
-        publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable, 0,
             frame->pts, frame->pkt_dts, 0,
             "native frame importer could not create an import session");
         return nullptr;
@@ -123,19 +134,20 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
         m_counters->video_decode_hw_frames.fetch_add(1, std::memory_order_relaxed);
         m_counters->video_decode_native_surface_frames.fetch_add(1, std::memory_order_relaxed);
     } else if (!result) {
-        publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable, 0,
             frame->pts, frame->pkt_dts, 0,
             "native frame importer rejected the decoded surface");
     }
     return result;
 #else
-    (void)session; (void)frame;
+    (void)session; (void)frame; (void)diagnostic;
     return nullptr;
 #endif
 }
 
 std::shared_ptr<NativeVideoFrameDecoder::Session>
-NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
+NativeVideoFrameDecoder::open_session_locked(const std::string& path,
+                                             DecodeDiagnostic* diagnostic) {
     auto it = m_sessions.find(path);
     if (it != m_sessions.end()) return it->second;
     auto session = std::make_shared<Session>();
@@ -143,9 +155,8 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     const auto t_open = profiling::now();
     const int open_result = avformat_open_input(&fmt, path.c_str(), nullptr, nullptr);
     if (open_result != 0) {
-        publish_decode_failure(DecodeFailureReason::OpenInput, open_result,
-            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "failed to open media input");
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::OpenInput, open_result,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0, "failed to open media input");
         spdlog::error("[native-decoder] open input failed: {}", path); return nullptr;
     }
     session->profiling.container_open_ms = profiling::duration_ms(t_open, profiling::now());
@@ -153,7 +164,7 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     const auto t_probe = profiling::now();
     const int stream_info_result = avformat_find_stream_info(fmt, nullptr);
     if (stream_info_result < 0) {
-        publish_decode_failure(DecodeFailureReason::StreamInfo, stream_info_result,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::StreamInfo, stream_info_result,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "failed to read media stream information");
         spdlog::error("[native-decoder] stream info failed: {}", path); return nullptr;
@@ -161,14 +172,14 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     session->profiling.stream_probe_ms = profiling::duration_ms(t_probe, profiling::now());
     const int index = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (index < 0) {
-        publish_decode_failure(DecodeFailureReason::NoVideoStream, index,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::NoVideoStream, index,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "media input has no decodable video stream");
         spdlog::error("[native-decoder] no video stream: {}", path); return nullptr;
     }
     session->stream_index = index;
     if (!build_source_sample_table(fmt, index, session->sample_table)) {
-        publish_decode_failure(DecodeFailureReason::StreamInfo, 0,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::StreamInfo, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "source has no usable PTS sample table or is not seekable");
         spdlog::error("[native-decoder] source has no usable PTS sample table: {}", path);
@@ -182,7 +193,7 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     else if (codec_id == AV_CODEC_ID_AV1) codec = avcodec_find_decoder_by_name("av1_cuvid");
     if (!codec) codec = avcodec_find_decoder(codec_id);
     if (!codec) {
-        publish_decode_failure(DecodeFailureReason::DecoderUnavailable, 0,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "no decoder is available for the selected video stream");
         spdlog::error("[native-decoder] decoder unavailable for: {}", path); return nullptr;
@@ -191,14 +202,14 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     const auto t_dec = profiling::now();
     AVCodecContext* cc = avcodec_alloc_context3(codec);
     if (!cc) {
-        publish_decode_failure(DecodeFailureReason::DecoderUnavailable, AVERROR(ENOMEM),
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, AVERROR(ENOMEM),
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "failed to allocate decoder context");
         return nullptr;
     }
     const int parameters_result = avcodec_parameters_to_context(cc, fmt->streams[index]->codecpar);
     if (parameters_result < 0) {
-        publish_decode_failure(DecodeFailureReason::DecoderUnavailable, parameters_result,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, parameters_result,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "failed to initialize decoder parameters");
         avcodec_free_context(&cc); return nullptr;
@@ -213,7 +224,7 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         auto* av_device = reinterpret_cast<AVHWDeviceContext*>(device->data);
         auto* av_cuda = av_device ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx) : nullptr;
         if (!av_cuda || !m_video_runtime->context_matches(reinterpret_cast<std::uintptr_t>(av_cuda->cuda_ctx))) {
-            publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+            set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable, 0,
                 kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
                 "shared CUDA decoder device does not match the runtime device");
             spdlog::error("[native-decoder] FAIL_CLOSED: shared hwdevice context mismatch");
@@ -224,7 +235,7 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
         cc->extra_hw_frames = 8;
         session->hw_device_ctx = device;
     } else {
-        publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "registry-owned CUDA decoder device is unavailable");
         spdlog::error("[native-decoder] FAIL_CLOSED: no registry-owned CUDA hwdevice for decoder");
@@ -234,9 +245,8 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     cc->thread_count = 0;
     const int codec_open_result = avcodec_open2(cc, codec, nullptr);
     if (codec_open_result < 0) {
-        publish_decode_failure(DecodeFailureReason::DecoderUnavailable, codec_open_result,
-            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "failed to open video decoder");
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, codec_open_result,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0, "failed to open video decoder");
         spdlog::error("[native-decoder] codec open failed for {}", path); avcodec_free_context(&cc); return nullptr;
     }
     session->profiling.decoder_open_ms = profiling::duration_ms(t_dec, profiling::now());
@@ -246,13 +256,14 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
     session->closest_frame = av_frame_alloc();
     session->packet = av_packet_alloc();
     if (!session->decoded || !session->packet) {
-        publish_decode_failure(DecodeFailureReason::DecoderUnavailable, AVERROR(ENOMEM),
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, AVERROR(ENOMEM),
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "failed to allocate decoder frame or packet state");
         return nullptr;
     }
     session->test_options = m_test_options;
-    const bool prefetch_enabled = m_test_options.enable_prefetch && m_gpu_hot_path_mode != GpuHotPathMode::RequireDirectYuv;
+    const bool prefetch_enabled = m_test_options.enable_prefetch &&
+        m_gpu_hot_path_mode != GpuHotPathMode::RequireDirectYuv;
     if (prefetch_enabled) session->start_prefetch_worker(this);
     else session->direct_prefetch_disabled = true;
     m_sessions[path] = session;
@@ -289,11 +300,8 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(NativeVideoFrameDec
                 {
                     std::lock_guard lock(mutex);
                     if (generation == prefetch_generation) {
-                        if (estimate > io_budget.config().max_prefetch_bytes) {
-                            prefetch_next = -1;
-                        } else {
-                            prefetch_next = target;
-                        }
+                        if (estimate > io_budget.config().max_prefetch_bytes) prefetch_next = -1;
+                        else prefetch_next = target;
                     }
                     if (prefetch_inflight == target) prefetch_inflight = -1;
                     prefetch_cv.notify_all();
@@ -314,12 +322,14 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(NativeVideoFrameDec
                 continue;
             }
 
-            auto fb = decoder->decode_frame_internal(*this, target);
+            auto decode_result = decoder->decode_frame_internal(*this, target);
+            auto* decoded = std::get_if<DecodedFrame>(&decode_result);
             {
                 std::lock_guard lock(mutex);
-                if (fb && generation == prefetch_generation && !prefetch_stop.load()) {
+                if (decoded && decoded->framebuffer && generation == prefetch_generation &&
+                    !prefetch_stop.load()) {
                     prefetch_queue.push_back(PrefetchedFrame{
-                        target, std::move(fb), std::move(reservation)});
+                        target, std::move(decoded->framebuffer), std::move(reservation)});
                 } else if (generation == prefetch_generation) {
                     prefetch_next = -1;
                 }
