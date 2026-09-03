@@ -7,15 +7,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
 namespace chronon3d::graph {
 
-// The compiled resource table is the ResidencyCache compiler boundary.
-// ResourceDesc owns logical requirements; runtime::PhysicalResourceSlot owns
-// physical placement metadata. No backend-specific framebuffer allocation
-// descriptor is persisted beside them.
 static_assert(
     cache::cache_family_annotation<cache::CacheFamily::ResidencyCache>);
 
@@ -23,50 +20,87 @@ using PhysicalAllocationId = std::uint32_t;
 inline constexpr PhysicalAllocationId kInvalidPhysicalAllocationId =
     std::numeric_limits<PhysicalAllocationId>::max();
 
-// Temporary source-compatibility spelling for compiled operation payloads.
-// This is a constant alias only; the deleted PhysicalFramebufferAllocationPlan
-// type and its independent storage/interval-coloring authority are gone.
+// Transitional constant spelling retained until the compiled-operation ABI is
+// renamed. It is a scalar sentinel only; no framebuffer allocation plan exists.
 inline constexpr PhysicalAllocationId kInvalidPhysicalFramebufferSlot =
     kInvalidPhysicalAllocationId;
 
-/// Canonical compiled record for one logical graph resource.
-///
-/// The descriptor, lifetime interval, release policy and physical allocation
-/// id live together so execution never has to reconcile parallel authorities.
-struct CompiledResourceRecord {
+enum class ResourceSubresource : std::uint8_t {
+    Whole,
+    Plane0,
+    Plane1,
+};
+
+/// Physical requirements lowered once from runtime::ResourceDesc. Backends
+/// consume this value instead of rebuilding size/alignment/plane semantics.
+struct PhysicalRequirements {
+    std::size_t allocation_bytes{0};
+    std::size_t alignment{alignof(std::max_align_t)};
+    std::uint32_t plane_count{1};
+    bool gpu_compatible{true};
+    bool aliasable{false};
+};
+
+struct CompiledResourceSubresource {
+    ResourceSubresource id{ResourceSubresource::Whole};
+    std::uint32_t plane_index{0};
+};
+
+/// Synchronization/ownership edge carried by the resource that owns it. This
+/// replaces graph-global ownership-transfer side tables and also provides the
+/// common primitive used by media plane consumers.
+struct CompiledResourceTransition {
+    GraphNodeId consumer{k_invalid_node};
+    ResourceSubresource subresource{ResourceSubresource::Whole};
+    bool ownership_transfer{false};
+};
+
+/// Canonical compiled plan for one logical graph resource.
+/// ResourceDesc -> PhysicalRequirements -> CompiledResourcePlan is the only
+/// persisted lowering path for lifetime, release, subresource and allocation
+/// metadata.
+struct CompiledResourcePlan {
     GraphNodeId producer{k_invalid_node};
     runtime::ResourceDesc desc{};
+    PhysicalRequirements physical{};
 
     std::size_t first_level{0};
     std::size_t last_level{0};
     std::size_t consumer_count{0};
+    std::size_t release_after_level{0};
+    bool release_scheduled{false};
     bool can_release_after_last_consumer{true};
 
     PhysicalAllocationId physical_slot{kInvalidPhysicalAllocationId};
-    bool aliasable{false};
     bool persistent{false};
     bool async_use{false};
+
+    std::vector<CompiledResourceSubresource> subresources;
+    std::vector<CompiledResourceTransition> transitions;
+
+    [[nodiscard]] bool aliasable() const noexcept {
+        return physical.aliasable;
+    }
+
+    [[nodiscard]] std::optional<GraphNodeId>
+    ownership_transfer_consumer() const noexcept {
+        for (const auto& transition : transitions) {
+            if (transition.ownership_transfer) {
+                return transition.consumer;
+            }
+        }
+        return std::nullopt;
+    }
 };
 
-// Source-compatible type spelling for callers that reason about the lifetime
-// portion of a compiled resource. It names the canonical record itself and
-// therefore does not create a second representation.
-using ResourceLifetime = CompiledResourceRecord;
+// Temporary source spelling while downstream tests migrate to the plan name.
+// It aliases the same object and carries no separate storage.
+using CompiledResourceRecord = CompiledResourcePlan;
+using ResourceLifetime = CompiledResourcePlan;
 
-/// Sole persisted resource/lifetime/allocation authority of CompiledFrameGraph.
-///
-/// `resources` contains every reachable logical graph output. `slots` is the
-/// canonical physical placement produced by runtime::ResourcePlanner for the
-/// transient aliasable subset. Persistent/async resources remain in the table
-/// with an invalid physical id and retain normal shared/pool ownership.
 struct CompiledResourceTable {
-    std::vector<CompiledResourceRecord> resources;
+    std::vector<CompiledResourcePlan> resources;
     std::vector<runtime::PhysicalResourceSlot> slots;
-
-    // Derived release index owned by the same table. This is an execution
-    // acceleration index over `resources`, not an independently-computed
-    // lifetime authority.
-    std::vector<std::vector<GraphNodeId>> release_after_level;
 
     std::uint32_t physical_slot_count{0};
     std::uint32_t logical_resource_count{0};
@@ -75,16 +109,13 @@ struct CompiledResourceTable {
     std::uint32_t excluded_persistent_count{0};
     std::uint32_t excluded_async_count{0};
 
-    // Canonical byte totals produced by the compiler/planner. Execution and
-    // backends consume these directly instead of reconstructing allocation
-    // requirements from frame dimensions or framebuffer implementation details.
     std::size_t logical_bytes{0};
     std::size_t planned_physical_bytes{0};
     std::size_t peak_live_bytes{0};
 
-    // Zero-storage compatibility views. They deliberately alias canonical
-    // table storage so old call sites cannot become a second authority.
-    std::vector<CompiledResourceRecord>& lifetimes;
+    // Transitional zero-storage views retained only until every caller has
+    // moved to resource_for(). They do not own a parallel authority.
+    std::vector<CompiledResourcePlan>& lifetimes;
     CompiledResourceTable& physical_framebuffer_plan;
 
     CompiledResourceTable() noexcept
@@ -94,7 +125,6 @@ struct CompiledResourceTable {
     CompiledResourceTable(const CompiledResourceTable& other)
         : resources(other.resources),
           slots(other.slots),
-          release_after_level(other.release_after_level),
           physical_slot_count(other.physical_slot_count),
           logical_resource_count(other.logical_resource_count),
           peak_live_resource_count(other.peak_live_resource_count),
@@ -110,7 +140,6 @@ struct CompiledResourceTable {
     CompiledResourceTable(CompiledResourceTable&& other) noexcept
         : resources(std::move(other.resources)),
           slots(std::move(other.slots)),
-          release_after_level(std::move(other.release_after_level)),
           physical_slot_count(other.physical_slot_count),
           logical_resource_count(other.logical_resource_count),
           peak_live_resource_count(other.peak_live_resource_count),
@@ -127,7 +156,6 @@ struct CompiledResourceTable {
         if (this == &other) return *this;
         resources = other.resources;
         slots = other.slots;
-        release_after_level = other.release_after_level;
         physical_slot_count = other.physical_slot_count;
         logical_resource_count = other.logical_resource_count;
         peak_live_resource_count = other.peak_live_resource_count;
@@ -144,7 +172,6 @@ struct CompiledResourceTable {
         if (this == &other) return *this;
         resources = std::move(other.resources);
         slots = std::move(other.slots);
-        release_after_level = std::move(other.release_after_level);
         physical_slot_count = other.physical_slot_count;
         logical_resource_count = other.logical_resource_count;
         peak_live_resource_count = other.peak_live_resource_count;
@@ -160,7 +187,6 @@ struct CompiledResourceTable {
     void clear() {
         resources.clear();
         slots.clear();
-        release_after_level.clear();
         physical_slot_count = 0;
         logical_resource_count = 0;
         peak_live_resource_count = 0;
@@ -176,7 +202,7 @@ struct CompiledResourceTable {
         return resources.empty();
     }
 
-    [[nodiscard]] const CompiledResourceRecord* resource_for(
+    [[nodiscard]] const CompiledResourcePlan* resource_for(
         GraphNodeId id) const noexcept {
         if (id >= resources.size() || resources[id].producer != id) {
             return nullptr;
@@ -184,7 +210,7 @@ struct CompiledResourceTable {
         return &resources[id];
     }
 
-    [[nodiscard]] CompiledResourceRecord* resource_for(
+    [[nodiscard]] CompiledResourcePlan* resource_for(
         GraphNodeId id) noexcept {
         if (id >= resources.size() || resources[id].producer != id) {
             return nullptr;
@@ -192,20 +218,52 @@ struct CompiledResourceTable {
         return &resources[id];
     }
 
-    // Compatibility spelling used by existing compiled-program/executor code.
-    // It returns the canonical record, not a mirrored allocation object.
-    [[nodiscard]] const CompiledResourceRecord* allocation_for(
+    [[nodiscard]] const CompiledResourcePlan* allocation_for(
         GraphNodeId id) const noexcept {
         return resource_for(id);
     }
 
-    [[nodiscard]] const std::vector<GraphNodeId>& release_schedule(
-        std::size_t level) const noexcept {
-        static const std::vector<GraphNodeId> kEmpty;
-        return level < release_after_level.size()
-            ? release_after_level[level]
-            : kEmpty;
+    [[nodiscard]] std::vector<GraphNodeId> release_schedule(
+        std::size_t level) const {
+        std::vector<GraphNodeId> result;
+        for (const auto& resource : resources) {
+            if (resource.producer != k_invalid_node &&
+                resource.release_scheduled &&
+                resource.release_after_level == level) {
+                result.push_back(resource.producer);
+            }
+        }
+        return result;
     }
 };
+
+[[nodiscard]] inline PhysicalRequirements lower_physical_requirements(
+    const runtime::ResourceDesc& desc,
+    bool aliasable) noexcept {
+    PhysicalRequirements result;
+    result.allocation_bytes = desc.allocation_bytes();
+    result.alignment = desc.alignment;
+    result.plane_count =
+        (desc.format.pixel == runtime::PixelFormat::Nv12 ||
+         desc.format.pixel == runtime::PixelFormat::P010)
+            ? 2u
+            : 1u;
+    result.gpu_compatible = desc.kind != runtime::ResourceKind::Bytes;
+    result.aliasable = aliasable;
+    return result;
+}
+
+inline void lower_subresources(CompiledResourcePlan& plan) {
+    plan.subresources.clear();
+    if (plan.physical.plane_count == 2u) {
+        plan.subresources.push_back(
+            CompiledResourceSubresource{ResourceSubresource::Plane0, 0});
+        plan.subresources.push_back(
+            CompiledResourceSubresource{ResourceSubresource::Plane1, 1});
+    } else {
+        plan.subresources.push_back(
+            CompiledResourceSubresource{ResourceSubresource::Whole, 0});
+    }
+}
 
 } // namespace chronon3d::graph
