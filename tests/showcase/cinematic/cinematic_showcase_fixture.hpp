@@ -34,7 +34,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/api/composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
