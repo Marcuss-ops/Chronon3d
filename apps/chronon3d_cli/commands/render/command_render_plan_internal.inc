@@ -102,6 +102,11 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             request.video_settings.hardware_encoder = args.video.hardware_encoder;
         if (!args.video.encoder_backend.empty())
             request.video_settings.encoder_backend = args.video.encoder_backend;
+        // Preserve the optional source media path through the render-plan
+        // adapter. The native encoder uses it to mux the master audio stream;
+        // dropping it here produces a valid video-only MP4 silently.
+        request.video_settings.gop_source = args.video.gop_source;
+        request.video_settings.gop_copy_only = args.video.gop_copy_only;
         if (!args.video.ffmpeg_mode.empty())
             request.video_settings.ffmpeg_mode = args.video.ffmpeg_mode;
         if (!args.video.rate_control_mode.empty()) {

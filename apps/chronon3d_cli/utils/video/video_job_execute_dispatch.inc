@@ -74,7 +74,11 @@ int render_and_encode_ffmpeg(
                 // lower-level exporter infer a path.
                 auto fallback_opts = opts;
                 fallback_opts.gop_copy_only = false;
-                fallback_opts.gop_source.clear();
+                // Keep gop_source on the explicit DirectYuv fallback: the
+                // native A/V mux uses the same materialized source to copy
+                // the master audio stream. Clearing it here made a valid
+                // video render silently lose audio after a GOP preflight
+                // downgrade.
                 fallback_opts.resolved_execution_path =
                     FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
                 fallback_opts.resolved_execution_plan = media::detail::resolve_legacy_video_execution(
