@@ -84,8 +84,10 @@ if(CHRONON3D_ENABLE_VIDEO)
         video/ffmpeg_frame_submit.cpp
         video/process_runner.cpp
         video/process_runner_posix.cpp
+        video/media_probe.cpp
         video/output_contract.cpp
-        video/video_sink_factory.cpp            video/video_config_validator.cpp
+        video/video_sink_factory.cpp
+        video/video_config_validator.cpp
     )
     set_target_properties(chronon3d_media_video PROPERTIES UNITY_BUILD OFF)
     target_link_libraries(chronon3d_media_video PUBLIC
@@ -98,7 +100,7 @@ if(CHRONON3D_ENABLE_VIDEO)
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
-        # The output verifier probes final artifacts in-process through
+        # Canonical media probing and output verification run in-process via
         # libavformat/libavcodec instead of spawning ffprobe.
         target_link_libraries(chronon3d_media_video PUBLIC chronon3d_ffmpeg_full)
     endif()

@@ -2,61 +2,66 @@
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/media_probe.hpp>
 
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <string_view>
-
-#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/error.h>
-#include <libavutil/pixdesc.h>
-#include <libavutil/rational.h>
-}
-#endif
 
 namespace chronon3d::media::video {
 namespace {
 
-#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-
-struct FormatContextGuard {
-    AVFormatContext* context{nullptr};
-
-    ~FormatContextGuard() {
-        if (context != nullptr) {
-            avformat_close_input(&context);
-        }
-    }
-};
-
-std::string ffmpeg_error_string(int error_code) {
-    char buffer[AV_ERROR_MAX_STRING_SIZE]{};
-    if (av_strerror(error_code, buffer, sizeof(buffer)) < 0) {
-        return "FFmpeg error " + std::to_string(error_code);
-    }
-    return buffer;
-}
-
-double rate_to_double(AVRational rate) {
-    if (rate.num <= 0 || rate.den <= 0) {
+[[nodiscard]] double rational_to_double(Rational value) {
+    if (value.numerator <= 0 || value.denominator <= 0) {
         return 0.0;
     }
-    return av_q2d(rate);
+    return static_cast<double>(value.numerator) /
+           static_cast<double>(value.denominator);
 }
 
-double stream_duration_seconds(const AVStream& stream) {
-    if (stream.duration == AV_NOPTS_VALUE || stream.duration <= 0 ||
-        stream.time_base.num <= 0 || stream.time_base.den <= 0) {
-        return 0.0;
+[[nodiscard]] std::int64_t derive_frame_count_exact(
+    RationalTime duration,
+    Rational frame_rate) {
+    if (duration.ticks() <= 0 || duration.time_base.numerator <= 0 ||
+        duration.time_base.denominator <= 0 || frame_rate.numerator <= 0 ||
+        frame_rate.denominator <= 0) {
+        return 0;
     }
-    return static_cast<double>(stream.duration) * av_q2d(stream.time_base);
+
+    // frames = duration_ticks * duration_time_base * frames_per_second.
+    // Round to the nearest whole frame, matching the verifier's historical
+    // llround policy without converting the authoritative media time to double.
+    const __int128 numerator =
+        static_cast<__int128>(duration.ticks()) *
+        static_cast<__int128>(duration.time_base.numerator) *
+        static_cast<__int128>(frame_rate.numerator);
+    const __int128 denominator =
+        static_cast<__int128>(duration.time_base.denominator) *
+        static_cast<__int128>(frame_rate.denominator);
+    if (numerator <= 0 || denominator <= 0) {
+        return 0;
+    }
+
+    const __int128 rounded = (numerator + denominator / 2) / denominator;
+    if (rounded > static_cast<__int128>(std::numeric_limits<std::int64_t>::max())) {
+        return 0;
+    }
+    return static_cast<std::int64_t>(rounded);
 }
 
-#endif
+[[nodiscard]] std::string probe_failure(const MediaProbeError& error) {
+    switch (error.code) {
+        case MediaProbeErrorCode::BackendUnavailable:
+            return error.message;
+        case MediaProbeErrorCode::OpenInput:
+            return "libavformat rejected artifact: " + error.message;
+        case MediaProbeErrorCode::StreamInfo:
+            return "libavformat could not read stream info: " + error.message;
+    }
+    return "libavformat probe failed: " + error.message;
+}
 
 } // namespace
 
@@ -89,100 +94,53 @@ OutputVerificationResult verify_output_contract(
         return result;
     }
 
-#if !defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    // Keep lean/pipe-only builds free of a new mandatory libav dependency.
-    // Verification fails closed instead of falling back to an ffprobe process.
-    result.ffprobe_missing = true;
-    result.failure =
-        "libavformat verification unavailable: build with "
-        "CHRONON3D_ENABLE_NATIVE_FFMPEG=ON";
-    return result;
-#else
-    // Probe the final container in-process. This intentionally replaces the
-    // historical ffprobe subprocess + temporary JSON file path.
+    // All container/stream discovery goes through the canonical probe. The
+    // verifier only interprets those facts against the output contract.
     const auto probe_t0 = profiling::now();
-    FormatContextGuard format;
-    const std::string artifact_path = artifact.string();
-    int ffmpeg_result =
-        avformat_open_input(&format.context, artifact_path.c_str(), nullptr, nullptr);
-    if (ffmpeg_result < 0) {
-        result.ffprobe_ms = profiling::elapsed_ms(probe_t0);
-        result.failure = "libavformat rejected artifact: " +
-                         ffmpeg_error_string(ffmpeg_result);
-        return result;
-    }
-
-    ffmpeg_result = avformat_find_stream_info(format.context, nullptr);
+    auto probe = probe_media(artifact);
     result.ffprobe_ms = profiling::elapsed_ms(probe_t0);
-    if (ffmpeg_result < 0) {
-        result.failure = "libavformat could not read stream info: " +
-                         ffmpeg_error_string(ffmpeg_result);
+    if (!probe) {
+        const auto& error = probe.error();
+        result.ffprobe_missing =
+            error.code == MediaProbeErrorCode::BackendUnavailable;
+        result.failure = probe_failure(error);
         return result;
     }
 
+    const auto& media = probe.value();
     std::size_t video_streams = 0;
     std::size_t audio_streams = 0;
-    AVStream* video_stream = nullptr;
-    for (unsigned int index = 0; index < format.context->nb_streams; ++index) {
-        AVStream* stream = format.context->streams[index];
-        if (stream == nullptr || stream->codecpar == nullptr) {
-            continue;
-        }
-        if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+    const MediaStreamProbe* video_stream = nullptr;
+
+    for (const auto& stream : media.streams) {
+        if (stream.kind == MediaStreamKind::Video) {
             ++video_streams;
             if (video_stream == nullptr) {
-                video_stream = stream;
+                video_stream = &stream;
             }
-        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+        } else if (stream.kind == MediaStreamKind::Audio) {
             ++audio_streams;
         }
     }
     result.audio_streams = audio_streams;
 
     if (video_stream != nullptr) {
-        const AVCodecParameters* video_params = video_stream->codecpar;
-        result.width = video_params->width;
-        result.height = video_params->height;
-
-        const char* codec_name = avcodec_get_name(video_params->codec_id);
-        if (codec_name != nullptr) {
-            result.video_codec = codec_name;
-        }
-
-        if (video_params->format >= 0) {
-            const char* pixel_format = av_get_pix_fmt_name(
-                static_cast<AVPixelFormat>(video_params->format));
-            if (pixel_format != nullptr) {
-                result.pixel_format = pixel_format;
-            }
-        }
-
-        result.fps = rate_to_double(video_stream->r_frame_rate);
-        if (result.fps <= 0.0) {
-            result.fps = rate_to_double(video_stream->avg_frame_rate);
-        }
-
-        result.duration_seconds = stream_duration_seconds(*video_stream);
-        if (video_stream->nb_frames > 0) {
-            result.frame_count = video_stream->nb_frames;
-        }
+        result.width = video_stream->width;
+        result.height = video_stream->height;
+        result.video_codec = video_stream->codec;
+        result.pixel_format = video_stream->pixel_format;
+        result.fps = rational_to_double(video_stream->frame_rate);
+        result.frame_count = video_stream->frame_count;
     }
 
-    // Some muxers leave per-stream duration unset while providing a valid
-    // container duration. Preserve the verifier's conservative fallback.
-    if (result.duration_seconds <= 0.0 &&
-        format.context->duration != AV_NOPTS_VALUE &&
-        format.context->duration > 0) {
-        result.duration_seconds =
-            static_cast<double>(format.context->duration) /
-            static_cast<double>(AV_TIME_BASE);
+    if (media.duration.has_value()) {
+        result.duration_seconds = media.duration->seconds();
     }
 
-    if (result.frame_count <= 0 &&
-        result.duration_seconds > 0.0 && result.fps > 0.0) {
-        // H.264 MP4 commonly omits nb_frames; derive from duration × fps.
-        result.frame_count = static_cast<std::int64_t>(
-            std::llround(result.duration_seconds * result.fps));
+    if (result.frame_count <= 0 && media.duration.has_value() &&
+        video_stream != nullptr) {
+        result.frame_count = derive_frame_count_exact(
+            *media.duration, video_stream->frame_rate);
     }
 
     // ── Structural verdict (`passed`) ─────────────────────────────────────
@@ -263,7 +221,6 @@ OutputVerificationResult verify_output_contract(
 
     result.copy_eligible = true;
     return result;
-#endif
 }
 
 } // namespace chronon3d::media::video
