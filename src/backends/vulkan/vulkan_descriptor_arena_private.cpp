@@ -43,11 +43,11 @@ VkPipelineStageFlags2KHR to_vk_stage(runtime::PipelineStage stages) {
             VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR);
     consume(runtime::PipelineStage::ColorOutput,
             VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR);
-#ifdef VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR
+#if defined(VK_KHR_video_decode_queue)
     consume(runtime::PipelineStage::VideoDecode,
             VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR);
 #endif
-#ifdef VK_PIPELINE_STAGE_2_VIDEO_ENCODE_BIT_KHR
+#if defined(VK_KHR_video_encode_queue)
     consume(runtime::PipelineStage::VideoEncode,
             VK_PIPELINE_STAGE_2_VIDEO_ENCODE_BIT_KHR);
 #endif
@@ -84,13 +84,13 @@ VkAccessFlags2KHR to_vk_access(runtime::AccessMask access) {
             VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR);
     consume(runtime::AccessMask::ColorWrite,
             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR);
-#ifdef VK_ACCESS_2_VIDEO_DECODE_READ_BIT_KHR
+#if defined(VK_KHR_video_decode_queue)
     consume(runtime::AccessMask::VideoDecodeRead,
             VK_ACCESS_2_VIDEO_DECODE_READ_BIT_KHR);
     consume(runtime::AccessMask::VideoDecodeWrite,
             VK_ACCESS_2_VIDEO_DECODE_WRITE_BIT_KHR);
 #endif
-#ifdef VK_ACCESS_2_VIDEO_ENCODE_READ_BIT_KHR
+#if defined(VK_KHR_video_encode_queue)
     consume(runtime::AccessMask::VideoEncodeRead,
             VK_ACCESS_2_VIDEO_ENCODE_READ_BIT_KHR);
     consume(runtime::AccessMask::VideoEncodeWrite,
@@ -121,25 +121,25 @@ VkImageLayout to_vk_layout(runtime::ResourceLayout layout) {
     case runtime::ResourceLayout::External:
         return VK_IMAGE_LAYOUT_GENERAL;
     case runtime::ResourceLayout::VideoDecodeSrc:
-#ifdef VK_IMAGE_LAYOUT_VIDEO_DECODE_SRC_KHR
+#if defined(VK_KHR_video_decode_queue)
         return VK_IMAGE_LAYOUT_VIDEO_DECODE_SRC_KHR;
 #else
         break;
 #endif
     case runtime::ResourceLayout::VideoDecodeDst:
-#ifdef VK_IMAGE_LAYOUT_VIDEO_DECODE_DST_KHR
+#if defined(VK_KHR_video_decode_queue)
         return VK_IMAGE_LAYOUT_VIDEO_DECODE_DST_KHR;
 #else
         break;
 #endif
     case runtime::ResourceLayout::VideoEncodeSrc:
-#ifdef VK_IMAGE_LAYOUT_VIDEO_ENCODE_SRC_KHR
+#if defined(VK_KHR_video_encode_queue)
         return VK_IMAGE_LAYOUT_VIDEO_ENCODE_SRC_KHR;
 #else
         break;
 #endif
     case runtime::ResourceLayout::VideoEncodeDst:
-#ifdef VK_IMAGE_LAYOUT_VIDEO_ENCODE_DST_KHR
+#if defined(VK_KHR_video_encode_queue)
         return VK_IMAGE_LAYOUT_VIDEO_ENCODE_DST_KHR;
 #else
         break;
@@ -162,7 +162,7 @@ VkImageAspectFlags to_vk_aspects(runtime::ResourceAspect aspects) {
     consume(runtime::ResourceAspect::Color, VK_IMAGE_ASPECT_COLOR_BIT);
     consume(runtime::ResourceAspect::Depth, VK_IMAGE_ASPECT_DEPTH_BIT);
     consume(runtime::ResourceAspect::Stencil, VK_IMAGE_ASPECT_STENCIL_BIT);
-#ifdef VK_IMAGE_ASPECT_PLANE_0_BIT
+#if defined(VK_VERSION_1_1) || defined(VK_KHR_sampler_ycbcr_conversion)
     consume(runtime::ResourceAspect::Plane0, VK_IMAGE_ASPECT_PLANE_0_BIT);
     consume(runtime::ResourceAspect::Plane1, VK_IMAGE_ASPECT_PLANE_1_BIT);
     consume(runtime::ResourceAspect::Plane2, VK_IMAGE_ASPECT_PLANE_2_BIT);
