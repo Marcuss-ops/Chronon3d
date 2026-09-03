@@ -6,17 +6,14 @@ set(CHRONON3D_TEST_DEFINITIONS
     architecture_tests.cmake
     ocio_tests.cmake
     core_tests.cmake
-    backend_registry_tests.cmake
+    core_infra_tests.cmake
     shader_abi_tests.cmake
     ipc_tests.cmake
-    memory_tests.cmake
     c_abi_tests.cmake
     scene_tests.cmake
     cli_tests.cmake
     introspection_tests.cmake
     render_job_contract_tests.cmake
-    optimizer_tests.cmake
-    preflight_tests.cmake
     cache_tests.cmake
     compositor_tests.cmake
     benchmarks.cmake
