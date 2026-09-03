@@ -7,8 +7,6 @@ void FrameGraphCompiler::build_compiled_resource_table(
 
     const std::size_t node_count = compiled.graph.size();
     table.resources.resize(node_count);
-    table.release_after_level.assign(compiled.levels.size(), {});
-    compiled.ownership_transfers.assign(node_count, CompiledOwnershipTransfer{});
 
     const auto frame_width = static_cast<std::uint32_t>(
         std::max(0, ctx.frame_input.width));
@@ -16,10 +14,9 @@ void FrameGraphCompiler::build_compiled_resource_table(
         std::max(0, ctx.frame_input.height));
     const auto frame_format = runtime::canonical_render_format();
 
-    // First pass: establish the producer level and the complete canonical
-    // descriptor for every reachable logical framebuffer result. Extent,
-    // format and allocation size are compiled once here and are not rebuilt
-    // by the executor/backend later.
+    // ResourceDesc is lowered immediately into the per-resource compiled plan.
+    // Lifetime, release, subresource and allocation metadata never fan out into
+    // graph-global side tables.
     for (std::size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
         for (GraphNodeId node_id : compiled.levels[level_index]) {
             if (node_id >= node_count || node_id >= compiled.nodes.size() ||
@@ -41,8 +38,8 @@ void FrameGraphCompiler::build_compiled_resource_table(
         }
     }
 
-    // Second pass: fold every consumer edge into the same canonical record.
-    // No separate lifetime vector is built or reconciled later.
+    // Fold consumer edges directly into the owning resource plan. The same
+    // transitions later drive ownership and media-plane synchronization.
     for (std::size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
         for (GraphNodeId node_id : compiled.levels[level_index]) {
             if (node_id >= compiled.nodes.size()) continue;
@@ -51,6 +48,10 @@ void FrameGraphCompiler::build_compiled_resource_table(
                 if (!input) continue;
                 input->last_level = std::max(input->last_level, level_index);
                 ++input->consumer_count;
+                input->transitions.push_back(CompiledResourceTransition{
+                    node_id,
+                    ResourceSubresource::Whole,
+                    false});
             }
         }
     }
@@ -71,6 +72,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
             node_id == compiled.output;
         resource->async_use = !resource->can_release_after_last_consumer;
 
+        bool aliasable = false;
         if (resource->persistent) {
             resource->desc.lifetime = runtime::LifetimeClass::JobPersistent;
             ++table.excluded_persistent_count;
@@ -79,7 +81,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
             ++table.excluded_async_count;
         } else {
             resource->desc.lifetime = runtime::LifetimeClass::FrameTransient;
-            resource->aliasable = true;
+            aliasable = true;
             ++table.aliasable_resource_count;
 
             planner.add(runtime::ResourceRequest{
@@ -99,23 +101,26 @@ void FrameGraphCompiler::build_compiled_resource_table(
             }
         }
 
+        resource->physical = lower_physical_requirements(resource->desc, aliasable);
+        lower_subresources(*resource);
+
         // The graph output remains owned by the executor until return. Nodes
-        // with no consumers likewise have no release event inside the graph.
-        if (node_id != compiled.output && resource->consumer_count != 0 &&
-            resource->last_level < table.release_after_level.size()) {
-            table.release_after_level[resource->last_level].push_back(node_id);
+        // with no consumers have no release event inside the graph.
+        if (node_id != compiled.output && resource->consumer_count != 0) {
+            resource->release_after_level = resource->last_level;
+            resource->release_scheduled = true;
         }
 
-        if (resource->consumer_count == 1 &&
-            compiled.nodes[node_id].consumers.size() == 1) {
-            compiled.ownership_transfers[node_id] = CompiledOwnershipTransfer{
-                node_id, compiled.nodes[node_id].consumers.front(), true};
+        // Single-consumer ownership transfer is now an edge property of this
+        // resource instead of a second graph-global synchronization authority.
+        if (resource->consumer_count == 1 && resource->transitions.size() == 1) {
+            resource->transitions.front().ownership_transfer =
+                !resource->persistent && !resource->async_use;
         }
     }
 
-    // ResourcePlanner is the sole allocation algorithm. It is intentionally
-    // ephemeral here: only the canonical physical slot metadata and logical
-    // -> physical ids are persisted in CompiledResourceTable.
+    // ResourcePlanner remains the sole placement algorithm. Only its resolved
+    // physical slots are persisted back into CompiledResourcePlan.
     const auto plan = planner.build();
     if (plan.slots.size() >= static_cast<std::size_t>(kInvalidPhysicalAllocationId)) {
         throw std::runtime_error(
