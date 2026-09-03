@@ -75,6 +75,13 @@ struct CompiledResourceTable {
     std::uint32_t excluded_persistent_count{0};
     std::uint32_t excluded_async_count{0};
 
+    // Canonical byte totals produced by the compiler/planner. Execution and
+    // backends consume these directly instead of reconstructing allocation
+    // requirements from frame dimensions or framebuffer implementation details.
+    std::size_t logical_bytes{0};
+    std::size_t planned_physical_bytes{0};
+    std::size_t peak_live_bytes{0};
+
     // Zero-storage compatibility views. They deliberately alias canonical
     // table storage so old call sites cannot become a second authority.
     std::vector<CompiledResourceRecord>& lifetimes;
@@ -94,6 +101,9 @@ struct CompiledResourceTable {
           aliasable_resource_count(other.aliasable_resource_count),
           excluded_persistent_count(other.excluded_persistent_count),
           excluded_async_count(other.excluded_async_count),
+          logical_bytes(other.logical_bytes),
+          planned_physical_bytes(other.planned_physical_bytes),
+          peak_live_bytes(other.peak_live_bytes),
           lifetimes(resources),
           physical_framebuffer_plan(*this) {}
 
@@ -107,6 +117,9 @@ struct CompiledResourceTable {
           aliasable_resource_count(other.aliasable_resource_count),
           excluded_persistent_count(other.excluded_persistent_count),
           excluded_async_count(other.excluded_async_count),
+          logical_bytes(other.logical_bytes),
+          planned_physical_bytes(other.planned_physical_bytes),
+          peak_live_bytes(other.peak_live_bytes),
           lifetimes(resources),
           physical_framebuffer_plan(*this) {}
 
@@ -121,6 +134,9 @@ struct CompiledResourceTable {
         aliasable_resource_count = other.aliasable_resource_count;
         excluded_persistent_count = other.excluded_persistent_count;
         excluded_async_count = other.excluded_async_count;
+        logical_bytes = other.logical_bytes;
+        planned_physical_bytes = other.planned_physical_bytes;
+        peak_live_bytes = other.peak_live_bytes;
         return *this;
     }
 
@@ -135,6 +151,9 @@ struct CompiledResourceTable {
         aliasable_resource_count = other.aliasable_resource_count;
         excluded_persistent_count = other.excluded_persistent_count;
         excluded_async_count = other.excluded_async_count;
+        logical_bytes = other.logical_bytes;
+        planned_physical_bytes = other.planned_physical_bytes;
+        peak_live_bytes = other.peak_live_bytes;
         return *this;
     }
 
@@ -148,6 +167,9 @@ struct CompiledResourceTable {
         aliasable_resource_count = 0;
         excluded_persistent_count = 0;
         excluded_async_count = 0;
+        logical_bytes = 0;
+        planned_physical_bytes = 0;
+        peak_live_bytes = 0;
     }
 
     [[nodiscard]] bool empty() const noexcept {
