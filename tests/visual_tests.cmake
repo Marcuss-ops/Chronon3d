@@ -126,6 +126,9 @@ target_compile_definitions(chronon3d_pr3_composition_visual_tests
 # library; that link broke post content-dedup.  Compiling it directly
 # into the test binary restores the symbols without duplicating the TU
 # across the CLI binary (which also compiles it).
+# Repo-slim (6e6905116) externalized content/; skip when the fixture is
+# absent so the whole test tree still configures.
+if(EXISTS "${CMAKE_SOURCE_DIR}/content/ae_parity/ae_cam_scenes.cpp")
 chronon3d_add_test_suite(
     NAME chronon3d_ae_parity_tests
     TIER INTEGRATION
@@ -156,6 +159,7 @@ add_test(
     COMMAND chronon3d_ae_parity_tests --test-case="FASE-3 SCALA: ae_08 *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+endif()  # content/ae_parity/ae_cam_scenes.cpp exists
 
 # ── Gate 1 — Timeline Visual Golden Tests ──
 # 4 tests proving sequence boundaries, local frame mapping,
