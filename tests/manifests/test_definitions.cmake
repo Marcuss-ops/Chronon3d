@@ -3,9 +3,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     mesh_disabled_gate.cmake
     backends_software_tests.cmake
     debug/CMakeLists.txt
-    # Architecture include-graph + asset/backend hygiene gates (Python guards
-    # + script linting). Dropped from registration by the slim top-level
-    # orchestrator refactor (fd776350) and re-wired here.
     architecture_tests.cmake
     ocio_tests.cmake
     core_tests.cmake
@@ -26,7 +23,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     animation_tests.cmake
     renderer_tests.cmake
     io_tests.cmake
-    breathing_golden_tests.cmake
+    parallelism_tests.cmake
     visual_tests.cmake
     graphics_tests.cmake
     gradient_visual_tests.cmake
@@ -64,9 +61,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     runtime/semantic_core_tests.cmake
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
     sabotage_tests.cmake
-    # CapCut-grade parity test (TICKET-CAPCUT-REFERENCE-CORPUS, FU09 verdict CapCut-grade §Fase 9)
     reference/capcut/CMakeLists.txt
-    # Isolated alignment + auto-fit regression locks (TICKET-ISOLATED-ALIGNMENT-TESTS, FU07 verdict CapCut-grade §Fase 7)
     text/CMakeLists.txt
     assets/CMakeLists.txt
     ipc_schema_documents_tests.cmake
