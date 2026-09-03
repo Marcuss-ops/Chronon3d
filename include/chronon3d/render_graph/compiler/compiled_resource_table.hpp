@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <utility>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -20,19 +19,13 @@ using PhysicalAllocationId = std::uint32_t;
 inline constexpr PhysicalAllocationId kInvalidPhysicalAllocationId =
     std::numeric_limits<PhysicalAllocationId>::max();
 
-// Transitional constant spelling retained until the compiled-operation ABI is
-// renamed. It is a scalar sentinel only; no framebuffer allocation plan exists.
-inline constexpr PhysicalAllocationId kInvalidPhysicalFramebufferSlot =
-    kInvalidPhysicalAllocationId;
-
 enum class ResourceSubresource : std::uint8_t {
     Whole,
     Plane0,
     Plane1,
 };
 
-/// Physical requirements lowered once from runtime::ResourceDesc. Backends
-/// consume this value instead of rebuilding size/alignment/plane semantics.
+/// Physical requirements lowered exactly once from runtime::ResourceDesc.
 struct PhysicalRequirements {
     std::size_t allocation_bytes{0};
     std::size_t alignment{alignof(std::max_align_t)};
@@ -46,9 +39,7 @@ struct CompiledResourceSubresource {
     std::uint32_t plane_index{0};
 };
 
-/// Synchronization/ownership edge carried by the resource that owns it. This
-/// replaces graph-global ownership-transfer side tables and also provides the
-/// common primitive used by media plane consumers.
+/// Synchronization/ownership edge carried by the resource that owns it.
 struct CompiledResourceTransition {
     GraphNodeId consumer{k_invalid_node};
     ResourceSubresource subresource{ResourceSubresource::Whole};
@@ -78,10 +69,6 @@ struct CompiledResourcePlan {
     std::vector<CompiledResourceSubresource> subresources;
     std::vector<CompiledResourceTransition> transitions;
 
-    [[nodiscard]] bool aliasable() const noexcept {
-        return physical.aliasable;
-    }
-
     [[nodiscard]] std::optional<GraphNodeId>
     ownership_transfer_consumer() const noexcept {
         for (const auto& transition : transitions) {
@@ -93,11 +80,9 @@ struct CompiledResourcePlan {
     }
 };
 
-// Temporary source spelling while downstream tests migrate to the plan name.
-// It aliases the same object and carries no separate storage.
-using CompiledResourceRecord = CompiledResourcePlan;
-using ResourceLifetime = CompiledResourcePlan;
-
+/// Sole persisted resource/lifetime/allocation/synchronization authority of a
+/// compiled frame graph. Release lookup is a derived scan of the plans; no
+/// release, lifetime, alias, or ownership side table is persisted.
 struct CompiledResourceTable {
     std::vector<CompiledResourcePlan> resources;
     std::vector<runtime::PhysicalResourceSlot> slots;
@@ -112,77 +97,6 @@ struct CompiledResourceTable {
     std::size_t logical_bytes{0};
     std::size_t planned_physical_bytes{0};
     std::size_t peak_live_bytes{0};
-
-    // Transitional zero-storage views retained only until every caller has
-    // moved to resource_for(). They do not own a parallel authority.
-    std::vector<CompiledResourcePlan>& lifetimes;
-    CompiledResourceTable& physical_framebuffer_plan;
-
-    CompiledResourceTable() noexcept
-        : lifetimes(resources),
-          physical_framebuffer_plan(*this) {}
-
-    CompiledResourceTable(const CompiledResourceTable& other)
-        : resources(other.resources),
-          slots(other.slots),
-          physical_slot_count(other.physical_slot_count),
-          logical_resource_count(other.logical_resource_count),
-          peak_live_resource_count(other.peak_live_resource_count),
-          aliasable_resource_count(other.aliasable_resource_count),
-          excluded_persistent_count(other.excluded_persistent_count),
-          excluded_async_count(other.excluded_async_count),
-          logical_bytes(other.logical_bytes),
-          planned_physical_bytes(other.planned_physical_bytes),
-          peak_live_bytes(other.peak_live_bytes),
-          lifetimes(resources),
-          physical_framebuffer_plan(*this) {}
-
-    CompiledResourceTable(CompiledResourceTable&& other) noexcept
-        : resources(std::move(other.resources)),
-          slots(std::move(other.slots)),
-          physical_slot_count(other.physical_slot_count),
-          logical_resource_count(other.logical_resource_count),
-          peak_live_resource_count(other.peak_live_resource_count),
-          aliasable_resource_count(other.aliasable_resource_count),
-          excluded_persistent_count(other.excluded_persistent_count),
-          excluded_async_count(other.excluded_async_count),
-          logical_bytes(other.logical_bytes),
-          planned_physical_bytes(other.planned_physical_bytes),
-          peak_live_bytes(other.peak_live_bytes),
-          lifetimes(resources),
-          physical_framebuffer_plan(*this) {}
-
-    CompiledResourceTable& operator=(const CompiledResourceTable& other) {
-        if (this == &other) return *this;
-        resources = other.resources;
-        slots = other.slots;
-        physical_slot_count = other.physical_slot_count;
-        logical_resource_count = other.logical_resource_count;
-        peak_live_resource_count = other.peak_live_resource_count;
-        aliasable_resource_count = other.aliasable_resource_count;
-        excluded_persistent_count = other.excluded_persistent_count;
-        excluded_async_count = other.excluded_async_count;
-        logical_bytes = other.logical_bytes;
-        planned_physical_bytes = other.planned_physical_bytes;
-        peak_live_bytes = other.peak_live_bytes;
-        return *this;
-    }
-
-    CompiledResourceTable& operator=(CompiledResourceTable&& other) noexcept {
-        if (this == &other) return *this;
-        resources = std::move(other.resources);
-        slots = std::move(other.slots);
-        physical_slot_count = other.physical_slot_count;
-        logical_resource_count = other.logical_resource_count;
-        peak_live_resource_count = other.peak_live_resource_count;
-        aliasable_resource_count = other.aliasable_resource_count;
-        excluded_persistent_count = other.excluded_persistent_count;
-        excluded_async_count = other.excluded_async_count;
-        logical_bytes = other.logical_bytes;
-        planned_physical_bytes = other.planned_physical_bytes;
-        peak_live_bytes = other.peak_live_bytes;
-        return *this;
-    }
 
     void clear() {
         resources.clear();
@@ -216,11 +130,6 @@ struct CompiledResourceTable {
             return nullptr;
         }
         return &resources[id];
-    }
-
-    [[nodiscard]] const CompiledResourcePlan* allocation_for(
-        GraphNodeId id) const noexcept {
-        return resource_for(id);
     }
 
     [[nodiscard]] std::vector<GraphNodeId> release_schedule(
