@@ -3,108 +3,60 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
-#include "process_runner.hpp"
-
-#include <chrono>
 #include <cmath>
-#include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <string_view>
-#include <vector>
+
+#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/error.h>
+#include <libavutil/pixdesc.h>
+#include <libavutil/rational.h>
+}
+#endif
 
 namespace chronon3d::media::video {
 namespace {
 
-using Args = std::vector<std::string>;
+#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 
-// ── Minimal ffprobe JSON extraction (no nlohmann dependency) ──────────────
-// ffprobe `-of json` emits `"key": value`; we extract the first occurrence of
-// each key, mirroring the long-standing CLI helper precedent
-// (pipe_export_helpers.cpp). The video stream is always emitted first, so
-// first-occurrence lookup resolves to the video stream for codec/geometry.
+struct FormatContextGuard {
+    AVFormatContext* context{nullptr};
 
-std::string find_json_value(const std::string& json, const std::string& key) {
-    const std::string needle = "\"" + key + "\"";
-    const auto pos = json.find(needle);
-    if (pos == std::string::npos) return {};
-    const auto colon = json.find(':', pos + needle.size());
-    if (colon == std::string::npos) return {};
-    const auto start = json.find_first_not_of(" \t\r\n", colon + 1);
-    if (start == std::string::npos) return {};
-    if (json[start] == '"') {
-        const auto end = json.find('"', start + 1);
-        if (end == std::string::npos) return {};
-        return json.substr(start + 1, end - start - 1);
-    }
-    const auto end = json.find_first_of(",}\r\n", start);
-    if (end == std::string::npos) return {};
-    return json.substr(start, end - start);
-}
-
-// Quote a path for the small POSIX shell wrapper used to redirect ffprobe's
-// stdout. Single-quote every byte and escape embedded single quotes so paths
-// supplied by a job cannot alter the command.
-std::string shell_quote(std::string_view value) {
-    std::string quoted{"'"};
-    for (const char ch : value) {
-        if (ch == '\'') quoted += "'\\''";
-        else quoted += ch;
-    }
-    quoted += '\'';
-    return quoted;
-}
-
-std::size_t count_occurrences(const std::string& haystack,
-                              const std::string& needle) {
-    std::size_t count = 0;
-    std::size_t pos = 0;
-    while ((pos = haystack.find(needle, pos)) != std::string::npos) {
-        ++count;
-        pos += needle.size();
-    }
-    return count;
-}
-
-bool parse_fps(const std::string& rate, double& fps) {
-    if (rate.empty()) return false;
-    const auto slash = rate.find('/');
-    try {
-        if (slash == std::string::npos) {
-            fps = std::stod(rate);
-        } else {
-            const double num = std::stod(rate.substr(0, slash));
-            const double den = std::stod(rate.substr(slash + 1));
-            if (den <= 0.0) return false;
-            fps = num / den;
+    ~FormatContextGuard() {
+        if (context != nullptr) {
+            avformat_close_input(&context);
         }
-        return fps > 0.0;
-    } catch (...) {
-        return false;
     }
+};
+
+std::string ffmpeg_error_string(int error_code) {
+    char buffer[AV_ERROR_MAX_STRING_SIZE]{};
+    if (av_strerror(error_code, buffer, sizeof(buffer)) < 0) {
+        return "FFmpeg error " + std::to_string(error_code);
+    }
+    return buffer;
 }
 
-bool parse_i64(const std::string& value, std::int64_t& out) {
-    if (value.empty()) return false;
-    try {
-        out = std::stoll(value);
-        return true;
-    } catch (...) {
-        return false;
+double rate_to_double(AVRational rate) {
+    if (rate.num <= 0 || rate.den <= 0) {
+        return 0.0;
     }
+    return av_q2d(rate);
 }
 
-bool parse_double(const std::string& value, double& out) {
-    if (value.empty()) return false;
-    try {
-        out = std::stod(value);
-        return true;
-    } catch (...) {
-        return false;
+double stream_duration_seconds(const AVStream& stream) {
+    if (stream.duration == AV_NOPTS_VALUE || stream.duration <= 0 ||
+        stream.time_base.num <= 0 || stream.time_base.den <= 0) {
+        return 0.0;
     }
+    return static_cast<double>(stream.duration) * av_q2d(stream.time_base);
 }
+
+#endif
 
 } // namespace
 
@@ -137,82 +89,100 @@ OutputVerificationResult verify_output_contract(
         return result;
     }
 
-    // ── ffprobe: streams + format → temp JSON ─────────────────────────────
-    const auto json_path = artifact.string() + ".chronon.probe.json";
-    std::error_code ignored;
-    std::filesystem::remove(json_path, ignored);
-
-    ProcessRunner probe;
-    // ffprobe 4.4 (still present on supported worker images) has no `-o`
-    // option. Use stdout redirection instead of depending on a newer ffprobe.
-    const std::string command_line =
-        "exec ffprobe -v error -show_streams -show_format -of json " +
-        shell_quote(artifact.string()) + " > " + shell_quote(json_path);
-    Args command{"/bin/sh", "-c", command_line};
-    const auto ffprobe_t0 = profiling::now();
-    if (!probe.launch(command.front(), command)) {
-        result.ffprobe_ms = profiling::elapsed_ms(ffprobe_t0);
-        std::filesystem::remove(json_path, ignored);
-        result.ffprobe_missing = true;
-        result.failure = "ffprobe not available on PATH";
-        return result;
-    }
-    const int exit_code = probe.wait_for(std::chrono::seconds(30));
-    result.ffprobe_ms = profiling::elapsed_ms(ffprobe_t0);
-    if (exit_code != 0) {
-        const auto probe_stderr = probe.consume_stderr();
-        std::filesystem::remove(json_path, ignored);
-        result.failure = exit_code == -2
-            ? "ffprobe verification timed out"
-            : "ffprobe rejected artifact (exit " + std::to_string(exit_code) + ")" +
-              (probe_stderr.empty() ? std::string{} : ": " + probe_stderr);
+#if !defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    // Keep lean/pipe-only builds free of a new mandatory libav dependency.
+    // Verification fails closed instead of falling back to an ffprobe process.
+    result.ffprobe_missing = true;
+    result.failure =
+        "libavformat verification unavailable: build with "
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG=ON";
+    return result;
+#else
+    // Probe the final container in-process. This intentionally replaces the
+    // historical ffprobe subprocess + temporary JSON file path.
+    const auto probe_t0 = profiling::now();
+    FormatContextGuard format;
+    const std::string artifact_path = artifact.string();
+    int ffmpeg_result =
+        avformat_open_input(&format.context, artifact_path.c_str(), nullptr, nullptr);
+    if (ffmpeg_result < 0) {
+        result.ffprobe_ms = profiling::elapsed_ms(probe_t0);
+        result.failure = "libavformat rejected artifact: " +
+                         ffmpeg_error_string(ffmpeg_result);
         return result;
     }
 
-    std::ifstream input(json_path);
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    const std::string json = buffer.str();
-    std::filesystem::remove(json_path, ignored);
-    if (json.empty()) {
-        result.failure = "ffprobe produced no output";
+    ffmpeg_result = avformat_find_stream_info(format.context, nullptr);
+    result.ffprobe_ms = profiling::elapsed_ms(probe_t0);
+    if (ffmpeg_result < 0) {
+        result.failure = "libavformat could not read stream info: " +
+                         ffmpeg_error_string(ffmpeg_result);
         return result;
     }
 
-    // ── Stream facts ──────────────────────────────────────────────────────
-    const std::size_t video_streams =
-        count_occurrences(json, "\"codec_type\": \"video\"");
-    const std::size_t audio_streams =
-        count_occurrences(json, "\"codec_type\": \"audio\"");
+    std::size_t video_streams = 0;
+    std::size_t audio_streams = 0;
+    AVStream* video_stream = nullptr;
+    for (unsigned int index = 0; index < format.context->nb_streams; ++index) {
+        AVStream* stream = format.context->streams[index];
+        if (stream == nullptr || stream->codecpar == nullptr) {
+            continue;
+        }
+        if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            ++video_streams;
+            if (video_stream == nullptr) {
+                video_stream = stream;
+            }
+        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            ++audio_streams;
+        }
+    }
     result.audio_streams = audio_streams;
 
-    std::int64_t parsed = 0;
-    if (parse_i64(find_json_value(json, "width"), parsed)) {
-        result.width = static_cast<int>(parsed);
-    }
-    if (parse_i64(find_json_value(json, "height"), parsed)) {
-        result.height = static_cast<int>(parsed);
-    }
-    result.video_codec = find_json_value(json, "codec_name");
-    result.pixel_format = find_json_value(json, "pix_fmt");
+    if (video_stream != nullptr) {
+        const AVCodecParameters* video_params = video_stream->codecpar;
+        result.width = video_params->width;
+        result.height = video_params->height;
 
-    double fps = 0.0;
-    if (parse_fps(find_json_value(json, "r_frame_rate"), fps)) {
-        result.fps = fps;
-    }
-    double duration = 0.0;
-    if (parse_double(find_json_value(json, "duration"), duration)) {
-        result.duration_seconds = duration;
+        const char* codec_name = avcodec_get_name(video_params->codec_id);
+        if (codec_name != nullptr) {
+            result.video_codec = codec_name;
+        }
+
+        if (video_params->format >= 0) {
+            const char* pixel_format = av_get_pix_fmt_name(
+                static_cast<AVPixelFormat>(video_params->format));
+            if (pixel_format != nullptr) {
+                result.pixel_format = pixel_format;
+            }
+        }
+
+        result.fps = rate_to_double(video_stream->r_frame_rate);
+        if (result.fps <= 0.0) {
+            result.fps = rate_to_double(video_stream->avg_frame_rate);
+        }
+
+        result.duration_seconds = stream_duration_seconds(*video_stream);
+        if (video_stream->nb_frames > 0) {
+            result.frame_count = video_stream->nb_frames;
+        }
     }
 
-    std::int64_t observed_frames = 0;
-    if (parse_i64(find_json_value(json, "nb_frames"), observed_frames) &&
-        observed_frames > 0) {
-        result.frame_count = observed_frames;
-    } else if (duration > 0.0 && result.fps > 0.0) {
-        // h264 MP4 often reports nb_frames=N/A; derive from duration × fps.
-        result.frame_count =
-            static_cast<std::int64_t>(std::llround(duration * result.fps));
+    // Some muxers leave per-stream duration unset while providing a valid
+    // container duration. Preserve the verifier's conservative fallback.
+    if (result.duration_seconds <= 0.0 &&
+        format.context->duration != AV_NOPTS_VALUE &&
+        format.context->duration > 0) {
+        result.duration_seconds =
+            static_cast<double>(format.context->duration) /
+            static_cast<double>(AV_TIME_BASE);
+    }
+
+    if (result.frame_count <= 0 &&
+        result.duration_seconds > 0.0 && result.fps > 0.0) {
+        // H.264 MP4 commonly omits nb_frames; derive from duration × fps.
+        result.frame_count = static_cast<std::int64_t>(
+            std::llround(result.duration_seconds * result.fps));
     }
 
     // ── Structural verdict (`passed`) ─────────────────────────────────────
@@ -237,7 +207,7 @@ OutputVerificationResult verify_output_contract(
                          std::to_string(expected_fps);
         return result;
     }
-    if (duration <= 0.0) {
+    if (result.duration_seconds <= 0.0) {
         result.failure = "duration is not positive";
         return result;
     }
@@ -246,7 +216,7 @@ OutputVerificationResult verify_output_contract(
     result.passed = true;
 
     // Compute the SHA-256 digest for every decodable artifact (the durable
-    // content fingerprint used for reporting and copy eligibility).  It runs
+    // content fingerprint used for reporting and copy eligibility). It runs
     // before the media-contract verdict so a contract mismatch still reports
     // the digest instead of an empty placeholder.
     const auto sha256_t0 = profiling::now();
@@ -293,6 +263,7 @@ OutputVerificationResult verify_output_contract(
 
     result.copy_eligible = true;
     return result;
+#endif
 }
 
 } // namespace chronon3d::media::video
