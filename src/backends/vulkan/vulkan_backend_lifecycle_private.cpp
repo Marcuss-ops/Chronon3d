@@ -506,18 +506,23 @@ namespace chronon3d::backends::vulkan {
         if (debug_context) debug_context->set_semaphore_name(timeline_semaphore, "Chronon3D.Semaphore.Timeline");
 
         if (timestamp_valid_bits != 0) {
+            // Each ring slot reserves one legacy frame [start,end] pair plus
+            // one [start,end] pair for every compiled pass.
+            const auto queries_per_slot = static_cast<std::uint32_t>(
+                2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
             const VkQueryPoolCreateInfo query_pool_info{
                 VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO, nullptr, 0,
                 VK_QUERY_TYPE_TIMESTAMP,
-                static_cast<std::uint32_t>(2 * FrameBatchState::kSlotCount), 0};
+                static_cast<std::uint32_t>(
+                    FrameBatchState::kSlotCount * queries_per_slot), 0};
             check(vkCreateQueryPool(device, &query_pool_info, nullptr, &timestamp_pool),
                   "vkCreateQueryPool(timestamp)");
-            if (debug_context) debug_context->set_query_pool_name(timestamp_pool, "Chronon3D.QueryPool.Timestamp");
+            if (debug_context) debug_context->set_query_pool_name(timestamp_pool, "Chronon3D.QueryPool.PassTiming");
         }
 
         // VK_EXT_calibrated_timestamps: sample (device GPU timestamp, Perfetto
         // trace-clock ns) back-to-back to anchor GPU work on the CPU timeline.
-        // One anchor taken at backend construction; the per-frame query
+        // One anchor taken at backend construction; completed pass query
         // results are then converted with this single (G0, C0) pair.  When
         // the extension or timestamp queries are unavailable the flag stays
         // false and only CPU-side submit/fence-wait events are traced — no

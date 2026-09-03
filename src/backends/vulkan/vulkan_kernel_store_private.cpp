@@ -464,36 +464,69 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         ++stats.vk_cmd_dispatch_count;
     }
 
-    // Read the frame's [start, end] timestamp pair for a ring slot after its
-    // fence has been signaled and accumulate the GPU elapsed duration.  The
-    // slot's queries are reset by vkCmdResetQueryPool when the buffer is
-    // re-recorded, so this must run after the fence wait and before that
-    // reset executes on the GPU.
+    // Resolve timestamp queries only after the slot fence has signaled. No
+    // query-result wait flag is needed here: fence completion is the sole
+    // synchronization point for both aggregate and compiled per-pass timing.
     void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
-        if (timestamp_pool == VK_NULL_HANDLE) return;
+        if (timestamp_pool == VK_NULL_HANDLE || slot >= FrameBatchState::kSlotCount) {
+            return;
+        }
+        const auto queries_per_slot = static_cast<std::uint32_t>(
+            2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
+        const auto slot_base = static_cast<std::uint32_t>(slot) * queries_per_slot;
+        const auto pass_count = frame_batch.submitted_pass_counts[slot];
+        frame_batch.submitted_pass_counts[slot] = 0;
+
+        const auto gpu_to_cpu = [this](std::uint64_t gpu) {
+            return calibration_cpu_trace_ns +
+                static_cast<std::int64_t>(
+                    static_cast<double>(gpu - calibration_gpu_ts) *
+                    timestamp_period_ns);
+        };
+
+        if (pass_count != 0) {
+            std::vector<std::uint64_t> stamps(2 * pass_count, 0);
+            const auto query_count = static_cast<std::uint32_t>(2 * pass_count);
+            const VkResult result = vkGetQueryPoolResults(
+                device, timestamp_pool, slot_base + 2, query_count,
+                stamps.size() * sizeof(std::uint64_t), stamps.data(),
+                sizeof(std::uint64_t), VK_QUERY_RESULT_64_BIT);
+            if (result != VK_SUCCESS) return;
+
+            for (std::size_t pass = 0; pass < pass_count; ++pass) {
+                const auto start = stamps[2 * pass];
+                const auto end = stamps[2 * pass + 1];
+                if (end < start) continue;
+                const double elapsed_ns =
+                    static_cast<double>(end - start) * timestamp_period_ns;
+                stats.gpu_execute_us +=
+                    static_cast<std::uint64_t>(elapsed_ns / 1000.0);
+                if (gpu_timestamps_calibrated && start >= calibration_gpu_ts &&
+                    end > start) {
+                    const auto start_ns = gpu_to_cpu(start);
+                    const auto end_ns = gpu_to_cpu(end);
+                    if (end_ns > start_ns) {
+                        CHRONON_TRACE_GPU_BEGIN("VulkanCompiledPass", start_ns);
+                        CHRONON_TRACE_GPU_END(end_ns);
+                    }
+                }
+            }
+            return;
+        }
+
         std::uint64_t stamps[2] = {0, 0};
         const VkResult result = vkGetQueryPoolResults(
-            device, timestamp_pool, static_cast<std::uint32_t>(2 * slot), 2,
+            device, timestamp_pool, slot_base, 2,
             sizeof(stamps), stamps, sizeof(std::uint64_t),
-            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            VK_QUERY_RESULT_64_BIT);
         if (result != VK_SUCCESS) return;
         if (stamps[1] >= stamps[0]) {
             const double elapsed_ns =
                 static_cast<double>(stamps[1] - stamps[0]) * timestamp_period_ns;
             stats.gpu_execute_us += static_cast<std::uint64_t>(elapsed_ns / 1000.0);
         }
-        // Fase 6: real GPU bars on the "Chronon Vulkan Queue" track.  Only
-        // when VK_EXT_calibrated_timestamps provided an anchor (calibration
-        // taken at backend construction); otherwise only the CPU-side
-        // VulkanSubmit/FenceWait events are traced — never fake GPU bars.
         if (gpu_timestamps_calibrated && stamps[0] >= calibration_gpu_ts &&
             stamps[1] > stamps[0]) {
-            const auto gpu_to_cpu = [this](std::uint64_t gpu) {
-                return calibration_cpu_trace_ns +
-                    static_cast<std::int64_t>(
-                        static_cast<double>(gpu - calibration_gpu_ts) *
-                        timestamp_period_ns);
-            };
             const auto start_ns = gpu_to_cpu(stamps[0]);
             const auto end_ns = gpu_to_cpu(stamps[1]);
             if (end_ns > start_ns) {
@@ -504,16 +537,33 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
     }
 
     // End the active frame batch's command buffer and submit it exactly once
-    // with the current slot's fence.  No wait-for-completion happens here:
-    // the caller waits only when that slot is reused (begin_frame_batch())
-    // or before a readback (wait_for_pending()).
+    // with the current slot's fence. The completed slot records whether its
+    // query range contains aggregate timing or canonical per-pass timings.
     void VulkanBackend::Impl::submit_batch() {
         const auto slot = frame_batch.next_slot;
         if (timestamp_pool != VK_NULL_HANDLE) {
-            vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
-                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                timestamp_pool,
-                                static_cast<std::uint32_t>(2 * slot + 1));
+            const auto queries_per_slot = static_cast<std::uint32_t>(
+                2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
+            const auto slot_base = static_cast<std::uint32_t>(slot) * queries_per_slot;
+            const bool compiled_per_pass =
+                frame_batch.command_plan != nullptr &&
+                !command_batch_active &&
+                frame_batch.pass_count != 0;
+            if (compiled_per_pass) {
+                const auto final_query = slot_base + 2 +
+                    static_cast<std::uint32_t>(2 * frame_batch.pass_count - 1);
+                vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
+                                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                    timestamp_pool, final_query);
+                frame_batch.submitted_pass_counts[slot] = frame_batch.pass_count;
+            } else {
+                vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
+                                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                    timestamp_pool, slot_base + 1);
+                frame_batch.submitted_pass_counts[slot] = 0;
+            }
+        } else {
+            frame_batch.submitted_pass_counts[slot] = 0;
         }
         check(vkEndCommandBuffer(frame_batch.command_buffers[slot]),
               "vkEndCommandBuffer(frame batch)");
@@ -593,7 +643,7 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         if (debug_context) debug_context->set_buffer_name(slot.params.buffer, "Chronon3D.Buffer.ReplayParams");
     }
 
-    /// Open a replay slot for recording.  The caller records all commands
+    /// Open the replay slot's command buffer.  The caller records all commands
     /// for one frame into the returned command buffer, then calls
     /// end_replay_recording().  Must not be called while a frame batch
     /// or another replay recording is active.

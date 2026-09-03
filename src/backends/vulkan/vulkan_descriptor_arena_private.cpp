@@ -173,6 +173,16 @@ VkImageAspectFlags to_vk_aspects(runtime::ResourceAspect aspects) {
     return result;
 }
 
+std::uint32_t to_vk_queue_family(runtime::QueueClass queue,
+                                 std::uint32_t internal_family) noexcept {
+    // Chronon currently owns one Vulkan queue family for all internal queue
+    // classes. External ownership is the only native family boundary; logical
+    // internal queue-class changes therefore need visibility, not ownership.
+    return queue == runtime::QueueClass::External
+        ? VK_QUEUE_FAMILY_EXTERNAL
+        : internal_family;
+}
+
 runtime::ResourceState state_for_vk_layout(VkImageLayout layout) {
     switch (layout) {
     case VK_IMAGE_LAYOUT_UNDEFINED:
@@ -721,6 +731,20 @@ void VulkanBackend::Impl::emit_resource_transition(
             "Vulkan: buffer ResourceRange cannot be translated as image synchronization");
     }
 
+    std::uint32_t source_family = VK_QUEUE_FAMILY_IGNORED;
+    std::uint32_t destination_family = VK_QUEUE_FAMILY_IGNORED;
+    if (transition_record.queue_ownership_transfer &&
+        !transition_record.before.undefined()) {
+        const auto before_family =
+            to_vk_queue_family(transition_record.before.queue, queue_family);
+        const auto after_family =
+            to_vk_queue_family(transition_record.after.queue, queue_family);
+        if (before_family != after_family) {
+            source_family = before_family;
+            destination_family = after_family;
+        }
+    }
+
     const VkImageMemoryBarrier2KHR barrier{
         VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
         nullptr,
@@ -730,8 +754,8 @@ void VulkanBackend::Impl::emit_resource_transition(
         to_vk_access(transition_record.after.access),
         to_vk_layout(transition_record.before.layout),
         to_vk_layout(transition_record.after.layout),
-        VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED,
+        source_family,
+        destination_family,
         image,
         native_range};
     const VkDependencyInfoKHR dependency{
@@ -811,24 +835,25 @@ void VulkanBackend::Impl::emit_pass_sync(
     VkCommandBuffer command,
     std::initializer_list<const Image*> images) {
     if (frame_batch.command_plan) {
+        // Compiled execution never falls back to the direct/unplanned state
+        // path. The canonical transition stream is the only synchronization
+        // authority for the pass, including imported/external resources.
+        if (timestamp_pool != VK_NULL_HANDLE && !command_batch_active) {
+            const auto queries_per_slot = static_cast<std::uint32_t>(
+                2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
+            const auto slot_base =
+                static_cast<std::uint32_t>(frame_batch.next_slot) * queries_per_slot;
+            const auto pass_query = slot_base + 2 + static_cast<std::uint32_t>(
+                2 * frame_batch.pass_count);
+            if (frame_batch.pass_count != 0) {
+                vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                    timestamp_pool, pass_query - 1);
+            }
+            vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                timestamp_pool, pass_query);
+        }
         emit_plan_pass_transitions(command, *frame_batch.command_plan,
                                    frame_batch.pass_count);
-        for (const Image* image : images) {
-            if (!image) continue;
-            bool unplanned = false;
-            for (const auto handle : surfaces.unplanned_surface_handles) {
-                const auto binding = surfaces.surface_bindings.find(handle);
-                if (binding == surfaces.surface_bindings.end()) continue;
-                const auto physical =
-                    surfaces.physical_surfaces.find(binding->second);
-                if (physical != surfaces.physical_surfaces.end() &&
-                    &physical->second.image == image) {
-                    unplanned = true;
-                    break;
-                }
-            }
-            if (unplanned) emit_unplanned_compute_sync(command, {image});
-        }
         return;
     }
     emit_unplanned_compute_sync(command, images);
