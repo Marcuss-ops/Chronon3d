@@ -306,51 +306,56 @@ namespace chronon3d::backends::vulkan {
             throw std::invalid_argument("Vulkan text run requires at least one glyph");
         }
 
-        std::vector<runtime::GlyphStatic> static_glyphs;
-        static_glyphs.reserve(glyphs.size());
-        std::vector<runtime::TextRunDynamic> runs;
-        runs.reserve(glyphs.size());
-
-        for (std::size_t i = 0; i < glyphs.size(); ++i) {
-            const auto& g = glyphs[i];
-            runtime::TextRunDynamic run;
-            run.tx = static_cast<float>(g.dst_x);
-            run.ty = static_cast<float>(g.dst_y);
-            run.sx = (g.scale_x != 0.0f) ? g.scale_x : 1.0f;
-            run.sy = (g.scale_y != 0.0f) ? g.scale_y : 1.0f;
-            run.opacity = g.opacity;
-            run.color = 0xFFFFFFFF;
-            runs.push_back(run);
-
-            runtime::GlyphStatic gs;
-            gs.run_index = static_cast<std::uint32_t>(i);
-            gs.atlas_page = 0;
-            // The glyph atlas uses RGBA8 for MTSDF and R8 for coverage/SDF.
-            // Preserve that representation in the static metadata; treating
-            // MTSDF RGB channels as premultiplied color produces the
-            // characteristic half-glyph/striped output in the fallback text
-            // batch path.
-#ifdef CHRONON3D_ENABLE_VULKAN
-            const auto& atlas_image = resolve_image(atlas);
-            gs.flags = (atlas_image.format == VK_FORMAT_R8G8B8A8_UNORM ||
-                        atlas_image.format == VK_FORMAT_B8G8R8A8_UNORM) ? 1u : 0u;
-#else
-            gs.flags = 0;
-#endif
-            gs.atlas_x = static_cast<std::uint16_t>(g.atlas_x >= 0 ? g.atlas_x : 0);
-            gs.atlas_y = static_cast<std::uint16_t>(g.atlas_y >= 0 ? g.atlas_y : 0);
-            gs.atlas_w = static_cast<std::uint16_t>(g.width > 0 ? g.width : 0);
-            gs.atlas_h = static_cast<std::uint16_t>(g.height > 0 ? g.height : 0);
-            gs.plane_left = 0.0f;
-            gs.plane_top = 0.0f;
-            gs.plane_right = static_cast<float>(g.width);
-            gs.plane_bottom = static_cast<float>(g.height);
-            gs.draw_order = static_cast<std::uint32_t>(i);
-            static_glyphs.push_back(gs);
+        // This API carries the legacy GlyphInstance contract: dst_x/dst_y
+        // are bitmap-quad origins. Keep it on text_run.comp, whose sampling
+        // contract is defined in the same type, instead of translating it to
+        // GlyphStatic plane geometry and risking a second coordinate model.
+        if (!frame_batch.active) {
+            throw std::logic_error("Vulkan text run requires an active frame batch");
         }
+        if (frame_batch.pass_count >= kGlyphInstancePassesPerSlot) {
+            throw std::logic_error("Vulkan text upload pass capacity exhausted");
+        }
+        constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
+        const VkDeviceSize instance_bytes =
+            static_cast<VkDeviceSize>(glyphs.size() * sizeof(runtime::GlyphInstance));
+        if (instance_bytes > kMaxCmdUpdateBytes) {
+            throw std::logic_error("Vulkan text instances exceed vkCmdUpdateBuffer limit");
+        }
+        const std::size_t pass_slot =
+            frame_batch.next_slot * kGlyphInstancePassesPerSlot +
+            (frame_batch.pass_count % kGlyphInstancePassesPerSlot);
+        ensure_glyph_instance_buffer(instance_bytes, pass_slot);
+        auto& buffer_state = glyph_instance_buffers[pass_slot];
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_text_run_descriptors(descriptors, resolve_image(destination),
+                                   resolve_image(atlas), buffer_state.buffer);
 
-        std::array<runtime::RenderSurfaceHandle, 1> pages = {atlas};
-        draw_text_batch(destination, static_glyphs, runs, pages);
+        std::int32_t x0 = static_cast<std::int32_t>(resolve_image(destination).width);
+        std::int32_t y0 = static_cast<std::int32_t>(resolve_image(destination).height);
+        std::int32_t x1 = 0;
+        std::int32_t y1 = 0;
+        for (const auto& g : glyphs) {
+            const auto sx = (g.scale_x != 0.0f) ? g.scale_x : 1.0f;
+            const auto sy = (g.scale_y != 0.0f) ? g.scale_y : 1.0f;
+            x0 = std::min(x0, g.dst_x);
+            y0 = std::min(y0, g.dst_y);
+            x1 = std::max(x1, g.dst_x + static_cast<std::int32_t>(std::ceil(g.width * sx)));
+            y1 = std::max(y1, g.dst_y + static_cast<std::int32_t>(std::ceil(g.height * sy)));
+        }
+        auto& dst_image = resolve_image(destination);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image, &resolve_image(atlas)});
+        vkCmdUpdateBuffer(cmd, buffer_state.buffer, 0, instance_bytes, glyphs.data());
+        record_text_run(cmd, descriptors, dst_image,
+                        static_cast<std::int32_t>(glyphs.size()),
+                        buffer_state.buffer, true, current_frame,
+                        highlight_color, highlight_enabled, x0, y0, x1, y1);
+        ++frame_batch.pass_count;
+        dst_image.initialized = true;
+        ++stats.passes_executed;
+        return;
+
     }
 
     // ── draw_text_batch ──────────────────────────────────────────────────
@@ -526,13 +531,18 @@ struct alignas(16) GpuGlyphStatic {
             text_run_dynamic_sizes[pass_slot] != run_bytes ||
             text_run_dynamic_hashes[pass_slot] != run_hash;
 
-        // MTSDF pages use RGBA8 and can use the two-pass tile path. Coverage
-        // and single-channel SDF pages retain TextBatch until a format-
-        // qualified raster variant is available. The bin/raster descriptors
-        // are separate because their binding 0/1 types differ.
-        const bool use_mtsdf_tiles = frame_batch.active &&
-            (atlas_image.format == VK_FORMAT_B8G8R8A8_UNORM ||
-             atlas_image.format == VK_FORMAT_R8G8B8A8_UNORM);
+        // Tile raster path is used when frame_batch is active.
+        // Both MTSDF and Premultiplied RGBA glyphs are supported by text_tile_raster.comp.
+        const bool atlas_is_mtsdf =
+            atlas_image.text_atlas_encoding == runtime::TextAtlasEncoding::MTSDF;
+        for (std::size_t i = 0; i < glyphs.size(); ++i) {
+            // Keep the per-glyph flag and the tile-path decision derived from
+            // one resolver (the atlas metadata), not from the pixel format.
+            gpu_glyphs[i].atlas_page_and_flags =
+                static_cast<std::uint32_t>(glyphs[i].atlas_page) |
+                (static_cast<std::uint32_t>(atlas_is_mtsdf ? 1u : 0u) << 16);
+        }
+        const bool use_mtsdf_tiles = frame_batch.active && atlas_is_mtsdf;
         if (use_mtsdf_tiles) {
             constexpr std::int32_t kTileSize = 16;
             constexpr std::int32_t kMaxGlyphsPerTile = 64;
