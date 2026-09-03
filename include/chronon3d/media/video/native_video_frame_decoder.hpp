@@ -62,13 +62,9 @@ public:
     std::shared_ptr<Framebuffer> decode_frame_at(
         const std::string& path, RationalTime presentation_time,
         int width, int height) override;
-    std::shared_ptr<Framebuffer> decode_frame(
-        const std::string& path, Frame frame, int width, int height, float fps) override;
 
     [[nodiscard]] HwFrameRef decode_native_frame_at(
         const std::string& path, RationalTime presentation_time, int width, int height);
-    [[nodiscard]] HwFrameRef decode_native_frame(
-        const std::string& path, Frame frame, int width, int height, float fps);
 
     std::shared_ptr<Framebuffer> try_native_frame(Session& session, AVFrame* frame);
 
@@ -147,10 +143,8 @@ public:
         std::vector<double> frame_durations_ms;
     };
     std::shared_ptr<Framebuffer> decode_frame_at(const std::string&, RationalTime, int, int) override { return nullptr; }
-    std::shared_ptr<Framebuffer> decode_frame(const std::string&, Frame, int, int, float) override { return nullptr; }
     void set_video_runtime(std::shared_ptr<VideoDeviceRuntime>) noexcept {}
     [[nodiscard]] HwFrameRef decode_native_frame_at(const std::string&, RationalTime, int, int) { return {}; }
-    [[nodiscard]] HwFrameRef decode_native_frame(const std::string&, Frame, int, int, float) { return {}; }
     [[nodiscard]] DecodeProfilingStats decode_profiling_stats() const { return {}; }
     void set_trace_job_id(std::uint64_t) noexcept {}
     void set_test_options(NativeDecoderTestOptions) noexcept {}
