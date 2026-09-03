@@ -20,8 +20,12 @@
 namespace chronon3d::media {
 
 struct alignas(8) DirectYuvLayerHost {
+    int kind{0};
     CUdeviceptr rgba{0};
+    CUdeviceptr y{0};
+    CUdeviceptr uv{0};
     int pitch{0};
+    int uv_pitch{0};
     int source_width{0};
     int source_height{0};
     float dst_x0{0.0f}, dst_y0{0.0f}, dst_x1{0.0f}, dst_y1{0.0f};
@@ -31,12 +35,16 @@ struct alignas(8) DirectYuvLayerHost {
     float corner_radius{0.0f};
     float _pad{0.0f};
 };
-static_assert(sizeof(DirectYuvLayerHost) == 72);
+static_assert(sizeof(DirectYuvLayerHost) == 96);
 
 constexpr const char* kDirectKernel = R"CUDA(
 struct DirectYuvLayer {
+  int kind;
   unsigned long long rgba;
+  unsigned long long y;
+  unsigned long long uv;
   int pitch;
+  int uv_pitch;
   int source_width;
   int source_height;
   float dst_x0, dst_y0, dst_x1, dst_y1;
@@ -49,7 +57,7 @@ struct DirectYuvLayer {
 
 __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
                                     int x, int y, int width, int height) {
-  if (x < 0 || y < 0 || x >= width || y >= height || layer.rgba == 0 ||
+  if (x < 0 || y < 0 || x >= width || y >= height ||
       layer.source_width <= 0 || layer.source_height <= 0) {
     return make_float4(0, 0, 0, 0);
   }
@@ -59,6 +67,25 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
       ((float)y - layer.dst_y0) / fmaxf(layer.dst_y1 - layer.dst_y0, 1.0f);
   const int sx = min(max((int)floorf(u * (float)layer.source_width), 0), layer.source_width - 1);
   const int sy = min(max((int)floorf(v * (float)layer.source_height), 0), layer.source_height - 1);
+  if (layer.kind == 1) {
+    if (layer.y == 0 || layer.uv == 0 || layer.pitch <= 0 || layer.uv_pitch <= 0) {
+      return make_float4(0, 0, 0, 0);
+    }
+    const unsigned char* yp = (const unsigned char*)layer.y;
+    const unsigned char* uvp = (const unsigned char*)layer.uv;
+    const float yf = ((float)yp[sy * layer.pitch + sx] - 16.0f) / 219.0f;
+    const int uvx = sx & ~1;
+    const int uvrow = (sy >> 1) * layer.uv_pitch;
+    const float u8 = (float)uvp[uvrow + uvx] - 128.0f;
+    const float v8 = (float)uvp[uvrow + uvx + 1] - 128.0f;
+    const float r = yf + 1.402f * v8 / 255.0f;
+    const float g = yf - 0.344136f * u8 / 255.0f - 0.714136f * v8 / 255.0f;
+    const float b = yf + 1.772f * u8 / 255.0f;
+    return make_float4(fminf(fmaxf(r, 0.0f), 1.0f),
+                       fminf(fmaxf(g, 0.0f), 1.0f),
+                       fminf(fmaxf(b, 0.0f), 1.0f), 1.0f);
+  }
+  if (layer.rgba == 0 || layer.pitch <= 0) return make_float4(0, 0, 0, 0);
   const char* row = (const char*)layer.rgba + sy * layer.pitch;
   return ((const float4*)row)[sx];
 }
@@ -257,14 +284,23 @@ bool CudaDirectNv12Compositor::composite_direct_nv12_batch(
     for (const auto& instance : batch.instances) {
         if (instance.resource_index >= resources.size()) return false;
         const auto& resource = resources[instance.resource_index];
-        if (!resource.rgba || resource.pitch_bytes <= 0 ||
+        const bool valid_rgba = resource.kind == CudaLayerResourceKind::Rgba &&
+            resource.rgba && resource.pitch_bytes > 0;
+        const bool valid_nv12 = resource.kind == CudaLayerResourceKind::Nv12 &&
+            resource.y && resource.uv && resource.pitch_bytes > 0 &&
+            resource.uv_pitch_bytes > 0;
+        if ((!valid_rgba && !valid_nv12) ||
             resource.width == 0 || resource.height == 0) return false;
         if (instance.blend != BlendMode::Normal && instance.blend != BlendMode::Add) {
             return false;
         }
         DirectYuvLayerHost layer;
+        layer.kind = static_cast<int>(resource.kind);
         layer.rgba = resource.rgba;
+        layer.y = resource.y;
+        layer.uv = resource.uv;
         layer.pitch = resource.pitch_bytes;
+        layer.uv_pitch = resource.uv_pitch_bytes;
         layer.source_width = static_cast<int>(resource.width);
         layer.source_height = static_cast<int>(resource.height);
         layer.dst_x0 = instance.dst_x0;
