@@ -16,8 +16,8 @@
         "CMAKE_SHARED_LINKER_FLAGS": "-Wl,-z,relro,-z,now",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_CLI": "ON",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_ENABLE_IPC": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;tests;ipc"
       }
     },
@@ -25,13 +25,15 @@
       "name": "linux-cfi",
       "inherits": "linux-hardened-release",
       "displayName": "Linux Clang CFI",
-      "description": "Clang-only CFI lane for the long-lived daemon; requires LTO and a Clang toolchain.",
+      "description": "Clang-only CFI lane for the persistent IPC daemon; requires LTO, IPC and daemon support.",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
         "CMAKE_CXX_FLAGS": "-O2 -fvisibility=hidden -flto -fsanitize=cfi -fsanitize-cfi-cross-dso -fno-sanitize-trap=cfi",
-        "CMAKE_EXE_LINKER_FLAGS": "-flto -fsanitize=cfi -fsanitize-cfi-cross-dso"
+        "CMAKE_EXE_LINKER_FLAGS": "-flto -fsanitize=cfi -fsanitize-cfi-cross-dso",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_BUILD_DAEMON": "ON"
       }
     },
     {
