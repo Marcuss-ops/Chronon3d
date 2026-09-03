@@ -1,5 +1,6 @@
 void FrameGraphCompiler::build_compiled_resource_table(
-    CompiledFrameGraph& compiled
+    CompiledFrameGraph& compiled,
+    const RenderGraphContext& ctx
 ) const {
     auto& table = compiled.resource_table();
     table.clear();
@@ -9,8 +10,16 @@ void FrameGraphCompiler::build_compiled_resource_table(
     table.release_after_level.assign(compiled.levels.size(), {});
     compiled.ownership_transfers.assign(node_count, CompiledOwnershipTransfer{});
 
-    // First pass: establish the producer level and canonical descriptor for
-    // every reachable logical framebuffer result.
+    const auto frame_width = static_cast<std::uint32_t>(
+        std::max(0, ctx.frame_input.width));
+    const auto frame_height = static_cast<std::uint32_t>(
+        std::max(0, ctx.frame_input.height));
+    const auto frame_format = runtime::canonical_render_format();
+
+    // First pass: establish the producer level and the complete canonical
+    // descriptor for every reachable logical framebuffer result. Extent,
+    // format and allocation size are compiled once here and are not rebuilt
+    // by the executor/backend later.
     for (std::size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
         for (GraphNodeId node_id : compiled.levels[level_index]) {
             if (node_id >= node_count || node_id >= compiled.nodes.size() ||
@@ -22,9 +31,13 @@ void FrameGraphCompiler::build_compiled_resource_table(
             resource.producer = node_id;
             resource.first_level = level_index;
             resource.last_level = level_index;
+            resource.desc = runtime::ResourceDesc::make(
+                frame_width,
+                frame_height,
+                frame_format,
+                runtime::ResourceUsage::ColorAttachment,
+                runtime::LifetimeClass::FrameTransient);
             resource.desc.kind = runtime::ResourceKind::Color;
-            resource.desc.usage = runtime::ResourceUsage::ColorAttachment;
-            resource.desc.lifetime = runtime::LifetimeClass::FrameTransient;
         }
     }
 
