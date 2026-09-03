@@ -111,11 +111,6 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
             "native frame importer could not create an import session");
         return nullptr;
     }
-    runtime::PixelFormat format = runtime::PixelFormat::Nv12;
-    if (frame->hw_frames_ctx) {
-        auto* frames = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
-        if (frames && frames->sw_format == AV_PIX_FMT_P010) format = runtime::PixelFormat::P010;
-    }
     runtime::ColorMetadata color{};
     color.matrix = frame->colorspace == AVCOL_SPC_BT2020_NCL ? runtime::ColorMatrix::Bt2020Ncl
         : ((frame->colorspace == AVCOL_SPC_BT470BG || frame->colorspace == AVCOL_SPC_SMPTE170M)
