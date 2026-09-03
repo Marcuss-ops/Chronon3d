@@ -10,6 +10,7 @@
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -19,9 +20,6 @@
 namespace chronon3d::graph {
 using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
 
-// ── Binding metadata ───────────────────────────────────────────────────
-// Attached to CompiledNodeInfo during graph build/compilation.
-// The binding compiler reads this to build the binding table.
 struct SceneBindingMetadata {
     bool     active{false};
     uint32_t layer_index{0};
@@ -57,8 +55,6 @@ struct CompiledNodeInfo {
     std::vector<GraphNodeId> consumers;
 
     NodeCacheKey static_key{};
-    /// Canonical cache contract (replaces the deleted `frame_dependent` /
-    /// `cacheable` / `disk_cacheable` derived bools — do not re-introduce).
     RenderNodeCachePolicy cache_policy{};
 
     int shape_type{-1};
@@ -83,15 +79,56 @@ struct CompiledNodeInfo {
     StableNodeId stable_node_id{kInvalidStableNodeId};
 };
 
-struct CompiledOwnershipTransfer {
-    GraphNodeId producer{k_invalid_node};
-    GraphNodeId consumer{k_invalid_node};
-    bool transferable{false};
-};
-
 class RenderBackend;
 using CompiledExecuteFn = bool (*)(RenderBackend* backend,
                                    const struct CompiledOperation& op);
+
+inline constexpr std::uint32_t kInvalidPassTiming =
+    std::numeric_limits<std::uint32_t>::max();
+
+/// One compiled pass owns exactly one pair of timestamp queries. Backends fill
+/// gpu_duration_ns after resolving the pair; frame GPU time is just the sum of
+/// resolved pass durations and requires no second timing model.
+struct PassTiming {
+    std::uint32_t begin_query{0};
+    std::uint32_t end_query{0};
+    std::uint64_t gpu_duration_ns{0};
+    bool resolved{false};
+};
+
+struct PassQueryArena {
+    std::vector<PassTiming> timings;
+    std::uint32_t next_query{0};
+
+    void clear() noexcept {
+        timings.clear();
+        next_query = 0;
+    }
+
+    [[nodiscard]] std::uint32_t allocate() {
+        const auto index = static_cast<std::uint32_t>(timings.size());
+        const auto begin = next_query++;
+        const auto end = next_query++;
+        timings.push_back(PassTiming{begin, end, 0, false});
+        return index;
+    }
+
+    [[nodiscard]] PassTiming* timing(std::uint32_t index) noexcept {
+        return index < timings.size() ? &timings[index] : nullptr;
+    }
+
+    [[nodiscard]] const PassTiming* timing(std::uint32_t index) const noexcept {
+        return index < timings.size() ? &timings[index] : nullptr;
+    }
+
+    [[nodiscard]] std::uint64_t gpu_frame_time_ns() const noexcept {
+        std::uint64_t total = 0;
+        for (const auto& timing : timings) {
+            if (timing.resolved) total += timing.gpu_duration_ns;
+        }
+        return total;
+    }
+};
 
 struct CompiledOperation {
     GraphNodeId node{k_invalid_node};
@@ -100,6 +137,7 @@ struct CompiledOperation {
     std::uint32_t output_physical_slot{kInvalidPhysicalAllocationId};
     std::uint32_t parameter_offset{0};
     std::uint32_t parameter_size{0};
+    std::uint32_t pass_timing{kInvalidPassTiming};
     ::chronon3d::renderer::ProcessorCapabilities capabilities{};
     bool is_fused{false};
     CompiledExecuteFn compiled_execute{nullptr};
@@ -142,23 +180,30 @@ struct CompiledFrameProgram {
     std::vector<CompiledOperation> operations;
     std::vector<StaticSubgraphBakePass> static_bakes;
     std::vector<CompiledLayerBatch> layer_batches;
+    PassQueryArena query_arena;
     bool has_prepared_parameters{false};
     bool fully_recorded{false};
     bool has_fused_passes{false};
     bool require_native_gpu{false};
     std::vector<bool> interior_node_skip;
 
+    void allocate_pass_queries() {
+        query_arena.clear();
+        for (auto& operation : operations) {
+            operation.pass_timing = query_arena.allocate();
+        }
+    }
+
+    [[nodiscard]] std::uint64_t gpu_frame_time_ns() const noexcept {
+        return query_arena.gpu_frame_time_ns();
+    }
+
     [[nodiscard]] bool empty() const noexcept {
         return operations.empty() || levels.empty();
     }
 };
 
-/// Immutable compiled graph plus its canonical compiled resource table.
-///
-/// CompiledFrameGraph derives from CompiledResourceTable so the table remains
-/// one object while legacy direct lifetime/plan spellings continue to resolve
-/// to zero-storage aliases owned by the table. There is no parallel physical
-/// framebuffer allocation plan or separate lifetime vector.
+/// Immutable compiled graph plus its sole persisted resource authority.
 struct CompiledFrameGraph : CompiledResourceTable {
     RenderGraph graph;
     GraphNodeId output{k_invalid_node};
@@ -178,11 +223,6 @@ struct CompiledFrameGraph : CompiledResourceTable {
     std::vector<std::size_t> consumer_counts;
 
     std::vector<CompiledNodeInfo> nodes;
-
-    // Generic ownership steals for resources with exactly one consumer.
-    // This is an execution optimization derived from the canonical resource
-    // table, not a second lifetime/allocation authority.
-    std::vector<CompiledOwnershipTransfer> ownership_transfers;
 
     CompiledFrameProgram program;
 
