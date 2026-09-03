@@ -17,58 +17,10 @@ public:
         const FrameGraphCompileOptions& options = {}
     ) const;
 
-    // ── TICKET-008 / refactor-roadmap §9.4 closure ───────────────────────────
-    // Compile a NEW `RenderGraph` against a `prior_compiled` for the prior
-    // frame.  When `ctx.policy.graph_structure_unchanged == true` AND the
-    // freshly-recomputed `compute_structure_hash(graph, output)` matches
-    // `prior_compiled.structure_hash` AND
-    // `options.reuse_if_unchanged_predicate_safe()` returns true (i.e.
-    // `options.run_optimizer == false`), the heavy phases
-    // (`build_execution_levels`, `build_node_metadata`) are SKIPPED and
-    // the topology-derived fields are deep-copied from `prior_compiled`.
-    //
-    // Skip-payload (deep-copied from prior): `levels`, `nodes`,
-    // `consumer_counts`.
-    //
-    // Always-run post-conditions (in order):
-    //   1. `compiled.graph = std::move(graph)` — consume input graph.
-    //   2. `compiled.output = graph.output()` — preserved.
-    //   3. If `options.compute_lifetimes` — `compute_resource_lifetimes`
-    //      (always recompute; the prior's lifetimes may not cover the
-    //      current `early_exit_skip` overlay).
-    //   4. `compiled.structure_hash = compute_structure_hash(...)`
-    //      (always re-derive; this is the affordance other consumers key
-    //      against).
-    //   5. `compiled.skip_initial_clear = ctx.policy.skip_initial_clear`.
-    //   6. `compiled.early_exit_skip = ctx.node_exec.early_exit_skip`
-    //      (per-node mask, policy-/frame-time-dependent).
-    //   7. `compiled.graph_instance_id` re-derived via FNV-1a over the
-    //      sorted reachable `stable_node_id` set (defensive against the
-    //      "names changed but topology didn't" edge case — see Known
-    //      Limitation below).
-    //   8. If `options.validate_dag` — `validate(compiled)`.
-    //   9. `compiled.valid = true`.
-    //
-    // Hash-mismatch safety (NIT-3): when `prior_compiled.structure_hash`
-    // differs from the freshly recomputed hash, this overload MUST fall
-    // through to the standard full compile path.  No silent staleness.
-    //
-    // Run-optimizer safety (TICKET-008 Step 3): when
-    // `options.run_optimizer == true`, the prior's optimization state is
-    // unknown to compile()-internal logic, so the affordance MIGHT be
-    // unsafe.  The skip predicate is therefore gated on `!run_optimizer`
-    // (see `reuse_if_unchanged_predicate_safe()`).
-    //
-    // KNOWN LIMITATION: callers must keep dynamic payload values out of
-    // `compute_structure_hash`; it hashes compiled node identity,
-    // processor/type discriminators, node/layer identity, input edges,
-    // and output. The skip path still copies prior compiled metadata, so
-    // callers that change node identity must leave
-    // `graph_structure_unchanged` false and take the full compile path.
-    //
-    // See TICKET-008 in docs/FOLLOWUP_TICKETS.md and refactor-roadmap
-    // §9.4 closure-note sub-sections (Skip-safety constraints +
-    // Affordance attribution) for the originating contract.
+    // Compile a new graph against a prior compiled graph. When the topology
+    // reuse predicate is safe, topology/processor metadata is reused while
+    // the canonical compiled resource table is always rebuilt from the
+    // current compiled DAG when lifetime planning is enabled.
     [[nodiscard]] CompiledFrameGraph compile_with_reuse(
         RenderGraph graph,
         RenderGraphContext& ctx,
@@ -76,20 +28,12 @@ public:
         const FrameGraphCompileOptions& options = {}
     ) const;
 
-    /// Canonical compiled-graph topology hash. This is the compiler-boundary
-    /// counterpart to SceneHasher's authored-scene fingerprint: both exclude
-    /// frame and dynamic payload values, while this form additionally hashes
-    /// concrete processor/type identity, graph edges, output, and registry
-    /// generation.
     [[nodiscard]] static std::uint64_t compute_structure_hash(
         const RenderGraph& graph,
         GraphNodeId output,
         std::uint64_t registry_generation = 0
     );
 
-    /// Validates the lossless execution coverage contract. Every reachable
-    /// work-producing node must have exactly one owner: standalone, fused, or
-    /// an explicit legal elimination reason.
     static void validate_compiled_program_coverage(
         const CompiledFrameGraph& compiled);
 
@@ -107,11 +51,11 @@ private:
         const FrameGraphCompileOptions& options
     ) const;
 
-    void compute_resource_lifetimes(
-        CompiledFrameGraph& compiled
-    ) const;
-
-    void build_physical_framebuffer_allocation_plan(
+    /// Build the sole persisted resource authority for the compiled graph.
+    /// Lifetime analysis and physical allocation are intentionally one phase:
+    /// ResourcePlanner is used as an ephemeral allocation engine and only the
+    /// resulting canonical records/physical slots survive in the table.
+    void build_compiled_resource_table(
         CompiledFrameGraph& compiled
     ) const;
 

@@ -63,11 +63,6 @@ void FrameGraphCompiler::validate_renderable_graph(
         }
         const auto& node = graph.node(id);
         if (!uses_shape_processor(node)) {
-            // TextRunNode, TransitionNode, and the remaining graph operators
-            // have dedicated processor/input paths. They must not be forced
-            // through ShapeType validation; Null/Group/Control are likewise
-            // absent from this graph taxonomy rather than represented by a
-            // fake ShapeType::None placeholder.
             continue;
         }
         if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
@@ -88,56 +83,6 @@ void FrameGraphCompiler::validate_renderable_graph(
                 }
                 validate_renderable_shape(*item.node, info, ctx);
             }
-        }
-    }
-}
-
-void FrameGraphCompiler::compute_resource_lifetimes(
-    CompiledFrameGraph& compiled
-) const {
-    const size_t node_count = compiled.graph.size();
-    compiled.lifetimes.assign(node_count, ResourceLifetime{});
-
-    for (size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
-        for (GraphNodeId node_id : compiled.levels[level_index]) {
-            if (node_id < node_count) {
-                compiled.lifetimes[node_id].producer = node_id;
-                compiled.lifetimes[node_id].first_level = level_index;
-                compiled.lifetimes[node_id].last_level = level_index;
-            }
-        }
-    }
-
-    for (size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
-        for (GraphNodeId node_id : compiled.levels[level_index]) {
-            if (node_id >= node_count) continue;
-            for (GraphNodeId input_id : compiled.nodes[node_id].inputs) {
-                if (input_id < node_count) {
-                    compiled.lifetimes[input_id].last_level = std::max(
-                        compiled.lifetimes[input_id].last_level, level_index
-                    );
-                    compiled.lifetimes[input_id].consumer_count++;
-                }
-            }
-        }
-    }
-
-    compiled.release_after_level.assign(compiled.levels.size(), {});
-    compiled.ownership_transfers.assign(node_count, CompiledOwnershipTransfer{});
-    for (GraphNodeId node_id = 0; node_id < node_count; ++node_id) {
-        const auto& lifetime = compiled.lifetimes[node_id];
-        // The graph output remains owned by the executor until it returns.
-        // Resources with no consumers are likewise not released here.
-        if (node_id == compiled.output || lifetime.consumer_count == 0 ||
-            lifetime.last_level >= compiled.release_after_level.size()) {
-            continue;
-        }
-        compiled.release_after_level[lifetime.last_level].push_back(node_id);
-
-        if (lifetime.consumer_count == 1 && node_id < compiled.nodes.size() &&
-            compiled.nodes[node_id].consumers.size() == 1) {
-            compiled.ownership_transfers[node_id] = CompiledOwnershipTransfer{
-                node_id, compiled.nodes[node_id].consumers.front(), true};
         }
     }
 }

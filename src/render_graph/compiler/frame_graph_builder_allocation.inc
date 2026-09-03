@@ -1,95 +1,141 @@
-void FrameGraphCompiler::build_physical_framebuffer_allocation_plan(
+void FrameGraphCompiler::build_compiled_resource_table(
     CompiledFrameGraph& compiled
 ) const {
-    auto& plan = compiled.physical_framebuffer_plan;
-    plan = PhysicalFramebufferAllocationPlan{};
-    plan.resources.resize(compiled.graph.size());
+    auto& table = compiled.resource_table();
+    table.clear();
 
-    struct Interval {
-        GraphNodeId producer{k_invalid_node};
-        std::size_t first_level{0};
-        std::size_t last_level{0};
-    };
+    const std::size_t node_count = compiled.graph.size();
+    table.resources.resize(node_count);
+    table.release_after_level.assign(compiled.levels.size(), {});
+    compiled.ownership_transfers.assign(node_count, CompiledOwnershipTransfer{});
 
-    std::vector<Interval> intervals;
-    intervals.reserve(compiled.nodes.size());
+    // First pass: establish the producer level and canonical descriptor for
+    // every reachable logical framebuffer result.
+    for (std::size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
+        for (GraphNodeId node_id : compiled.levels[level_index]) {
+            if (node_id >= node_count || node_id >= compiled.nodes.size() ||
+                !compiled.nodes[node_id].reachable) {
+                continue;
+            }
+
+            auto& resource = table.resources[node_id];
+            resource.producer = node_id;
+            resource.first_level = level_index;
+            resource.last_level = level_index;
+            resource.desc.kind = runtime::ResourceKind::Color;
+            resource.desc.usage = runtime::ResourceUsage::ColorAttachment;
+            resource.desc.lifetime = runtime::LifetimeClass::FrameTransient;
+        }
+    }
+
+    // Second pass: fold every consumer edge into the same canonical record.
+    // No separate lifetime vector is built or reconciled later.
+    for (std::size_t level_index = 0; level_index < compiled.levels.size(); ++level_index) {
+        for (GraphNodeId node_id : compiled.levels[level_index]) {
+            if (node_id >= compiled.nodes.size()) continue;
+            for (GraphNodeId input_id : compiled.nodes[node_id].inputs) {
+                auto* input = table.resource_for(input_id);
+                if (!input) continue;
+                input->last_level = std::max(input->last_level, level_index);
+                ++input->consumer_count;
+            }
+        }
+    }
+
+    runtime::ResourcePlanner planner;
+    std::vector<GraphNodeId> planner_request_to_resource;
+    planner_request_to_resource.reserve(node_count);
     std::vector<std::size_t> level_live_counts(compiled.levels.size(), 0);
-    for (GraphNodeId id = 0; id < compiled.graph.size(); ++id) {
-        if (id >= compiled.nodes.size() || !compiled.nodes[id].reachable ||
-            id >= compiled.lifetimes.size()) {
-            continue;
-        }
 
-        const auto& lifetime = compiled.lifetimes[id];
-        auto& allocation = plan.resources[id];
-        ++plan.logical_resource_count;
-        allocation.producer = id;
-        allocation.persistent =
-            compiled.nodes[id].cache_policy.reusable_across_frames() ||
-            id == compiled.output;
-        allocation.async_use = !lifetime.can_release_after_last_consumer;
+    for (GraphNodeId node_id = 0; node_id < node_count; ++node_id) {
+        auto* resource = table.resource_for(node_id);
+        if (!resource) continue;
 
-        // A frame-invariant cache entry (or the final graph output) may still
-        // be referenced after this execution state is destroyed. It must keep
-        // its normal pool/shared ownership and cannot borrow a slot owned by
-        // this frame. The final output is excluded for the same reason: the
-        // executor returns it after ExecutionState teardown.
-        if (allocation.persistent) {
-            ++plan.excluded_persistent_count;
-            continue;
-        }
-        if (allocation.async_use) {
-            ++plan.excluded_async_count;
-            continue;
-        }
-        allocation.aliasable = true;
-        ++plan.aliasable_resource_count;
-        intervals.push_back(Interval{id, lifetime.first_level, lifetime.last_level});
-        if (!level_live_counts.empty() &&
-            lifetime.first_level < level_live_counts.size()) {
-            const auto last = std::min(
-                lifetime.last_level, level_live_counts.size() - 1);
-            for (std::size_t level = lifetime.first_level; level <= last; ++level) {
-                ++level_live_counts[level];
-            }
-        }
-    }
+        ++table.logical_resource_count;
+        resource->persistent =
+            compiled.nodes[node_id].cache_policy.reusable_across_frames() ||
+            node_id == compiled.output;
+        resource->async_use = !resource->can_release_after_last_consumer;
 
-    // Stable first-fit interval coloring: level, then producer id. The strict
-    // `<` test is intentional because two resources alive in the same level
-    // must never share storage, even when their node execution happens to be
-    // serialized by the current scheduler.
-    std::sort(intervals.begin(), intervals.end(), [](const Interval& lhs, const Interval& rhs) {
-        if (lhs.first_level != rhs.first_level) {
-            return lhs.first_level < rhs.first_level;
-        }
-        return lhs.producer < rhs.producer;
-    });
-
-    std::vector<std::size_t> slot_last_level;
-    for (const auto& interval : intervals) {
-        std::uint32_t selected = kInvalidPhysicalFramebufferSlot;
-        for (std::uint32_t slot = 0; slot < slot_last_level.size(); ++slot) {
-            if (slot_last_level[slot] < interval.first_level) {
-                selected = slot;
-                break;
-            }
-        }
-        if (selected == kInvalidPhysicalFramebufferSlot) {
-            selected = static_cast<std::uint32_t>(slot_last_level.size());
-            slot_last_level.push_back(interval.last_level);
-            plan.slots.push_back(FramebufferSlot{selected, 0, 0});
+        if (resource->persistent) {
+            resource->desc.lifetime = runtime::LifetimeClass::JobPersistent;
+            ++table.excluded_persistent_count;
+        } else if (resource->async_use) {
+            resource->desc.lifetime = runtime::LifetimeClass::PipelineSlot;
+            ++table.excluded_async_count;
         } else {
-            slot_last_level[selected] = interval.last_level;
+            resource->desc.lifetime = runtime::LifetimeClass::FrameTransient;
+            resource->aliasable = true;
+            ++table.aliasable_resource_count;
+
+            planner.add(runtime::ResourceRequest{
+                std::to_string(node_id),
+                resource->desc,
+                resource->first_level,
+                resource->last_level});
+            planner_request_to_resource.push_back(node_id);
+
+            if (!level_live_counts.empty() &&
+                resource->first_level < level_live_counts.size()) {
+                const auto last = std::min(
+                    resource->last_level, level_live_counts.size() - 1);
+                for (std::size_t level = resource->first_level; level <= last; ++level) {
+                    ++level_live_counts[level];
+                }
+            }
         }
-        plan.resources[interval.producer].physical_slot = selected;
+
+        // The graph output remains owned by the executor until return. Nodes
+        // with no consumers likewise have no release event inside the graph.
+        if (node_id != compiled.output && resource->consumer_count != 0 &&
+            resource->last_level < table.release_after_level.size()) {
+            table.release_after_level[resource->last_level].push_back(node_id);
+        }
+
+        if (resource->consumer_count == 1 &&
+            compiled.nodes[node_id].consumers.size() == 1) {
+            compiled.ownership_transfers[node_id] = CompiledOwnershipTransfer{
+                node_id, compiled.nodes[node_id].consumers.front(), true};
+        }
     }
-    plan.physical_slot_count = static_cast<std::uint32_t>(plan.slots.size());
+
+    // ResourcePlanner is the sole allocation algorithm. It is intentionally
+    // ephemeral here: only the canonical physical slot metadata and logical
+    // -> physical ids are persisted in CompiledResourceTable.
+    const auto plan = planner.build();
+    if (plan.slots.size() >= static_cast<std::size_t>(kInvalidPhysicalAllocationId)) {
+        throw std::runtime_error(
+            "FrameGraphCompiler: compiled resource table exceeds physical allocation id range");
+    }
+    table.slots = plan.slots;
+    table.physical_slot_count = static_cast<std::uint32_t>(table.slots.size());
+
+    for (std::size_t request_index = 0;
+         request_index < planner_request_to_resource.size();
+         ++request_index) {
+        const auto* allocation = plan.allocation_for(request_index);
+        if (!allocation ||
+            allocation->physical_slot == std::numeric_limits<std::size_t>::max()) {
+            continue;
+        }
+        if (allocation->physical_slot >=
+            static_cast<std::size_t>(kInvalidPhysicalAllocationId)) {
+            throw std::runtime_error(
+                "FrameGraphCompiler: physical allocation id cannot be represented");
+        }
+        auto* resource = table.resource_for(planner_request_to_resource[request_index]);
+        if (resource) {
+            resource->physical_slot =
+                static_cast<PhysicalAllocationId>(allocation->physical_slot);
+        }
+    }
+
     for (const auto count : level_live_counts) {
-        plan.peak_live_resource_count = std::max(
-            plan.peak_live_resource_count,
+        table.peak_live_resource_count = std::max(
+            table.peak_live_resource_count,
             static_cast<std::uint32_t>(count));
     }
+
     build_compiled_frame_program(compiled);
 }
 
@@ -126,10 +172,6 @@ void FrameGraphCompiler::validate_compiled_program_coverage(
                                 return operation.node == node_id &&
                                        operation.is_fused;
                             })) {
-                // The root carries the fused batch operation (counted above);
-                // counting it again as a member would claim two owners. Some
-                // hand-built validation fixtures omit that root operation,
-                // in which case the batch membership is the owner.
                 continue;
             }
             ++fused_count[node_id];
