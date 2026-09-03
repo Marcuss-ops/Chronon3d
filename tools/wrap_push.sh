@@ -1,93 +1,19 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════════════════════════════
-# wrap_push.sh — GATE-MNT-01: portable pre-push wrapper for `git push`
-# ═══════════════════════════════════════════════════════════════════════════
+# wrap_push.sh — GATE-MNT-01 portable pre-push wrapper.
 #
-# Auto fast-forward-merges remote commits into local before pushing, then
-# runs the canonical gate (`tools/check_main_clean.sh`),
-# runs the two TICKET-110 hygiene gates (`tools/check_test_hygiene.sh` and
-# `tools/check_test_suite_registration.sh`), and only forwards
-# `git push "$@"` if ALL gates pass.  Drop-in replacement for `git push`
-# (forwards all args including --force / --no-verify / refspec forms).
+# Flow:
+#   1. fetch and fast-forward the target branch when safe;
+#   2. enforce check_main_clean.sh;
+#   3. run the developer chain through tools/run_developer_gates.sh;
+#   4. with CHRONON3D_GATE_PROFILE=wbh, run WBH_ONLY_GATES;
+#   5. optionally run PERF_GATE, push, and verify the SHA-triple invariant.
 #
-# Gate chain (post-auto-FF, in order):
-#   ── Always-run developer gates ──
-#   1. tools/check_main_clean.sh            (GATE-MNT-01 rebase-clean invariant)
-#   2. tools/check_test_hygiene.sh          (gate #10b doctest no-duplicate-main)
-#   3. tools/check_test_suite_registration.sh (gate #10c raw add_executable audit)
-#   4. tools/check_frame_value_convention.sh (TICKET-110b gate)
-#   4.5d. tools/check_no_changelog_conflict_markers.sh
-#   4.5e. tools/check_doc_sha_dedup.sh
-#   4.5f. tools/check_commit_subject_length.sh (72-char envelope)
-#   ── WBH-only gates (CHRONON3D_GATE_PROFILE=wbh) ──
-#   4.5h. tools/check_video_completeness.sh (needs MP4 artifact)
-#   4.5j. tools/check_manual_touches_per_video.sh (Test #19)
-#   4.5k. tools/check_batch_100_videos.sh (Test #20)
-#   4.5m. tools/check_glow_certification.sh
-#   4.5n. tools/check_determinism.sh
-#   4.5p. tools/check_determinism_matrix.sh
-#   5. git push "$@" + post-push SHA-triple self-check (drop exec; canonical
-#      in-script companion to AGENTS.md §Post-push SHA-selfcheck invariant).
-#      The tested SHA is captured explicitly and must equal origin/main after
-#      push; no successful push is reported if another commit wins the race.
-#
-# Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
-# always; no --skip-gates escape hatch.  Documented in
-# `docs/AGENT_WORKFLOW.md` §6 (Pre-push hygiene gates).
-#
-# Note (I1 audit remediation 2026-07-13): the M1.8 §1 "no parallel text
-# API" invariant is structurally enforced by Gate #25 in
-# `tools/check_architecture_boundaries.sh`. The wrapper no longer
-# references any standalone script for this invariant; Gate #25 is the
-# single canonical enforcement surface (4 categories:
-# LayerBuilder::text_<variant>, centered_text/glow_text definitions,
-# TextDefaults.position assignments, pin_to+TextAnchor co-occurrence).
-#
-# Behaviour (post TICKET-076 closure, 2026-06-30, + GATE-MNT-01-EXT
-# closure 2026-07-04 — auto-repair of per-branch rebase on push):
-#   1. Parse remote (default: origin) and refspec (default: current branch).
-#   2. `git fetch "$REMOTE"` — bring remote refs up to date.
-#   2.5. (GATE-MNT-01-EXT) If `branch.${TARGET_BRANCH}.rebase` is missing,
-#        set it to `true` so future pulls on this branch use rebase.
-#        Idempotent + forward-only: affects future pulls, NOT this push.
-#        Does NOT override explicit non-'true' values (preserves user
-#        preference); only repairs missing entries (post-clone state).
-#   3. If HEAD != $REMOTE/$REFSPEC AND `is-ancestor HEAD REMOTE_REF`
-#      (i.e., remote is descendant of local AND the history is linear so
-#      an FF-merge is possible) -- `git merge --ff-only "$REMOTE/$REFSPEC"`
-#      to advance the local branch pointer automatically.  If FF fails
-#      (true divergence caught at FF-time), reject with diagnostic +
-#      manual-resolution hint; do not proceed to the gate.
-#   4. Run the canonical gate (`tools/check_main_clean.sh`): rejects
-#      divergence + dirty tree (post-FF working-tree state).
-#   4.5. (TICKET-110 — this commit) Run the hygiene gates:
-#          (a) check_test_hygiene.sh — no duplicate DOCTEST_MAIN;
-#          (b) check_test_suite_registration.sh — every test target via
-#              chronon3d_add_test_suite(TIER, SOURCES, [LINK_TARGETS]);
-#          (c) check_frame_value_convention.sh — (TICKET-110b) zero
-#              Frame::value access outside canonical header
-#              (`include/chronon3d/core/types/frame.hpp`); pass=exit 0,
-#              fail=exit 1 with remediation hint + frame.hpp cross-link.
-#          All local, all exit 1 on violation, all emit remediation
-#          hints via the canonical CHANGELOG/AGENT_WORKFLOW surface.
-#   5. Forward `git push "$@"` on success, then perform an in-script
-#      post-push SHA-triple self-check (AGENTS.md §Post-push SHA-selfcheck
-#      invariant).  The separate `tools/check_post_push_consistency.sh`
-#      script is available for stand-alone / CI post-push verification but
-#      is NOT part of the pre-push developer chain (a commit not yet pushed
-#      cannot be an ancestor of origin/main).
-#   5. Forward `git push "$@"` on success.
-#
-# Rationale for the wrapper vs `.git/hooks/pre-push`:
-#   - `.git/hooks/` is typically git-ignored (no cross-clone persistence)
-#   - this wrapper is repo-tracked in `tools/`, present in every clone/worktree
-#   - one canonical entry point for Agent3 atomic-commit workflow
+# Gate membership lives only in tools/gates/manifest.sh. Do not duplicate
+# individual developer or WBH gate names in this wrapper.
 #
 # Usage:
 #   tools/wrap_push.sh origin main
-#   tools/wrap_push.sh                  # uses defaults (origin, current branch)
-#   tools/wrap_push.sh --force origin HEAD
-# ═══════════════════════════════════════════════════════════════════════════
+#   tools/wrap_push.sh
 
 set -euo pipefail
 
@@ -95,13 +21,10 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT_DIR="${REPO_ROOT}/tools"
 GATE="${SCRIPT_DIR}/check_main_clean.sh"
 
-# Load the canonical gate manifest (DEVELOPER_GATES, CI_GATES, WBH_GATES, WBH_ONLY_GATES).
 # shellcheck source=gates/manifest.sh
 source "${SCRIPT_DIR}/gates/manifest.sh"
 
-# ── Gate profile: developer (default) vs wbh (working build host) ──────────
-# `developer` — fast local checks safe on any push (no MP4/build artifacts).
-# `wbh`       — full video/glow/determinism/batch validation (needs build host).
+# developer = fast local chain; wbh = developer chain + WBH_ONLY_GATES.
 GATE_PROFILE="${CHRONON3D_GATE_PROFILE:-developer}"
 readonly GATE_PROFILE
 
@@ -111,17 +34,13 @@ if [ ! -x "$GATE" ]; then
     exit 2
 fi
 
-# ── Step 1: parse args (default remote=origin, refspec=current branch) ─────
-# Match `git push` arg structure: optional flags first, then [remote [refspec]].
-# We only consume the first two positional args; everything else forwards
-# to `git push` unchanged (including --force, --no-verify, --tags, refspec
-# forms like refs/tags/foo, etc.).
+# Parse the first two positional git-push arguments as remote and branch.
 TARGET_REMOTE="origin"
 TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 POSITIONAL_INDEX=0
 for arg in "$@"; do
     case "$arg" in
-        --*) ;;  # skip flags
+        --*) ;;
         *)
             case $POSITIONAL_INDEX in
                 0) TARGET_REMOTE="$arg" ;;
@@ -134,7 +53,6 @@ done
 
 REMOTE_REF="${TARGET_REMOTE}/${TARGET_BRANCH}"
 
-# ── Step 2: fetch remote refs ─────────────────────────────────────────────
 if ! git fetch "$TARGET_REMOTE" 2>/dev/null; then
     echo "wrap_push.sh: GATE_FAIL: git fetch $TARGET_REMOTE failed" >&2
     echo "  fix: verify network/auth/remote config, then retry" >&2
@@ -142,31 +60,13 @@ if ! git fetch "$TARGET_REMOTE" 2>/dev/null; then
     exit 1
 fi
 
-# ── Step 2.5: GATE-MNT-01-EXT auto-repair of branch.<TARGET_BRANCH>.rebase=true ──
-# If the per-branch rebase flag is MISSING (e.g. fresh `git clone` or
-# first agent invocation), set it to `true` so future `git pull` on this
-# branch uses rebase instead of merge (linear history per AGENTS.md
-# "Workflow Git obbligatorio").  Idempotent + forward-only: the canonical
-# gate (`tools/check_main_clean.sh` Step 4) is the read-side enforcement;
-# this wrapper provides the proactive repair path so post-clone agent
-# invocations don't trip the gate manually.  Logs the repair so the user
-# knows it happened (silent mutation violates AGENTS.md "non sorprendere
-# l'utente").  Does NOT override explicit "false" / "merges" / "interactive"
-# — only repairs missing entries per user spec.
+# Repair an unset per-branch rebase preference; never override an explicit value.
 if ! git config --local --get branch."$TARGET_BRANCH".rebase 2>/dev/null >/dev/null; then
     echo "wrap_push.sh: GATE-MNT-01-EXT auto-repair: setting branch.${TARGET_BRANCH}.rebase=true (was unset)"
     git config branch."$TARGET_BRANCH".rebase true
 fi
 
-# ── Step 3: auto fast-forward if remote is ahead AND FF-pure ──────────────
-# When HEAD != $REMOTE_REF AND is-ancestor HEAD REMOTE_REF (i.e., remote
-# has commits the local doesn't, AND the history is linear so a FF-merge
-# is possible), advance the local branch pointer automatically.  This is
-# the new convenience layer on top of TICKET-067: the gate now accepts
-# the FF direction, and the wrapper proactively executes the merge so
-# the user does not have to.  FF-failure-with-divergence is caught here
-# (with a richer diagnostic than the bare gate) so the user knows the
-# exact manual remediation step.
+# Auto fast-forward when the remote is a strict descendant of local HEAD.
 LOCAL_REF="$(git rev-parse HEAD)"
 REMOTE_COMMIT="$(git rev-parse "$REMOTE_REF" 2>/dev/null || echo "")"
 
@@ -179,10 +79,6 @@ if [ "$AUTO_FF_SETTING" = "true" ] && [ -n "$REMOTE_COMMIT" ] \
    && git merge-base --is-ancestor "$LOCAL_REF" "$REMOTE_COMMIT"; then
     echo "wrap_push.sh: auto-FF: $REMOTE_REF is fast-forward of HEAD — merging"
     if ! git merge --ff-only "$REMOTE_REF"; then
-        # FF-merge failed → caught true divergence at FF-time (before
-        # the gate).  Emit GATE_FAIL with diagnostic + manual-resolution
-        # hint.  Distinguishes from gate-level rejection so the user
-        # knows the manual rebase is needed (not a "retry later" issue).
         echo "" >&2
         echo "GATE_FAIL: remote is ahead but fast-forward not possible" >&2
         echo "  local  = $LOCAL_REF" >&2
@@ -196,9 +92,7 @@ if [ "$AUTO_FF_SETTING" = "true" ] && [ -n "$REMOTE_COMMIT" ] \
     echo "wrap_push.sh: auto-FF: merged remote commits into local"
 fi
 
-# ── Step 3.5: reject force-push on main and capture the tested SHA contract ──
-# `main` is the only integration line. Force-pushing it can discard commits
-# that were fetched or pushed by another agent, so it is never accepted here.
+# main is the integration line: force-pushes are never accepted here.
 if [[ "$TARGET_BRANCH" == "main" ]]; then
     for arg in "$@"; do
         case "$arg" in
@@ -212,10 +106,7 @@ if [[ "$TARGET_BRANCH" == "main" ]]; then
     done
 fi
 
-# A caller that ran a certification suite may provide its exact SHA. If it is
-# omitted, the wrapper treats the post-gate HEAD as the tested SHA. This keeps
-# the default workflow usable while allowing release/WBH scripts to make the
-# tested-commit contract explicit.
+# Release/WBH callers may pin the exact certified SHA; otherwise use current HEAD.
 TESTED_SHA="${CHRONON3D_TESTED_SHA:-$(git rev-parse HEAD)}"
 if ! git cat-file -e "${TESTED_SHA}^{commit}" 2>/dev/null; then
     echo "wrap_push.sh: GATE_FAIL: CHRONON3D_TESTED_SHA is not a commit: $TESTED_SHA" >&2
@@ -223,7 +114,7 @@ if ! git cat-file -e "${TESTED_SHA}^{commit}" 2>/dev/null; then
     exit 1
 fi
 
-# ── Step 4: run the canonical gate (post-FF working-tree state) ───────────
+# Canonical clean-main gate.
 echo "wrap_push.sh: GATE-MNT-01 pre-flight (tested_sha=$TESTED_SHA)"
 if ! "$GATE"; then
     echo "wrap_push.sh: gate FAILED — push aborted" >&2
@@ -234,16 +125,12 @@ if ! "$GATE"; then
     exit 1
 fi
 
-# ── Run developer gates (delegated to canonical run_developer_gates.sh) ─
-# The 8 developer gates live in tools/run_developer_gates.sh — single
-# source of truth shared with .githooks/pre-push.  No duplication.
+# Developer gate membership is resolved by run_developer_gates.sh from the manifest.
 echo "wrap_push.sh: running developer gate chain (via run_developer_gates.sh ${TARGET_REMOTE} ${TARGET_BRANCH})..."
 bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
     || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
 
-# ── WBH-only gates (run only when CHRONON3D_GATE_PROFILE=wbh) ─────────────────
-# These gates require build artifacts (MP4, glow output, batch videos) that
-# only exist on a working build host.  On developer pushes they are skipped.
+# WBH-only gate membership is resolved from the same manifest.
 if [[ "$GATE_PROFILE" == "wbh" ]]; then
     for gate in "${WBH_ONLY_GATES[@]}"; do
         echo "wrap_push.sh: running WBH gate: ${gate}"
@@ -251,28 +138,10 @@ if [[ "$GATE_PROFILE" == "wbh" ]]; then
             || { echo "wrap_push.sh: GATE_FAIL on ${gate} (exit $?)" >&2; exit 1; }
     done
 else
-    echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH-only gates (video/glow/determinism/batch/SDK)"
+    echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH_ONLY_GATES from canonical manifest"
 fi
 
-# ── Step 4.5q: PERF_GATE pre-flight (F1.6 / TICKET-PERF-GATE-V1) ──────────────────
-# Optional perf-regression gate executed when the env var `PERF_GATE=enabled`
-# is set.  Default OFF (backward compat with the existing wrap_push.sh invocation
-# surface).  When enabled:
-#   - current  bench.v3 JSON path: ${CHRONON3D_PERF_CURRENT_REPORT:-""}
-#   - baseline bench.v3 JSON path: ${CHRONON3D_PERF_BASELINE:-$REPO_ROOT/bench/baselines/main-HEAD-perf.json}
-# Both paths must resolve (the gate is GATE_BLOCKED if either is missing); both
-# paths must be valid bench.v3 JSON (the gate validates via tools/lib_perf_regression.py
-# parse_bench()).
-# Exit codes (mirror the verify_*_linux.sh family 3-state envelope):
-#   0 = GATE_PASS  — proceed to git push.
-#   1 = GATE_FAIL  — block push; emit remediation hint (src-side fix / regenerate
-#                    baseline / widen threshold via forward-point ADR).
-#   2 = GATE_BLOCKED — the gate cannot proceed (env-block on this VPS per
-#                    TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV).  Default closure:
-#                    when PERF_GATE=enabled and binary is missing, abort with
-#                    remediation hint (operator explicitly opted in; closing
-#                    BLOCKED would defeat the gate's purpose).  Forward-point:
-#                    macchina-verifica on WBH per TICKET-PERF-GATE-V1-WBH-MACHINE-VERIFY.
+# Optional performance-regression gate.
 if [[ "${PERF_GATE:-disabled}" == "enabled" ]]; then
     CURRENT_REPORT="${CHRONON3D_PERF_CURRENT_REPORT:-build/manual-test/perf_latest.json}"
     BASELINE_REPORT="${CHRONON3D_PERF_BASELINE:-$REPO_ROOT/bench/baselines/main-HEAD-perf.json}"
@@ -311,37 +180,7 @@ if [[ "${PERF_GATE:-disabled}" == "enabled" ]]; then
     esac
 fi
 
-# ── Step 5: post-push SHA-triple self-check (canonical in-script companion to
-# AGENTS.md §Post-push SHA-selfcheck invariant).  The wrapper now drops `exec`
-# so the post-push SHA-triple logic can run.
-#
-# The invariant for the post-push state is:
-#   POSTPUSH_SHA == UPSTREAM_SHA
-# with `LOCAL_SHA_PRE_PUSH` captured RIGHT BEFORE the `git push "$@"` (this is
-# the "BEFORE the push invocation" snapshot the AGENTS.md rule refers to):
-#   LOCAL_SHA_PRE_PUSH == git rev-parse HEAD  (captured after all gates + auto-FF,
-#                                              immediately before git push)
-#   POSTPUSH_SHA       == git rev-parse HEAD  (after git push completes)
-#   UPSTREAM_SHA       == git rev-parse '@{u}' (upstream tracking SHA)
-#
-# In the HAPPY path (b16ad302-line prior commit case):
-#   - LOCAL_SHA_PRE_PUSH == POSTPUSH_SHA == UPSTREAM_SHA == <chore SHA>
-# In the AUTO-FF rodeo (upstream churn advanced local HEAD past our chore):
-#   - LOCAL_SHA_PRE_PUSH != POSTPUSH_SHA (auto-FF advanced HEAD).
-#   - POSTPUSH_SHA == UPSTREAM_SHA == <current upstream tip>.
-#   - PASS: the chore was FFed into upstream; this is benign.
-# In the LOST-COMMIT pattern (the b589fdba 3-attempt recovery session mode):
-#   - LOCAL_SHA_PRE_PUSH == chore SHA.
-#   - POSTPUSH_SHA != UPSTREAM_SHA (chore was rebased out by concurrent agent).
-#   - GATE_FAIL: chore <local_sha_pre_push> lost between local and upstream.
-#
-# Why drop `exec`?  Per AGENTS.md §Post-push SHA-selfcheck invariant's §Origine
-# paragraph: "the wrapper's internal exit codes are NOT a substitute for the
-# SHA-triple check".  Dropping `exec` lets the in-script triple-check run as the
-# belt-and-suspenders complement to the agent-side discipline documented in
-# AGENTS.md.  The check itself is at-most-free (3 subshell calls); the cost of
-# dropping `exec` is minimal vs the §honesty-violation cost of skipping the
-# triple-check on a silent-class failure mode.
+# The commit tested by the gates must still be HEAD immediately before push.
 LOCAL_SHA_PRE_PUSH="$(git rev-parse HEAD)"
 if [[ "$LOCAL_SHA_PRE_PUSH" != "$TESTED_SHA" ]]; then
     echo "wrap_push.sh: GATE_FAIL: HEAD changed after tests; tested SHA is stale" >&2
@@ -353,7 +192,6 @@ if [[ "$LOCAL_SHA_PRE_PUSH" != "$TESTED_SHA" ]]; then
 fi
 echo "wrap_push.sh: LOCAL_SHA_PRE_PUSH=$LOCAL_SHA_PRE_PUSH — invoking: git push $*"
 
-# Push (NO `exec` — post-push self-check needs the wrapper shell alive).
 git push --no-verify "$@"
 PUSH_RC=$?
 if [ "$PUSH_RC" -ne 0 ]; then
@@ -362,12 +200,7 @@ if [ "$PUSH_RC" -ne 0 ]; then
     exit 1
 fi
 
-# Post-push SHA-triple verification.
 POSTPUSH_SHA="$(git rev-parse HEAD)"
-# Upstream-resolve guard: per code-reviewer-minimax-m3 MINOR-FIX on the cat-5
-# 3-doc chore lineage — refuse to emit a misleading "lost-commit" GATE_FAIL
-# diagnostic when the actual root cause is an upstream ref misconfiguration
-# (misconfigured clone / remote renamed / @{u} set-but-stale).
 if ! git rev-parse '@{u}' >/dev/null 2>&1; then
     echo "wrap_push.sh: GATE_INTERNAL_ERROR: post-push @{u} resolution failed" >&2
     echo "  fix: verify remote tracking: git branch --set-upstream-to=$TARGET_REMOTE/$TARGET_BRANCH $TARGET_BRANCH" >&2
