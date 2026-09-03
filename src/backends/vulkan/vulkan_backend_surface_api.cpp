@@ -624,7 +624,7 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
 void VulkanBackend::preallocate_plan_surfaces(
     std::uint32_t canvas_width,
     std::uint32_t canvas_height,
-    const graph::PhysicalFramebufferAllocationPlan& plan) {
+    const graph::CompiledResourceTable& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
     m_impl->preallocate_plan_surfaces(canvas_width, canvas_height, plan);
