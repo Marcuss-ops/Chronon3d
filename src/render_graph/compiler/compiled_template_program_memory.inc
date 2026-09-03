@@ -14,13 +14,16 @@ PhysicalResourcePlan analyze_physical_resources(
     plan.excluded_async      = alloc.excluded_async_count;
 
     plan.sized_slots.reserve(alloc.slots.size());
-    for (const auto& slot : alloc.slots) {
+    for (std::size_t slot_index = 0; slot_index < alloc.slots.size(); ++slot_index) {
+        const auto& slot = alloc.slots[slot_index];
         SizedPhysicalSlot sized;
-        sized.slot_id      = slot.id;
-        sized.max_width    = slot.max_width;
-        sized.max_height   = slot.max_height;
-        sized.surface_bytes = static_cast<std::uint64_t>(slot.max_width) *
-                              slot.max_height * bytes_per_pixel;
+        sized.slot_id      = static_cast<std::uint32_t>(slot_index);
+        sized.max_width    = slot.desc.width;
+        sized.max_height   = slot.desc.height;
+        sized.surface_bytes = slot.capacity_bytes != 0
+            ? static_cast<std::uint64_t>(slot.capacity_bytes)
+            : static_cast<std::uint64_t>(slot.desc.width) *
+              slot.desc.height * bytes_per_pixel;
         plan.peak_transient_bytes += sized.surface_bytes;
         plan.sized_slots.push_back(sized);
     }

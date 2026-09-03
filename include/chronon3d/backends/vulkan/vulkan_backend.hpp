@@ -217,7 +217,7 @@ public:
     void preallocate_plan_surfaces(
         std::uint32_t canvas_width,
         std::uint32_t canvas_height,
-        const graph::PhysicalFramebufferAllocationPlan& plan);
+        const graph::CompiledResourceTable& plan);
 
     // ── Phase 8: command-replay (record once, submit with param writes) ─
     /// Number of replay ring slots available.  Matches the frame-batch ring
