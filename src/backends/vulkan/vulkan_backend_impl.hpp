@@ -7,7 +7,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
-#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/gpu_device_lost_error.hpp>
 #include "memory/vulkan_memory_manager.hpp"
