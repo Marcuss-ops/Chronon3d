@@ -293,7 +293,10 @@ void SubtitleTrackBuilder::build() {
 
         TextDefinition spec;
         spec.content.value = cue.text;
-        spec.style.font.font_path = font_path_;
+        // Explicit font reference only. No implicit engine default: when no
+        // .font(...) was declared the run keeps an empty font path and the
+        // canonical font wiring (font engine + per-runtime resolver) decides.
+        if (font_) spec.style.font.font_path = font_->path();
         spec.style.font.font_size = plan.layout.font_size;
         spec.style.color = color_;
         // The plan style shadow replaces the cue's shadow stack, mirroring
