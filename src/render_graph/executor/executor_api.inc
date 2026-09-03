@@ -34,34 +34,7 @@
     return runtime::FrameExecutionResult::failed(failure, std::move(reason));
 }
 
-FrameExecutionOutput GraphExecutor::execute_with_result(
-    CompiledFrameGraph& compiled,
-    RenderGraphContext& ctx,
-    RenderSession& session,
-    ExecutionScheduler& scheduler
-) const {
-    try {
-        auto framebuffer = execute_internal(compiled, ctx, session, session.arena(), scheduler);
-        if (framebuffer) {
-            return FrameExecutionOutput{
-                .framebuffer = std::move(framebuffer),
-                .result = runtime::FrameExecutionResult::succeeded(),
-            };
-        }
-        return FrameExecutionOutput{
-            .framebuffer = nullptr,
-            .result = frame_result_from_session(session),
-        };
-    } catch (const runtime::GpuDeviceLostError& error) {
-        return FrameExecutionOutput{
-            .framebuffer = nullptr,
-            .result = runtime::FrameExecutionResult::failed(
-                runtime::ExecutionFailure::DeviceLost, error.what()),
-        };
-    }
-}
-
-FrameExecutionOutput GraphExecutor::execute_with_scope_result(
+FrameExecutionOutput GraphExecutor::execute(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     ExecutionScope& scope,
@@ -88,22 +61,4 @@ FrameExecutionOutput GraphExecutor::execute_with_scope_result(
                 runtime::ExecutionFailure::DeviceLost, error.what()),
         };
     }
-}
-
-std::shared_ptr<Framebuffer> GraphExecutor::execute(
-    CompiledFrameGraph& compiled,
-    RenderGraphContext& ctx,
-    RenderSession& session,
-    ExecutionScheduler& scheduler
-) const {
-    return execute_with_result(compiled, ctx, session, scheduler).framebuffer;
-}
-
-std::shared_ptr<Framebuffer> GraphExecutor::execute_with_scope(
-    CompiledFrameGraph& compiled,
-    RenderGraphContext& ctx,
-    ExecutionScope& scope,
-    ExecutionScheduler& scheduler
-) const {
-    return execute_with_scope_result(compiled, ctx, scope, scheduler).framebuffer;
 }
