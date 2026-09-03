@@ -35,10 +35,11 @@ cleanup_register "$GATE_TMP"
 ar_list="$GATE_TMP/ar_off.txt"
 ar t "$impl_archive" > "$ar_list" || fail "ar t failed on diagnostics-OFF archive"
 
-for ghost in chronon3d_backend_software_diagnostics.cpp.o; do
+# Use the real source TU basenames emitted by the diagnostics OBJECT target.
+for ghost in bbox_overlay.cpp.o layout_preview_overlay.cpp.o nulls_overlay.cpp.o; do
     if grep -qF -- "$ghost" "$ar_list"; then
         fail "GHOST-FAIL: $ghost leaked into diagnostics-OFF archive"
     fi
 done
 
-log "GHOST-OK: diagnostics-OFF archive contains no diagnostics object"
+log "GHOST-OK: diagnostics-OFF archive contains no diagnostics translation units"
