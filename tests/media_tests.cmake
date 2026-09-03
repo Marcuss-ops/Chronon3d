@@ -29,6 +29,7 @@ chronon3d_add_test_suite(
             video/test_raw_video_sink_planar.cpp
             video/test_raw_video_sink_edge.cpp
             video/test_ffmpeg_pipe_sink_lifecycle.cpp
+            video/test_media_probe.cpp
             video/test_output_contract.cpp
             video/test_ffmpeg_pipe_sink_submit.cpp
             video/test_ffmpeg_pipe_sink_edge.cpp

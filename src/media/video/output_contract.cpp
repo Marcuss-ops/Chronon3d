@@ -133,14 +133,22 @@ OutputVerificationResult verify_output_contract(
         result.frame_count = video_stream->frame_count;
     }
 
-    if (media.duration.has_value()) {
-        result.duration_seconds = media.duration->seconds();
+    // The verifier describes the video artifact, so prefer the exact video
+    // stream duration. Container duration is only a deterministic fallback for
+    // muxers that omit per-stream duration (for example some fragmented files).
+    const std::optional<RationalTime> video_duration =
+        video_stream != nullptr && video_stream->duration.has_value()
+            ? video_stream->duration
+            : media.duration;
+
+    if (video_duration.has_value()) {
+        result.duration_seconds = video_duration->seconds();
     }
 
-    if (result.frame_count <= 0 && media.duration.has_value() &&
+    if (result.frame_count <= 0 && video_duration.has_value() &&
         video_stream != nullptr) {
         result.frame_count = derive_frame_count_exact(
-            *media.duration, video_stream->frame_rate);
+            *video_duration, video_stream->frame_rate);
     }
 
     // ── Structural verdict (`passed`) ─────────────────────────────────────
