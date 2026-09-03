@@ -4,7 +4,6 @@
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/api/scene.hpp>
-#include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -25,13 +24,6 @@ using namespace chronon3d;
 
 
 namespace {
-
-bool color_near(const Color& a, const Color& b, float eps = 0.15f) {
-    return std::abs(a.r - b.r) <= eps &&
-           std::abs(a.g - b.g) <= eps &&
-           std::abs(a.b - b.b) <= eps &&
-           std::abs(a.a - b.a) <= eps;
-}
 
 float framebuffer_max_delta(const Framebuffer& a, const Framebuffer& b) {
     REQUIRE(a.width() == b.width());
