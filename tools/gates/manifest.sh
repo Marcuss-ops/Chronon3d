@@ -7,19 +7,16 @@
 #   - tools/wrap_push.sh
 #   - CI pipelines
 #
-# Source this file; do not execute it directly.  All paths are relative to
-# the repository root `tools/` directory.
+# Source this file; do not execute it directly. All paths are relative to the
+# repository root `tools/` directory.
 #
 # Gate tiers:
-#   DEVELOPER_GATES — fast, local-only checks safe on every push
-#                     (no build artifacts required).
+#   DEVELOPER_GATES — fast, local-only checks safe on every push.
 #   CI_GATES        — DEVELOPER_GATES plus build + unit-test validation.
-#   WBH_GATES       — CI_GATES plus product-level certification gates that
-#                     require a working build host (MP4, glow, batch, SDK).
+#   WBH_GATES       — CI_GATES plus build-host certification gates.
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Developer gates: fast, local-only, safe on any push.
-# These gates do not require build artifacts (MP4, glow output, etc.).
 DEVELOPER_GATES=(
     check_test_hygiene.sh
     check_test_suite_registration.sh
@@ -40,10 +37,9 @@ DEVELOPER_GATES=(
     check_architecture_boundaries.sh
 )
 
-# The common performance contract is report-driven and opt-in: it is not
+# The common performance contract is report-driven and opt-in. It is not
 # included in push-time developer gates because those gates intentionally do
-# not require benchmark artifacts. Invoke run_common_performance_gate.sh with
-# --report from CI/WBH benchmark jobs.
+# not require benchmark artifacts.
 
 # CI-only phases (not executable gate scripts; handled by the CI driver).
 CI_PHASES=(
@@ -51,29 +47,21 @@ CI_PHASES=(
     unit_tests
 )
 
-# WBH-only gates: product-level certification gates that require build
-# artifacts and a working build host.  Kept separate so the push wrapper
-# can run developer gates once and then append only these extra gates.
+# WBH-only gates that still represent current engine/SDK contracts. Historical
+# showcase, product-metric, batch-manual-touch and external ffprobe gates were
+# removed together with their retired fixtures/configurations.
 WBH_ONLY_GATES=(
     verify_cli_render_surface_linux.sh
-    check_video_completeness.sh
-    check_fix_cronograph.sh
-    check_manual_touches_per_video.sh
-    check_batch_100_videos.sh
     verify_sdk_consumer_functional_linux.sh
-    check_glow_certification.sh
     check_determinism.sh
     check_determinism_matrix.sh
 )
 
-# CI gates: developer gates plus CI-specific build/test phases.
-# Note: CI_PHASES are abstract driver steps, not executable scripts.
 CI_GATES=(
     "${DEVELOPER_GATES[@]}"
     "${CI_PHASES[@]}"
 )
 
-# WBH gates: full certification chain (CI gates + WBH-only gates).
 WBH_GATES=(
     "${CI_GATES[@]}"
     "${WBH_ONLY_GATES[@]}"
