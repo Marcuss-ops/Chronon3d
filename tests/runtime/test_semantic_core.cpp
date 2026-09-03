@@ -227,8 +227,8 @@ TEST_CASE("Phase1 semantic core: exportable residency is dedicated and cannot al
     REQUIRE(plan.slots.size() == 2);
     CHECK(plan.slots[0].dedicated);
     CHECK(plan.slots[1].dedicated);
-    CHECK(plan.slots[0].residency == residency);
-    CHECK(plan.slots[1].residency == residency);
+    CHECK(plan.slots[0].desc.residency == residency);
+    CHECK(plan.slots[1].desc.residency == residency);
 }
 
 TEST_CASE("Phase1 semantic core: video cache identity includes pixel aspect ratio") {

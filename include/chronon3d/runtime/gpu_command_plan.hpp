@@ -376,13 +376,10 @@ public:
 
             ResourceRequest request;
             request.id = "surface:" + std::to_string(handle);
-            request.kind = ResourceKind::Color;
-            request.bytes = desc.bytes;
-            request.lifetime = desc.lifetime;
+            request.desc = desc;
+            request.desc.kind = ResourceKind::Color;
             request.first = liveness.first;
             request.last = liveness.last;
-            request.alignment = desc.alignment;
-            request.desc = desc;
             request.surface = handle;
             planner.add(std::move(request));
         }

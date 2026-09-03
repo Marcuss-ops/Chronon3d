@@ -3,7 +3,7 @@
 // TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
 // RenderRuntime (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
 // owner of GraphExecutor per TICKET-011.  Calling
-// sw_renderer->runtime().executor().execute_with_scope(...) below
+// sw_renderer->runtime().executor().execute(...) below
 // needs the FULL type of RenderRuntime (the .executor() accessor +
 // the GraphExecutor& return — only declared in the full type).
 // graph_executor.hpp transitively forward-declares RenderRuntime; the
@@ -79,9 +79,9 @@ namespace chronon3d::graph::detail {
     auto& tile_scheduler = ctx.services.scheduler
         ? *ctx.services.scheduler
         : sw_renderer->scheduler();
-    tile_fb = sw_renderer->runtime().executor().execute_with_scope(
+    tile_fb = sw_renderer->runtime().executor().execute(
         compiled, tile_ctx, tile_scope,
-        tile_scheduler);
+        tile_scheduler).framebuffer;
 
     if (tile_fb) {
         for (i32 y = region_bbox.y0; y < region_bbox.y1; ++y) {

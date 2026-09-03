@@ -130,7 +130,9 @@ private:
     AVFormatContext* format_{nullptr};
     AVStream* video_stream_{nullptr};
     AVStream* audio_stream_{nullptr};
-    std::unique_ptr<MuxAvioHashWriter> writer_;
+    std::unique_ptr<MuxAvioHashWriter, void(*)(MuxAvioHashWriter*)> writer_{
+        nullptr, [](MuxAvioHashWriter* p) { delete_writer(p); }};
+    static void delete_writer(MuxAvioHashWriter* writer) noexcept;
     std::string output_path_;
     std::string output_checksum_;
     bool checksum_used_reread_{false};
