@@ -25,19 +25,18 @@ set(CHRONON3D_FAST_TEST_DEPS
     chronon3d_cache_tests
     chronon3d_compositor_tests
     chronon3d_timeline_tests
+    chronon3d_animation_helpers_tests
 )
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_authoring_tests)
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_text_health_tests)
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_render_job_contract_tests)
 if(CHRONON3D_USE_BLEND2D)
     chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)
+    chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_tests)
 endif()
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
-chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_focus_tests)
 add_custom_target(chronon3d_tests_fast DEPENDS ${CHRONON3D_FAST_TEST_DEPS})
 
-# The daily developer runner consumes this label instead of maintaining a
-# second shell-side test list. Preserve any labels assigned by the suite.
 foreach(_target IN LISTS CHRONON3D_FAST_TEST_DEPS)
     if(TARGET ${_target})
         get_test_property(${_target} LABELS _dev_fast_existing_labels)
@@ -64,15 +63,14 @@ foreach(_target IN ITEMS
     chronon3d_render_graph_node_visual_tests
     chronon3d_pr3_composition_visual_tests
     chronon3d_diagnostic_overlay_tests
+    chronon3d_precomp_tests
 )
     chronon3d_append_target_if_present(CHRONON3D_RENDER_TEST_DEPS ${_target})
 endforeach()
 add_custom_target(chronon3d_tests_render DEPENDS ${CHRONON3D_RENDER_TEST_DEPS})
 
-# Every executable registered through chronon3d_add_test_suite() is a
-# mandatory build dependency of the canonical aggregate. Focused fast,
-# render, and video targets remain developer conveniences, but are not
-# duplicate dependencies of chronon3d_tests.
+# Every executable registered through chronon3d_add_test_suite() is a mandatory
+# dependency of the canonical aggregate. Focused aggregates select subsets only.
 get_property(CHRONON3D_ALL_REGISTERED_TEST_TARGETS
     GLOBAL
     PROPERTY CHRONON3D_ALL_TEST_TARGETS

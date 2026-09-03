@@ -23,7 +23,6 @@ chronon3d_add_test_suite(
     TIER UNIT
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/animation/test_animation_helpers.cpp
 )
-list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_animation_helpers_tests)
 
 chronon3d_add_test_suite(
     NAME chronon3d_timeline_tests
