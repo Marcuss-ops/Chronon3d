@@ -1,12 +1,23 @@
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
     Session& session, int64_t target) {
     std::lock_guard decode_lock(session.decode_mutex);
-    if (target < 0 || static_cast<std::size_t>(target) >= session.sample_table.size()) return nullptr;
-    if (!session.decoded || !session.packet) return nullptr;
+    if (target < 0 || static_cast<std::size_t>(target) >= session.sample_table.size()) {
+        publish_decode_failure(DecodeFailureReason::UnexpectedEof, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "requested sample index is outside the source sample table");
+        return nullptr;
+    }
 
     const std::size_t target_index = static_cast<std::size_t>(target);
     const auto& target_sample = session.sample_table[target_index];
     const int64_t target_pts = target_sample.pts;
+    if (!session.decoded || !session.packet || !session.codec || !session.fmt) {
+        publish_decode_failure(DecodeFailureReason::DecoderUnavailable, 0,
+            target_sample.pts, target_sample.dts, target_sample.source_order,
+            "decoder session is missing required native state");
+        return nullptr;
+    }
+
     const bool sequential = session.last_sample_index >= 0 &&
         session.sample_table.are_sequential(
             static_cast<std::size_t>(session.last_sample_index), target_index);
@@ -15,7 +26,12 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
     if (!sequential) {
         const std::size_t seek_index = session.sample_table.previous_keyframe(target_index).value_or(target_index);
         const auto& seek_sample = session.sample_table[seek_index];
-        if (av_seek_frame(session.fmt, session.stream_index, seek_sample.pts, AVSEEK_FLAG_BACKWARD) < 0) {
+        const int seek_result = av_seek_frame(
+            session.fmt, session.stream_index, seek_sample.pts, AVSEEK_FLAG_BACKWARD);
+        if (seek_result < 0) {
+            publish_decode_failure(DecodeFailureReason::SeekFailure, seek_result,
+                seek_sample.pts, seek_sample.dts, seek_sample.source_order,
+                "failed to seek to the keyframe preceding the requested PTS");
             spdlog::error("[native-decoder] PTS seek failed: sample={} pts={}", target, seek_sample.pts);
             return nullptr;
         }
@@ -36,12 +52,25 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
     AVPacket* packet = session.packet;
     std::shared_ptr<Framebuffer> result;
     bool fatal = false;
+    bool diagnostic_published = false;
+
+    auto fail = [&](DecodeFailureReason reason, int ffmpeg_error,
+                    std::int64_t pts, std::int64_t dts,
+                    std::uint64_t source_order, std::string message) {
+        publish_decode_failure(reason, ffmpeg_error, pts, dts, source_order, std::move(message));
+        diagnostic_published = true;
+    };
 
     auto materialize = [&](AVFrame* frame) -> bool {
         if ((result = try_native_frame(session, frame))) return true;
         if (session.capture_native_frame && session.captured_native_frame) return true;
         if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
             m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
+            fail(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+                frame ? frame->pts : target_sample.pts,
+                frame ? frame->pkt_dts : target_sample.dts,
+                target_sample.source_order,
+                "exact PTS frame was decoded but no required GPU-native surface was available");
             spdlog::error("[native-decoder] GPU_NATIVE_REQUIRED: exact PTS frame was not GPU-native");
             if (m_counters) m_counters->video_decode_native_fallback_frames.fetch_add(1, std::memory_order_relaxed);
             fatal = true;
@@ -51,7 +80,13 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
         if (frame->format == AV_PIX_FMT_CUDA && session.hw_transfer_frame) {
             av_frame_unref(session.hw_transfer_frame);
             const auto xfer_start = profiling::now();
-            if (av_hwframe_transfer_data(session.hw_transfer_frame, frame, 0) < 0) return false;
+            const int transfer_result = av_hwframe_transfer_data(session.hw_transfer_frame, frame, 0);
+            if (transfer_result < 0) {
+                fail(DecodeFailureReason::NativeSurfaceUnavailable, transfer_result,
+                    frame->pts, frame->pkt_dts, target_sample.source_order,
+                    "failed to transfer the decoded hardware frame to CPU memory");
+                return false;
+            }
             render = session.hw_transfer_frame;
             const auto xfer_dur = static_cast<uint64_t>(profiling::duration_ms(xfer_start, profiling::now()));
             if (m_counters) {
@@ -63,6 +98,13 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
         }
         result = frame_to_framebuffer(render, session.sws, session.rgba, m_counters,
                                       session.test_options.enable_swscale);
+        if (!result) {
+            fail(DecodeFailureReason::UnsupportedFormatChange, 0,
+                render ? render->pts : target_sample.pts,
+                render ? render->pkt_dts : target_sample.dts,
+                target_sample.source_order,
+                "decoded frame could not be converted into the render working format");
+        }
         return static_cast<bool>(result);
     };
 
@@ -76,7 +118,12 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
             if (m_counters) m_counters->decode_wait_ms.fetch_add(
                 static_cast<uint64_t>(wait_dur), std::memory_order_relaxed);
             if (receive == AVERROR(EAGAIN) || receive == AVERROR_EOF) return 0;
-            if (receive < 0) return -1;
+            if (receive < 0) {
+                fail(DecodeFailureReason::DecoderReceiveFailure, receive,
+                    target_sample.pts, target_sample.dts, target_sample.source_order,
+                    "video decoder failed while receiving a decoded frame");
+                return -1;
+            }
 
             const int64_t pts = decoded->best_effort_timestamp != AV_NOPTS_VALUE
                 ? decoded->best_effort_timestamp : decoded->pts;
@@ -85,6 +132,8 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
                     --matches_remaining;
                 } else if (materialize(decoded)) {
                     return fatal ? -1 : 1;
+                } else if (diagnostic_published) {
+                    return -1;
                 }
             }
             av_frame_unref(decoded);
@@ -99,7 +148,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
             session.last_sample_index = target;
             return result;
         }
-        if (drained < 0 && fatal) return nullptr;
+        if (drained < 0) return nullptr;
     }
 
     bool eof = false;
@@ -110,15 +159,33 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
         if (read < 0) {
             eof = read == AVERROR_EOF;
             if (eof) {
-                (void)avcodec_send_packet(session.codec, nullptr);
+                const int flush_result = avcodec_send_packet(session.codec, nullptr);
+                if (flush_result < 0 && flush_result != AVERROR_EOF && flush_result != AVERROR(EAGAIN)) {
+                    fail(DecodeFailureReason::DecoderSubmitFailure, flush_result,
+                        target_sample.pts, target_sample.dts, target_sample.source_order,
+                        "video decoder rejected end-of-stream flush");
+                    break;
+                }
                 const int drained = drain_decoder();
                 if (drained == 1) break;
+                if (drained < 0) break;
+            } else {
+                fail(DecodeFailureReason::CorruptPacket, read,
+                    target_sample.pts, target_sample.dts, target_sample.source_order,
+                    "demuxer failed while reading the source packet stream");
             }
             break;
         }
         if (packet->stream_index != session.stream_index) {
             av_packet_unref(packet);
             continue;
+        }
+        if ((packet->flags & AV_PKT_FLAG_CORRUPT) != 0) {
+            fail(DecodeFailureReason::CorruptPacket, AVERROR_INVALIDDATA,
+                packet->pts, packet->dts, target_sample.source_order,
+                "demuxer marked a video packet as corrupt");
+            av_packet_unref(packet);
+            break;
         }
 
         const auto submit_start = profiling::now();
@@ -127,8 +194,16 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
         session.profiling.avcodec_send_packet_ms += submit_dur;
         if (m_counters) m_counters->decode_submit_ms.fetch_add(
             static_cast<uint64_t>(submit_dur), std::memory_order_relaxed);
+        const auto packet_pts = packet->pts;
+        const auto packet_dts = packet->dts;
         av_packet_unref(packet);
-        if (send < 0 && send != AVERROR(EAGAIN)) break;
+        if (send < 0 && send != AVERROR(EAGAIN)) {
+            fail(send == AVERROR_INVALIDDATA ? DecodeFailureReason::CorruptPacket
+                                             : DecodeFailureReason::DecoderSubmitFailure,
+                send, packet_pts, packet_dts, target_sample.source_order,
+                "video decoder rejected a source packet");
+            break;
+        }
 
         const int drained = drain_decoder();
         if (drained == 1) break;
@@ -137,6 +212,10 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_internal(
 
     if (result || (session.capture_native_frame && session.captured_native_frame)) {
         session.last_sample_index = target;
+    } else if (!diagnostic_published) {
+        fail(DecodeFailureReason::UnexpectedEof, eof ? AVERROR_EOF : 0,
+            target_sample.pts, target_sample.dts, target_sample.source_order,
+            "source ended before the requested presentation sample was decoded");
     }
     if (!result && session.capture_native_frame && !session.captured_native_frame) {
         spdlog::error("[native-decoder] exact sample={} FAILED: pts={} continuity={} eof={}",
