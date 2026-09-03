@@ -33,7 +33,7 @@ inline void append_json_string(std::ostringstream& out, std::string_view value) 
 [[nodiscard]] inline std::string serialize_compiled_frame_graph(
     const CompiledFrameGraph& graph) {
     std::ostringstream out;
-    out << "{\"version\":1"
+    out << "{\"version\":2"
         << ",\"structure_hash\":" << graph.structure_hash
         << ",\"graph_instance_id\":" << graph.graph_instance_id.value
         << ",\"output\":" << graph.output
@@ -86,6 +86,28 @@ inline void append_json_string(std::ostringstream& out, std::string_view value) 
         out << "]}";
     }
 
+    out << "],\"physical_allocations\":[";
+    for (std::size_t i = 0; i < graph.resource_table().slots.size(); ++i) {
+        if (i != 0) out << ',';
+        const auto& slot = graph.resource_table().slots[i];
+        out << "{\"id\":" << i
+            << ",\"capacity_bytes\":" << slot.capacity_bytes
+            << ",\"offset\":" << slot.offset
+            << ",\"last_use\":" << slot.last_use
+            << ",\"dedicated\":" << (slot.dedicated ? "true" : "false")
+            << '}';
+    }
+
+    out << "],\"dependencies\":[";
+    bool first_dependency = true;
+    for (const auto& node : graph.nodes) {
+        for (const auto input : node.inputs) {
+            if (!first_dependency) out << ',';
+            first_dependency = false;
+            out << "{\"from\":" << input << ",\"to\":" << node.id << '}';
+        }
+    }
+
     out << "],\"passes\":[";
     for (std::size_t i = 0; i < graph.program.operations.size(); ++i) {
         if (i != 0) out << ',';
@@ -101,7 +123,72 @@ inline void append_json_string(std::ostringstream& out, std::string_view value) 
         }
         out << '}';
     }
-    out << "]}";
+
+    out << "],\"media\":";
+    if (!graph.render_to_media) {
+        out << "null";
+    } else {
+        const auto& media = *graph.render_to_media;
+        out << "{\"source_resource\":" << media.source_resource
+            << ",\"destination_resource\":" << media.destination_resource
+            << ",\"width\":" << media.destination.width
+            << ",\"height\":" << media.destination.height
+            << ",\"pixel_format\":"
+            << static_cast<unsigned>(media.destination.format.pixel)
+            << ",\"primaries\":"
+            << static_cast<unsigned>(media.destination.format.primaries)
+            << ",\"transfer\":"
+            << static_cast<unsigned>(media.destination.format.transfer)
+            << ",\"matrix\":"
+            << static_cast<unsigned>(media.destination.format.matrix)
+            << ",\"range\":"
+            << static_cast<unsigned>(media.destination.format.range)
+            << ",\"conversion\":" << static_cast<unsigned>(media.conversion)
+            << ",\"zero_copy_policy\":"
+            << static_cast<unsigned>(media.zero_copy_policy)
+            << ",\"zero_copy_proof\":"
+            << static_cast<unsigned>(media.zero_copy_proof)
+            << ",\"zero_copy_selected\":"
+            << (media.zero_copy_selected ? "true" : "false")
+            << '}';
+    }
+    out << '}';
+    return out.str();
+}
+
+/// Deterministic DOT view of the compiled graph. The authored RenderGraph DOT
+/// remains unchanged; this view exposes physical placement and compiled passes.
+[[nodiscard]] inline std::string serialize_compiled_frame_graph_dot(
+    const CompiledFrameGraph& graph) {
+    std::ostringstream out;
+    out << "digraph CompiledFrameGraph {\n"
+        << "  graph [label=\"compiled structure " << graph.structure_hash << "\"];\n";
+    for (const auto& resource : graph.resource_table().resources) {
+        if (resource.producer == k_invalid_node) continue;
+        out << "  r" << resource.producer << " [shape=box,label=\"resource "
+            << resource.producer << "\\nslot " << resource.physical_slot
+            << "\\nplanes " << resource.physical.plane_count << "\"];\n";
+    }
+    for (std::size_t i = 0; i < graph.program.operations.size(); ++i) {
+        const auto& operation = graph.program.operations[i];
+        out << "  p" << i << " [shape=ellipse,label=\"pass " << i
+            << "\\nnode " << operation.node << "\"];\n";
+        for (const auto input : operation.inputs) {
+            out << "  r" << input << " -> p" << i << ";\n";
+        }
+        out << "  p" << i << " -> r" << operation.node << ";\n";
+    }
+    for (const auto& resource : graph.resource_table().resources) {
+        if (resource.producer == k_invalid_node) continue;
+        for (const auto& transition : resource.transitions) {
+            out << "  r" << resource.producer << " -> r" << transition.consumer
+                << " [style=dashed,label=\"transition subresource "
+                << static_cast<unsigned>(transition.subresource)
+                << (transition.ownership_transfer ? " ownership" : "")
+                << "\"];\n";
+        }
+    }
+    out << "}\n";
     return out.str();
 }
 
@@ -111,7 +198,38 @@ inline void append_json_string(std::ostringstream& out, std::string_view value) 
     runtime::RenderReceipt receipt;
     receipt.structure_hash = graph.structure_hash;
     receipt.graph_instance_id = graph.graph_instance_id.value;
-    receipt.gpu_frame_time_ns = graph.program.gpu_frame_time_ns();
+    receipt.pass_timings.reserve(graph.program.operations.size());
+    for (std::size_t i = 0; i < graph.program.operations.size(); ++i) {
+        const auto& operation = graph.program.operations[i];
+        runtime::PassTimingReceipt timing_receipt;
+        timing_receipt.pass_index = static_cast<std::uint32_t>(i);
+        timing_receipt.node = operation.node;
+        if (const auto* timing = graph.program.query_arena.timing(operation.pass_timing)) {
+            timing_receipt.gpu_duration_ns = timing->gpu_duration_ns;
+            timing_receipt.resolved = timing->resolved;
+            if (timing->resolved) receipt.total_gpu_time_ns += timing->gpu_duration_ns;
+        }
+        receipt.pass_timings.push_back(timing_receipt);
+    }
+    if (graph.render_to_media) {
+        const auto& media = *graph.render_to_media;
+        receipt.media.present = true;
+        receipt.media.source_resource = media.source_resource;
+        receipt.media.destination_resource = media.destination_resource;
+        receipt.media.pixel_format =
+            static_cast<std::uint8_t>(media.destination.format.pixel);
+        if (const auto* destination =
+                graph.resource_table().resource_for(media.destination_resource)) {
+            receipt.media.plane_count =
+                static_cast<std::uint8_t>(destination->physical.plane_count);
+        }
+        receipt.media.conversion = static_cast<std::uint8_t>(media.conversion);
+        receipt.media.zero_copy_policy =
+            static_cast<std::uint8_t>(media.zero_copy_policy);
+        receipt.media.zero_copy_proof =
+            static_cast<std::uint8_t>(media.zero_copy_proof);
+        receipt.media.zero_copy_selected = media.zero_copy_selected;
+    }
     receipt.output = sink.finalize();
     return receipt;
 }
@@ -119,11 +237,34 @@ inline void append_json_string(std::ostringstream& out, std::string_view value) 
 [[nodiscard]] inline std::string serialize_render_receipt(
     const runtime::RenderReceipt& receipt) {
     std::ostringstream out;
-    out << "{\"version\":1"
+    out << "{\"version\":2"
         << ",\"structure_hash\":" << receipt.structure_hash
         << ",\"graph_instance_id\":" << receipt.graph_instance_id
-        << ",\"gpu_frame_time_ns\":" << receipt.gpu_frame_time_ns
-        << ",\"output\":{\"bytes\":" << receipt.output.bytes
+        << ",\"pass_timings\":[";
+    for (std::size_t i = 0; i < receipt.pass_timings.size(); ++i) {
+        if (i != 0) out << ',';
+        const auto& timing = receipt.pass_timings[i];
+        out << "{\"pass_index\":" << timing.pass_index
+            << ",\"node\":" << timing.node
+            << ",\"gpu_duration_ns\":" << timing.gpu_duration_ns
+            << ",\"resolved\":" << (timing.resolved ? "true" : "false")
+            << '}';
+    }
+    out << "],\"total_gpu_time_ns\":" << receipt.total_gpu_time_ns
+        << ",\"media\":{"
+        << "\"present\":" << (receipt.media.present ? "true" : "false")
+        << ",\"source_resource\":" << receipt.media.source_resource
+        << ",\"destination_resource\":" << receipt.media.destination_resource
+        << ",\"pixel_format\":" << static_cast<unsigned>(receipt.media.pixel_format)
+        << ",\"plane_count\":" << static_cast<unsigned>(receipt.media.plane_count)
+        << ",\"conversion\":" << static_cast<unsigned>(receipt.media.conversion)
+        << ",\"zero_copy_policy\":"
+        << static_cast<unsigned>(receipt.media.zero_copy_policy)
+        << ",\"zero_copy_proof\":"
+        << static_cast<unsigned>(receipt.media.zero_copy_proof)
+        << ",\"zero_copy_selected\":"
+        << (receipt.media.zero_copy_selected ? "true" : "false")
+        << "},\"output\":{\"bytes\":" << receipt.output.bytes
         << ",\"hash\":" << receipt.output.hash
         << ",\"mode\":" << static_cast<unsigned>(receipt.output.mode)
         << "}}";
