@@ -3,7 +3,7 @@ if(NOT CHRONON3D_BUILD_TESTS)
     return()
 endif()
 
-# Small, fast software-compositor regression suite.
+# Software compositor, IO and determinism integration coverage.
 chronon3d_add_test_suite(
     NAME chronon3d_compositor_tests
     TIER INTEGRATION
@@ -74,3 +74,65 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         target_link_libraries(chronon3d_deterministic_tests PRIVATE chronon3d::content)
     endif()
 endif()
+
+# Render-graph compiler contracts.
+chronon3d_add_test_suite(
+    NAME chronon3d_fusion_pass_tests
+    TIER UNIT
+    SOURCES render_graph/compiler/test_fusion_pass.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_template_program_tests
+    TIER UNIT
+    SOURCES render_graph/compiler/test_template_program.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_segment_execution_tests
+    TIER UNIT
+    SOURCES render_graph/compiler/test_segment_execution_descriptor.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_glow_fullframe_audit_tests
+    TIER UNIT
+    SOURCES render_graph/pipeline/test_glow_fullframe_audit.cpp
+)
+
+# Runtime/compiler execution contracts.
+chronon3d_add_test_suite(
+    NAME chronon3d_template_program_cache_tests
+    TIER UNIT
+    SOURCES runtime/test_template_program_cache.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_gpu_layer_batch_tests
+    TIER UNIT
+    SOURCES
+        runtime/test_gpu_layer_batch.cpp
+        runtime/test_device_scheduler.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_gpu_command_plan_tests
+    TIER UNIT
+    SOURCES runtime/test_gpu_command_plan.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_resource_state_tracker_tests
+    TIER UNIT
+    SOURCES runtime/test_resource_state_tracker.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_compiled_resource_authority_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_pipeline
+    SOURCES runtime/test_compiled_resource_authority.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_async_encoder_sink_tests
+    TIER UNIT
+    SOURCES runtime/test_async_encoder_sink.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_semantic_core_tests
+    TIER UNIT
+    SOURCES runtime/test_semantic_core.cpp
+)
