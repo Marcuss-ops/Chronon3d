@@ -28,7 +28,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/api/composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/visual/support/image_diff.hpp>

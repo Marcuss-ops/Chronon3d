@@ -8,8 +8,8 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>

@@ -18,8 +18,8 @@
 // Se la differenza pixel-by-pixel è zero (soglia > 30/255 in almeno
 // un canale) → FAIL: il testo non è visibile.
 
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_settings.hpp>

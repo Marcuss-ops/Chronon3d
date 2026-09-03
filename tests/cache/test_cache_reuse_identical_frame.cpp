@@ -18,7 +18,7 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/api/composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/node_cache.hpp>

@@ -26,10 +26,10 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/animation/temporal/temporal_samples.hpp>
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
-#include <chronon3d/api/scene.hpp>
-#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
