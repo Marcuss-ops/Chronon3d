@@ -8,7 +8,7 @@
 // The split is structural, not behavioural:
 //   * LayerBuilder's public class methods (`text(...)`, `text_run(...)`)
 //     remain DECL-only in <chronon3d/scene/builders/layer_builder.hpp>
-//     with their bodies living in src/scene/builders/layer_builder.cpp.
+//     with their bodies living in src/scene/builders/text_run_builder.cpp.
 //   * Downstream TUs that pair with the text pipeline (consumer
 //     modules, tests, tooling) can include ONLY this header for the
 //     typed coupling surface — saving include latency where the

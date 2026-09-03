@@ -1,8 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/registry/source_registry.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
-#include <chronon3d/registry/sampler_registry.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <stdexcept>
 using namespace chronon3d;
@@ -10,16 +8,10 @@ using namespace chronon3d;
 using namespace chronon3d::registry;
 namespace shape_ids = chronon3d::registry::shape_ids;
 
-TEST_CASE("SourceRegistry exposes built-in source descriptors") {
-    SourceRegistry registry;
-
-    CHECK(registry.available().size() == 7);
-    CHECK(registry.contains("source.shape"));
-    CHECK(registry.contains("source.precomp"));
-    CHECK(registry.get("source.video").kind == SourceKind::Video);
-    CHECK(registry.get("source.video").temporal);
-    CHECK(registry.get("source.adjustment").composable);
-}
+// NOTE: the SourceRegistry / SamplerRegistry test cases were removed with the
+// registries themselves (commits d9ce9f99a "remove unused source registry
+// header" and e0b69d5c7 "remove unused sampler registry header").  Only the
+// live ShapeRegistry surface is covered here.
 
 TEST_CASE("ShapeRegistry exposes built-in shape descriptors") {
     ShapeRegistry registry;
@@ -93,28 +85,6 @@ TEST_CASE("ShapeRegistry rejects shapes without factories") {
     );
 }
 
-TEST_CASE("SamplerRegistry exposes built-in sampler descriptors") {
-    SamplerRegistry registry;
-
-    CHECK(registry.available().size() == 4);
-    CHECK(registry.contains("sampler.nearest"));
-    CHECK(registry.contains("sampler.lanczos"));
-    CHECK(registry.get("sampler.lanczos").kind == SamplerKind::Lanczos);
-}
-
-TEST_CASE("SourceRegistry rejects duplicate ids") {
-    SourceRegistry registry;
-
-    CHECK_THROWS_AS(
-        registry.register_source(SourceDescriptor{
-            .id = "source.shape",
-            .display_name = "Duplicate Shape Source",
-            .kind = SourceKind::Shape,
-        }),
-        std::runtime_error
-    );
-}
-
 TEST_CASE("ShapeRegistry shape registration and contains check") {
     ShapeRegistry registry;
 
@@ -137,70 +107,9 @@ TEST_CASE("ShapeRegistry shape registration and contains check") {
     CHECK_FALSE(fetched.builtin);
 }
 
-TEST_CASE("SamplerRegistry sampler registration and list") {
-    SamplerRegistry registry;
-
-    CHECK_FALSE(registry.contains("super_sampler"));
-
-    SamplerDescriptor desc{
-        .id = "super_sampler",
-        .display_name = "Super Sampler",
-        .kind = SamplerKind::Lanczos,
-        .description = "Advanced scaling filter",
-        .builtin = false
-    };
-
-    registry.register_sampler(desc);
-
-    CHECK(registry.contains("super_sampler"));
-    const auto& fetched = registry.get("super_sampler");
-    CHECK(fetched.display_name == "Super Sampler");
-    CHECK(fetched.kind == SamplerKind::Lanczos);
-
-    auto available = registry.available();
-    bool found = false;
-    for (const auto& name : available) {
-        if (name == "super_sampler") {
-            found = true;
-            break;
-        }
-    }
-    CHECK(found);
-}
-
-TEST_CASE("SourceRegistry custom source registration") {
-    SourceRegistry registry;
-
-    CHECK_FALSE(registry.contains("3d_volumetric"));
-
-    SourceDescriptor desc{
-        .id = "3d_volumetric",
-        .display_name = "3D Volumetric Source",
-        .kind = SourceKind::Layer,
-        .description = "Mesh volume layer",
-        .builtin = false,
-        .temporal = true,
-        .composable = true
-    };
-
-    registry.register_source(desc);
-
-    CHECK(registry.contains("3d_volumetric"));
-    const auto& fetched = registry.get("3d_volumetric");
-    CHECK(fetched.temporal == true);
-    CHECK(fetched.composable == true);
-}
-
-TEST_CASE("Registries throw on missing ID") {
+TEST_CASE("ShapeRegistry throws on missing ID") {
     ShapeRegistry shape_reg;
-    SamplerRegistry sampler_reg;
-    SourceRegistry source_reg;
 
     CHECK_FALSE(shape_reg.contains("missing_id"));
-    CHECK_FALSE(sampler_reg.contains("missing_id"));
-    CHECK_FALSE(source_reg.contains("missing_id"));
-
     CHECK_THROWS(static_cast<void>(shape_reg.get("missing_id")));
-    CHECK_THROWS(static_cast<void>(sampler_reg.get("missing_id")));
-    CHECK_THROWS(static_cast<void>(source_reg.get("missing_id")));
 }

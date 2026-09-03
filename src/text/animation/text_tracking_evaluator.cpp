@@ -7,7 +7,7 @@ namespace chronon3d::detail {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Apply-first-then-increment semantics, port from V1
-// `include/chronon3d/text/text_animator.hpp:325-337`. The  // drift-allow: stale-ref
+// `include/chronon3d/text/text_animator.hpp:325-337`. The  // drift-class: historical (V1 header removed; see text_animator_properties.hpp)
 // `cumulative_tracking_delta` parameter is owned by the evaluator loop
 // (`text_animator_evaluator.cpp`) and is shared across consecutive
 // glyphs within one animator; this function reads it BEFORE applying

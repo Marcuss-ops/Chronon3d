@@ -3,7 +3,7 @@
 //
 // BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 (A/B test).
 //
-// Sibling composition to `content/examples/text/text_animations.cpp::anim_typewriter_glow`
+// Sibling composition to the retired `content/examples/text/text_animations.cpp::anim_typewriter_glow`  // drift-class: historical (examples tree retired)
 // that mirrors the SAME scene with a configurable `glow_intensity` parameter.
 // Call the factory once with 0.0f (no-glow control) and once with 0.5f
 // (with-glow match to production) to get the A/B pair from the same code path.

@@ -138,8 +138,7 @@ struct PrecompCachePolicy {
 /// the owner session (in the single-runtime / single-renderer / single-
 /// session production deployment this is the whole store; in any
 /// future deployment where multiple SoftwareRenderers share a runtime,
-/// the reset reaches across them per the WP-5 close-out — see
-/// docs/CHANGELOG.md R5).
+/// the reset reaches across them per the WP-5 close-out).
 class SceneProgramStore {
 public:
     /// Callback that produces a fresh CompiledSceneProgram on cache miss.

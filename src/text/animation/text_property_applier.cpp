@@ -163,7 +163,7 @@ void apply_property_to_glyph(
         else if constexpr (std::is_same_v<T, TrackingProperty>) {
             // Tracking is handled in evaluate_animator via a cumulative
             // accumulator that spans this animator's per-glyph iterations
-            // (port from V1 include/chronon3d/text/text_animator.hpp:325-337).  // drift-allow: stale-ref
+            // (port from V1 include/chronon3d/text/text_animator.hpp:325-337).  // drift-class: historical (V1 header removed; see text_animator_properties.hpp)
             // We no-op here to avoid double-counting; the evaluator routes
             // TrackingProperty through detail::apply_tracking_to_glyph
             // BEFORE this dispatcher is reached.

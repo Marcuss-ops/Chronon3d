@@ -8,7 +8,7 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
-#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/media_session_pool.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
@@ -52,9 +52,8 @@
 //
 // WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
 // runtime-owned.  Each `RenderSession` carries its own `scene_hasher`
-// (by-value) and `program_store` (unique_ptr).  See
-// `docs/refactor-roadmap/03-render-session-boundary.md` PR 3.1 + the  // drift-allow: stale-ref
-// PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
+// (by-value) and `program_store` (unique_ptr).  See the WP-3 PR 3.1 note and
+// the PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
 // the migration rationale and the per-session ownership spec.
 //
 // Fase C2 — Canonical construction sequence (RenderEngine::Impl unified ctor):
@@ -294,7 +293,7 @@ public:
     // REMOVED here.  Both state engines are now per-session owned; reach
     // them via `session.scene_hasher()` / `session.program_store()`
     // (or `session.common.scene_hasher()` / `program_store()` from a
-    // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-allow: stale-ref
+    // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-class: historical (WP-3 design doc retired; rationale in render_session.hpp)
 
 private:
     // Solely callable by RenderRuntime::create(RuntimeConfig).

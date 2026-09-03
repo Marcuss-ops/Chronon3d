@@ -4,7 +4,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <content/text/text_helpers.hpp>
+#include <chronon3d/text/typewriter_layout.hpp>  // core home of the retired content/text_helpers.hpp declarations
 
 #include <cmath>
 #include <cstddef>

@@ -2,8 +2,8 @@
 // precomp_node_execute.cpp — PrecompNode::execute() (PR-5: thin-node refactor)
 //
 // PR-5 — PrecompNode no longer owns SceneProgramCache, GraphExecutor,
-// topological-plan cache (retired as `runtime::ExecutionPlanCache` in
-// docs/CHANGELOG.md R6), RenderSession, or auto-tune state.  All of those
+// topological-plan cache (retired as `runtime::ExecutionPlanCache`; see the
+// historical changelog R6), RenderSession, or auto-tune state.  All of those
 // are now centralised on the parent RenderSession / CompiledFrameGraph
 // (accessed via `ctx.services.session` for the program_store, and via
 // `session->services().executor` for the borrowed GraphExecutor).
@@ -13,7 +13,7 @@
 // the borrowed session and delegates to `execute_with_scope(parent,
 // ...)` — the SINGLE canonical body that owns the lease-held + child-
 // scope + execute_with_scope dispatch contract documented in
-// `docs/03-execution-scope-and-precomp.md` §4.3.  This eliminates the  // drift-allow: stale-ref
+// `docs/03-execution-scope-and-precomp.md` §4.3.  This eliminates the  // drift-class: historical (WP-6 design doc retired; contract lives in this header block)
 // previous 85-line duplication between the two methods where any
 // reviewer-flagged concern (lease lifetime, scope-chain construction,
 // eviction callback wiring, owner_key derivation, bail-out check) had

@@ -36,7 +36,7 @@ using FramebufferPool = ::chronon3d::cache::FramebufferPool;
 //                      Emette il bump addizionale clear_skipped_calls /
 //                      clear_skipped_pixels quando node_name == "Clear".//   TilePruned        : bbox non interseca active_tile_clip
 
-//                      ([TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX](docs/tickets/TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX.md),
+//                      ([TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX](docs/tickets/archive/TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX.md),
 //                      TICKET-EXECUTOR-TILE-PRUNE-SKIP-UNIFICATION lineage).
 //                      Reusa state.shared_transparent (no fresh 64×64 alloc) e
 //                      preserva il `predicted_bbox` via `bbox_override` override.

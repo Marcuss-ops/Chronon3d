@@ -14,6 +14,8 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/path/path_geometry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/path/path_stroke.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/path/pip.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/card/projected_card_rasterizer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/card/card3d_material_rasterizer.cpp
 )
 # Path rasterizer (requires Blend2D headers)
 if(CHRONON3D_USE_BLEND2D)

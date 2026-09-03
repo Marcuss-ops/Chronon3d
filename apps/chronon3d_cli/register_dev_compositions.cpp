@@ -49,7 +49,7 @@
 
 // TICKET-CHRONON-GLOW-FINAL — portrait + NoGlow siblings (production
 // header-only factory; available everywhere).
-#include "content/compositions/chronon_glow_final.hpp"
+#include <tests/helpers/chronon_glow_final.hpp>  // core home of the retired content factory
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 // TICKET-AE-PARITY-360 — 360-frame multi-segment stress test.

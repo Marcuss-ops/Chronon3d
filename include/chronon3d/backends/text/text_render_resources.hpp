@@ -492,8 +492,8 @@ struct TextRenderResources {
     // complete the hierarchy.  The legacy text-raster cache migrated in
     // P1-8 into the `raster_cache` member below.
     //
-    // ── P1-8: TextRasterCache owner (migrated from
-    // `src/backends/text/text_rasterizer_cache.cpp`) ──────────────────
+    // ── P1-8: TextRasterCache owner (migrated from the retired
+    // `src/backends/text/text_rasterizer_cache.cpp`) ──────────────  // drift-class: historical (file retired; state co-located here)────
     // The 4 free functions `set_text_cache_capacity` / `lookup_text_cache` /
     // `store_text_cache` / `clear_text_raster_cache` are GONE (deleted).
     // The cache now lives on `TextRenderResources::raster_cache` —

@@ -30,7 +30,7 @@
 
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text_golden/text_clip/test_helpers.hpp>
-#include "content/compositions/chronon_glow_final.hpp"
+#include <tests/helpers/chronon_glow_final.hpp>  // core home of the retired content factory
 
 #include <cmath>
 #include <memory>

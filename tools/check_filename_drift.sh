@@ -72,6 +72,7 @@ mapfile -t files < <(find . -type f \
      -o -name '*.cmake' -o -name '*.md' -o -name '*.txt' \) \
   ! -path './build/*' \
   ! -path './build-*/*' \
+  ! -path './out/*' \
   ! -path './_deps/*' \
   ! -path './node_modules/*' \
   ! -path '*/node_modules/*' \

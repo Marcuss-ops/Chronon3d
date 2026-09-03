@@ -23,7 +23,7 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <blend2d.h>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
-#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include "../nodes/native_surface.hpp"

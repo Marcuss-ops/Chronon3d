@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// include/chronon3d/ipc/contract_validator_registry.hpp
+// src/ipc/contract_validator_registry.hpp
 //
 // Canonical compiled JSON Schema registry for daemon boundary contracts.
 // Schemas are parsed and compiled once when the registry is constructed;

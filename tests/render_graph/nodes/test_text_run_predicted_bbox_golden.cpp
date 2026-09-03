@@ -34,7 +34,7 @@
 //      corruption persists (cat-3 anti-dup: singleton-like state is
 //      forbidden per AGENTS.md §regole).
 //
-// Test geometry builder mirrors the canonical `tests/text_golden/text_completeness/text_typewriter.cpp`
+// Test geometry builder mirrors the canonical retired `tests/text_golden/text_completeness/text_typewriter.cpp`  // drift-class: historical (test retired)
 // path (composition(...) lambda returning Scene) + the `tests/render_graph/nodes/test_text_run_predicted_bbox.cpp`
 // AnimCertTitle pattern; reuses `tests::helpers::test_utils.hpp::make_renderer()`
 // for the canonical font-resolution surface.

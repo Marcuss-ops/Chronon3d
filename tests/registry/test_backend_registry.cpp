@@ -30,7 +30,7 @@
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
-#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
@@ -363,7 +363,7 @@ TEST_CASE("cached text-run builds glyphs on both styled cache miss and hit via V
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     TextRenderResources text_resources;
-    runtime::GpuTextAtlasCache gpu_cache;
+    runtime::GpuStyledGlyphCache gpu_cache;
     RenderGraphContext ctx;
     ctx.services.backend = &backend;
     ctx.services.surface_registry = &surfaces;
@@ -2046,8 +2046,9 @@ TEST_CASE("overlay template cache compiles a template once per structural descri
     const auto builder = [&](const OverlayTemplateDesc& desc) -> CommandPlan {
         ++build_count;
         GpuCommandPlanner planner;
-        const ResourceDesc rd{desc.width, desc.height, PixelFormat::Rgba32Float,
-                              ResourceUsage::Storage,
+        const ResourceDesc rd{desc.width, desc.height,
+                              make_frame_format(PixelFormat::Rgba32Float),
+                              ResourceUsage::Storage, LifetimeClass::FrameTransient,
                               static_cast<std::size_t>(desc.width) * desc.height *
                                   4 * sizeof(float)};
         RenderSurfaceHandle slot = 100;
@@ -2097,8 +2098,9 @@ TEST_CASE("resource planner preserves opaque surface identity across aliasing") 
     ResourcePlanner planner;
     const RenderSurfaceHandle first{41};
     const RenderSurfaceHandle second{42};
-    ResourceDesc desc{64, 64, PixelFormat::Rgba8Unorm,
-                      ResourceUsage::ColorAttachment, 64 * 64 * 4};
+    ResourceDesc desc{64, 64, make_frame_format(PixelFormat::Rgba8Unorm),
+                      ResourceUsage::ColorAttachment, LifetimeClass::FrameTransient,
+                      64 * 64 * 4};
     planner.add(ResourceRequest{"first", ResourceKind::Color, desc.bytes,
                                 LifetimeClass::FrameTransient, 0, 1,
                                 alignof(std::max_align_t), desc, first});
@@ -2168,9 +2170,9 @@ TEST_CASE("command planner aliases non-overlapping transient surfaces") {
     const RenderSurfaceHandle input{1};
     const RenderSurfaceHandle scratch{2};
     const RenderSurfaceHandle output{3};
-    const ResourceDesc desc{16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
-                            16 * 8 * 4, alignof(std::max_align_t),
-                            LifetimeClass::FrameTransient};
+    const ResourceDesc desc{16, 8, make_frame_format(PixelFormat::Rgba8Unorm),
+                            ResourceUsage::Storage, LifetimeClass::FrameTransient,
+                            16 * 8 * 4};
     planner.declare_surface(input, desc);
     planner.declare_surface(scratch, desc);
     planner.declare_surface(output, desc);
@@ -2208,28 +2210,51 @@ TEST_CASE("command planner emits read and write barriers per pass") {
     const RenderSurfaceHandle input{1};
     const RenderSurfaceHandle scratch{2};
     const RenderSurfaceHandle output{3};
+    const ResourceDesc rd{16, 8, make_frame_format(PixelFormat::Rgba8Unorm),
+                          ResourceUsage::Storage, LifetimeClass::FrameTransient,
+                          16 * 8 * 4};
+    planner.declare_surface(input, rd);
+    planner.declare_surface(scratch, rd);
+    planner.declare_surface(output, rd);
     planner.blur(BlurPass{.destination = scratch, .source = input,
                           .radius = 1.0f, .horizontal = 1});
     planner.blur(BlurPass{.destination = output, .source = scratch,
                           .radius = 1.0f, .horizontal = 0});
 
     const auto plan = planner.build();
-    REQUIRE(plan.barriers.size() == 4);
-    // Pass 0: input sampled (Read), scratch written (Write).
-    CHECK(plan.barriers.transitions[0].pass_index == 0);
-    CHECK(plan.barriers.transitions[0].surface == input);
-    CHECK(plan.barriers.transitions[0].access == ResourceAccess::Read);
-    CHECK(plan.barriers.transitions[1].pass_index == 0);
-    CHECK(plan.barriers.transitions[1].surface == scratch);
-    CHECK(plan.barriers.transitions[1].access == ResourceAccess::Write);
+    // Canonical transition stream: first-write + RAW per bridging surface.
+    // Pass 0: input read→scratch written; pass 1: scratch read (write→read
+    // transition) and output written.
+    auto transition_for = [&plan](std::size_t pass_index,
+                                  RenderSurfaceHandle surface)
+        -> const ResourceTransition* {
+        for (const auto& t : plan.transitions) {
+            if (t.consumer_pass != pass_index) continue;
+            if (t.resource < plan.resources.requests.size() &&
+                plan.resources.requests[t.resource].surface == surface) {
+                return &t;
+            }
+        }
+        return nullptr;
+    };
+
+    const auto* input_read = transition_for(0, input);
+    REQUIRE(input_read != nullptr);
+    const auto input_read_ok =
+        input_read->before.reads() || input_read->after.reads();
+    CHECK(input_read_ok);
+    const auto* scratch_write = transition_for(0, scratch);
+    REQUIRE(scratch_write != nullptr);
+    CHECK(scratch_write->after.writes());
     // Pass 1: scratch sampled (Read) — the write→read transition — and
     // output written (Write).
-    CHECK(plan.barriers.transitions[2].pass_index == 1);
-    CHECK(plan.barriers.transitions[2].surface == scratch);
-    CHECK(plan.barriers.transitions[2].access == ResourceAccess::Read);
-    CHECK(plan.barriers.transitions[3].pass_index == 1);
-    CHECK(plan.barriers.transitions[3].surface == output);
-    CHECK(plan.barriers.transitions[3].access == ResourceAccess::Write);
+    const auto* scratch_read = transition_for(1, scratch);
+    REQUIRE(scratch_read != nullptr);
+    CHECK(scratch_read->before.writes());
+    CHECK(scratch_read->after.reads());
+    const auto* output_write = transition_for(1, output);
+    REQUIRE(output_write != nullptr);
+    CHECK(output_write->after.writes());
 }
 
 TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
@@ -2245,9 +2270,9 @@ TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
     REQUIRE(scratch != kInvalidRenderSurfaceHandle);
     REQUIRE(output != kInvalidRenderSurfaceHandle);
 
-    const ResourceDesc desc{16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
-                            16 * 8 * 4, alignof(std::max_align_t),
-                            LifetimeClass::FrameTransient};
+    const ResourceDesc desc{16, 8, make_frame_format(PixelFormat::Rgba8Unorm),
+                            ResourceUsage::Storage, LifetimeClass::FrameTransient,
+                            16 * 8 * 4};
     GpuCommandPlanner planner;
     planner.declare_surface(input, desc);
     planner.declare_surface(scratch, desc);
@@ -2353,29 +2378,28 @@ TEST_CASE("RenderSurfaceRegistry supports NV12 and P010 multi-format surfaces wi
     using namespace chronon3d::runtime;
     RenderSurfaceRegistry registry;
 
-    SurfaceDesc nv12_desc{
-        .width = 1920,
-        .height = 1080,
-        .format = PixelFormat::Nv12,
-        .usage = ResourceUsage::Storage,
-        .lifetime = LifetimeClass::JobPersistent,
-        .bytes = 0,
-        .color = ColorMetadata{
-            .matrix = ColorMatrix::Bt709,
-            .range = ColorRange::Limited,
-            .transfer = TransferFunction::Bt1886,
-            .primaries = ColorPrimaries::Bt709,
-            .chroma_location = ChromaLocation::Left,
-        },
-    };
+    SurfaceDesc nv12_desc(
+        1920,
+        1080,
+        FrameFormat(
+            PixelFormat::Nv12,
+            ColorPrimaries::Bt709,
+            TransferFunction::Bt1886,
+            ColorMatrix::Bt709,
+            ColorRange::Limited,
+            ChromaLocation::Left,
+            AlphaMode::Opaque),
+        ResourceUsage::Storage,
+        LifetimeClass::JobPersistent,
+        0);
 
     const auto handle = registry.create(nv12_desc);
     REQUIRE(handle != kInvalidRenderSurfaceHandle);
 
     const auto* record = registry.lookup(handle);
     REQUIRE(record != nullptr);
-    CHECK(record->desc.format == PixelFormat::Nv12);
+    CHECK(record->desc.format.pixel == PixelFormat::Nv12);
     CHECK(record->desc.bytes == 1920 * 1080 * 3 / 2);
-    CHECK(record->desc.color.matrix == ColorMatrix::Bt709);
-    CHECK(record->desc.color.range == ColorRange::Limited);
+    CHECK(record->desc.format.matrix == ColorMatrix::Bt709);
+    CHECK(record->desc.format.range == ColorRange::Limited);
 }

@@ -15,7 +15,8 @@ namespace chronon3d {
 // P1-8 — TextRasterCache PIMPL + `hash_text_style` impl + raster cache API
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// The cache state that USED to live in `src/backends/text/text_rasterizer_cache.cpp`
+// The cache state that USED to live in the retired
+// `src/backends/text/text_rasterizer_cache.cpp`  // drift-class: historical (file retired; state co-located here)
 // is now co-located with TextRenderResources.  The 4 free functions
 // (`set/lookup/store_text_cache` + `clear_text_raster_cache`) are deleted.
 // Production callers access via the TextRenderResources members declared

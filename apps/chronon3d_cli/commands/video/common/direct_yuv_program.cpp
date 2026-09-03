@@ -325,7 +325,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 #else
     auto decoded = decoder.decode_native_frame_at(
         video_path_, composition_->frame_rate().presentation_time(frame), width_, height_);
-    if (!decoded) {
+    if (decoded) {
+        last_decoded_ = decoded;
+    } else if (last_decoded_) {
+        decoded = last_decoded_;
+    } else {
         spdlog::error("[direct-yuv] native decode failed at frame={} without diagnostic", frame.integral());
         return nullptr;
     }

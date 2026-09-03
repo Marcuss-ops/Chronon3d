@@ -128,28 +128,7 @@ void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx
 // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.  We therefore
 // read `m_proc_ctx.registry` ONLY inside dispatch (never from
 // `~SoftwareBackend()`).
-renderer::ShapeProcessor* SoftwareBackend::resolve_shape_processor(
-    const RenderNode& node) const noexcept {
-    // Legacy ABI adapter only. Compiled and direct dispatch use the owning
-    // snapshot path below; callers of this deprecated method must not retain
-    // the returned non-owning pointer.
-    if (node.shape.type() == ShapeType::TextRun) {
-        return nullptr;
-    }
-    const auto snapshot = processor_snapshot();
-    return snapshot
-        ? snapshot->shape_shared(snapshot->shape_handle(node.shape.type())).get()
-        : nullptr;
-}
 
-renderer::EffectProcessor* SoftwareBackend::resolve_effect_processor(
-    std::type_index params_type) const noexcept {
-    // Legacy ABI adapter only; new code must retain the owning snapshot.
-    const auto snapshot = processor_snapshot();
-    return snapshot
-        ? snapshot->effect_shared(snapshot->effect_handle(params_type)).get()
-        : nullptr;
-}
 
 std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
 SoftwareBackend::processor_snapshot() const noexcept {

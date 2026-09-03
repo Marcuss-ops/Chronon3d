@@ -21,7 +21,6 @@ struct CatmullRomCameraMotion {
     EasingCurve      easing{Easing::Linear};
     f32              zoom{1000.0f};
     f32              fov_deg{50.0f};
-    Camera2_5DProjectionMode projection_mode{Camera2_5DProjectionMode::Zoom};
     f32              roll_deg{0.0f};
     bool             use_arc_length{false};
 

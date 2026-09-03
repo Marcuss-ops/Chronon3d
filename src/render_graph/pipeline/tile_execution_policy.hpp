@@ -77,7 +77,4 @@ public:
         const detail::DirtyRectOutput&, double, const SoftwareRenderer*, Frame,
         const effects::EffectCatalog* = nullptr);
 };
-
-using TileExecutionPolicy = ExecutionResolver;
-
 } // namespace chronon3d::graph

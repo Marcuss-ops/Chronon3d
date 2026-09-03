@@ -35,7 +35,7 @@
 #include <tests/text/support/pipeline_parity_harness.hpp>
 
 // TICKET-CHRONON-GLOW-FINAL Fase 6 — same factory as the CLI registration.
-#include "content/compositions/chronon_glow_final.hpp"
+#include <tests/helpers/chronon_glow_final.hpp>  // core home of the retired content factory
 
 #include <cmath>
 #include <cstdlib>
