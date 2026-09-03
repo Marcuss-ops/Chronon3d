@@ -19,8 +19,11 @@
 #include <hb-ft.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
+#include <memory>
 #include <set>
 #include <shared_mutex>
 #include <string>
@@ -40,7 +43,13 @@ bool is_invisible_codepoint(char32_t cp) noexcept {
 }
 } // namespace
 
+using FontFaceId = std::uint64_t;
+
+/// Lifetime-owned FreeType/HarfBuzz face.  FontEngine operations hold a
+/// shared_ptr lease for the whole operation, so cache eviction can drop its
+/// ownership without destroying a face that is still being shaped or probed.
 struct FaceEntry {
+    FontFaceId id{0};
     FT_Face ft_face{nullptr};
     hb_font_t* hb_font{nullptr};
     std::string resolved_path;
@@ -50,16 +59,25 @@ struct FaceEntry {
     bool has_kerning{false};
     FT_UInt notdef_glyph_id{0};
 
+    FaceEntry() = default;
+    FaceEntry(const FaceEntry&) = delete;
+    FaceEntry& operator=(const FaceEntry&) = delete;
+
+    ~FaceEntry() {
+        if (hb_font) hb_font_destroy(hb_font);
+        if (ft_face) FT_Done_Face(ft_face);
+    }
+
     bool valid() const { return ft_face != nullptr && hb_font != nullptr; }
 };
 
 struct GlyphBBoxCacheKey {
-    FT_Face face{nullptr};
-    u32     glyph_id{0};
-    u32     pixel_size{0};
+    FontFaceId face_id{0};
+    u32        glyph_id{0};
+    u32        pixel_size{0};
 
     bool operator==(const GlyphBBoxCacheKey& o) const noexcept {
-        return face == o.face && glyph_id == o.glyph_id && pixel_size == o.pixel_size;
+        return face_id == o.face_id && glyph_id == o.glyph_id && pixel_size == o.pixel_size;
     }
 };
 
@@ -74,28 +92,6 @@ struct GlyphBBoxCacheEntry {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TICKET-OPENTYPE-FEATURES-PASS — canonical OpenType feature parser.
-//
-// Each comma-separated token in `spec` is delegated to HarfBuzz's
-// native `hb_feature_from_string()` which understands the OT / HarfBuzz
-// grammar: "liga", "liga=1", "liga=0", "-liga", "ss01=2", "kern=0",
-// "-dlig", etc.  Whitespace around tokens is trimmed.  Empty input
-// yields an empty vector, preserving the historical
-// `hb_shape(buf, nullptr, 0)` semantics where HarfBuzz applies its
-// implicit defaults (kern=1, liga=1, calt=1, ...).
-//
-// Threading downstream:
-//
-//   TextRunLayout::features  (= TextShapingFeatures type alias)
-//     -> TextShaping::features            (set per-call by callers)
-//       -> parse_opentype_features()      (this anon-namespace helper)
-//          -> hb_shape(font, buf,
-//                      features.data(),
-//                      features.size())
-//
-// Malformed tokens are silently dropped (hb_feature_from_string returns
-// false): the user spec calls fail-loud via diagnostics for compilation-
-// level bugs but per-shape-call malformed tokens must not abort the
-// whole pipeline (Cat-3 minimal-surface contract).
 // ═══════════════════════════════════════════════════════════════════════════
 namespace {
 [[nodiscard]] std::vector<hb_feature_t>
@@ -140,7 +136,7 @@ namespace std {
 template<> struct hash<chronon3d::GlyphBBoxCacheKey> {
     [[nodiscard]] size_t operator()(const chronon3d::GlyphBBoxCacheKey& k) const noexcept {
         size_t h = 0;
-        h ^= std::hash<void*>{}(k.face) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<chronon3d::FontFaceId>{}(k.face_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= std::hash<chronon3d::u32>{}(k.glyph_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= std::hash<chronon3d::u32>{}(k.pixel_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
         return h;
@@ -152,27 +148,24 @@ namespace chronon3d {
 
 struct FontEngine::Impl {
     FT_Library ft_library{nullptr};
-    /// WP-8 PR 8.0 — typed asset resolver, non-owning.  Lifetime is the
-    /// owning runtime's responsibility; this pointer is captured at FontEngine
-    /// construction and used by every `load_face()` call for relative font-path
-    /// resolution.  The default FontEngine ctor delegates to the explicit ctor
-    /// with `runtime::typed_resolver_for_deep_code()` (PR 8.0 transitional
-    /// bridge — deleted in PR 8.1).
     const chronon3d::assets::AssetResolver* m_resolver{nullptr};
-    mutable std::unordered_map<FontSpec, FaceEntry, std::hash<FontSpec>> face_cache;
-    mutable std::shared_mutex face_cache_mutex;
+
+    // Canonical bounded face cache.  Values are shared lifetime leases rather
+    // than by-value FT_Face owners; eviction only drops cache ownership.
+    static constexpr size_t kMaxFaceCacheEntries = 128;
+    mutable cache::LruCache<
+        FontSpec,
+        std::shared_ptr<FaceEntry>,
+        std::hash<FontSpec>> face_cache{
+            kMaxFaceCacheEntries, 4, cache::CapacityMode::Count};
+    mutable std::mutex face_load_mutex;
+    mutable std::atomic<FontFaceId> next_face_id{1};
+
     // Protect mutable FT_Face/HarfBuzz state; distinct from cache ownership.
     mutable std::mutex font_ops_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
-    std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache; // per-runtime
+    std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache;
 
-    // FASE 4 (TICKET-088) — HarfBuzz buffer pool.
-    // `hb_buffer_create()` + `hb_buffer_destroy()` is a per-shape-call
-    // overhead (alloc / free + HarfBuzz internal bookkeeping).  We pool
-    // reset-able buffers (callers must `hb_buffer_reset(buf)` before
-    // reuse; we do that on release) so steady-state shaping has zero
-    // HarfBuzz allocation cost.  Pool is bounded by kMaxHbBufferPoolSize
-    // to avoid runaway memory if a single burst creates many buffers.
     static constexpr size_t kMaxHbBufferPoolSize = 64;
     mutable std::mutex hb_buffer_pool_mutex;
     mutable std::vector<hb_buffer_t*> hb_buffer_pool;
@@ -189,14 +182,11 @@ struct FontEngine::Impl {
 
     void release_hb_buffer(hb_buffer_t* buf) const {
         if (!buf) return;
-        // Caller-owned reset point: wipe glyph infos / positions / flags /
-        // cluster state so the next acquire starts from a clean slate.
         hb_buffer_reset(buf);
         std::lock_guard<std::mutex> lock(hb_buffer_pool_mutex);
         if (hb_buffer_pool.size() < kMaxHbBufferPoolSize) {
             hb_buffer_pool.push_back(buf);
         } else {
-            // Pool full → destroy rather than leak.
             hb_buffer_destroy(buf);
         }
     }
@@ -209,29 +199,46 @@ struct FontEngine::Impl {
         hb_buffer_pool.clear();
     }
 
-    // Shared helper: load/cached a FaceEntry for `spec`. Non-owning pointer
-    // to the cached entry, or nullptr if the font cannot be loaded. Follows
-    // the same shared_mutex dance as FontEngine::can_load().
-    [[nodiscard]] FaceEntry* get_face_entry(const FontSpec& spec) {
-        if (!ft_library) return nullptr;
+    void invalidate_glyph_bboxes(FontFaceId face_id) {
+        if (face_id == 0) return;
+        std::vector<GlyphBBoxCacheKey> stale;
+        glyph_bbox_cache.for_each([&](const GlyphBBoxCacheKey& key,
+                                      const GlyphBBoxCacheEntry&,
+                                      std::size_t) {
+            if (key.face_id == face_id) stale.push_back(key);
+        });
+        for (const auto& key : stale) {
+            (void)glyph_bbox_cache.erase(key, false);
+        }
+    }
 
-        {
-            std::shared_lock<std::shared_mutex> shared_lock(face_cache_mutex);
-            auto it = face_cache.find(spec);
-            if (it != face_cache.end()) {
-                return it->second.valid() ? &it->second : nullptr;
-            }
+    void install_face_cache_removal_callback() {
+        face_cache.set_removal_callback(
+            [this](const FontSpec&,
+                   const std::shared_ptr<FaceEntry>& entry,
+                   cache::CacheRemovalReason) {
+                if (entry) invalidate_glyph_bboxes(entry->id);
+            });
+    }
+
+    /// Return an owning lease.  Loading is serialized only on misses; normal
+    /// cache hits use the canonical sharded LRU's own narrow locks.
+    [[nodiscard]] std::shared_ptr<FaceEntry> get_face_entry(const FontSpec& spec) {
+        if (!ft_library) return {};
+
+        if (auto cached = face_cache.get(spec); cached) {
+            return (*cached && (*cached)->valid()) ? *cached : std::shared_ptr<FaceEntry>{};
         }
-        std::unique_lock<std::shared_mutex> unique_lock(face_cache_mutex);
-        auto it = face_cache.find(spec);
-        if (it == face_cache.end()) {
-            auto entry = load_face(spec);
-            if (!entry) return nullptr;
-            auto [inserted_it, ok] = face_cache.emplace(spec, std::move(*entry));
-            if (!ok) return nullptr;
-            it = inserted_it;
+
+        std::lock_guard<std::mutex> load_lock(face_load_mutex);
+        if (auto cached = face_cache.get(spec); cached) {
+            return (*cached && (*cached)->valid()) ? *cached : std::shared_ptr<FaceEntry>{};
         }
-        return it->second.valid() ? &it->second : nullptr;
+
+        auto entry = load_face(spec);
+        if (!entry || !entry->valid()) return {};
+        face_cache.put(spec, entry);
+        return entry;
     }
 
     Impl() {
@@ -240,6 +247,7 @@ struct FontEngine::Impl {
             spdlog::error("FontEngine: FT_Init_FreeType failed (error={})", err);
             ft_library = nullptr;
         }
+        install_face_cache_removal_callback();
         typewriter_layout_cache = std::make_unique<chronon3d::content::text::TypewriterLayoutCache>();
     }
 
@@ -250,12 +258,16 @@ struct FontEngine::Impl {
             spdlog::error("FontEngine: FT_Init_FreeType failed (error={})", err);
             ft_library = nullptr;
         }
+        install_face_cache_removal_callback();
         typewriter_layout_cache = std::make_unique<chronon3d::content::text::TypewriterLayoutCache>();
     }
 
     ~Impl() {
         destroy_hb_buffer_pool();
         clear_cache_unlocked();
+        // Removal callbacks capture this; detach before members begin their
+        // automatic destruction sequence.
+        face_cache.set_removal_callback({});
         if (ft_library) {
             FT_Done_FreeType(ft_library);
         }
@@ -265,33 +277,15 @@ struct FontEngine::Impl {
         if (typewriter_layout_cache) {
             typewriter_layout_cache->clear();
         }
-        for (auto& [spec, entry] : face_cache) {
-            if (entry.hb_font) {
-                hb_font_destroy(entry.hb_font);
-            }
-            if (entry.ft_face) {
-                FT_Done_Face(entry.ft_face);
-            }
-        }
         face_cache.clear();
         glyph_bbox_cache.clear();
     }
 
-    std::optional<FaceEntry> load_face(const FontSpec& spec) {
-        if (!ft_library) return std::nullopt;
+    std::shared_ptr<FaceEntry> load_face(const FontSpec& spec) {
+        if (!ft_library) return {};
 
-        // TICKET-TEXT-TIMING-V1 — time the font face resolve/load so a warm
-        // face cache (steady state ≈ 0 resolve) is distinguishable from a
-        // cold FT_New_Face on the prepare/render path.
         const auto resolve_start = profiling::now();
 
-        // WP-8 PR 8.0 — resolver is owned by the FontEngine (pointer
-        // captured at construction).  `m_resolver` is never null in any
-        // context that reaches load_face: the explicit ctor requires a
-        // resolver; the transitional default ctor populates it with
-        // `runtime::typed_resolver_for_deep_code()`.  The 2-line fallback
-        // preserves legacy `runtime::resolve_asset_path(relative)`
-        // semantics for empty/unmounted-relative inputs.
         std::string resolved;
         const auto font_path = std::filesystem::path{spec.font_path};
         if (font_path.is_absolute()) {
@@ -313,7 +307,7 @@ struct FontEngine::Impl {
         if (err != 0) {
             spdlog::warn("FontEngine: failed to load font '{}' (resolved: '{}', error={})",
                          spec.font_path, resolved, err);
-            return std::nullopt;
+            return {};
         }
 
         FT_Set_Pixel_Sizes(face, 0, 16);
@@ -321,29 +315,21 @@ struct FontEngine::Impl {
         hb_font_t* hb_font = hb_ft_font_create(face, nullptr);
         if (!hb_font) {
             FT_Done_Face(face);
-            return std::nullopt;
+            return {};
         }
 
-        FaceEntry entry;
-        entry.ft_face = face;
-        entry.hb_font = hb_font;
-        entry.resolved_path = std::move(resolved);
-        entry.font_weight = spec.font_weight;
-        entry.family_name = face->family_name ? face->family_name : std::string{};
-        entry.style_name = face->style_name ? face->style_name : std::string{};
-        entry.has_kerning = FT_HAS_KERNING(face);
-        // Cache the .notdef glyph index so the cluster fallback probe can
-        // distinguish a real glyph from the fallback .notdef glyph. Some
-        // fonts map missing codepoints to a non-zero .notdef index; checking
-        // only glyph_index != 0 is not enough in those cases.
-        // Resolve the .notdef glyph by its canonical PostScript name rather
-        // than by querying U+0000, which may map to a different glyph or to
-        // an empty cmap entry in some fonts.
+        auto entry = std::make_shared<FaceEntry>();
+        entry->id = next_face_id.fetch_add(1, std::memory_order_relaxed);
+        entry->ft_face = face;
+        entry->hb_font = hb_font;
+        entry->resolved_path = std::move(resolved);
+        entry->font_weight = spec.font_weight;
+        entry->family_name = face->family_name ? face->family_name : std::string{};
+        entry->style_name = face->style_name ? face->style_name : std::string{};
+        entry->has_kerning = FT_HAS_KERNING(face);
         FT_Int notdef_idx = FT_Get_Name_Index(face, const_cast<FT_String*>(".notdef"));
-        entry.notdef_glyph_id = (notdef_idx >= 0) ? static_cast<FT_UInt>(notdef_idx) : 0;
+        entry->notdef_glyph_id = (notdef_idx >= 0) ? static_cast<FT_UInt>(notdef_idx) : 0;
 
-        // TICKET-TEXT-TIMING-V1 — accumulate only on the successful resolve,
-        // mirroring the shaping counter contract (no timing on std::nullopt).
         if (profiling::g_current_counters) {
             profiling::g_current_counters->font_resolve_wall_us.fetch_add(
                 static_cast<uint64_t>(std::llround(profiling::elapsed_us(resolve_start))),
@@ -358,14 +344,9 @@ struct FontEngine::Impl {
     }
 };
 
-// ── FontEngine public API (full) ─────────────────────────────────────
-
-// WP-8 PR 8.0 — explicit-resolver ctor (canonical).
 FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
     : m_impl(std::make_unique<Impl>(&resolver)),
       m_text_layout_cache(std::make_unique<TextLayoutCache>()) {}
-
-// =====================================================================
 
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
@@ -381,12 +362,9 @@ std::optional<GlyphRun> FontEngine::shape_text(
         return std::nullopt;
     }
 
-    // TICKET-TEXT-SHAPING-TIMING-V1 — time the shaping call so per-frame
-    // HarfBuzz re-shaping is visible in telemetry (steady state should be
-    // ~0 shaping calls inside the profiled render loop).
     const auto shaping_start = profiling::now();
 
-    FaceEntry* entry = m_impl->get_face_entry(spec);
+    auto entry = m_impl->get_face_entry(spec);
     if (!entry || !entry->valid()) return std::nullopt;
     std::lock_guard<std::mutex> font_lock(m_impl->font_ops_mutex);
 
@@ -418,16 +396,10 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     hb_buffer_guess_segment_properties(buf);
 
-    // TICKET-OPENTYPE-FEATURES-PASS — thread OpenType features explicitly
-    // to HarfBuzz (parsed by the canonical anon-namespace helper above).
-    // `shaping.features` e.g. "kern=1,liga=0" -> hb_feature_t array;
-    // empty string -> empty array -> hb_shape(buf, features.data(), 0)
-    // ≡ historical hb_shape(buf, nullptr, 0) (HarfBuzz default-on).
     const auto hb_features = parse_opentype_features(shaping.features);
     hb_shape(entry->hb_font, buf,
              hb_features.data(),
              static_cast<unsigned int>(hb_features.size()));
-
 
     unsigned int glyph_count = 0;
     hb_glyph_info_t* glyph_infos = hb_buffer_get_glyph_infos(buf, &glyph_count);
@@ -454,7 +426,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
         gp.is_cluster_start = (i == 0) ||
                               (glyph_infos[i].cluster != glyph_infos[i - 1].cluster);
 
-        GlyphBBoxCacheKey key{face, gp.glyph_id, pixel_size};
+        GlyphBBoxCacheKey key{entry->id, gp.glyph_id, pixel_size};
         auto cached = m_impl->glyph_bbox_cache.get(key);
         if (cached) {
             gp.bbox_x0 = cached->x0;
@@ -466,12 +438,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
             if (err == 0) {
                 FT_GlyphSlot slot = face->glyph;
                 if (slot->format == FT_GLYPH_FORMAT_OUTLINE) {
-                    // Geometric outline bbox (FreeType 26.6 fixed coords).
-                    // This is the authoritative ink extent of the glyph
-                    // outline, superseding the grid-fitted slot->metrics
-                    // used for typographic advance. Using the real outline
-                    // closes the POST_RENDER_EXPAND gap where rasterized
-                    // ink spilled past the predicted bbox.
                     FT_BBox outline_bbox;
                     FT_Outline_Get_BBox(&slot->outline, &outline_bbox);
                     gp.bbox_x0 = static_cast<float>(outline_bbox.xMin) * scale;
@@ -479,8 +445,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
                     gp.bbox_x1 = static_cast<float>(outline_bbox.xMax) * scale;
                     gp.bbox_y1 = static_cast<float>(outline_bbox.yMin) * scale;
                 } else {
-                    // Fallback for bitmap/emoji glyphs (CBDT/SBIX etc.)
-                    // where an outline bbox is unavailable.
                     gp.bbox_x0 = static_cast<float>(slot->metrics.horiBearingX) * scale;
                     gp.bbox_y0 = static_cast<float>(slot->metrics.horiBearingY) * scale;
                     gp.bbox_x1 = gp.bbox_x0 + static_cast<float>(slot->metrics.width) * scale;
@@ -498,10 +462,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
         cursor_y += gp.advance_y;
     }
 
-    // FASE 4 (TICKET-088) — release the buffer to the per-Impl pool
-    // (reset + cache, NOT destroyed) on the success path.  Failures
-    // before the release point also call release_hb_buffer so the
-    // normalize handles both clean shutdown and bail-out paths.
     m_impl->release_hb_buffer(buf);
 
     run.width = cursor_x;
@@ -510,9 +470,6 @@ std::optional<GlyphRun> FontEngine::shape_text(
     run.baseline = 0.0f;
     run.line_height = static_cast<float>(face->size->metrics.height) * scale;
 
-    // TICKET-TEXT-SHAPING-TIMING-V1 — successful shape: bump the call count
-    // and the accumulated wall time. A per-frame reshape regression shows up
-    // as text_shaping_calls ≈ frames_total instead of ≈ 0.
     if (profiling::g_current_counters) {
         profiling::g_current_counters->text_shaping_calls.fetch_add(1, std::memory_order_relaxed);
         profiling::g_current_counters->text_shaping_wall_ms.fetch_add(
@@ -533,7 +490,7 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
     FontMetrics metrics{};
     if (!m_impl || !m_impl->ft_library || font_size <= 0.0f) return metrics;
 
-    FaceEntry* entry = m_impl->get_face_entry(spec);
+    auto entry = m_impl->get_face_entry(spec);
     if (!entry || !entry->valid()) return metrics;
     std::lock_guard<std::mutex> font_lock(m_impl->font_ops_mutex);
 
@@ -563,7 +520,6 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
 
 void FontEngine::clear_cache() {
     if (!m_impl) return;
-    std::unique_lock<std::shared_mutex> lock(m_impl->face_cache_mutex);
     m_impl->clear_cache_unlocked();
 }
 
@@ -585,33 +541,24 @@ TextLayoutCache& FontEngine::text_layout_cache() noexcept {
 
 bool FontEngine::can_load(const FontSpec& spec) {
     if (!m_impl || !m_impl->ft_library) return false;
-    auto* entry = m_impl->get_face_entry(spec);
+    auto entry = m_impl->get_face_entry(spec);
     return entry != nullptr && entry->valid();
 }
 
-// Cat-5: glyph coverage probe is a free function in the
-// `font_engine_internal` namespace, friend-declared on FontEngine. The
-// class itself does NOT expose `has_glyph_for_codepoint` as a public
-// method, keeping the public ABI minimal.
 namespace text::font_engine_internal {
 
 bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t codepoint) {
 #ifdef CHRONON3D_ENABLE_TEXT
     if (!engine.m_impl) return false;
 
-    // Invisible codepoints carry no visible ink (space, joiners, controls,
-    // variation selectors, etc.). They do not require a real glyph from the
-    // font, so the coverage probe must not reject them on that basis.
     if (is_invisible_codepoint(codepoint)) {
         return true;
     }
 
-    FaceEntry* entry = engine.m_impl->get_face_entry(spec);
+    auto entry = engine.m_impl->get_face_entry(spec);
     if (!entry) return false;
+    std::lock_guard<std::mutex> font_lock(engine.m_impl->font_ops_mutex);
 
-    // Use FreeType's strict cmap resolver instead of HarfBuzz's nominal probe.
-    // Some fonts map missing codepoints to a non-zero .notdef glyph, so we
-    // also reject glyphs that resolve to the cached .notdef index.
     FT_UInt glyph_index = FT_Get_Char_Index(entry->ft_face, static_cast<FT_ULong>(codepoint));
     if (glyph_index == 0 || glyph_index == entry->notdef_glyph_id) {
         return false;
@@ -644,14 +591,13 @@ bool inspect_font(
 ) {
 #ifdef CHRONON3D_ENABLE_TEXT
     if (!engine.m_impl) return false;
-    FaceEntry* entry = engine.m_impl->get_face_entry(spec);
+    auto entry = engine.m_impl->get_face_entry(spec);
     if (!entry) return false;
 
     out_family = entry->family_name;
     out_style  = entry->style_name;
     out_weight = entry->font_weight;
 
-    // Simple heuristic for weight/style from the face metadata.
     auto lower = [](std::string s) {
         std::transform(s.begin(), s.end(), s.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
