@@ -12,7 +12,7 @@ function(chronon3d_add_test_suite)
         ARG
         "NO_PIPELINE"
         "NAME;TIER"
-        "SOURCES;LINK_TARGETS;LABELS"
+        "SOURCES;LINK_TARGETS;EXTRA_LINK_TARGETS;LABELS"
         ${ARGN}
     )
 
@@ -43,7 +43,12 @@ function(chronon3d_add_test_suite)
     else()
         message(AUTHOR_WARNING
             "chronon3d_add_test_suite: LINK_TARGETS override on '${ARG_NAME}' "
-            "(tier='${ARG_TIER}')")
+            "(tier='${ARG_TIER}'); prefer EXTRA_LINK_TARGETS for additive dependencies")
+    endif()
+
+    if(ARG_EXTRA_LINK_TARGETS)
+        list(APPEND ARG_LINK_TARGETS ${ARG_EXTRA_LINK_TARGETS})
+        list(REMOVE_DUPLICATES ARG_LINK_TARGETS)
     endif()
 
     # Internal suites never consume the monolithic SDK archive. Keep the
