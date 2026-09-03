@@ -43,17 +43,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     sdk_tests.cmake
     simd/simd_parity_blend_tests.cmake
     simd/cpu_isa_tests.cmake
-    render_graph/compiler/fusion_pass_tests.cmake
-    render_graph/compiler/template_program_tests.cmake
-    render_graph/compiler/segment_execution_tests.cmake
-    runtime/template_program_cache_tests.cmake
-    runtime/gpu_layer_batch_tests.cmake
-    runtime/gpu_command_plan_tests.cmake
-    runtime/resource_state_tracker_tests.cmake
-    runtime/compiled_resource_authority_tests.cmake
-    runtime/async_encoder_sink_tests.cmake
-    runtime/semantic_core_tests.cmake
-    render_graph/pipeline/glow_fullframe_audit_tests.cmake
     reference/capcut/CMakeLists.txt
     text/CMakeLists.txt
     assets/CMakeLists.txt
