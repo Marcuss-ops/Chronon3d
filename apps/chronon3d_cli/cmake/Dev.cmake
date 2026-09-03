@@ -28,10 +28,8 @@ add_library(chronon3d_cli_dev STATIC
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_inspection_collector.cpp>
     utils/batch/batch_job_spec.cpp
     utils/batch/batch_runner.cpp
-    ${CMAKE_SOURCE_DIR}/content/ae_parity/ae_cam_scenes.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_orbit.cpp
-    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
 )
 target_include_directories(chronon3d_cli_dev PRIVATE
