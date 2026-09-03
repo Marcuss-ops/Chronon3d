@@ -24,6 +24,7 @@ DEVELOPER_GATES=(
     check_no_changelog_conflict_markers.sh
     check_doc_sha_dedup.sh
     check_commit_subject_length.sh
+    check_unique_cmake_source_ownership.py
     check_no_process_wide_caches.sh
     check_no_runtime_image_decode.sh
     check_no_hidden_render_scratch.sh
