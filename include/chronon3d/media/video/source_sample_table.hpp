@@ -26,13 +26,29 @@ struct SourceSample {
     constexpr bool operator==(const SourceSample&) const = default;
 };
 
+enum class SampleLookupDisposition : std::uint8_t {
+    Found,
+    BeforeStart,
+    Gap,
+    AfterEnd,
+};
+
+struct SampleLookupResult {
+    SampleLookupDisposition disposition{SampleLookupDisposition::AfterEnd};
+    std::optional<std::size_t> sample_index{};
+
+    [[nodiscard]] bool found() const noexcept {
+        return disposition == SampleLookupDisposition::Found && sample_index.has_value();
+    }
+};
+
 /// Canonical PTS-native resolver for source video samples.
 ///
 /// Selection is exact and never consults nominal/average FPS:
 /// presentation_time -> sample table -> sample whose [PTS, PTS+duration)
 /// interval covers the requested time. Duplicate PTS values use source_order
-/// as a stable tie-break. Gaps return no sample. A continuity-id change is an
-/// explicit seek/reset boundary.
+/// as a stable tie-break. Gaps are classified explicitly. A continuity-id
+/// change is an explicit seek/reset boundary.
 class SourceSampleTable {
 public:
     explicit SourceSampleTable(Rational time_base = {1, 1})
@@ -95,17 +111,20 @@ public:
         m_finalized = true;
     }
 
-    [[nodiscard]] std::optional<std::size_t> select_covering(
-        RationalTime presentation_time) const {
+    [[nodiscard]] SampleLookupResult lookup(RationalTime presentation_time) const {
         require_finalized();
-        if (m_samples.empty()) return std::nullopt;
+        if (m_samples.empty()) {
+            return {SampleLookupDisposition::AfterEnd, std::nullopt};
+        }
+        if (compare(presentation_time, m_samples.front().pts) < 0) {
+            return {SampleLookupDisposition::BeforeStart, std::nullopt};
+        }
 
         const auto upper = std::upper_bound(
             m_samples.begin(), m_samples.end(), presentation_time,
             [this](const RationalTime& time, const SourceSample& sample) {
                 return compare(time, sample.pts) < 0;
             });
-        if (upper == m_samples.begin()) return std::nullopt;
 
         std::size_t candidate = static_cast<std::size_t>(upper - m_samples.begin() - 1);
         const i64 candidate_pts = m_samples[candidate].pts;
@@ -118,10 +137,25 @@ public:
             const auto& sample = m_samples[i];
             if (compare(presentation_time, sample.pts) >= 0 &&
                 compare(presentation_time, checked_end(sample)) < 0) {
-                return i;
+                return {SampleLookupDisposition::Found, i};
             }
         }
-        return std::nullopt;
+
+        i64 final_end = checked_end(m_samples.back());
+        for (std::size_t i = m_samples.size(); i > 0; --i) {
+            const auto& sample = m_samples[i - 1];
+            if (sample.pts != m_samples.back().pts) break;
+            final_end = std::max(final_end, checked_end(sample));
+        }
+        if (compare(presentation_time, final_end) >= 0) {
+            return {SampleLookupDisposition::AfterEnd, std::nullopt};
+        }
+        return {SampleLookupDisposition::Gap, std::nullopt};
+    }
+
+    [[nodiscard]] std::optional<std::size_t> select_covering(
+        RationalTime presentation_time) const {
+        return lookup(presentation_time).sample_index;
     }
 
     [[nodiscard]] bool are_sequential(std::size_t previous,
