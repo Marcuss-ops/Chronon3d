@@ -1,5 +1,5 @@
 // tests/runtime/test_gpu_command_plan.cpp
-// Phase 3 compiler-authority locks: backend-neutral ResourceState hazards.
+// Compiler-authority locks: canonical ResourceTransition hazards.
 
 #include <doctest/doctest.h>
 
@@ -17,11 +17,20 @@ ResourceDesc color_desc() {
         ResourceUsage::Generic, LifetimeClass::FrameTransient);
 }
 
-const BarrierTransition* transition_for(const CommandPlan& plan,
-                                        std::size_t pass_index,
-                                        RenderSurfaceHandle surface) {
-    for (const auto& transition : plan.barriers.transitions) {
-        if (transition.pass_index == pass_index && transition.surface == surface) {
+RenderSurfaceHandle surface_for(const CommandPlan& plan,
+                                const ResourceTransition& transition) {
+    if (transition.resource >= plan.resources.requests.size()) {
+        return kInvalidRenderSurfaceHandle;
+    }
+    return plan.resources.requests[transition.resource].surface;
+}
+
+const ResourceTransition* transition_for(const CommandPlan& plan,
+                                         std::size_t pass_index,
+                                         RenderSurfaceHandle surface) {
+    for (const auto& transition : plan.transitions) {
+        if (transition.consumer_pass == pass_index &&
+            surface_for(plan, transition) == surface) {
             return &transition;
         }
     }
@@ -45,7 +54,7 @@ TEST_CASE("ResourceState exposes explicit color subresource defaults") {
     CHECK_FALSE(state.writes());
 }
 
-TEST_CASE("GpuCommandPlanner resolves first-write and RAW before backend") {
+TEST_CASE("GpuCommandPlanner emits canonical first-write and RAW transitions") {
     GpuCommandPlanner planner;
     planner.declare_surface(1, color_desc());
     planner.declare_surface(2, color_desc());
@@ -55,22 +64,27 @@ TEST_CASE("GpuCommandPlanner resolves first-write and RAW before backend") {
     planner.composite(CompositePass{.destination = 3, .source = 2});
 
     const auto plan = planner.build();
-    REQUIRE(plan.barriers.size() == 3);
+    REQUIRE(plan.transitions.size() == 3);
 
     const auto* first_write = transition_for(plan, 0, 2);
     REQUIRE(first_write != nullptr);
-    CHECK(first_write->hazard == ResourceHazard::FirstWrite);
     CHECK(first_write->before.layout == ResourceLayout::Undefined);
-    CHECK(first_write->after == ResourceState::compute_write());
+    CHECK(first_write->after.writes());
+    CHECK_FALSE(first_write->after.reads());
+    CHECK(first_write->after.layout == ResourceLayout::General);
+    CHECK(first_write->consumer_pass == 0);
+    CHECK_FALSE(first_write->queue_ownership_transfer);
 
     const auto* raw = transition_for(plan, 1, 2);
     REQUIRE(raw != nullptr);
-    CHECK(raw->hazard == ResourceHazard::ReadAfterWrite);
     CHECK(raw->before.writes());
     CHECK(raw->after.reads());
+    CHECK_FALSE(raw->after.writes());
+    CHECK(raw->producer_pass == 0);
+    CHECK(raw->consumer_pass == 1);
 }
 
-TEST_CASE("GpuCommandPlanner elides read to read barriers") {
+TEST_CASE("GpuCommandPlanner elides read to read transitions") {
     GpuCommandPlanner planner;
     planner.declare_surface(1, color_desc());
     planner.declare_surface(2, color_desc());
@@ -84,7 +98,7 @@ TEST_CASE("GpuCommandPlanner elides read to read barriers") {
     CHECK(transition_for(plan, 1, 1) == nullptr);
 }
 
-TEST_CASE("GpuCommandPlanner resolves WAR and WAW hazards") {
+TEST_CASE("GpuCommandPlanner resolves WAR and WAW through state transitions") {
     SUBCASE("WAR") {
         GpuCommandPlanner planner;
         planner.declare_surface(1, color_desc());
@@ -96,8 +110,8 @@ TEST_CASE("GpuCommandPlanner resolves WAR and WAW hazards") {
         const auto plan = planner.build();
         const auto* war = transition_for(plan, 1, 1);
         REQUIRE(war != nullptr);
-        CHECK(war->hazard == ResourceHazard::WriteAfterRead);
         CHECK(war->before.reads());
+        CHECK_FALSE(war->before.writes());
         CHECK(war->after.writes());
     }
 
@@ -111,13 +125,12 @@ TEST_CASE("GpuCommandPlanner resolves WAR and WAW hazards") {
         const auto plan = planner.build();
         const auto* waw = transition_for(plan, 1, 2);
         REQUIRE(waw != nullptr);
-        CHECK(waw->hazard == ResourceHazard::WriteAfterWrite);
         CHECK(waw->before.writes());
         CHECK(waw->after.writes());
     }
 }
 
-TEST_CASE("In-place pass keeps read and write intent in one state") {
+TEST_CASE("In-place pass keeps read and write intent in one canonical state") {
     GpuCommandPlanner planner;
     planner.declare_surface(1, color_desc());
     planner.composite(CompositePass{.destination = 1, .source = 1});
@@ -136,29 +149,38 @@ TEST_CASE("Physical slot reuse starts a new logical resource state") {
     planner.declare_surface(3, color_desc());
     planner.declare_surface(4, color_desc());
 
-    // Surface 2 is live only in pass 0. Surface 4 starts in pass 1, so the
-    // deterministic first-fit planner may reuse 2's physical slot for 4.
     planner.composite(CompositePass{.destination = 2, .source = 1});
     planner.composite(CompositePass{.destination = 4, .source = 3});
 
     const auto plan = planner.build();
-    const auto slot2 = [&] {
+    const auto slot_for = [&](RenderSurfaceHandle surface) {
         for (const auto& allocation : plan.resources.allocations) {
-            if (allocation.surface == 2) return allocation.physical_slot;
+            if (allocation.surface == surface) return allocation.physical_slot;
         }
         return std::numeric_limits<std::size_t>::max();
-    }();
-    const auto slot4 = [&] {
-        for (const auto& allocation : plan.resources.allocations) {
-            if (allocation.surface == 4) return allocation.physical_slot;
-        }
-        return std::numeric_limits<std::size_t>::max();
-    }();
+    };
 
+    const auto slot2 = slot_for(2);
+    const auto slot4 = slot_for(4);
     REQUIRE(slot2 != std::numeric_limits<std::size_t>::max());
     REQUIRE(slot2 == slot4);
+
     const auto* first_write = transition_for(plan, 1, 4);
     REQUIRE(first_write != nullptr);
-    CHECK(first_write->hazard == ResourceHazard::FirstWrite);
     CHECK(first_write->before.layout == ResourceLayout::Undefined);
+    CHECK(first_write->after.writes());
+}
+
+TEST_CASE("CommandPlan stores only canonical ResourceTransition sync data") {
+    GpuCommandPlanner planner;
+    planner.declare_surface(10, color_desc());
+    planner.composite(CompositePass{.destination = 10, .source = 10});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.transitions.size() == 1);
+    const auto& transition = plan.transitions.front();
+    REQUIRE(transition.resource < plan.resources.requests.size());
+    CHECK(plan.resources.requests[transition.resource].surface == 10);
+    CHECK(std::holds_alternative<SubresourceRange>(transition.range));
+    CHECK(transition.after.queue == QueueClass::Compute);
 }
