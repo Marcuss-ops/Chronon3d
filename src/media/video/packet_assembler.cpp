@@ -3,17 +3,18 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <chrono>
-#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
-#include <xxhash.h>
 
 extern "C" {
+#include <libavutil/error.h>
+#include <libavutil/hash.h>
 #include <libavutil/mem.h>
 }
 
@@ -22,35 +23,40 @@ namespace {
 
 constexpr int kMuxAvioBufferSize = 64 * 1024;
 constexpr std::size_t kChecksumReadBufferSize = 64 * 1024;
+constexpr std::size_t kSha256HexChars = 64;
 
-std::string format_xxh64(XXH64_hash_t digest) {
-    char value[17]{};
-    std::snprintf(value, sizeof(value), "%016llx",
-                  static_cast<unsigned long long>(digest));
-    return value;
+bool finish_sha256_hex(AVHashContext* hash, std::string& checksum) {
+    if (!hash || av_hash_get_size(hash) != 32) return false;
+    std::array<char, kSha256HexChars + 1> digest{};
+    av_hash_final_hex(hash, digest.data(), static_cast<int>(digest.size()));
+    checksum.assign(digest.data(), kSha256HexChars);
+    return true;
 }
 
 bool hash_final_file(const std::string& path, std::string& checksum) {
     std::ifstream input(path, std::ios::binary);
     if (!input) return false;
 
-    XXH64_state_t* state = XXH64_createState();
-    if (!state) return false;
-    const auto free_state = [](XXH64_state_t* value) { XXH64_freeState(value); };
-    std::unique_ptr<XXH64_state_t, decltype(free_state)> guard(state, free_state);
-    if (XXH64_reset(state, 0) != XXH_OK) return false;
+    AVHashContext* hash = nullptr;
+    if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
+    const auto free_hash = [](AVHashContext* value) {
+        if (value) av_hash_freep(&value);
+    };
+    std::unique_ptr<AVHashContext, decltype(free_hash)> guard(hash, free_hash);
+    av_hash_init(hash);
 
     std::array<char, kChecksumReadBufferSize> buffer{};
     while (input) {
         input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
         const auto read = input.gcount();
-        if (read > 0 && XXH64_update(state, buffer.data(), static_cast<std::size_t>(read)) != XXH_OK) {
-            return false;
+        if (read > 0) {
+            av_hash_update(hash,
+                           reinterpret_cast<const std::uint8_t*>(buffer.data()),
+                           static_cast<std::size_t>(read));
         }
     }
     if (!input.eof()) return false;
-    checksum = format_xxh64(XXH64_digest(state));
-    return true;
+    return finish_sha256_hex(hash, checksum);
 }
 
 struct InputFile {
@@ -124,7 +130,7 @@ std::int64_t normalize_timestamp(std::int64_t value, std::int64_t first,
 
 struct MuxAvioHashWriter {
     AVIOContext* sink{nullptr};
-    XXH64_state_t* hash{nullptr};
+    AVHashContext* hash{nullptr};
     std::int64_t position{0};
     std::int64_t append_end{0};
     bool incremental_valid{true};
@@ -135,12 +141,12 @@ struct MuxAvioHashWriter {
 
     ~MuxAvioHashWriter() {
         if (sink) avio_closep(&sink);
-        if (hash) XXH64_freeState(hash);
+        if (hash) av_hash_freep(&hash);
     }
 
     [[nodiscard]] bool open(const std::string& path) noexcept {
-        hash = XXH64_createState();
-        if (!hash || XXH64_reset(hash, 0) != XXH_OK) return false;
+        if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
+        av_hash_init(hash);
         if (avio_open(&sink, path.c_str(), AVIO_FLAG_WRITE) < 0 || !sink) return false;
         const auto initial = avio_tell(sink);
         position = initial >= 0 ? initial : 0;
@@ -160,9 +166,8 @@ struct MuxAvioHashWriter {
         avio_write(self->sink, buffer, buffer_size);
         if (self->sink->error < 0) return self->sink->error;
 
-        if (self->incremental_valid &&
-            XXH64_update(self->hash, buffer, static_cast<std::size_t>(buffer_size)) != XXH_OK) {
-            return AVERROR_EXTERNAL;
+        if (self->incremental_valid) {
+            av_hash_update(self->hash, buffer, static_cast<std::size_t>(buffer_size));
         }
         self->position += buffer_size;
         self->append_end = std::max(self->append_end, self->position);
@@ -189,13 +194,15 @@ struct MuxAvioHashWriter {
             if (sink->error < 0) return false;
 
             const bool needs_reread = !incremental_valid;
-            const auto streaming_digest = XXH64_digest(hash);
+            std::string streaming_checksum;
+            if (!needs_reread && !finish_sha256_hex(hash, streaming_checksum)) return false;
+
             const int close_result = avio_closep(&sink);
             if (close_result < 0) return false;
 
             used_reread = needs_reread;
             if (needs_reread) return hash_final_file(path, checksum);
-            checksum = format_xxh64(streaming_digest);
+            checksum = std::move(streaming_checksum);
             return true;
         } catch (...) {
             return false;
@@ -377,6 +384,7 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
     output_path_ = config.output_path;
     output_checksum_.clear();
     checksum_used_reread_ = false;
+    finalize_attempted_ = false;
     finalized_ = false;
     if (avformat_alloc_output_context2(&format_, nullptr, nullptr,
                                        config.output_path.c_str()) < 0 || !format_) {
@@ -481,7 +489,8 @@ bool MuxSession::submit_audio(EncodedPacket encoded) noexcept {
 
 bool MuxSession::finalize() noexcept {
     if (!format_) return false;
-    if (finalized_) return !output_checksum_.empty() || (format_->oformat->flags & AVFMT_NOFILE);
+    if (finalize_attempted_) return finalized_;
+    finalize_attempted_ = true;
 
     const auto started = std::chrono::steady_clock::now();
     const bool trailer_ok = av_write_trailer(format_) >= 0;
