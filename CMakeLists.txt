@@ -6,11 +6,7 @@ project(Chronon3d
     LANGUAGES C CXX
 )
 
-# Keep compile parallelism high while preventing concurrent links from
-# exhausting the build host. Chronon3d has several large unity/static-library
-# consumers and the CLI/shared-library links can each require substantial
-# peak RSS. With Ninja this preserves `-j12..14` throughput for compilation
-# and allows only one memory-heavy link at a time.
+# Keep compilation parallel while serializing memory-heavy Ninja link steps.
 if(CMAKE_GENERATOR MATCHES "Ninja")
     set_property(GLOBAL PROPERTY JOB_POOLS chronon3d_link_pool=1)
     set(CMAKE_JOB_POOL_LINK chronon3d_link_pool)
@@ -22,15 +18,24 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND NOT DEFINED VCPKG_CHAINLOAD_TOOLCHAIN_FILE)
-    message(WARNING "vcpkg toolchain not detected. Dependencies are strict and might fail to configure. Please use a CMake preset (e.g., --preset linux-release) or set CMAKE_TOOLCHAIN_FILE to vcpkg.cmake.")
+    message(WARNING
+        "vcpkg toolchain not detected. Dependencies are strict and may fail to configure. "
+        "Use a CMake preset (for example --preset linux-fast-dev) or set CMAKE_TOOLCHAIN_FILE."
+    )
 endif()
 
-# --- Opzioni di Compilazione Globali ---
-add_compile_options(-ffp-contract=off)
-# --- Configurazione Strumenti di Build (ccache / linkers) ---
+# Deterministic floating-point contraction policy, expressed per compiler.
+if(MSVC)
+    add_compile_options(/fp:strict)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-ffp-contract=off)
+endif()
+
+# Compiler launcher: explicit caller configuration wins, then environment,
+# then an auto-discovered ccache.
 if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LAUNCHER})
     set(CMAKE_CXX_COMPILER_LAUNCHER "$ENV{CMAKE_CXX_COMPILER_LAUNCHER}")
-    set(CMAKE_C_COMPILER_LAUNCHER "$ENV{CMAKE_C_COMPILER_LAUNCHER}")
+    set(CMAKE_C_COMPILER_LAUNCHER "$ENV{CMAKE_CXX_COMPILER_LAUNCHER}")
 endif()
 
 if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
@@ -42,7 +47,8 @@ if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
     endif()
 endif()
 
-if(NOT CMAKE_CXX_LINKER_LAUNCHER)
+# Linker choice has one authority. Presets do not force mold/lld/gold.
+if(NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT CMAKE_CXX_LINKER_LAUNCHER)
     find_program(MOLD_PROGRAM mold)
     if(MOLD_PROGRAM)
         message(STATUS "mold found: ${MOLD_PROGRAM}")
@@ -62,7 +68,7 @@ if(NOT CMAKE_CXX_LINKER_LAUNCHER)
     endif()
 endif()
 
-# --- Opzioni del Progetto ---
+# Project options.
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
@@ -75,7 +81,7 @@ option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" OFF)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event backend)" OFF)
 option(CHRONON3D_ENABLE_TELEMETRY "Enable SQLite telemetry persistence" OFF)
-option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code (overlays, analysis, cache introspection)" OFF)
+option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code" OFF)
 option(CHRONON3D_ENABLE_VERIFICATION "Build canonical output verification and render receipts" OFF)
 option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" OFF)
 option(CHRONON3D_BUILD_C_API "Build the shared C ABI wrapper" OFF)
@@ -84,17 +90,19 @@ option(CHRONON3D_BUILD_DAEMON "Build the persistent IPC daemon" OFF)
 option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
 option(CHRONON3D_BUILD_FUZZERS "Build libFuzzer targets (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CUDA_INTEROP
-       "Build the CUDA/Vulkan external-memory interop probe and bridge prerequisites" OFF)
+       "Build CUDA/Vulkan external-memory interop prerequisites" OFF)
 option(CHRONON3D_DEV_SPLIT_DWARF
        "Use split DWARF debug information in developer builds" OFF)
 option(CHRONON3D_BUILD_TIME_TRACE
        "Emit Clang -ftime-trace JSON files for compile-time profiling" OFF)
+option(CHRONON3D_BOLT_POSTPROCESS
+       "Enable LLVM BOLT post-link optimization target" OFF)
 option(CHRONON3D_REPRODUCIBLE_BUILD
        "Normalize source/debug paths for reproducible artifact comparisons" OFF)
 option(CHRONON3D_ENABLE_CRASH_HANDLER
-       "Enable cpptrace-based crash handler (daemon + CLI dev) — requires the vcpkg crash-handler feature" OFF)
+       "Enable cpptrace-based crash handler" OFF)
 option(CHRONON3D_ENABLE_DEV_WATCH
-       "Enable file-system watch mode for development (efsw) — CLI dev only" OFF)
+       "Enable file-system watch mode for development" OFF)
 
 if(CHRONON3D_ENABLE_SVG)
     find_package(boost_spirit CONFIG REQUIRED)
@@ -132,8 +140,7 @@ if(CHRONON3D_REPRODUCIBLE_BUILD AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     )
 endif()
 
-# Blend2D is independent from CHRONON3D_ENABLE_TEXT and remains part of the
-# lean software-rendering default.
+# Blend2D is independent from text and remains part of the lean software path.
 option(CHRONON3D_USE_BLEND2D "Enable Blend2D software rendering backend" ON)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
@@ -156,8 +163,10 @@ endif()
 if(CHRONON3D_ENABLE_VIDEO)
     add_compile_definitions(CHRONON3D_ENABLE_VIDEO)
 endif()
+
+# Tests certify diagnostics snapshots and verification receipts, so these
+# features are canonical consequences of CHRONON3D_BUILD_TESTS.
 if(CHRONON3D_BUILD_TESTS)
-    # Test suites assert against diagnostics snapshots and render receipts.
     set(CHRONON3D_ENABLE_DIAGNOSTICS ON CACHE BOOL "Enable engine-level diagnostics code" FORCE)
     set(CHRONON3D_ENABLE_VERIFICATION ON CACHE BOOL "Build canonical output verification and render receipts" FORCE)
 endif()
@@ -172,7 +181,7 @@ if(CHRONON3D_UNITY_BUILD)
     endif()
 endif()
 
-# --- Ricerca Dipendenze ---
+# Dependencies.
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
@@ -217,15 +226,15 @@ if(CHRONON3D_ENABLE_VULKAN)
         )
         find_path(CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT
             NAMES spirv_reflect.h
-            HINTS
-                "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include"
+            HINTS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include"
         )
         if(CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT)
             target_include_directories(chronon3d_spirv_reflect_headers SYSTEM
                 INTERFACE "${CHRONON3D_SPIRV_REFLECT_INCLUDE_ROOT}"
             )
         else()
-            message(FATAL_ERROR "Could not find spirv_reflect.h include root for unofficial::spirv-reflect")
+            message(FATAL_ERROR
+                "Could not find spirv_reflect.h include root for unofficial::spirv-reflect")
         endif()
     endif()
     find_package(VulkanMemoryAllocator CONFIG REQUIRED)
@@ -234,7 +243,6 @@ endif()
 if(CHRONON3D_ENABLE_EXR)
     find_package(OpenEXR CONFIG REQUIRED)
 endif()
-
 if(CHRONON3D_ENABLE_TELEMETRY)
     find_package(unofficial-sqlite3 CONFIG REQUIRED)
 endif()
@@ -244,16 +252,13 @@ endif()
 if(CHRONON3D_ENABLE_DEV_WATCH)
     find_package(efsw CONFIG REQUIRED)
 endif()
-
 if(CHRONON3D_BUILD_BENCHMARKS)
     find_package(benchmark CONFIG REQUIRED)
 endif()
-
 if(CHRONON3D_ENABLE_TRACING)
     find_package(unofficial-perfetto CONFIG REQUIRED)
 endif()
 
-# --- Git Commit Hash Extraction ---
 execute_process(
     COMMAND git rev-parse --short HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -265,27 +270,24 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
-# ── Central registry (must be included before src) ───────────────────────────
+# Central build registries and source graph.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DRegistry.cmake)
-
-# ── Canonical shader pipeline (glslang → spirv-val → spirv-opt → embed) ───
 include(${CMAKE_SOURCE_DIR}/cmake/ChrononShaders.cmake)
 
-# ── Host build tools (shader codegen) ────────────────────────────────────
 if(CHRONON3D_ENABLE_VULKAN)
     add_subdirectory(tools/shaders)
 endif()
 
 add_subdirectory(src)
 
-# ── Perfetto tracing backend ─────────────────────────────────────────────
 if(CHRONON3D_ENABLE_TRACING)
     target_link_libraries(chronon3d_core_impl PRIVATE unofficial::perfetto::perfetto)
     target_compile_definitions(chronon3d_core_impl PRIVATE CHRONON3D_ENABLE_TRACING)
     target_link_libraries(chronon3d_pipeline INTERFACE unofficial::perfetto::perfetto)
 endif()
 
-# Build CLI command-group libraries before the test definitions are loaded.
+# Applications are materialized before tests so test manifests may reference
+# their registered targets.
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
@@ -295,30 +297,30 @@ if(CHRONON3D_BUILD_DAEMON)
     endif()
     add_subdirectory(apps/chronon3d_daemon)
 endif()
-
-# The benchmark library/tests and standalone benchmark CLI share one SSOT gate.
 if(CHRONON3D_BUILD_BENCHMARKS)
     add_subdirectory(apps/chronon3d_bench)
 endif()
 
-# ── Test orchestration ───────────────────────────────────────────────────
-enable_testing()
+# BOLT is a post-link executable optimization and must be wired only after the
+# CLI target exists.
+if(CHRONON3D_BOLT_POSTPROCESS)
+    include(${CMAKE_SOURCE_DIR}/cmake/bolt_postprocess.cmake)
+endif()
 
+# Tests and fuzzers.
+enable_testing()
 if(CHRONON3D_BUILD_TESTS)
     set(BUILD_TESTING ON CACHE BOOL "Build the testing tree.")
     target_compile_definitions(chronon3d_core_impl PUBLIC CHRONON_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
-
-# ── Fuzz targets (libFuzzer + ASAN/UBSAN, Clang only) ───────────────────
 if(CHRONON3D_BUILD_FUZZERS AND CHRONON3D_ENABLE_IPC)
     add_subdirectory(tests/fuzz)
 endif()
 
-# ── Install-boundary CI gate (TICKET-011) ─────────────────────────────────
+# Install-boundary CI gate.
 option(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST
-    "Run the end-to-end SDK install-boundary check via tools/install_consumer_test.sh. CTest registers install_consumer_ci; orchestrator exit code 2 maps to CTEST SKIP. Enable via the linux-ci preset or -DCHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON."
-    OFF)
+    "Register the end-to-end SDK install-boundary check" OFF)
 if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(
         NAME install_consumer_ci
@@ -331,9 +333,9 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
-# ── Visual Regression Gate (two-tier: EXACT_SHA + VISUAL_SCORE) ──────────
+# Visual regression gate.
 option(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE
-    "Register the two-tier visual regression CTest gate (requires Pillow + ImageMagick)" ON)
+    "Register the two-tier visual regression CTest gate" ON)
 if(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE)
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_FOUND)
@@ -353,35 +355,26 @@ if(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE)
     endif()
 endif()
 
-# ── SDK Install / Export ─────────────────────────────────────────────────────
+# SDK install/export boundary.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkInstall.cmake)
 
-# ── Aggregate developer target (CLI + fast tests) ──────────────────────────────
 if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
     add_custom_target(chronon3d_dev_fast
-        DEPENDS
-            chronon3d_cli
-            chronon3d_tests_fast
+        DEPENDS chronon3d_cli chronon3d_tests_fast
     )
 endif()
 
-# ── Hygiene gates ─────────────────────────────────────────────────────
 include(cmake/Hygiene.cmake)
 
-# ── Architecture check aggregate target ─────────────────────────────────
+# Architecture aggregate target.
 add_custom_target(chronon3d_architecture_check)
-if(TARGET chronon3d_runtime)
-    add_dependencies(chronon3d_architecture_check chronon3d_runtime)
-endif()
-if(TARGET chronon3d_graph_executor)
-    add_dependencies(chronon3d_architecture_check chronon3d_graph_executor)
-endif()
-if(TARGET chronon3d_graph_pipeline)
-    add_dependencies(chronon3d_architecture_check chronon3d_graph_pipeline)
-endif()
-if(TARGET chronon3d_backend_software)
-    add_dependencies(chronon3d_architecture_check chronon3d_backend_software)
-endif()
-if(TARGET chronon3d_sdk_impl)
-    add_dependencies(chronon3d_architecture_check chronon3d_sdk_impl)
-endif()
+foreach(_architecture_dependency
+        chronon3d_runtime
+        chronon3d_graph_executor
+        chronon3d_graph_pipeline
+        chronon3d_backend_software
+        chronon3d_sdk_impl)
+    if(TARGET ${_architecture_dependency})
+        add_dependencies(chronon3d_architecture_check ${_architecture_dependency})
+    endif()
+endforeach()
