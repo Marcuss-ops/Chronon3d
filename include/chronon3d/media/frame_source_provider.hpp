@@ -34,6 +34,20 @@ public:
         int width,
         int height) = 0;
 
+    /// Source-compatible frame/fps decode adapter.
+    std::shared_ptr<Framebuffer> decode_frame(
+        const std::string& path,
+        Frame frame,
+        int width,
+        int height,
+        double fps = 30.0) {
+        const double rate = fps > 0.0 ? fps : 30.0;
+        const RationalTime pts{
+            static_cast<std::int64_t>(frame * 1000000.0 / rate),
+            Rational{1, 1000000}};
+        return decode_frame_at(path, pts, width, height);
+    }
+
     /// Diagnostic for the most recent failed decode on this provider. The
     /// framebuffer return remains source-compatible while callers gain a
     /// typed reason instead of interpreting every nullptr as the same failure.

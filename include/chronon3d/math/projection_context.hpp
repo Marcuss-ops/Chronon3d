@@ -72,6 +72,23 @@ struct ProjectionContext {
         return out;
     }
 
+    [[nodiscard]] ProjectedQuad project_card(const Mat4& model, const Vec2& size) const {
+        const f32 hw = size.x * 0.5f;
+        const f32 hh = size.y * 0.5f;
+        const Vec3 local_corners[4] = {
+            {-hw, -hh, 0.0f},
+            { hw, -hh, 0.0f},
+            { hw,  hh, 0.0f},
+            {-hw,  hh, 0.0f},
+        };
+        Vec3 world_corners[4];
+        for (int i = 0; i < 4; ++i) {
+            const Vec4 w = model * Vec4(local_corners[i], 1.0f);
+            world_corners[i] = {w.x, w.y, w.z};
+        }
+        return project_quad(world_corners);
+    }
+
     [[nodiscard]] bool project_line_clipped(Vec3 w0, Vec3 w1, Vec2& p0, Vec2& p1) const {
         Vec4 c0 = view * Vec4(w0, 1.0f);
         Vec4 c1 = view * Vec4(w1, 1.0f);
