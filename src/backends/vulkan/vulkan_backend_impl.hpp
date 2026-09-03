@@ -20,6 +20,7 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/runtime/gpu_device_lost_error.hpp>
 #include "memory/vulkan_memory_manager.hpp"
 #include "debug/vulkan_debug_context.hpp"
 
@@ -53,14 +54,18 @@ inline bool surface_lifecycle_diag_enabled() noexcept {
     return enabled;
 }
 
-// Shared failure helper — was an anonymous-namespace function inside
-// vulkan_backend.cpp; every fragment TU needs it, so it is inline here.
+// Every checked VkResult funnels through this boundary. Device loss is
+// terminal for the worker: poison first, then throw the explicit fatal type.
 inline void check(VkResult result, const char* operation) {
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(std::string{"Vulkan "} + operation +
-                                 " failed with VkResult=" +
-                                 std::to_string(static_cast<int>(result)));
+    if (result == VK_SUCCESS) return;
+    if (result == VK_ERROR_DEVICE_LOST) {
+        runtime::poison_gpu_worker();
+        throw runtime::GpuDeviceLostError{
+            std::string{"Vulkan device lost during "} + operation};
     }
+    throw std::runtime_error(std::string{"Vulkan "} + operation +
+                             " failed with VkResult=" +
+                             std::to_string(static_cast<int>(result)));
 }
 
 // Default tint for plain composite passes (no tint applied).
@@ -71,6 +76,11 @@ struct VulkanBackend::Impl {
     // staging uploads and descriptor allocation are stateful per backend.
     // Serialize that narrow Vulkan boundary; CPU graph work remains parallel.
     mutable std::recursive_mutex api_mutex;
+
+    void require_healthy() const {
+        runtime::require_healthy_gpu_worker();
+    }
+
     struct Image {
         VkImage image{VK_NULL_HANDLE};
         VmaAllocation allocation{VK_NULL_HANDLE};
