@@ -28,7 +28,7 @@ constexpr std::size_t kSha256HexChars = 64;
 bool finish_sha256_hex(AVHashContext* hash, std::string& checksum) {
     if (!hash || av_hash_get_size(hash) != 32) return false;
     std::array<char, kSha256HexChars + 1> digest{};
-    av_hash_final_hex(hash, digest.data(), static_cast<int>(digest.size()));
+    av_hash_final_hex(hash, reinterpret_cast<uint8_t*>(digest.data()), static_cast<int>(digest.size()));
     checksum.assign(digest.data(), kSha256HexChars);
     return true;
 }
@@ -155,7 +155,7 @@ struct MuxAvioHashWriter {
         return true;
     }
 
-    static int write_packet(void* opaque, const std::uint8_t* buffer, int buffer_size) noexcept {
+    static int write_packet(void* opaque, std::uint8_t* buffer, int buffer_size) noexcept {
         auto* self = static_cast<MuxAvioHashWriter*>(opaque);
         if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
         if (buffer_size == 0) return 0;
@@ -361,6 +361,10 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     return result;
 }
 
+void MuxSession::delete_writer(MuxAvioHashWriter* writer) noexcept {
+    delete writer;
+}
+
 MuxSession::~MuxSession() {
     if (!format_) return;
     if (format_->pb && format_->oformat && !(format_->oformat->flags & AVFMT_NOFILE)) {
@@ -428,7 +432,8 @@ bool MuxSession::write_header(const std::string& output_path,
         return false;
     }
     if (!(format_->oformat->flags & AVFMT_NOFILE)) {
-        writer_ = std::make_unique<MuxAvioHashWriter>();
+        writer_ = std::unique_ptr<MuxAvioHashWriter, void(*)(MuxAvioHashWriter*)>(
+            new MuxAvioHashWriter(), delete_writer);
         if (!writer_->open(output_path)) {
             reason = "failed to open checksum-aware output";
             writer_.reset();

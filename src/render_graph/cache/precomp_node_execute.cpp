@@ -287,9 +287,9 @@ NodeExecResult PrecompNode::execute_with_scope(
         return NodeExecResult{ctx.acquire_owned_fb(
             ctx.frame_input.width, ctx.frame_input.height)};
     }
-    auto nested_result = inner_executor->execute_with_scope(
+    auto nested_result = inner_executor->execute(
         program->frame_graph, nested_ctx, precomp_scope,
-        *ctx.services.scheduler);
+        *ctx.services.scheduler).framebuffer;
 
     if (nested_result) {
         return NodeExecResult{ctx.acquire_owned_fb(std::move(nested_result))};
