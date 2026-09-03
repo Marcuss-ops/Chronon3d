@@ -158,6 +158,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
     }
 
     build_compiled_frame_program(compiled);
+    compiled.program.allocate_pass_queries();
 }
 
 void FrameGraphCompiler::validate_compiled_program_coverage(
