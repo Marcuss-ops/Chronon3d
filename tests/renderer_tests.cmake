@@ -171,7 +171,9 @@ endif()
 chronon3d_add_test_suite(
     NAME   chronon3d_golden_tests
     TIER   INTEGRATION
-    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
+    LINK_TARGETS
+        ${_RENDERER_LINK_TARGETS}
+        chronon3d_visual_test_support
     SOURCES
         golden/glow_golden_tests.cpp
         golden/golden_render_tests.cpp
@@ -180,8 +182,6 @@ chronon3d_add_test_suite(
         golden/suite_chronon3d_tests.cpp
         golden/test_clip_transition_golden.cpp
         ${_CHRONON3D_MESH_GOLDEN_SOURCES}
-        visual/support/golden_test.cpp
-        visual/support/image_diff.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_golden_tests)
 
