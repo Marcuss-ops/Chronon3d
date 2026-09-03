@@ -151,7 +151,6 @@ void register_commands(CLI::App& app, CliContext& ctx) {
     register_doctor(app, ctx);
     register_verify(app, ctx);
     register_daemon(app, ctx);
-    register_create_commands(app, ctx);
 #ifdef CHRONON3D_HAS_CLI_RENDER
     register_watch_commands(app, ctx);
     register_preview_commands(app, ctx);
