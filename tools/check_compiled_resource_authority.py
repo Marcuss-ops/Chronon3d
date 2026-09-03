@@ -3,7 +3,7 @@
 
 P0.2 deliberately permits ResourcePlanner as an ephemeral placement algorithm,
 but forbids reintroducing any persisted framebuffer allocation plan, parallel
-lifetime authority, or source-compatibility shim from the retired model.
+lifetime authority, or source-compatibility shim from the retired compiled model.
 """
 
 from __future__ import annotations
@@ -17,9 +17,10 @@ CANONICAL_TABLE = ROOT / "include/chronon3d/render_graph/compiler/compiled_resou
 COMPILED_GRAPH = ROOT / "include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp"
 SCAN_ROOTS = (ROOT / "include", ROOT / "src")
 
-# Match actual retired declarations/includes/compiler APIs rather than generic
-# prose about lifetime analysis. ResourcePlanner itself remains valid because it
-# is an ephemeral algorithm whose result is persisted only in CompiledResourceTable.
+# Match actual retired compiled-resource declarations/includes/compiler APIs.
+# ResourcePlanner/ResourcePlan remain valid ephemeral placement machinery; their
+# result is lowered into CompiledResourceTable and is not a second persisted
+# compiled authority.
 FORBIDDEN_PATTERNS = (
     (
         re.compile(r"\b(?:struct|class)\s+PhysicalFramebufferAllocationPlan\b"),
@@ -56,22 +57,20 @@ FORBIDDEN_PATTERNS = (
         re.compile(r"\bkInvalidPhysicalFramebufferSlot\b"),
         "retired framebuffer-slot sentinel spelling",
     ),
-    (
-        re.compile(r"\ballocation_for\s*\("),
-        "retired allocation_for compatibility API",
-    ),
 )
 
-# The canonical table used to carry zero-storage shims that were safe from a
-# storage perspective but kept the old API alive. P0.2 is complete only while
-# those spellings are absent from the authority itself as well.
+# The canonical compiled table used to carry zero-storage shims that were safe
+# from a storage perspective but kept the retired API alive. P0.2 is complete
+# only while those spellings stay absent from the authority itself. Note that
+# runtime::ResourcePlan::allocation_for() is intentionally valid; only the old
+# CompiledResourceTable compatibility method is forbidden here.
 FORBIDDEN_CANONICAL_PATTERNS = (
     (re.compile(r"\bphysical_framebuffer_plan\b"), "physical_framebuffer_plan shim"),
     (re.compile(r"\blifetimes\b"), "lifetimes shim"),
     (re.compile(r"\bCompiledResourceRecord\b"), "CompiledResourceRecord alias"),
     (re.compile(r"\bResourceLifetime\b"), "ResourceLifetime alias"),
     (re.compile(r"\bkInvalidPhysicalFramebufferSlot\b"), "legacy framebuffer-slot sentinel"),
-    (re.compile(r"\ballocation_for\s*\("), "allocation_for compatibility API"),
+    (re.compile(r"\ballocation_for\s*\("), "compiled allocation_for compatibility API"),
 )
 
 
@@ -144,7 +143,8 @@ def main() -> int:
 
     print(
         "Compiled resource authority gate passed: P0.2 is sealed; CompiledResourceTable "
-        "is the sole persisted lifetime/allocation authority and no compatibility shims remain."
+        "is the sole persisted compiled lifetime/allocation authority and no compatibility "
+        "shims remain."
     )
     return 0
 
