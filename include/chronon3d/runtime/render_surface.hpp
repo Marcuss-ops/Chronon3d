@@ -30,6 +30,14 @@ enum class ResourceUsage : std::uint8_t {
     Generic, ColorAttachment, DepthAttachment, Storage
 };
 
+/// Semantic encoding of a text atlas.  Pixel format alone is insufficient:
+/// both ordinary RGBA coverage and MTSDF atlases can use an RGBA image.
+enum class TextAtlasEncoding : std::uint8_t {
+    PremultipliedRGBA,
+    Coverage,
+    MTSDF,
+};
+
 /// Backend-neutral description used by the lifetime planner and resource
 /// resolvers. Image semantics travel as one canonical FrameFormat; there is no
 /// side-channel color metadata that can diverge from the pixel representation.
@@ -40,6 +48,7 @@ struct SurfaceDesc {
     ResourceUsage usage{ResourceUsage::Generic};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     std::size_t bytes{0};
+    TextAtlasEncoding text_atlas_encoding{TextAtlasEncoding::PremultipliedRGBA};
 
     constexpr SurfaceDesc() noexcept = default;
 

@@ -76,6 +76,22 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
 )
+
+# `chronon3d_assets` is an OBJECT library, so its private OpenSSL dependency
+# does not reach final consumers through the SDK aggregate.  Publish the
+# crypto runtime at the pipeline boundary when the asset digest uses EVP.
+find_package(OpenSSL QUIET COMPONENTS Crypto)
+if(OpenSSL_FOUND)
+    target_link_libraries(chronon3d_pipeline INTERFACE OpenSSL::Crypto)
+else()
+    find_library(CHRONON3D_CRYPTO_LIBRARY
+        NAMES crypto libcrypto.so.3 libcrypto.so)
+    if(CHRONON3D_CRYPTO_LIBRARY)
+        target_link_libraries(chronon3d_pipeline INTERFACE
+            "${CHRONON3D_CRYPTO_LIBRARY}")
+    endif()
+endif()
+
 if(CHRONON3D_ENABLE_IPC)
     target_link_libraries(chronon3d_pipeline INTERFACE
         nlohmann_json_schema_validator::validator)

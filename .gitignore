@@ -139,3 +139,9 @@ third_party/install/
 
 # ── Bazel (if used by tooling) ─────────────────────────────────────────────────
 bazel-*
+
+# ── Local build caches / artifacts ──
+.ccache/
+vcpkg_bootstrap
+test_renders/
+reports/

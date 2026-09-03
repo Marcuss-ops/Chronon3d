@@ -136,6 +136,7 @@ namespace chronon3d::backends::vulkan {
                     std::to_string(desc.height));
             }
             physical.desc = desc;
+            physical.image.text_atlas_encoding = desc.text_atlas_encoding;
             surfaces.surface_bindings[handle] = slot;
             return physical.image;
         }
@@ -148,6 +149,7 @@ namespace chronon3d::backends::vulkan {
             physical.image.initialized = false;
         }
         physical.desc = desc;
+        physical.image.text_atlas_encoding = desc.text_atlas_encoding;
         surfaces.surface_bindings[handle] = slot;
         return physical.image;
     }
@@ -174,6 +176,7 @@ namespace chronon3d::backends::vulkan {
                 make_image(physical.image, desc.width, desc.height, false, to_vk_format(desc.format));
                 physical.desc = desc;
             }
+            physical.image.text_atlas_encoding = desc.text_atlas_encoding;
             ensure_descriptor_set();
             return physical.image;
         }

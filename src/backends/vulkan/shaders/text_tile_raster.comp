@@ -129,42 +129,48 @@ void main() {
         float plane_h = g.plane_bottom - g.plane_top;
         if (plane_w <= 0.0 || plane_h <= 0.0) continue;
 
-        // Local plane position relative to run
+        // Local plane position relative to run [plane_left, plane_right), [plane_top, plane_bottom)
         vec2 local_pt = (pixel_pos - vec2(r.tx, r.ty)) / vec2(r.sx, r.sy);
-        if (local_pt.x < g.plane_left || local_pt.x > g.plane_right ||
-            local_pt.y < g.plane_top  || local_pt.y > g.plane_bottom) {
+        if (local_pt.x < g.plane_left || local_pt.x >= g.plane_right ||
+            local_pt.y < g.plane_top  || local_pt.y >= g.plane_bottom) {
             continue;
         }
 
-        // Texture coordinates in atlas
-        float u_norm = (local_pt.x - g.plane_left) / plane_w;
-        float v_norm = (local_pt.y - g.plane_top) / plane_h;
+        uint atlas_x = g.atlas_pos & 0xFFFFu;
+        uint atlas_y = (g.atlas_pos >> 16u) & 0xFFFFu;
+        uint atlas_w = g.atlas_size & 0xFFFFu;
+        uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
 
-        float atlas_x = float(g.atlas_pos & 0xFFFFu);
-        float atlas_y = float((g.atlas_pos >> 16) & 0xFFFFu);
-        float atlas_w = float(g.atlas_size & 0xFFFFu);
-        float atlas_h = float((g.atlas_size >> 16) & 0xFFFFu);
+        // Exact pixel offset in atlas to match text_batch.comp
+        vec2 uv_local = (local_pt - vec2(g.plane_left, g.plane_top)) / vec2(plane_w, plane_h);
+        ivec2 sample_offset = ivec2(floor(uv_local * vec2(float(atlas_w), float(atlas_h))));
+        sample_offset = clamp(sample_offset, ivec2(0), ivec2(int(atlas_w) - 1, int(atlas_h) - 1));
+        ivec2 atlas_coord = ivec2(int(atlas_x), int(atlas_y)) + sample_offset;
 
-        vec2 uv = vec2(
-            (atlas_x + u_norm * atlas_w) * params.atlas_inv_w,
-            (atlas_y + v_norm * atlas_h) * params.atlas_inv_h
-        );
-
-        ivec2 atlas_size = imageSize(atlas_image);
-        ivec2 atlas_coord = clamp(ivec2(uv * vec2(atlas_size)),
-                                  ivec2(0), atlas_size - ivec2(1));
         vec4 sampled = imageLoad(atlas_image, atlas_coord);
-        float dist = median3(sampled.r, sampled.g, sampled.b) - 0.5;
+        uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
 
-        // MTSDF screen distance
-        float screen_px_range = 4.0 * max(abs(r.sx), abs(r.sy));
-        float opacity = clamp(dist * screen_px_range + 0.5, 0.0, 1.0);
-        opacity *= r.opacity;
+        vec4 glyph_rgba;
+        if ((flags & 1u) != 0u) {
+            // MTSDF screen distance
+            float dist = median3(sampled.r, sampled.g, sampled.b) - 0.5;
+            float screen_scale = 0.5 * (abs(r.sx) + abs(r.sy));
+            float screen_px_range = max(1.0, 8.0 * screen_scale);
+            float opacity = clamp(dist * screen_px_range + 0.5, 0.0, 1.0) * r.opacity;
+            vec4 tint = unpack_color(r.color);
+            float alpha = tint.a * opacity;
+            glyph_rgba = vec4(tint.rgb * alpha, alpha);
+        } else {
+            // Linear coverage / premultiplied RGBA atlas representation
+            vec4 src = sampled * r.opacity;
+            if (r.color != 0xFFFFFFFFu && r.color != 0u) {
+                vec4 tint = unpack_color(r.color);
+                src *= tint;
+            }
+            glyph_rgba = src;
+        }
 
-        vec4 tint = unpack_color(r.color);
-        vec4 glyph_rgba = vec4(tint.rgb, tint.a * opacity);
-
-        // Pre-multiplied alpha composite
+        // Canonical premultiplied alpha composite (source-over)
         current_color = glyph_rgba + current_color * (1.0 - glyph_rgba.a);
     }
 

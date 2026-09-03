@@ -515,7 +515,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         const auto output_format = (ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle &&
                                     ctx.services.surface_registry &&
                                     ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface))
-            ? ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface)->desc.format
+            ? ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface)->desc.format.pixel
             : runtime::PixelFormat::Rgba32Float;
 
         execution_plan = ExecutionResolver::resolve(

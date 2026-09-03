@@ -50,6 +50,12 @@ GpuGlyphAtlas::AtlasPage& GpuGlyphAtlas::current_page_or_new(
 
     SurfaceDesc desc{kPageSize, kPageSize, page_format,
                      ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+    desc.text_atlas_encoding =
+        representation == GlyphRepresentation::Mtsdf
+            ? TextAtlasEncoding::MTSDF
+            : representation == GlyphRepresentation::Coverage
+                ? TextAtlasEncoding::Coverage
+                : TextAtlasEncoding::PremultipliedRGBA;
 
     const auto result = m_cache.acquire(asset_key, desc, {});
     page.handle = result.handle;
@@ -89,6 +95,12 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
 
         SurfaceDesc desc{width, height, format,
                          ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+        desc.text_atlas_encoding =
+            key.representation == GlyphRepresentation::Mtsdf
+                ? TextAtlasEncoding::MTSDF
+                : key.representation == GlyphRepresentation::Coverage
+                    ? TextAtlasEncoding::Coverage
+                    : TextAtlasEncoding::PremultipliedRGBA;
         const auto result = m_cache.acquire(asset_key, desc, coverage);
 
         GlyphLocation loc;
@@ -129,6 +141,12 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
 
         SurfaceDesc desc{kPageSize, kPageSize, format,
                          ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+        desc.text_atlas_encoding =
+            key.representation == GlyphRepresentation::Mtsdf
+                ? TextAtlasEncoding::MTSDF
+                : key.representation == GlyphRepresentation::Coverage
+                    ? TextAtlasEncoding::Coverage
+                    : TextAtlasEncoding::PremultipliedRGBA;
         const auto result = m_cache.acquire(asset_key, desc, {});
         new_page.handle = result.handle;
         m_pages.push_back(std::move(new_page));
@@ -144,6 +162,11 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
                               ResourceUsage::Storage,
                               LifetimeClass::JobPersistent,
                               static_cast<std::size_t>(kPageSize) * kPageSize * (format == PixelFormat::Rgba8Unorm ? 4 : 1)};
+        page_desc.text_atlas_encoding = page.profile.representation == GlyphRepresentation::Mtsdf
+            ? TextAtlasEncoding::MTSDF
+            : page.profile.representation == GlyphRepresentation::Coverage
+                ? TextAtlasEncoding::Coverage
+                : TextAtlasEncoding::PremultipliedRGBA;
 
         m_cache.backend()->upload_surface_region(
             page.handle, page_desc,

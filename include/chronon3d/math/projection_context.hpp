@@ -4,7 +4,6 @@
 // Factory functions are in projector_2_5d.hpp (requires camera headers).
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/rendering/projected_card.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <cmath>
 
@@ -64,28 +63,6 @@ struct ProjectionContext {
         f32 depth_sum = 0.0f;
         for (int i = 0; i < 4; ++i) {
             const auto p = project_point(corners_world[i]);
-            out.corners[i] = Vec3{p.screen.x, p.screen.y, p.depth};
-            visible = visible && p.visible;
-            depth_sum += p.depth;
-        }
-        out.visible = visible;
-        out.depth = depth_sum * 0.25f;
-        return out;
-    }
-
-    [[nodiscard]] rendering::ProjectedCard project_card(const Mat4& trs, Vec2 size) const {
-        const f32 hw = size.x * 0.5f;
-        const f32 hh = size.y * 0.5f;
-        const Vec3 local[4] = {
-            {-hw, -hh, 0.0f}, { hw, -hh, 0.0f},
-            { hw,  hh, 0.0f}, {-hw,  hh, 0.0f},
-        };
-        rendering::ProjectedCard out;
-        bool visible = true;
-        f32 depth_sum = 0.0f;
-        for (int i = 0; i < 4; ++i) {
-            Vec4 w = trs * Vec4(local[i], 1.0f);
-            const auto p = project_point({w.x, w.y, w.z});
             out.corners[i] = Vec3{p.screen.x, p.screen.y, p.depth};
             visible = visible && p.visible;
             depth_sum += p.depth;

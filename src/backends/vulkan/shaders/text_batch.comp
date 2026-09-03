@@ -75,27 +75,38 @@ void main() {
         uint atlas_w = g.atlas_size & 0xFFFFu;
         uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
 
-        // Glyph plane bounds contain the shaped glyph's position within the
-        // run.  Using only the atlas bitmap dimensions here placed every
-        // glyph at run.tx/run.ty, producing vertical strips instead of text.
+        uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
         float plane_w = g.plane_right - g.plane_left;
         float plane_h = g.plane_bottom - g.plane_top;
-        vec2 local = (vec2(pixel) + vec2(0.5) - vec2(run.tx, run.ty)) /
-            vec2(sx, sy);
-        if (local.x >= g.plane_left && local.y >= g.plane_top &&
-            local.x < g.plane_right && local.y < g.plane_bottom &&
-            plane_w > 0.0 && plane_h > 0.0 &&
-            atlas_w > 0u && atlas_h > 0u) {
-            vec2 uv = (local - vec2(g.plane_left, g.plane_top)) /
+        // The compatibility text_run_surface path supplies bitmap origins in
+        // run.tx/run.ty and has zero plane offsets.  Preserve its exact pixel
+        // contract for ordinary premultiplied RGBA atlases. MTSDF glyphs use
+        // the shaped plane rectangle, which is the only representation that
+        // requires the semantic plane mapping.
+        vec2 uv;
+        bool inside = false;
+        if ((flags & 1u) != 0u) {
+            vec2 local = (vec2(pixel) + vec2(0.5) - vec2(run.tx, run.ty)) /
+                vec2(sx, sy);
+            inside = local.x >= g.plane_left && local.y >= g.plane_top &&
+                local.x < g.plane_right && local.y < g.plane_bottom &&
+                plane_w > 0.0 && plane_h > 0.0;
+            uv = (local - vec2(g.plane_left, g.plane_top)) /
                 vec2(plane_w, plane_h);
+        } else {
+            vec2 local = vec2(pixel) - vec2(round(run.tx), round(run.ty));
+            vec2 scaled_size = ceil(vec2(atlas_w, atlas_h) * vec2(sx, sy));
+            inside = local.x >= 0.0 && local.y >= 0.0 &&
+                local.x < scaled_size.x && local.y < scaled_size.y;
+            uv = local / vec2(sx, sy) / vec2(atlas_w, atlas_h);
+        }
+        if (inside && atlas_w > 0u && atlas_h > 0u) {
             ivec2 sample_offset = ivec2(floor(uv * vec2(atlas_w, atlas_h)));
             sample_offset = clamp(sample_offset, ivec2(0),
                                   ivec2(atlas_w, atlas_h) - ivec2(1));
             ivec2 atlas_coord = ivec2(atlas_x, atlas_y) + sample_offset;
 
             vec4 sample_val = imageLoad(atlas_image, atlas_coord);
-            uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
-
             vec4 src;
             if ((flags & 1u) != 0u) {
                 // MTSDF representation
