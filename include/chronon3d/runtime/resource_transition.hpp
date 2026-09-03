@@ -21,10 +21,12 @@
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/resource_state.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -271,8 +273,6 @@ public:
 
     void clear() noexcept {
         states_.clear();
-        ranges_.clear();
-        producers_.clear();
         transitions_.clear();
     }
 
@@ -285,26 +285,31 @@ public:
         return transitions_;
     }
 
+    /// Seed a canonical initial/imported state. This is planner-owned state:
+    /// backends consume the resulting ResourceTransition stream and never
+    /// reconstruct an external-resource state machine of their own.
+    void seed_state(ResourceId resource,
+                    const ResourceRange& range,
+                    const ResourceState& state,
+                    std::size_t producer_pass = 0) {
+        set_state(resource, range, state, producer_pass);
+    }
+
     TransitionResult apply_use(std::size_t pass,
                                const ResourceUse& use,
                                const ResourceState& desired) {
-        ResourceState before = ResourceState::undefined_state();
-        std::size_t producer = pass;
-        const auto state_it = states_.find(use.resource);
-        const bool previous_known =
-            !use.discard_previous_contents && state_it != states_.end();
-        if (previous_known) {
-            before = state_it->second;
-            const auto producer_it = producers_.find(use.resource);
-            if (producer_it != producers_.end()) producer = producer_it->second;
-            const auto range_it = ranges_.find(use.resource);
-            if (range_it != ranges_.end() &&
-                !ranges_overlap(range_it->second, use.range)) {
-                set_state(use.resource, use.range, desired, pass);
-                return TransitionResult{TransitionAction::NoBarrier,
-                                        std::nullopt};
-            }
+        if (use.discard_previous_contents) {
+            erase_overlaps(use.resource, use.range);
         }
+
+        TrackedState* previous = nullptr;
+        if (!use.discard_previous_contents) {
+            previous = unique_overlap(use.resource, use.range);
+        }
+
+        ResourceState before = previous
+            ? previous->state : ResourceState::undefined_state();
+        const std::size_t producer = previous ? previous->producer_pass : pass;
 
         TransitionResult result;
         if (before.undefined()) {
@@ -330,16 +335,13 @@ public:
     TransitionResult apply_alias_boundary(
         std::size_t pass,
         ResourceId resource,
+        const ResourceRange& range,
         const ResourceState& first_state) {
-        ResourceUse use;
-        use.resource = resource;
-        use.range = WholeResource{};
-        use.intent = UsageIntent::StorageWrite;
-        use.discard_previous_contents = true;
+        erase_overlaps(resource, range);
 
         ResourceTransition transition;
         transition.resource = resource;
-        transition.range = use.range;
+        transition.range = range;
         transition.before = ResourceState::undefined_state();
         transition.after = first_state;
         transition.producer_pass = pass;
@@ -348,13 +350,59 @@ public:
         transition.alias_boundary = true;
         transitions_.push_back(transition);
 
-        set_state(resource, use.range, first_state, pass);
+        set_state(resource, range, first_state, pass);
         return TransitionResult{TransitionAction::EmitTransition, transition};
     }
 
+    TransitionResult apply_alias_boundary(
+        std::size_t pass,
+        ResourceId resource,
+        const ResourceState& first_state) {
+        return apply_alias_boundary(
+            pass, resource, ResourceRange{WholeResource{}}, first_state);
+    }
+
 private:
+    struct TrackedState {
+        ResourceRange range{WholeResource{}};
+        ResourceState state{};
+        std::size_t producer_pass{0};
+    };
+
     [[nodiscard]] static bool read_only(const ResourceState& state) noexcept {
         return state.reads() && !state.writes();
+    }
+
+    TrackedState* unique_overlap(ResourceId resource,
+                                 const ResourceRange& range) {
+        const auto it = states_.find(resource);
+        if (it == states_.end()) return nullptr;
+
+        TrackedState* match = nullptr;
+        for (auto& tracked : it->second) {
+            if (!ranges_overlap(tracked.range, range)) continue;
+            if (match != nullptr) {
+                throw std::logic_error(
+                    "ResourceStateTracker: one use overlaps multiple tracked "
+                    "subresources; split it into canonical ranges");
+            }
+            match = &tracked;
+        }
+        return match;
+    }
+
+    void erase_overlaps(ResourceId resource, const ResourceRange& range) {
+        const auto it = states_.find(resource);
+        if (it == states_.end()) return;
+        auto& tracked = it->second;
+        tracked.erase(
+            std::remove_if(
+                tracked.begin(), tracked.end(),
+                [&](const TrackedState& state) {
+                    return ranges_overlap(state.range, range);
+                }),
+            tracked.end());
+        if (tracked.empty()) states_.erase(it);
     }
 
     TransitionResult emit(std::size_t pass,
@@ -381,14 +429,11 @@ private:
                    const ResourceRange& range,
                    const ResourceState& state,
                    std::size_t pass) {
-        states_[id] = state;
-        ranges_[id] = range;
-        producers_[id] = pass;
+        erase_overlaps(id, range);
+        states_[id].push_back(TrackedState{range, state, pass});
     }
 
-    std::unordered_map<ResourceId, ResourceState> states_;
-    std::unordered_map<ResourceId, ResourceRange> ranges_;
-    std::unordered_map<ResourceId, std::size_t> producers_;
+    std::unordered_map<ResourceId, std::vector<TrackedState>> states_;
     std::vector<ResourceTransition> transitions_;
 };
 
