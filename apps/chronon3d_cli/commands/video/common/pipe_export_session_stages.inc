@@ -11,12 +11,21 @@ NativeSurfacePrep prepare_frame(
     Frame current_frame) {
     NativeSurfacePrep prep;
     prep.video_settings = settings;
-    const bool plan_requests_native_graph = ctx.execution_plan
-        ? (ctx.execution_plan->composite == media::CompositePath::VulkanGraph &&
-           ctx.execution_plan->encode == media::EncodePath::Nvenc &&
-           ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
-        : (ctx.opts.encoder.encoder_backend == "native" &&
-           ctx.opts.encoder.hardware_encoder == "nvenc");
+    // The resolved plan is authoritative when present, but older resolver
+    // paths may leave interop unset even though the caller explicitly chose
+    // require_gpu_native. In that case failing to acquire slot surfaces makes
+    // the graph render CPU-only and the later native-residency gate aborts
+    // after expensive frame evaluation. The explicit hot-path requirement is
+    // therefore also a native-graph request.
+    const bool explicit_native_graph =
+        ctx.opts.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
+    const bool plan_requests_native_graph = explicit_native_graph ||
+        (ctx.execution_plan
+            ? (ctx.execution_plan->composite == media::CompositePath::VulkanGraph &&
+               ctx.execution_plan->encode == media::EncodePath::Nvenc &&
+               ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
+            : (ctx.opts.encoder.encoder_backend == "native" &&
+               ctx.opts.encoder.hardware_encoder == "nvenc"));
     prep.video_settings.retain_native_surface_for_video =
         plan_requests_native_graph && ctx.backend.supports_native_video_surface();
     prep.video_settings.require_native_gpu =

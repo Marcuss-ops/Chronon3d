@@ -570,7 +570,7 @@ struct VulkanBackend::Impl {
     void preallocate_plan_surfaces(
         std::uint32_t canvas_width,
         std::uint32_t canvas_height,
-        const graph::PhysicalFramebufferAllocationPlan& plan);
+        const graph::CompiledResourceTable& plan);
     bool slot_in_use(std::size_t slot) const;
     void prune_unused_transient_slots();
     [[nodiscard]] std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const;

@@ -11,7 +11,7 @@ namespace chronon3d::backends::vulkan {
     void VulkanBackend::Impl::preallocate_plan_surfaces(
         std::uint32_t canvas_width,
         std::uint32_t canvas_height,
-        const graph::PhysicalFramebufferAllocationPlan& plan) {
+        const graph::CompiledResourceTable& plan) {
 
         if (canvas_width == 0 || canvas_height == 0 || plan.empty()) return;
 

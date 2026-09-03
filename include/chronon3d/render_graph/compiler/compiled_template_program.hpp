@@ -273,7 +273,7 @@ struct CompiledTemplateProgram {
     bool                                valid{false};
 
     // ── Accessors (no copies — delegate to compiled) ───────────────────
-    [[nodiscard]] const PhysicalFramebufferAllocationPlan* resource_plan() const noexcept {
+    [[nodiscard]] const CompiledResourceTable* resource_plan() const noexcept {
         return compiled ? &compiled->physical_framebuffer_plan : nullptr;
     }
 

@@ -168,7 +168,11 @@ Result<MediaProbeInfo, MediaProbeError> probe_media(
             case AVMEDIA_TYPE_AUDIO: {
                 observed.kind = MediaStreamKind::Audio;
                 observed.sample_rate = params->sample_rate;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
                 observed.channels = params->ch_layout.nb_channels;
+#else
+                observed.channels = params->channels;
+#endif
                 if (params->format >= 0) {
                     const char* sample_format = av_get_sample_fmt_name(
                         static_cast<AVSampleFormat>(params->format));
