@@ -97,7 +97,8 @@ TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
 
     chronon3d::media::NativeVideoFrameDecoder decoder;
     auto decode = [&decoder](const std::filesystem::path& source) {
-        return decoder.decode_frame(source.string(), chronon3d::Frame{0}, 2, 2, 30.0f);
+        return decoder.decode_frame_at(
+            source.string(), chronon3d::RationalTime{0, {1, 30}}, 2, 2);
     };
 
     auto future_a = std::async(std::launch::async, decode, source_a);
