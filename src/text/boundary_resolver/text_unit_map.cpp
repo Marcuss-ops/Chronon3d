@@ -6,7 +6,7 @@
 // construction-time work; lookup methods are pure O(1) / O(log N) on
 // precomputed vectors.
 //
-// Anti-duplication invariants (per docs/ANTI_DUPLICATION_RULES.md):
+// Anti-duplication invariants (per the retired docs/ANTI_DUPLICATION_RULES.md):  // drift-class: historical (doc retired)
 //   • ICU is the sole grapheme/word boundary authority; third-party Unicode
 //     types do not escape the internal boundary adapter.
 //   • Composes on existing UTF-8 decoder helpers for byte/codepoint mapping.

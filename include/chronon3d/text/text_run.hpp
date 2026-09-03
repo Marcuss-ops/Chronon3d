@@ -24,7 +24,8 @@
 //                                  forward decls for AnimatedTextDocument
 //                                  + TextLayoutCache.
 //   5. text_run_hash.hpp       — hash_text_run_shape overload declarations
-//                                  (bodies remain in src/text/text_run.cpp).
+//                                  (bodies in the text_run_hash.cpp
+//                                  implementation TU).
 //
 // Dependency order rationale:
 //   - text_layout_identity  ← depends only on font_engine.hpp

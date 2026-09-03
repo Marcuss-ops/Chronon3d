@@ -127,7 +127,7 @@ graph::RenderOpResult draw_cached_text_run(
         }
         auto styled = ctx.services.gpu_text_atlas_cache
             ? ctx.services.gpu_text_atlas_cache->find_styled(style_key)
-            : std::shared_ptr<const runtime::GpuTextAtlasCache::StyledGlyphBitmap>{};
+            : std::shared_ptr<const runtime::GpuStyledGlyphCache::StyledGlyphBitmap>{};
         if (profiling::g_current_counters) {
             auto& counter = styled
                 ? profiling::g_current_counters->gpu_text_styled_cache_hits
@@ -231,8 +231,8 @@ graph::RenderOpResult draw_cached_text_run(
                     style_key, static_cast<std::uint32_t>(output_width),
                     static_cast<std::uint32_t>(output_height), pixels);
             }
-            styled = std::make_shared<const runtime::GpuTextAtlasCache::StyledGlyphBitmap>(
-                runtime::GpuTextAtlasCache::StyledGlyphBitmap{
+            styled = std::make_shared<const runtime::GpuStyledGlyphCache::StyledGlyphBitmap>(
+                runtime::GpuStyledGlyphCache::StyledGlyphBitmap{
                     static_cast<std::uint32_t>(output_width),
                     static_cast<std::uint32_t>(output_height), std::move(pixels)});
         }

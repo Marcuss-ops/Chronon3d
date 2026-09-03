@@ -25,16 +25,6 @@ public:
     int composite_layer_called{0};
     int apply_blur_called{0};
 
-    renderer::ShapeProcessor* resolve_shape_processor(
-        const RenderNode&) const noexcept override {
-        return reinterpret_cast<renderer::ShapeProcessor*>(1);
-    }
-
-    renderer::EffectProcessor* resolve_effect_processor(
-        std::type_index) const noexcept override {
-        return reinterpret_cast<renderer::EffectProcessor*>(1);
-    }
-
     RenderOpResult draw_node(Framebuffer&, const RenderNode&, const RenderState&,
                              const Camera&, int, int) override {
         draw_node_called++;
@@ -110,9 +100,9 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     auto root_scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
-    auto out = executor.execute_with_scope(compiled, ctx, root_scope, scheduler);
+    auto out = executor.execute(compiled, ctx, root_scope, scheduler);
 
-    REQUIRE(out != nullptr);
+    REQUIRE(out.has_framebuffer());
     CHECK(backend.draw_node_called == 1);
 }
 
@@ -133,8 +123,8 @@ TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame fail
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     auto scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
-    auto output = executor.execute_with_scope(compiled, ctx, scope, scheduler);
-    CHECK(output == nullptr);
+    auto output = executor.execute(compiled, ctx, scope, scheduler);
+    CHECK_FALSE(output.ok());
     REQUIRE(session.last_frame_error());
     CHECK(session.last_frame_error()->backend_code == RenderBackendErrorCode::ExecutionFailure);
     CHECK(session.last_frame_error()->message == "forced draw failure");
@@ -165,9 +155,9 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     RenderSession session;
     ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
     auto root_scope2 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
-    auto out = executor.execute_with_scope(compiled, ctx, root_scope2, scheduler2);
+    auto out = executor.execute(compiled, ctx, root_scope2, scheduler2);
 
-    REQUIRE(out != nullptr);
+    REQUIRE(out.has_framebuffer());
     CHECK(backend.apply_effect_stack_called >= 1);
 }
 
@@ -194,9 +184,9 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     RenderSession session;
     ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
     auto root_scope3 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
-    auto out = executor.execute_with_scope(compiled, ctx, root_scope3, scheduler3);
+    auto out = executor.execute(compiled, ctx, root_scope3, scheduler3);
 
-    REQUIRE(out != nullptr);
+    REQUIRE(out.has_framebuffer());
     // There are 2 layer composite nodes
     CHECK(backend.composite_layer_called >= 1);
 }

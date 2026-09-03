@@ -46,14 +46,14 @@ TEST_CASE("ResourcePlanner compatibility includes format usage and dimensions") 
     using namespace chronon3d::runtime;
 
     ResourceRequest color_a{"color-a", ResourceKind::Color, 128, LifetimeClass::FrameTransient, 0, 0, 16, {}, kInvalidRenderSurfaceHandle};
-    color_a.desc = ResourceDesc{64, 2, PixelFormat::Rgba32Float,
-                                ResourceUsage::ColorAttachment, 128, 16};
+    color_a.desc = ResourceDesc{64, 2, make_frame_format(PixelFormat::Rgba32Float),
+                                ResourceUsage::ColorAttachment, LifetimeClass::FrameTransient, 128};
     ResourceRequest color_b{"color-b", ResourceKind::Color, 128, LifetimeClass::FrameTransient, 1, 1, 16, {}, kInvalidRenderSurfaceHandle};
-    color_b.desc = ResourceDesc{64, 2, PixelFormat::Rgba32Float,
-                                ResourceUsage::ColorAttachment, 128, 16};
+    color_b.desc = ResourceDesc{64, 2, make_frame_format(PixelFormat::Rgba32Float),
+                                ResourceUsage::ColorAttachment, LifetimeClass::FrameTransient, 128};
     ResourceRequest depth{"depth", ResourceKind::Depth, 128, LifetimeClass::FrameTransient, 2, 2, 16, {}, kInvalidRenderSurfaceHandle};
-    depth.desc = ResourceDesc{64, 2, PixelFormat::Depth32Float,
-                              ResourceUsage::DepthAttachment, 128, 16};
+    depth.desc = ResourceDesc{64, 2, make_frame_format(PixelFormat::Depth32Float),
+                              ResourceUsage::DepthAttachment, LifetimeClass::FrameTransient, 128};
 
     planner.add(color_a);
     planner.add(color_b);
@@ -77,11 +77,11 @@ TEST_CASE("ResourcePlanner rejects a smaller physical slot for a larger descript
     using namespace chronon3d::runtime;
 
     ResourceRequest small{"small", ResourceKind::Color, 64, LifetimeClass::FrameTransient, 0, 0, 16, {}, kInvalidRenderSurfaceHandle};
-    small.desc = ResourceDesc{4, 4, PixelFormat::Rgba8Unorm,
-                              ResourceUsage::ColorAttachment, 64, 16};
+    small.desc = ResourceDesc{4, 4, make_frame_format(PixelFormat::Rgba8Unorm),
+                              ResourceUsage::ColorAttachment, LifetimeClass::FrameTransient, 64};
     ResourceRequest large{"large", ResourceKind::Color, 256, LifetimeClass::FrameTransient, 1, 1, 16, {}, kInvalidRenderSurfaceHandle};
-    large.desc = ResourceDesc{8, 8, PixelFormat::Rgba8Unorm,
-                              ResourceUsage::ColorAttachment, 256, 16};
+    large.desc = ResourceDesc{8, 8, make_frame_format(PixelFormat::Rgba8Unorm),
+                              ResourceUsage::ColorAttachment, LifetimeClass::FrameTransient, 256};
 
     planner.add(small);
     planner.add(large);

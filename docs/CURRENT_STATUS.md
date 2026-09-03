@@ -2,12 +2,14 @@
 
 > **Single v0.1 release contract:** [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This file reports observed status; it does not redefine release identity.
 
-## v0.1 contract status — 2026-08-28
+## v0.1 contract status — 2026-09-03
 
 - Release tag: `v0.1`
-- Release SHA: `7e86278e5535b799ec5c54960e520ce38c77244a`
-- Verdict: **BLOCKED / NOT CERTIFIED**
-- Historical green baseline: `main@7eb5c2ba`, 11/11 PASS; not same-SHA evidence
+- Active HEAD SHA: `86c165cbe` (`origin/main`)
+- DirectYUV Multi-Source support: **DONE** (`feat(video): compose multiple native YUV sources`)
+- CompiledResourceTable cutover: **DONE** (surface API & lifecycle TUs refactored, allocation shims removed)
+- Deprecated API Cleansing: **CLOSED** — census-based closure: `TileExecutionPolicy` alias removed (1 test caller migrated), `Camera2_5DProjectionMode` + write-only `projection_mode` fields removed (zero readers), legacy `render_scene`/`materialize_text_run_shape` chains classified ABI-required with evidence in `NAMING_COMPATIBILITY_DEBT.md`.
+- Filename drift gate: **PASS 0 operational (strict)** — was 116 findings (2026-08-28); all resolved or re-classified with per-line `drift-class:` evidence (57 historical, 2 false-positive).
 
 
 ## Performance Baseline — 2026-08-25

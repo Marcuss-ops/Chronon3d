@@ -10,7 +10,7 @@
 //   - `[[nodiscard]] u64 hash_text_run_shape(const TextRunShape& s);`
 //   - `[[nodiscard]] u64 hash_text_run_shape(const TextRunShape& s, Frame frame);`
 //
-// Bodies remain in `src/text/text_run.cpp` (the canonical impl file).
+// Bodies remain in the canonical `src/text/text_run_hash.cpp` impl TU.
 // The free function family covers static text fingerprint (no frame
 // fold) and the PR 10 AnimatedTextDocument state fold (frame overload).
 // ═══════════════════════════════════════════════════════════════════════════

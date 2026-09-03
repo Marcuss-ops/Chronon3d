@@ -15,22 +15,6 @@
 
 namespace chronon3d::runtime {
 
-// Forward-declare legacy types used by deprecated GpuStyledGlyphCache::acquire()
-struct PackedGlyphBitmap {
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    std::span<const float> rgba{};
-};
-struct PackedTextAtlas {
-    RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    bool cache_hit{false};
-    bool uploaded{false};
-    std::vector<std::uint32_t> origin_x;
-    std::vector<std::uint32_t> origin_y;
-};
-
 /// VRAM-resident glyph identity.  Glyphs are deterministic per
 /// Representation of glyph contours inside the GPU atlas.
 enum class GlyphRepresentation : std::uint8_t {
@@ -219,15 +203,6 @@ public:
     void store_styled(std::string_view key, std::uint32_t width,
                       std::uint32_t height,
                       std::shared_ptr<const std::vector<float>> rgba);
-
-    /// DEPRECATED — phrase-atlas packing is retired. This always returns
-    /// false so callers take the per-glyph GpuGlyphAtlas path.
-    [[deprecated("Use per-glyph GpuGlyphAtlas instead; this always returns false")]]
-    [[nodiscard]] bool acquire(std::span<const PackedGlyphBitmap> /*bitmaps*/,
-                               PackedTextAtlas& /*atlas*/,
-                               std::string_view /*identity*/ = {}) {
-        return false;
-    }
 
     void clear() noexcept;
     [[nodiscard]] std::size_t size() const noexcept;

@@ -40,8 +40,8 @@ using namespace chronon3d::bench_corpus;
 // ── helpers (TU-local) ─────────────────────────────────────────────────
 
 // Evaluate a Composition at the given Frame using the default memory
-// resource. Mirrors the canonical `evaluate(...)` pattern used by
-// `tests/scene_presets/test_scene_presets.cpp`.
+// resource. Mirrors the canonical `evaluate(...)` pattern used by the
+// retired `tests/scene_presets/test_scene_presets.cpp`.  // drift-class: historical (scene_presets test retired)
 static inline Scene eval_at(const Composition& comp, Frame frame) {
     return chronon3d::test_support::evaluate_frame(comp, frame);
 }

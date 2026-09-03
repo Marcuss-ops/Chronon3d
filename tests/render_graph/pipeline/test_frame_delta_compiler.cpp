@@ -252,8 +252,6 @@ TEST_CASE("ExecutionResolver fails closed to FullRgb when reuse is not eligible"
 }
 
 TEST_CASE("ExecutionResolver is the sole canonical frame-path resolver") {
-    static_assert(std::is_same_v<chronon3d::graph::ExecutionResolver,
-                                 chronon3d::graph::TileExecutionPolicy>);
     const chronon3d::graph::TileDecision decision{
         true, chronon3d::graph::FrameExecutionPath::SparseTiles,
         false, true, false, {}};

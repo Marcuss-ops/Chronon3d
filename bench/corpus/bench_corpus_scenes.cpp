@@ -29,7 +29,7 @@
 // TICKET-CHRONON-GLOW-FINAL — canonical glow factory (header-only).
 // Same include path used by apps/chronon3d_cli/register_runtime_compositions.cpp.
 // Reuse, not duplication — the production factory IS the benchmark.
-#include "content/compositions/chronon_glow_final.hpp"
+#include <tests/helpers/chronon_glow_final.hpp>  // core home of the retired content factory
 
 namespace chronon3d::bench_corpus {
 

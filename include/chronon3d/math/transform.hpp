@@ -71,7 +71,7 @@ struct Transform {
         // NOT depend on spdlog.  The degenerate-matrix detection has
         // been moved to the 5 caller sites (via the shared helper
         // `chronon3d::graph::detail::project_to_camera_space` in
-        // `src/render_graph/nodes/detail/projection_helpers.hpp`) which  // drift-allow: stale-ref
+        // `include/chronon3d/render_graph/nodes/detail/projection_helpers.hpp`) which
         // check `glm::abs(glm::determinant(m)) < 1e-6` BEFORE calling
         // from_mat4 and emit a `spdlog::warn` with caller-specific
         // context (node_name + stage + item_index + opacity) gated on
