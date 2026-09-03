@@ -30,7 +30,6 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
             "decode source path is empty");
         return {};
     }
-    auto io_read = global_media_io_budget().acquire_required_read();
     std::shared_ptr<Session> session;
     { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
     if (!session) return {};
@@ -68,6 +67,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
     ++session->prefetch_generation;
     session->prefetch_next = *selected + 1 < session->sample_table.size() ? target + 1 : -1;
     lock.unlock();
+    auto io_read = global_media_io_budget().acquire_required_read();
     auto result = decode_frame_internal(*session, target);
     lock.lock();
     session->prefetch_cv.notify_all();
@@ -94,7 +94,6 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
             "native frame decoding requires a native importer or video runtime");
         return {};
     }
-    auto io_read = global_media_io_budget().acquire_required_read();
     if (m_counters) m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
     std::shared_ptr<Session> session;
     { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
@@ -128,6 +127,7 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
     session->capture_native_frame = true;
     state_lock.unlock();
 
+    auto io_read = global_media_io_budget().acquire_required_read();
     const auto decode_start = profiling::now();
     const auto ignored = decode_frame_internal(*session, target);
     const double decode_dur_ms = profiling::duration_ms(decode_start, profiling::now());
