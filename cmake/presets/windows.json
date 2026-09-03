@@ -1,0 +1,42 @@
+{
+  "version": 6,
+  "include": ["base.json"],
+  "configurePresets": [
+    {
+      "name": "win-release",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "displayName": "Windows Release CI",
+      "description": "Windows release CI preset matching the win/win-test aliases consumed by .github/workflows/ci.yml.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_ENABLE_VERIFICATION": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;ipc"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "win",
+      "configurePreset": "win-release",
+      "jobs": 8
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "win-test",
+      "configurePreset": "win-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
