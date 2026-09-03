@@ -6,7 +6,7 @@
       "name": "linux-ci",
       "inherits": "base-linux",
       "displayName": "Linux CI (daily core + install-consumer gate)",
-      "description": "Daily CI for the engine core: CLI + tests + install consumer, without bundled content.",
+      "description": "Daily CI for the engine core: CLI + tests + install consumer, with bundled compositions external.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
@@ -22,7 +22,7 @@
       "name": "linux-ci-nocontent",
       "hidden": true,
       "inherits": "linux-ci",
-      "displayName": "Linux CI core (legacy no-content alias)"
+      "displayName": "Linux CI core (compatibility alias)"
     },
     {
       "name": "linux-ci-release-build",
@@ -51,7 +51,6 @@
         "CHRONON3D_BUILD_BENCHMARKS": "ON",
         "CHRONON3D_ENABLE_DIAGNOSTICS": "ON",
         "CHRONON3D_ENABLE_VERIFICATION": "ON",
-        "CHRONON3D_ENABLE_VIDRUSH": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_SVG": "ON",
@@ -121,7 +120,6 @@
         "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_ENABLE_VERIFICATION": "OFF",
-        "CHRONON3D_ENABLE_VIDRUSH": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli"
       }
