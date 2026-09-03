@@ -57,7 +57,6 @@ layout(push_constant) uniform PushConstants {
     float atlas_inv_h;
 } params;
 
-// Shared memory for tile glyph sorting
 shared uint s_glyph_indices[256];
 shared uint s_draw_orders[256];
 shared uint s_count;
@@ -78,9 +77,8 @@ void main() {
     uint tx = gl_WorkGroupID.x;
     uint ty = gl_WorkGroupID.y;
     uint tile_idx = ty * params.tiles_x + tx;
-    uint tid = gl_LocalInvocationIndex; // 0..255
+    uint tid = gl_LocalInvocationIndex;
 
-    // Cooperatively load tile count and glyph indices
     if (tid == 0) {
         s_count = min(tile_glyph_counts[tile_idx], params.max_glyphs_per_tile);
     }
@@ -94,9 +92,10 @@ void main() {
     }
     barrier();
 
-    // In-place parallel sort by draw_order in shared memory (Bitonic sort for <= 256 items)
+    // Keep painter order deterministic inside a tile. draw_order defaults to
+    // source order on the C++ side, so this preserves text_batch semantics
+    // while allowing explicit ordering when the planner supplies it.
     if (tid == 0 && count > 1) {
-        // Sequential insertion sort on thread 0 is extremely fast for small N <= 64
         for (uint i = 1; i < count; ++i) {
             uint key_g = s_glyph_indices[i];
             uint key_order = s_draw_orders[i];
@@ -117,61 +116,75 @@ void main() {
         return;
     }
 
-    vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
     vec4 current_color = imageLoad(dst_image, pixel_coord);
 
     for (uint i = 0; i < count; ++i) {
         uint gid = s_glyph_indices[i];
-        GpuGlyphStatic g = glyphs[gid];
-        GpuTextRunDynamic r = runs[g.run_index];
+        GpuGlyphStatic glyph = glyphs[gid];
+        GpuTextRunDynamic run = runs[glyph.run_index];
 
-        float plane_w = g.plane_right - g.plane_left;
-        float plane_h = g.plane_bottom - g.plane_top;
-        if (plane_w <= 0.0 || plane_h <= 0.0) continue;
+        uint atlas_x = glyph.atlas_pos & 0xFFFFu;
+        uint atlas_y = (glyph.atlas_pos >> 16u) & 0xFFFFu;
+        uint atlas_w = glyph.atlas_size & 0xFFFFu;
+        uint atlas_h = (glyph.atlas_size >> 16u) & 0xFFFFu;
+        if (atlas_w == 0u || atlas_h == 0u) continue;
 
-        // Local plane position relative to run [plane_left, plane_right), [plane_top, plane_bottom)
-        vec2 local_pt = (pixel_pos - vec2(r.tx, r.ty)) / vec2(r.sx, r.sy);
-        if (local_pt.x < g.plane_left || local_pt.x >= g.plane_right ||
-            local_pt.y < g.plane_top  || local_pt.y >= g.plane_bottom) {
-            continue;
-        }
+        uint flags = (glyph.atlas_page_and_flags >> 16u) & 0xFFFFu;
+        bool mtsdf = (flags & 1u) != 0u;
+        bool inside = false;
+        ivec2 sample_offset = ivec2(0);
 
-        uint atlas_x = g.atlas_pos & 0xFFFFu;
-        uint atlas_y = (g.atlas_pos >> 16u) & 0xFFFFu;
-        uint atlas_w = g.atlas_size & 0xFFFFu;
-        uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
+        if (mtsdf) {
+            float plane_w = glyph.plane_right - glyph.plane_left;
+            float plane_h = glyph.plane_bottom - glyph.plane_top;
+            if (plane_w <= 0.0 || plane_h <= 0.0) continue;
 
-        // Exact pixel offset in atlas to match text_batch.comp
-        vec2 uv_local = (local_pt - vec2(g.plane_left, g.plane_top)) / vec2(plane_w, plane_h);
-        ivec2 sample_offset = ivec2(floor(uv_local * vec2(float(atlas_w), float(atlas_h))));
-        sample_offset = clamp(sample_offset, ivec2(0), ivec2(int(atlas_w) - 1, int(atlas_h) - 1));
-        ivec2 atlas_coord = ivec2(int(atlas_x), int(atlas_y)) + sample_offset;
-
-        vec4 sampled = imageLoad(atlas_image, atlas_coord);
-        uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
-
-        vec4 glyph_rgba;
-        if ((flags & 1u) != 0u) {
-            // MTSDF screen distance
-            float dist = median3(sampled.r, sampled.g, sampled.b) - 0.5;
-            float screen_scale = 0.5 * (abs(r.sx) + abs(r.sy));
-            float screen_px_range = max(1.0, 8.0 * screen_scale);
-            float opacity = clamp(dist * screen_px_range + 0.5, 0.0, 1.0) * r.opacity;
-            vec4 tint = unpack_color(r.color);
-            float alpha = tint.a * opacity;
-            glyph_rgba = vec4(tint.rgb * alpha, alpha);
-        } else {
-            // Linear coverage / premultiplied RGBA atlas representation
-            vec4 src = sampled * r.opacity;
-            if (r.color != 0xFFFFFFFFu && r.color != 0u) {
-                vec4 tint = unpack_color(r.color);
-                src *= tint;
+            vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
+            vec2 local = (pixel_pos - vec2(run.tx, run.ty)) / vec2(run.sx, run.sy);
+            inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
+                     local.y >= glyph.plane_top  && local.y < glyph.plane_bottom;
+            if (inside) {
+                vec2 uv = (local - vec2(glyph.plane_left, glyph.plane_top)) /
+                          vec2(plane_w, plane_h);
+                sample_offset = ivec2(floor(uv * vec2(float(atlas_w), float(atlas_h))));
             }
-            glyph_rgba = src;
+        } else {
+            // Exact bitmap/coverage placement used by the retired text_batch
+            // kernel: rounded run origin and atlas-size-based scaling.
+            if (run.sx <= 0.0 || run.sy <= 0.0) continue;
+            vec2 local = vec2(pixel_coord) - vec2(round(run.tx), round(run.ty));
+            vec2 scaled_size = ceil(vec2(atlas_w, atlas_h) * vec2(run.sx, run.sy));
+            inside = local.x >= 0.0 && local.y >= 0.0 &&
+                     local.x < scaled_size.x && local.y < scaled_size.y;
+            if (inside) {
+                sample_offset = ivec2(floor(local / vec2(run.sx, run.sy)));
+            }
         }
 
-        // Canonical premultiplied alpha composite (source-over)
-        current_color = glyph_rgba + current_color * (1.0 - glyph_rgba.a);
+        if (!inside) continue;
+        sample_offset = clamp(sample_offset, ivec2(0),
+                              ivec2(int(atlas_w) - 1, int(atlas_h) - 1));
+        ivec2 atlas_coord = ivec2(int(atlas_x), int(atlas_y)) + sample_offset;
+        vec4 sample_value = imageLoad(atlas_image, atlas_coord);
+
+        vec4 src;
+        if (mtsdf) {
+            float msd = median3(sample_value.r, sample_value.g, sample_value.b);
+            float sd = msd - 0.5;
+            float screen_scale = 0.5 * (abs(run.sx) + abs(run.sy));
+            float screen_px_range = max(1.0, 8.0 * screen_scale);
+            float alpha = clamp(sd * screen_px_range + 0.5, 0.0, 1.0);
+            src = vec4(alpha);
+        } else {
+            src = sample_value;
+        }
+
+        src *= run.opacity;
+        if (run.color != 0xFFFFFFFFu && run.color != 0u) {
+            src *= unpack_color(run.color);
+        }
+
+        current_color = src + current_color * (1.0 - src.a);
     }
 
     imageStore(dst_image, pixel_coord, current_color);
