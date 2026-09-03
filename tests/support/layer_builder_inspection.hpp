@@ -48,7 +48,7 @@
 #include <string>
 #include <vector>
 
-#include <chronon3d/registry/animator_resolver.hpp>   // registry::TextAnimatorSpec (snapshot copy target)
+#include <chronon3d/text/animation/text_animator_spec.hpp>  // chronon3d::TextAnimatorSpec (snapshot copy target)
 #include <chronon3d/scene/builders/layer_builder.hpp> // LayerBuilder (friend mediation)
 #include <chronon3d/text/prepared_text.hpp>           // PreparedText (snapshot copy target)
 

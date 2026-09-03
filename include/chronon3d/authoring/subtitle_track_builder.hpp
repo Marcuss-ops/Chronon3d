@@ -9,6 +9,7 @@
 // the render graph small and unambiguous.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -17,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::authoring {
@@ -44,11 +46,15 @@ struct TimedWordBinding {
 /// Usage:
 ///   layer.subtitles(track)
 ///        .preset("karaoke_fill")
-///        .font("assets/fonts/Poppins-Bold.ttf", 48.0f)
+///        .font(assets::FontRef{"fonts/Subtitle.ttf", "subtitle.bold"}, 48.0f)
 ///        .color(Color::White)
 ///        .box({1400.0f, 200.0f})
 ///        .align(TextAlign::Center)
 ///        .place(TextPlacementKind::SafeAreaBottom);
+///
+/// The builder declares NO implicit font asset: without an explicit
+/// `.font(...)` the emitted run carries an empty font path and font
+/// resolution is delegated to the canonical font-engine wiring.
 class SubtitleTrackBuilder {
 public:
     SubtitleTrackBuilder(LayerBuilder& builder,
@@ -62,11 +68,20 @@ public:
         return *this;
     }
 
-    /// Set the font path and size for every cue.
-    SubtitleTrackBuilder& font(std::string_view path, float size) {
-        font_path_ = std::string{path};
+    /// Set the font (explicit canonical reference) and size for every cue.
+    /// The reference is resolved through the per-runtime AssetResolver at
+    /// materialization time; the core stores no repository-relative path.
+    SubtitleTrackBuilder& font(assets::FontRef ref, float size) {
+        font_ = std::move(ref);
         font_size_ = size;
         return *this;
+    }
+
+    /// Set the font path and size for every cue. Backward-compatible
+    /// spelling: the raw path is wrapped into the canonical
+    /// `assets::FontRef` so a single storage slot stays authoritative.
+    SubtitleTrackBuilder& font(std::string_view path, float size) {
+        return font(assets::FontRef{std::string{path}}, size);
     }
 
     /// Set the fill colour for every cue.
@@ -159,7 +174,10 @@ private:
     const presets::text::SubtitleTrack* track_{nullptr};
 
     std::string preset_id_{"minimal_white"};
-    std::string font_path_{"assets/fonts/Poppins-Bold.ttf"};
+    // No implicit engine default font. The old `"assets/fonts/Poppins-Bold.ttf"`
+    // default was a repository-relative dependency and is removed; unset
+    // means "no font asset declared" (canonical font wiring decides).
+    std::optional<assets::FontRef> font_{std::nullopt};
     float font_size_{48.0f};
     Color color_{1.0f, 1.0f, 1.0f, 1.0f};
     std::optional<TextShadow> shadow_{std::nullopt};

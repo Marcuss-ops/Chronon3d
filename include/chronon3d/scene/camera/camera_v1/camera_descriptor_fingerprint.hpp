@@ -14,6 +14,7 @@
 // iteration order of fields.  Identical descriptors ⇒ identical hash.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/assets/asset_ref.hpp>
 
 // TICKET-PHASE-2: schema version constant lives HERE (moved from
 // camera_program.hpp to break the circular include chain:
@@ -253,7 +254,17 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
             h.mix_f32(s.params.idle.frequency_hz);
             h.mix_f32(s.params.idle.phase_offset);
             h.mix_bool(s.params.idle.base_on_final);
-            h.mix_str(s.params.reference_image);
+            // reference_image is an explicit optional asset reference: hash
+            // presence + the canonical AssetRef content so two descriptors
+            // with the same ref resolve to the same fingerprint, and a
+            // descriptor with no reference image is distinct from one that
+            // names an asset (even an empty-path one).
+            h.mix_bool(s.params.reference_image.has_value());
+            if (s.params.reference_image.has_value()) {
+                h.mix_str(s.params.reference_image->path());
+                h.mix_str(s.params.reference_image->owner());
+                h.mix_bool(s.params.reference_image->required());
+            }
         }
     }, desc.source);
 

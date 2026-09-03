@@ -1,11 +1,13 @@
 #pragma once
 
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <string>
 
 namespace chronon3d::animation {
@@ -55,7 +57,12 @@ struct CameraMotionParams {
     CameraMotionPose pose{};
     CameraMotionPrimary primary{};
     CameraMotionIdle idle{};
-    std::string reference_image{"assets/images/camera_reference.jpg"};
+    /// Optional explicit reference image. The core declares NO implicit
+    /// engine default: `assets/images/camera_reference.jpg` was a
+    /// repository-relative dependency removed from the engine. When a
+    /// preset needs the image it must set an explicit `assets::ImageRef`,
+    /// resolved through the canonical per-runtime AssetResolver.
+    std::optional<assets::ImageRef> reference_image{};
 };
 
 inline f32 lerp(f32 a, f32 b, f32 t) {
