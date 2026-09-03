@@ -7,50 +7,18 @@
 #include <string>
 #include <vector>
 #include <chronon3d/runtime/render_surface.hpp>
-#include <chronon3d/runtime/resource_residency.hpp>
+#include <chronon3d/runtime/resource_desc.hpp>
 
 namespace chronon3d::runtime {
 
 using ResourceId = std::uint32_t;
-
-/// Transitional planner-local descriptor. It is intentionally isolated under
-/// a distinct name so ResourceDesc can become the single runtime authority in
-/// the next commit without a type-name collision.
-struct PlannerResourceDesc {
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    FrameFormat format{};
-    ResourceUsage usage{ResourceUsage::Generic};
-    std::size_t bytes{0};
-    std::size_t alignment{alignof(std::max_align_t)};
-    LifetimeClass lifetime{LifetimeClass::FrameTransient};
-    ResourceResidency residency{};
-
-    [[nodiscard]] constexpr std::size_t tight_bytes() const noexcept {
-        return tight_surface_bytes(format, width, height);
-    }
-
-    [[nodiscard]] static constexpr PlannerResourceDesc make(
-        std::uint32_t width,
-        std::uint32_t height,
-        FrameFormat format,
-        ResourceUsage usage = ResourceUsage::Generic,
-        LifetimeClass lifetime = LifetimeClass::FrameTransient,
-        std::size_t alignment = alignof(std::max_align_t),
-        ResourceResidency residency = {}) noexcept {
-        return PlannerResourceDesc{
-            width, height, format, usage,
-            tight_surface_bytes(format, width, height), alignment, lifetime,
-            residency};
-    }
-};
 
 /// Graph-facing logical resource. The planner deliberately keeps this
 /// description separate from the physical slot that backs it.
 struct LogicalResource {
     ResourceId id{0};
     RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
-    PlannerResourceDesc desc{};
+    ResourceDesc desc{};
     std::size_t first_use{0};
     std::size_t last_use{0};
     bool persistent{false};
@@ -60,7 +28,7 @@ struct ResourceRequest {
     std::string id{};
     ResourceKind kind{ResourceKind::Bytes};
     /// Explicit allocation-size override for padded/external layouts. Zero
-    /// means derive tightly from the descriptor; desc.bytes is never authoritative.
+    /// means derive tightly from ResourceDesc; desc.bytes is never authoritative.
     std::size_t bytes{0};
     /// Legacy request-level mirror. ResourcePlanner::add folds this into
     /// desc.lifetime and thereafter the descriptor is authoritative.
@@ -68,7 +36,7 @@ struct ResourceRequest {
     std::size_t first{0};
     std::size_t last{0};
     std::size_t alignment{alignof(std::max_align_t)};
-    PlannerResourceDesc desc{};
+    ResourceDesc desc{};
     RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
 };
 
