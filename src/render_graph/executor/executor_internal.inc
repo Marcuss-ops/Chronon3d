@@ -63,10 +63,19 @@
             resource_table.logical_resource_count);
         const auto physical_count = static_cast<std::uint64_t>(
             resource_table.physical_slot_count);
-        const auto frame_bytes = static_cast<std::uint64_t>(ctx.frame_input.width) *
-            static_cast<std::uint64_t>(ctx.frame_input.height) * sizeof(Color);
-        const auto logical_bytes = logical_count * frame_bytes;
-        const auto physical_bytes = physical_count * frame_bytes;
+
+        std::uint64_t logical_bytes = 0;
+        for (const auto& resource : resource_table.resources) {
+            if (resource.producer == k_invalid_node) continue;
+            logical_bytes += static_cast<std::uint64_t>(
+                resource.desc.allocation_bytes());
+        }
+
+        std::uint64_t physical_bytes = 0;
+        for (const auto& slot : resource_table.slots) {
+            physical_bytes += static_cast<std::uint64_t>(slot.capacity_bytes);
+        }
+
         parent_counters->logical_resource_count.store(
             logical_count, std::memory_order_relaxed);
         parent_counters->physical_resource_slot_count.store(
