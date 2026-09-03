@@ -9,14 +9,12 @@
       "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Core (no text/video/mesh/exr)",
-      "description": "Profile matrix preset — hidden. Core-only. Used by nightly profile-envelope workflow, not at push.",
+      "description": "Hidden core-only profile matrix preset used by the nightly profile-envelope workflow.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "OFF",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_TEXT": "OFF",
         "CHRONON3D_USE_BLEND2D": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
@@ -36,14 +34,12 @@
       "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Motion (Blend2D + text)",
-      "description": "Profile matrix preset — hidden. Blend2D + text on; the rest off.",
+      "description": "Hidden profile matrix preset with Blend2D and text enabled.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_EXR": "OFF",
@@ -63,14 +59,12 @@
       "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Video (native ffmpeg + telemetry)",
-      "description": "Profile matrix preset — hidden. Native ffmpeg ON, telemetry ON, blend2d/text on; off the V0.1 release path.",
+      "description": "Hidden profile matrix preset with native FFmpeg, telemetry, Blend2D and text enabled.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "OFF",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_EXR": "OFF",
@@ -89,15 +83,13 @@
       "name": "linux-profile-extended",
       "hidden": true,
       "inherits": "base-linux",
-      "displayName": "Linux Profile Extended (mesh, EXR, telemetry, benchmarks, profiling)",
-      "description": "Profile matrix preset — hidden. Everything ON, tracing on.",
+      "displayName": "Linux Profile Extended (mesh, EXR, telemetry, benchmarks, tracing)",
+      "description": "Hidden extended feature envelope with mesh, EXR, telemetry, benchmarks and tracing enabled.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "ON",
-        "CHRONON3D_BUILD_CONTENT": "ON",
-        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_EXR": "ON",
@@ -142,22 +134,22 @@
     {
       "name": "linux-profile-core-test",
       "configurePreset": "linux-profile-core",
-      "output": { "outputOnFailure": true }
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "linux-profile-motion-test",
       "configurePreset": "linux-profile-motion",
-      "output": { "outputOnFailure": true }
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "linux-profile-video-test",
       "configurePreset": "linux-profile-video",
-      "output": { "outputOnFailure": true }
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "linux-profile-extended-test",
       "configurePreset": "linux-profile-extended",
-      "output": { "outputOnFailure": true }
+      "output": {"outputOnFailure": true}
     }
   ]
 }
