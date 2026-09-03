@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/media/frame_source_provider.hpp>
+#include <chronon3d/media/media_io_budget.hpp>
 #include <chronon3d/media/video/source_sample_table.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
@@ -105,7 +106,11 @@ private:
         cache::LruCache<int64_t, std::shared_ptr<Framebuffer>> cache{64, 1, cache::CapacityMode::Count};
 
         static constexpr std::size_t kPrefetchCapacity = 4;
-        struct PrefetchedFrame { int64_t target{-1}; std::shared_ptr<Framebuffer> framebuffer; };
+        struct PrefetchedFrame {
+            int64_t target{-1};
+            std::shared_ptr<Framebuffer> framebuffer;
+            MediaIoBudget::Reservation io_reservation{};
+        };
         std::deque<PrefetchedFrame> prefetch_queue;
         std::condition_variable prefetch_cv;
         std::atomic<bool> prefetch_stop{false};
