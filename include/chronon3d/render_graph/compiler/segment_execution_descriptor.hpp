@@ -123,8 +123,8 @@ namespace detail {
             continue;
         }
         const auto requirement = compiled.graph.node(static_cast<GraphNodeId>(i)).temporal_requirements();
-        if (!requirement.valid() || requirement.history_duration.value < 0 ||
-            requirement.future_duration.value < 0) {
+        if (!requirement.valid() || requirement.history_duration.ticks() < 0 ||
+            requirement.future_duration.ticks() < 0) {
             throw std::invalid_argument("compiled node exposes invalid temporal requirements");
         }
         aggregate.history_frames = std::max(aggregate.history_frames, requirement.history_frames);
