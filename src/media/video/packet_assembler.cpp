@@ -2,15 +2,56 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
+#include <xxhash.h>
+
+extern "C" {
+#include <libavutil/mem.h>
+}
 
 namespace chronon3d::media {
 namespace {
+
+constexpr int kMuxAvioBufferSize = 64 * 1024;
+constexpr std::size_t kChecksumReadBufferSize = 64 * 1024;
+
+std::string format_xxh64(XXH64_hash_t digest) {
+    char value[17]{};
+    std::snprintf(value, sizeof(value), "%016llx",
+                  static_cast<unsigned long long>(digest));
+    return value;
+}
+
+bool hash_final_file(const std::string& path, std::string& checksum) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return false;
+
+    XXH64_state_t* state = XXH64_createState();
+    if (!state) return false;
+    const auto free_state = [](XXH64_state_t* value) { XXH64_freeState(value); };
+    std::unique_ptr<XXH64_state_t, decltype(free_state)> guard(state, free_state);
+    if (XXH64_reset(state, 0) != XXH_OK) return false;
+
+    std::array<char, kChecksumReadBufferSize> buffer{};
+    while (input) {
+        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        const auto read = input.gcount();
+        if (read > 0 && XXH64_update(state, buffer.data(), static_cast<std::size_t>(read)) != XXH_OK) {
+            return false;
+        }
+    }
+    if (!input.eof()) return false;
+    checksum = format_xxh64(XXH64_digest(state));
+    return true;
+}
 
 struct InputFile {
     InputFile() = default;
@@ -80,6 +121,87 @@ std::int64_t normalize_timestamp(std::int64_t value, std::int64_t first,
 }
 
 } // namespace
+
+struct MuxAvioHashWriter {
+    AVIOContext* sink{nullptr};
+    XXH64_state_t* hash{nullptr};
+    std::int64_t position{0};
+    std::int64_t append_end{0};
+    bool incremental_valid{true};
+
+    MuxAvioHashWriter() = default;
+    MuxAvioHashWriter(const MuxAvioHashWriter&) = delete;
+    MuxAvioHashWriter& operator=(const MuxAvioHashWriter&) = delete;
+
+    ~MuxAvioHashWriter() {
+        if (sink) avio_closep(&sink);
+        if (hash) XXH64_freeState(hash);
+    }
+
+    [[nodiscard]] bool open(const std::string& path) noexcept {
+        hash = XXH64_createState();
+        if (!hash || XXH64_reset(hash, 0) != XXH_OK) return false;
+        if (avio_open(&sink, path.c_str(), AVIO_FLAG_WRITE) < 0 || !sink) return false;
+        const auto initial = avio_tell(sink);
+        position = initial >= 0 ? initial : 0;
+        append_end = position;
+        incremental_valid = true;
+        return true;
+    }
+
+    static int write_packet(void* opaque, const std::uint8_t* buffer, int buffer_size) noexcept {
+        auto* self = static_cast<MuxAvioHashWriter*>(opaque);
+        if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
+        if (buffer_size == 0) return 0;
+
+        const bool append_write = self->position == self->append_end;
+        if (!append_write) self->incremental_valid = false;
+
+        avio_write(self->sink, buffer, buffer_size);
+        if (self->sink->error < 0) return self->sink->error;
+
+        if (self->incremental_valid &&
+            XXH64_update(self->hash, buffer, static_cast<std::size_t>(buffer_size)) != XXH_OK) {
+            return AVERROR_EXTERNAL;
+        }
+        self->position += buffer_size;
+        self->append_end = std::max(self->append_end, self->position);
+        return buffer_size;
+    }
+
+    static std::int64_t seek(void* opaque, std::int64_t offset, int whence) noexcept {
+        auto* self = static_cast<MuxAvioHashWriter*>(opaque);
+        if (!self || !self->sink) return AVERROR(EINVAL);
+        if (whence & AVSEEK_SIZE) return avio_size(self->sink);
+
+        const int seek_whence = whence & ~AVSEEK_FORCE;
+        const auto position = avio_seek(self->sink, offset, seek_whence);
+        if (position >= 0) self->position = position;
+        return position;
+    }
+
+    [[nodiscard]] bool close_and_checksum(const std::string& path,
+                                          std::string& checksum,
+                                          bool& used_reread) noexcept {
+        try {
+            if (!sink || !hash) return false;
+            avio_flush(sink);
+            if (sink->error < 0) return false;
+
+            const bool needs_reread = !incremental_valid;
+            const auto streaming_digest = XXH64_digest(hash);
+            const int close_result = avio_closep(&sink);
+            if (close_result < 0) return false;
+
+            used_reread = needs_reread;
+            if (needs_reread) return hash_final_file(path, checksum);
+            checksum = format_xxh64(streaming_digest);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+};
 
 SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     SegmentAssemblyResult result;
@@ -226,6 +348,8 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         result.reason = "failed to finalize assembled output";
         return result;
     }
+    result.output_checksum = std::string(mux.output_checksum());
+    result.checksum_used_reread = mux.checksum_used_reread();
     result.success = true;
     return result;
 }
@@ -233,8 +357,14 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
 MuxSession::~MuxSession() {
     if (!format_) return;
     if (format_->pb && format_->oformat && !(format_->oformat->flags & AVFMT_NOFILE)) {
-        avio_closep(&format_->pb);
+        if (writer_) {
+            avio_flush(format_->pb);
+            avio_context_free(&format_->pb);
+        } else {
+            avio_closep(&format_->pb);
+        }
     }
+    writer_.reset();
     avformat_free_context(format_);
 }
 
@@ -244,6 +374,10 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
         reason = "mux open requires output path and video codec";
         return false;
     }
+    output_path_ = config.output_path;
+    output_checksum_.clear();
+    checksum_used_reread_ = false;
+    finalized_ = false;
     if (avformat_alloc_output_context2(&format_, nullptr, nullptr,
                                        config.output_path.c_str()) < 0 || !format_) {
         reason = "failed to allocate output format context";
@@ -285,10 +419,30 @@ bool MuxSession::write_header(const std::string& output_path,
         reason = "write_header called without a format context";
         return false;
     }
-    if (!(format_->oformat->flags & AVFMT_NOFILE) &&
-        avio_open(&format_->pb, output_path.c_str(), AVIO_FLAG_WRITE) < 0) {
-        reason = "failed to open output";
-        return false;
+    if (!(format_->oformat->flags & AVFMT_NOFILE)) {
+        writer_ = std::make_unique<MuxAvioHashWriter>();
+        if (!writer_->open(output_path)) {
+            reason = "failed to open checksum-aware output";
+            writer_.reset();
+            return false;
+        }
+        auto* buffer = static_cast<unsigned char*>(av_malloc(kMuxAvioBufferSize));
+        if (!buffer) {
+            reason = "failed to allocate mux AVIO buffer";
+            writer_.reset();
+            return false;
+        }
+        format_->pb = avio_alloc_context(buffer, kMuxAvioBufferSize, 1, writer_.get(),
+                                         nullptr, &MuxAvioHashWriter::write_packet,
+                                         &MuxAvioHashWriter::seek);
+        if (!format_->pb) {
+            av_free(buffer);
+            reason = "failed to allocate checksum-aware AVIO context";
+            writer_.reset();
+            return false;
+        }
+        format_->pb->seekable = writer_->sink->seekable;
+        format_->flags |= AVFMT_FLAG_CUSTOM_IO;
     }
     AVDictionary* opts = nullptr;
     av_dict_set(&opts, "movflags", "+faststart", 0);
@@ -327,11 +481,24 @@ bool MuxSession::submit_audio(EncodedPacket encoded) noexcept {
 
 bool MuxSession::finalize() noexcept {
     if (!format_) return false;
+    if (finalized_) return !output_checksum_.empty() || (format_->oformat->flags & AVFMT_NOFILE);
+
     const auto started = std::chrono::steady_clock::now();
-    const bool ok = av_write_trailer(format_) >= 0;
+    const bool trailer_ok = av_write_trailer(format_) >= 0;
     trailer_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
-    return ok;
+
+    bool checksum_ok = true;
+    if (writer_) {
+        if (format_->pb) {
+            avio_flush(format_->pb);
+            avio_context_free(&format_->pb);
+        }
+        checksum_ok = writer_->close_and_checksum(output_path_, output_checksum_,
+                                                   checksum_used_reread_);
+    }
+    finalized_ = trailer_ok && checksum_ok;
+    return finalized_;
 }
 
 bool PacketAssembler::submit(AVPacket& packet, AVRational source_time_base,
