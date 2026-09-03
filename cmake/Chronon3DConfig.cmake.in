@@ -79,7 +79,7 @@ if(@CHRONON3D_ENABLE_TEXT@)
     # FIRST so the ZLIB::ZLIB target exists before freetype's config
     # tries to link against it.  Without this, find_dependency(freetype)
     # fails with "target ZLIB::ZLIB was not found".
-    find_dependency(ZLIB)  # Find-module (no CONFIG) — vcpkg provides FindZLIB.cmake
+    find_dependency(ZLIB)
     # HarfBuzz MUST come BEFORE freetype: freetype's vcpkg config
     # internally calls find_package(HarfBuzz) in module mode, which
     # creates FindHarfBuzz.cmake with HARFBUZZ_LIBRARY_RELEASE-NOTFOUND
@@ -121,12 +121,6 @@ endif()
 # Chronon3DTargets.cmake included above.
 if(NOT TARGET Chronon3D::SDK)
     add_library(Chronon3D::SDK ALIAS SDK)
-endif()
-
-# Recreate the namespaced C ABI alias for installed consumers.  The export
-# file uses the historical short target name `C` as its EXPORT_NAME.
-if(TARGET C AND NOT TARGET Chronon3D::C)
-    add_library(Chronon3D::C ALIAS C)
 endif()
 
 check_required_components(Chronon3D)
