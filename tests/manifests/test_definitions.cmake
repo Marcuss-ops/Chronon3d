@@ -23,20 +23,13 @@ set(CHRONON3D_TEST_DEFINITIONS
     graphics_tests.cmake
     gradient_visual_tests.cmake
     rounded_rect_visual_tests.cmake
-    text_production_v1_tests.cmake
-    text_health_tests.cmake
-    text_fallback_tests.cmake
+    text_domain_tests.cmake
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
     precomp_focus_tests.cmake
     timeline_tests.cmake
     timeline_functional_v1_tests.cmake
-    text_definition_tests.cmake
-    safe_area_placement_tests.cmake
-    text_rich_authoring_tests.cmake
     animation_helpers_tests.cmake
-    text/text_clip_policy_tests.cmake
-    text_layout_advanced_tests.cmake
     bench_corpus/CMakeLists.txt
     video_tests.cmake
     media_tests.cmake
@@ -44,7 +37,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     simd/simd_parity_blend_tests.cmake
     simd/cpu_isa_tests.cmake
     reference/capcut/CMakeLists.txt
-    text/CMakeLists.txt
     assets/CMakeLists.txt
     ipc_schema_documents_tests.cmake
 )
