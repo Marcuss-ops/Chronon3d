@@ -62,7 +62,7 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     compiled.graph = std::move(graph);
 
     if (options.compute_lifetimes) {
-        build_compiled_resource_table(compiled);
+        build_compiled_resource_table(compiled, ctx);
     }
 
     compiled.structure_hash = compute_structure_hash(
@@ -235,7 +235,7 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
     compiled.graph = std::move(graph);
 
     if (options.compute_lifetimes) {
-        build_compiled_resource_table(compiled);
+        build_compiled_resource_table(compiled, ctx);
     }
 
     compiled.structure_hash = compute_structure_hash(
