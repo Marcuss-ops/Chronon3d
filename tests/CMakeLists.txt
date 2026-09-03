@@ -5,10 +5,6 @@ include(doctest)
 
 set(TEST_MAIN test_main.cpp)
 
-function(chronon3d_enable_test_pch target_name)
-    # Disabled on resource-constrained build hosts.
-endfunction()
-
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DTestSuite.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/manifests/test_definitions.cmake)
 
@@ -33,13 +29,3 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_common_performance_gate.py")
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_common_performance_gate.py"
     )
 endif()
-
-# Canonical source-registry artifact consumed by the registration gate.
-get_property(CHRONON3D_ALL_REGISTERED_TEST_SOURCES
-    GLOBAL
-    PROPERTY CHRONON3D_REGISTERED_TEST_SOURCES
-)
-file(WRITE
-    "${CMAKE_BINARY_DIR}/registered_test_sources.txt"
-    "${CHRONON3D_ALL_REGISTERED_TEST_SOURCES}"
-)
