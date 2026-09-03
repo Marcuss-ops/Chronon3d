@@ -21,10 +21,10 @@ set(CHRONON3D_TEST_DEFINITIONS
     compositor_tests.cmake
     benchmarks.cmake
     animation_tests.cmake
+    visual_tests.cmake
     renderer_tests.cmake
     io_tests.cmake
     parallelism_tests.cmake
-    visual_tests.cmake
     graphics_tests.cmake
     gradient_visual_tests.cmake
     rounded_rect_visual_tests.cmake
