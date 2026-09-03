@@ -1,6 +1,14 @@
 [[nodiscard]] static runtime::FrameExecutionResult frame_result_from_session(
     const RenderSession& session) {
     const auto error = session.last_frame_error();
+    if (runtime::gpu_worker_poisoned()) {
+        std::string reason = "GPU worker is poisoned after a terminal device-loss failure";
+        if (error && !error->message.empty()) {
+            reason = error->message;
+        }
+        return runtime::FrameExecutionResult::failed(
+            runtime::ExecutionFailure::DeviceLost, std::move(reason));
+    }
     if (!error) {
         return runtime::FrameExecutionResult::failed(
             runtime::ExecutionFailure::InvalidResource,
