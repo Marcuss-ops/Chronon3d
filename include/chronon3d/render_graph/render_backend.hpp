@@ -43,7 +43,7 @@ namespace chronon3d::cache {
 
 namespace chronon3d::graph {
 
-struct PhysicalFramebufferAllocationPlan;
+struct CompiledResourceTable;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend capabilities & error types
@@ -627,7 +627,7 @@ public:
     virtual void preallocate_plan_surfaces(
         std::uint32_t /*canvas_width*/,
         std::uint32_t /*canvas_height*/,
-        const PhysicalFramebufferAllocationPlan& /*plan*/) {
+        const CompiledResourceTable& /*plan*/) {
         // Default: no-op (software/reference backends)
     }
 };
