@@ -10,7 +10,7 @@ namespace chronon3d::video {
 /// this alias-interface remains for backward compatibility and
 /// to keep concrete implementations namespaced under video::
 class VideoFrameDecoder : public media::MediaFrameProvider {
-    // decode_frame() is inherited from MediaFrameProvider.
+    // decode_frame_at() is inherited from MediaFrameProvider.
     // Concrete implementations override it as before.
 };
 

@@ -708,8 +708,8 @@ TEST_CASE("FrameGraphCompiler - linear graph compilation") {
 
     REQUIRE(compiled.valid);
     CHECK(compiled.levels.size() >= 3);
-    CHECK(compiled.consumer_counts[clear_id] == 1);
-    CHECK(compiled.consumer_counts[source_id] == 1);
+    CHECK(compiled.resource_table().resources[clear_id].consumer_count == 1);
+    CHECK(compiled.resource_table().resources[source_id].consumer_count == 1);
     CHECK(compiled.output == composite_id);
 }
 
@@ -735,9 +735,9 @@ TEST_CASE("FrameGraphCompiler - diamond graph scheduling") {
     auto compiled = compiler.compile(std::move(graph), ctx, options);
 
     REQUIRE(compiled.valid);
-    CHECK(compiled.consumer_counts[a] == 2);
-    CHECK(compiled.consumer_counts[b] == 1);
-    CHECK(compiled.consumer_counts[c] == 1);
+    CHECK(compiled.resource_table().resources[a].consumer_count == 2);
+    CHECK(compiled.resource_table().resources[b].consumer_count == 1);
+    CHECK(compiled.resource_table().resources[c].consumer_count == 1);
     CHECK(compiled.output == d);
 }
 
@@ -1059,7 +1059,12 @@ TEST_CASE("FrameGraphCompiler - compile_with_reuse: skip path (Test A)") {
     for (size_t i = 0; i < compiled.nodes.size(); ++i) {
         CHECK(compiled.nodes[i].stable_node_id == prior.nodes[i].stable_node_id);
     }
-    CHECK(compiled.consumer_counts == prior.consumer_counts);
+    REQUIRE(compiled.resource_table().resources.size() ==
+            prior.resource_table().resources.size());
+    for (size_t i = 0; i < compiled.resource_table().resources.size(); ++i) {
+        CHECK(compiled.resource_table().resources[i].consumer_count ==
+              prior.resource_table().resources[i].consumer_count);
+    }
     CHECK(compiled.output == prior.output);
     // structure_hash should be freshly derived and equal (hash is deterministic).
     CHECK(compiled.structure_hash == prior.structure_hash);

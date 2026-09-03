@@ -170,27 +170,17 @@ bool finalize_render_job(
                 job.metadata.width, job.metadata.height); graph != nullptr) {
             runtime::ResourcePlanner planner;
             for (std::size_t id = 0;
-                 id < graph->physical_framebuffer_plan.resources.size(); ++id) {
-                const auto& allocation = graph->physical_framebuffer_plan.resources[id];
-                if (allocation.producer == graph::k_invalid_node ||
-                    id >= graph->lifetimes.size()) {
+                 id < graph->resource_table().resources.size(); ++id) {
+                const auto& allocation = graph->resource_table().resources[id];
+                if (allocation.producer == graph::k_invalid_node) {
                     continue;
                 }
-                const auto& lifetime = graph->lifetimes[id];
                 const bool persistent = allocation.persistent || allocation.async_use;
                 runtime::ResourceRequest request;
                 request.id = "GraphNode[" + std::to_string(id) + "]";
-                request.desc = runtime::ResourceDesc::make(
-                    static_cast<std::uint32_t>(job.metadata.width),
-                    static_cast<std::uint32_t>(job.metadata.height),
-                    runtime::PixelFormat::Rgba32Float,
-                    runtime::ResourceUsage::ColorAttachment,
-                    persistent ? runtime::LifetimeClass::JobPersistent
-                               : runtime::LifetimeClass::FrameTransient,
-                    alignof(Color));
-                request.desc.kind = runtime::ResourceKind::Color;
-                request.first = persistent ? 0 : lifetime.first_level;
-                request.last = persistent ? 0 : lifetime.last_level;
+                request.desc = allocation.desc;
+                request.first = persistent ? 0 : allocation.first_level;
+                request.last = persistent ? 0 : allocation.last_level;
                 planner.add(std::move(request));
             }
             setup.resource_plan = planner.build();

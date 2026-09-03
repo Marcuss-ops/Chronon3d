@@ -9,7 +9,6 @@
     const auto& levels = compiled.program.empty()
         ? compiled.levels
         : compiled.program.levels;
-    const auto& consumer_counts = compiled.consumer_counts;
     const auto output = compiled.output;
 
     if (compiled.empty()) {
@@ -47,7 +46,8 @@
     const auto t_fb0 = profiling::now();
     init_shared_transparent_fb(state, ctx, res);
 
-    auto consumer_remaining = init_consumer_remaining(node_count, consumer_counts, res);
+    auto consumer_remaining = init_consumer_remaining(
+        node_count, compiled.resource_table().resources, res);
     const auto t_fb1 = profiling::now();
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->framebuffer_lifetime_wall_ms.fetch_add(

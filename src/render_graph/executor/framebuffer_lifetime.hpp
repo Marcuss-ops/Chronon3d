@@ -4,6 +4,7 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 
 #include <atomic>
 #include <span>
@@ -23,6 +24,14 @@ void init_shared_transparent_fb(
 /// Initialize the consumer_remaining vector from an array of consumer counts
 /// (one per graph node).  Each entry counts how many downstream nodes still
 /// need to read that node's output before it can be released.
+std::pmr::vector<std::atomic_size_t> init_consumer_remaining(
+    size_t node_count,
+    std::span<const CompiledResourcePlan> resources,
+    std::pmr::memory_resource* res
+);
+
+/// Test/fallback initializer for raw counts; compiled execution uses the
+/// CompiledResourceTable overload above.
 std::pmr::vector<std::atomic_size_t> init_consumer_remaining(
     size_t node_count,
     std::span<const size_t> consumer_counts,
