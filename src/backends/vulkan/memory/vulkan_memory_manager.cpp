@@ -5,11 +5,85 @@
 #include "vulkan_memory_manager.hpp"
 #include <chronon3d/internal/testing/failure_injector.hpp>
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace chronon3d::backends::vulkan {
+namespace {
+
+std::uint64_t saturating_mul(std::uint64_t a, std::uint64_t b) noexcept {
+    if (a == 0 || b == 0) return 0;
+    if (a > std::numeric_limits<std::uint64_t>::max() / b) {
+        return std::numeric_limits<std::uint64_t>::max();
+    }
+    return a * b;
+}
+
+std::uint64_t format_bytes_per_texel(VkFormat format) noexcept {
+    switch (format) {
+        case VK_FORMAT_R8_UNORM:
+            return 1;
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R16_UNORM:
+        case VK_FORMAT_R16_SFLOAT:
+            return 2;
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_R32_SFLOAT:
+            return 4;
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            return 8;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            return 16;
+        case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
+            return 2; // conservative upper bound for 1.5 B/px NV12
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+            return 4; // conservative upper bound for P010
+        default:
+            // Chronon's render allocator predominantly uses the formats above.
+            // Unknown formats take a conservative bound rather than silently
+            // bypassing the hard policy.
+            return 16;
+    }
+}
+
+std::uint64_t estimate_image_bytes(const VkImageCreateInfo& info) noexcept {
+    std::uint64_t total = 0;
+    std::uint64_t width = std::max<std::uint32_t>(1, info.extent.width);
+    std::uint64_t height = std::max<std::uint32_t>(1, info.extent.height);
+    std::uint64_t depth = std::max<std::uint32_t>(1, info.extent.depth);
+    const std::uint64_t bpp = format_bytes_per_texel(info.format);
+    const std::uint64_t layers = std::max<std::uint32_t>(1, info.arrayLayers);
+    const std::uint64_t samples = std::max<std::uint32_t>(
+        1, static_cast<std::uint32_t>(info.samples));
+    const std::uint32_t levels = std::max<std::uint32_t>(1, info.mipLevels);
+
+    for (std::uint32_t level = 0; level < levels; ++level) {
+        std::uint64_t level_bytes = saturating_mul(width, height);
+        level_bytes = saturating_mul(level_bytes, depth);
+        level_bytes = saturating_mul(level_bytes, layers);
+        level_bytes = saturating_mul(level_bytes, samples);
+        level_bytes = saturating_mul(level_bytes, bpp);
+        if (total > std::numeric_limits<std::uint64_t>::max() - level_bytes) {
+            return std::numeric_limits<std::uint64_t>::max();
+        }
+        total += level_bytes;
+        width = std::max<std::uint64_t>(1, width >> 1);
+        height = std::max<std::uint64_t>(1, height >> 1);
+        depth = std::max<std::uint64_t>(1, depth >> 1);
+    }
+    return total;
+}
+
+bool consumes_device_budget(VulkanMemoryClass memory_class) noexcept {
+    return memory_class == VulkanMemoryClass::DeviceLocal ||
+           memory_class == VulkanMemoryClass::ExternalExportable;
+}
+
+} // namespace
 
 VulkanMemoryManager::~VulkanMemoryManager() {
     shutdown();
@@ -61,6 +135,24 @@ void VulkanMemoryManager::shutdown() {
     device_ = VK_NULL_HANDLE;
 }
 
+runtime::GpuMemoryBudgetSnapshot VulkanMemoryManager::budget_snapshot() const {
+    const auto native = budget_stats();
+    return budget_resolver_.resolve(
+        native.usage_bytes, native.budget_bytes,
+        native.allocation_bytes, native.block_bytes);
+}
+
+void VulkanMemoryManager::require_reservation(
+    std::uint64_t bytes, const char* resource_kind) const {
+    const auto snapshot = budget_snapshot();
+    if (budget_resolver_.can_reserve(snapshot, bytes)) return;
+    throw std::runtime_error(
+        std::string{"VulkanMemoryManager: GPU memory hard budget rejects "} +
+        resource_kind + " allocation bytes=" + std::to_string(bytes) +
+        " usage=" + std::to_string(snapshot.usage_bytes) +
+        " hard_limit=" + std::to_string(snapshot.hard_limit_bytes));
+}
+
 VulkanBufferAllocation VulkanMemoryManager::create_buffer(
     const VkBufferCreateInfo& buffer_info,
     VulkanMemoryClass memory_class)
@@ -71,6 +163,9 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
     }
     if (allocator_ == VK_NULL_HANDLE) {
         throw std::runtime_error("VulkanMemoryManager: create_buffer called on uninitialized allocator");
+    }
+    if (consumes_device_budget(memory_class)) {
+        require_reservation(static_cast<std::uint64_t>(buffer_info.size), "buffer");
     }
 
     VmaAllocationCreateInfo alloc_info{};
@@ -98,12 +193,8 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
     VmaAllocationInfo result_info{};
 
     const VkResult vk_result = vmaCreateBuffer(
-        allocator_,
-        &buffer_info,
-        &alloc_info,
-        &result.buffer,
-        &result.allocation,
-        &result_info);
+        allocator_, &buffer_info, &alloc_info,
+        &result.buffer, &result.allocation, &result_info);
 
     if (vk_result != VK_SUCCESS) {
         throw std::runtime_error(
@@ -134,6 +225,9 @@ VulkanImageAllocation VulkanMemoryManager::create_image(
     if (allocator_ == VK_NULL_HANDLE) {
         throw std::runtime_error("VulkanMemoryManager: create_image called on uninitialized allocator");
     }
+    if (consumes_device_budget(memory_class)) {
+        require_reservation(estimate_image_bytes(image_info), "image");
+    }
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
@@ -149,12 +243,8 @@ VulkanImageAllocation VulkanMemoryManager::create_image(
     VmaAllocationInfo result_info{};
 
     const VkResult vk_result = vmaCreateImage(
-        allocator_,
-        &image_info,
-        &alloc_info,
-        &result.image,
-        &result.allocation,
-        &result_info);
+        allocator_, &image_info, &alloc_info,
+        &result.image, &result.allocation, &result_info);
 
     if (vk_result != VK_SUCCESS) {
         throw std::runtime_error(
