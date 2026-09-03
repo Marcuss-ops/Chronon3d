@@ -531,19 +531,18 @@ struct alignas(16) GpuGlyphStatic {
             text_run_dynamic_sizes[pass_slot] != run_bytes ||
             text_run_dynamic_hashes[pass_slot] != run_hash;
 
-        // Tile raster path is used when frame_batch is active.
-        // Both MTSDF and Premultiplied RGBA glyphs are supported by text_tile_raster.comp.
+        // Tiled bin+raster is the canonical text-batch renderer. Atlas
+        // encoding only selects glyph sampling semantics; it no longer
+        // selects between two separate GPU renderers.
         const bool atlas_is_mtsdf =
             atlas_image.text_atlas_encoding == runtime::TextAtlasEncoding::MTSDF;
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
-            // Keep the per-glyph flag and the tile-path decision derived from
-            // one resolver (the atlas metadata), not from the pixel format.
             gpu_glyphs[i].atlas_page_and_flags =
                 static_cast<std::uint32_t>(glyphs[i].atlas_page) |
                 (static_cast<std::uint32_t>(atlas_is_mtsdf ? 1u : 0u) << 16);
         }
-        const bool use_mtsdf_tiles = frame_batch.active && atlas_is_mtsdf;
-        if (use_mtsdf_tiles) {
+        const bool use_tiled_text = frame_batch.active;
+        if (use_tiled_text) {
             constexpr std::int32_t kTileSize = 16;
             constexpr std::int32_t kMaxGlyphsPerTile = 64;
             const std::int32_t tiles_x =
@@ -619,33 +618,10 @@ struct alignas(16) GpuGlyphStatic {
             return;
         }
 
-        if (frame_batch.active) {
-            const auto descriptors = allocate_pass_descriptor_set();
-            write_text_batch_descriptors(descriptors, dst_image, atlas_image, glyph_buffer, run_buffer);
-            const auto cmd = active_command_buffer();
-            emit_pass_sync(cmd, {&dst_image, &atlas_image});
-            if (glyph_updated) {
-                vkCmdUpdateBuffer(cmd, glyph_buffer, 0, glyph_bytes, gpu_glyphs);
-                glyph_instance_hashes[pass_slot] = glyph_hash;
-                glyph_instance_sizes[pass_slot] = glyph_bytes;
-            }
-            if (run_updated) {
-                vkCmdUpdateBuffer(cmd, run_buffer, 0, run_bytes, gpu_runs);
-                text_run_dynamic_hashes[pass_slot] = run_hash;
-                text_run_dynamic_sizes[pass_slot] = run_bytes;
-            }
-            record_text_batch(cmd, descriptors, dst_image,
-                              static_cast<std::int32_t>(glyphs.size()),
-                              static_cast<std::int32_t>(runs.size()),
-                              glyph_buffer, glyph_updated,
-                              run_buffer, run_updated,
-                              dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
-            dst_image.initialized = true;
-            ++frame_batch.pass_count;
-            ++stats.passes_executed;
-        } else {
-            throw std::logic_error("Vulkan text batch requires an active frame batch");
-        }
+        // No framebuffer-only/legacy TextBatch renderer remains reachable.
+        // draw_text_batch is a batched GPU operation and therefore requires
+        // the canonical frame-batch command buffer.
+        throw std::logic_error("Vulkan tiled text batch requires an active frame batch");
     }
 
 namespace {
