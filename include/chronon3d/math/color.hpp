@@ -34,6 +34,15 @@ namespace color_detail {
     return linear_to_srgb8_lut()[idx];
 }
 
+/// Canonical straight-alpha output boundary for Chronon's premultiplied
+/// working domain.  RGB is deliberately NOT clamped to alpha: HDR
+/// premultiplied values may legitimately exceed both alpha and 1.0.  The
+/// only sanitization performed here is the one required to make division by
+/// alpha safe and deterministic at an output boundary.
+[[nodiscard]] inline bool finite_rgb(f32 r, f32 g, f32 b) noexcept {
+    return std::isfinite(r) && std::isfinite(g) && std::isfinite(b);
+}
+
 } // namespace color_detail
 
 struct Color {
@@ -123,16 +132,28 @@ struct Color {
 
     // Alpha compositing helpers.
     // premultiply: RGB *= A  (for correct filtering and blending)
-    // unpremultiply: RGB /= A  (to restore straight alpha for display/export)
+    // unpremultiply: the ONE safe straight-alpha output boundary.  It only
+    // divides when alpha and the resulting RGB are finite.  It never clamps
+    // HDR RGB to alpha or to [0,1].
     [[nodiscard]] constexpr Color premultiplied() const {
         if (a <= 0.0f) return {0.0f, 0.0f, 0.0f, 0.0f};
         return {r * a, g * a, b * a, a};
     }
 
-    [[nodiscard]] constexpr Color unpremultiplied() const {
-        if (a <= 0.0f) return {0.0f, 0.0f, 0.0f, 0.0f};
+    [[nodiscard]] Color unpremultiplied() const noexcept {
+        constexpr f32 kAlphaEpsilon = 1.0e-8f;
+        if (!std::isfinite(a) || a <= kAlphaEpsilon ||
+            !color_detail::finite_rgb(r, g, b)) {
+            return {0.0f, 0.0f, 0.0f, std::isfinite(a) ? a : 0.0f};
+        }
         const f32 inv = 1.0f / a;
-        return {r * inv, g * inv, b * inv, a};
+        const f32 out_r = r * inv;
+        const f32 out_g = g * inv;
+        const f32 out_b = b * inv;
+        if (!color_detail::finite_rgb(out_r, out_g, out_b)) {
+            return {0.0f, 0.0f, 0.0f, a};
+        }
+        return {out_r, out_g, out_b, a};
     }
 
     // Fast approximations (gamma 2.2)
