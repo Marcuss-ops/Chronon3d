@@ -278,11 +278,4 @@ int command_validate(const CompositionRegistry& registry, const ValidateArgs& ar
 int command_resolve(const CompositionRegistry& registry, const ResolveArgs& args);
 
 } // namespace cli
-
-struct CreateArgs {
-    std::string name;
-    std::string template_name{"basic"};
-    bool force{false};
-};
-
 } // namespace chronon3d
