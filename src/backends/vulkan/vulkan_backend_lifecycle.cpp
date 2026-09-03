@@ -3,7 +3,7 @@
 // in vulkan_backend_lifecycle_private.cpp; this TU owns only the public
 // wrapper so touching backend construction recompiles just this file.
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
-#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
 #endif
