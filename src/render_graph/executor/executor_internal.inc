@@ -37,11 +37,11 @@
     state.resolved_frame_dependent.assign(node_count, 0);
     state.resolved_cache_hit.assign(node_count, 0);
     state.resolved_bboxes.resize(node_count);
-    state.physical_slots.resize(compiled.physical_framebuffer_plan.physical_slot_count);
-    for (const auto& slot : compiled.physical_framebuffer_plan.slots) {
-        if (slot.id < state.physical_slots.size()) {
-            state.physical_slots[slot.id].reset();
-        }
+
+    const auto& resource_table = compiled.resource_table();
+    state.physical_slots.resize(resource_table.physical_slot_count);
+    for (auto& slot : state.physical_slots) {
+        slot.reset();
     }
 
     const auto t_fb0 = profiling::now();
@@ -59,11 +59,10 @@
     auto* parent_pool = ctx.services.framebuffer_pool.get();
 
     if (parent_counters) {
-        const auto& plan = compiled.physical_framebuffer_plan;
         const auto logical_count = static_cast<std::uint64_t>(
-            plan.logical_resource_count);
+            resource_table.logical_resource_count);
         const auto physical_count = static_cast<std::uint64_t>(
-            plan.physical_slot_count);
+            resource_table.physical_slot_count);
         const auto frame_bytes = static_cast<std::uint64_t>(ctx.frame_input.width) *
             static_cast<std::uint64_t>(ctx.frame_input.height) * sizeof(Color);
         const auto logical_bytes = logical_count * frame_bytes;
