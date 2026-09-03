@@ -35,6 +35,7 @@ enum class PrimitiveKind : std::uint8_t {
     Text         = 1,
     Rect         = 2,
     RoundedRect  = 3,
+    Video        = 4,
     Other        = 15,
 };
 
