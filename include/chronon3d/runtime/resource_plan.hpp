@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_desc.hpp>
@@ -24,20 +25,52 @@ struct LogicalResource {
     bool persistent{false};
 };
 
+/// Logical allocation request. ResourceDesc is the sole authority for kind,
+/// allocation size, lifetime, alignment, format, usage and residency.
 struct ResourceRequest {
     std::string id{};
-    ResourceKind kind{ResourceKind::Bytes};
-    /// Explicit allocation-size override for padded/external layouts. Zero
-    /// means derive tightly from ResourceDesc; desc.bytes is never authoritative.
-    std::size_t bytes{0};
-    /// Legacy request-level mirror. ResourcePlanner::add folds this into
-    /// desc.lifetime and thereafter the descriptor is authoritative.
-    LifetimeClass lifetime{LifetimeClass::FrameTransient};
+    ResourceDesc desc{};
     std::size_t first{0};
     std::size_t last{0};
-    std::size_t alignment{alignof(std::max_align_t)};
-    ResourceDesc desc{};
     RenderSurfaceHandle surface{kInvalidRenderSurfaceHandle};
+
+    ResourceRequest() = default;
+
+    ResourceRequest(
+        std::string id_value,
+        ResourceDesc desc_value,
+        std::size_t first_value,
+        std::size_t last_value,
+        RenderSurfaceHandle surface_value = kInvalidRenderSurfaceHandle)
+        : id(std::move(id_value)),
+          desc(std::move(desc_value)),
+          first(first_value),
+          last(last_value),
+          surface(surface_value) {}
+
+    /// Source-compatibility constructor for staged migration of positional
+    /// callers. The legacy values are immediately folded into ResourceDesc;
+    /// no mirrored request-level state is retained.
+    ResourceRequest(
+        std::string id_value,
+        ResourceKind kind_value,
+        std::size_t bytes_value,
+        LifetimeClass lifetime_value,
+        std::size_t first_value,
+        std::size_t last_value,
+        std::size_t alignment_value,
+        ResourceDesc desc_value,
+        RenderSurfaceHandle surface_value = kInvalidRenderSurfaceHandle)
+        : id(std::move(id_value)),
+          desc(std::move(desc_value)),
+          first(first_value),
+          last(last_value),
+          surface(surface_value) {
+        desc.kind = kind_value;
+        desc.lifetime = lifetime_value;
+        if (bytes_value != 0) desc.bytes = bytes_value;
+        if (alignment_value != 0) desc.alignment = alignment_value;
+    }
 };
 
 struct ResourceAllocation {
@@ -48,18 +81,13 @@ struct ResourceAllocation {
 
 using ResourceBinding = ResourceAllocation;
 
+/// Physical placement metadata. ResourceDesc describes what the resource is;
+/// this type only records where/how much storage was reserved for it.
 struct PhysicalResourceSlot {
-    ResourceKind kind{ResourceKind::Bytes};
-    LifetimeClass lifetime{LifetimeClass::FrameTransient};
-    std::size_t bytes{0};
-    std::size_t alignment{alignof(std::max_align_t)};
-    std::size_t last{0};
-    FrameFormat format{};
-    ResourceUsage usage{ResourceUsage::Generic};
-    std::uint32_t width{0};
-    std::uint32_t height{0};
+    ResourceDesc desc{};
+    std::size_t capacity_bytes{0};
     std::size_t offset{0};
-    ResourceResidency residency{};
+    std::size_t last_use{0};
     bool dedicated{false};
 };
 
@@ -99,20 +127,10 @@ struct ResourcePlan {
 class ResourcePlanner {
 public:
     void add(ResourceRequest request) {
-        if (request.desc.lifetime == LifetimeClass::FrameTransient &&
-            request.lifetime != LifetimeClass::FrameTransient) {
-            request.desc.lifetime = request.lifetime;
-        }
-        request.lifetime = request.desc.lifetime;
-
-        if (request.kind == ResourceKind::Color &&
+        if (request.desc.kind == ResourceKind::Color &&
             is_rgb_surface_format(request.desc.format)) {
             request.desc.format = canonical_render_format();
         }
-
-        request.desc.bytes = request.desc.tight_bytes();
-        request.desc.alignment = request.alignment != 0
-            ? request.alignment : request.desc.alignment;
         m_requests.push_back(std::move(request));
     }
 
@@ -148,7 +166,7 @@ public:
                     if (!physical.dedicated &&
                         request.desc.lifetime == LifetimeClass::FrameTransient &&
                         compatible(physical, request) &&
-                        physical.last < request.first) {
+                        physical.last_use < request.first) {
                         selected = slot;
                         break;
                     }
@@ -157,21 +175,21 @@ public:
             if (selected == std::numeric_limits<std::size_t>::max()) {
                 selected = plan.slots.size();
                 plan.slots.push_back(PhysicalResourceSlot{
-                    request.kind, request.desc.lifetime, request_bytes,
-                    request.desc.alignment, request.last,
-                    request.desc.format, request.desc.usage,
-                    request.desc.width, request.desc.height, 0,
-                    request.desc.residency,
+                    request.desc,
+                    request_bytes,
+                    0,
+                    request.last,
                     request.desc.residency.requires_dedicated_allocation()});
                 ++plan.telemetry.buffer_new_allocations;
             } else {
                 auto& physical = plan.slots[selected];
-                physical.bytes = physical.bytes < request_bytes ? request_bytes : physical.bytes;
-                physical.last = request.last;
-                physical.alignment = physical.alignment < request.desc.alignment
-                    ? request.desc.alignment : physical.alignment;
-                physical.width = std::max(physical.width, request.desc.width);
-                physical.height = std::max(physical.height, request.desc.height);
+                physical.capacity_bytes = physical.capacity_bytes < request_bytes
+                    ? request_bytes : physical.capacity_bytes;
+                physical.last_use = request.last;
+                physical.desc.alignment = physical.desc.alignment < request.desc.alignment
+                    ? request.desc.alignment : physical.desc.alignment;
+                physical.desc.width = std::max(physical.desc.width, request.desc.width);
+                physical.desc.height = std::max(physical.desc.height, request.desc.height);
                 ++plan.telemetry.buffer_reuse_count;
             }
             plan.allocations[index] = ResourceAllocation{index, selected, request.surface};
@@ -192,14 +210,14 @@ public:
         }
         for (const auto& slot : plan.slots) {
             plan.planned_physical_bytes = align_up(
-                plan.planned_physical_bytes, slot.alignment);
-            plan.planned_physical_bytes += slot.bytes;
+                plan.planned_physical_bytes, slot.desc.alignment);
+            plan.planned_physical_bytes += slot.capacity_bytes;
         }
         std::size_t offset = 0;
         for (auto& slot : plan.slots) {
-            offset = align_up(offset, slot.alignment);
+            offset = align_up(offset, slot.desc.alignment);
             slot.offset = offset;
-            offset += slot.bytes;
+            offset += slot.capacity_bytes;
         }
         plan.telemetry.logical_count = plan.requests.size();
         plan.telemetry.physical_count = plan.slots.size();
@@ -218,7 +236,7 @@ public:
 private:
     [[nodiscard]] static std::size_t allocation_bytes(
         const ResourceRequest& request) noexcept {
-        return request.bytes != 0 ? request.bytes : request.desc.tight_bytes();
+        return request.desc.allocation_bytes();
     }
 
     static bool less(const ResourceRequest& lhs, const ResourceRequest& rhs) noexcept {
@@ -228,21 +246,24 @@ private:
 
     static bool compatible(const PhysicalResourceSlot& slot,
                            const ResourceRequest& request) noexcept {
+        const auto& slot_desc = slot.desc;
         const auto& desc = request.desc;
         const bool format_compatible =
             desc.format.pixel == PixelFormat::Unknown ||
-            slot.format.pixel == PixelFormat::Unknown || slot.format == desc.format;
+            slot_desc.format.pixel == PixelFormat::Unknown ||
+            slot_desc.format == desc.format;
         const bool usage_compatible =
             desc.usage == ResourceUsage::Generic ||
-            slot.usage == ResourceUsage::Generic || slot.usage == desc.usage;
+            slot_desc.usage == ResourceUsage::Generic ||
+            slot_desc.usage == desc.usage;
         const bool alignment_compatible = desc.alignment != 0;
         const bool dimensions_compatible =
-            desc.width == 0 || desc.height == 0 || slot.width == 0 ||
-            slot.height == 0 ||
-            (slot.width == desc.width && slot.height == desc.height);
-        const bool residency_compatible = slot.residency == desc.residency;
-        return slot.kind == request.kind &&
-               slot.lifetime == desc.lifetime &&
+            desc.width == 0 || desc.height == 0 || slot_desc.width == 0 ||
+            slot_desc.height == 0 ||
+            (slot_desc.width == desc.width && slot_desc.height == desc.height);
+        const bool residency_compatible = slot_desc.residency == desc.residency;
+        return slot_desc.kind == desc.kind &&
+               slot_desc.lifetime == desc.lifetime &&
                format_compatible && usage_compatible && alignment_compatible &&
                dimensions_compatible && residency_compatible;
     }
