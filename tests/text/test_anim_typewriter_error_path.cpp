@@ -38,8 +38,8 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <content/text/text_helpers_typewriter.hpp>
 
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <tests/helpers/test_utils.hpp>

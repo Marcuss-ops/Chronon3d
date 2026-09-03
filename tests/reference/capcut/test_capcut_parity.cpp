@@ -26,8 +26,8 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/authoring/subtitle_track_builder.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>

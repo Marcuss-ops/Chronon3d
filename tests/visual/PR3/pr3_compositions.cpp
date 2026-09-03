@@ -22,7 +22,7 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/api/composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
