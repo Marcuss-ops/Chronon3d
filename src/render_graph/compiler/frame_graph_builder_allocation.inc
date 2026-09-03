@@ -65,6 +65,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
         if (!resource) continue;
 
         ++table.logical_resource_count;
+        table.logical_bytes += resource->desc.allocation_bytes();
         resource->persistent =
             compiled.nodes[node_id].cache_policy.reusable_across_frames() ||
             node_id == compiled.output;
@@ -122,6 +123,8 @@ void FrameGraphCompiler::build_compiled_resource_table(
     }
     table.slots = plan.slots;
     table.physical_slot_count = static_cast<std::uint32_t>(table.slots.size());
+    table.planned_physical_bytes = plan.planned_physical_bytes;
+    table.peak_live_bytes = plan.peak_live_bytes;
 
     for (std::size_t request_index = 0;
          request_index < planner_request_to_resource.size();
