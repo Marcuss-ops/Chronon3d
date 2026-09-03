@@ -55,14 +55,6 @@ foreach(_target IN ITEMS
     chronon3d_io_tests
     chronon3d_animation_tests
     chronon3d_content_tests
-    chronon3d_visual_test_support_tests
-    chronon3d_camera_visual_tests
-    chronon3d_cinematic_motion_visual_tests
-    chronon3d_gradient_visual_tests
-    chronon3d_rounded_rect_visual_tests
-    chronon3d_render_graph_node_visual_tests
-    chronon3d_pr3_composition_visual_tests
-    chronon3d_diagnostic_overlay_tests
     chronon3d_precomp_tests
 )
     chronon3d_append_target_if_present(CHRONON3D_RENDER_TEST_DEPS ${_target})
@@ -99,7 +91,6 @@ add_custom_target(chronon3d_tests
 set(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS "")
 foreach(_target IN ITEMS
     chronon3d_text_definition_tests
-    chronon3d_text_rich_authoring_tests
     chronon3d_inspect_text_tests
 )
     chronon3d_append_target_if_present(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS ${_target})

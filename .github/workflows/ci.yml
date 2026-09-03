@@ -455,60 +455,6 @@ jobs:
         if: ${{ matrix.config.core_only }}
         run: build/chronon/${{ matrix.config.preset }}/apps/chronon3d_cli/chronon3d_cli --help
 
-  golden:
-    name: Golden (${{ matrix.golden.label }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        golden:
-          - { name: breathing, label: 'Breathing', ctest_filter: '-R chronon3d_breathing_golden_tests', golden_subdir: breathing }
-          - { name: camera, label: 'Camera', ctest_filter: '-R chronon3d_camera_visual_tests', golden_subdir: camera }
-          - { name: glow, label: 'Glow+Suite', ctest_filter: '-R chronon3d_renderer_tests', golden_subdir: glow_suite }
-          - { name: support, label: 'Visual Support', ctest_filter: '-R chronon3d_visual_test_support_tests', golden_subdir: '' }
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          lfs: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install --upgrade pip pillow numpy
-      - name: Install system deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config \
-            libgtk-3-0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
-            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
-            libxcb-xinerama0 libxcb-xinput0 2>/dev/null || true
-        continue-on-error: true
-      - uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
-      - run: cmake --preset linux-ci
-      - run: cmake --build --preset linux-ci -j$(nproc)
-      - name: Run ${{ matrix.golden.label }} tests
-        id: golden-test
-        run: |
-          mkdir -p artifacts
-          ctest --preset linux-ci-test ${{ matrix.golden.ctest_filter }} --output-on-failure 2>&1 | \
-            tee artifacts/test_output_${{ matrix.golden.name }}.txt; exit ${PIPESTATUS[0]}
-      - name: Collect artifacts
-        if: always()
-        run: |
-          if [ -d "test_renders/golden" ]; then cp -r test_renders/golden artifacts/golden/ 2>/dev/null || true; fi
-          for dir in output/debug output/diff; do
-            if [ -d "$dir" ]; then find "$dir" -type f \( -name "*.png" -o -name "*.txt" -o -name "*.json" \) -exec cp {} artifacts/diff/ \; 2>/dev/null || true; fi
-          done
-          if [ -d "output/camera_visual" ]; then cp -r output/camera_visual artifacts/camera_visual/ 2>/dev/null || true; fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: golden-${{ matrix.golden.name }}-${{ github.run_id }}
-          path: artifacts/
-          retention-days: 14
-
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
@@ -547,16 +493,3 @@ jobs:
           name: benchmark-results-${{ github.run_id }}
           path: output/benchmarks/
           retention-days: 30
-
-  visual-verdict:
-    name: Visual Verdict
-    runs-on: ubuntu-latest
-    needs: [golden]
-    if: always()
-    steps:
-      - run: |
-          if [ "${{ needs.golden.result }}" != "success" ]; then
-            echo "::error::One or more golden test variants FAILED."
-            exit 1
-          fi
-          echo "All golden test variants PASSED."

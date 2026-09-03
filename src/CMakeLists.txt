@@ -92,6 +92,14 @@ else()
     endif()
 endif()
 
+# `chronon3d_render_plan` is an OBJECT library with a PRIVATE
+# nlohmann_json_schema_validator dependency; its object files reach the
+# build interface through the registry exposure below, so the validator
+# runtime must be published at the pipeline boundary unconditionally
+# (the render-plan validator is core surface, not IPC-gated).
+target_link_libraries(chronon3d_pipeline INTERFACE
+    nlohmann_json_schema_validator::validator)
+
 if(CHRONON3D_ENABLE_IPC)
     target_link_libraries(chronon3d_pipeline INTERFACE
         nlohmann_json_schema_validator::validator)

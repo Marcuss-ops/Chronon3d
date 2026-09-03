@@ -91,7 +91,7 @@ CompiledFrameGraph build_synthetic_compiled_graph() {
     g.prepared_parameters = table;
 
     // ── Physical plan ──────────────────────────────────────────────────
-    g.resource_table().slots.push_back(runtime::PhysicalResourceSlot{});
+    g.resource_table().slots.push_back(chronon3d::runtime::PhysicalResourceSlot{});
     g.resource_table().physical_slot_count = 1;
     g.resource_table().logical_resource_count = 3;
     g.resource_table().resources.resize(3);

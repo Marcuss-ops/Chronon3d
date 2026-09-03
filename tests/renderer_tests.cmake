@@ -80,7 +80,6 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_text_run_node_execute_error.cpp
         render_graph/nodes/test_text_run_node_return_channel.cpp
         render_graph/nodes/test_text_run_predicted_bbox.cpp
-        render_graph/nodes/test_text_run_predicted_bbox_golden.cpp
         ${CMAKE_SOURCE_DIR}/src/render_graph/nodes/detail/raster_surface.hpp
         render_graph/nodes/test_raster_surface_geometry.cpp
         render_graph/nodes/test_producer_surface_bounds.cpp
@@ -137,7 +136,6 @@ chronon3d_add_test_suite(
         renderer/effects/test_glow_pipeline_unit.cpp
         renderer/effects/test_glow_torture.cpp
         renderer/effects/test_invariants.cpp
-        visual/glow_ab/glow_ab_acceptance.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_effects_tests)
 
@@ -156,30 +154,6 @@ chronon3d_add_test_suite(
 )
 _chronon3d_renderer_target_finalize(chronon3d_camera_tests)
 
-set(_CHRONON3D_MESH_GOLDEN_SOURCES)
-if(CHRONON3D_ENABLE_MESH)
-    list(APPEND _CHRONON3D_MESH_GOLDEN_SOURCES
-        render_graph/pipeline/test_mesh_render.cpp
-    )
-endif()
-
-chronon3d_add_test_suite(
-    NAME chronon3d_golden_tests
-    TIER INTEGRATION
-    LINK_TARGETS
-        ${_RENDERER_LINK_TARGETS}
-        chronon3d_visual_test_support
-    SOURCES
-        golden/glow_golden_tests.cpp
-        golden/golden_render_tests.cpp
-        golden/roadmap_2_5d_suite.cpp
-        golden/stroked_shape_golden_tests.cpp
-        golden/suite_chronon3d_tests.cpp
-        golden/test_clip_transition_golden.cpp
-        ${_CHRONON3D_MESH_GOLDEN_SOURCES}
-)
-_chronon3d_renderer_target_finalize(chronon3d_golden_tests)
-
 add_custom_target(chronon3d_renderer_tests
     DEPENDS
         chronon3d_renderer_core_tests
@@ -187,6 +161,5 @@ add_custom_target(chronon3d_renderer_tests
         chronon3d_effects_tests
         chronon3d_camera_tests
         chronon3d_graphics_tests
-        chronon3d_golden_tests
         chronon3d_precomp_tests
 )

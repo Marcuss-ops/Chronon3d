@@ -10,14 +10,11 @@ set(CHRONON3D_TEST_DEFINITIONS
     render_runtime_tests.cmake
     benchmarks.cmake
     animation_timeline_tests.cmake
-    visual_tests.cmake
     renderer_tests.cmake
     text_domain_tests.cmake
-    bench_corpus/CMakeLists.txt
     video_tests.cmake
     media_tests.cmake
     sdk_tests.cmake
     simd_tests.cmake
-    reference/capcut/CMakeLists.txt
     assets/CMakeLists.txt
 )

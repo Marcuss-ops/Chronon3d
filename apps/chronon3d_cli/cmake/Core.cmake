@@ -26,6 +26,7 @@ target_link_libraries(chronon3d_cli_core PRIVATE
 )
 if(CHRONON3D_ENABLE_VIDEO AND TARGET chronon3d_media_video)
     target_link_libraries(chronon3d_cli_core PRIVATE chronon3d_media_video)
+    target_compile_definitions(chronon3d_cli_core PRIVATE CHRONON3D_ENABLE_VIDEO)
 endif()
 target_precompile_headers(chronon3d_cli_core PRIVATE
     <CLI/CLI.hpp>

@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "kind": "performance-baseline",
-  "status": "runner-defined",
-  "runtime_command": "bash Chronon3d/bench/benchmark_pipeline_stages.sh --stage all --frames 60 --repetitions 3",
-  "required_env": ["CHRONON3D_CLI"],
-  "output_schema": "Chronon3d/bench/benchmark_schema.json",
-  "note": "Run only after a compatible Chronon3d CLI build is available; do not fabricate timing values."
-}
