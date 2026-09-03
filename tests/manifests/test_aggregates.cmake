@@ -37,7 +37,7 @@ chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_fo
 add_custom_target(chronon3d_tests_fast DEPENDS ${CHRONON3D_FAST_TEST_DEPS})
 
 # The daily developer runner consumes this label instead of maintaining a
-# second shell-side test list.  Preserve any labels assigned by the suite.
+# second shell-side test list. Preserve any labels assigned by the suite.
 foreach(_target IN LISTS CHRONON3D_FAST_TEST_DEPS)
     if(TARGET ${_target})
         get_test_property(${_target} LABELS _dev_fast_existing_labels)
@@ -67,19 +67,12 @@ foreach(_target IN ITEMS
 )
     chronon3d_append_target_if_present(CHRONON3D_RENDER_TEST_DEPS ${_target})
 endforeach()
-if(CHRONON3D_BUILD_CONTENT)
-    chronon3d_append_target_if_present(
-        CHRONON3D_RENDER_TEST_DEPS
-        chronon3d_cinematic_camera_showcase_tests
-    )
-endif()
 add_custom_target(chronon3d_tests_render DEPENDS ${CHRONON3D_RENDER_TEST_DEPS})
 
 # Every executable registered through chronon3d_add_test_suite() is a
-# mandatory build dependency of the canonical aggregate.  The focused fast,
-# render, and video lists above remain useful for profiling, but they are not
-# a second source of truth: omitting a newly registered suite from one of
-# those lists must never leave CTest with a missing executable.
+# mandatory build dependency of the canonical aggregate. Focused fast,
+# render, and video targets remain developer conveniences, but are not
+# duplicate dependencies of chronon3d_tests.
 get_property(CHRONON3D_ALL_REGISTERED_TEST_TARGETS
     GLOBAL
     PROPERTY CHRONON3D_ALL_TEST_TARGETS
@@ -101,15 +94,9 @@ endif()
 
 add_custom_target(chronon3d_tests
     DEPENDS
-        chronon3d_tests_fast
-        chronon3d_tests_render
-        chronon3d_tests_video
         ${CHRONON3D_BENCHMARK_DEP}
         ${CHRONON3D_ALL_TEST_DEPS}
 )
-if(TARGET chronon3d_media_video_tests)
-    add_dependencies(chronon3d_tests chronon3d_media_video_tests)
-endif()
 
 set(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS "")
 foreach(_target IN ITEMS
