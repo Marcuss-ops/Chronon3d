@@ -184,11 +184,13 @@ struct VulkanBackend::Impl {
 
     struct VulkanSubmissionRing {
         static constexpr std::size_t kSlotCount = 3;
+        static constexpr std::size_t kCompiledPassTimingCapacity = 256;
         bool active{false};
         std::size_t next_slot{0};
         std::array<VkCommandBuffer, kSlotCount> command_buffers{};
         std::array<VkFence, kSlotCount> fences{};
         std::array<bool, kSlotCount> in_flight{};
+        std::array<std::size_t, kSlotCount> submitted_pass_counts{};
         std::array<FrameDescriptorAllocator, kSlotCount>& descriptor_allocators;
         std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_bin_allocators;
         std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_raster_allocators;
