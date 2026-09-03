@@ -6,5 +6,6 @@ description = "Canonical architecture registry. All static invariants are loaded
 includes = [
   "architecture_rules_core.toml",
   "architecture_rules_migrated.toml",
+  "architecture_rules_cleanup.toml",
   "architecture_rules_camera.toml",
 ]

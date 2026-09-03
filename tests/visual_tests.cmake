@@ -25,7 +25,6 @@ target_include_directories(chronon3d_visual_test_support
 )
 
 # ── Visual Test Support Tests ──
-# Tests the support library itself (image_diff, golden_test).
 chronon3d_add_test_suite(
     NAME chronon3d_visual_test_support_tests
     TIER INTEGRATION
@@ -42,7 +41,6 @@ target_compile_definitions(chronon3d_visual_test_support_tests
 )
 
 # ── Camera Visual Regression Tests ──
-# Golden image tests for camera behavior: center, parallax, orbit, near-plane, z-sort.
 chronon3d_add_test_suite(
     NAME chronon3d_camera_visual_tests
     TIER INTEGRATION
@@ -61,8 +59,6 @@ target_compile_definitions(chronon3d_camera_visual_tests
 )
 
 # ── Cinematic Motion Visual Regression Tests ──
-# Diagnostic visual tests for SampleTime sub-frame, CubicBezier3D handles,
-# arc-length spacing, temporal/spatial curve separation, cache parity.
 chronon3d_add_test_suite(
     NAME chronon3d_cinematic_motion_visual_tests
     TIER INTEGRATION
@@ -83,8 +79,6 @@ target_compile_definitions(chronon3d_cinematic_motion_visual_tests
 )
 
 # ── Render-Graph Node Golden Tests ──
-# PR2 — 6 golden PNG snapshots for the 4 node categories
-# (ShadowNode ×2, PerPixelDofNode, MaskNode ×2, GlowPipeline).
 chronon3d_add_test_suite(
     NAME chronon3d_render_graph_node_visual_tests
     TIER INTEGRATION
@@ -100,9 +94,6 @@ target_compile_definitions(chronon3d_render_graph_node_visual_tests
 )
 
 # ── PR3 End-to-End Composition Visual Regression Tests ──
-# 4 end-to-end compositions (text+gradient+mask, camera+depth+DoF,
-# motion blur+transparencies, video+images+RTL text), each rendered as
-# a none-vs-effect-on golden pair (8 PNGs total) under tests/golden/pr3/.
 chronon3d_add_test_suite(
     NAME chronon3d_pr3_composition_visual_tests
     TIER INTEGRATION
@@ -118,9 +109,6 @@ target_compile_definitions(chronon3d_pr3_composition_visual_tests
 )
 
 # ── Gate 1 — Timeline Visual Golden Tests ──
-# 4 tests proving sequence boundaries, local frame mapping,
-# animation-from-local-frame, and nested sequence mapping
-# work correctly at the render level.
 chronon3d_add_test_suite(
     NAME chronon3d_timeline_visual_tests
     TIER INTEGRATION
@@ -137,8 +125,6 @@ target_compile_definitions(chronon3d_timeline_visual_tests
 )
 
 # ── Gate 2 — Media Time Visual Tests ──
-# 3 tests proving trim_before (source_start), playback_rate (speed),
-# and freeze_frame work correctly at the map_video_frame level.
 chronon3d_add_test_suite(
     NAME chronon3d_media_time_tests
     TIER INTEGRATION
@@ -148,14 +134,9 @@ chronon3d_add_test_suite(
         chronon3d_scene
     LABELS gate
 )
-# Gate 2-4 don't link chronon3d_visual_test_support so they don't
-# inherit ${CMAKE_SOURCE_DIR} transitively.  Add it explicitly for
-# parity with the raw target include dirs.
 target_include_directories(chronon3d_media_time_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
 # ── Gate 3 — Asset Readiness Tests ──
-# 4 tests proving missing font/image/video cause hard preflight failure,
-# and FrameOnly vs FullComposition scoping works correctly.
 chronon3d_add_test_suite(
     NAME chronon3d_asset_readiness_tests
     TIER INTEGRATION
@@ -169,8 +150,6 @@ chronon3d_add_test_suite(
 target_include_directories(chronon3d_asset_readiness_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
 # ── Gate 4 — Debug Timeline Overlay Tests ──
-# 4 tests proving TimelineDebugInfo model captures active sequences,
-# local frames, and assets_used with valid JSON serialization.
 chronon3d_add_test_suite(
     NAME chronon3d_debug_overlay_tests
     TIER INTEGRATION
@@ -210,3 +189,22 @@ chronon3d_add_test_suite(
     SOURCES visual/rounded_rect_visual_tests.cpp
 )
 target_compile_definitions(chronon3d_rounded_rect_visual_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+# ── Diagnostic Overlay Golden Tests ──
+# Reuse the shared golden/image-diff library instead of recompiling those
+# translation units directly into this executable.
+chronon3d_add_test_suite(
+    NAME chronon3d_diagnostic_overlay_tests
+    TIER INTEGRATION
+    LINK_TARGETS
+        chronon3d_sdk
+        chronon3d_software
+        chronon3d_content
+        chronon3d_runtime
+        chronon3d_text_core
+        chronon3d_visual_test_support
+    SOURCES text_golden/diagnostic_overlay/test_diagnostic_overlay.cpp
+)
+target_compile_definitions(chronon3d_diagnostic_overlay_tests PRIVATE
+    CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)

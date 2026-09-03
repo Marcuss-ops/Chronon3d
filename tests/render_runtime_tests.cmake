@@ -3,7 +3,6 @@ if(NOT CHRONON3D_BUILD_TESTS)
     return()
 endif()
 
-# Software compositor, IO and determinism integration coverage.
 chronon3d_add_test_suite(
     NAME chronon3d_compositor_tests
     TIER INTEGRATION
@@ -72,6 +71,23 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     )
     if(TARGET chronon3d::content)
         target_link_libraries(chronon3d_deterministic_tests PRIVATE chronon3d::content)
+    endif()
+endif()
+
+# One precomp target is shared by fast and render aggregates. It keeps the
+# original Blend2D-only availability without compiling the same source twice.
+if(CHRONON3D_USE_BLEND2D)
+    chronon3d_add_test_suite(
+        NAME chronon3d_precomp_tests
+        TIER INTEGRATION
+        LINK_TARGETS chronon3d_pipeline chronon3d_backend_software
+        SOURCES render_graph/nodes/test_precomp_node_cache.cpp
+    )
+    target_compile_definitions(chronon3d_precomp_tests PRIVATE
+        CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    )
+    if(TARGET chronon3d::content)
+        target_link_libraries(chronon3d_precomp_tests PRIVATE chronon3d::content)
     endif()
 endif()
 

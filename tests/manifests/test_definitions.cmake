@@ -6,7 +6,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     architecture_tests.cmake
     ocio_tests.cmake
     core_tests.cmake
-    core_infra_tests.cmake
     shader_abi_tests.cmake
     ipc_tests.cmake
     c_abi_tests.cmake
@@ -21,15 +20,11 @@ set(CHRONON3D_TEST_DEFINITIONS
     visual_tests.cmake
     renderer_tests.cmake
     text_domain_tests.cmake
-    cache/parse_framebuffer_pool_clear_policy_tests.cmake
-    diagnostic_overlay_tests.cmake
-    precomp_focus_tests.cmake
     bench_corpus/CMakeLists.txt
     video_tests.cmake
     media_tests.cmake
     sdk_tests.cmake
-    simd/simd_parity_blend_tests.cmake
-    simd/cpu_isa_tests.cmake
+    simd_tests.cmake
     reference/capcut/CMakeLists.txt
     assets/CMakeLists.txt
 )

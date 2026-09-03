@@ -1,0 +1,168 @@
+# Remaining static invariants migrated from standalone architecture checks.
+# This file is loaded only through tools/architecture_rules.toml; the canonical
+# executor remains tools/check_architecture.py.
+
+# -----------------------------------------------------------------------------
+# Backend sanitization
+# -----------------------------------------------------------------------------
+
+[[forbidden_path]]
+name = "software_backend_retired_dispatch_files"
+paths = [
+  "src/backends/software/software_node_dispatch.cpp",
+  "src/backends/software/software_renderer_draw_fallback.cpp",
+]
+
+[[forbidden_symbol]]
+name = "software_backend_legacy_internal_draw_dispatch"
+patterns = ['software_internal::draw_node']
+scan_paths = ["src/backends/software", "include/chronon3d/backends/software"]
+allow_line_patterns = ['SoftwareNodeDispatcher::draw_node']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "software_backend_debug_smoke_signals"
+patterns = ['std::abort', 'printf\s*\(', 'std::cout']
+scan_paths = ["src/backends/software", "include/chronon3d/backends/software"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "software_backend_cerr_smoke_signal"
+patterns = ['std::cerr']
+scan_paths = ["src/backends/software", "include/chronon3d/backends/software"]
+allow_list = ['src/backends/software/software_node_dispatcher\.cpp']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "test_process_termination_smoke_signals"
+patterns = ['std::abort\s*\(', 'std::terminate\s*\(']
+scan_paths = ["tests"]
+skip_comments = true
+
+# -----------------------------------------------------------------------------
+# Canonical frame-format / color taxonomy
+# -----------------------------------------------------------------------------
+
+[[forbidden_symbol]]
+name = "retired_frame_format_enum_authorities"
+patterns = [
+  '\benum\s+(?:class\s+)?EncoderPixelFormat\b',
+  '\benum\s+(?:class\s+)?VideoPixelFormat\b',
+  '\benum\s+(?:class\s+)?YuvMatrix\b',
+]
+scan_paths = ["include", "src"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "duplicate_pixel_format_or_color_range_authority"
+patterns = [
+  '\benum\s+(?:class\s+)?PixelFormat\b',
+  '\benum\s+(?:class\s+)?ColorRange\b',
+]
+scan_paths = ["include", "src"]
+allow_list = ['include/chronon3d/runtime/frame_format\.hpp']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "duplicate_color_metadata_authority"
+patterns = ['\bstruct\s+ColorMetadata\b']
+scan_paths = ["include", "src"]
+allow_list = ['include/chronon3d/runtime/frame_format\.hpp']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "render_surface_color_metadata_side_channel"
+patterns = ['\bColorMetadata\s+color\s*[;{]']
+scan_paths = ["include/chronon3d/runtime/render_surface.hpp"]
+skip_comments = true
+
+[[contract]]
+name = "canonical_frame_format_contract"
+file = "include/chronon3d/runtime/frame_format.hpp"
+required_patterns = [
+  'enum\s+class\s+PixelFormat\b',
+  'enum\s+class\s+ColorRange\b',
+]
+
+# -----------------------------------------------------------------------------
+# Unified render / asset ownership
+# -----------------------------------------------------------------------------
+
+[[forbidden_symbol]]
+name = "render_asset_retired_identifiers"
+patterns = [
+  '\bRenderJobPlan\b',
+  '\bVideoJobPlan\b',
+  '\bResolvedRenderJob\b',
+  '\bto_legacy_job\b',
+  '\bexecute_video_job\b',
+  '\bcommand_still\b',
+  '\bcommand_video\b',
+  '\bprocess_wide_assets_root\b',
+  '\bset_process_wide_assets_root\b',
+  '\bglobal_asset_root\b',
+  '\bset_global_assets_root\b',
+]
+scan_paths = ["include/chronon3d", "src", "apps/chronon3d_cli", "content", "examples"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "asset_resolution_process_cwd"
+patterns = ['\b(?:(?:std::)?filesystem::)?current_path\s*\(']
+scan_paths = ["include/chronon3d/assets", "src/assets", "src/runtime", "src/backends"]
+skip_comments = true
+
+[[scan]]
+name = "composition_must_not_own_asset_resolver"
+patterns = [
+  '\b(?:chronon3d::)?(?:assets::)?AssetResolver\s+[A-Za-z_]\w*\s*[;={]',
+  '\bnew\s+(?:chronon3d::)?(?:assets::)?AssetResolver\b',
+  '\bstd::make_(?:unique|shared)<\s*(?:chronon3d::)?(?:assets::)?AssetResolver\s*>',
+  '\b(?:chronon3d::)?(?:assets::)?AssetResolver\s*\{',
+]
+scan_paths = ["content", "examples"]
+skip_comments = true
+
+[[scan]]
+name = "logical_asset_path_remains_kind_free"
+patterns = ['class\s+LogicalAssetPath\b.*?\bstatic\s+constexpr\b.*?\bkind\b']
+scan_paths = ["include/chronon3d/authoring/asset.hpp"]
+multiline = true
+skip_comments = true
+
+[[forbidden_path]]
+name = "retired_public_umbrella_headers"
+paths = [
+  "include/chronon3d/chronon3d.hpp",
+  "include/chronon3d/authoring.hpp",
+  "include/chronon3d/render.hpp",
+  "include/chronon3d/advanced.hpp",
+]
+
+# -----------------------------------------------------------------------------
+# Include-graph boundaries previously enforced by a standalone Python test
+# -----------------------------------------------------------------------------
+
+[[forbidden_include]]
+name = "render_session_include_boundary"
+patterns = ['#include\s*[<\"][^>\"]*(?:backends/software/|render_graph/)']
+scan_paths = ["include/chronon3d/internal/runtime/render_session.hpp"]
+allow_line_patterns = [
+  'scene_hasher\.hpp',
+  'scene_program_store\.hpp',
+  'node_memory_tracker\.hpp',
+  'execution_workspace\.hpp',
+]
+skip_comments = true
+
+[[forbidden_include]]
+name = "graph_executor_no_software_backend_include"
+patterns = ['#include\s*[<\"][^>\"]*backends/software/']
+scan_paths = ["include/chronon3d/render_graph/executor/graph_executor.hpp"]
+skip_comments = true
+
+[[forbidden_include]]
+name = "render_graph_context_no_software_backend_include"
+patterns = ['#include\s*[<\"][^>\"]*backends/software/']
+scan_paths = ["include/chronon3d/render_graph/render_graph_context.hpp"]
+skip_comments = true
