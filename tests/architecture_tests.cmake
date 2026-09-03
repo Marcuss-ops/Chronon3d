@@ -61,6 +61,22 @@ set_tests_properties(chronon3d_semantic_core_architecture_guard_py_compile PROPE
     LABELS "architecture;runtime;media;gate;phase1")
 
 add_test(
+    NAME chronon3d_compiled_resource_authority_guard
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_compiled_resource_authority.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_compiled_resource_authority_guard PROPERTIES
+    LABELS "architecture;runtime;render-graph;gate;p0.2")
+
+add_test(
+    NAME chronon3d_compiled_resource_authority_guard_py_compile
+    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_SOURCE_DIR}/tools/check_compiled_resource_authority.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_compiled_resource_authority_guard_py_compile PROPERTIES
+    LABELS "architecture;runtime;render-graph;gate;p0.2")
+
+add_test(
     NAME chronon3d_asset_consumer_shell_syntax
     COMMAND bash -n ${CMAKE_SOURCE_DIR}/tools/sdk/run_asset_authoring_consumer.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
