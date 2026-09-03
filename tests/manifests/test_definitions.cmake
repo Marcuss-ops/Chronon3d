@@ -17,7 +17,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     cache_tests.cmake
     render_runtime_tests.cmake
     benchmarks.cmake
-    animation_tests.cmake
+    animation_timeline_tests.cmake
     visual_tests.cmake
     renderer_tests.cmake
     graphics_tests.cmake
@@ -27,9 +27,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
     precomp_focus_tests.cmake
-    timeline_tests.cmake
-    timeline_functional_v1_tests.cmake
-    animation_helpers_tests.cmake
     bench_corpus/CMakeLists.txt
     video_tests.cmake
     media_tests.cmake
