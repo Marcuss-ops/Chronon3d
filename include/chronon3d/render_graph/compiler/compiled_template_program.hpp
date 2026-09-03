@@ -12,7 +12,7 @@
 // plan and execution schedule.
 //
 // Fase A composes the EXISTING compiled types (CompiledFrameGraph,
-// PhysicalFramebufferAllocationPlan, CompiledFrameProgram, CompiledLayerBatch)
+// CompiledResourceTable, CompiledFrameProgram, CompiledLayerBatch)
 // instead of duplicating them.  The single source of truth is a
 // std::shared_ptr<const CompiledFrameGraph>.
 //
@@ -99,8 +99,7 @@ struct SizedPhysicalSlot {
     std::uint64_t surface_bytes{0};
 };
 
-/// Aggregated physical resource plan (Fase C — evolved from
-/// PhysicalFramebufferAllocationPlan).
+/// Aggregated physical resource analysis derived from CompiledResourceTable.
 struct PhysicalResourcePlan {
     std::vector<SizedPhysicalSlot>  sized_slots;
     std::uint32_t                  slot_count{0};
@@ -246,9 +245,9 @@ struct MaterializationBoundary {
 /// The true compiled program: resolution-independent, cacheable template
 /// built from a CompiledFrameGraph.  The `compiled` member is the single
 /// source of truth for the execution schedule (levels + operations), the
-/// physical resource plan, and the raw node list.  Template-level metadata
-/// (fingerprint, schema, manifest, static regions, GPU batches, boundaries)
-/// is lifted at construction time and stored alongside.
+/// canonical compiled resource table, and the raw node list.  Template-level
+/// metadata (fingerprint, schema, manifest, static regions, GPU batches,
+/// boundaries) is lifted at construction time and stored alongside.
 struct CompiledTemplateProgram {
     // ── Single source of truth: the compiled frame graph ───────────────
     std::shared_ptr<const CompiledFrameGraph> compiled;
@@ -274,7 +273,7 @@ struct CompiledTemplateProgram {
 
     // ── Accessors (no copies — delegate to compiled) ───────────────────
     [[nodiscard]] const CompiledResourceTable* resource_plan() const noexcept {
-        return compiled ? &compiled->physical_framebuffer_plan : nullptr;
+        return compiled ? &compiled->resource_table() : nullptr;
     }
 
     [[nodiscard]] const CompiledFrameProgram* execution() const noexcept {
@@ -333,9 +332,9 @@ struct PreparedFrameProgram {
 /// table preallocation land in subsequent phases.
 [[nodiscard]] PreparedFrameProgram prepare(const CompiledTemplateProgram& program);
 
-/// Phase 5 — pre-allocate every physical GPU surface from the compiled
-/// interval-coloring plan.  Must be called once after prepare() and before
-/// the first frame.  After this call:
+/// Phase 5 — pre-allocate every physical GPU surface from the canonical
+/// compiled resource table. Must be called once after prepare() and before
+/// the first frame. After this call:
 ///
 ///   vkCreateImage / frame       = 0
 ///   vkCreateImageView / frame   = 0
@@ -391,8 +390,8 @@ compile_template_program(CompiledFrameGraph compiled);
 
 // ── Fase C — physical resource analysis entry points ────────────────────────
 //
-/// Lift the deterministic interval-coloring plan into a byte-level resource
-/// plan.  `bytes_per_pixel` defaults to 16 (RGBA32F).
+/// Lift the canonical compiled table into byte-level resource analysis.
+/// `bytes_per_pixel` defaults to 16 (RGBA32F).
 [[nodiscard]] PhysicalResourcePlan analyze_physical_resources(
     const CompiledFrameGraph& compiled,
     std::uint32_t bytes_per_pixel = 16);
