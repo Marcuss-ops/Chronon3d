@@ -325,7 +325,20 @@ public:
     }
 
     void declare_surface(RenderSurfaceHandle handle, ResourceDesc desc) {
+        declare_surface(handle, std::move(desc), std::nullopt, std::nullopt);
+    }
+
+    /// Declare an imported/external surface with explicit boundary states.
+    /// These states are consumed by the canonical ResourceStateTracker; the
+    /// backend receives only the resulting ResourceTransition stream.
+    void declare_surface(
+        RenderSurfaceHandle handle,
+        ResourceDesc desc,
+        std::optional<ResourceState> initial_state,
+        std::optional<ResourceState> final_state) {
         m_descs[handle] = std::move(desc);
+        m_boundary_states[handle] = SurfaceBoundaryState{
+            std::move(initial_state), std::move(final_state)};
     }
 
     void composite(CompositePass pass) { append(GpuPass{GpuPassKind::Composite, std::move(pass)}); }
@@ -387,6 +400,11 @@ private:
         std::size_t last{0};
     };
 
+    struct SurfaceBoundaryState {
+        std::optional<ResourceState> initial{};
+        std::optional<ResourceState> final{};
+    };
+
     static std::optional<ResourceId> resource_for_surface(
         const ResourcePlan& resources,
         RenderSurfaceHandle surface) noexcept {
@@ -398,9 +416,91 @@ private:
         return std::nullopt;
     }
 
+    static std::vector<ResourceRange> canonical_ranges(
+        const ResourceDesc& desc) {
+        if (desc.kind == ResourceKind::Bytes) {
+            return {whole_range()};
+        }
+        if (desc.format.pixel == PixelFormat::Nv12 ||
+            desc.format.pixel == PixelFormat::P010) {
+            return {
+                image_range(ResourceAspect::Plane0),
+                image_range(ResourceAspect::Plane1)};
+        }
+        if (desc.kind == ResourceKind::Depth) {
+            return {image_range(ResourceAspect::Depth)};
+        }
+        return {image_range(ResourceAspect::Color)};
+    }
+
+    static ResourceState state_for_range(ResourceState state,
+                                         const ResourceRange& range) noexcept {
+        if (const auto* image = std::get_if<SubresourceRange>(&range)) {
+            state.range = *image;
+        }
+        return state;
+    }
+
+    static bool has_alias_predecessor(const ResourcePlan& resources,
+                                      ResourceId resource) noexcept {
+        const auto* allocation = resources.allocation_for(resource);
+        if (!allocation ||
+            allocation->physical_slot == std::numeric_limits<std::size_t>::max()) {
+            return false;
+        }
+        const auto& current = resources.requests[resource];
+        for (std::size_t i = 0; i < resources.allocations.size(); ++i) {
+            if (i == resource) continue;
+            const auto& other_allocation = resources.allocations[i];
+            if (other_allocation.physical_slot != allocation->physical_slot) continue;
+            if (resources.requests[i].last < current.first) return true;
+        }
+        return false;
+    }
+
+    void seed_boundary_states(const ResourcePlan& resources,
+                              ResourceStateTracker& tracker) const {
+        for (const auto& [surface, boundary] : m_boundary_states) {
+            if (!boundary.initial.has_value()) continue;
+            const auto resource = resource_for_surface(resources, surface);
+            if (!resource.has_value()) continue;
+            const auto& request = resources.requests[*resource];
+            for (const auto& range : canonical_ranges(request.desc)) {
+                tracker.seed_state(
+                    *resource,
+                    range,
+                    state_for_range(*boundary.initial, range),
+                    request.first);
+            }
+        }
+    }
+
+    void finalize_boundary_states(const ResourcePlan& resources,
+                                  ResourceStateTracker& tracker) const {
+        const auto boundary_pass = m_passes.size();
+        for (const auto& [surface, boundary] : m_boundary_states) {
+            if (!boundary.final.has_value()) continue;
+            const auto resource = resource_for_surface(resources, surface);
+            if (!resource.has_value()) continue;
+            const auto& request = resources.requests[*resource];
+            for (const auto& range : canonical_ranges(request.desc)) {
+                ResourceUse use{
+                    *resource,
+                    UsageIntent::HostRead,
+                    range,
+                    false};
+                tracker.apply_use(
+                    boundary_pass,
+                    use,
+                    state_for_range(*boundary.final, range));
+            }
+        }
+    }
+
     void build_transitions(CommandPlan& plan) const {
         ResourceStateResolver resolver;
         ResourceStateTracker tracker;
+        seed_boundary_states(plan.resources, tracker);
 
         for (std::size_t pass_index = 0; pass_index < m_passes.size(); ++pass_index) {
             for (const auto& access : detail::desired_accesses(m_passes[pass_index])) {
@@ -414,17 +514,25 @@ private:
                 else if (access.writes) intent = UsageIntent::StorageWrite;
 
                 const auto& request = plan.resources.requests[*resource];
-                ResourceUse use{
-                    *resource,
-                    intent,
-                    image_range(ResourceAspect::Color),
-                    false};
-                auto state = resolver.resolve(intent, request.desc.kind);
-                state.range = std::get<SubresourceRange>(use.range);
-                tracker.apply_use(pass_index, use, state);
+                const bool alias_first_use =
+                    pass_index == request.first &&
+                    has_alias_predecessor(plan.resources, *resource);
+
+                for (const auto& range : canonical_ranges(request.desc)) {
+                    ResourceUse use{*resource, intent, range, false};
+                    auto state = state_for_range(
+                        resolver.resolve(intent, request.desc.kind), range);
+                    if (alias_first_use) {
+                        tracker.apply_alias_boundary(
+                            pass_index, *resource, range, state);
+                    } else {
+                        tracker.apply_use(pass_index, use, state);
+                    }
+                }
             }
         }
 
+        finalize_boundary_states(plan.resources, tracker);
         plan.transitions = tracker.transitions();
     }
 
@@ -449,6 +557,7 @@ private:
     std::optional<::chronon3d::graph::ExecutionDecision> m_execution_decision;
     std::unordered_map<RenderSurfaceHandle, ResourceDesc> m_descs;
     std::unordered_map<RenderSurfaceHandle, SurfaceLiveness> m_liveness;
+    std::unordered_map<RenderSurfaceHandle, SurfaceBoundaryState> m_boundary_states;
 };
 
 inline void bind_plan_slots(const ResourcePlan& plan,
