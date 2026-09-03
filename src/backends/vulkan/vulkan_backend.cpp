@@ -130,6 +130,7 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
 void VulkanBackend::begin_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (batch.active) {
         throw std::logic_error(
@@ -214,6 +215,7 @@ void VulkanBackend::begin_frame_batch() {
 void VulkanBackend::begin_command_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     if (m_impl->command_batch_active) {
         throw std::logic_error(
             "VulkanBackend::begin_command_batch: a command batch is already active");
@@ -234,6 +236,7 @@ void VulkanBackend::begin_command_batch() {
 void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     begin_frame_batch();
     // A previous frame may have kept its logical transient handles alive
     // until the encoder package released them.  begin_frame_batch() has just
@@ -293,6 +296,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 void VulkanBackend::end_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
     if (m_impl->command_batch_active) {
@@ -311,6 +315,7 @@ void VulkanBackend::end_frame_batch() {
 void VulkanBackend::end_command_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     if (!m_impl->command_batch_active) return;
     if (m_impl->command_batch_started) {
         // The final frame's end_frame_batch() deferred its submission, so the
@@ -339,6 +344,7 @@ std::size_t VulkanBackend::replay_slot_count() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
 VkCommandBuffer VulkanBackend::begin_replay_recording(std::size_t slot_index) {
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     return m_impl->begin_replay_recording(slot_index);
 }
 #endif
@@ -346,6 +352,7 @@ VkCommandBuffer VulkanBackend::begin_replay_recording(std::size_t slot_index) {
 void VulkanBackend::end_replay_recording(std::size_t slot_index) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     m_impl->end_replay_recording(slot_index);
 #else
     (void)slot_index;
@@ -356,6 +363,7 @@ void VulkanBackend::replay_submit(std::size_t slot_index,
                                    const void* params, std::size_t params_size) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
+    m_impl->require_healthy();
     m_impl->replay_submit(slot_index, params,
                           static_cast<VkDeviceSize>(params_size));
 #else
