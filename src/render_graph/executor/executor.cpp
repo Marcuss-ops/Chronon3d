@@ -9,6 +9,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/runtime/gpu_device_lost_error.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
