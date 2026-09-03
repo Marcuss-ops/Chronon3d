@@ -156,14 +156,12 @@ PreparedRenderJob RenderEngine::prepare(
     runtime::ResourcePlanner planner;
     if (const auto* graph = m_impl->m_renderer->graph_cache().peek(
             comp.width(), comp.height()); graph != nullptr) {
-        const auto& physical = graph->physical_framebuffer_plan;
+        const auto& physical = graph->resource_table();
         for (std::size_t id = 0; id < physical.resources.size(); ++id) {
             const auto& allocation = physical.resources[id];
-            if (allocation.producer == graph::k_invalid_node ||
-                id >= graph->lifetimes.size()) {
+            if (allocation.producer == graph::k_invalid_node) {
                 continue;
             }
-            const auto& lifetime = graph->lifetimes[id];
             const bool persistent = allocation.persistent || allocation.async_use;
             planner.add(runtime::ResourceRequest{
                 std::string{"GraphNode["} + std::to_string(id) + "]",
@@ -173,8 +171,8 @@ PreparedRenderJob RenderEngine::prepare(
                 persistent
                     ? runtime::LifetimeClass::JobPersistent
                     : runtime::LifetimeClass::FrameTransient,
-                persistent ? std::size_t{0} : lifetime.first_level,
-                persistent ? std::size_t{0} : lifetime.last_level,
+                persistent ? std::size_t{0} : allocation.first_level,
+                persistent ? std::size_t{0} : allocation.last_level,
                 alignof(Color),
                 runtime::ResourceDesc{}});
         }

@@ -20,7 +20,7 @@ void preallocate_surfaces(const CompiledTemplateProgram& program,
     if (!backend || !program.compiled || canvas_width == 0 || canvas_height == 0) {
         return;
     }
-    const auto& plan = program.compiled->physical_framebuffer_plan;
+    const auto& plan = program.compiled->resource_table();
     if (plan.empty()) return;
 
     backend->preallocate_plan_surfaces(canvas_width, canvas_height, plan);
