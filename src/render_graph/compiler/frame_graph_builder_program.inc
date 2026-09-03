@@ -10,7 +10,7 @@ namespace {
 // topology and cache policy.
 
 // Build the base CompiledOperation for a node from its compiled metadata and
-// the physical allocation plan (unit command + resource-id assignment).
+// canonical compiled resource record (unit command + resource-id assignment).
 CompiledOperation make_base_operation(
     CompiledFrameGraph& compiled,
     GraphNodeId node_id) {
@@ -18,9 +18,9 @@ CompiledOperation make_base_operation(
     operation.node = node_id;
     operation.stable_node = compiled.nodes[node_id].stable_node_id;
     operation.inputs = compiled.nodes[node_id].inputs;
-    if (const auto* allocation =
-            compiled.physical_framebuffer_plan.allocation_for(node_id)) {
-        operation.output_physical_slot = allocation->physical_slot;
+    if (const auto* resource =
+            compiled.resource_table().resource_for(node_id)) {
+        operation.output_physical_slot = resource->physical_slot;
     }
     return operation;
 }
@@ -29,7 +29,7 @@ CompiledOperation make_base_operation(
 // processor provides a recorder it produces the canonical CompiledOperation
 // (compiled_execute set) so execution bypasses node.execute(). The structural
 // fields are restored afterwards because processors are free to clear them;
-// the output physical slot is retained from the allocation plan above.
+// the output physical slot is retained from the compiled resource table above.
 void resolve_operation_recorder(
     CompiledFrameGraph& compiled,
     const CompiledNodeInfo& node_info,
@@ -171,9 +171,9 @@ void flush_tail_fused_batch(
     batch.member_nodes = std::move(current_fused_batch);
     batch.root_node = batch.member_nodes.back();
     if (batch.root_node < compiled.nodes.size()) {
-        if (const auto* allocation =
-                compiled.physical_framebuffer_plan.allocation_for(batch.root_node)) {
-            batch.output_physical_slot = allocation->physical_slot;
+        if (const auto* resource =
+                compiled.resource_table().resource_for(batch.root_node)) {
+            batch.output_physical_slot = resource->physical_slot;
         }
     }
     batch.is_gpu_fused = true;
