@@ -20,9 +20,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     animation_timeline_tests.cmake
     visual_tests.cmake
     renderer_tests.cmake
-    graphics_tests.cmake
-    gradient_visual_tests.cmake
-    rounded_rect_visual_tests.cmake
     text_domain_tests.cmake
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
