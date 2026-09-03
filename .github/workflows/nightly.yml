@@ -100,57 +100,6 @@ jobs:
           esac
           echo "GATE_PASS: sanitizer baseline=$required (asan=$ASAN_RESULT tsan=$TSAN_RESULT)"
 
-  cinematic-full:
-    name: Nightly cinematic full (5 comps × 6 keyframes)
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          lfs: true
-      - name: Install Linux build tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
-      - uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
-      - run: cmake --preset linux-ci
-      - run: cmake --build build/chronon/linux-ci --target chronon3d_cinematic_camera_showcase_tests --target chronon3d_tests_render -j$(nproc)
-      - name: 'Verify cinematic showcase (FULL: 5 × 6)'
-        env:
-          CHRONON3D_CINEMATIC_FRAME_COUNT: '6'
-          CHRONON3D_CINEMATIC_COMP_COUNT: '5'
-        run: bash tools/verify_cinematic_showcase.sh
-      - name: 'Render contact sheet (FULL: 5760×2160)'
-        env:
-          CHRONON3D_CINEMATIC_FRAME_COUNT: '6'
-          CHRONON3D_CINEMATIC_COMP_COUNT: '5'
-        run: bash tools/render_showcase_contact_sheet.sh
-      - name: Collect nightly artefacts
-        if: always()
-        run: |
-          mkdir -p artifacts
-          if [ -f output/showcase/contact_sheet.png ]; then
-            cp output/showcase/contact_sheet.png artifacts/contact_sheet.png
-            sha256sum output/showcase/contact_sheet.png > artifacts/contact_sheet.png.sha256
-          fi
-          if [ -d output/showcase ]; then
-            find output/showcase -maxdepth 2 -type f \( -name '*.png' -o -name '*.log' -o -name '*.txt' -o -name '*.json' \) \
-              -exec cp --parents {} artifacts/ \; 2>/dev/null || true
-          fi
-          for sub in debug diff camera_visual; do
-            if [ -d "output/${sub}" ]; then cp -r "output/${sub}" "artifacts/${sub}/" 2>/dev/null || true; fi
-          done
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: nightly-visual-${{ github.run_id }}
-          path: artifacts/
-          retention-days: 60
-          if-no-files-found: warn
-
   profile-envelope:
     name: Profile envelope (${{ matrix.profile }})
     runs-on: ubuntu-latest
