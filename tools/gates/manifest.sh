@@ -33,6 +33,7 @@ DEVELOPER_GATES=(
     check_no_software_effect_dispatch_switch.sh
     check_effect_subsystem_ownership.sh
     check_no_text_material_external_effects.sh
+    check_compiled_resource_authority.py
     check_architecture.py
     check_architecture_boundaries.sh
 )
