@@ -31,6 +31,8 @@ void execute_levels(
     std::pmr::memory_resource* res,
     const CompiledFrameGraph& compiled
 ) {
+    const auto& resource_table = compiled.resource_table();
+
     for (std::size_t level_index = 0; level_index < levels.size(); ++level_index) {
         const auto& level = levels[level_index];
         CHRONON_TRACE_SCOPE("chronon.graph", "execute_level");
@@ -59,12 +61,13 @@ void execute_levels(
         const auto t_dispatch1 = profiling::now();
 
         const auto t_fb0 = profiling::now();
-        const std::span<const GraphNodeId> release_schedule =
-            level_index < compiled.release_after_level.size()
-                ? std::span<const GraphNodeId>(compiled.release_after_level[level_index])
-                : std::span<const GraphNodeId>{};
+        const auto& release_schedule = resource_table.release_schedule(level_index);
         release_consumed_framebuffers(
-            state, graph, level, consumer_remaining, release_schedule);
+            state,
+            graph,
+            level,
+            consumer_remaining,
+            std::span<const GraphNodeId>(release_schedule));
         const auto t_fb1 = profiling::now();
 
         if (parent_counters) {
