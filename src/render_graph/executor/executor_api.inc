@@ -32,17 +32,25 @@ FrameExecutionOutput GraphExecutor::execute_with_result(
     RenderSession& session,
     ExecutionScheduler& scheduler
 ) const {
-    auto framebuffer = execute_internal(compiled, ctx, session, session.arena(), scheduler);
-    if (framebuffer) {
+    try {
+        auto framebuffer = execute_internal(compiled, ctx, session, session.arena(), scheduler);
+        if (framebuffer) {
+            return FrameExecutionOutput{
+                .framebuffer = std::move(framebuffer),
+                .result = runtime::FrameExecutionResult::succeeded(),
+            };
+        }
         return FrameExecutionOutput{
-            .framebuffer = std::move(framebuffer),
-            .result = runtime::FrameExecutionResult::succeeded(),
+            .framebuffer = nullptr,
+            .result = frame_result_from_session(session),
+        };
+    } catch (const runtime::GpuDeviceLostError& error) {
+        return FrameExecutionOutput{
+            .framebuffer = nullptr,
+            .result = runtime::FrameExecutionResult::failed(
+                runtime::ExecutionFailure::DeviceLost, error.what()),
         };
     }
-    return FrameExecutionOutput{
-        .framebuffer = nullptr,
-        .result = frame_result_from_session(session),
-    };
 }
 
 FrameExecutionOutput GraphExecutor::execute_with_scope_result(
@@ -52,18 +60,26 @@ FrameExecutionOutput GraphExecutor::execute_with_scope_result(
     ExecutionScheduler& scheduler
 ) const {
     auto& session = scope.session();
-    auto framebuffer = execute_internal(
-        compiled, ctx, session, scope.arena(), scheduler);
-    if (framebuffer) {
+    try {
+        auto framebuffer = execute_internal(
+            compiled, ctx, session, scope.arena(), scheduler);
+        if (framebuffer) {
+            return FrameExecutionOutput{
+                .framebuffer = std::move(framebuffer),
+                .result = runtime::FrameExecutionResult::succeeded(),
+            };
+        }
         return FrameExecutionOutput{
-            .framebuffer = std::move(framebuffer),
-            .result = runtime::FrameExecutionResult::succeeded(),
+            .framebuffer = nullptr,
+            .result = frame_result_from_session(session),
+        };
+    } catch (const runtime::GpuDeviceLostError& error) {
+        return FrameExecutionOutput{
+            .framebuffer = nullptr,
+            .result = runtime::FrameExecutionResult::failed(
+                runtime::ExecutionFailure::DeviceLost, error.what()),
         };
     }
-    return FrameExecutionOutput{
-        .framebuffer = nullptr,
-        .result = frame_result_from_session(session),
-    };
 }
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
