@@ -2,7 +2,7 @@
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 25,
+    "minor": 27,
     "patch": 0
   },
   "include": [
@@ -17,6 +17,7 @@
     "cmake/presets/fast-variants.json",
     "cmake/presets/build-profile.json",
     "cmake/presets/optimizations.json",
-    "cmake/presets/hardening.json"
+    "cmake/presets/hardening.json",
+    "cmake/presets/windows.json"
   ]
 }
