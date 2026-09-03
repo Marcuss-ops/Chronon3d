@@ -98,6 +98,9 @@ if(CHRONON3D_ENABLE_VIDEO)
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
+        # The output verifier probes final artifacts in-process through
+        # libavformat/libavcodec instead of spawning ffprobe.
+        target_link_libraries(chronon3d_media_video PUBLIC chronon3d_ffmpeg_full)
     endif()
     target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
