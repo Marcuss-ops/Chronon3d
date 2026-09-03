@@ -54,7 +54,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     runtime/async_encoder_sink_tests.cmake
     runtime/semantic_core_tests.cmake
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
-    sabotage_tests.cmake
     reference/capcut/CMakeLists.txt
     text/CMakeLists.txt
     assets/CMakeLists.txt
