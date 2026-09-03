@@ -258,8 +258,8 @@ struct TestFixture {
 // ── render_with_mode(fix, mode, workers) ─────────────────────────────────────
 //
 // Single entry-point that calls the WP1 PR 1.0 executor with the chosen
-// scheduler.  Uses `execute_with_scope()` — the typed ExecutionScope path —
-// instead of the deprecated `execute(session, scheduler)` overload.
+// scheduler.  Uses the canonical `execute(compiled, ctx, scope, scheduler)` —
+// the typed ExecutionScope path.
 inline std::shared_ptr<Framebuffer> render_with_mode(
     TestFixture&                  fix,
     SchedulerMode                 mode,
@@ -271,8 +271,9 @@ inline std::shared_ptr<Framebuffer> render_with_mode(
         fix.session,
         fix.arena,
         fix.compiled.graph_instance_id);
-    return executor.execute_with_scope(
+    auto out = executor.execute(
         fix.compiled, fix.ctx, root_scope, scheduler);
+    return out.framebuffer;
 }
 
 // ── ModeHashes + render_all_modes helpers ─────────────────────────────────

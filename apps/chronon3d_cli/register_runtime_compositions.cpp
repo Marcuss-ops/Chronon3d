@@ -7,13 +7,11 @@
 // Registers:
 //   1. chronon3d::register_builtin_compositions(registry) — DarkGridBackground,
 //      CameraImageClip (the canonical "always available" production surfaces).
-//   2. ChrononGlowFinalAE + ChrononGlowFinalAEPortrait — the canonical
-//      user-spec cinematic-glow compositions (landscape + portrait).
 //
-// Cat-3 minimal-surface: consumes the existing
-// register_builtin_compositions.hpp public surface + the header-only
-// content/compositions/chronon_glow_final.hpp production factory.
-// No tests/visual/ headers, no DEV-only surfaces.
+// The ChrononGlowFinalAE / GlowCameraProductV1 families were removed with the
+// content-pack externalization cleanup: the content/ compositions tree left
+// the core repo and the tests/helpers glow factory was retired with the
+// visual/golden test fleet.
 // ============================================================================
 
 #include "register_compositions.hpp"
@@ -22,54 +20,11 @@
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
-// TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic glow factory.
-// Header-only inline factory; included transitively from CMAKE_SOURCE_DIR.
-// Available in production (no DEV/test gating).
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
-#include "content/compositions/chronon_glow_final.hpp"
-#include "content/compositions/glow_camera_product_v1.hpp"
-#endif
-
 namespace chronon3d {
 
 void register_runtime_compositions(CompositionRegistry& registry) {
-    // (1) Built-in compositions (DarkGridBackground, CameraImageClip).
+    // Built-in compositions (DarkGridBackground, CameraImageClip).
     chronon3d::register_builtin_compositions(registry);
-
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
-    // (2) ChrononGlowFinalAE — the canonical user-spec name for the
-    // cinematic-glow landscape composition.  Routes through the Phase 1
-    // unified helper (header-only; no link-time surface).  This is the
-    // PRODUCTION entry point; the NoGlow sibling lives in
-    // register_dev_compositions (DEV-gated, A/B acceptance).
-    //
-    // Step 8 §A: 2 production entries.
-    //   - ChrononGlowFinalAE         (canonical landscape, new)
-    //   - ChrononGlowFinalAEPortrait (canonical portrait, NEW — moved from DEV)
-    //
-    // The portrait variant uses a SEPARATE lambda (different default props)
-    // — the user spec says "non due factory lambda identiche" is about the
-    // alias-vs-canonical pair, not the landscape-vs-portrait pair.
-    auto make_landscape_comp = [](const CompositionProps&) -> Composition {
-        return chronon3d::content::glow_final::make_chronon_glow_final(
-            chronon3d::content::glow_final::default_landscape_props());
-    };
-    registry.add(make_composition_descriptor(CompositionDescriptor{
-        .id = "ChrononGlowFinalAE"}, make_landscape_comp));
-    registry.add(make_composition_descriptor(CompositionDescriptor{
-        .id = "ChrononGlowFinalAEPortrait"}, [](const CompositionProps&) -> Composition {
-            return chronon3d::content::glow_final::make_chronon_glow_final(
-                chronon3d::content::glow_final::default_portrait_props());
-        }));
-    registry.add(make_composition_descriptor(CompositionDescriptor{
-        .id = "GlowCameraProductV1"}, [](const CompositionProps&) -> Composition {
-            return chronon3d::content::product::make_glow_camera_product_v1();
-        }));
-    registry.add(make_composition_descriptor(CompositionDescriptor{
-        .id = "GlowCameraProductV1Portrait"}, [](const CompositionProps&) -> Composition {
-            return chronon3d::content::product::make_glow_camera_product_v1_portrait();
-        }));
-#endif
 }
 
 } // namespace chronon3d

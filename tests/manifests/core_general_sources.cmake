@@ -62,7 +62,6 @@ set(CORE_TEST_SOURCES
     core/timeline/test_sequence_builder.cpp
     core/timeline/test_sequence_animation.cpp
     core/timeline/test_sequence_integration.cpp
-    assets/test_svg_path_loader.cpp
     assets/test_render_preflight.cpp
     assets/test_asset_registry.cpp
     assets/test_asset_resolver.cpp
@@ -96,3 +95,9 @@ set(CORE_TEST_SOURCES
     runtime/test_prepared_render_job_allocations.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
 )
+
+if(CHRONON3D_ENABLE_SVG)
+    list(APPEND CORE_TEST_SOURCES
+        assets/test_svg_path_loader.cpp
+    )
+endif()

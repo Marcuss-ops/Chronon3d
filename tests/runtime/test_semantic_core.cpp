@@ -63,7 +63,6 @@ TEST_CASE("Phase1 semantic core: ResourceDesc propagates complete format into ph
     rt::ResourcePlanner planner;
     rt::ResourceRequest request{};
     request.id = "render-color";
-    request.kind = rt::ResourceKind::Color;
     request.first = 0;
     request.last = 0;
     request.desc = rt::ResourceDesc::make(
@@ -74,8 +73,8 @@ TEST_CASE("Phase1 semantic core: ResourceDesc propagates complete format into ph
     const auto plan = planner.build();
 
     REQUIRE(plan.slots.size() == 1);
-    CHECK(plan.slots[0].format == rt::canonical_render_format());
-    CHECK(plan.slots[0].bytes ==
+    CHECK(plan.slots[0].desc.format == rt::canonical_render_format());
+    CHECK(plan.slots[0].desc.bytes ==
           rt::tight_surface_bytes(rt::canonical_render_format(), 64, 64));
 }
 
@@ -95,7 +94,6 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
 
         rt::ResourceRequest a{};
         a.id = "a";
-        a.kind = rt::ResourceKind::Bytes;
         a.first = 0;
         a.last = 0;
         a.desc = rt::ResourceDesc::make(32, 32, base);
@@ -104,7 +102,6 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
         srgb.transfer = rt::TransferFunction::Srgb;
         rt::ResourceRequest b{};
         b.id = "b";
-        b.kind = rt::ResourceKind::Bytes;
         b.first = 1;
         b.last = 1;
         b.desc = rt::ResourceDesc::make(32, 32, srgb);
@@ -118,7 +115,6 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
         rt::ResourcePlanner planner;
         rt::ResourceRequest a{};
         a.id = "a";
-        a.kind = rt::ResourceKind::Bytes;
         a.first = 0;
         a.last = 0;
         a.desc = rt::ResourceDesc::make(32, 32, base);
@@ -127,7 +123,6 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
         straight.alpha = rt::AlphaMode::Straight;
         rt::ResourceRequest b{};
         b.id = "b";
-        b.kind = rt::ResourceKind::Bytes;
         b.first = 1;
         b.last = 1;
         b.desc = rt::ResourceDesc::make(32, 32, straight);
@@ -141,7 +136,6 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
         rt::ResourcePlanner planner;
         rt::ResourceRequest a{};
         a.id = "a";
-        a.kind = rt::ResourceKind::Bytes;
         a.first = 0;
         a.last = 0;
         a.desc = rt::ResourceDesc::make(32, 32, base);
@@ -150,7 +144,6 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
         anamorphic.pixel_aspect = rt::PixelAspectRatio{4, 3};
         rt::ResourceRequest b{};
         b.id = "b";
-        b.kind = rt::ResourceKind::Bytes;
         b.first = 1;
         b.last = 1;
         b.desc = rt::ResourceDesc::make(32, 32, anamorphic);
@@ -164,14 +157,12 @@ TEST_CASE("Phase1 semantic core: aliasing compares full FrameFormat, not only pi
         rt::ResourcePlanner planner;
         rt::ResourceRequest a{};
         a.id = "a";
-        a.kind = rt::ResourceKind::Bytes;
         a.first = 0;
         a.last = 0;
         a.desc = rt::ResourceDesc::make(32, 32, base);
 
         rt::ResourceRequest b{};
         b.id = "b";
-        b.kind = rt::ResourceKind::Bytes;
         b.first = 1;
         b.last = 1;
         b.desc = rt::ResourceDesc::make(32, 32, base);
@@ -186,7 +177,6 @@ TEST_CASE("Phase1 semantic core: allocation size is derived centrally from Resou
     rt::ResourcePlanner planner;
     rt::ResourceRequest request{};
     request.id = "derived-bytes";
-    request.kind = rt::ResourceKind::Bytes;
     request.first = 0;
     request.last = 0;
     request.desc = rt::ResourceDesc::make(
@@ -198,7 +188,7 @@ TEST_CASE("Phase1 semantic core: allocation size is derived centrally from Resou
     const auto plan = planner.build();
 
     REQUIRE(plan.slots.size() == 1);
-    CHECK(plan.slots[0].bytes == 16u * 8u * 4u);
+    CHECK(plan.slots[0].desc.bytes == 16u * 8u * 4u);
 }
 
 TEST_CASE("Phase1 semantic core: exportable residency is dedicated and cannot alias") {
@@ -212,7 +202,6 @@ TEST_CASE("Phase1 semantic core: exportable residency is dedicated and cannot al
     for (int i = 0; i < 2; ++i) {
         rt::ResourceRequest request{};
         request.id = i == 0 ? "a" : "b";
-        request.kind = rt::ResourceKind::Bytes;
         request.first = static_cast<std::size_t>(i);
         request.last = static_cast<std::size_t>(i);
         request.desc = rt::ResourceDesc::make(

@@ -1,15 +1,14 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/authoring/asset.hpp>
-#include <chronon3d/authoring/layer.hpp>
-#include <chronon3d/authoring/scene.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_error.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_settings.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/params/media_params.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
@@ -89,12 +88,13 @@ c3d::Composition make_image_composition() {
         },
         [](const c3d::FrameContext& context) -> c3d::Scene {
             c3d::SceneBuilder builder{context};
-            c3d::authoring::Scene scene{builder, context};
-            scene.layer("fixture", [](c3d::authoring::Layer& layer) {
-                layer.kind(c3d::LayerKind::Shape);
-                (void)layer.image(
-                    "fixture_image",
-                    c3d::authoring::asset("fixture.png"));
+            // Canonical surface: LayerBuilder + ImageParams (the
+            // authoring::Scene/Layer/asset facades were removed in
+            // 0815b35b2 / 64a2bb475 / 0d674502b).
+            builder.layer("fixture", [](c3d::LayerBuilder& layer) {
+                c3d::ImageParams params;
+                params.asset_path = "fixture.png";
+                (void)layer.image("fixture_image", params);
             });
             return builder.build();
         },

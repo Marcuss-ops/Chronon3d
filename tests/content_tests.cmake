@@ -1,4 +1,8 @@
 # ── Content Module Tests (registration contracts + composition smoke) ──
+# RETIRED with the content externalization (6e6905116): every TU in this
+# suite includes <content/...> headers that left the core repo, and the
+# chronon3d_content link target no longer exists.  The suite only built
+# with CHRONON3D_BUILD_CONTENT=ON, which requires the external content pack.
 if(NOT CHRONON3D_BUILD_CONTENT)
     return()
 endif()
@@ -13,8 +17,6 @@ chronon3d_add_test_suite(
             content/test_shaped_glyph_line.cpp
             content/test_shaped_glyph_line_cluster_golden.cpp
             content/test_shaped_glyph_line_cluster_benchmark.cpp
-            certification/test_cert_text_bbox.cpp
-            certification/test_cert_text_invariants.cpp
 )
 
 if(CHRONON3D_BUILD_CONTENT)

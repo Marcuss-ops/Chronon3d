@@ -43,7 +43,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <tests/helpers/test_utils.hpp>
-#include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+#include <tests/support/pixel_scan_helpers.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::content::text;
