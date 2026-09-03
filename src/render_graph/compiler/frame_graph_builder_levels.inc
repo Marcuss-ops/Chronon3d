@@ -20,7 +20,6 @@ void FrameGraphCompiler::build_execution_levels(
 
     std::vector<std::vector<GraphNodeId>> children(node_count);
     std::vector<size_t> indegree(node_count, 0);
-    compiled.consumer_counts.assign(node_count, 0);
 
     for (GraphNodeId child = 0; child < node_count; ++child) {
         if (!reachable[child]) {
@@ -32,7 +31,6 @@ void FrameGraphCompiler::build_execution_levels(
             }
             children[parent].push_back(child);
             ++indegree[child];
-            ++compiled.consumer_counts[parent];
         }
     }
 
