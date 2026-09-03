@@ -78,6 +78,8 @@ struct VulkanBackend::Impl {
         VkFormat format{VK_FORMAT_R32G32B32A32_SFLOAT};
         std::uint32_t width{0};
         std::uint32_t height{0};
+        runtime::TextAtlasEncoding text_atlas_encoding{
+            runtime::TextAtlasEncoding::PremultipliedRGBA};
         bool initialized{false};
         bool exportable{false};
         VkSemaphore cuda_to_vulkan{VK_NULL_HANDLE};

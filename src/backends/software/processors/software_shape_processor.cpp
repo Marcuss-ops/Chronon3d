@@ -1,6 +1,5 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
-#include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include "../rasterizers/shape_rasterizer.hpp"
 #include "../effects/render_effects_processor.hpp"
 // R2: draw() now consumes the slim processor context POD.
