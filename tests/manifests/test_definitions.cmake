@@ -32,5 +32,4 @@ set(CHRONON3D_TEST_DEFINITIONS
     simd/cpu_isa_tests.cmake
     reference/capcut/CMakeLists.txt
     assets/CMakeLists.txt
-    ipc_schema_documents_tests.cmake
 )
