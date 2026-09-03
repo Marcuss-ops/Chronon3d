@@ -34,7 +34,9 @@ for gate in "${WBH_ONLY_GATES[@]}"; do
         exit 2
     fi
     echo "  [${idx}/${GATE_COUNT}] ${gate}"
-    if ! bash "${SCRIPT_DIR}/${gate}"; then
+    if bash "${SCRIPT_DIR}/${gate}"; then
+        :
+    else
         rc=$?
         echo "GATE_FAIL: ${gate} (exit $rc)" >&2
         exit 1
