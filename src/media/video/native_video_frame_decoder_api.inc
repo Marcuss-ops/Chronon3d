@@ -1,12 +1,46 @@
+void NativeVideoFrameDecoder::clear_decode_diagnostic() noexcept {
+    std::lock_guard lock(m_diagnostic_mutex);
+    m_last_decode_diagnostic.reset();
+}
+
+void NativeVideoFrameDecoder::publish_decode_failure(
+    DecodeFailureReason reason,
+    int ffmpeg_error,
+    std::int64_t pts,
+    std::int64_t dts,
+    std::uint64_t source_order,
+    std::string message) {
+    std::lock_guard lock(m_diagnostic_mutex);
+    m_last_decode_diagnostic = DecodeDiagnostic{
+        reason, ffmpeg_error, pts, dts, source_order, std::move(message)};
+}
+
+std::optional<DecodeDiagnostic>
+NativeVideoFrameDecoder::last_decode_diagnostic() const {
+    std::lock_guard lock(m_diagnostic_mutex);
+    return m_last_decode_diagnostic;
+}
+
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
     const std::string& path, RationalTime presentation_time, int, int) {
-    if (path.empty()) return {};
+    clear_decode_diagnostic();
+    if (path.empty()) {
+        publish_decode_failure(DecodeFailureReason::OpenInput, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "decode source path is empty");
+        return {};
+    }
     std::shared_ptr<Session> session;
     { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
     if (!session) return {};
 
     const auto selected = session->sample_table.select_covering(presentation_time);
-    if (!selected) return {};
+    if (!selected) {
+        publish_decode_failure(DecodeFailureReason::UnexpectedEof, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "presentation time does not resolve to a source sample");
+        return {};
+    }
     const int64_t target = static_cast<int64_t>(*selected);
 
     std::unique_lock lock(session->mutex);
@@ -16,13 +50,17 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
         });
     }
     if (session->test_options.enable_frame_cache) {
-        if (auto cached = session->cache.get(target)) return *cached;
+        if (auto cached = session->cache.get(target)) {
+            clear_decode_diagnostic();
+            return *cached;
+        }
     }
     while (!session->prefetch_queue.empty() && session->prefetch_queue.front().target < target)
         session->prefetch_queue.pop_front();
     if (!session->prefetch_queue.empty() && session->prefetch_queue.front().target == target) {
         auto result = std::move(session->prefetch_queue.front().framebuffer);
         session->prefetch_queue.pop_front();
+        clear_decode_diagnostic();
         return result;
     }
     session->prefetch_queue.clear();
@@ -35,19 +73,37 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
     if (result) {
         const bool native_surface = result->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
         if (!native_surface && session->test_options.enable_frame_cache) session->cache.put(target, result);
+        clear_decode_diagnostic();
     }
     return result;
 }
 
 HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
     const std::string& path, RationalTime presentation_time, int, int) {
-    if (path.empty() || (!m_native_importer && !m_video_runtime)) return {};
+    clear_decode_diagnostic();
+    if (path.empty()) {
+        publish_decode_failure(DecodeFailureReason::OpenInput, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "decode source path is empty");
+        return {};
+    }
+    if (!m_native_importer && !m_video_runtime) {
+        publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "native frame decoding requires a native importer or video runtime");
+        return {};
+    }
     if (m_counters) m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
     std::shared_ptr<Session> session;
     { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
     if (!session) return {};
     const auto selected = session->sample_table.select_covering(presentation_time);
-    if (!selected) return {};
+    if (!selected) {
+        publish_decode_failure(DecodeFailureReason::UnexpectedEof, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "presentation time does not resolve to a source sample");
+        return {};
+    }
     const int64_t target = static_cast<int64_t>(*selected);
 
     std::unique_lock state_lock(session->mutex);
@@ -84,6 +140,13 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
         session->profiling.decoded_frames++;
         session->profiling.decode_total_ms += decode_dur_ms;
         session->profiling.frame_durations_ms.push_back(decode_dur_ms);
+        clear_decode_diagnostic();
+    } else if (!last_decode_diagnostic()) {
+        publish_decode_failure(DecodeFailureReason::NativeSurfaceUnavailable, 0,
+            session->sample_table[static_cast<std::size_t>(target)].pts,
+            session->sample_table[static_cast<std::size_t>(target)].dts,
+            session->sample_table[static_cast<std::size_t>(target)].source_order,
+            "exact source sample did not produce a native frame");
     }
     return result;
 }
