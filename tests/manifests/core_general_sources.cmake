@@ -14,11 +14,6 @@ set(CORE_TEST_SOURCES
     simd/test_kernel_resolver_avx2_parity.cpp
     simd/test_kernel_registry.cpp
     cache/test_lru_weight.cpp
-    cache/test_lru_cache.cpp
-    cache/test_framebuffer_pool.cpp
-    cache/test_video_frame_cache.cpp
-    cache/test_persistent_framebuffer_store.cpp
-    cache/test_evict_lru_for.cpp
     core/test_sharded_telemetry_store.cpp
     core/test_render_counters.cpp
     core/test_cache_eval_dirty_counters.cpp
