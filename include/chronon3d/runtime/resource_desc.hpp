@@ -36,14 +36,17 @@ struct ResourceDesc {
     std::uint32_t width{0};
     std::uint32_t height{0};
     FrameFormat format{};
-    ResourceUsage usage{ResourceUsage::Generic};
 
-    // Retained during the staged request-mirror cleanup. Zero means a tight
-    // allocation derived from FrameFormat and extent.
-    std::size_t bytes{0};
-    std::size_t alignment{alignof(std::max_align_t)};
+    ResourceKind kind{ResourceKind::Bytes};
+    ResourceUsage usage{ResourceUsage::Generic};
     LifetimeClass lifetime{LifetimeClass::FrameTransient};
     ResourceResidency residency{};
+
+    /// Explicit allocation-size override for padded/imported/external layouts.
+    /// Zero means derive a tight allocation from format and extent.
+    std::size_t bytes{0};
+    std::size_t alignment{alignof(std::max_align_t)};
+
     TextAtlasEncoding text_atlas_encoding{TextAtlasEncoding::PremultipliedRGBA};
 
     constexpr ResourceDesc() noexcept = default;
@@ -59,8 +62,8 @@ struct ResourceDesc {
           height(height_value),
           format(format_value),
           usage(usage_value),
-          bytes(bytes_value),
-          lifetime(lifetime_value) {}
+          lifetime(lifetime_value),
+          bytes(bytes_value) {}
 
     constexpr ResourceDesc(
         std::uint32_t width_value,
@@ -75,10 +78,10 @@ struct ResourceDesc {
           height(height_value),
           format(format_value),
           usage(usage_value),
-          bytes(bytes_value),
-          alignment(alignment_value),
           lifetime(lifetime_value),
-          residency(residency_value) {}
+          residency(residency_value),
+          bytes(bytes_value),
+          alignment(alignment_value) {}
 
     constexpr ResourceDesc(
         std::uint32_t width_value,
