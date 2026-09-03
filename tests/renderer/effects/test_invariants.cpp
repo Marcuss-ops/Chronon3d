@@ -3,9 +3,9 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
-#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
