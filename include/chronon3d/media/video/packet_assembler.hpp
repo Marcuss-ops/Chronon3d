@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 extern "C" {
@@ -12,6 +13,8 @@ extern "C" {
 }
 
 namespace chronon3d::media {
+
+struct MuxAvioHashWriter;
 
 enum class AudioExecutionPath : std::uint8_t {
     CopyPackets,
@@ -65,6 +68,10 @@ struct SegmentAssemblyRequest {
 struct SegmentAssemblyResult {
     bool success{false};
     std::string reason;
+    /// Lowercase XXH64 digest of the exact final muxed file bytes.
+    std::string output_checksum;
+    /// True only when seek/backpatch forced a final-file checksum reread.
+    bool checksum_used_reread{false};
 };
 
 /// Assemble compatible encoded segments through Chronon's canonical mux path.
@@ -87,7 +94,7 @@ public:
     /// All stream declarations, including optional audio, are registered
     /// before the header is written.
 
-    /// Write the mux header (avformat_write_header + avio_open). Called
+    /// Write the mux header through the checksum-aware AVIO boundary. Called
     /// automatically by open(); retained for internal/test compatibility.
     [[nodiscard]] bool write_header(const std::string& output_path,
                                      std::string& reason);
@@ -116,11 +123,18 @@ public:
     [[nodiscard]] double audio_write_ms() const noexcept { return audio_write_ms_; }
     [[nodiscard]] double trailer_ms() const noexcept { return trailer_ms_; }
     [[nodiscard]] bool has_audio() const noexcept { return audio_stream_ != nullptr; }
+    [[nodiscard]] std::string_view output_checksum() const noexcept { return output_checksum_; }
+    [[nodiscard]] bool checksum_used_reread() const noexcept { return checksum_used_reread_; }
 
 private:
     AVFormatContext* format_{nullptr};
     AVStream* video_stream_{nullptr};
     AVStream* audio_stream_{nullptr};
+    std::unique_ptr<MuxAvioHashWriter> writer_;
+    std::string output_path_;
+    std::string output_checksum_;
+    bool checksum_used_reread_{false};
+    bool finalized_{false};
     double open_header_ms_{0.0};
     double packet_write_ms_{0.0};
     double audio_write_ms_{0.0};
