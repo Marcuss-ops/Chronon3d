@@ -41,8 +41,7 @@ std::string temp_path(const char* suffix) {
 }
 
 bool ffmpeg_available() {
-    return std::system("ffmpeg -version >/dev/null 2>&1") == 0 &&
-           std::system("ffprobe -version >/dev/null 2>&1") == 0;
+    return std::system("ffmpeg -version >/dev/null 2>&1") == 0;
 }
 
 }  // namespace
@@ -63,7 +62,7 @@ TEST_CASE("resolve_output_contract: youtube_overlay_v1 resolves canonically") {
 
 TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg/ffprobe required");
+        MESSAGE("Skipping — ffmpeg CLI required");
         return;
     }
 
@@ -208,7 +207,7 @@ TEST_CASE("verify_output_contract fails structural checks on a missing file") {
 
 TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg/ffprobe required");
+        MESSAGE("Skipping — ffmpeg CLI required");
         return;
     }
     const auto artifact = temp_path("verified.mp4");
@@ -236,17 +235,16 @@ TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
     CHECK(result.video_codec == "h264");
     CHECK(result.pixel_format == "yuv420p");
     CHECK(result.sha256.size() == 64);
-    CHECK(result.ffprobe_ms > 0.0);   // ffprobe subprocess actually ran
+    CHECK(result.ffprobe_ms > 0.0);   // legacy field: in-process probe ran
     CHECK(result.sha256_ms > 0.0);    // digest actually computed
 
     std::error_code ec;
     std::filesystem::remove(artifact, ec);
-    std::filesystem::remove(artifact + ".chronon.probe.json", ec);
 }
 
 TEST_CASE("verify_output_contract: pix_fmt mismatch passes but not copy_eligible") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg/ffprobe required");
+        MESSAGE("Skipping — ffmpeg CLI required");
         return;
     }
     const auto artifact = temp_path("wrong_pixfmt.mp4");
@@ -274,5 +272,4 @@ TEST_CASE("verify_output_contract: pix_fmt mismatch passes but not copy_eligible
 
     std::error_code ec;
     std::filesystem::remove(artifact, ec);
-    std::filesystem::remove(artifact + ".chronon.probe.json", ec);
 }
