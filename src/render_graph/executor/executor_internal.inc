@@ -63,18 +63,10 @@
             resource_table.logical_resource_count);
         const auto physical_count = static_cast<std::uint64_t>(
             resource_table.physical_slot_count);
-
-        std::uint64_t logical_bytes = 0;
-        for (const auto& resource : resource_table.resources) {
-            if (resource.producer == k_invalid_node) continue;
-            logical_bytes += static_cast<std::uint64_t>(
-                resource.desc.allocation_bytes());
-        }
-
-        std::uint64_t physical_bytes = 0;
-        for (const auto& slot : resource_table.slots) {
-            physical_bytes += static_cast<std::uint64_t>(slot.capacity_bytes);
-        }
+        const auto logical_bytes = static_cast<std::uint64_t>(
+            resource_table.logical_bytes);
+        const auto physical_bytes = static_cast<std::uint64_t>(
+            resource_table.planned_physical_bytes);
 
         parent_counters->logical_resource_count.store(
             logical_count, std::memory_order_relaxed);
@@ -93,7 +85,8 @@
         parent_counters->new_resource_slot_count.store(
             physical_count, std::memory_order_relaxed);
         parent_counters->arena_peak_bytes.store(
-            physical_bytes, std::memory_order_relaxed);
+            static_cast<std::uint64_t>(resource_table.peak_live_bytes),
+            std::memory_order_relaxed);
     }
 
     ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
