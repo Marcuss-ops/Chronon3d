@@ -2,11 +2,8 @@
 // frame_graph_compiler.cpp — public compile surface (FASE 16)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// FASE 16 — extraction completed: build_execution_levels(),
-// build_node_metadata(), compute_resource_lifetimes(), validate()
-// moved to frame_graph_builder.cpp.  This TU now hosts ONLY the
-// public API surface: compile(), compile_with_reuse(), and
-// compute_structure_hash().
+// Build phases live in frame_graph_builder.cpp. This TU hosts the public
+// compile surfaces and the canonical topology hash.
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
@@ -61,12 +58,11 @@ CompiledFrameGraph FrameGraphCompiler::compile(
         }
     }
 
-    // Temp graph assignment to allow lifetime calculation
+    // Resource compilation operates on the finalized graph topology.
     compiled.graph = std::move(graph);
 
     if (options.compute_lifetimes) {
-        compute_resource_lifetimes(compiled);
-        build_physical_framebuffer_allocation_plan(compiled);
+        build_compiled_resource_table(compiled);
     }
 
     compiled.structure_hash = compute_structure_hash(
@@ -78,11 +74,6 @@ CompiledFrameGraph FrameGraphCompiler::compile(
         compiled.early_exit_skip[i] = ctx.node_exec.early_exit_skip[i];
     }
 
-    // ── Work Package 4 — graph instance id (WP 4.0/4.1) ────────────────
-    // Hash the SORTED SET of reachable stable_node_ids (excluding the
-    // invalid sentinel) so a re-build of the same source topology
-    // yields the same id regardless of which order the compiler
-    // visited nodes in.
     std::vector<StableNodeId> sids;
     sids.reserve(compiled.nodes.size());
     for (size_t i = 0; i < compiled.nodes.size(); ++i) {
@@ -95,9 +86,6 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     constexpr std::uint64_t kOffsetBasis = 0xcbf29ce484222325ULL;
     constexpr std::uint64_t kFnvPrime    = 0x100000001b3ULL;
     std::uint64_t h = kOffsetBasis;
-    // WP 4.2 — fold parent scope first so two precomps using the same
-    // composition (same sorted SIDs below) collide IF AND ONLY IF
-    // they share the same parent precomp stable node + parent graph.
     if (options.parent_precomp_node != kInvalidStableNodeId) {
         h ^= options.parent_graph_instance.value;
         h *= kFnvPrime;
@@ -116,7 +104,6 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     }
 
     compiled.valid = true;
-
     return compiled;
 }
 
@@ -138,9 +125,6 @@ std::uint64_t FrameGraphCompiler::compute_structure_hash(
         sig = hash_combine(sig, hash_value(static_cast<int>(node.cache_policy().mode)));
         sig = hash_combine(sig, hash_value(static_cast<int>(node.cache_policy().invalidation)));
 
-        // Processor/type identity is represented by the concrete node's
-        // structural discriminator. Dynamic matrices, opacity and sampled
-        // values are intentionally excluded.
         if (const auto* source = dynamic_cast<const SourceNode*>(&node)) {
             sig = hash_combine(sig, hash_string("processor.source"));
             sig = hash_combine(sig, hash_value(static_cast<int>(source->render_node().shape.type())));
@@ -182,7 +166,6 @@ std::uint64_t FrameGraphCompiler::compute_structure_hash(
             sig = hash_combine(sig, hash_value(input));
         }
     }
-    // The output node is part of the compiled graph contract.
     sig = hash_combine(sig, hash_string("output"));
     sig = hash_combine(sig, hash_value(output));
     return sig;
@@ -211,7 +194,6 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         return compiled;
     }
 
-    // ── TICKET-008 / §9.4 — skip predicate ──────────────────────────────────
     const std::uint64_t current_hash =
         compute_structure_hash(
             graph, compiled.output, ctx.services.registry_generation);
@@ -232,9 +214,6 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
     validate_renderable_graph(graph, compiled.output, ctx);
 
     if (skip_heavy_phases) {
-        // Deep-copy topology-derived fields and the immutable processor
-        // binding payload. The warm path must not re-resolve processors, nor
-        // leave the copied CompiledNodeInfo handles pointing at empty tables.
         compiled.levels                  = prior_compiled.levels;
         compiled.nodes                   = prior_compiled.nodes;
         compiled.consumer_counts         = prior_compiled.consumer_counts;
@@ -247,21 +226,16 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         if (options.run_optimizer) {
             [[maybe_unused]] const auto optimization_result =
                 optimizer::optimize_graph(graph, ctx);
-            // The optimizer may remove/rewrite the output node.  Re-read it
-            // before rebuilding levels; retaining the pre-optimization id
-            // can address a removed node on the reuse fall-through path.
             compiled.output = graph.output();
         }
         build_execution_levels(graph, compiled.output, compiled);
         build_node_metadata(graph, ctx, compiled, options);
     }
 
-    // ── Always-run post-conditions ─────────
     compiled.graph = std::move(graph);
 
     if (options.compute_lifetimes) {
-        compute_resource_lifetimes(compiled);
-        build_physical_framebuffer_allocation_plan(compiled);
+        build_compiled_resource_table(compiled);
     }
 
     compiled.structure_hash = compute_structure_hash(
@@ -273,7 +247,6 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         compiled.early_exit_skip[i] = ctx.node_exec.early_exit_skip[i];
     }
 
-    // Re-derive graph_instance_id (sorted-stable_node-id FNV-1a mix).
     std::vector<StableNodeId> sids;
     sids.reserve(compiled.nodes.size());
     for (size_t i = 0; i < compiled.nodes.size(); ++i) {
@@ -304,7 +277,6 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
     }
 
     compiled.valid = true;
-
     return compiled;
 }
 
