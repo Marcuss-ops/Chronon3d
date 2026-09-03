@@ -9,8 +9,8 @@
 // `copy_eligible` is never decided by scattered one-off checks.
 //
 // The verification is split into two verdicts:
-//   - `passed`        — structural integrity: the file exists, ffprobe can
-//                       decode it, there is exactly one video stream, and the
+//   - `passed`        — structural integrity: the file exists, libavformat can
+//                       inspect it, there is exactly one video stream, and the
 //                       geometry / frame rate / duration are coherent.
 //   - `copy_eligible` — `passed` AND the media contract (codec, pixel format,
 //                       audio policy, frame count) matches AND a SHA-256 was
@@ -36,11 +36,11 @@ struct OutputContract {
     int height{1080};
     chronon3d::FrameRate fps{30, 1};
 
-    /// Expected ffprobe `codec_name` (e.g. "h264"), NOT the encoder name
+    /// Expected FFmpeg codec name (e.g. "h264"), NOT the encoder name
     /// (which may be "libx264" / "h264_nvenc" / ...).
     std::string video_codec{"h264"};
 
-    /// Expected ffprobe `pix_fmt` (e.g. "yuv420p").
+    /// Expected FFmpeg pixel format name (e.g. "yuv420p").
     std::string pixel_format{"yuv420p"};
 
     /// Audio policy: must the artifact carry exactly `audio_streams` audio
@@ -65,7 +65,8 @@ struct OutputVerificationResult {
     /// True ONLY when every contract field verified (incl. SHA-256).
     bool copy_eligible{false};
 
-    /// ffprobe was not on PATH (verification could not run).
+    /// Legacy ABI field: true when the in-process libavformat probe backend is
+    /// unavailable (currently a build without CHRONON3D_ENABLE_NATIVE_FFMPEG).
     bool ffprobe_missing{false};
 
     // ── Observed facts (populated even on mismatch, best-effort) ──────────
@@ -81,8 +82,8 @@ struct OutputVerificationResult {
     /// Observed SHA-256 hex digest; empty = not computed.
     std::string sha256;
 
-    /// Wall time of the ffprobe subprocess (launch + wait), in ms. Measured
-    /// with steady_clock so it stays monotonic; 0.0 = ffprobe did not run.
+    /// Legacy telemetry field name. Wall time of the in-process libavformat
+    /// probe in ms; measured with steady_clock. 0.0 = probe did not run.
     double ffprobe_ms{0.0};
 
     /// Wall time of the SHA-256 digest computation, in ms. 0.0 = not computed.
@@ -97,9 +98,10 @@ struct OutputVerificationResult {
 [[nodiscard]] Result<OutputContract, std::string> resolve_output_contract(
     std::string_view profile_id);
 
-/// Verify an artifact file against a contract using ffprobe (streams +
-/// format) followed by a SHA-256 content digest. `copy_eligible` is true only
-/// when every field matches and the digest was computed.
+/// Verify an artifact file against a contract using in-process libavformat
+/// stream/container inspection followed by a SHA-256 content digest.
+/// `copy_eligible` is true only when every field matches and the digest was
+/// computed. Lean builds without the native FFmpeg libraries fail closed.
 [[nodiscard]] OutputVerificationResult verify_output_contract(
     const std::filesystem::path& artifact,
     const OutputContract& contract);
