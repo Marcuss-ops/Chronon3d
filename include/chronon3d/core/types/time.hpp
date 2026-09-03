@@ -45,6 +45,12 @@ struct RationalTime {
 
     constexpr bool operator==(const RationalTime&) const = default;
 
+    /// Raw tick count expressed in `time_base` units. Named accessor (the
+    /// `Frame::integral()` precedent): the `value` member stays an
+    /// implementation detail and the Frame::value convention gate only
+    /// allows accessor reads outside this header.
+    [[nodiscard]] constexpr i64 ticks() const noexcept { return value; }
+
     [[nodiscard]] TimeSeconds seconds() const {
         const Rational base = normalize_rational(time_base);
         return static_cast<TimeSeconds>(value) *
@@ -107,7 +113,7 @@ struct TemporalRequirements {
     }
     [[nodiscard]] bool is_temporal() const noexcept {
         return history_frames != 0 || future_frames != 0 ||
-               history_duration.value != 0 || future_duration.value != 0;
+               history_duration.ticks() != 0 || future_duration.ticks() != 0;
     }
 
     constexpr bool operator==(const TemporalRequirements&) const = default;
