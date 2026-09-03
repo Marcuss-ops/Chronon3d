@@ -506,7 +506,7 @@ inline f32 keyframes(SampleTime current, std::initializer_list<KF> kfs) {
 }
 
 // ==============================================================================
-// CP-A (snapshot: docs/baselines/main-9ef0fe33-dod-fail-matrix.md, 2026-06-29):
+// CP-A (snapshot: docs/baselines/archive/main-9ef0fe33-dod-fail-matrix.md, 2026-06-29):
 // Phase-3 mechanical split — include detail implementations INSIDE the
 // `namespace chronon3d { ... }` block so the .inl template method
 // definitions (e.g. `AnimatedValue<T>::compute_roving()`) observe

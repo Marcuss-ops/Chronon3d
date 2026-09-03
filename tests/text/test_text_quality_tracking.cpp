@@ -15,14 +15,14 @@ using namespace test_text_quality;
 // canonical text pipeline produces ONE `TextRunShape` RenderNode per
 // text run regardless of stagger pattern, with per-glyph stagger
 // driven by `GlyphSelectorSpec { .unit = TextSelectorUnit::Glyph }`
-// (see `character_cascade` preset in
-// `tests/test_text_preset_registry.cpp` Sub-cases 43 + 44).
+// (see the retired `tests/test_text_preset_registry.cpp`  // drift-class: historical (test retired in text-preset consolidation)
+// `character_cascade` preset Sub-cases 43 + 44).
 //
 // The 2 TEST_CASE blocks below (ByGlyph positions monotonicity +
 // measure_unit_width grapheme cluster count) have been REMOVED in
 // TEXT-RET-01 because they relied on `TextAnimator` and
 // `TextAnimMode::ByGlyph` from the deleted
-// `include/chronon3d/text/text_animator.hpp` header.  // drift-allow: stale-ref
+// `include/chronon3d/text/text_animator.hpp` header.  // drift-class: historical (V1 header removed; see text_animator_properties.hpp)
 //
 // Where the § 7 invariants live today (canonical equivalents):
 //   * Per-glyph staggered reveal
@@ -39,7 +39,7 @@ using namespace test_text_quality;
 //         (combining marks, ZWJ emoji sequences, RI flag pairs).
 //
 // No migration shim is left for the old API surface — anti-
-// duplication-guardrail from `docs/ANTI_DUPLICATION_RULES.md`
+// duplication-guardrail from the retired `docs/ANTI_DUPLICATION_RULES.md`  // drift-class: historical (doc retired)
 // forbids a parallel text animation API.
 
 // ═══════════════════════════════════════════════════════════════════════════

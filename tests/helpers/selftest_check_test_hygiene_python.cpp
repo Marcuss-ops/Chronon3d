@@ -1,6 +1,6 @@
 // selftest_check_test_hygiene_python.cpp - contract selftest for the
 // tools/check_test_hygiene.sh Python-parser handover.
-// See docs/CHANGELOG.md TICKET-DOCTEST-SKIP-ROT entry.
+// See the historical changelog TICKET-DOCTEST-SKIP-ROT entry (docs/CHANGELOG.md is retired).  // drift-class: historical (changelog retired)
 #include <doctest/doctest.h>
 TEST_CASE("[selftest #1] DOCTEST_SKIP w/ TICKET-DOCTEST-SKIP-ROT prefix (PASS)") {
     DOCTEST_SKIP("TICKET-DOCTEST-SKIP-ROT: documentation selftest - PASS-1");

@@ -1,6 +1,6 @@
 # TICKET-DEPRECATED-API-REMOVAL — Remaining deprecated public APIs
 
-## Stato: OPEN (P1)
+## Stato: CLOSED (2026-09-03) — census-based closure
 
 Il ticket storico è stato ristretto il 2026-08-01. Le migrazioni già
 atterrate non sono più blocker: `CompositionRegistry::add(name, factory)`,
@@ -12,22 +12,33 @@ In questa tranche sono stati rimossi anche `ShapedGlyphLine::try_shape`,
 test di equivalenza e sono stati portati sulla primitiva `shape_glyph_line`.
 Anche la soppressione globale `-Wno-error=deprecated-declarations` è assente.
 
-Restano soltanto deprecazioni verificabili nel codice, da gestire per area:
+## Chiusura 2026-09-03 — censimento per area
 
-- `SoftwareRenderer(Config)` come percorso di costruzione legacy;
-- `GraphExecutor::execute(CompiledFrameGraph&)` senza `ExecutionScope`;
-- i preset testuali con dimensione canvas implicita;
-- `authoring::{Scene,Layer}::context()` e `Layer::configure_core(...)`;
-- `SceneBuilder`/`Layer::local_frame(...)` e gli altri adapter esplicitamente
-  marcati nei rispettivi header.
+Ogni voce del backlog è stata verificata con un caller census su
+`include/`, `src/`, `apps/`, `tests/`, `tools/` + controllo della baseline
+ABI `tools/sdk/chronon3d_c.abi`:
+
+| Simbolo | Esito |
+|---|---|
+| `SoftwareRenderer(Config)` | già rimosso: resta solo il ctor canonico `(RenderRuntime&, Config)`. |
+| `GraphExecutor::execute` senza `ExecutionScope` | già rimosso: firma unica `execute(compiled, ctx, scope, scheduler)`. |
+| Preset testuali senza `CanvasInfo` | già rimossi: zero caller senza canvas. |
+| `authoring::{Scene,Layer}::context()`, `Layer::configure_core(...)` | assenti dall'albero (già rimossi). |
+| `SceneBuilder`/`Layer::local_frame(...)` adapter | assenti dall'albero (già rimossi). |
+| `TileExecutionPolicy` | RIMOSSO in questa tranche: alias di `ExecutionResolver` con un solo caller di test (static_assert tautologico); nessun simbolo ABI. |
+| `Camera2_5DProjectionMode` + campi `projection_mode` write-only | RIMOSSI in questa tranche: zero lettori, zero caller esterni, nessun simbolo ABI; `CameraOpticsMode` è l'unica authority. |
+| `render_scene`/`debug_render_graph`/`debug_graph`/`render_engine::render_scene` | RETAINED (ABI required): simboli definiti nella baseline; il percorso produttivo è `render_compiled`/`render`. |
+| `materialize_text_run_shape` | RETAINED (ABI required): simbolo nella baseline, zero call-site in-tree, delega a `materialize_prepared_text`. |
+| `compile_composition(const CompositionDefinition&, …)` | RETAINED (ABI required): caller produttivi in `render_plan_compiler_scene.inc` + test C-ABI. |
 
 ## Criteri residui
 
-- audit dei chiamanti per ciascun simbolo ancora presente;
-- migrazione o rimozione per area, senza riaprire le API già eliminate;
-- promozione a `-Werror=deprecated-declarations` per i target SDK quando
-  l'area è a zero chiamanti produttivi;
-- baseline completa solo dopo che i target modificati sono stati ricostruiti.
+- Nessuno: tutte le aree sono chiuse o classificate con evidence nel
+  registro `docs/NAMING_COMPATIBILITY_DEBT.md`.
+- Le sole deprecazioni residue sono marker documentali su nomi ABI-required
+  (`gpu_text_atlas_cache` field name, `materialize_text_run_shape`) che
+  non possono essere rimossi finché la baseline ABI `chronon3d_c.abi`
+  li richiede.
 
 ## Evidenza di chiusura parziale
 

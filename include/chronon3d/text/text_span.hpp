@@ -4,16 +4,16 @@
 //
 // Per-span style/motion/identity overrides that complement (do NOT replace)
 // the document/paragraph-level `TextDefaults` shape canonised by
-// `docs/MIGRATION_TEXT_SPEC.md` (TICKET-002 🟢 Done).
+// the retired `docs/MIGRATION_TEXT_SPEC.md` (TICKET-002 🟢 Done).  // drift-class: historical (doc retired)
 //
 // Hierarchy:    TextDocument → Paragraph → TextSpan[] → per-span overrides
 // Inheritance:  merge at RENDER time, NOT at construction (rendering layer)
-// Cross-ref:    `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` Fase 4 §Piano operativo
+// Cross-ref:    the retired `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` Fase 4 §Piano operativo  // drift-class: historical (doc retired)
 // Guard:        DO NOT wire into `TextLayoutEngine` in this PR (Fase 4 step 2 only).
 //
 // Naming convention:
 //   * whole-text shape / arg-shaped  → `…Spec` suffix   (TextDefaults, TextLayoutSpec,
-//                                                      FontSpec — per MIGRATION_TEXT_SPEC.md §1)
+//                                                      FontSpec — per the retired MIGRATION_TEXT_SPEC.md §1)
 //   * span-shaped overrides         → `…Style` suffix  (TextSpanStyle, TextStrokeStyle,
 //                                                      TextHighlightStyle — this file)
 
@@ -31,11 +31,9 @@ namespace chronon3d {
 // ─── Extension points (Fase 4 step 2 — promotion to dedicated headers) ────
 //
 // Minimal viable PODs that satisfy the `std::optional<T>` complete-type
-// requirement of `TextSpanStyle`. Will be promoted to:
-//   * `include/chronon3d/text/text_stroke.hpp`  // drift-allow: stale-ref
-//   * `include/chronon3d/text/text_highlight_box.hpp`  // drift-allow: stale-ref
-// in Fase 4 step 2 with full implementations (dash patterns, multi-pass
-// material layers, padding semantics, etc.).
+// requirement of `TextSpanStyle`. Will be promoted to dedicated headers
+// (the planned text_stroke.hpp / text_highlight_box.hpp never landed; the
+// inline PODs below are the living implementation).
 struct TextStrokeStyle {
     f32                          width_em{0.0f};    ///< 0 = no stroke; >0 = EM width
     std::optional<Color>         color;             ///< empty = fall back to fg color at render

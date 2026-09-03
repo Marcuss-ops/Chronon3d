@@ -6,8 +6,9 @@
 // ---------------------------------------------------------------------------
 // runtime/render_session.hpp
 //
-// TICKET-008 — Per-session rendering state, relocated from
-// `include/chronon3d/core/memory/render_session.hpp` to resolve a  // drift-allow: stale-ref
+// TICKET-008 — Per-session rendering state, relocated to
+// `include/chronon3d/internal/runtime/render_session.hpp` (its current
+// location) to resolve a
 // dependency-direction violation.  The previous location in `core/memory/`
 // pulled in software-specific headers (`backends/software/buffer_ring.hpp`,
 // `backends/software/scratch_buffer.hpp`) and render-graph internals
@@ -51,7 +52,7 @@
 // requires the full type of these two state engines so `RenderSession`
 // can hold them by-value (SceneHasher) or via unique_ptr (SceneProgramStore
 // because it carries a std::mutex and is therefore non-movable).  See
-// `docs/refactor-roadmap/03-render-session-boundary.md` for the  // drift-allow: stale-ref
+// `docs/refactor-roadmap/03-render-session-boundary.md` for the  // drift-class: historical (WP-3 design doc retired; rationale in this header block)
 // migration rationale and the architectural invariant flip.
 // ===========================================================================
 

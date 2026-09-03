@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // src/text/text_run_hash.cpp — M1.5#4
 //
-//   Extracted from src/text/text_run.cpp.  Contains:
+//   Extracted from the retired src/text/text_run.cpp.  Contains:  // drift-class: historical (source file split into per-concern TUs)
 //     - TextRunLayout::layout_hash()
 //     - TextRunLayout::shaping_hash()
 //     - hash_text_run_shape(TextRunShape)

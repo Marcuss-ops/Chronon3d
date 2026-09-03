@@ -5,8 +5,8 @@
 // IMPORTANT: this file does NOT modify any production composition.  It
 // defines a SIBLING composition that calls build_2line_typewriter with
 // identical parameters to `anim_typewriter_glow` except glow_intensity.
-// The existing AnimTypewriterGlow composition in
-// content/examples/text/text_animations.cpp is left untouched.
+// The existing AnimTypewriterGlow composition in the retired
+// content/examples/text/text_animations.cpp is left untouched.  // drift-class: historical (examples tree retired)
 
 #include "glow_ab_compositions.hpp"
 

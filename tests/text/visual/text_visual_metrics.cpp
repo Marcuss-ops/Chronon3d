@@ -2,7 +2,7 @@
 // tests/text/visual/text_visual_metrics.cpp — Phase-2.1 P0 split
 //
 // Mechanical split-off of the 8-metric ScenarioMetrics canon (PR-A3 /
-// docs/01-baseline-green.md §2.4-2.5).  This file owns:  // drift-allow: stale-ref
+// docs/01-baseline-green.md §2.4-2.5).  This file owns:  // drift-class: historical (doc retired)
 //   * kUncapturedSentinel + is_reference_captured(r)        (1-liner)
 //   * RectF POD                                                (4-float POD)
 //   * ScenarioMetrics POD                                      (8-metric canon)

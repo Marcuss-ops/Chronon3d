@@ -102,20 +102,7 @@ public:
         return m_effects[handle.index].second;
     }
 
-    /// Legacy non-owning adapters retained for source compatibility. The
-    /// returned pointer is valid only while this snapshot (and any other
-    /// owner of the processor) remains alive; callers must not retain it
-    /// across registry/engine shutdown. New dispatch code must use
-    /// shape_shared()/effect_shared() or handles.
-    [[deprecated("Use shape_shared() to retain processor lifetime")]]
-    [[nodiscard]] ShapeProcessor* shape(ShapeProcessorHandle handle) const noexcept {
-        return shape_shared(handle).get();
-    }
 
-    [[deprecated("Use effect_shared() to retain processor lifetime")]]
-    [[nodiscard]] EffectProcessor* effect(EffectProcessorHandle handle) const noexcept {
-        return effect_shared(handle).get();
-    }
 
 private:
     [[nodiscard]] std::uint64_t compute_identity() const noexcept {

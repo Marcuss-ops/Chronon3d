@@ -3,7 +3,7 @@
 // ============================================================================
 // tests/deterministic/test_baseline_green.cpp
 //
-// WP-6 PR 6.8 — Baseline verde verificabile per docs/02-determinism.md.  // drift-allow: stale-ref
+// WP-6 PR 6.8 — Baseline verde verificabile per docs/02-determinism.md.  // drift-class: historical (doc retired)
 //
 // 6 test che PASSANO OGGI e dimostrano il sottoinsieme bit-exact del
 // determinismo del renderer.  Ciascuno chiude uno dei blocchi "rimasti"

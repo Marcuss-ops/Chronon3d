@@ -6,7 +6,7 @@
 
 #include <doctest/doctest.h>
 
-#include <content/text/text_helpers_typewriter.hpp>
+#include <chronon3d/text/typewriter_layout.hpp>  // core home of the retired content declarations
 #include <chronon3d/text/font_engine.hpp>
 
 #include <utility>

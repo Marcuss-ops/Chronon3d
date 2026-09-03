@@ -4,22 +4,32 @@
 // legacy_text_animator.hpp — compatibility shim for presets/bench_corpus
 //
 // The presets and benchmark corpus were written against a short-lived
-// `TextAnimator` façade that never shipped. This header provides a drop-in
-// replacement that maps the same surface onto the canonical authoring API:
-//   authoring::Layer / authoring::Text / authoring::Animator / Selector.
+// `TextAnimator` façade that never shipped and was removed with the rest of
+// the authoring facade (commit 4850746c2, "cleanup: remove legacy authoring
+// text facade").  This header re-maps the same fluent surface onto the
+// canonical authoring path:
+//
+//   LayerBuilder::text(name, TextDefinition)  +  TextDefinition::animation
+//   (TextAnimatorSpec / GlyphSelectorSpec / TextAnimatorProperty)
 //
 // It is intentionally scoped to the presets directory and is NOT part of the
-// public SDK surface.
+// public SDK surface.  Per the Chronon migration rule, this bridge exists
+// only while presets/bench_corpus consume it; the exit condition is a
+// mechanical rewrite of those call sites against the canonical DTOs.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/math/color.hpp>
+#include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/authoring/text.hpp>
-#include <chronon3d/authoring/layer.hpp>
-#include <chronon3d/authoring/animator.hpp>
-#include <chronon3d/authoring/selector.hpp>
-#include <chronon3d/text/glyph_selector_spec.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/text_placement.hpp>
+#include <chronon3d/text/animation/text_animator_spec.hpp>
+#include <chronon3d/text/glyph_selector_spec.hpp>
 
+#include <string>
 #include <utility>
 
 namespace chronon3d {
@@ -76,49 +86,80 @@ public:
     }
 
     void build(SceneBuilder& s, const std::string& layer_name) {
-        s.layer(layer_name, [this](LayerBuilder& builder) {
-            authoring::Layer layer(builder, CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-            // Keep the move-only authoring handle alive. Binding a reference
-            // to the temporary returned by layer.text(...) leaves a dangling
-            // Text before the animator is attached.
-            auto t = std::move(layer.text(text_)
-                                  .font(font_path_, font_size_)
-                                  .weight(font_weight_)
-                                  .color(color_)
-                                  .align(align_)
-                                  .anchor_point(TextAnchor::Center)
-                                  .vertical_align(VerticalAlign::Middle));
+        s.layer(layer_name, [this, &layer_name](LayerBuilder& builder) {
+            TextDefinition definition;
+            definition.content.value = text_;
+            definition.style.font.font_path = font_path_;
+            definition.style.font.font_size = font_size_;
+            definition.style.font.font_weight = font_weight_;
+            definition.style.color = color_;
+            definition.frame.size = {1920.0f, 1080.0f};
+            definition.frame.placement =
+                TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}};
+            definition.frame.anchor = TextAnchor::Center;
+            definition.frame.align = align_;
+            definition.frame.vertical_align = VerticalAlign::Middle;
 
-            TextSelectorUnit unit = TextSelectorUnit::Character;
-            if (config_.mode == TextAnimMode::ByWord) {
-                unit = TextSelectorUnit::Word;
-            } else if (config_.mode == TextAnimMode::ByLine) {
-                unit = TextSelectorUnit::Line;
-            }
+            TextAnimatorSpec spec;
+            spec.id = layer_name + "_legacy_animator";
 
-            authoring::Animator anim("legacy");
-            anim.select(authoring::selector(unit)
-                            .start(Frame{0}, 0.0f)
-                            .end(config_.duration, 100.0f, config_.easing));
+            GlyphSelectorSpec selector;
+            selector.id = spec.id + "_selector";
+            selector.unit = selector_unit(config_.mode);
+            selector.order = TextSelectorOrder::Forward;
+            spec.selectors.push_back(std::move(selector));
 
+            const Frame f0{0};
+            const Frame f1 = config_.duration;
             if (config_.animate_opacity) {
-                anim.opacity(0.0f);
+                OpacityProperty property;
+                property.value.clear();
+                property.value.add_keyframe(f0, 0.0f);
+                property.value.add_keyframe(f1, 1.0f, EasingCurve{config_.easing});
+                spec.properties.push_back(std::move(property));
             }
             if (config_.animate_slide) {
-                anim.position(config_.slide_from);
+                PositionProperty property;
+                property.value.clear();
+                property.value.add_keyframe(f0, config_.slide_from);
+                property.value.add_keyframe(f1, Vec3{0.0f, 0.0f, 0.0f},
+                                            EasingCurve{config_.easing});
+                spec.properties.push_back(std::move(property));
             }
             if (config_.animate_scale) {
-                anim.scale(config_.scale_from);
+                ScaleProperty property;
+                property.value.clear();
+                property.value.add_keyframe(f0, config_.scale_from);
+                property.value.add_keyframe(f1, Vec3{1.0f, 1.0f, 1.0f},
+                                            EasingCurve{config_.easing});
+                spec.properties.push_back(std::move(property));
             }
             if (config_.animate_tracking) {
-                anim.tracking(config_.tracking_from);
+                TrackingProperty property;
+                property.pixels.clear();
+                property.pixels.add_keyframe(f0, config_.tracking_from);
+                property.pixels.add_keyframe(f1, 0.0f, EasingCurve{config_.easing});
+                spec.properties.push_back(std::move(property));
             }
 
-            t.animate(std::move(anim));
+            definition.animation.animators.push_back(std::move(spec));
+            definition.animation.start_delay = Frame{0};
+            definition.animation.duration = config_.duration;
+
+            builder.text(layer_name, std::move(definition));
         });
     }
 
 private:
+    static TextSelectorUnit selector_unit(TextAnimMode mode) noexcept {
+        switch (mode) {
+            case TextAnimMode::ByWord: return TextSelectorUnit::Word;
+            case TextAnimMode::ByLine: return TextSelectorUnit::Line;
+            case TextAnimMode::ByCharacter: break;
+        }
+        return TextSelectorUnit::Character;
+    }
+
     std::string text_;
     f32 font_size_ = 48.0f;
     std::string font_path_;
@@ -129,4 +170,3 @@ private:
 };
 
 } // namespace chronon3d
-

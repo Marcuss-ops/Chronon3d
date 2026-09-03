@@ -20,7 +20,7 @@
 //   m_owned_transition_catalog = std::make_unique<CameraTransitionCatalog>();
 //   register_camera_v1_builtins_into(*m_owned_transition_catalog);
 //
-// Reference: docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md
+// Reference: the retired camera-plan doc 03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md
 //            §5 (Per-job ownership enforcement).
 // ==============================================================================
 

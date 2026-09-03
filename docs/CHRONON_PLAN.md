@@ -1,7 +1,7 @@
 # Chronon — Next Steps
 
 > `AGENTS.md` vieta `NEXT_STEPS.md` come nome, questo è il doc operativo sostitutivo (`CHRONON_PLAN.md`).
-> Stato corrente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md) — HEAD `9142c627` (1 commit ahead origin/main).
+> Stato corrente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md) — HEAD `86c165cb` (`origin/main`).
 > Requisiti release: [`RELEASE_GATE.md`](RELEASE_GATE.md).
 
 ## Principio

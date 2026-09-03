@@ -74,7 +74,7 @@ struct NodeCacheKey {
 // per-frame cache keys. Without this blend, the render-graph's framebuffer
 // cache returns a stale FB from a previous zoom/Z/dof state and the rendered
 // framebuffer is byte-identical across frames (root cause documented in
-// `docs/tickets/TICKET-ae-cam-hash-collision.md`).
+// `docs/tickets/archive/TICKET-ae-cam-hash-collision.md`).
 //
 // AGENTS.md v0.1 Cat-3 caveat: these 3 inline symbols constitute a small
 // surface-area extension under `chronon3d::cache::`. They are public-by-

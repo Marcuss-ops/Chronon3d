@@ -19,7 +19,7 @@
 //
 // The strict "node_cache_hash_collisions == 0 on AE_CAM sweep" telemetry
 // assertion called out in
-// `docs/tickets/TICKET-ae-cam-hash-collision.md` Criteri / Telemetry
+// `docs/tickets/archive/TICKET-ae-cam-hash-collision.md` Criteri / Telemetry
 // assertion is INTENTIONALLY OMITTED from this file (the counter is exposed
 // as a per-run telemetry struct field in
 // `include/chronon3d/runtime/telemetry/render_telemetry_record.hpp:38`,

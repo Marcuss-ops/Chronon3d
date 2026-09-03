@@ -105,8 +105,14 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
     }
     if (!session) return {};
 
-    const auto lookup = session->sample_table.lookup(presentation_time);
-    if (!lookup.found()) return {};
+    auto lookup = session->sample_table.lookup(presentation_time);
+    if (!lookup.found()) {
+        if (lookup.disposition == SampleLookupDisposition::AfterEnd && !session->sample_table.empty()) {
+            lookup.sample_index = session->sample_table.size() - 1;
+        } else {
+            return {};
+        }
+    }
     const int64_t target = static_cast<int64_t>(*lookup.sample_index);
 
     std::unique_lock state_lock(session->mutex);

@@ -70,6 +70,7 @@ private:
     double scene_eval_ms_{0.0};
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};
+    mutable media::HwFrameRef last_decoded_{};
 };
 
 } // namespace chronon3d::cli

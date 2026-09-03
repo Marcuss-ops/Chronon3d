@@ -90,7 +90,7 @@ void evaluate_animator(
             // TrackingProperty routes through the cumulative accumulator
             // BEFORE reaching the dispatcher. The order — apply, then
             // increment — mirrors the V1 reference at
-            // `include/chronon3d/text/text_animator.hpp:333-339`.  // drift-allow: stale-ref
+            // `include/chronon3d/text/text_animator.hpp:333-339`.  // drift-class: historical (V1 header removed; see text_animator_properties.hpp)
             if (std::holds_alternative<TrackingProperty>(prop)) {
                 detail::apply_tracking_to_glyph(
                     glyph_states[gi],

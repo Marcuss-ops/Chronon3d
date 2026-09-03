@@ -224,8 +224,8 @@ struct TestFixture {
     Scene                                             scene;
     // PR-2 rewire (CHANGELOG.md R6): the fixture now owns a CompiledFrameGraph
     // instead of a raw RenderGraph.  GraphExecutor::execute() takes
-    // CompiledFrameGraph& as the only public overload post-retirement;
-    // see docs/CHANGELOG.md R6.  Compilation happens ONCE in the ctor;
+    // CompiledFrameGraph& as the only public overload post-retirement
+    // (see the historical changelog R6).  Compilation happens ONCE in the ctor;
     // the 5-mode render_all_modes() passes the same compiled plan to the
     // executor with different schedulers (the topological plan lives on
     // CompiledFrameGraph::levels).

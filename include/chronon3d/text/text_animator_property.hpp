@@ -7,9 +7,7 @@
 // This header is preserved as a thin re-include shim so that existing
 // consumers — every `#include <chronon3d/text/text_animator_property.hpp>`
 // in the project — continue to compile unchanged after the Refactor 2
-// split of `src/text/text_animator_property.cpp` and  // drift-allow: stale-ref
-// `include/chronon3d/text/text_animator_property.hpp` into the
-// `text/animation/` subdirectory.
+// split into the `text/animation/` subdirectory.
 //
 // The full set of symbols that this shim re-exports is split across the
 // canonical headers below. New code SHOULD include those headers

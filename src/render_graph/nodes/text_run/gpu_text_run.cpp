@@ -9,7 +9,7 @@
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
-#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
@@ -259,42 +259,6 @@ graph::RenderOpResult draw_packed_text_run_surface(
         }
     }
 
-    std::vector<runtime::PackedGlyphBitmap> bitmap_views;
-    bitmap_views.reserve(glyphs.size());
-    for (const auto& glyph : glyphs) {
-        const auto pixels = glyph.pixels();
-        bitmap_views.push_back(runtime::PackedGlyphBitmap{
-            glyph.width, glyph.height,
-            pixels});
-    }
-
-    runtime::PackedTextAtlas persistent_atlas;
-    std::string atlas_identity;
-    bool stable_identity_valid = true;
-    std::uint64_t hash0 = 0xcbf29ce484222325ULL;
-    std::uint64_t hash1 = 0x100000001b3ULL;
-    for (const auto& glyph : glyphs) {
-        if (glyph.atlas_key.empty()) { stable_identity_valid = false; break; }
-        for (char c : glyph.atlas_key) {
-            hash0 ^= static_cast<unsigned char>(c);
-            hash0 *= 0x100000001b3ULL;
-        }
-        hash1 ^= static_cast<std::uint64_t>(glyph.width) | (static_cast<std::uint64_t>(glyph.height) << 32);
-        hash1 *= 0xcbf29ce484222325ULL;
-    }
-    if (stable_identity_valid) {
-        atlas_identity.resize(32);
-        std::memcpy(atlas_identity.data(), &hash0, 8);
-        std::memcpy(atlas_identity.data() + 8, &hash1, 8);
-        std::uint64_t count = glyphs.size();
-        std::memcpy(atlas_identity.data() + 16, &count, 8);
-        std::uint64_t salt = 0x9e3779b97f4a7c15ULL;
-        std::memcpy(atlas_identity.data() + 24, &salt, 8);
-    }
-    const bool persistent_available = ctx.services.gpu_text_atlas_cache &&
-        ctx.services.gpu_text_atlas_cache->acquire(
-            bitmap_views, persistent_atlas, atlas_identity);
-
     std::vector<float> atlas_buffer;
     std::vector<runtime::GlyphInstance> instances;
     instances.reserve(glyphs.size());
@@ -302,28 +266,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
     runtime::RenderSurfaceHandle atlas_handle = runtime::kInvalidRenderSurfaceHandle;
     bool cached_atlas = false;
 
-    if (persistent_available) {
-        // The runtime-owned cache has already done the shelf packing and owns
-        // the device-local image through GpuAssetCache. Only the small
-        // per-frame instance records are rebuilt here.
-        atlas_handle = persistent_atlas.handle;
-        cached_atlas = true;
-        atlas_desc = runtime::SurfaceDesc::make(
-            persistent_atlas.width, persistent_atlas.height,
-            runtime::PixelFormat::Rgba32Float, runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::JobPersistent);
-        for (std::size_t i = 0; i < glyphs.size(); ++i) {
-            const auto& glyph = glyphs[i];
-            instances.push_back(runtime::GlyphInstance{
-                glyph.dst_x, glyph.dst_y,
-                static_cast<std::int32_t>(persistent_atlas.origin_x[i]),
-                static_cast<std::int32_t>(persistent_atlas.origin_y[i]),
-                static_cast<std::int32_t>(glyph.width),
-                static_cast<std::int32_t>(glyph.height),
-                glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f,
-                glyph.highlight_start_frame, glyph.highlight_end_frame});
-        }
-    } else {
+    {
         const auto [packed, dims] = pack_glyphs(glyphs);
 
         // Build the packed atlas buffer and per-glyph instances in one pass.
@@ -367,10 +310,10 @@ graph::RenderOpResult draw_packed_text_run_surface(
         }
     }
 
-    // Keep cache-hit and fallback costs separate. A persistent-atlas hit must
-    // not appear as a CPU repack or an atlas upload in telemetry.
-    if (profiling::g_current_counters &&
-        (!persistent_available || !persistent_atlas.cache_hit)) {
+    // Keep fallback costs separate from retired persistent-atlas hits: a CPU
+    // repack or atlas upload must never appear as a persistent cache hit in
+    // telemetry.
+    if (profiling::g_current_counters) {
         const auto repack_bytes = atlas_buffer.empty()
             ? static_cast<std::uint64_t>(atlas_desc.bytes)
             : static_cast<std::uint64_t>(atlas_buffer.size() * sizeof(float));
@@ -378,14 +321,6 @@ graph::RenderOpResult draw_packed_text_run_surface(
             1, std::memory_order_relaxed);
         profiling::g_current_counters->gpu_text_atlas_repack_bytes.fetch_add(
             repack_bytes,
-            std::memory_order_relaxed);
-    }
-    if (profiling::g_current_counters && persistent_available &&
-        persistent_atlas.uploaded) {
-        profiling::g_current_counters->gpu_text_atlas_upload_count.fetch_add(
-            1, std::memory_order_relaxed);
-        profiling::g_current_counters->gpu_text_atlas_upload_bytes.fetch_add(
-            static_cast<std::uint64_t>(atlas_desc.bytes),
             std::memory_order_relaxed);
     }
 

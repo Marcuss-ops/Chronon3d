@@ -2,8 +2,8 @@
 // tests/text/visual/text_visual_expectations.hpp — Phase-2.1 P0 split
 //
 // VisualExpectation enum + expectation_name() + kVisibleMinPixels
-// threshold + VR_TEXT_PRESET_GATE macro.  Mechanical split-off from
-// tests/test_text_preset_registry.cpp (formerly 165–235 LOC in the  // drift-allow: stale-ref
+// threshold + VR_TEXT_PRESET_GATE macro.  Mechanical split-off from the
+// retired tests/test_text_preset_registry.cpp (formerly 165–235 LOC in the  // drift-class: historical (test retired in text-preset consolidation)
 // anonymous namespace).
 //
 // ── VisualExpectation (Blocco 2) ─────────────────────────────────────────

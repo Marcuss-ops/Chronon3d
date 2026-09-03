@@ -106,7 +106,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         }),
     });
     // P1 — single canonical text pipeline
-    // (docs/MIGRATION_TEXT_SPEC.md §9 acceptance: only TextRun survives).
+    // (retired docs/MIGRATION_TEXT_SPEC.md §9 acceptance: only TextRun survives).  // drift-class: historical (spec doc retired)
     //
     // The legacy `Text` ShapeDescriptor entry was REMOVED. Every text node
     // now enters the authoring layer through `LayerBuilder::text(name,

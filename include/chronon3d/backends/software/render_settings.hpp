@@ -43,7 +43,7 @@ struct DirtyRenderSettings {
     /// Attempt tile-based execution when tile_size > 0 and the bitmask is
     /// enabled.  Tile-based execution re-runs the graph per dirty tile and
     /// is incompatible with spatial effects (blur/glow/bloom/shadow/etc.)
-    /// — see TileExecutionPolicy.
+    /// — see graph::ExecutionResolver.
     bool use_tiles{true};
 
     /// Process dirty tiles in parallel via tbb::parallel_for.
@@ -219,7 +219,7 @@ struct RenderSettings {
      * batch paths triggered by `tbb::parallel_for` ordering changes.  A
      * bit-exact re-enable of those 5 tests is the gating requirement for
      * flipping the default back to `false`.  See
-     * `docs/01-baseline-green.md` §3.1 ("Test Rossi — TICKET-007 fixed  // drift-allow: stale-ref
+     * `docs/01-baseline-green.md` §3.1 ("Test Rossi — TICKET-007 fixed  // drift-class: historical (doc retired)
      * via WP-6 PR 6.9") for the resolved-state note.
      *
      * The intended long-term fix is an *ordered* reduction (Kahan

@@ -31,4 +31,4 @@
 - Telemetry dead layer removed (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT) — 2026-08-22
 - `Sequential graph cache parity` DONE con `DIAGNOSTICS=OFF` (TICKET-SEQUENTIAL-CACHE-DIVERGENCE)
 
-> Storico completo: `docs/CHANGELOG.md` + `docs/tickets/archive/`.
+> Storico completo: `docs/tickets/archive/` (the historical `docs/CHANGELOG.md` was retired in commit 9758751f8).  <!-- drift-class: historical -->

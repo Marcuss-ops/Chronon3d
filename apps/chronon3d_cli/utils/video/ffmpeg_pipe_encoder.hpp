@@ -1,7 +1,7 @@
 #pragma once
 
 // =============================================================================
-// include/chronon3d/video/encoder.hpp — Abstract IVideoEncoder interface  // drift-allow: stale-ref
+// ffmpeg_pipe_encoder.hpp — Abstract IVideoEncoder interface  // drift-class: historical (include/chronon3d/video/encoder.hpp retired; interface kept in CLI utils)
 // (kept in CLI utils for incremental migration; will move to shared lib)
 // =============================================================================
 
