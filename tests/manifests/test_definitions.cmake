@@ -59,6 +59,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     runtime/gpu_layer_batch_tests.cmake
     runtime/gpu_command_plan_tests.cmake
     runtime/resource_state_tracker_tests.cmake
+    runtime/compiled_resource_authority_tests.cmake
     runtime/async_encoder_sink_tests.cmake
     runtime/semantic_core_tests.cmake
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
