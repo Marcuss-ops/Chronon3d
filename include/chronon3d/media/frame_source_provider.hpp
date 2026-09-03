@@ -3,9 +3,11 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
+#include <chronon3d/media/decode_diagnostic.hpp>
 #include <chronon3d/media/video/native_frame_importer.hpp>
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -31,6 +33,14 @@ public:
         RationalTime presentation_time,
         int width,
         int height) = 0;
+
+    /// Diagnostic for the most recent failed decode on this provider. The
+    /// framebuffer return remains source-compatible while callers gain a
+    /// typed reason instead of interpreting every nullptr as the same failure.
+    [[nodiscard]] virtual std::optional<DecodeDiagnostic>
+    last_decode_diagnostic() const {
+        return std::nullopt;
+    }
 };
 
 } // namespace chronon3d::media
