@@ -23,7 +23,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <array>
 
 namespace chronon3d::backends::vulkan {
 
@@ -136,29 +135,17 @@ void VulkanBackend::begin_frame_batch() {
         throw std::logic_error(
             "VulkanBackend::begin_frame_batch: a frame batch is already active");
     }
-    // Second and later frames of an active command batch keep recording into
-    // the SAME command buffer (opened by the first frame).  Flush a
-    // cross-overlay boundary barrier and reset only per-frame bookkeeping;
-    // the descriptor allocator and command buffer stay intact so every
-    // overlay's recorded descriptor sets remain valid until the single
-    // submission at end_command_batch().
     if (m_impl->command_batch_active && m_impl->command_batch_started) {
         m_impl->emit_command_batch_boundary();
         batch.pass_count = 0;
-        batch.sync_plan = nullptr;
+        batch.command_plan = nullptr;
         m_impl->clear_surface_access_state();
         batch.active = true;
         return;
     }
     const auto slot = batch.next_slot;
-    // Wait ONLY on the fence of the slot being reused.  The other slots may
-    // still be in flight; this is what bounds CPU-GPU overlap to the ring
-    // size instead of stalling the whole device every frame.
     if (batch.in_flight[slot]) {
         const auto wait_start = profiling::now();
-        // CPU-side fence wait — the honest fallback for GPU timing when
-        // calibrated timestamps are unavailable (Fase 6): the wait shows on
-        // the render thread track, no fake GPU bar is drawn.
         CHRONON_TRACE_SCOPE("chronon.gpu", "FenceWait");
         const VkResult wait_result = vkWaitForFences(
             m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX);
@@ -179,9 +166,6 @@ void VulkanBackend::begin_frame_batch() {
         batch.in_flight[slot] = false;
         m_impl->read_gpu_timestamps(slot);
     }
-    // Every recorded pass owns a descriptor set from this slot's allocator;
-    // resetting it now is safe because the slot's previous submission (the
-    // only one referencing those sets) has completed.
     m_impl->descriptor_arena.reset(slot);
     const VkCommandBufferBeginInfo begin{
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr};
@@ -200,15 +184,13 @@ void VulkanBackend::begin_frame_batch() {
     batch.active = true;
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
-    batch.sync_plan = nullptr;
+    batch.command_plan = nullptr;
     m_impl->clear_surface_access_state();
-    // The first frame of a command batch opened the buffer above; mark the
-    // batch as started so subsequent frames take the soft-reset path.
     if (m_impl->command_batch_active) {
         m_impl->command_batch_started = true;
     }
 #else
-    (void)0;  // no-op when the Vulkan backend is not compiled
+    (void)0;
 #endif
 }
 
@@ -224,12 +206,10 @@ void VulkanBackend::begin_command_batch() {
         throw std::logic_error(
             "VulkanBackend::begin_command_batch: a frame batch is already active");
     }
-    // The first overlay's begin_plan_batch → begin_frame_batch opens the
-    // single command buffer for the whole batch.
     m_impl->command_batch_active = true;
     m_impl->command_batch_started = false;
 #else
-    (void)0;  // no-op when the Vulkan backend is not compiled
+    (void)0;
 #endif
 }
 
@@ -238,37 +218,19 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     std::lock_guard lock(m_impl->api_mutex);
     m_impl->require_healthy();
     begin_frame_batch();
-    // A previous frame may have kept its logical transient handles alive
-    // until the encoder package released them.  begin_frame_batch() has just
-    // waited for the ring slot that is about to be reused, so opportunistically
-    // retire completed bindings now, before this plan adds the next frame's
-    // aliases.  Without this boundary, plan-bound handles accumulated in the
-    // surface store and every CPU fallback allocated another full-size image
-    // until Vulkan ran out of device memory.
     m_impl->retire_completed_frame_transient_surfaces();
-    m_impl->frame_batch.sync_plan = &plan.barriers;
-    // Bind every planned allocation to its physical slot, backing each slot
-    // with exactly one VkImage.  Lifetime-disjoint handles that share a
-    // planned slot therefore alias the same device image (the registry-side
-    // bind_plan_slots() propagates the same mapping for identity records).
+
+    // CommandPlan is the sole compiled synchronization authority. Vulkan
+    // resolves transition.resource through plan.resources and translates the
+    // canonical ResourceTransition stream directly to Synchronization2.
+    m_impl->frame_batch.command_plan = &plan;
+
     for (const auto& allocation : plan.resources.allocations) {
         if (allocation.surface == runtime::kInvalidRenderSurfaceHandle) continue;
         if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) continue;
         if (allocation.physical_slot >= plan.resources.slots.size()) continue;
-        // Job-persistent surfaces (GPU asset/glyph atlases) are owned by the
-        // asset cache and must never be rebound to a frame-transient planner
-        // slot.  The old unconditional binding changed their lifetime to
-        // FrameTransient, so end-of-job cleanup destroyed the Vulkan image
-        // while the registry/cache still returned the logical handle.
         if (m_impl->surface_is_job_persistent(allocation.surface)) continue;
         const auto& planned = plan.resources.slots[allocation.physical_slot];
-        // Physical slots are aliases, not descriptions of every logical
-        // resource assigned to them.  The slot table can legitimately carry
-        // the canvas-sized fallback dimensions, while a request is a tight
-        // producer surface (text/overlay).  Using the slot dimensions here
-        // promoted every aliased resource to a full 1920x1080 image and made
-        // long Vulkan exports exhaust device memory.  Bind with the logical
-        // request's real dimensions; the slot remains the alias identity.
         runtime::ResourceDesc request_desc{};
         if (allocation.request_index < plan.resources.requests.size()) {
             request_desc = plan.resources.requests[allocation.request_index].desc;
@@ -283,9 +245,6 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             width, height, format, usage, runtime::LifetimeClass::FrameTransient);
         m_impl->bind_surface_to_slot(allocation.surface, allocation.physical_slot, desc);
     }
-    // Rebinding a plan can leave the pre-plan pool slots orphaned. They are
-    // not part of the compiled plan and must not inflate the physical-surface
-    // pool or survive the frame as hidden compatibility allocations.
     m_impl->prune_surface_slots();
 #else
     (void)plan;
@@ -300,15 +259,14 @@ void VulkanBackend::end_frame_batch() {
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
     if (m_impl->command_batch_active) {
-        // Defer the submission: end_command_batch() performs exactly one
-        // vkQueueSubmit for every overlay recorded into this command batch.
         batch.active = false;
         return;
     }
-    m_impl->submit_batch();        m_impl->flush_deferred_surface_releases();
+    m_impl->submit_batch();
+    m_impl->flush_deferred_surface_releases();
     batch.active = false;
 #else
-    (void)0;  // no-op when the Vulkan backend is not compiled
+    (void)0;
 #endif
 }
 
@@ -318,20 +276,16 @@ void VulkanBackend::end_command_batch() {
     m_impl->require_healthy();
     if (!m_impl->command_batch_active) return;
     if (m_impl->command_batch_started) {
-        // The final frame's end_frame_batch() deferred its submission, so the
-        // single command buffer is still open and holds all N overlays.  One
-        // vkQueueSubmit flushes the whole batch.
         m_impl->submit_batch();
-    }        m_impl->flush_deferred_surface_releases();
+    }
+    m_impl->flush_deferred_surface_releases();
     m_impl->frame_batch.active = false;
     m_impl->command_batch_active = false;
     m_impl->command_batch_started = false;
 #else
-    (void)0;  // no-op when the Vulkan backend is not compiled
+    (void)0;
 #endif
 }
-
-// ── Phase 8: command-replay public API ────────────────────────────────
 
 std::size_t VulkanBackend::replay_slot_count() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -360,7 +314,8 @@ void VulkanBackend::end_replay_recording(std::size_t slot_index) {
 }
 
 void VulkanBackend::replay_submit(std::size_t slot_index,
-                                   const void* params, std::size_t params_size) {
+                                  const void* params,
+                                  std::size_t params_size) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
     m_impl->require_healthy();
