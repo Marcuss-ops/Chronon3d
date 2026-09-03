@@ -14,8 +14,6 @@ add_executable(chronon3d_benchmarks
     bench/benchmark_frame_conversion.cpp
     bench/benchmark_encoder_frame_pool.cpp
     video/reference_yuv_converter.cpp
-    # bench/dof_benchmark.cpp      # DISABLED: pre-existing API bit-rot (lens parameter drift on apply_disc_dof)
-    # bench/bench_blend_modes.cpp  # DISABLED: pre-existing API bit-rot (chronon3d::simd namespace drift on composite_*)
 )
 target_link_libraries(chronon3d_benchmarks
     PRIVATE
