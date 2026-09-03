@@ -3,6 +3,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
+#include <chronon3d/runtime/gpu_memory_budget.hpp>
 #include <cstdint>
 
 namespace chronon3d::backends::vulkan {
@@ -52,6 +53,16 @@ public:
 
     void shutdown();
 
+    void set_budget_policy(runtime::GpuMemoryBudgetPolicy policy) noexcept {
+        budget_resolver_.set_policy(policy);
+    }
+
+    [[nodiscard]] const runtime::GpuMemoryBudgetPolicy& budget_policy() const noexcept {
+        return budget_resolver_.policy();
+    }
+
+    [[nodiscard]] runtime::GpuMemoryBudgetSnapshot budget_snapshot() const;
+
     [[nodiscard]]
     VulkanBufferAllocation create_buffer(
         const VkBufferCreateInfo& info,
@@ -79,9 +90,12 @@ public:
     }
 
 private:
+    void require_reservation(std::uint64_t bytes, const char* resource_kind) const;
+
     VkPhysicalDevice physical_device_{VK_NULL_HANDLE};
     VkDevice device_{VK_NULL_HANDLE};
     VmaAllocator allocator_{VK_NULL_HANDLE};
+    runtime::GpuMemoryBudgetResolver budget_resolver_{};
 };
 
 } // namespace chronon3d::backends::vulkan
