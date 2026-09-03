@@ -5,7 +5,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
-#include <chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp>
+#include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
@@ -23,7 +23,7 @@ using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
 // Attached to CompiledNodeInfo during graph build/compilation.
 // The binding compiler reads this to build the binding table.
 struct SceneBindingMetadata {
-    bool     active{false};       // explicitly opt-in; avoids layer-0/item-0 ambiguity
+    bool     active{false};
     uint32_t layer_index{0};
     uint32_t item_index{0};
     uint16_t effect_begin{0};
@@ -61,30 +61,17 @@ struct CompiledNodeInfo {
     /// `cacheable` / `disk_cacheable` derived bools — do not re-introduce).
     RenderNodeCachePolicy cache_policy{};
 
-    // Structural render payload discriminator captured at compile time.
-    // -1 means the node has no shape payload; -2 means an aggregate source.
-    // Dynamic refresh may replace payload values, but never this discriminator.
     int shape_type{-1};
     std::vector<int> source_shape_types;
-
-    // Stable processor family/type identity captured at compilation. This is
-    // structural metadata used by scene_refresh validation; per-frame
-    // payload refresh must never replace it.
     std::string processor_id;
 
-    // Processor bindings are immutable handles into the graph-owned
-    // ProcessorRegistrySnapshot. The executor uses the graph-level
-    // pre-resolved pointer tables below, never the mutable registry.
     renderer::ShapeProcessorHandle shape_processor{};
-    // Offset/count into CompiledFrameGraph::shape_processor_table. For a
-    // single source the count is one; multi-source entries retain null slots
-    // for TextRun items so authored item indices remain aligned.
     std::uint32_t shape_processors_offset{0};
     std::uint32_t shape_processors_count{0};
     std::uint32_t effect_processors_offset{0};
     std::uint32_t effect_processors_count{0};
 
-    SceneBindingMetadata binding_meta{};  // binding table metadata
+    SceneBindingMetadata binding_meta{};
 
     bool reachable{false};
     bool early_exit_skip{false};
@@ -93,22 +80,7 @@ struct CompiledNodeInfo {
     EliminationReason elimination_reason{EliminationReason::None};
 
     std::optional<raster::BBox> predicted_bbox;
-
-    // ── Work Package 4 — stable identity ────────────────────────────
-    // Populated by `FrameGraphCompiler::build_node_metadata` from a
-    // deterministic mix of `layer_id`, `kind`, and `name`.  Excludes
-    // addresses, timestamps, and unordered iteration.  Two distinct
-    // reachable nodes can NEVER collide on this id; the compiler
-    // throws `std::runtime_error` on collision (PR 4.3).
     StableNodeId stable_node_id{kInvalidStableNodeId};
-};
-
-struct ResourceLifetime {
-    GraphNodeId producer{k_invalid_node};
-    std::size_t first_level{0};
-    std::size_t last_level{0};
-    std::size_t consumer_count{0};
-    bool can_release_after_last_consumer{true};
 };
 
 struct CompiledOwnershipTransfer {
@@ -117,31 +89,19 @@ struct CompiledOwnershipTransfer {
     bool transferable{false};
 };
 
-// ── Compiled execute function type ───────────────────────────────────────
-//
-// When non-null, the operation can be executed without calling
-// node.execute().  The function receives:
-//   - backend: the render backend
-//   - op: this CompiledOperation
-// Returns true on success.
 class RenderBackend;
 using CompiledExecuteFn = bool (*)(RenderBackend* backend,
                                    const struct CompiledOperation& op);
 
-// Linear, domain-neutral execution description. Processors that do not yet
-// provide a compiled recorder remain valid through node.execute() fallback.
 struct CompiledOperation {
     GraphNodeId node{k_invalid_node};
     StableNodeId stable_node{kInvalidStableNodeId};
     std::vector<GraphNodeId> inputs;
-    std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
+    std::uint32_t output_physical_slot{kInvalidPhysicalAllocationId};
     std::uint32_t parameter_offset{0};
     std::uint32_t parameter_size{0};
     ::chronon3d::renderer::ProcessorCapabilities capabilities{};
     bool is_fused{false};
-
-    // When non-null, this operation participates in the fully-compiled
-    // execute_compiled_program() path and bypasses node.execute().
     CompiledExecuteFn compiled_execute{nullptr};
 
     [[nodiscard]] bool has_compiled_execute() const noexcept {
@@ -156,20 +116,12 @@ struct StaticSubgraphBakePass {
     std::uint32_t persistent_surface_handle{0};
 };
 
-// ── CompiledLayerInstance ──────────────────────────────────────────────────
-//
-/// A single layer instance compiled from a fusible chain (Source→…→Composite).
-/// Mirror of runtime::LayerInstance, kept here to avoid a circular include
-/// (gpu_layer_batch.hpp includes compiled_frame_graph.hpp).
 struct CompiledLayerInstance {
-    GraphNodeId node{k_invalid_node};  // the source (Image/Text/Rect) node
+    GraphNodeId node{k_invalid_node};
     std::uint32_t resource_index{0};
     std::uint32_t transform_index{0};
     std::uint32_t paint_index{0};
     float opacity{1.0f};
-    // Canonical axis-aligned coverage carried into backend-neutral batches.
-    // A zero/empty box means that the backend must use its conservative
-    // full-surface fallback for this instance.
     raster::BBox dst_bounds{0, 0, 0, 0};
 };
 
@@ -177,7 +129,7 @@ struct CompiledLayerBatch {
     std::vector<GraphNodeId> member_nodes;
     std::vector<CompiledLayerInstance> instances;
     GraphNodeId root_node{k_invalid_node};
-    std::uint32_t output_physical_slot{kInvalidPhysicalFramebufferSlot};
+    std::uint32_t output_physical_slot{kInvalidPhysicalAllocationId};
     bool is_gpu_fused{false};
 
     [[nodiscard]] bool has_instances() const noexcept {
@@ -186,24 +138,14 @@ struct CompiledLayerBatch {
 };
 
 struct CompiledFrameProgram {
-    // Topological schedule copied once at compile time. Keeping it beside the
-    // operations makes the program the executor's immutable source of truth;
-    // CompiledFrameGraph::levels remains the compatibility fallback.
     std::vector<std::vector<GraphNodeId>> levels;
     std::vector<CompiledOperation> operations;
     std::vector<StaticSubgraphBakePass> static_bakes;
     std::vector<CompiledLayerBatch> layer_batches;
     bool has_prepared_parameters{false};
-    // true when EVERY reachable node has produced a CompiledOperation with
-    // a non-null compiled_execute — set by build_compiled_frame_program.
     bool fully_recorded{false};
     bool has_fused_passes{false};
     bool require_native_gpu{false};
-
-    // ── Phase 4 — static bake skip mask ────────────────────────────────
-    // Nodes whose output has been pre-baked in prepare().  The executor
-    // skips these entirely (execute count = 0).  Populated by merging
-    // PreparedFrameProgram::interior_node_skip before the first frame.
     std::vector<bool> interior_node_skip;
 
     [[nodiscard]] bool empty() const noexcept {
@@ -211,69 +153,56 @@ struct CompiledFrameProgram {
     }
 };
 
-struct CompiledFrameGraph {
+/// Immutable compiled graph plus its canonical compiled resource table.
+///
+/// CompiledFrameGraph derives from CompiledResourceTable so the table remains
+/// one object while legacy direct lifetime/plan spellings continue to resolve
+/// to zero-storage aliases owned by the table. There is no parallel physical
+/// framebuffer allocation plan or separate lifetime vector.
+struct CompiledFrameGraph : CompiledResourceTable {
     RenderGraph graph;
     GraphNodeId output{k_invalid_node};
 
     std::uint64_t structure_hash{0};
 
-    // Registry generation and immutable ownership used to resolve compiled
-    // processor handles. The snapshot keeps processors alive after the
-    // originating SoftwareRegistry or engine is destroyed.
     std::uint64_t registry_generation{0};
     std::uint64_t processor_snapshot_identity{0};
     std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot> processor_snapshot;
 
-    // Immutable handle tables populated once at compile time. Raw processor
-    // addresses are never persisted in the compiled graph; they are resolved
-    // only at the final backend dispatch boundary through processor_snapshot.
     std::vector<::chronon3d::renderer::ShapeProcessorHandle> shape_processor_table;
     std::vector<::chronon3d::renderer::EffectProcessorHandle> effect_processor_table;
 
-    // Authored-scene topology fingerprint captured by the coordinator when
-    // this compiled graph was built. It is compared before refresh so an
-    // incorrect scene-structure hint cannot reuse an incompatible graph.
     std::uint64_t authored_structure_fingerprint{0};
 
     std::vector<std::vector<GraphNodeId>> levels;
     std::vector<std::size_t> consumer_counts;
 
     std::vector<CompiledNodeInfo> nodes;
-    std::vector<ResourceLifetime> lifetimes;
 
-    // Nodes whose transient result is no longer needed after each level.
-    // This is derived once from the compiled DAG; execution does not need to
-    // rediscover the last consumer by walking graph edges.
-    std::vector<std::vector<GraphNodeId>> release_after_level;
-    // Generic ownership steals for resources with exactly one consumer.  A
-    // processor may use this to write into the producer's physical slot
-    // without a domain-specific video/image/text special case.
+    // Generic ownership steals for resources with exactly one consumer.
+    // This is an execution optimization derived from the canonical resource
+    // table, not a second lifetime/allocation authority.
     std::vector<CompiledOwnershipTransfer> ownership_transfers;
 
-    // Deterministic interval-coloring plan for transient node outputs. The
-    // plan is resolution-independent metadata consumed by the executor's
-    // existing framebuffer pool; persistent and asynchronous resources are
-    // explicitly excluded from aliasing.
-    PhysicalFramebufferAllocationPlan physical_framebuffer_plan;
     CompiledFrameProgram program;
 
-    // Per-frame execution decision produced by the canonical
-    // FrameDeltaCompiler -> ExecutionResolver path. This is metadata only;
-    // topology and processor caches remain owned by this compiled graph.
     std::optional<ExecutionDecision> execution_decision;
 
-    // Optional prepared, domain-neutral per-frame parameter payload.  A
-    // missing table is valid: the generic node.execute() fallback remains
-    // authoritative for graphs that have not opted into preparation yet.
     std::shared_ptr<const FrameParameterTable> prepared_parameters;
     std::vector<FrameParameterSlice> parameter_bindings;
+
+    [[nodiscard]] CompiledResourceTable& resource_table() noexcept {
+        return *this;
+    }
+
+    [[nodiscard]] const CompiledResourceTable& resource_table() const noexcept {
+        return *this;
+    }
 
     void set_parameter_bindings(std::vector<FrameParameterSlice> bindings) {
         parameter_bindings = std::move(bindings);
     }
 
-    /// Apply dynamic values to the prepared parameter storage without
-    /// rebuilding graph topology or processor bindings.
     void apply_parameter_patches(const ParameterPatchSet& patches) {
         if (!prepared_parameters) {
             throw std::logic_error("CompiledFrameGraph has no prepared parameter table");
@@ -290,13 +219,6 @@ struct CompiledFrameGraph {
 
     bool valid{false};
 
-    // ── Work Package 4 — stable identity ────────────────────────────
-    // Built by `FrameGraphCompiler::compile` by hashing the SET of
-    // stable_node_ids of every reachable node (FNV-1a determinism).
-    // Two graphs with identical topology AND identical reachable-node
-    // identities produce the same `graph_instance_id`; nested
-    // compiled graphs (precomp layers) get UNIQUE ids because the
-    // compiler is invoked separately for each precomp layer.
     GraphInstanceId graph_instance_id{kInvalidGraphInstanceId};
 
     [[nodiscard]] bool empty() const {
