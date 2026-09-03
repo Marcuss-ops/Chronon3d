@@ -36,7 +36,8 @@ layout(std430, binding = 1) readonly buffer RunBuffer {
     GpuTextRunDynamic runs[];
 };
 
-// Output: tile_count_grid and tile_glyph_indices (flattened max_glyphs_per_tile * num_tiles)
+// Output: tile_count_grid and tile_glyph_indices (flattened
+// max_glyphs_per_tile * num_tiles).
 layout(std430, binding = 2) buffer TileCounters {
     uint tile_glyph_counts[];
 };
@@ -60,12 +61,31 @@ void main() {
 
     GpuGlyphStatic g = glyphs[gid];
     GpuTextRunDynamic r = runs[g.run_index];
+    uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
 
-    // Compute screen AABB of glyph
-    float x0 = r.tx + g.plane_left * r.sx;
-    float y0 = r.ty + g.plane_top * r.sy;
-    float x1 = r.tx + g.plane_right * r.sx;
-    float y1 = r.ty + g.plane_bottom * r.sy;
+    float x0;
+    float y0;
+    float x1;
+    float y1;
+
+    if ((flags & 1u) != 0u) {
+        // Distance-field glyphs use shaped plane geometry.
+        x0 = r.tx + g.plane_left * r.sx;
+        y0 = r.ty + g.plane_top * r.sy;
+        x1 = r.tx + g.plane_right * r.sx;
+        y1 = r.ty + g.plane_bottom * r.sy;
+    } else {
+        // Bitmap/coverage glyphs keep the exact legacy text_batch placement:
+        // rounded run origin plus the scaled atlas rectangle. The tiled path
+        // must be a scheduling optimization, not a second coordinate model.
+        if (r.sx <= 0.0 || r.sy <= 0.0) return;
+        uint atlas_w = g.atlas_size & 0xFFFFu;
+        uint atlas_h = (g.atlas_size >> 16u) & 0xFFFFu;
+        x0 = round(r.tx);
+        y0 = round(r.ty);
+        x1 = x0 + ceil(float(atlas_w) * r.sx);
+        y1 = y0 + ceil(float(atlas_h) * r.sy);
+    }
 
     float min_x = min(x0, x1);
     float max_x = max(x0, x1);
