@@ -12,6 +12,12 @@
 #include <cuda.h>
 #endif
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavutil/hwcontext.h>
+#include <libavutil/pixfmt.h>
+}
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -75,6 +81,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const double scene_eval_ms = profiling::duration_ms(scene_t0, profiling::now());
 
     std::string video_path;
+    std::vector<DirectVideoLayer> video_layers;
     for (const auto& layer : scene_0.layers()) {
         if (layer.uses_2_5d_projection || layer.mask.enabled()) {
             reason = "layer '" + std::string(layer.name) + "' uses unsupported 3D (" +
@@ -87,11 +94,12 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             return nullptr;
         }
         if (layer.video_source) {
-            if (!video_path.empty() && video_path != layer.video_source->path) {
-                reason = "more than one video source";
-                return nullptr;
+            if (video_path.empty()) {
+                video_path = layer.video_source->path;
+            } else {
+                video_layers.push_back(DirectVideoLayer{
+                    std::string(layer.name), *layer.video_source});
             }
-            video_path = layer.video_source->path;
         }
     }
 
@@ -296,6 +304,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
     program->video_path_ = std::move(video_path);
+    program->video_layers_ = std::move(video_layers);
     program->width_ = width;
     program->height_ = height;
     program->composition_ = compiled.composition;
@@ -341,13 +350,74 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         return result;
     }
 
+    std::size_t video_layer_index = 0;
     for (const auto& layer : scene.layers()) {
-        if (!layer.visible || layer.video_source) continue;
+        if (!layer.visible) continue;
         if (frame.integral() < layer.from.integral() ||
             (layer.duration.integral() > 0 && frame.integral() >= layer.from.integral() + layer.duration.integral())) {
             continue;
         }
         if (layer.transform.opacity <= 0.001f) continue;
+
+        if (layer.video_source) {
+            // The first video is the DirectYUV background supplied to the
+            // compositor. Every subsequent video becomes a native NV12 layer.
+            if (video_layer_index++ == 0) continue;
+            const auto overlay_index = video_layer_index - 2;
+            if (overlay_index >= video_layers_.size()) return nullptr;
+            const auto& overlay = video_layers_[overlay_index];
+            const Frame local_frame = frame - layer.from;
+            if (local_frame < 0) continue;
+            const Frame source_frame = video::map_video_frame(local_frame, overlay.source);
+            const i64 source_fps = std::max<i64>(
+                1, static_cast<i64>(std::llround(overlay.source.source_fps)));
+            auto overlay_frame = decoder.decode_native_frame_at(
+                overlay.source.path,
+                RationalTime{source_frame.integral(), Rational{1, source_fps}},
+                width_, height_);
+            if (!overlay_frame || overlay_frame->format != AV_PIX_FMT_CUDA ||
+                !overlay_frame->data[0] || !overlay_frame->data[1]) {
+                spdlog::error("[direct-yuv] native overlay decode failed: layer='{}' frame={}",
+                              overlay.name, frame.integral());
+                return nullptr;
+            }
+            auto* overlay_hw_frames = overlay_frame->hw_frames_ctx
+                ? reinterpret_cast<AVHWFramesContext*>(overlay_frame->hw_frames_ctx->data)
+                : nullptr;
+            if (!overlay_hw_frames || overlay_hw_frames->sw_format != AV_PIX_FMT_NV12) {
+                spdlog::error("[direct-yuv] native overlay is not NV12: layer='{}'", overlay.name);
+                return nullptr;
+            }
+
+            const float base_w = overlay.source.size.x > 0.0f
+                ? overlay.source.size.x : static_cast<float>(overlay_frame->width);
+            const float base_h = overlay.source.size.y > 0.0f
+                ? overlay.source.size.y : static_cast<float>(overlay_frame->height);
+            const float cx = static_cast<float>(width_) * 0.5f + layer.transform.position.x;
+            const float cy = static_cast<float>(height_) * 0.5f + layer.transform.position.y;
+            const float half_w = base_w * 0.5f * layer.transform.scale.x;
+            const float half_h = base_h * 0.5f * layer.transform.scale.y;
+            const uint32_t res_idx = static_cast<uint32_t>(template_frame->resources.size());
+            template_frame->batch.instances.push_back(runtime::LayerInstance{
+                .kind = runtime::PrimitiveKind::Video,
+                .resource_index = res_idx,
+                .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
+                .dst_x0 = cx - half_w, .dst_y0 = cy - half_h,
+                .dst_x1 = cx + half_w, .dst_y1 = cy + half_h,
+                .opacity = std::clamp(layer.transform.opacity, 0.0f, 1.0f),
+                .blend = layer.blend_mode == BlendMode::Add ? BlendMode::Add : BlendMode::Normal});
+            media::CudaLayerResource resource;
+            resource.kind = media::CudaLayerResourceKind::Nv12;
+            resource.y = reinterpret_cast<CUdeviceptr>(overlay_frame->data[0]);
+            resource.uv = reinterpret_cast<CUdeviceptr>(overlay_frame->data[1]);
+            resource.pitch_bytes = overlay_frame->linesize[0];
+            resource.uv_pitch_bytes = overlay_frame->linesize[1];
+            resource.width = static_cast<uint32_t>(overlay_frame->width);
+            resource.height = static_cast<uint32_t>(overlay_frame->height);
+            template_frame->resources.push_back(resource);
+            result->video_layers.push_back(std::move(overlay_frame));
+            continue;
+        }
         auto it = layer_resources_.find(std::string(layer.name));
         if (it == layer_resources_.end() || !it->second.gpu_resource) continue;
         const auto& entry = it->second;
