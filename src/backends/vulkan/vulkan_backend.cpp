@@ -174,9 +174,11 @@ void VulkanBackend::begin_frame_batch() {
     check(vkBeginCommandBuffer(batch.command_buffers[slot], &begin),
           "vkBeginCommandBuffer(frame batch slot)");
     if (m_impl->timestamp_pool != VK_NULL_HANDLE) {
-        const auto query_base = static_cast<std::uint32_t>(2 * slot);
+        const auto queries_per_slot = static_cast<std::uint32_t>(
+            2 + 2 * Impl::FrameBatchState::kCompiledPassTimingCapacity);
+        const auto query_base = static_cast<std::uint32_t>(slot) * queries_per_slot;
         vkCmdResetQueryPool(batch.command_buffers[slot], m_impl->timestamp_pool,
-                            query_base, 2);
+                            query_base, queries_per_slot);
         vkCmdWriteTimestamp(batch.command_buffers[slot],
                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                             m_impl->timestamp_pool, query_base);
@@ -217,6 +219,10 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::lock_guard lock(m_impl->api_mutex);
     m_impl->require_healthy();
+    if (plan.pass_count() > Impl::FrameBatchState::kCompiledPassTimingCapacity) {
+        throw std::length_error(
+            "Vulkan compiled pass timing capacity exhausted");
+    }
     begin_frame_batch();
     m_impl->retire_completed_frame_transient_surfaces();
 
