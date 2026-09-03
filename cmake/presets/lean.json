@@ -20,7 +20,6 @@
         "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_ENABLE_VERIFICATION": "OFF",
-        "CHRONON3D_ENABLE_VIDRUSH": "OFF",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text"
       }
     }
