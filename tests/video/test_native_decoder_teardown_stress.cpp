@@ -95,7 +95,8 @@ bool one_cycle(const std::string& source,
                chronon3d::media::NativeDecoderTestOptions opts) {
     chronon3d::media::NativeVideoFrameDecoder decoder;
     decoder.set_test_options(opts);
-    auto fb = decoder.decode_frame(source, chronon3d::Frame{0}, 2, 2, 30.0f);
+    auto fb = decoder.decode_frame_at(
+        source, chronon3d::RationalTime{0, {1, 30}}, 2, 2);
     // fb may be null when swscale is disabled (bare framebuffer still produced);
     // the stress goal is teardown stability, not decode correctness.
     (void)fb;
