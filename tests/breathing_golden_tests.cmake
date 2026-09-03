@@ -1,21 +1,10 @@
-# ── Breathing Golden Regression Tests ──
-# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# Legacy-named TBB parallelism regression manifest.
+# The historical breathing determinism test was retired in favor of the
+# canonical deterministic suite; only the real worker-usage regression remains.
 if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
     return()
 endif()
-# The named breathing golden was removed with the authoring-preset registry.
-# Keep only engine-level determinism and concurrency coverage below.
 
-# ── Determinism Check: same frame 5 times, compare hashes ──
-chronon3d_add_test_suite(
-    NAME chronon3d_determinism_test
-    TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d_scene
-    SOURCES golden/test_determinism_breathing.cpp
-)
-target_compile_definitions(chronon3d_determinism_test PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-
-# ── TBB Workers Parallelism Test: verify tbb_active_workers_peak > 1 ──
 chronon3d_add_test_suite(
     NAME chronon3d_tbb_workers_test
     TIER INTEGRATION
