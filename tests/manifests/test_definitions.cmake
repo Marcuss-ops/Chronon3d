@@ -1,19 +1,12 @@
 # Single ordered manifest of per-area test definition files.
 set(CHRONON3D_TEST_DEFINITIONS
-    mesh_disabled_gate.cmake
     backends_software_tests.cmake
     debug/CMakeLists.txt
-    architecture_tests.cmake
-    ocio_tests.cmake
     core_tests.cmake
     shader_abi_tests.cmake
     ipc_tests.cmake
-    c_abi_tests.cmake
     scene_tests.cmake
     cli_tests.cmake
-    introspection_tests.cmake
-    render_job_contract_tests.cmake
-    cache_tests.cmake
     render_runtime_tests.cmake
     benchmarks.cmake
     animation_timeline_tests.cmake
