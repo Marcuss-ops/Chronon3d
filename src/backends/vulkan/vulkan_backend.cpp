@@ -273,12 +273,12 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         if (allocation.request_index < plan.resources.requests.size()) {
             request_desc = plan.resources.requests[allocation.request_index].desc;
         }
-        const auto width = request_desc.width != 0 ? request_desc.width : planned.width;
-        const auto height = request_desc.height != 0 ? request_desc.height : planned.height;
-        const auto format = request_desc.format != runtime::PixelFormat::Unknown
-            ? request_desc.format : planned.format;
+        const auto width = request_desc.width != 0 ? request_desc.width : planned.desc.width;
+        const auto height = request_desc.height != 0 ? request_desc.height : planned.desc.height;
+        const auto format = request_desc.format.pixel != runtime::PixelFormat::Unknown
+            ? request_desc.format : planned.desc.format;
         const auto usage = request_desc.usage != runtime::ResourceUsage::Generic
-            ? request_desc.usage : planned.usage;
+            ? request_desc.usage : planned.desc.usage;
         const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
             width, height, format, usage, runtime::LifetimeClass::FrameTransient);
         m_impl->bind_surface_to_slot(allocation.surface, allocation.physical_slot, desc);

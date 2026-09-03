@@ -76,7 +76,10 @@ public:
         }
         if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
             auto desc = media::native_decode_surface_desc(view.width, view.height);
-            desc.color = view.color;
+            desc.format.matrix = view.color.matrix;
+            desc.format.range = view.color.range;
+            desc.format.primaries = view.color.primaries;
+            desc.format.transfer = view.color.transfer;
             slot.surface = registry_.create(desc);
             if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
                 spdlog::error("[native-import] render surface allocation failed ({}x{})",

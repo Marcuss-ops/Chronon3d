@@ -53,6 +53,10 @@ RenderLoopOutput run_direct_yuv_loop(
                 break;
             }
             ++status.frames_enqueued;
+            const int done_count = static_cast<int>(current_frame - start + 1);
+            if (should_log_pipe_progress(done_count, total)) {
+                spdlog::info("[video]   {}/{} frames", done_count, total);
+            }
             output.telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
                 .wall_start_ms = profiling::duration_ms(loop_t0, direct_t0),

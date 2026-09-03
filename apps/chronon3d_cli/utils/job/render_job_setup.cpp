@@ -108,17 +108,6 @@ void setup_render_job(const CompositionRegistry& registry,
             const bool persistent = allocation.persistent || allocation.async_use;
             runtime::ResourceRequest request;
             request.id = "GraphNode[" + std::to_string(id) + "]";
-            request.kind = runtime::ResourceKind::Color;
-            request.bytes = runtime::tight_surface_bytes(
-                runtime::PixelFormat::Rgba32Float,
-                static_cast<std::uint32_t>(job.metadata.width),
-                static_cast<std::uint32_t>(job.metadata.height));
-            request.lifetime = persistent
-                ? runtime::LifetimeClass::JobPersistent
-                : runtime::LifetimeClass::FrameTransient;
-            request.first = persistent ? 0 : lifetime.first_level;
-            request.last = persistent ? 0 : lifetime.last_level;
-            request.alignment = alignof(Color);
             request.desc = runtime::ResourceDesc::make(
                 static_cast<std::uint32_t>(job.metadata.width),
                 static_cast<std::uint32_t>(job.metadata.height),
@@ -127,7 +116,9 @@ void setup_render_job(const CompositionRegistry& registry,
                 persistent ? runtime::LifetimeClass::JobPersistent
                            : desc_lifetime,
                 alignof(Color));
-            request.bytes = request.desc.bytes;
+            request.desc.kind = runtime::ResourceKind::Color;
+            request.first = persistent ? 0 : lifetime.first_level;
+            request.last = persistent ? 0 : lifetime.last_level;
             planner.add(std::move(request));
         }
         out.resource_plan = planner.build();
