@@ -779,15 +779,16 @@ TEST_CASE("FrameGraphCompiler - lifetimes computation") {
     auto compiled = compiler.compile(std::move(graph), ctx, options);
 
     REQUIRE(compiled.valid);
-    
-    // Lifetimes checks
-    CHECK(compiled.lifetimes[a].producer == a);
-    CHECK(compiled.lifetimes[b].producer == b);
-    CHECK(compiled.lifetimes[a].last_level > compiled.lifetimes[a].first_level);
-    CHECK(compiled.lifetimes[b].last_level > compiled.lifetimes[b].first_level);
+    const auto& table = compiled.resource_table();
+    REQUIRE(table.resource_for(a) != nullptr);
+    REQUIRE(table.resource_for(b) != nullptr);
+    CHECK(table.resource_for(a)->producer == a);
+    CHECK(table.resource_for(b)->producer == b);
+    CHECK(table.resource_for(a)->last_level > table.resource_for(a)->first_level);
+    CHECK(table.resource_for(b)->last_level > table.resource_for(b)->first_level);
 }
 
-TEST_CASE("FrameGraphCompiler - physical allocation plan colors transient intervals") {
+TEST_CASE("FrameGraphCompiler - compiled resource table colors transient intervals") {
     RenderGraph graph;
     const auto a = graph.add_node(std::make_unique<CompilerTestNode>(
         "A", no_cache("transient-a")));
@@ -816,28 +817,28 @@ TEST_CASE("FrameGraphCompiler - physical allocation plan colors transient interv
 
     const auto compiled = compiler.compile(std::move(graph), ctx, options);
     REQUIRE(compiled.valid);
-    const auto& plan = compiled.physical_framebuffer_plan;
+    const auto& table = compiled.resource_table();
 
-    CHECK(plan.logical_resource_count == 6);
-    CHECK(plan.aliasable_resource_count == 5);
-    CHECK(plan.excluded_persistent_count == 1);
-    CHECK(plan.excluded_async_count == 0);
-    CHECK(plan.physical_slot_count < plan.aliasable_resource_count);
-    CHECK(plan.peak_live_resource_count == plan.physical_slot_count);
-    REQUIRE(plan.allocation_for(a) != nullptr);
-    REQUIRE(plan.allocation_for(b) != nullptr);
-    REQUIRE(plan.allocation_for(c) != nullptr);
-    REQUIRE(plan.allocation_for(d) != nullptr);
-    REQUIRE(plan.allocation_for(e) != nullptr);
-    REQUIRE(plan.allocation_for(output) != nullptr);
-    CHECK(plan.allocation_for(a)->aliasable);
-    CHECK(plan.allocation_for(b)->aliasable);
-    CHECK(plan.allocation_for(c)->aliasable);
-    CHECK(plan.allocation_for(d)->aliasable);
-    CHECK(plan.allocation_for(e)->aliasable);
-    CHECK_FALSE(plan.allocation_for(output)->aliasable);
-    CHECK(plan.allocation_for(a)->physical_slot ==
-          plan.allocation_for(e)->physical_slot);
+    CHECK(table.logical_resource_count == 6);
+    CHECK(table.aliasable_resource_count == 5);
+    CHECK(table.excluded_persistent_count == 1);
+    CHECK(table.excluded_async_count == 0);
+    CHECK(table.physical_slot_count < table.aliasable_resource_count);
+    CHECK(table.peak_live_resource_count == table.physical_slot_count);
+    REQUIRE(table.resource_for(a) != nullptr);
+    REQUIRE(table.resource_for(b) != nullptr);
+    REQUIRE(table.resource_for(c) != nullptr);
+    REQUIRE(table.resource_for(d) != nullptr);
+    REQUIRE(table.resource_for(e) != nullptr);
+    REQUIRE(table.resource_for(output) != nullptr);
+    CHECK(table.resource_for(a)->aliasable());
+    CHECK(table.resource_for(b)->aliasable());
+    CHECK(table.resource_for(c)->aliasable());
+    CHECK(table.resource_for(d)->aliasable());
+    CHECK(table.resource_for(e)->aliasable());
+    CHECK_FALSE(table.resource_for(output)->aliasable());
+    CHECK(table.resource_for(a)->physical_slot ==
+          table.resource_for(e)->physical_slot);
 }
 
 TEST_CASE("FrameGraphCompiler - FrameVariant resources remain transient and alias") {
@@ -869,18 +870,18 @@ TEST_CASE("FrameGraphCompiler - FrameVariant resources remain transient and alia
 
     const auto compiled = compiler.compile(std::move(graph), ctx, options);
     REQUIRE(compiled.valid);
-    const auto& plan = compiled.physical_framebuffer_plan;
-    REQUIRE(plan.allocation_for(a) != nullptr);
-    REQUIRE(plan.allocation_for(e) != nullptr);
+    const auto& table = compiled.resource_table();
+    REQUIRE(table.resource_for(a) != nullptr);
+    REQUIRE(table.resource_for(e) != nullptr);
 
     CHECK(compiled.nodes[a].cache_policy.frame_dependent());
     CHECK(compiled.nodes[e].cache_policy.frame_dependent());
-    CHECK_FALSE(plan.allocation_for(a)->persistent);
-    CHECK_FALSE(plan.allocation_for(e)->persistent);
-    CHECK(plan.allocation_for(a)->aliasable);
-    CHECK(plan.allocation_for(e)->aliasable);
-    CHECK(plan.allocation_for(a)->physical_slot ==
-          plan.allocation_for(e)->physical_slot);
+    CHECK_FALSE(table.resource_for(a)->persistent);
+    CHECK_FALSE(table.resource_for(e)->persistent);
+    CHECK(table.resource_for(a)->aliasable());
+    CHECK(table.resource_for(e)->aliasable());
+    CHECK(table.resource_for(a)->physical_slot ==
+          table.resource_for(e)->physical_slot);
 }
 
 TEST_CASE("FrameGraphCompiler - persistent and non-releasable resources are excluded") {
@@ -903,15 +904,15 @@ TEST_CASE("FrameGraphCompiler - persistent and non-releasable resources are excl
 
     const auto compiled = compiler.compile(std::move(graph), ctx, options);
     REQUIRE(compiled.valid);
-    const auto& plan = compiled.physical_framebuffer_plan;
-    REQUIRE(plan.allocation_for(persistent) != nullptr);
-    REQUIRE(plan.allocation_for(transient) != nullptr);
-    CHECK(plan.allocation_for(persistent)->persistent);
-    CHECK_FALSE(plan.allocation_for(persistent)->aliasable);
-    CHECK_FALSE(plan.allocation_for(transient)->persistent);
-    CHECK(plan.allocation_for(transient)->aliasable);
-    CHECK(plan.excluded_persistent_count == 2);
-    CHECK(plan.excluded_async_count == 0);
+    const auto& table = compiled.resource_table();
+    REQUIRE(table.resource_for(persistent) != nullptr);
+    REQUIRE(table.resource_for(transient) != nullptr);
+    CHECK(table.resource_for(persistent)->persistent);
+    CHECK_FALSE(table.resource_for(persistent)->aliasable());
+    CHECK_FALSE(table.resource_for(transient)->persistent);
+    CHECK(table.resource_for(transient)->aliasable());
+    CHECK(table.excluded_persistent_count == 2);
+    CHECK(table.excluded_async_count == 0);
 }
 
 TEST_CASE("FrameGraphCompiler - structure hash includes edges and output") {
@@ -1203,7 +1204,7 @@ TEST_CASE("FrameGraphCompiler - compile_with_reuse: post-conditions hold (Test E
     CHECK(compiled.skip_initial_clear == ctx.policy.skip_initial_clear);
 }
 
-TEST_CASE("FrameGraphCompiler - CompiledLifetimePlan computes deterministic release_after_level and ownership_transfers") {
+TEST_CASE("FrameGraphCompiler - CompiledResourcePlan computes deterministic release and ownership") {
     FrameGraphCompiler compiler;
     RenderGraphContext ctx;
     FrameGraphCompileOptions options;
@@ -1227,16 +1228,21 @@ TEST_CASE("FrameGraphCompiler - CompiledLifetimePlan computes deterministic rele
     auto compiled = compiler.compile(std::move(graph), ctx, options);
     REQUIRE(compiled.valid);
 
-    // 1. Verify release_after_level derivation
-    REQUIRE(compiled.release_after_level.size() == compiled.levels.size());
-    // a and b have last consumer c -> should be released after the level containing c
-    REQUIRE(compiled.ownership_transfers.size() == compiled.graph.size());
-    CHECK(compiled.ownership_transfers[a].transferable);
-    CHECK(compiled.ownership_transfers[a].consumer == c);
-    CHECK(compiled.ownership_transfers[b].transferable);
-    CHECK(compiled.ownership_transfers[b].consumer == c);
+    const auto& table = compiled.resource_table();
+    const auto* a_plan = table.resource_for(a);
+    const auto* b_plan = table.resource_for(b);
+    REQUIRE(a_plan != nullptr);
+    REQUIRE(b_plan != nullptr);
+    CHECK(a_plan->release_scheduled);
+    CHECK(b_plan->release_scheduled);
+    CHECK(a_plan->release_after_level == a_plan->last_level);
+    CHECK(b_plan->release_after_level == b_plan->last_level);
+    REQUIRE(a_plan->ownership_transfer_consumer().has_value());
+    REQUIRE(b_plan->ownership_transfer_consumer().has_value());
+    CHECK(*a_plan->ownership_transfer_consumer() == c);
+    CHECK(*b_plan->ownership_transfer_consumer() == c);
 
-    // 2. Verify CompiledFrameProgram
+    // Verify CompiledFrameProgram remains derived from the same resource plans.
     REQUIRE_FALSE(compiled.program.empty());
     CHECK(compiled.program.levels == compiled.levels);
     CHECK(compiled.program.operations.size() == 4);
