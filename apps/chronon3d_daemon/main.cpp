@@ -4,6 +4,7 @@
 
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/runtime/gpu_device_lost_error.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -123,6 +124,12 @@ int main(int argc, char* argv[]) {
 #endif
 
         const auto response = dispatcher.dispatch(req);
+
+        if (runtime::gpu_worker_poisoned()) {
+            spdlog::critical(
+                "GPU device lost; terminating poisoned worker for clean restart");
+            std::_Exit(EXIT_FAILURE);
+        }
 
 #ifdef CHRONON3D_ENABLE_CRASH_HANDLER
         chronon3d::crash::set_crash_context(nullptr);
