@@ -3,6 +3,7 @@
 // Out-of-class definitions; declared in vulkan_backend_impl.hpp.
 
 #include "vulkan_backend_impl.hpp"
+#include <atomic>
 #include <cmath>
 
 namespace chronon3d::backends::vulkan {
@@ -415,6 +416,25 @@ struct alignas(16) GpuGlyphStatic {
         if (!atlas_image.initialized || atlas_image.width == 0 || atlas_image.height == 0) {
             throw std::invalid_argument(
                 "Vulkan draw_text_batch references an invalid atlas surface");
+        }
+
+        // One-frame E2E format diagnostic: the first text batch of the process
+        // logs the concrete VkFormat of the destination and atlas surfaces so
+        // shader storage-image qualifications (rgba32f dst, rgba8 atlas) can be
+        // cross-checked against what the descriptor writes actually bind.
+        static std::atomic<bool> format_diagnostic_emitted{false};
+        bool format_diagnostic_expected = false;
+        if (!format_diagnostic_emitted.compare_exchange_strong(
+                format_diagnostic_expected, true)) {
+            // Already emitted by another call this process.
+        } else {
+            spdlog::info(
+                "chronon3d::vulkan text batch formats: dst_image.format={} "
+                "atlas_image.format={} atlas_encoding={} "
+                "(shader contract: dst rgba32f, atlas rgba8)",
+                static_cast<int>(dst_image.format),
+                static_cast<int>(atlas_image.format),
+                static_cast<int>(atlas_image.text_atlas_encoding));
         }
 
         std::array<GpuGlyphStatic, 1024> local_glyphs;

@@ -17,6 +17,7 @@
     "xxhash",
     "highway",
     "nlohmann-json",
+    "json-schema-validator",
     "magic-enum",
     "zstd"
   ],
