@@ -3,7 +3,8 @@
 
 P0.2 deliberately permits ResourcePlanner as an ephemeral placement algorithm,
 but forbids reintroducing any persisted framebuffer allocation plan, parallel
-lifetime authority, or source-compatibility shim from the retired compiled model.
+lifetime/consumer authority, or source-compatibility shim from the retired
+compiled model.
 """
 
 from __future__ import annotations
@@ -42,12 +43,20 @@ FORBIDDEN_PATTERNS = (
         "parallel compiled lifetime vector",
     ),
     (
+        re.compile(r"std::vector\s*<\s*std::size_t\s*>\s+consumer_counts\b"),
+        "parallel compiled consumer-count vector",
+    ),
+    (
         re.compile(r"\bphysical_framebuffer_plan\b"),
         "retired physical plan compatibility spelling",
     ),
     (
         re.compile(r"(?:\.|->)\s*lifetimes\b"),
         "retired direct lifetimes compatibility access",
+    ),
+    (
+        re.compile(r"(?:\.|->)\s*consumer_counts\b"),
+        "retired direct consumer-count compatibility access",
     ),
     (
         re.compile(r"\b(?:CompiledResourceRecord|ResourceLifetime)\b"),
@@ -143,8 +152,8 @@ def main() -> int:
 
     print(
         "Compiled resource authority gate passed: P0.2 is sealed; CompiledResourceTable "
-        "is the sole persisted compiled lifetime/allocation authority and no compatibility "
-        "shims remain."
+        "is the sole persisted compiled lifetime/allocation/consumer authority and no "
+        "compatibility shims remain."
     )
     return 0
 
