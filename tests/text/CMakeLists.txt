@@ -74,4 +74,16 @@ chronon3d_add_test_suite(
         chronon3d_text_core
 )
 
+# 7. SubtitleTrackBuilder explicit font references (no implicit engine
+#    default font path). The builder must never re-introduce a
+#    repository-relative default like `assets/fonts/Poppins-Bold.ttf`.
+chronon3d_add_test_suite(
+    NAME  chronon3d_subtitle_font_ref_tests
+    TIER  UNIT
+    SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/test_subtitle_font_ref.cpp
+    LINK_TARGETS
+        chronon3d_pipeline
+)
+
 endif()  # CHRONON3D_BUILD_TESTS
