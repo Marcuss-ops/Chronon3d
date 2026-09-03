@@ -3,8 +3,8 @@
 
 P0.2 deliberately permits ResourcePlanner as an ephemeral planning algorithm,
 but forbids reintroducing a persisted framebuffer allocation plan, a parallel
-lifetime vector, or downstream production call sites that use the retired
-physical_framebuffer_plan/lifetimes compatibility spellings.
+lifetime vector, or downstream production call sites that use retired plan or
+lifetime compatibility spellings.
 """
 
 from __future__ import annotations
@@ -17,17 +17,20 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CANONICAL_TABLE = ROOT / "include/chronon3d/render_graph/compiler/compiled_resource_table.hpp"
 SCAN_ROOTS = (ROOT / "include", ROOT / "src")
 
+# These patterns describe actual declarations/includes/callable compiler APIs,
+# not mere prose mentions. This keeps the gate strict without failing on
+# historical comments that explain which authority was removed.
 FORBIDDEN_PATTERNS = (
     (
         re.compile(r"\b(?:struct|class)\s+PhysicalFramebufferAllocationPlan\b"),
         "retired PhysicalFramebufferAllocationPlan type",
     ),
     (
-        re.compile(r"physical_framebuffer_allocation\.hpp"),
+        re.compile(r"^\s*#\s*include\s*[<\"](?:[^>\"]*/)?physical_framebuffer_allocation\.hpp[>\"]", re.MULTILINE),
         "retired physical_framebuffer_allocation.hpp dependency",
     ),
     (
-        re.compile(r"\bbuild_physical_framebuffer_allocation_plan\b"),
+        re.compile(r"\bbuild_physical_framebuffer_allocation_plan\s*\("),
         "retired independent framebuffer allocation compiler",
     ),
     (
