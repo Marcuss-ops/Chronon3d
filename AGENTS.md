@@ -127,8 +127,12 @@ Ogni cache deve appartenere a ESATTAMENTE una famiglia.  Vedi
 | Famiglia | Semantica | Membri |
 |---|---|---|
 | **ContentCache** | Stessa chiave → stesso output, sempre | NodeCache, FrameCache, VideoFrameCache, GpuAssetCache, GpuGlyphAtlas styled |
-| **ResidencyCache** | Bounded memory, piano esterno (PhysicalResourcePlan) | PhysicalFramebufferAllocationPlan (hot-path), FramebufferPool (cold-path), GpuGlyphAtlas pages, PersistentFramebufferStore |
+| **ResidencyCache** | Bounded memory / residency reuse | FramebufferPool (cold-path), GpuGlyphAtlas pages, PersistentFramebufferStore |
 | **ProgramCache** | Stesso fingerprint → stesso programma compilato | TemplateProgramCache, CompiledGraphCache, SceneProgramCache, OverlayTemplateCache |
+
+Il placement hot-path non appartiene alla cache taxonomy: `runtime::ResourcePlanner`
+/ `runtime::ResourcePlan` sono algoritmi e risultati effimeri di placement; la sola
+authority persistente compilata è `graph::CompiledResourceTable`.
 
 **Primitive canonica**: `LruCache` (include/chronon3d/cache/lru_cache.hpp).  Nessuna seconda cache engine.
 
@@ -140,7 +144,7 @@ Ogni cache deve appartenere a ESATTAMENTE una famiglia.  Vedi
 - **Registry condivisi**: AssetRegistry, RenderSurfaceRegistry, EffectCatalog — nessun registry parallelo per feature.
 - **Resolver canonico**: AssetResolver (include/chronon3d/assets/asset_resolver.hpp).
 - **Unico compilatore**: CompiledFrameGraph (include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp).
-- **Unica fonte di allocazione hot-path**: PhysicalFramebufferAllocationPlan (include/chronon3d/render_graph/compiler/physical_framebuffer_allocation.hpp).
+- **Unica authority persistente di allocazione hot-path**: CompiledResourceTable (include/chronon3d/render_graph/compiler/compiled_resource_table.hpp); ResourcePlanner/ResourcePlan restano solo placement effimero durante il lowering.
 - **Unico executor**: GraphExecutor → node_runner.cpp (compiled path) o node_executor.cpp (fallback).
 
 ---
@@ -192,9 +196,11 @@ Non creare file sostitutivi: usare i percorsi canonici.
 
 ## Architecture rules
 
-Tutti i gate architetturali vivono in `tools/architecture_rules.toml` (49 regole
-dichiarative).  Engine: `tools/check_architecture.py`.  CI: `.github/workflows/ci.yml`
-(Gate 5 / architecture-check).
+Le regole architetturali dichiarative vivono in `tools/architecture_rules.toml`
+e sono eseguite da `tools/check_architecture.py`. I gate specialistici che non
+rientrano nel motore dichiarativo devono essere registrati una sola volta in
+`tools/gates/manifest.sh`; wrapper e CI consumano il manifest senza duplicarne
+la lista. CI: `.github/workflows/ci.yml` (Gate 5 / architecture-check).
 
 ---
 
