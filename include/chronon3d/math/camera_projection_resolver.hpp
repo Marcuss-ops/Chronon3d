@@ -67,7 +67,6 @@
 #include <chronon3d/math/camera_projection_contract.hpp>
 #include <chronon3d/math/near_plane_clip.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/rendering/projected_card.hpp>
 
 // FASE 17 helper headers — included BEFORE the namespace chronon3d block.
 // frustum.hpp introduces FrustumResult (avoids duplicate enum definition).
