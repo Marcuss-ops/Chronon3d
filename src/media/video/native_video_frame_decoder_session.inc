@@ -261,24 +261,68 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path) {
 
 void NativeVideoFrameDecoder::Session::start_prefetch_worker(NativeVideoFrameDecoder* decoder) {
     prefetch_worker = std::thread([this, decoder]() {
+        auto& io_budget = global_media_io_budget();
         while (!prefetch_stop.load(std::memory_order_relaxed)) {
-            int64_t target = -1; uint64_t generation = 0;
+            int64_t target = -1;
+            uint64_t generation = 0;
             {
                 std::unique_lock lock(mutex);
                 prefetch_cv.wait(lock, [this] { return prefetch_stop.load() ||
                     (prefetch_queue.size() < kPrefetchCapacity && prefetch_next >= 0); });
                 if (prefetch_stop.load()) break;
                 if (static_cast<std::size_t>(prefetch_next) >= sample_table.size()) {
-                    prefetch_next = -1; continue;
+                    prefetch_next = -1;
+                    continue;
                 }
-                target = prefetch_next++; generation = prefetch_generation; prefetch_inflight = target;
+                target = prefetch_next++;
+                generation = prefetch_generation;
+                prefetch_inflight = target;
             }
+
+            const auto width = static_cast<std::uint32_t>(std::max(codec ? codec->width : 1, 1));
+            const auto height = static_cast<std::uint32_t>(std::max(codec ? codec->height : 1, 1));
+            const auto estimate = static_cast<std::uint64_t>(runtime::tight_surface_bytes(
+                runtime::PixelFormat::Rgba32Float, width, height));
+
+            auto reservation = io_budget.try_reserve_prefetch(estimate);
+            if (!reservation) {
+                {
+                    std::lock_guard lock(mutex);
+                    if (generation == prefetch_generation) {
+                        if (estimate > io_budget.config().max_prefetch_bytes) {
+                            prefetch_next = -1;
+                        } else {
+                            prefetch_next = target;
+                        }
+                    }
+                    if (prefetch_inflight == target) prefetch_inflight = -1;
+                    prefetch_cv.notify_all();
+                }
+                io_budget.wait_for_change(std::chrono::milliseconds(5));
+                continue;
+            }
+
+            auto read_permit = io_budget.try_acquire_prefetch_read();
+            if (!read_permit) {
+                {
+                    std::lock_guard lock(mutex);
+                    if (generation == prefetch_generation) prefetch_next = target;
+                    if (prefetch_inflight == target) prefetch_inflight = -1;
+                    prefetch_cv.notify_all();
+                }
+                io_budget.wait_for_change(std::chrono::milliseconds(5));
+                continue;
+            }
+
             auto fb = decoder->decode_frame_internal(*this, target);
             {
                 std::lock_guard lock(mutex);
-                if (fb && generation == prefetch_generation && !prefetch_stop.load())
-                    prefetch_queue.push_back({target, std::move(fb)});
-                else if (generation == prefetch_generation) prefetch_next = -1;
+                if (fb && generation == prefetch_generation && !prefetch_stop.load()) {
+                    prefetch_queue.push_back(PrefetchedFrame{
+                        target, std::move(fb), std::move(reservation)});
+                } else if (generation == prefetch_generation) {
+                    prefetch_next = -1;
+                }
                 if (prefetch_inflight == target) prefetch_inflight = -1;
                 prefetch_cv.notify_all();
             }
