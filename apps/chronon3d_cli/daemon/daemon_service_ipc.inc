@@ -241,6 +241,7 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
 }
 
 ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
+#if defined(CHRONON3D_ENABLE_VIDEO)
     try {
         const auto request = nlohmann::json::parse(payload);
         const auto paths = request.value("input_paths", std::vector<std::string>{});
@@ -253,6 +254,11 @@ ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
     } catch (const std::exception& e) {
         return ipc::Reply{ipc::Status::BadRequest, std::string{"ASSEMBLE_SEGMENTS parse failed: "} + e.what()};
     }
+#else
+    (void)payload;
+    return ipc::Reply{ipc::Status::Error,
+                      std::string{"ASSEMBLE_SEGMENTS unavailable: built without CHRONON3D_ENABLE_VIDEO"}};
+#endif
 }
 
 ipc::Reply DaemonService::ipc_status() {

@@ -81,31 +81,27 @@ std::vector<std::pair<ResourceUse, ResourceState>> uses_for_pass(
         ResourceState state{};
     };
     std::vector<Desired> desired;
-    const auto refs = detail::referenced_handles(pass);
-    const auto dest = detail::destination_handle(pass);
-    bool skipped_destination_occurrence = false;
-    for (const auto handle : refs) {
-        if (handle == kInvalidRenderSurfaceHandle) continue;
-        if (!skipped_destination_occurrence && handle == dest) {
-            skipped_destination_occurrence = true;
-            continue;
-        }
-        desired.push_back({static_cast<std::uint32_t>(handle),
-                           ResourceState::compute_read()});
-    }
-    if (dest != kInvalidRenderSurfaceHandle) {
-        const auto dest_id = static_cast<std::uint32_t>(dest);
-        bool merged_in_place = false;
+    // Canonical desired-state derivation: desired_accesses() carries the
+    // per-pass read/write intent (destination = write, references = read,
+    // in-place = read+write).  The retired detail::destination_handle()
+    // helper is replaced by the writes flag.
+    for (const auto& access : detail::desired_accesses(pass)) {
+        if (access.surface == kInvalidRenderSurfaceHandle) continue;
+        ResourceState state = access.reads && access.writes
+            ? ResourceState::compute_read_write()
+            : access.writes
+                ? ResourceState::compute_write()
+                : ResourceState::compute_read();
+        const auto id = static_cast<std::uint32_t>(access.surface);
+        bool merged = false;
         for (auto& d : desired) {
-            if (d.id == dest_id) {
-                d.state = ResourceState::compute_read_write();
-                merged_in_place = true;
+            if (d.id == id) {
+                if (access.writes) d.state = ResourceState::compute_read_write();
+                merged = true;
                 break;
             }
         }
-        if (!merged_in_place) {
-            desired.push_back({dest_id, ResourceState::compute_write()});
-        }
+        if (!merged) desired.push_back({id, state});
     }
 
     std::vector<std::pair<ResourceUse, ResourceState>> out;
@@ -143,11 +139,14 @@ void assert_parallel_equivalence(
 
     // ── compare ───────────────────────────────────────────────────────
     std::vector<OldKey> old_keys;
-    old_keys.reserve(plan.barriers.transitions.size());
-    for (const auto& t : plan.barriers.transitions) {
-        old_keys.push_back({t.pass_index,
-                            static_cast<std::uint32_t>(t.surface),
-                            t.before, t.after});
+    old_keys.reserve(plan.transitions.size());
+    for (const auto& t : plan.transitions) {
+        const auto surface =
+            t.resource < plan.resources.requests.size()
+                ? static_cast<std::uint32_t>(
+                      plan.resources.requests[t.resource].surface)
+                : 0u;
+        old_keys.push_back({t.consumer_pass, surface, t.before, t.after});
     }
     std::vector<NewKey> new_keys;
     new_keys.reserve(tracker.transition_count());

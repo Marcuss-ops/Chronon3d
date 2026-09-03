@@ -35,7 +35,6 @@
 // the corpus is available everywhere the content module is built (same
 // gate).  Follows ADR-016 single-source-of-truth — no duplicate
 // registration sites anywhere.
-#include "bench/corpus/bench_corpus_scenes.hpp"
 #endif
 
 namespace chronon3d {
@@ -53,10 +52,6 @@ void register_content_compositions(CompositionRegistry& registry) {
     static AssetRegistry          stub_assets;
     ExtensionContext ctx{registry, dummy_nodes, dummy_effects, stub_assets};
     chronon3d::register_content_modules(content_catalog, ctx);
-    // F1.1 — 12-scene benchmark corpus + 3 B07 inner precomps (15 entries
-    // total).  Same canonical `chronon3d_cli bench <scene>` consumer
-    // surface as the existing builtin + runtime compositions.
-    chronon3d::bench_corpus::register_bench_corpus_compositions(registry);
 #endif
     // When CHRONON3D_BUILD_CONTENT=OFF and CHRONON3D_BUILD_DIAGNOSTICS=OFF,
     // no content compositions are registered (production headless CLI).
