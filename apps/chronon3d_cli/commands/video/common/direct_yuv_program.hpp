@@ -5,6 +5,7 @@
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/cuda_image_resource.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 
 #include <memory>
 #include <string>
@@ -32,6 +33,11 @@ struct DirectLayerResourceEntry {
     float corner_radius{0.0f};
 };
 
+struct DirectVideoLayer {
+    std::string name;
+    video::VideoSource source;
+};
+
 /// Resolver-owned, precompiled program for the direct CUDA NV12 compositor.
 /// Supports 2D image overlays (scale, translate, opacity) and single-pass
 /// pre-rasterized text textures with zero CPU readback.
@@ -55,6 +61,7 @@ public:
 private:
     DirectYuvProgram() = default;
     std::string video_path_;
+    std::vector<DirectVideoLayer> video_layers_;
     int width_{0};
     int height_{0};
     std::shared_ptr<const Composition> composition_;

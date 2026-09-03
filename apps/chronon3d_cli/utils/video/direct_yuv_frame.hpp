@@ -30,6 +30,9 @@ struct DirectYuvTemplate {
 /// template instead of a per-frame heap copy of batch/resources.
 struct DirectYuvFrame {
     media::HwFrameRef decoded;
+    // Additional native NV12 sources used as GPU-composited layers. Their
+    // AVFrame ownership is kept until the writer has consumed the frame.
+    std::vector<media::HwFrameRef> video_layers;
     std::shared_ptr<const DirectYuvTemplate> program;
 };
 
