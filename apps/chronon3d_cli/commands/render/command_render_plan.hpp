@@ -24,6 +24,8 @@ struct RenderPlanVideoOverrides {
     int crf{-1};
     int qp{-1};
     std::int64_t bitrate{0};
+    std::string gop_source;
+    bool gop_copy_only{false};
 };
 
 int run_render_plan_file(const CompositionRegistry& registry,

@@ -166,7 +166,9 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     .rate_control_mode = render_args.video_settings.rate_control_mode,
                     .crf = render_args.video_settings.crf,
                     .qp = render_args.video_settings.qp,
-                    .bitrate = render_args.video_settings.bitrate},
+                    .bitrate = render_args.video_settings.bitrate,
+                    .gop_source = render_args.video_settings.gop_source,
+                    .gop_copy_only = render_args.video_settings.gop_copy_only},
                 render_args.trace_output, render_args.trace_level,
                 render_args.gpu_hot_path_mode,
                 [&ctx] {
