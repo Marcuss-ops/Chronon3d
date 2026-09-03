@@ -173,10 +173,11 @@ void execute_single_node(
     const auto t_clone0 = profiling::now();
     RenderGraphContext node_ctx = ctx.clone_for_node_execution();
     node_ctx.node_exec.planned_physical_slot = nullptr;
-    if (id < compiled.physical_framebuffer_plan.resources.size()) {
-        const auto& allocation = compiled.physical_framebuffer_plan.resources[id];
-        if (allocation.aliasable &&
-            allocation.physical_slot != kInvalidPhysicalFramebufferSlot &&
+    const auto& resource_table = compiled.resource_table();
+    if (id < resource_table.resources.size()) {
+        const auto& allocation = resource_table.resources[id];
+        if (allocation.aliasable() &&
+            allocation.physical_slot != kInvalidPhysicalAllocationId &&
             allocation.physical_slot < state.physical_slots.size()) {
             node_ctx.node_exec.planned_physical_slot =
                 &state.physical_slots[allocation.physical_slot];
@@ -241,10 +242,12 @@ void execute_single_node(
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id) && state.temp[input_id]) {
+            const auto* resource = resource_table.resource_for(input_id);
+            const auto transfer_consumer = resource
+                ? resource->ownership_transfer_consumer()
+                : std::nullopt;
             const bool compiled_sole_consumer =
-                input_id < compiled.ownership_transfers.size() &&
-                compiled.ownership_transfers[input_id].transferable &&
-                compiled.ownership_transfers[input_id].consumer == id;
+                transfer_consumer && *transfer_consumer == id;
             if ((compiled_sole_consumer ||
                  consumer_remaining[input_id].load(std::memory_order_relaxed) == 1) &&
                 state.temp[input_id].use_count() == 1) {

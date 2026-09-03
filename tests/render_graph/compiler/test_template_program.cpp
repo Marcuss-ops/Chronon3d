@@ -91,10 +91,10 @@ CompiledFrameGraph build_synthetic_compiled_graph() {
     g.prepared_parameters = table;
 
     // ── Physical plan ──────────────────────────────────────────────────
-    g.physical_framebuffer_plan.slots.push_back(FramebufferSlot{0, 1920, 1080});
-    g.physical_framebuffer_plan.physical_slot_count = 1;
-    g.physical_framebuffer_plan.logical_resource_count = 3;
-    g.physical_framebuffer_plan.resources.resize(3);
+    g.resource_table().slots.push_back(runtime::PhysicalResourceSlot{});
+    g.resource_table().physical_slot_count = 1;
+    g.resource_table().logical_resource_count = 3;
+    g.resource_table().resources.resize(3);
 
     return g;
 }
