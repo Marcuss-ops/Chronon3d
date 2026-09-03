@@ -145,3 +145,4 @@ bazel-*
 vcpkg_bootstrap
 test_renders/
 reports/
+bench/baselines/
