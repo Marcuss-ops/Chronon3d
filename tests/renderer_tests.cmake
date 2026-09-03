@@ -1,5 +1,4 @@
 # Renderer integration test suites.
-# These targets require the software/text stack used by the scene renderer.
 if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
     return()
 endif()
@@ -22,8 +21,8 @@ macro(_chronon3d_renderer_target_finalize _target)
 endmacro()
 
 chronon3d_add_test_suite(
-    NAME   chronon3d_renderer_core_tests
-    TIER   INTEGRATION
+    NAME chronon3d_renderer_core_tests
+    TIER INTEGRATION
     LINK_TARGETS ${_RENDERER_LINK_TARGETS}
     SOURCES
         backends/software/sampling/test_sampler2d.cpp
@@ -39,7 +38,6 @@ chronon3d_add_test_suite(
         renderer/lighting/test_lighting_rig.cpp
         renderer/lighting/test_shadows.cpp
         renderer/perf/test_motion_blur_integration.cpp
-        renderer/perf/test_render_perf.cpp
         runtime/test_telemetry.cpp
         runtime/test_telemetry_report.cpp
         runtime/test_telemetry_semantic.cpp
@@ -52,13 +50,11 @@ if(CHRONON3D_ENABLE_TELEMETRY)
         CHRONON3D_ENABLE_SQLITE_TELEMETRY
     )
 endif()
-
 if(CHRONON3D_USE_BLEND2D)
     target_sources(chronon3d_renderer_core_tests PRIVATE
         renderer/test_blend_pixel_nan.cpp
     )
 endif()
-
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_renderer_core_tests PRIVATE
         chronon3d_backend_text
@@ -66,8 +62,8 @@ if(TARGET chronon3d_backend_text)
 endif()
 
 chronon3d_add_test_suite(
-    NAME   chronon3d_render_graph_tests
-    TIER   INTEGRATION
+    NAME chronon3d_render_graph_tests
+    TIER INTEGRATION
     LINK_TARGETS ${_RENDERER_LINK_TARGETS}
     SOURCES
         render_graph/cache/test_scene_program_store.cpp
@@ -92,7 +88,6 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_per_pixel_dof_node_unit.cpp
         render_graph/nodes/test_shadow_node_rg_integration.cpp
         render_graph/nodes/test_shadow_node_unit.cpp
-        render_graph/optimizer/test_graph_optimizer.cpp
         render_graph/pipeline/test_dirty_rect_contract.cpp
         render_graph/pipeline/test_dirty_rects.cpp
         render_graph/pipeline/test_dirty_rects_v2.cpp
@@ -119,8 +114,8 @@ if(TARGET chronon3d_backend_text)
 endif()
 
 chronon3d_add_test_suite(
-    NAME   chronon3d_effects_tests
-    TIER   INTEGRATION
+    NAME chronon3d_effects_tests
+    TIER INTEGRATION
     LINK_TARGETS ${_RENDERER_LINK_TARGETS}
     SOURCES
         effects/effect_graph_tests.cpp
@@ -147,8 +142,8 @@ chronon3d_add_test_suite(
 _chronon3d_renderer_target_finalize(chronon3d_effects_tests)
 
 chronon3d_add_test_suite(
-    NAME   chronon3d_camera_tests
-    TIER   INTEGRATION
+    NAME chronon3d_camera_tests
+    TIER INTEGRATION
     LINK_TARGETS ${_RENDERER_LINK_TARGETS}
     SOURCES
         renderer/camera/test_camera_motion.cpp
@@ -169,8 +164,8 @@ if(CHRONON3D_ENABLE_MESH)
 endif()
 
 chronon3d_add_test_suite(
-    NAME   chronon3d_golden_tests
-    TIER   INTEGRATION
+    NAME chronon3d_golden_tests
+    TIER INTEGRATION
     LINK_TARGETS
         ${_RENDERER_LINK_TARGETS}
         chronon3d_visual_test_support
@@ -185,21 +180,13 @@ chronon3d_add_test_suite(
 )
 _chronon3d_renderer_target_finalize(chronon3d_golden_tests)
 
-chronon3d_add_test_suite(
-    NAME   chronon3d_precomp_tests
-    TIER   INTEGRATION
-    LINK_TARGETS ${_RENDERER_LINK_TARGETS}
-    SOURCES
-        render_graph/nodes/test_precomp_node_cache.cpp
-)
-_chronon3d_renderer_target_finalize(chronon3d_precomp_tests)
-
 add_custom_target(chronon3d_renderer_tests
     DEPENDS
         chronon3d_renderer_core_tests
         chronon3d_render_graph_tests
         chronon3d_effects_tests
         chronon3d_camera_tests
+        chronon3d_graphics_tests
         chronon3d_golden_tests
         chronon3d_precomp_tests
 )
