@@ -6,13 +6,6 @@ option(CHRONON3D_BUILD_CLI_RENDER    "Build the canonical render command" ON)
 option(CHRONON3D_BUILD_CLI_TELEMETRY "Build telemetry commands" ON)
 option(CHRONON3D_BUILD_CLI_DEV       "Build developer commands" OFF)
 
-set(CHRONON3D_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/templates_dir.hpp.in
-    ${CMAKE_CURRENT_BINARY_DIR}/generated/templates_dir.hpp
-    @ONLY
-)
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Core.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Render.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/VideoExport.cmake)
