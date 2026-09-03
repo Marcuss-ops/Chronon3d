@@ -1,15 +1,3 @@
-namespace {
-
-std::optional<RationalTime> legacy_frame_time(Frame frame, float fps) {
-    if (frame < 0 || !std::isfinite(fps) || fps <= 0.0f) return std::nullopt;
-    constexpr i64 kScale = 1000000;
-    const i64 scaled_fps = static_cast<i64>(std::llround(static_cast<double>(fps) * kScale));
-    if (scaled_fps <= 0) return std::nullopt;
-    return RationalTime{frame.integral(), normalize_rational(Rational{kScale, scaled_fps})};
-}
-
-} // namespace
-
 std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
     const std::string& path, RationalTime presentation_time, int, int) {
     if (path.empty()) return {};
@@ -49,13 +37,6 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
         if (!native_surface && session->test_options.enable_frame_cache) session->cache.put(target, result);
     }
     return result;
-}
-
-std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame(
-    const std::string& path, Frame frame, int width, int height, float fps) {
-    const auto time = legacy_frame_time(frame, fps);
-    if (!time) return {};
-    return decode_frame_at(path, *time, width, height);
 }
 
 HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
@@ -105,13 +86,6 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
         session->profiling.frame_durations_ms.push_back(decode_dur_ms);
     }
     return result;
-}
-
-HwFrameRef NativeVideoFrameDecoder::decode_native_frame(
-    const std::string& path, Frame frame, int width, int height, float fps) {
-    const auto time = legacy_frame_time(frame, fps);
-    if (!time) return {};
-    return decode_native_frame_at(path, *time, width, height);
 }
 
 NativeVideoFrameDecoder::DecodeProfilingStats NativeVideoFrameDecoder::decode_profiling_stats() const {
