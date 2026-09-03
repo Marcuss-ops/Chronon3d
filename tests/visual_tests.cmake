@@ -182,3 +182,31 @@ chronon3d_add_test_suite(
     LABELS gate
 )
 target_include_directories(chronon3d_debug_overlay_tests PRIVATE ${CMAKE_SOURCE_DIR})
+
+# ── Graphics Tests ──
+chronon3d_add_test_suite(
+    NAME chronon3d_graphics_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline chronon3d_scene chronon3d_backend_software chronon3d
+    SOURCES graphics/test_gradient_sampler.cpp
+            graphics/test_fill_style.cpp
+            graphics/test_fill_style_integration.cpp
+)
+
+# ── Gradient Visual Golden Tests ──
+chronon3d_add_test_suite(
+    NAME chronon3d_gradient_visual_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_sdk chronon3d_visual_test_support chronon3d_backend_software chronon3d_backend_image chronon3d_scene
+    SOURCES visual/gradient_visual_tests.cpp
+)
+target_compile_definitions(chronon3d_gradient_visual_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+# ── Rounded Rect Visual Golden Tests ──
+chronon3d_add_test_suite(
+    NAME chronon3d_rounded_rect_visual_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_sdk chronon3d_visual_test_support chronon3d_backend_software chronon3d_backend_image chronon3d_scene
+    SOURCES visual/rounded_rect_visual_tests.cpp
+)
+target_compile_definitions(chronon3d_rounded_rect_visual_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
