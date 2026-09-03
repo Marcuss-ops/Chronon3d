@@ -30,6 +30,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::decode_frame_at(
             "decode source path is empty");
         return {};
     }
+    auto io_read = global_media_io_budget().acquire_required_read();
     std::shared_ptr<Session> session;
     { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
     if (!session) return {};
@@ -93,6 +94,7 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
             "native frame decoding requires a native importer or video runtime");
         return {};
     }
+    auto io_read = global_media_io_budget().acquire_required_read();
     if (m_counters) m_counters->video_source_requested_frames.fetch_add(1, std::memory_order_relaxed);
     std::shared_ptr<Session> session;
     { std::lock_guard<std::mutex> lock(m_mutex); session = open_session_locked(path); }
