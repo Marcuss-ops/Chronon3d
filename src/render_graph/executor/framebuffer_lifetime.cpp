@@ -25,6 +25,18 @@ void init_shared_transparent_fb(
 
 std::pmr::vector<std::atomic_size_t> init_consumer_remaining(
     size_t node_count,
+    std::span<const CompiledResourcePlan> resources,
+    std::pmr::memory_resource* res
+) {
+    std::pmr::vector<std::atomic_size_t> remaining(node_count, res);
+    for (std::size_t i = 0; i < resources.size() && i < remaining.size(); ++i) {
+        remaining[i].store(resources[i].consumer_count, std::memory_order_relaxed);
+    }
+    return remaining;
+}
+
+std::pmr::vector<std::atomic_size_t> init_consumer_remaining(
+    size_t node_count,
     std::span<const size_t> consumer_counts,
     std::pmr::memory_resource* res
 ) {

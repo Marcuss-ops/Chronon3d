@@ -4,7 +4,7 @@ PhysicalResourcePlan analyze_physical_resources(
     const CompiledFrameGraph& compiled,
     std::uint32_t bytes_per_pixel) {
     PhysicalResourcePlan plan;
-    const auto& alloc = compiled.physical_framebuffer_plan;
+    const auto& alloc = compiled.resource_table();
 
     plan.slot_count        = alloc.physical_slot_count;
     plan.peak_live_resources = alloc.peak_live_resource_count;
