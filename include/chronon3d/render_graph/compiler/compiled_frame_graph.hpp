@@ -4,6 +4,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/media/render_to_media.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
@@ -226,6 +227,7 @@ struct CompiledFrameGraph : CompiledResourceTable {
     CompiledFrameProgram program;
 
     std::optional<ExecutionDecision> execution_decision;
+    std::optional<::chronon3d::media::RenderToMediaPlan> render_to_media;
 
     std::shared_ptr<const FrameParameterTable> prepared_parameters;
     std::vector<FrameParameterSlice> parameter_bindings;

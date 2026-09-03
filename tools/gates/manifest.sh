@@ -34,6 +34,8 @@ DEVELOPER_GATES=(
     check_effect_subsystem_ownership.sh
     check_no_text_material_external_effects.sh
     check_compiled_resource_authority.py
+    check_asset_lookup_authority.py
+    check_render_to_media_authority.py
     check_architecture.py
     check_architecture_boundaries.sh
 )
