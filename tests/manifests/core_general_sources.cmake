@@ -20,7 +20,7 @@ set(CORE_TEST_SOURCES
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
-    core/math/test_2d5_roadmap.cpp
+    core/math/test_2_5d_roadmap.cpp
     core/math/test_camera_projection_resolver.cpp
     core/math/test_camera_projection_geometry_safety.cpp
     core/math/test_clip_with_uv.cpp
