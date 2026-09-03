@@ -69,6 +69,10 @@ struct CompiledResourcePlan {
     std::vector<CompiledResourceSubresource> subresources;
     std::vector<CompiledResourceTransition> transitions;
 
+    [[nodiscard]] bool aliasable() const noexcept {
+        return physical.aliasable;
+    }
+
     [[nodiscard]] std::optional<GraphNodeId>
     ownership_transfer_consumer() const noexcept {
         for (const auto& transition : transitions) {

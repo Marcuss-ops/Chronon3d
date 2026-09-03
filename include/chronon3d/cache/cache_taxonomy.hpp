@@ -40,14 +40,13 @@ enum class CacheFamily : unsigned char {
     /// Input:  resource identity (surface handle, slot index, size class).
     /// Output: a backing GPU/CPU allocation that fits within a residency budget.
     ///
-    /// Semantics:  the compiler's PhysicalResourcePlan is the single source of
-    ///             truth for hot-path allocations.  Residency caches act as
-    ///             fallback allocators for: cold-path, reference backend,
-    ///             unsupported extensions, and unexpected transient needs.
+    /// Semantics: graph::CompiledResourceTable is the sole persisted compiled
+    ///             hot-path placement authority. runtime::ResourcePlanner and
+    ///             runtime::ResourcePlan are ephemeral placement machinery, not
+    ///             caches. Residency caches materialize/reuse backing storage for
+    ///             cold paths, reference execution and persistent residency.
     ///
     /// Members:
-    ///   • PhysicalFramebufferAllocationPlan  — compiler's interval-coloring output
-    ///   • state.physical_slots               — runtime materialization (OwnedFB[])
     ///   • FramebufferPool                    — cold-path / reference / extension pool
     ///   • GpuGlyphAtlas plain glyph pages    — glyph page residency
     ///   • PersistentFramebufferStore         — named persistent FB storage

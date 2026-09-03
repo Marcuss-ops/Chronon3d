@@ -216,7 +216,6 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
     if (skip_heavy_phases) {
         compiled.levels                  = prior_compiled.levels;
         compiled.nodes                   = prior_compiled.nodes;
-        compiled.consumer_counts         = prior_compiled.consumer_counts;
         compiled.processor_snapshot      = prior_compiled.processor_snapshot;
         compiled.processor_snapshot_identity =
             prior_compiled.processor_snapshot_identity;
