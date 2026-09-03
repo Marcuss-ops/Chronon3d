@@ -195,15 +195,15 @@ public:
     void end_frame_batch() override;
 
     /// Plan-driven frame-batch entry point for the command-plan executor.
-    /// Like begin_frame_batch(), but while the batch is active every pass
-    /// synchronizes through the BarrierPlan (precise compute-stage
-    /// write→read / read→write / write→write barriers) instead of the
-    /// conservative per-pass fallback used by direct op calls.  The caller
-    /// must invoke the surface operations in plan.passes order; pass_count
-    /// doubles as the plan pass index.  The backend also consumes
-    /// plan.resources: each allocation's handle is bound to its planned
-    /// physical slot and every slot is backed by exactly one VkImage, so
-    /// lifetime-disjoint surfaces alias the same device memory.
+    /// Every planned pass consumes the canonical ResourceTransition stream
+    /// already resolved by the runtime and translates it directly to Vulkan
+    /// Synchronization2. Direct/unplanned surfaces use the explicit backend
+    /// boundary rather than a second compiled barrier plan. The caller must
+    /// invoke the surface operations in plan.passes order; pass_count doubles
+    /// as the plan pass index. The backend also consumes plan.resources: each
+    /// allocation's handle is bound to its planned physical slot and every
+    /// slot is backed by exactly one VkImage, so lifetime-disjoint surfaces
+    /// alias the same device memory.
     void begin_plan_batch(const runtime::CommandPlan& plan) override;
 
     /// Phase 5 — pre-allocate every physical surface from the compiler's
