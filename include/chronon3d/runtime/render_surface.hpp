@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/runtime/frame_format.hpp>
+#include <chronon3d/runtime/resource_desc.hpp>
 #include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 
@@ -19,95 +19,9 @@ struct UploadTicket {
     [[nodiscard]] bool valid() const noexcept { return value != 0; }
 };
 
-enum class ResourceKind : std::uint8_t { Color, Depth, Yuv, Bytes };
-enum class LifetimeClass : std::uint8_t {
-    FrameTransient,
-    PipelineSlot,
-    JobPersistent,
-    External,
-};
-enum class ResourceUsage : std::uint8_t {
-    Generic, ColorAttachment, DepthAttachment, Storage
-};
-
-/// Semantic encoding of a text atlas.  Pixel format alone is insufficient:
-/// both ordinary RGBA coverage and MTSDF atlases can use an RGBA image.
-enum class TextAtlasEncoding : std::uint8_t {
-    PremultipliedRGBA,
-    Coverage,
-    MTSDF,
-};
-
-/// Backend-neutral description used by the lifetime planner and resource
-/// resolvers. Image semantics travel as one canonical FrameFormat; there is no
-/// side-channel color metadata that can diverge from the pixel representation.
-struct SurfaceDesc {
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    FrameFormat format{};
-    ResourceUsage usage{ResourceUsage::Generic};
-    LifetimeClass lifetime{LifetimeClass::FrameTransient};
-    std::size_t bytes{0};
-    TextAtlasEncoding text_atlas_encoding{TextAtlasEncoding::PremultipliedRGBA};
-
-    constexpr SurfaceDesc() noexcept = default;
-
-    constexpr SurfaceDesc(
-        std::uint32_t width_value,
-        std::uint32_t height_value,
-        FrameFormat format_value,
-        ResourceUsage usage_value,
-        LifetimeClass lifetime_value,
-        std::size_t bytes_value) noexcept
-        : width(width_value),
-          height(height_value),
-          format(format_value),
-          usage(usage_value),
-          lifetime(lifetime_value),
-          bytes(bytes_value) {}
-
-    // Source-compatible constructor for the retired PixelFormat+ColorMetadata
-    // split. Both values are folded immediately into the single FrameFormat.
-    constexpr SurfaceDesc(
-        std::uint32_t width_value,
-        std::uint32_t height_value,
-        PixelFormat pixel,
-        ResourceUsage usage_value,
-        LifetimeClass lifetime_value,
-        std::size_t bytes_value,
-        ColorMetadata color) noexcept
-        : SurfaceDesc(width_value, height_value,
-                      make_frame_format(pixel, color, color.alpha),
-                      usage_value, lifetime_value, bytes_value) {}
-
-    [[nodiscard]] constexpr std::size_t tight_bytes() const noexcept {
-        return tight_surface_bytes(format, width, height);
-    }
-
-    /// Construct a descriptor with the canonical tight allocation size.
-    [[nodiscard]] static constexpr SurfaceDesc make(
-        std::uint32_t width,
-        std::uint32_t height,
-        FrameFormat format,
-        ResourceUsage usage = ResourceUsage::Generic,
-        LifetimeClass lifetime = LifetimeClass::FrameTransient) noexcept {
-        return SurfaceDesc{
-            width, height, format, usage, lifetime,
-            tight_surface_bytes(format, width, height)};
-    }
-
-    /// Compatibility overload: old pixel+color inputs are merged immediately.
-    [[nodiscard]] static constexpr SurfaceDesc make(
-        std::uint32_t width,
-        std::uint32_t height,
-        PixelFormat pixel,
-        ResourceUsage usage,
-        LifetimeClass lifetime,
-        ColorMetadata color) noexcept {
-        const auto format = make_frame_format(pixel, color, color.alpha);
-        return make(width, height, format, usage, lifetime);
-    }
-};
+/// Temporary source-compatibility name. ResourceDesc is the canonical
+/// descriptor authority and SurfaceDesc carries no independent state.
+using SurfaceDesc = ResourceDesc;
 
 /// Physical representation carried by a backend-neutral render plan.
 enum class RenderSurfaceKind : std::uint8_t {
@@ -322,8 +236,8 @@ private:
 /// canvas space and are evaluated at destination pixel centres. The source
 /// bounds are half-open, matching the CPU transform kernels.
 struct SurfaceAffineTransform {
-    float source_x[4]{}; // inverse H row: canvas x coefficient, y coefficient, constant, min
-    float source_y[4]{}; // inverse H row: canvas x coefficient, y coefficient, constant, min
+    float source_x[4]{};
+    float source_y[4]{};
     float max_x{0.0f};
     float max_y{0.0f};
     float opacity{1.0f};
@@ -339,7 +253,6 @@ struct SurfaceAffineTransform {
 static_assert(sizeof(SurfaceAffineTransform) == 96,
               "SurfaceAffineTransform must match affine_transform.comp push constants");
 
-/// RectF for 2D bounding boxes
 struct RectF {
     float x0{0.0f};
     float y0{0.0f};
@@ -349,15 +262,12 @@ struct RectF {
     friend bool operator==(const RectF&, const RectF&) = default;
 };
 
-/// Precalculated static text run bounding box
 struct TextRunStatic {
     std::uint32_t first_glyph{0};
     std::uint32_t glyph_count{0};
     RectF local_bbox{};
 };
 
-/// Per-glyph static data, immutable across frames.
-/// Distinguishes atlas rect from plane bounds, includes draw_order.
 struct alignas(16) GlyphStatic {
     std::uint32_t run_index{0};
     std::uint16_t atlas_page{0};
@@ -378,7 +288,6 @@ struct alignas(16) GlyphStatic {
     std::uint32_t pad1{0};
     std::uint32_t pad2{0};
 
-    // Backward-compatibility helpers / alias getters
     std::uint16_t uv_x() const noexcept { return atlas_x; }
     std::uint16_t uv_y() const noexcept { return atlas_y; }
     std::int16_t local_x() const noexcept { return static_cast<std::int16_t>(plane_left); }
@@ -389,29 +298,25 @@ struct alignas(16) GlyphStatic {
 static_assert(sizeof(GlyphStatic) == 48,
               "GlyphStatic must be 48 bytes matching std430 layout");
 
-/// Per-run dynamic data, updated once per frame. 24 bytes per text run
-/// (NOT per glyph). All glyphs in a run share the same transform.
 struct TextRunDynamic {
     float tx{0.0f};
     float ty{0.0f};
     float sx{1.0f};
     float sy{1.0f};
     float opacity{1.0f};
-    std::uint32_t color{0xFFFFFFFF};  // RGBA packed
+    std::uint32_t color{0xFFFFFFFF};
 };
 static_assert(sizeof(TextRunDynamic) == 24,
               "TextRunDynamic must be 24 bytes");
 
-/// Legacy per-glyph instance for the GPU text-run kernel. Kept for
-/// backward compatibility; new code uses GlyphStatic + TextRunDynamic.
 struct GlyphInstance {
-    std::int32_t dst_x{0};     // destination canvas origin (pixels)
+    std::int32_t dst_x{0};
     std::int32_t dst_y{0};
-    std::int32_t atlas_x{0};   // packed atlas origin (pixels)
+    std::int32_t atlas_x{0};
     std::int32_t atlas_y{0};
-    std::int32_t width{0};     // glyph quad size (pixels)
+    std::int32_t width{0};
     std::int32_t height{0};
-    float opacity{1.0f};       // per-glyph premultiplied opacity
+    float opacity{1.0f};
     float scale_x{1.0f};
     float scale_y{1.0f};
     float pad{0.0f};
@@ -427,9 +332,6 @@ struct SurfaceRecord {
     std::size_t physical_slot{std::numeric_limits<std::size_t>::max()};
 };
 
-/// Engine-local registry for logical surfaces. It owns identity and lifetime
-/// metadata only; backing storage remains the responsibility of the selected
-/// backend/resource planner. The registry is deliberately instance-owned.
 class RenderSurfaceRegistry {
 public:
     [[nodiscard]] RenderSurfaceHandle create(SurfaceDesc desc) {
