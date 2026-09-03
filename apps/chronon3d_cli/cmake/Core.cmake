@@ -1,6 +1,5 @@
 add_library(chronon3d_cli_core STATIC
     commands/group_core.cpp
-    commands/create/register_create_commands.cpp
     commands/watch/register_watch_commands.cpp
     commands/preview/register_preview_commands.cpp
     commands/basic/command_list.cpp
