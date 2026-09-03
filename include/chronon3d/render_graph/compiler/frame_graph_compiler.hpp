@@ -55,8 +55,11 @@ private:
     /// Lifetime analysis and physical allocation are intentionally one phase:
     /// ResourcePlanner is used as an ephemeral allocation engine and only the
     /// resulting canonical records/physical slots survive in the table.
+    /// Concrete extent/format requirements are compiled from the same frame
+    /// contract so downstream execution never reconstructs them independently.
     void build_compiled_resource_table(
-        CompiledFrameGraph& compiled
+        CompiledFrameGraph& compiled,
+        const RenderGraphContext& ctx
     ) const;
 
     void validate_renderable_shape(
