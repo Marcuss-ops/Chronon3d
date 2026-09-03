@@ -15,6 +15,8 @@ enum class DecodeFailureReason : std::uint8_t {
     StreamInfo,
     NoVideoStream,
     DecoderUnavailable,
+    BeforeStart,
+    PresentationGap,
     SeekFailure,
     CorruptPacket,
     DecoderSubmitFailure,
