@@ -26,7 +26,6 @@ extern "C" {
 #include <map>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -61,17 +60,15 @@ public:
     void set_trace_job_id(std::uint64_t job_id) noexcept { m_trace_job_id.store(job_id, std::memory_order_relaxed); }
     void set_test_options(NativeDecoderTestOptions opts) noexcept { m_test_options = opts; }
 
-    std::shared_ptr<Framebuffer> decode_frame_at(
+    DecodeResult decode_frame_at(
         const std::string& path, RationalTime presentation_time,
         int width, int height) override;
-
-    [[nodiscard]] std::optional<DecodeDiagnostic>
-    last_decode_diagnostic() const override;
 
     [[nodiscard]] HwFrameRef decode_native_frame_at(
         const std::string& path, RationalTime presentation_time, int width, int height);
 
-    std::shared_ptr<Framebuffer> try_native_frame(Session& session, AVFrame* frame);
+    std::shared_ptr<Framebuffer> try_native_frame(
+        Session& session, AVFrame* frame, DecodeDiagnostic* diagnostic);
 
     struct DecodeProfilingStats {
         uint64_t decoded_frames{0};
@@ -131,8 +128,6 @@ private:
     };
 
     std::mutex m_mutex;
-    mutable std::mutex m_diagnostic_mutex;
-    std::optional<DecodeDiagnostic> m_last_decode_diagnostic;
     RenderCounters* m_counters{nullptr};
     std::shared_ptr<NativeFrameImporter> m_native_importer;
     std::shared_ptr<VideoDeviceRuntime> m_video_runtime;
@@ -141,15 +136,9 @@ private:
     NativeDecoderTestOptions m_test_options;
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 
-    void clear_decode_diagnostic() noexcept;
-    void publish_decode_failure(DecodeFailureReason reason,
-                                int ffmpeg_error,
-                                std::int64_t pts,
-                                std::int64_t dts,
-                                std::uint64_t source_order,
-                                std::string message);
-    std::shared_ptr<Framebuffer> decode_frame_internal(Session& session, int64_t sample_index);
-    std::shared_ptr<Session> open_session_locked(const std::string& path);
+    DecodeResult decode_frame_internal(Session& session, int64_t sample_index);
+    std::shared_ptr<Session> open_session_locked(
+        const std::string& path, DecodeDiagnostic* diagnostic);
 };
 #else
 class NativeVideoFrameDecoder final : public MediaFrameProvider {
@@ -160,11 +149,10 @@ public:
         double avcodec_receive_frame_ms{0.0}; double nvdec_wait_ms{0.0}; double decode_total_ms{0.0};
         std::vector<double> frame_durations_ms;
     };
-    std::shared_ptr<Framebuffer> decode_frame_at(const std::string&, RationalTime, int, int) override { return nullptr; }
-    [[nodiscard]] std::optional<DecodeDiagnostic> last_decode_diagnostic() const override {
-        return DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
+    DecodeResult decode_frame_at(const std::string&, RationalTime, int, int) override {
+        return DecodeFailure{DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "native FFmpeg decoder support is disabled"};
+            "native FFmpeg decoder support is disabled"}};
     }
     void set_video_runtime(std::shared_ptr<VideoDeviceRuntime>) noexcept {}
     [[nodiscard]] HwFrameRef decode_native_frame_at(const std::string&, RationalTime, int, int) { return {}; }
