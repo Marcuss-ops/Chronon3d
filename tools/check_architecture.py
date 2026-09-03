@@ -1,774 +1,719 @@
 #!/usr/bin/env python3
-"""
-check_architecture.py — unified architecture rules engine.
-
-Reads tools/architecture_rules.toml (the single source of truth) and enforces
-every declarative rule category.  Replaces ~10 separate check_*.sh scripts
-and the 935-line check_architecture_boundaries.sh.
-
-Usage:
-    python3 tools/check_architecture.py [--root REPO_ROOT] [--rules RULES_FILE]
-    python3 tools/check_architecture.py --list  # list all rule names
-
-Exit codes:
-    0 = all rules PASS
-    1 = at least one rule FAIL
-    2 = configuration error (missing rules file, invalid TOML)
-"""
-
 from __future__ import annotations
 
 import argparse
-import os
+import json
 import re
 import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
-
-# ── TOML support (Python 3.11+ has stdlib tomllib; fall back to tomli) ──────
 try:
-    import tomllib  # type: ignore[import-untyped]
+    import tomllib
 except ImportError:
-    try:
-        import tomli as tomllib  # type: ignore[import-untyped,no-redef]
-    except ImportError:
-        print("GATE_FAIL_INTERNAL: neither tomllib (py3.11+) nor tomli is available", file=sys.stderr)
-        print("  Install: pip install tomli", file=sys.stderr)
-        sys.exit(2)
+    import tomli as tomllib  # type: ignore[no-redef]
+
+EXCLUDED_DIRS = {
+    ".git", "build", "out", ".cache", ".tmp", ".worktrees", "node_modules",
+    "vcpkg", "vcpkg_bootstrap", "vcpkg_installed", "__pycache__",
+}
+DEFAULT_SUFFIXES = {".h", ".hpp", ".hh", ".c", ".cc", ".cpp", ".cxx", ".inc"}
 
 
-# ── Tool detection ──────────────────────────────────────────────────────────
-def find_ripgrep() -> str | None:
-    """Return the path to `rg` if available, else None."""
-    try:
-        subprocess.run(["rg", "--version"], capture_output=True, check=True)
-        return "rg"
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None
+def read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
-def find_grep() -> str:
-    """Return path to GNU grep (or fallback to POSIX grep)."""
-    return "grep"
-
-
-RG = find_ripgrep()
-GREP = find_grep()
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-def run_grep(pattern: str, paths: list[str], *, word_regexp: bool = False) -> list[str]:
-    """Run ripgrep (preferred) or grep and return matching lines."""
-    args: list[str] = []
-    if RG:
-        args = [RG, "-n", "--no-heading", "-t", "cpp"]
-        if word_regexp:
-            args.append("-w")
-        args.extend(["-g", "!tools/check_architecture.py"])
-        args.extend(["-g", "!tools/architecture_rules.toml"])
-        args.append(pattern)
-        args.extend(paths)
-    else:
-        args = [GREP, "-rnE", "--include=*.hpp", "--include=*.cpp", "--include=*.h"]
-        if word_regexp:
-            args.append("-w")
-        args.append(pattern)
-        args.extend(paths)
-
-    try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=60)
-        return [line for line in result.stdout.splitlines() if line.strip()]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
-
-
-def run_grep_multiline(pattern: str, paths: list[str]) -> list[str]:
-    """Run ripgrep with --multiline for cross-line patterns."""
-    if not RG:
-        return []  # multiline not supported without rg
-    args = [
-        RG, "-n", "--no-heading", "--multiline",
-        "-t", "cpp", pattern, *paths,
-    ]
-    try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=60)
-        return [line for line in result.stdout.splitlines() if line.strip()]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
-
-
-def run_grep_any(paths: list[str], pattern: str) -> list[str]:
-    """Run grep across any file type (not just C++)."""
-    if RG:
-        args = [RG, "-n", "--no-heading", pattern, *paths]
-    else:
-        args = [GREP, "-rnE", pattern, *paths]
-    try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=60)
-        return [line for line in result.stdout.splitlines() if line.strip()]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
-
-
-def git_ls_files(path: str) -> list[str]:
-    """List tracked files matching `path/` in the git index."""
-    try:
-        result = subprocess.run(
-            ["git", "ls-files", f"{path}/"],
-            capture_output=True, text=True, timeout=10,
-        )
-        return [line for line in result.stdout.splitlines() if line.strip()]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
-
-
-def git_grep_cached(pattern: str) -> list[str]:
-    """Git grep in cached (tracked) files only."""
-    try:
-        result = subprocess.run(
-            ["git", "grep", "-l", "--cached", "-E", "--", pattern],
-            capture_output=True, text=True, timeout=30,
-        )
-        return [line for line in result.stdout.splitlines() if line.strip()]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
-
-
-def comment_only(line: str) -> bool:
-    """True if the line is only a comment (// or /* style)."""
-    stripped = line.strip()
-    return stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*")
-
-
-def strip_cpp_comments(line: str) -> str:
-    """Remove // comments from a line (preserve code before //)."""
-    in_string = False
-    for i, ch in enumerate(line):
-        if ch == '"' and (i == 0 or line[i - 1] != '\\'):
-            in_string = not in_string
-        if not in_string and i + 1 < len(line) and line[i:i + 2] == '//':
-            return line[:i]
-    return line
-
-
-def filter_code_only(matches: list[str], symbol: str) -> list[str]:
-    """Filter out comment-only lines and lines where symbol appears only in trailing comment."""
-    result = []
-    for match_line in matches:
-        # Match format: path:lineno:text
-        parts = match_line.split(":", 2)
-        if len(parts) < 3:
+def strip_comments(text: str) -> str:
+    out: list[str] = []
+    i = 0
+    block = False
+    quote: str | None = None
+    while i < len(text):
+        c = text[i]
+        n = text[i + 1] if i + 1 < len(text) else ""
+        if block:
+            if c == "*" and n == "/":
+                block = False
+                out.extend("  ")
+                i += 2
+            else:
+                out.append("\n" if c == "\n" else " ")
+                i += 1
             continue
-        text = parts[2]
-        if comment_only(text):
+        if quote:
+            out.append(c)
+            if c == "\\" and i + 1 < len(text):
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
             continue
-        code = strip_cpp_comments(text)
-        if symbol not in code:
+        if c in {'"', "'"}:
+            quote = c
+            out.append(c)
+            i += 1
             continue
-        result.append(match_line)
-    return result
-
-
-def filter_allow_list(matches: list[str], allow_list: list[str]) -> list[str]:
-    """Exclude matches where the file path matches any allow_list pattern."""
-    result = []
-    for match_line in matches:
-        file_path = match_line.split(":")[0]
-        if any(re.search(pat, file_path) for pat in allow_list):
+        if c == "/" and n == "/":
+            while i < len(text) and text[i] != "\n":
+                out.append(" ")
+                i += 1
             continue
-        result.append(match_line)
-    return result
-
-
-def filter_allow_symbol(matches: list[str], allow_symbols: list[str]) -> list[str]:
-    """Exclude lines that contain any allowlisted symbol variant."""
-    result = []
-    for match_line in matches:
-        if any(re.search(sym, match_line) for sym in allow_symbols):
+        if c == "/" and n == "*":
+            block = True
+            out.extend("  ")
+            i += 2
             continue
-        result.append(match_line)
-    return result
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
-def count_pattern(root: Path, paths: list[str], pattern: str) -> int:
-    """Count source lines matching a legacy census pattern."""
-    compiled = re.compile(pattern)
-    count = 0
+def iter_files(root: Path, paths: Iterable[str], extensions: list[str] | None = None) -> Iterable[Path]:
+    suffixes = DEFAULT_SUFFIXES if not extensions else set(extensions)
+    any_file = "*" in suffixes
     for rel in paths:
         base = root / rel
         if not base.exists():
             continue
-        files = [base] if base.is_file() else base.rglob("*")
-        for path in files:
-            if path.suffix not in {".cpp", ".hpp", ".h"}:
+        candidates = [base] if base.is_file() else base.rglob("*")
+        for path in candidates:
+            if not path.is_file():
                 continue
             try:
-                count += sum(1 for line in path.read_text(errors="replace").splitlines()
-                             if compiled.search(strip_cpp_comments(line)))
-            except OSError:
+                relative = path.relative_to(root)
+            except ValueError:
                 continue
-    return count
+            if any(part in EXCLUDED_DIRS or part.startswith("build-") for part in relative.parts[:-1]):
+                continue
+            if any_file or path.suffix in suffixes or path.name == "CMakeLists.txt":
+                yield path
 
 
-# ── Rule enforcement ────────────────────────────────────────────────────────
-class GateRunner:
-    """Reads architecture_rules.toml and enforces every rule."""
+def relpath(root: Path, path: Path) -> str:
+    return path.relative_to(root).as_posix()
 
-    def __init__(self, root: Path, rules_path: Path):
+
+def path_matches(path: str, patterns: Iterable[str]) -> bool:
+    return any(re.search(pattern, path) for pattern in patterns)
+
+
+def line_matches_any(line: str, patterns: Iterable[str]) -> bool:
+    return any(re.search(pattern, line) for pattern in patterns)
+
+
+def merge_rules(dst: dict[str, Any], src: dict[str, Any]) -> None:
+    for key, value in src.items():
+        if key in {"meta", "includes"}:
+            continue
+        if isinstance(value, list):
+            current = dst.setdefault(key, [])
+            if not isinstance(current, list):
+                dst[key] = value
+                continue
+            for item in value:
+                if isinstance(item, dict) and "name" in item:
+                    replaced = False
+                    for index, existing in enumerate(current):
+                        if isinstance(existing, dict) and existing.get("name") == item["name"]:
+                            current[index] = item
+                            replaced = True
+                            break
+                    if not replaced:
+                        current.append(item)
+                else:
+                    current.append(item)
+        elif isinstance(value, dict):
+            current = dst.setdefault(key, {})
+            if isinstance(current, dict):
+                current.update(value)
+            else:
+                dst[key] = value
+        else:
+            dst[key] = value
+
+
+def load_registry(path: Path, seen: set[Path] | None = None) -> dict[str, Any]:
+    seen = seen or set()
+    path = path.resolve()
+    if path in seen:
+        raise ValueError(f"architecture registry include cycle at {path}")
+    seen.add(path)
+    with path.open("rb") as fh:
+        data: dict[str, Any] = tomllib.load(fh)
+    merged: dict[str, Any] = {}
+    for include in data.get("includes", []):
+        load_path = path.parent / include
+        if not load_path.exists():
+            raise FileNotFoundError(f"architecture registry include missing: {load_path}")
+        merge_rules(merged, load_registry(load_path, seen))
+    merge_rules(merged, data)
+    seen.remove(path)
+    return merged
+
+
+class Runner:
+    def __init__(self, root: Path, rules_path: Path, prefix: str | None = None):
         self.root = root
         self.rules_path = rules_path
-        with open(rules_path, "rb") as f:
-            self.rules: dict[str, Any] = tomllib.load(f)
-        self.failures: list[str] = []
+        self.prefix = prefix
+        self.rules = load_registry(rules_path)
         self.passes: list[str] = []
+        self.failures: list[str] = []
 
-    def _resolve_path(self, path: str) -> Path:
-        return self.root / path
+    def selected(self, name: str) -> bool:
+        return self.prefix is None or name.startswith(self.prefix)
 
-    def _resolve_scan_paths(self, rule: dict[str, Any]) -> list[str]:
-        """Resolve scan_paths from rule, defaulting to active source dirs."""
-        raw = rule.get("scan_paths", ["include", "src", "tests", "apps"])
-        result = []
-        for p in raw:
-            full = self._resolve_path(p)
-            if full.exists():
-                result.append(str(full))
-        return result
+    def ok(self, name: str, detail: str = "") -> None:
+        if not self.selected(name):
+            return
+        suffix = f" — {detail}" if detail else ""
+        print(f"  [PASS] {name}{suffix}")
+        self.passes.append(name)
 
-    def _fail(self, name: str, detail: str) -> None:
+    def fail(self, name: str, detail: str) -> None:
+        if not self.selected(name):
+            return
         print(f"  [FAIL] {name}: {detail}")
         self.failures.append(f"{name}: {detail}")
 
-    def _pass(self, name: str, detail: str = "") -> None:
-        msg = f"  [PASS] {name}"
-        if detail:
-            msg += f" — {detail}"
-        print(msg)
-        self.passes.append(name)
+    def scan_hits(self, rule: dict[str, Any]) -> list[str]:
+        paths = rule.get("scan_paths", ["include", "src", "tests", "apps"])
+        extensions = rule.get("extensions")
+        allow_paths = list(rule.get("allow_list", [])) + list(rule.get("exclude_paths", []))
+        allow_lines = list(rule.get("allow_line_patterns", [])) + list(rule.get("allow_list_for_symbol", []))
+        skip_comments = rule.get("skip_comments", False)
+        multiline = rule.get("multiline", False)
+        patterns = [re.compile(p, re.MULTILINE | (re.DOTALL if multiline else 0))
+                    for p in rule.get("patterns", rule.get("forbidden_patterns", []))]
+        file_requires = rule.get("file_requires_pattern")
+        requires_re = re.compile(file_requires, re.MULTILINE) if file_requires else None
+        hits: list[str] = []
+        for path in iter_files(self.root, paths, extensions):
+            rel = relpath(self.root, path)
+            if path_matches(rel, allow_paths):
+                continue
+            raw = read_text(path)
+            text = strip_comments(raw) if skip_comments else raw
+            if requires_re and not requires_re.search(text):
+                continue
+            if rule.get("cooccurrence_patterns"):
+                if all(re.search(p, text, re.MULTILINE) for p in rule["cooccurrence_patterns"]):
+                    hits.append(f"{rel}: co-occurrence {rule['cooccurrence_patterns']}")
+                continue
+            if multiline:
+                for rx in patterns:
+                    m = rx.search(text)
+                    if m:
+                        line_no = text.count("\n", 0, m.start()) + 1
+                        snippet = text.splitlines()[line_no - 1].strip() if text.splitlines() else ""
+                        if allow_lines and line_matches_any(snippet, allow_lines):
+                            continue
+                        hits.append(f"{rel}:{line_no}:{snippet}")
+                        break
+            else:
+                for line_no, line in enumerate(text.splitlines(), 1):
+                    if allow_lines and line_matches_any(line, allow_lines):
+                        continue
+                    if any(rx.search(line) for rx in patterns):
+                        hits.append(f"{rel}:{line_no}:{line.strip()}")
+                        break
+        return hits
 
-    def check_legacy_census(self) -> None:
-        """Report the two historical prevalence censuses in one place.
-
-        These are informational inventories, matching the old forward-only
-        shell gates. Hard architectural prohibitions remain declarative TOML
-        rules and are enforced as failures by the normal rule categories.
-        """
-        print("=== Legacy Census (informational) ===")
-        asset = sum((
-            count_pattern(self.root, ["content", "src/scene"],
-                          r"\b(?:font_path|image_path|video_path|audio_path)\b"),
-            count_pattern(self.root, ["src/scene", "content"],
-                          r"\b(?:resolve_handle|load_image|decode_video|decode_audio|font_engine\.load)\b"),
-        ))
-        timeline = sum((
-            count_pattern(self.root, ["content"], r"\blayer\.(?:from|duration)\b"),
-            count_pattern(self.root, ["content", "src/animation", "src/text"],
-                          r"\bsample\(\s*(?:ctx\.frame|frame_context\.frame|global_frame)\b"),
-            count_pattern(self.root, ["content", "src/scene"],
-                          r"(?:^|[^A-Za-z0-9_.])duration\s*=\s*[01]\b"),
-        ))
-        self._pass("legacy_census", f"asset={asset} timeline={timeline} (informational)")
-
-    # ── Forbidden Path ──────────────────────────────────────────────────
     def check_forbidden_path(self, rule: dict[str, Any]) -> None:
         name = rule["name"]
-        for rel_path in rule["paths"]:
-            full = self._resolve_path(rel_path)
-            if full.exists():
-                self._fail(name, f"retired file exists: {rel_path}")
-                if hint := rule.get("hint"):
-                    print(f"         hint: {hint}")
-                return
-        self._pass(name)
-
-    # ── Forbidden Symbol ────────────────────────────────────────────────
-    def check_forbidden_symbol(self, rule: dict[str, Any]) -> None:
-        name = rule["name"]
-        patterns = rule["patterns"]
-        scan_paths = self._resolve_scan_paths(rule)
-        skip_comments = rule.get("skip_comments", False)
-        allow_list = rule.get("allow_list", [])
-        allow_symbols = rule.get("allow_list_for_symbol", [])
-
-        for pattern in patterns:
-            matches = run_grep(pattern, scan_paths)
-            if ok := self._resolve_exclude_paths(rule):
-                matches = [m for m in matches if not any(re.search(e, m.split(":")[0]) for e in ok)]
-            if skip_comments:
-                matches = filter_code_only(matches, pattern)
-            if allow_list:
-                matches = filter_allow_list(matches, allow_list)
-            if allow_symbols:
-                matches = filter_allow_symbol(matches, allow_symbols)
-
-            if matches:
-                self._fail(name, f"pattern '{pattern}' found {len(matches)} match(es):")
-                for m in matches[:5]:
-                    print(f"         {m}")
-                if len(matches) > 5:
-                    print(f"         ... and {len(matches) - 5} more")
-                if hint := rule.get("hint"):
-                    print(f"         hint: {hint}")
-                return
-        self._pass(name)
-
-    def _resolve_exclude_paths(self, rule: dict[str, Any]) -> list[str]:
-        raw = rule.get("exclude_paths", [])
-        return [re.escape(p) for p in raw]
-
-    # ── Forbidden Include ───────────────────────────────────────────────
-    def check_forbidden_include(self, rule: dict[str, Any]) -> None:
-        name = rule["name"]
-        patterns = rule["patterns"]
-        scan_paths = self._resolve_scan_paths(rule)
-        skip_comments = rule.get("skip_comments", False)
-
-        for pattern in patterns:
-            matches = run_grep(pattern, scan_paths)
-            if exclusions := self._resolve_exclude_paths(rule):
-                matches = [m for m in matches
-                           if not any(re.search(e, m.split(":", 1)[0])
-                                      for e in exclusions)]
-            if skip_comments:
-                # For include patterns, a match inside a comment is a comment
-                # ABOUT the forbidden include, not the include itself.
-                matches = [m for m in matches if not comment_only(m.split(":", 2)[-1])]
-            if matches:
-                self._fail(name, f"forbidden include pattern found: '{pattern}' ({len(matches)} match(es))")
-                for m in matches[:5]:
-                    print(f"         {m}")
-                if hint := rule.get("hint"):
-                    print(f"         hint: {hint}")
-                return
-        self._pass(name)
-
-    # ── Unique Source Owner ─────────────────────────────────────────────
-    def check_unique_source_owner(self, rule: dict[str, Any]) -> None:
-        name = rule["name"]
-        canon_pattern = rule["canonical_pattern"]
-        canon_path = rule["canonical_path"]
-        expected = rule.get("expected_count", 1)
-        legacy_patterns = rule.get("legacy_patterns", [])
-        soft_cap = rule.get("legacy_soft_cap", 0)
-        scan_paths = self._resolve_scan_paths(rule)
-
-        # Count canonical definitions
-        canon_matches = run_grep(canon_pattern, scan_paths)
-        canon_files: set[str] = {m.split(":")[0] for m in canon_matches}
-        canon_count = len(canon_files)
-
-        # Count legacy patterns
-        legacy_files: set[str] = set()
-        for pat in legacy_patterns:
-            m = run_grep(pat, scan_paths)
-            for line in m:
-                f = line.split(":")[0]
-                if f != str(self._resolve_path(canon_path)):
-                    legacy_files.add(f)
-
-        legacy_count = len(legacy_files)
-
-        if canon_count >= expected and legacy_count <= soft_cap:
-            extra = ""
-            if legacy_count > 0:
-                extra = f"; {legacy_count} legacy within soft-cap={soft_cap}"
-            self._pass(name, f"canonical at {canon_path} (count={canon_count}{extra})")
+        if not self.selected(name):
+            return
+        found = [p for p in rule["paths"] if (self.root / p).exists()]
+        if found:
+            self.fail(name, f"retired path(s) exist: {', '.join(found)}")
         else:
-            reason = f"canonical={canon_count} (need ≥{expected}), legacy={legacy_count} (cap={soft_cap})"
-            self._fail(name, reason)
-            if hint := rule.get("hint"):
-                print(f"         hint: {hint}")
+            self.ok(name)
 
-    # ── Boundary ────────────────────────────────────────────────────────
-    def check_boundary(self, rule: dict[str, Any]) -> None:
+    def check_required_path(self, rule: dict[str, Any]) -> None:
         name = rule["name"]
-        patterns = rule["forbidden_patterns"]
-        scan_paths = self._resolve_scan_paths(rule)
+        if not self.selected(name):
+            return
+        missing = [p for p in rule["paths"] if not (self.root / p).exists()]
+        if missing:
+            self.fail(name, f"required path(s) missing: {', '.join(missing)}")
+        else:
+            self.ok(name)
 
-        for pattern in patterns:
-            matches = run_grep_any(scan_paths, pattern)
-            if matches:
-                self._fail(name, f"boundary violation: '{pattern}' in {scan_paths}")
-                for m in matches[:5]:
-                    print(f"         {m}")
-                if hint := rule.get("hint"):
-                    print(f"         hint: {hint}")
-                return
-        self._pass(name)
+    def check_scan(self, rule: dict[str, Any]) -> None:
+        name = rule["name"]
+        if not self.selected(name):
+            return
+        hits = self.scan_hits(rule)
+        if hits:
+            self.fail(name, f"{len(hits)} violation file(s)")
+            for hit in hits[:8]:
+                print(f"         {hit}")
+        else:
+            self.ok(name)
 
-    # ── Contract ────────────────────────────────────────────────────────
+    def check_occurrence_cap(self, rule: dict[str, Any]) -> None:
+        name = rule["name"]
+        if not self.selected(name):
+            return
+        paths = rule.get("scan_paths", ["include", "src", "apps"])
+        allow_paths = rule.get("allow_list", [])
+        skip_comments = rule.get("skip_comments", True)
+        rx = re.compile(rule["pattern"], re.MULTILINE)
+        file_requires = re.compile(rule["file_requires_pattern"], re.MULTILINE) if rule.get("file_requires_pattern") else None
+        count = 0
+        for path in iter_files(self.root, paths, rule.get("extensions")):
+            rel = relpath(self.root, path)
+            if path_matches(rel, allow_paths):
+                continue
+            text = read_text(path)
+            if skip_comments:
+                text = strip_comments(text)
+            if file_requires and not file_requires.search(text):
+                continue
+            count += len(rx.findall(text))
+        maximum = int(rule["max_count"])
+        if count > maximum:
+            self.fail(name, f"occurrences={count} > cap={maximum}")
+        else:
+            self.ok(name, f"occurrences={count} <= cap={maximum}")
+
+    def check_unique_owner(self, rule: dict[str, Any]) -> None:
+        name = rule["name"]
+        if not self.selected(name):
+            return
+        canonical = self.root / rule["canonical_path"]
+        if not canonical.exists():
+            self.fail(name, f"canonical path missing: {rule['canonical_path']}")
+            return
+        scan_paths = rule.get("scan_paths", ["include", "src", "apps"])
+        canonical_rx = re.compile(rule["canonical_pattern"], re.MULTILINE)
+        canonical_files = 0
+        for path in iter_files(self.root, scan_paths):
+            if canonical_rx.search(strip_comments(read_text(path))):
+                canonical_files += 1
+        legacy_count = 0
+        count_mode = rule.get("legacy_count_mode", "files")
+        legacy_regexes = [re.compile(p, re.MULTILINE) for p in rule.get("legacy_patterns", [])]
+        ignore = rule.get("legacy_ignore_paths", [])
+        for path in iter_files(self.root, scan_paths):
+            rel = relpath(self.root, path)
+            if rel == rule["canonical_path"] or path_matches(rel, ignore):
+                continue
+            text = strip_comments(read_text(path))
+            if count_mode == "occurrences":
+                legacy_count += sum(len(rx.findall(text)) for rx in legacy_regexes)
+            elif any(rx.search(text) for rx in legacy_regexes):
+                legacy_count += 1
+        expected = int(rule.get("expected_count", 1))
+        cap = int(rule.get("legacy_soft_cap", 0))
+        if canonical_files >= expected and legacy_count <= cap:
+            self.ok(name, f"canonical_files={canonical_files}, legacy={legacy_count}/{cap}")
+        else:
+            self.fail(name, f"canonical_files={canonical_files} need>={expected}, legacy={legacy_count} cap={cap}")
+
     def check_contract(self, rule: dict[str, Any]) -> None:
         name = rule["name"]
-        optional_file = rule.get("optional", False)
-
-        # Special case: effect processor coverage
+        if not self.selected(name):
+            return
         if "effect_catalog" in rule:
-            catalog_path = self._resolve_path(rule["effect_catalog"])
-            registry_path = self._resolve_path(rule["processor_registry"])
-            if not catalog_path.exists():
-                self._fail(name, f"effect catalog missing: {rule['effect_catalog']}")
+            catalog = self.root / rule["effect_catalog"]
+            registry = self.root / rule["processor_registry"]
+            if not catalog.exists() or not registry.exists():
+                self.fail(name, "effect catalog or processor registry missing")
                 return
-            if not registry_path.exists():
-                self._fail(name, f"processor registry missing: {rule['processor_registry']}")
-                return
-
-            catalog_text = catalog_path.read_text(encoding="utf-8")
-            registry_text = registry_path.read_text(encoding="utf-8")
-
-            catalog_params = re.findall(
-                r"CHRONON_EFFECT\(\s*\d+\s*,\s*\w+\s*,\s*(\w+)", catalog_text
-            )
-            registered_params = set(
-                re.findall(r"register_effect_processor<\s*(\w+)\s*>", registry_text)
-            )
-
-            duplicates = sorted(n for n in set(catalog_params) if catalog_params.count(n) > 1)
-            missing = sorted(set(catalog_params) - registered_params)
-            extra = sorted(registered_params - set(catalog_params))
-
+            catalog_params = re.findall(r"CHRONON_EFFECT\(\s*\d+\s*,\s*\w+\s*,\s*(\w+)", read_text(catalog))
+            registered = set(re.findall(r"register_effect_processor<\s*(\w+)\s*>", read_text(registry)))
+            duplicates = sorted({p for p in catalog_params if catalog_params.count(p) > 1})
+            missing = sorted(set(catalog_params) - registered)
+            extra = sorted(registered - set(catalog_params))
             if duplicates or missing or extra:
-                details = []
-                if duplicates:
-                    details.append(f"duplicates: {', '.join(duplicates)}")
-                if missing:
-                    details.append(f"missing: {', '.join(missing)}")
-                if extra:
-                    details.append(f"extra: {', '.join(extra)}")
-                self._fail(name, "; ".join(details))
+                self.fail(name, f"duplicates={duplicates}, missing={missing}, extra={extra}")
             else:
-                self._pass(name, f"{len(catalog_params)} effects registered")
+                self.ok(name, f"{len(catalog_params)} effects")
             return
-
-        # Standard contract: check patterns in a file
-        file_path = self._resolve_path(rule["file"])
-        if not file_path.exists():
-            if optional_file:
-                self._pass(name, "file absent (optional, vacuous)")
+        path = self.root / rule["file"]
+        if not path.exists():
+            if rule.get("optional", False):
+                self.ok(name, "optional file absent")
             else:
-                self._fail(name, f"file missing: {rule['file']}")
+                self.fail(name, f"file missing: {rule['file']}")
             return
+        text = read_text(path)
+        required = rule.get("required_patterns", [])
+        if rule.get("required_pattern"):
+            required = [rule["required_pattern"]]
+        forbidden = rule.get("forbidden_patterns", [])
+        missing = [p for p in required if not re.search(p, text, re.MULTILINE | re.DOTALL)]
+        present = [p for p in forbidden if re.search(p, text, re.MULTILINE | re.DOTALL)]
+        if missing or present:
+            detail = []
+            if missing:
+                detail.append(f"missing={missing}")
+            if present:
+                detail.append(f"forbidden={present}")
+            self.fail(name, "; ".join(detail))
+        else:
+            self.ok(name)
 
-        content = file_path.read_text(encoding="utf-8")
-        required = rule.get("required_pattern", None)
-        required_list = rule.get("required_patterns", [])
-
-        if required:
-            required_list = [required]
-
-        if not required_list:
-            self._pass(name, "no required patterns (vacuous)")
+    def check_presence(self, rule: dict[str, Any]) -> None:
+        name = rule["name"]
+        if not self.selected(name):
             return
+        rx = re.compile(rule["pattern"], re.MULTILINE)
+        count = 0
+        for path in iter_files(self.root, rule["scan_paths"], rule.get("extensions")):
+            text = strip_comments(read_text(path)) if rule.get("skip_comments", True) else read_text(path)
+            count += len(rx.findall(text))
+        minimum = int(rule.get("min_matches", 1))
+        if count < minimum:
+            self.fail(name, f"matches={count} < minimum={minimum}")
+        else:
+            self.ok(name, f"matches={count}")
 
-        # For multi-line patterns, flatten the file
-        for pattern in required_list:
-            flat = content
-            if "\n" not in pattern:
-                flat = content.replace("\n", " ")
-            if not re.search(pattern, flat):
-                self._fail(name, f"required pattern not found: '{pattern}'")
-                if hint := rule.get("hint"):
-                    print(f"         hint: {hint}")
-                return
-        self._pass(name)
-
-    # ── LOC Bound ───────────────────────────────────────────────────────
     def check_loc_bound(self, rule: dict[str, Any]) -> None:
         name = rule["name"]
-        file_path = self._resolve_path(rule["file"])
-
-        if not file_path.exists():
-            self._pass(name, "file absent (vacuous)")
+        if not self.selected(name):
             return
-
-        content = file_path.read_text(encoding="utf-8")
-        lines = content.splitlines()
-
-        if "max_loc" in rule:
-            loc = len(lines)
-            max_loc = rule["max_loc"]
-            if loc > max_loc:
-                self._fail(name, f"LOC={loc} > max={max_loc}")
-                return
-
+        path = self.root / rule["file"]
+        if not path.exists():
+            self.fail(name, f"file missing: {rule['file']}")
+            return
+        lines = read_text(path).splitlines()
+        if "max_loc" in rule and len(lines) > int(rule["max_loc"]):
+            self.fail(name, f"LOC={len(lines)} > {rule['max_loc']}")
+            return
         if "max_non_local_includes" in rule:
-            nli = sum(1 for line in lines if re.match(r'#include\s*<(chronon3d|backends)/', line))
-            max_nli = rule["max_non_local_includes"]
-            if nli > max_nli:
-                self._fail(name, f"non-local includes={nli} > max={max_nli}")
+            count = sum(bool(re.match(r"\s*#include\s*<(?:chronon3d|backends)/", line)) for line in lines)
+            if count > int(rule["max_non_local_includes"]):
+                self.fail(name, f"non-local includes={count} > {rule['max_non_local_includes']}")
                 return
+        self.ok(name)
 
-        self._pass(name, f"LOC={len(lines)}" if "max_loc" in rule else "OK")
-
-    # ── CMake Ownership ─────────────────────────────────────────────────
-    def check_cmake_ownership(self) -> None:
-        cmake_rules = self.rules.get("cmake_ownership")
-        if not cmake_rules:
+    def check_effect_processor_coverage(self) -> None:
+        cfg = self.rules.get("effect_processor_coverage")
+        if not cfg or not self.selected(cfg.get("name", "effect_processor_coverage")):
             return
+        name = cfg.get("name", "effect_processor_coverage")
+        catalog = self.root / cfg["effect_catalog"]
+        registry = self.root / cfg["processor_registry"]
+        if not catalog.exists() or not registry.exists():
+            self.fail(name, "catalog or registry missing")
+            return
+        catalog_params = re.findall(r"CHRONON_EFFECT\(\s*\d+\s*,\s*\w+\s*,\s*(\w+)", read_text(catalog))
+        registered = set(re.findall(r"register_effect_processor<\s*(\w+)\s*>", read_text(registry)))
+        duplicates = sorted({p for p in catalog_params if catalog_params.count(p) > 1})
+        missing = sorted(set(catalog_params) - registered)
+        extra = sorted(registered - set(catalog_params))
+        if duplicates or missing or extra:
+            self.fail(name, f"duplicates={duplicates}, missing={missing}, extra={extra}")
+        else:
+            self.ok(name, f"{len(catalog_params)} effects")
 
-        # Collect all source-file → target mappings
-        ownership: dict[str, set[str]] = defaultdict(set)
+    @staticmethod
+    def cmake_commands(text: str) -> Iterable[tuple[str, list[str]]]:
+        text = re.sub(r"#[^\n]*", "", text)
         command_re = re.compile(r"\b(add_library|add_executable|target_sources)\s*\(", re.I)
-        keywords = {
-            "STATIC", "SHARED", "MODULE", "OBJECT", "INTERFACE", "IMPORTED", "ALIAS",
-            "WIN32", "MACOSX_BUNDLE", "EXCLUDE_FROM_ALL", "PRIVATE", "PUBLIC",
-        }
-
-        for cmake_file in self.root.rglob("CMakeLists.txt"):
-            parts = set(cmake_file.parts)
-            if parts & {"build", "out", ".tmp", ".git", "vcpkg_bootstrap", "vcpkg_installed"}:
+        for match in command_re.finditer(text):
+            depth, i = 1, match.end()
+            while i < len(text) and depth:
+                depth += (text[i] == "(") - (text[i] == ")")
+                i += 1
+            if depth:
                 continue
-            text = re.sub(r"#.*", "", cmake_file.read_text(encoding="utf-8"))
-            for match in command_re.finditer(text):
-                depth = 1
-                i = match.end()
-                while i < len(text) and depth:
-                    if text[i] == "(":
-                        depth += 1
-                    elif text[i] == ")":
-                        depth -= 1
-                    i += 1
-                if depth:
-                    continue
-                args_raw = text[match.end():i - 1]
-                toks = re.findall(r'"([^"]+)"|([^\s]+)', args_raw)
-                args = [q or b for q, b in toks]
-                if not args:
-                    continue
+            raw = text[match.end():i - 1]
+            toks = [a or b for a, b in re.findall(r'"([^"]+)"|([^\s]+)', raw)]
+            if toks:
+                yield match.group(1).lower(), toks
+
+    def check_cmake_ownership(self) -> None:
+        cfg = self.rules.get("cmake_ownership")
+        name = "cmake_ownership"
+        if not cfg or not self.selected(name):
+            return
+        ownership: dict[str, set[str]] = defaultdict(set)
+        keywords = {"STATIC", "SHARED", "MODULE", "OBJECT", "INTERFACE", "IMPORTED",
+                    "ALIAS", "WIN32", "MACOSX_BUNDLE", "EXCLUDE_FROM_ALL",
+                    "PRIVATE", "PUBLIC"}
+        for cmake in self.root.rglob("CMakeLists.txt"):
+            if any(part in EXCLUDED_DIRS or part.startswith("build-") for part in cmake.parts):
+                continue
+            for _, args in self.cmake_commands(read_text(cmake)):
                 target = args[0]
                 for raw in args[1:]:
-                    if raw.upper() in keywords:
+                    if raw.upper() in keywords or "$<" in raw or "${" in raw:
                         continue
-                    if "$<" in raw or "${" in raw:
-                        continue
-                    if not raw.lower().endswith((".cpp", ".cxx", ".cc")):
+                    if not raw.lower().endswith((".cpp", ".cc", ".cxx")):
                         continue
                     candidate = Path(raw)
                     if not candidate.is_absolute():
-                        candidate = cmake_file.parent / candidate
-                    candidate = candidate.resolve()
+                        candidate = (cmake.parent / candidate).resolve()
                     if candidate.is_file():
-                        ownership[str(candidate.relative_to(self.root))].add(target)
-
-        # Check for multi-owner violations
-        allowed = {
-            tuple(e["path"].split("/")): frozenset(e["owners"])
-            for e in cmake_rules.get("allowed_multi_owner", [])
-        }
-
-        conflicts = []
-        for path, targets in ownership.items():
-            if len(targets) <= 1:
-                continue
-            parts = tuple(path.split("/"))
-            if parts in allowed and frozenset(targets) == allowed[parts]:
-                continue
-            conflicts.append((path, sorted(targets)))
-
+                        ownership[relpath(self.root, candidate)].add(target)
+        allowed = {e["path"]: set(e["owners"]) for e in cfg.get("allowed_multi_owner", [])}
+        conflicts = [(p, sorted(t)) for p, t in ownership.items()
+                     if len(t) > 1 and allowed.get(p) != set(t)]
         if conflicts:
-            print(f"  [FAIL] cmake_ownership: {len(conflicts)} source(s) have multiple owners:")
+            self.fail(name, f"{len(conflicts)} multi-owner source(s)")
             for p, t in conflicts[:10]:
-                print(f"         {p} → {', '.join(t)}")
-            if len(conflicts) > 10:
-                print(f"         ... and {len(conflicts) - 10} more")
-            self._fail("cmake_ownership", f"{len(conflicts)} multi-owner violations")
+                print(f"         {p} -> {', '.join(t)}")
         else:
-            self._pass("cmake_ownership", f"{len(ownership)} sources have unique owners")
+            self.ok(name, f"{len(ownership)} concrete source entries")
 
-    # ── Gitignored ──────────────────────────────────────────────────────
-    def check_gitignored(self) -> None:
-        git_rules = self.rules.get("gitignored")
-        if not git_rules:
+    def check_test_registration(self) -> None:
+        cfg = self.rules.get("test_registration")
+        if not cfg:
             return
-
-        total_violations = 0
-
-        # Check directories
-        for d in git_rules.get("dirs", []):
-            tracked = git_ls_files(d)
-            if tracked:
-                print(f"  [FAIL] gitignored: {d}/ has {len(tracked)} tracked entries:")
-                for t in tracked[:3]:
-                    print(f"         {t}")
-                self.failures.append(f"gitignored: {d}/ has tracked entries")
-                total_violations += len(tracked)
-
-        # Check build globs
-        for pattern in git_rules.get("build_globs", []):
-            for real in self.root.glob(pattern):
-                if real.is_dir():
-                    tracked = git_ls_files(str(real.relative_to(self.root)))
-                    if tracked:
-                        print(f"  [FAIL] gitignored (glob): {real.name}/ has {len(tracked)} tracked entries")
-                        self.failures.append(f"gitignored (glob): {real.name}/")
-                        total_violations += len(tracked)
-
-        # Check file patterns
-        for pattern in git_rules.get("file_patterns", []):
-            for match_path in self.root.glob(pattern.lstrip("/")):
-                if match_path.is_file():
-                    try:
-                        subprocess.run(
-                            ["git", "ls-files", "--error-unmatch", str(match_path.relative_to(self.root))],
-                            capture_output=True, check=True,
-                        )
-                        print(f"  [FAIL] gitignored (file): {match_path.relative_to(self.root)} is tracked")
-                        self.failures.append(f"gitignored (file): {match_path.relative_to(self.root)}")
-                        total_violations += 1
-                    except subprocess.CalledProcessError:
-                        pass
-
-        # Check tmp gate globs
-        for pattern in git_rules.get("tmp_gate_globs", []):
-            for real in self.root.glob(pattern):
-                if real.is_dir():
-                    tracked = git_ls_files(str(real.relative_to(self.root)))
-                    if tracked:
-                        print(f"  [FAIL] gitignored (tmp-gate): {real.name}/ has {len(tracked)} tracked entries")
-                        self.failures.append(f"gitignored (tmp-gate): {real.name}/")
-                        total_violations += len(tracked)
-
-        # Absolute path leak detection
-        abs_pattern = git_rules.get("absolute_path_pattern", "")
-        if abs_pattern:
-            hits = git_grep_cached(abs_pattern)
-            if hits:
-                print(f"  [FAIL] gitignored (abs-path): {len(hits)} tracked files contain absolute paths")
-                for h in hits[:5]:
-                    print(f"         {h}")
-                self.failures.append(f"gitignored (abs-path): {len(hits)} files")
-                total_violations += len(hits)
-
-        if total_violations == 0:
-            self._pass("gitignored", "no tracked entries in ignored dirs")
+        name = cfg.get("name", "test_registration")
+        if not self.selected(name):
+            return
+        hits: list[str] = []
+        for path in list((self.root / "tests").rglob("*.cmake")) + list((self.root / "tests").rglob("CMakeLists.txt")):
+            text = re.sub(r"#[^\n]*", "", read_text(path))
+            for m in re.finditer(r"^\s*add_executable\(\s*chronon3d_.*?_tests?\b", text, re.MULTILINE):
+                line = text.count("\n", 0, m.start()) + 1
+                hits.append(f"{relpath(self.root, path)}:{line}")
+        if hits:
+            self.fail(name, f"{len(hits)} raw test executable registration(s)")
+            for hit in hits[:10]:
+                print(f"         {hit}")
         else:
-            self._fail("gitignored", f"{total_violations} total violations")
+            self.ok(name, "recursive tests/**/*.cmake + CMakeLists.txt clean")
 
-    # ── Run all ─────────────────────────────────────────────────────────
+    @staticmethod
+    def parse_set_block(text: str, var: str) -> list[str]:
+        match = re.search(rf"set\s*\(\s*{re.escape(var)}\b(.*?)\n\s*\)", text, re.DOTALL)
+        if not match:
+            return []
+        body = re.sub(r"#[^\n]*", "", match.group(1))
+        return re.findall(r"\b[A-Za-z_][A-Za-z0-9_:+.-]*\b", body)
+
+    def check_cmake_registry(self) -> None:
+        cfg = self.rules.get("cmake_registry")
+        if not cfg:
+            return
+        name = cfg.get("name", "cmake_registry")
+        if not self.selected(name):
+            return
+        declared: set[str] = set()
+        for cmake in (self.root / "src").rglob("CMakeLists.txt"):
+            text = re.sub(r"#[^\n]*", "", read_text(cmake))
+            declared.update(re.findall(
+                r"add_library\(\s*([A-Za-z_][A-Za-z0-9_]*)\s+(?:OBJECT|INTERFACE)\b", text))
+        registry = read_text(self.root / cfg["registry_file"])
+        listed = set(self.parse_set_block(registry, "CHRONON3D_REGISTRY_OBJECT_LIBS"))
+        listed.update(self.parse_set_block(registry, "CHRONON3D_REGISTRY_INTERFACE_LIBS"))
+        missing = sorted(declared - listed)
+        if missing:
+            self.fail(name, f"unregistered OBJECT/INTERFACE libraries: {missing}")
+        else:
+            self.ok(name, f"{len(declared)} libraries registered")
+
+    def check_vcpkg_parity(self) -> None:
+        cfg = self.rules.get("vcpkg_parity")
+        if not cfg:
+            return
+        name = cfg.get("name", "vcpkg_parity")
+        if not self.selected(name):
+            return
+        packages: set[str] = set()
+        cmake_files = cfg.get("cmake_files", ["CMakeLists.txt"])
+        for rel in cmake_files:
+            cmake = self.root / rel
+            if cmake.exists():
+                packages.update(re.findall(r"find_package\(\s*([A-Za-z_][A-Za-z0-9_-]*)", read_text(cmake)))
+        manifest = json.loads(read_text(self.root / cfg["manifest"]))
+        deps: set[str] = set()
+        def add_dep(entry: Any) -> None:
+            if isinstance(entry, str):
+                deps.add(entry.lower())
+            elif isinstance(entry, dict) and "name" in entry:
+                deps.add(str(entry["name"]).lower())
+        for dep in manifest.get("dependencies", []):
+            add_dep(dep)
+        for feature in manifest.get("features", {}).values():
+            for dep in feature.get("dependencies", []):
+                add_dep(dep)
+        mapping = {k.lower(): v.lower() for k, v in cfg.get("package_map", {}).items()}
+        allow = {x.lower() for x in cfg.get("system_allow", [])}
+        missing = []
+        for package in sorted(packages):
+            key = package.lower()
+            if key in allow:
+                continue
+            dep = mapping.get(key, key)
+            if dep not in deps:
+                missing.append(f"{package}->{dep}")
+        if missing:
+            self.fail(name, f"find_package without manifest dependency: {missing}")
+        else:
+            self.ok(name, f"{len(packages)} package names checked")
+
+    def check_sdk_public_deps(self) -> None:
+        cfg = self.rules.get("sdk_public_deps")
+        if not cfg:
+            return
+        name = cfg.get("name", "sdk_public_deps")
+        if not self.selected(name):
+            return
+        registry = read_text(self.root / cfg["registry_file"])
+        deps = self.parse_set_block(registry, "CHRONON3D_SDK_PUBLIC_DEPS")
+        template = read_text(self.root / cfg["template_file"])
+        substitutions = template.count("@CHRONON3D_FIND_DEPENDENCY_LINES@")
+        marker_finds = 0
+        in_marker = False
+        for line in template.splitlines():
+            if "AUTO-GENERATED FROM CHRONON3D_SDK_PUBLIC_DEPS" in line:
+                in_marker = True
+                continue
+            if "END AUTO-GENERATED BLOCK" in line:
+                in_marker = False
+            elif in_marker and re.match(r"\s*find_dependency\(", line):
+                marker_finds += 1
+        if not deps or substitutions != 1 or marker_finds:
+            self.fail(name, f"deps={len(deps)}, substitutions={substitutions}, handwritten={marker_finds}")
+        else:
+            self.ok(name, f"{len(deps)} public deps, one generated marker")
+
+    def check_public_include_resolution(self) -> None:
+        cfg = self.rules.get("public_include_resolution")
+        if not cfg:
+            return
+        name = cfg.get("name", "public_include_resolution")
+        if not self.selected(name):
+            return
+        hits: list[str] = []
+        rx = re.compile(r'#include\s*<chronon3d/([^>]+)>')
+        for path in iter_files(self.root, cfg.get("scan_paths", ["include", "src", "tests", "apps"])):
+            text = strip_comments(read_text(path))
+            for m in rx.finditer(text):
+                inc = m.group(1)
+                if (self.root / "src" / inc).is_file() and not (self.root / "include/chronon3d" / inc).is_file():
+                    line = text.count("\n", 0, m.start()) + 1
+                    hits.append(f"{relpath(self.root, path)}:{line}:chronon3d/{inc}")
+        if hits:
+            self.fail(name, f"{len(hits)} src-only headers exposed via public include")
+            for hit in hits[:10]:
+                print(f"         {hit}")
+        else:
+            self.ok(name)
+
+    def check_gitignored(self) -> None:
+        cfg = self.rules.get("gitignored")
+        name = "gitignored"
+        if not cfg or not self.selected(name):
+            return
+        violations: list[str] = []
+
+        def tracked(prefix: str) -> list[str]:
+            try:
+                out = subprocess.run(
+                    ["git", "ls-files", prefix], cwd=self.root,
+                    text=True, capture_output=True, timeout=20,
+                ).stdout
+                return [x for x in out.splitlines() if x]
+            except (OSError, subprocess.TimeoutExpired):
+                return []
+
+        for directory in cfg.get("dirs", []):
+            if tracked(f"{directory}/"):
+                violations.append(directory)
+
+        for pattern in cfg.get("build_globs", []):
+            for path in self.root.glob(pattern):
+                if path.is_dir() and tracked(f"{relpath(self.root, path)}/"):
+                    violations.append(relpath(self.root, path))
+
+        for pattern in cfg.get("tmp_gate_globs", []):
+            for path in self.root.glob(pattern):
+                if path.is_dir() and tracked(f"{relpath(self.root, path)}/"):
+                    violations.append(relpath(self.root, path))
+
+        for pattern in cfg.get("file_patterns", []):
+            clean = pattern.lstrip("/")
+            for path in self.root.glob(clean):
+                if path.is_file() and tracked(relpath(self.root, path)):
+                    violations.append(relpath(self.root, path))
+
+        abs_pattern = cfg.get("absolute_path_pattern")
+        if abs_pattern:
+            try:
+                proc = subprocess.run(
+                    ["git", "grep", "-l", "--cached", "-E", "--", abs_pattern],
+                    cwd=self.root, text=True, capture_output=True, timeout=30,
+                )
+                violations.extend(x for x in proc.stdout.splitlines() if x)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+
+        if violations:
+            self.fail(name, f"{len(set(violations))} ignored/tracked violation(s)")
+            for item in sorted(set(violations))[:10]:
+                print(f"         {item}")
+        else:
+            self.ok(name)
+
     def run(self) -> int:
-        print(f"=== Architecture Rules Engine ===")
-        print(f"    rules file: {self.rules_path}")
-        print(f"    repo root:  {self.root}")
-        print()
-
-        # Collect rule lists
-        forbidden_paths = self.rules.get("forbidden_path", [])
-        forbidden_symbols = self.rules.get("forbidden_symbol", [])
-        forbidden_includes = self.rules.get("forbidden_include", [])
-        unique_owners = self.rules.get("unique_source_owner", [])
-        boundaries = self.rules.get("boundary", [])
-        contracts = self.rules.get("contract", [])
-        loc_bounds = self.rules.get("loc_bound", [])
-
-        # Enforce each category
-        for rule in forbidden_paths:
+        for rule in self.rules.get("forbidden_path", []):
             self.check_forbidden_path(rule)
-
-        print()
-        for rule in forbidden_symbols:
-            self.check_forbidden_symbol(rule)
-
-        print()
-        for rule in forbidden_includes:
-            self.check_forbidden_include(rule)
-
-        print()
-        print("=== Unique Source Owner Audits ===")
-        for rule in unique_owners:
-            self.check_unique_source_owner(rule)
-
-        print()
-        print("=== Boundary Rules ===")
-        for rule in boundaries:
-            self.check_boundary(rule)
-
-        print()
-        print("=== Contract Checks ===")
-        for rule in contracts:
+        for rule in self.rules.get("required_path", []):
+            self.check_required_path(rule)
+        for key in ("forbidden_symbol", "forbidden_include", "boundary", "scan"):
+            for rule in self.rules.get(key, []):
+                self.check_scan(rule)
+        for rule in self.rules.get("occurrence_cap", []):
+            self.check_occurrence_cap(rule)
+        for rule in self.rules.get("unique_source_owner", []):
+            self.check_unique_owner(rule)
+        for rule in self.rules.get("contract", []):
             self.check_contract(rule)
-
-        print()
-        for rule in loc_bounds:
+        for rule in self.rules.get("presence", []):
+            self.check_presence(rule)
+        for rule in self.rules.get("loc_bound", []):
             self.check_loc_bound(rule)
-
-        print()
-        self.check_legacy_census()
-
-        print()
-        print("=== CMake Source Ownership ===")
+        self.check_effect_processor_coverage()
         self.check_cmake_ownership()
-
-        print()
-        print("=== Gitignored Enforcement ===")
+        self.check_test_registration()
+        self.check_cmake_registry()
+        self.check_vcpkg_parity()
+        self.check_sdk_public_deps()
+        self.check_public_include_resolution()
         self.check_gitignored()
-
-        # Summary
-        print()
         total = len(self.passes) + len(self.failures)
-        gate_name = "check_architecture"
         if self.failures:
             print(f"GATE_FAIL: {len(self.failures)}/{total} architecture rule(s) FAILED")
-            for f in self.failures:
-                print(f"  - {f}")
             return 1
-
-        print(f"GATE_PASS: {len(self.passes)}/{total} architecture rules PASSED")
-        print(f"[INFO] {gate_name}: all declarative rules verified (TOML rules file: {self.rules_path.name})")
+        print(f"GATE_PASS: {len(self.passes)}/{total} architecture rule(s) PASSED")
         return 0
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Check architecture rules from declarative TOML (replaces ~10 gate scripts).",
-    )
-    parser.add_argument(
-        "--root", default=".", type=Path,
-        help="Repository root (default: current directory).",
-    )
-    parser.add_argument(
-        "--rules", default=None, type=Path,
-        help="Path to architecture_rules.toml (default: tools/architecture_rules.toml).",
-    )
-    parser.add_argument(
-        "--list", action="store_true",
-        help="List all rule names and exit.",
-    )
+    parser = argparse.ArgumentParser(description="Canonical declarative architecture gate")
+    parser.add_argument("--root", type=Path, default=Path("."))
+    parser.add_argument("--rules", type=Path)
+    parser.add_argument("--rule-prefix")
+    parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
-
     root = args.root.resolve()
-
-    if args.rules:
-        rules_path = args.rules.resolve()
-    else:
-        rules_path = root / "tools" / "architecture_rules.toml"
-        if not rules_path.exists():
-            # Try relative to script
-            rules_path = Path(__file__).resolve().parent / "architecture_rules.toml"
-
+    rules_path = args.rules.resolve() if args.rules else root / "tools/architecture_rules.toml"
     if not rules_path.exists():
         print(f"GATE_FAIL_INTERNAL: rules file not found: {rules_path}", file=sys.stderr)
         return 2
-
     if args.list:
-        with open(rules_path, "rb") as f:
-            rules = tomllib.load(f)
-        for category in ["forbidden_path", "forbidden_symbol", "forbidden_include",
-                         "unique_source_owner", "boundary", "contract", "loc_bound",
-                         "cmake_ownership", "gitignored"]:
-            entries = rules.get(category, [])
-            if isinstance(entries, list):
-                print(f"\n[{category}] ({len(entries)} rules):")
-                for e in entries:
-                    print(f"  - {e['name']}")
-            elif isinstance(entries, dict):
-                print(f"\n[{category}]: {entries.get('description', '(no description)')}")
+        rules = load_registry(rules_path)
+        for key, value in rules.items():
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict) and "name" in item:
+                        print(f"{key}:{item['name']}")
+            elif isinstance(value, dict) and "name" in value:
+                print(f"{key}:{value['name']}")
         return 0
-
-    runner = GateRunner(root, rules_path)
-    return runner.run()
+    return Runner(root, rules_path, args.rule_prefix).run()
 
 
 if __name__ == "__main__":
