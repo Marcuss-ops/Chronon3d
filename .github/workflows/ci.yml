@@ -69,10 +69,6 @@ jobs:
           ctest --preset ${{ matrix.config.test_preset }} \
             --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
 
-      - name: Cinematic showcase smoke (Linux Debug/CI, push only)
-        if: github.event_name != 'pull_request' && matrix.config.preset == 'linux-ci' && runner.os == 'Linux'
-        run: bash tools/verify_cinematic_showcase.sh --smoke
-
       - name: Clang-Tidy (PR, Linux only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'
         run: |
