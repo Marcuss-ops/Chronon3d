@@ -220,7 +220,6 @@ struct CompiledFrameGraph : CompiledResourceTable {
     std::uint64_t authored_structure_fingerprint{0};
 
     std::vector<std::vector<GraphNodeId>> levels;
-    std::vector<std::size_t> consumer_counts;
 
     std::vector<CompiledNodeInfo> nodes;
 
