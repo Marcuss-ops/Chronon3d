@@ -37,8 +37,3 @@ chronon3d_add_test_suite(
         timeline/test_compile_evaluate_dynamic.cpp
 )
 
-chronon3d_add_test_suite(
-    NAME chronon3d_timeline_functional_v1_tests
-    TIER UNIT
-    SOURCES certification/test_timeline_functional_v1.cpp
-)

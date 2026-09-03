@@ -41,20 +41,22 @@ struct DummyVideoAsset {
     std::filesystem::path path;
 };
 
-// Mock decoder: returns a solid color at the requested size
+// Mock decoder: returns a solid color at the requested size.
+// Canonical contract: MediaFrameProvider::decode_frame_at(path, RationalTime, w, h)
+// → DecodeResult (DecodedFrame | DecodeEndOfStream | DecodeFailure).
 class MockVideoDecoder final : public video::VideoFrameDecoder {
 public:
     explicit MockVideoDecoder(Color color = {0.2f, 0.6f, 1.0f, 1.0f}) : m_color(color) {}
 
-    std::shared_ptr<Framebuffer> decode_frame(
-        const std::string&, Frame, i32 width, i32 height, f32) override
+    media::DecodeResult decode_frame_at(
+        const std::string&, chronon3d::RationalTime, int width, int height) override
     {
         auto fb = std::make_shared<Framebuffer>(width, height);
         for (int y = 0; y < height; ++y) {
             Color* row = fb->pixels_row(y);
             for (int x = 0; x < width; ++x) row[x] = m_color;
         }
-        return fb;
+        return media::DecodedFrame{std::move(fb)};
     }
 
     Color m_color;
@@ -114,12 +116,12 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
     // 320x180 video in a 640x360 canvas — decoder should get 320x180
     struct SizeCaptureDecoder final : public video::VideoFrameDecoder {
         i32 captured_w{0}, captured_h{0};
-        std::shared_ptr<Framebuffer> decode_frame(
-            const std::string&, Frame, i32 w, i32 h, f32) override {
+        media::DecodeResult decode_frame_at(
+            const std::string&, chronon3d::RationalTime, int w, int h) override {
             captured_w = w; captured_h = h;
             auto fb = std::make_shared<Framebuffer>(w, h);
             fb->clear(Color{0.5f, 0.5f, 0.5f, 1.0f});
-            return fb;
+            return media::DecodedFrame{std::move(fb)};
         }
     };
 

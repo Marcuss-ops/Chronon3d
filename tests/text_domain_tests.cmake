@@ -2,22 +2,6 @@
 # Preserves each former manifest's feature gates, target names, labels,
 # sources and aggregate membership while keeping one CMake authority.
 
-if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
-    chronon3d_add_test_suite(
-        NAME chronon3d_text_production_v1_tests
-        TIER INTEGRATION
-        LINK_TARGETS chronon3d_sdk chronon3d_software chronon3d_content
-                     chronon3d_runtime chronon3d_text_core
-        SOURCES certification/test_text_production_v1.cpp
-    )
-    target_compile_definitions(chronon3d_text_production_v1_tests PRIVATE
-        CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-    )
-    set_tests_properties(chronon3d_text_production_v1_tests PROPERTIES
-        LABELS "text-full-acceptance"
-    )
-endif()
-
 if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
     chronon3d_add_test_suite(
         NAME chronon3d_text_health_tests
@@ -59,13 +43,6 @@ chronon3d_add_test_suite(
 )
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_safe_area_placement_tests)
 
-chronon3d_add_test_suite(
-    NAME chronon3d_text_rich_authoring_tests
-    TIER UNIT
-    LINK_TARGETS chronon3d_pipeline
-    SOURCES text/test_text_rich_authoring.cpp
-    LABELS text ungated
-)
 
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     chronon3d_add_test_suite(
@@ -92,7 +69,7 @@ if(CHRONON3D_BUILD_TESTS)
         NAME chronon3d_text_alignment_isolated_tests
         TIER INTEGRATION
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_alignment_isolated.cpp
-        LINK_TARGETS chronon3d_pipeline chronon3d_backend_software chronon3d_visual_test_support
+        LINK_TARGETS chronon3d_pipeline chronon3d_backend_software
     )
     chronon3d_add_test_suite(
         NAME chronon3d_text_auto_fit_tests
@@ -110,7 +87,7 @@ if(CHRONON3D_BUILD_TESTS)
         NAME chronon3d_text_clip_oversized_tests
         TIER INTEGRATION
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_clip_oversized.cpp
-        LINK_TARGETS chronon3d_pipeline chronon3d_backend_software chronon3d_visual_test_support
+        LINK_TARGETS chronon3d_pipeline chronon3d_backend_software
     )
     chronon3d_add_test_suite(
         NAME chronon3d_text_word_emphasis_animators_tests

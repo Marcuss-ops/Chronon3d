@@ -33,7 +33,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 
 #include <tests/helpers/test_utils.hpp>
-#include <tests/text_golden/text_clip/test_helpers.hpp>
+#include <tests/support/text_pixel_helpers.hpp>
 
 #include <array>
 #include <cmath>
