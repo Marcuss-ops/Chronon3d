@@ -1,0 +1,130 @@
+# Camera architecture invariants migrated from check_camera_architecture.sh.
+
+[[scan]]
+name = "camera_animated_camera_legacy"
+patterns = ['\bAnimatedCamera2_5D\b']
+scan_paths = ["include", "src", "tests", "apps", "content"]
+allow_list = [
+  'include/chronon3d/scene/camera/animated_camera_2_5d\.hpp',
+  'src/scene/camera/camera_v1/camera_descriptor_adapters\.(?:hpp|cpp)',
+  'include/chronon3d/scene/camera/camera_v1/camera_descriptor_adapters\.hpp',
+  'include/chronon3d/scene/camera/camera_rig_animated_presets\.hpp',
+  'include/chronon3d/scene/builders/(?:scene_builder\.hpp|camera_api\.hpp)',
+  'src/scene/builders/camera_api\.(?:hpp|cpp)',
+  'include/chronon3d/timeline/timeline_builder\.hpp',
+  'src/scene/timeline_builder\.cpp',
+  'include/chronon3d/runtime\.hpp',
+  'tests/renderer/camera/test_(?:animated_camera|lens_model|dof)\.cpp',
+  'tests/scene/camera_rig_tests\.cpp',
+  'tests/core/test_scene_hasher_camera\.cpp',
+  'tests/core/animation/test_sample_time\.cpp',
+  'tests/cli/test_camera_path_command\.cpp',
+  'tests/visual/camera/camera_visual_scenes\.cpp',
+  'tests/renderer/perf/test_motion_blur_integration\.cpp',
+  'tests/visual/ae_parity/ae_parity_scenes\.cpp',
+  'tests/visual/camera_truth/camera_truth_test\.cpp',
+  'content/ae_parity/ae_cam_scenes\.cpp',
+]
+skip_comments = true
+
+[[scan]]
+name = "camera_rig_legacy"
+patterns = ['\bCameraRig\b']
+scan_paths = ["include", "src", "tests", "apps", "content"]
+allow_list = [
+  'include/chronon3d/scene/model/camera/camera_rig\.hpp',
+  'include/chronon3d/scene/camera/camera_rig_animated_presets\.hpp',
+  'src/scene/camera/camera_v1/camera_descriptor_adapters\.(?:hpp|cpp)',
+  'include/chronon3d/scene/camera/camera_v1/camera_descriptor_adapters\.hpp',
+  'include/chronon3d/scene/camera/camera_rig_builder\.hpp',
+  'include/chronon3d/scene/camera/CameraRig[^.]*\.hpp',
+  'include/chronon3d/scene/camera/animated_camera_2_5d\.hpp',
+  'tests/(?:renderer/camera/test_(?:animated_camera|lens_model|dof)\.cpp|scene/camera_rig_tests\.cpp|scene/camera/test_camera_descriptor_adapters\.cpp)',
+]
+skip_comments = true
+
+[[scan]]
+name = "camera_animated_camera_calls"
+patterns = ['(?:\b|\.)animated_camera\s*\(']
+scan_paths = ["include", "src", "tests", "apps", "content"]
+allow_line_patterns = ['SceneBuilder&\s+animated_camera\b']
+allow_list = [
+  'tests/renderer/camera/test_(?:animated_camera|lens_model|dof)\.cpp',
+  'tests/scene/camera_rig_tests\.cpp',
+  'tests/core/test_scene_hasher_camera\.cpp',
+  'tests/core/animation/test_sample_time\.cpp',
+  'tests/cli/test_camera_path_command\.cpp',
+  'tests/visual/camera/camera_visual_scenes\.cpp',
+  'tests/renderer/perf/test_motion_blur_integration\.cpp',
+  'tests/visual/ae_parity/ae_parity_scenes\.cpp',
+  'tests/visual/camera_truth/camera_truth_test\.cpp',
+  'tests/scene/camera/test_camera_descriptor_adapters\.cpp',
+  'src/scene/camera/camera_v1/camera_descriptor_adapters\.cpp',
+  'src/scene/timeline_builder\.cpp',
+  'src/scene/builders/camera_api\.cpp',
+  'content/.*/compositions/.*\.cpp',
+  'include/chronon3d/scene/presets/.*\.hpp',
+  'include/chronon3d/presets/.*\.hpp',
+  'include/chronon3d/scene/builders/sequence_builder\.hpp',
+  'content/.*saas_intro_premium.*\.cpp',
+  'content/ae_parity/ae_cam_scenes\.cpp',
+]
+skip_comments = true
+
+[[scan]]
+name = "camera_rig_calls"
+patterns = ['(?:\b|\.)camera_rig\s*\(']
+scan_paths = ["include", "src", "tests", "apps", "content"]
+allow_line_patterns = [
+  'SceneBuilder&\s+camera_rig\b',
+  '\bCameraRigBuilder\b',
+  'CameraRig\s+(?:rig|mode|name)',
+  'CameraRig\s*\{',
+  'class\s+CameraRig',
+  'struct\s+CameraRig',
+]
+allow_list = [
+  'tests/scene/camera_rig_tests\.cpp',
+  'tests/scene/camera/test_camera_descriptor_adapters\.cpp',
+  'src/scene/camera/camera_v1/camera_descriptor_adapters\.cpp',
+  'include/chronon3d/scene/builders/scene_builder\.hpp',
+  'include/chronon3d/scene/presets/scene_presets\.hpp',
+  'content/.*/compositions/.*\.cpp',
+]
+skip_comments = true
+
+[[scan]]
+name = "camera_tan_fov_formula_authority"
+patterns = ['\btan\s*\([^)\n]*(?:fov|FOV|Fov)']
+scan_paths = ["include", "src", "tests", "apps", "content"]
+allow_list = [
+  'include/chronon3d/math/camera_projection_contract\.hpp',
+  'include/chronon3d/math/camera_projection_resolver\.hpp',
+  'include/chronon3d/scene/model/camera/lens_model\.hpp',
+  'include/chronon3d/scene/camera/camera_v1/evaluated_projection\.hpp',
+  'content/2d5/compositions/camera_test_orchestrator\.cpp',
+  'tests/renderer/camera/test_lens_model\.cpp',
+  'tests/core/math/.*\.cpp',
+  'include/chronon3d/scene/camera/camera_2_5d/(?:camera_framing_solver|photomaton_layout)\.hpp',
+  'include/chronon3d/scene/builders/.*\.hpp',
+  'include/chronon3d/scene/model/.*/.*\.hpp',
+  'include/chronon3d/scene/camera/.*camera_2_5d\.hpp',
+  'include/chronon3d/scene/(?:camera|model)/camera\.hpp',
+  'src/scene/camera/camera_v1/camera_framing_solver\.cpp',
+  'src/backends/software/diagnostics/nulls_overlay\.cpp',
+]
+skip_comments = true
+
+[[scan]]
+name = "camera_compile_camera_callsite_policy"
+patterns = ['\bcompile_camera\s*\(']
+scan_paths = ["include", "src", "tests", "apps", "content"]
+extensions = [".cpp"]
+allow_list = [
+  'src/scene/camera/camera_v1/',
+  'tests/',
+  'src/timeline/composition\.cpp',
+  'src/timeline/compile_evaluate\.cpp',
+  'src/render_graph/pipeline/composition\.cpp',
+]
+skip_comments = true

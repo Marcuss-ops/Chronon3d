@@ -1,0 +1,344 @@
+# Rules migrated from legacy shell/Python architecture gates.
+
+[[forbidden_path]]
+name = "retired_text_placement_resolver_files"
+paths = [
+  "include/chronon3d/text/text_placement_resolver.hpp",
+  "src/text/text_placement_resolver.cpp",
+]
+
+[[forbidden_symbol]]
+name = "retired_shape_type_text"
+patterns = ['\bShapeType::Text\b']
+scan_paths = ["include", "src", "tests", "content", "apps"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "process_wide_cache_state"
+patterns = [
+  'global_curve_cache',
+  'set_global_capacity_bytes',
+  'global_capacity_bytes',
+  'ImageCache::global_',
+  'set_global_cache_config',
+  's_global_cache_config',
+  'static\s+(?:std::)?(?:unordered_map|unordered_set|map|set|TextLayoutCache)[^;]*cache',
+]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "runtime_image_decode"
+patterns = ['load_image', 'decode_image', 'decode_and_store', 'stbi_load', 'BLImage::readFromFile']
+scan_paths = ["src/render_graph", "src/backends/software"]
+allow_list = ['render_preparation', 'resource_preparation', 'image_cache', 'image_loader', 'test']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "hidden_render_scratch"
+patterns = ['static\s+thread_local\s+std::vector']
+scan_paths = ["src/backends/text", "src/backends/software", "src/scene"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "software_effect_parallel_dispatch"
+patterns = ['switch\s*\([^)]*(?:effect_type|param_type)']
+scan_paths = ["src/backends/software/effects/effect_stack.cpp"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "effect_implementation_in_utils"
+patterns = ['backends/software/utils/effects', 'utils/effects/(?:effect_|glow_)']
+scan_paths = ["include", "src", "tests", "apps"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "text_material_external_effect_state"
+patterns = [
+  'use_material_(?:glow|shadow)',
+  '\bglow_(?:radius|intensity|color)\b',
+  '(?<!inner_)\bshadow_(?:offset|blur|opacity|color)\b',
+]
+scan_paths = [
+  "include/chronon3d/text/text_material.hpp",
+  "include/chronon3d/authoring/material.hpp",
+  "src/text",
+]
+allow_line_patterns = ['bevel_shadow_opacity', 'f32\s+shadow_opacity']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "asset_lookup_hardcoded_process_cwd"
+patterns = [
+  'camera_reference\.jpg',
+  'Poppins-Bold\.ttf',
+  '(?:u8|u|U|L)?(?:R)?["](?:\./)?assets[/\\]',
+]
+scan_paths = ["include", "src"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "sdk_impl_public_surface"
+patterns = ['#include\s*[<"]chronon3d_sdk_impl[/>"]']
+scan_paths = ["apps"]
+extensions = ["*"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "text_defaults_spec_offset_retired"
+patterns = ['\bspec\.offset\b']
+allow_list = ['glyph_selector', 'tests/text/test_selector_[^/]*\.cpp']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "text_frame_legacy_placement_fields"
+patterns = ['\bframe\.(?:position|placement_kind|offset)\b']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "text_placement_resolver_wrapper_surface"
+patterns = [
+  '\bclass\s+TextPlacementResolver\b',
+  '#include\s*[<"]chronon3d/text/text_placement_resolver\.hpp[>"]',
+]
+scan_paths = ["include/chronon3d"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "text_effects_duplicate_surface"
+patterns = ['\bstruct\s+TextEffects\b', '\bdef\.effects\.']
+scan_paths = ["include", "src", "tests", "apps"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "dual_text_layerbuilder_variants"
+patterns = ['\bLayerBuilder::text_[A-Za-z_]+\b']
+allow_line_patterns = ['LayerBuilder::text_run']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "dual_text_preset_definition_authority"
+patterns = [
+  '^\s*#\s*define\s+(?:centered_text|glow_text)(?:\s|\()',
+  '^\s*(?:class|struct)\s+(?:centered_text|glow_text)\b',
+  '^\s*(?:template\s*<[^>]*>\s*)?(?:static|inline|const|void|int|bool|auto|Layer|std::string)[A-Za-z0-9_:<>\s*&]*\b(?:centered_text|glow_text)\s*\(',
+]
+scan_paths = ["src", "include", "content", "apps", "tests"]
+allow_list = ['src/scene/presets/', 'src/presets/', 'include/chronon3d/presets/', 'content/text/']
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "retired_modular_graph_selector"
+patterns = ['\buse_modular_graph\b', '\bCHRONON3D_USE_MODULAR_GRAPH\b']
+scan_paths = ["include", "src", "tests", "apps", "cmake", "CMakeLists.txt"]
+extensions = ["*"]
+skip_comments = true
+
+[[boundary]]
+name = "software_renderer_single_identity"
+patterns = ['class\s+SoftwareRenderer\b[^{\n]*(?:public[^{\n]*Renderer[^{\n]*public[^{\n]*(?:graph::)?RenderBackend|public[^{\n]*(?:graph::)?RenderBackend[^{\n]*public[^{\n]*Renderer)']
+scan_paths = ["include/chronon3d/backends/software/software_renderer.hpp"]
+skip_comments = true
+
+[[scan]]
+name = "preset_catalog_no_magic_statics"
+patterns = [
+  'motion_preset_catalog\([^)]*\)\s*\{\s*static\s+const',
+  'builtin_text_preset_registry\([^)]*\)\s*\{\s*static\s+const',
+]
+scan_paths = ["include", "src"]
+multiline = true
+skip_comments = true
+
+[[scan]]
+name = "compiled_resource_no_parallel_authority"
+patterns = [
+  '\b(?:struct|class)\s+PhysicalFramebufferAllocationPlan\b',
+  '#\s*include\s*[<"](?:[^>"]*/)?physical_framebuffer_allocation\.hpp[>"]',
+  '\bbuild_physical_framebuffer_allocation_plan\s*\(',
+  'std::vector\s*<\s*ResourceLifetime\s*>\s+lifetimes\b',
+  'std::vector\s*<\s*std::size_t\s*>\s+consumer_counts\b',
+  '\bphysical_framebuffer_plan\b',
+  '(?:\.|->)\s*lifetimes\b',
+  '(?:\.|->)\s*consumer_counts\b',
+  '\b(?:CompiledResourceRecord|ResourceLifetime)\b',
+  '\bkInvalidPhysicalFramebufferSlot\b',
+]
+scan_paths = ["include", "src"]
+allow_list = ['include/chronon3d/render_graph/compiler/compiled_resource_table\.hpp']
+skip_comments = true
+
+[[scan]]
+name = "dual_text_pin_anchor_text_cooccurrence"
+cooccurrence_patterns = ['\bpin_to\s*\(', '\bTextAnchor::', '\.text\s*\(']
+scan_paths = ["include", "src", "tests", "apps"]
+skip_comments = true
+
+[[occurrence_cap]]
+name = "placement_text_defaults_position_cap"
+pattern = 'TextDefaults::position'
+scan_paths = ["include", "src", "apps"]
+max_count = 200
+skip_comments = true
+
+[[occurrence_cap]]
+name = "dual_text_position_assignment_cap"
+pattern = '\.position(?=\s*[={])'
+file_requires_pattern = '\bTextSpec\b'
+scan_paths = ["include", "src", "tests", "apps"]
+allow_list = ['include/chronon3d/scene/builders/builder_params\.hpp']
+max_count = 76
+skip_comments = true
+
+[[unique_source_owner]]
+name = "asset_canonical_authority"
+canonical_pattern = 'class AssetRef'
+canonical_path = "include/chronon3d/assets/asset_ref.hpp"
+expected_count = 1
+legacy_patterns = ['^struct Asset\b', '^class Asset\b', 'AssetHandle\b', '\bAssetPath\b']
+legacy_ignore_paths = ['include/chronon3d/authoring/asset\.hpp']
+legacy_soft_cap = 0
+
+[[unique_source_owner]]
+name = "placement_canonical_authority"
+canonical_pattern = 'struct TextPlacement'
+canonical_path = "include/chronon3d/text/text_placement.hpp"
+expected_count = 1
+legacy_patterns = ['TextDefaults::position']
+legacy_count_mode = "occurrences"
+legacy_soft_cap = 200
+
+[[contract]]
+name = "compiled_resource_table_contract"
+file = "include/chronon3d/render_graph/compiler/compiled_resource_table.hpp"
+required_patterns = [
+  'struct CompiledResourcePlan',
+  'struct CompiledResourceTable',
+  'std::vector<CompiledResourcePlan> resources',
+  'std::vector<runtime::PhysicalResourceSlot> slots',
+  'resource_for\s*\(',
+  'release_schedule\s*\(',
+]
+forbidden_patterns = [
+  '\bphysical_framebuffer_plan\b',
+  '\blifetimes\b',
+  '\bCompiledResourceRecord\b',
+  '\bResourceLifetime\b',
+  '\bkInvalidPhysicalFramebufferSlot\b',
+  '\ballocation_for\s*\(',
+]
+
+[[contract]]
+name = "compiled_frame_graph_resource_boundary"
+file = "include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp"
+required_patterns = ['CompiledResourceTable', 'resource_table\s*\(']
+
+[[contract]]
+name = "render_to_media_surface_contract"
+file = "include/chronon3d/media/render_to_media.hpp"
+required_patterns = [
+  'struct MediaSurfaceDesc',
+  'using ColorDescription = runtime::FrameFormat',
+  'enum class ZeroCopyPolicy',
+  'class RenderToMediaResolver',
+  'CompiledResourceTable& table',
+  'ResourceSubresource::Plane0',
+  'ResourceSubresource::Plane1',
+  'ZeroCopyProof::Proven',
+]
+forbidden_patterns = [
+  'release_after_level',
+  'release_schedule',
+  'ResourceStateTracker',
+  'std::vector<runtime::ResourceTransition>',
+  'std::vector<ResourceTransition>',
+]
+
+[[contract]]
+name = "render_to_media_compiled_graph_contract"
+file = "include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp"
+required_patterns = [
+  'std::optional<::chronon3d::media::RenderToMediaPlan> render_to_media',
+  'PassQueryArena query_arena',
+  'operation.pass_timing = query_arena.allocate\(\)',
+]
+
+[[contract]]
+name = "render_to_media_serializer_contract"
+file = "include/chronon3d/render_graph/compiler/compiled_frame_graph_serializer.hpp"
+required_patterns = [
+  'serialize_compiled_frame_graph\s*\(',
+  'serialize_compiled_frame_graph_dot\s*\(',
+  'physical_allocations',
+  'dependencies',
+  'make_render_receipt\s*\(',
+  'receipt.output = sink.finalize\(\)',
+  'receipt.pass_timings',
+  'receipt.total_gpu_time_ns',
+]
+
+[[contract]]
+name = "render_to_media_output_sink_contract"
+file = "include/chronon3d/runtime/output_sink.hpp"
+required_patterns = [
+  'OutputSinkMode::AppendOnly',
+  'OutputSinkMode::Seekable',
+  'hash_final_content_impl\(\)',
+  'finalize\(\)',
+  'if \(m_mode == OutputSinkMode::Seekable\)',
+]
+
+[[required_path]]
+name = "effect_subsystem_canonical_paths"
+paths = [
+  "src/backends/software/effects",
+  "src/backends/software/effects/CMakeLists.txt",
+]
+
+[[presence]]
+name = "render_visibility_audit_cli_presence"
+pattern = 'audit_text_visibility'
+scan_paths = ["apps/chronon3d_cli"]
+min_matches = 1
+
+[[presence]]
+name = "render_visibility_audit_sdk_presence"
+pattern = 'audit_text_visibility'
+scan_paths = ["src"]
+min_matches = 1
+
+[test_registration]
+name = "test_registration_recursive"
+
+[cmake_registry]
+name = "cmake_module_registry"
+registry_file = "cmake/Chronon3DRegistry.cmake"
+
+[vcpkg_parity]
+name = "vcpkg_find_package_parity"
+manifest = "vcpkg.json"
+cmake_files = ["CMakeLists.txt"]
+system_allow = ["Threads", "EXPAT", "Python3"]
+
+[vcpkg_parity.package_map]
+hwy = "highway"
+magic_enum = "magic-enum"
+nlohmann_json = "nlohmann-json"
+boost_spirit = "boost-spirit"
+boost_math = "boost-math"
+unofficial = "sqlite3"
+VulkanMemoryAllocator = "vulkan-memory-allocator"
+Stb = "stb"
+TBB = "tbb"
+OpenColorIO = "opencolorio"
+OpenEXR = "openexr"
+ICU = "icu"
+CLI11 = "cli11"
+
+[sdk_public_deps]
+name = "sdk_public_deps_wiring"
+registry_file = "cmake/Chronon3DRegistry.cmake"
+template_file = "cmake/Chronon3DConfig.cmake.in"
+
+[public_include_resolution]
+name = "src_only_header_public_include"
+scan_paths = ["include", "src", "tests", "apps"]
