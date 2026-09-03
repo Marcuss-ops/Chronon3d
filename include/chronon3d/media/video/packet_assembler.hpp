@@ -68,7 +68,7 @@ struct SegmentAssemblyRequest {
 struct SegmentAssemblyResult {
     bool success{false};
     std::string reason;
-    /// Lowercase XXH64 digest of the exact final muxed file bytes.
+    /// Lowercase SHA-256 digest of the exact final muxed file bytes.
     std::string output_checksum;
     /// True only when seek/backpatch forced a final-file checksum reread.
     bool checksum_used_reread{false};
@@ -134,6 +134,7 @@ private:
     std::string output_path_;
     std::string output_checksum_;
     bool checksum_used_reread_{false};
+    bool finalize_attempted_{false};
     bool finalized_{false};
     double open_header_ms_{0.0};
     double packet_write_ms_{0.0};
