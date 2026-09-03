@@ -90,8 +90,8 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph::ExecutionScope root_scope = graph::ExecutionScope::make_root(
         session, session.arena(), compiled.graph_instance_id);
     auto& executor = renderer->runtime().executor(); // Section 5 fix.
-    auto fb = executor.execute_with_scope(
-        compiled, graph_ctx, root_scope, scheduler);
+    auto fb = executor.execute(
+        compiled, graph_ctx, root_scope, scheduler).framebuffer;
 
     if (!fb) {
         spdlog::error("[bake-layer] Bake failed: layer '{}' produced no framebuffer",

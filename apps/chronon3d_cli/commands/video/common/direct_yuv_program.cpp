@@ -314,9 +314,20 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     (void)decoder; (void)frame;
     return nullptr;
 #else
-    auto decoded = decoder.decode_native_frame(
-        video_path_, frame, width_, height_, 0.0f);
-    if (!decoded || !composition_) return nullptr;
+    auto decoded = decoder.decode_native_frame_at(
+        video_path_, composition_->frame_rate().presentation_time(frame), width_, height_);
+    if (!decoded) {
+        if (const auto diagnostic = decoder.last_decode_diagnostic()) {
+            spdlog::error(
+                "[direct-yuv] native decode failed at frame={} reason={} ffmpeg_error={} pts={} dts={} source_order={} message={}",
+                frame.integral(), static_cast<int>(diagnostic->reason), diagnostic->ffmpeg_error,
+                diagnostic->pts, diagnostic->dts, diagnostic->source_order, diagnostic->message);
+        } else {
+            spdlog::error("[direct-yuv] native decode failed at frame={} without diagnostic", frame.integral());
+        }
+        return nullptr;
+    }
+    if (!composition_) return nullptr;
 
     auto result = std::make_shared<DirectYuvFrame>();
     result->decoded = std::move(decoded);

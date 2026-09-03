@@ -123,7 +123,7 @@ SceneGraphStats analyze_scene_graph(
         // anchor stays consistent with the canonical body.
         ExecutionScope root_scope = ExecutionScope::make_root(
             session, session.arena(), compiled.graph_instance_id);
-        fb_shared = executor.execute_with_scope(compiled, ctx, root_scope, scheduler);
+        fb_shared = executor.execute(compiled, ctx, root_scope, scheduler).framebuffer;
     }
     const auto t_exec1 = profiling::now();
         stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);

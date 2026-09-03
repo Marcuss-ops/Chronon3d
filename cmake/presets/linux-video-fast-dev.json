@@ -13,8 +13,9 @@
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_VERIFICATION": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_EXR": "OFF",
@@ -31,7 +32,7 @@
         "CHRONON3D_DEV_SPLIT_DWARF": "ON",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;ipc"
       }
     },
     {

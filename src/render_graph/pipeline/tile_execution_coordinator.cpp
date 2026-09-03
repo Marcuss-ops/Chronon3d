@@ -161,15 +161,15 @@ TileExecutionResult execute_tile_or_fallback(
                 GraphExecutor compatibility_executor;
                 ExecutionScheduler compatibility_scheduler{
                     SchedulerMode::Sequential, 1, false};
-                result.fb = compatibility_executor.execute_with_scope(
-                    compiled, ctx, root_scope, compatibility_scheduler);
+                result.fb = compatibility_executor.execute(
+                    compiled, ctx, root_scope, compatibility_scheduler).framebuffer;
             } else {
                 // PR 6.2 — root_scope constructed in
                 // render_scene_via_graph() binds session + graph identity;
                 // production calls use the sole runtime-owned executor.
-                result.fb = sw_renderer->runtime().executor().execute_with_scope(
+                result.fb = sw_renderer->runtime().executor().execute(
                     compiled, ctx, root_scope,
-                    sw_renderer->scheduler());
+                    sw_renderer->scheduler()).framebuffer;
             }
             // P0-1 — GraphExecutor returns nullptr when a node surfaced a
             // backend error (frame_error slot).  Propagate the null result

@@ -166,16 +166,17 @@ PreparedRenderJob RenderEngine::prepare(
             const auto& lifetime = graph->lifetimes[id];
             const bool persistent = allocation.persistent || allocation.async_use;
             planner.add(runtime::ResourceRequest{
-                .id = std::string{"GraphNode["} + std::to_string(id) + "]",
-                .kind = runtime::ResourceKind::Color,
-                .bytes = static_cast<std::size_t>(comp.width()) *
+                std::string{"GraphNode["} + std::to_string(id) + "]",
+                runtime::ResourceKind::Color,
+                static_cast<std::size_t>(comp.width()) *
                     static_cast<std::size_t>(comp.height()) * sizeof(Color),
-                .lifetime = persistent
+                persistent
                     ? runtime::LifetimeClass::JobPersistent
                     : runtime::LifetimeClass::FrameTransient,
-                .first = persistent ? 0 : lifetime.first_level,
-                .last = persistent ? 0 : lifetime.last_level,
-                .alignment = alignof(Color)});
+                persistent ? std::size_t{0} : lifetime.first_level,
+                persistent ? std::size_t{0} : lifetime.last_level,
+                alignof(Color),
+                runtime::ResourceDesc{}});
         }
     }
     const auto rgba_bytes = static_cast<std::size_t>(comp.width()) *
@@ -183,13 +184,14 @@ PreparedRenderJob RenderEngine::prepare(
     for (std::size_t slot = 0; slot < options.pipeline_depth; ++slot) {
         const auto id = std::string{"FrameSlot["} + std::to_string(slot) + "].rgba";
         planner.add(runtime::ResourceRequest{
-            .id = id,
-            .kind = runtime::ResourceKind::Color,
-            .bytes = rgba_bytes,
-            .lifetime = runtime::LifetimeClass::PipelineSlot,
-            .first = 0,
-            .last = options.pipeline_depth - 1,
-            .alignment = 64});
+            id,
+            runtime::ResourceKind::Color,
+            rgba_bytes,
+            runtime::LifetimeClass::PipelineSlot,
+            std::size_t{0},
+            options.pipeline_depth - 1,
+            std::size_t{64},
+            runtime::ResourceDesc{}});
     }
     impl->resource_plan = planner.build();
     return PreparedRenderJob(std::move(impl));
