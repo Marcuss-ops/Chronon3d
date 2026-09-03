@@ -7,6 +7,7 @@
 // Each preset returns a fully-configured TextDefinition with sensible
 // defaults for the target use case.  All presets use the canonical
 // TextDefinition → LayerBuilder::text() pipeline (F2.C).
+// Golden coverage: tests/text_golden/presets/test_presets_golden.cpp.
 //
 // Usage:
 //   #include <chronon3d/presets/text_presets.hpp>
@@ -18,7 +19,7 @@
 //   l.text("hero", presets::kinetic_hero_preset("UNLEASH CREATIVITY", canvas));
 //   l.text("low3", presets::lower_third_preset("John Doe • Creative Director", canvas));
 //
-// Golden tests: tests/text_golden/presets/test_text_presets_golden.cpp
+// Golden tests: tests/text_golden/presets/test_presets_golden.cpp
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/presets/text/preset_constraints.hpp>  // TextBoxConstraints, AspectRatioPolicy, resolve_text_box_constraints
@@ -269,37 +270,4 @@ using text::resolve_text_box_constraints;
     return def;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Deprecated overloads — migration shims for the old hard-coded 1920×1080 API.
-// These overloads are provided temporarily so existing callers compile while
-// they migrate to the responsive CanvasInfo-based API.  They will be removed
-// once all callers have been updated.
-// ═══════════════════════════════════════════════════════════════════════════
-
-[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1.")]]
-[[nodiscard]] inline TextDefinition title_preset(std::string text) noexcept {
-    return title_preset(std::move(text), CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-}
-
-[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1.")]]
-[[nodiscard]] inline TextDefinition subtitle_preset(std::string text) noexcept {
-    return subtitle_preset(std::move(text), CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-}
-
-[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1.")]]
-[[nodiscard]] inline TextDefinition caption_preset(std::string text) noexcept {
-    return caption_preset(std::move(text), CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-}
-
-[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1.")]]
-[[nodiscard]] inline TextDefinition kinetic_hero_preset(std::string text) noexcept {
-    return kinetic_hero_preset(std::move(text), CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-}
-
-[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1.")]]
-[[nodiscard]] inline TextDefinition lower_third_preset(std::string text) noexcept {
-    return lower_third_preset(std::move(text), CanvasInfo::from_dimensions(1920.0f, 1080.0f));
-}
-
 } // namespace chronon3d::presets
-

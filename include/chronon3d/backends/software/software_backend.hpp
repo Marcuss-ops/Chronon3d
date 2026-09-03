@@ -120,12 +120,7 @@ public:
     [[nodiscard]] std::optional<graph::RenderBackendError> validate_render_node(
         const RenderNode& node) const override;
 
-    [[deprecated("Use processor_snapshot() and handles instead")]]
-    [[nodiscard]] renderer::ShapeProcessor* resolve_shape_processor(
-        const RenderNode& node) const noexcept override;
-    [[deprecated("Use processor_snapshot() and handles instead")]]
-    [[nodiscard]] renderer::EffectProcessor* resolve_effect_processor(
-        std::type_index params_type) const noexcept override;
+
     [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
     processor_snapshot() const noexcept override;
     [[nodiscard]] bool requires_processor_snapshot() const noexcept override {

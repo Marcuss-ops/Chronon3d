@@ -9,7 +9,6 @@ set(_cli_tests_link_targets
     chronon3d_sdk
     chronon3d_sdk_impl
     chronon3d_pipeline
-    chronon3d_vidrush
     chronon3d_scene
     chronon3d_backend_software
     chronon3d_backend_image
@@ -26,7 +25,6 @@ set(_cli_test_sources
     cli/test_populate_run_host_attribs.cpp
     cli/test_render_job_write_frame_sanity.cpp
     cli/test_semantic_script.cpp
-    cli/test_vidrush_visual_unit_report.cpp
 )
 
 # Video exporter tests are appended only when the implementation target exists.

@@ -89,18 +89,6 @@ public:
         return true;
     }
 
-    renderer::ShapeProcessor* resolve_shape_processor(
-        const RenderNode&) const noexcept override {
-        ++m_shape_resolve_calls;
-        return reinterpret_cast<renderer::ShapeProcessor*>(1);
-    }
-
-    renderer::EffectProcessor* resolve_effect_processor(
-        std::type_index) const noexcept override {
-        ++m_effect_resolve_calls;
-        return reinterpret_cast<renderer::EffectProcessor*>(1);
-    }
-
     std::optional<chronon3d::graph::RenderBackendError> validate_render_node(
         const RenderNode&) const override {
         ++m_validation_calls;
@@ -127,19 +115,11 @@ public:
     [[nodiscard]] int validation_calls() const noexcept {
         return m_validation_calls;
     }
-    [[nodiscard]] int shape_resolve_calls() const noexcept {
-        return m_shape_resolve_calls;
-    }
-    [[nodiscard]] int effect_resolve_calls() const noexcept {
-        return m_effect_resolve_calls;
-    }
 
 private:
     bool m_missing_processor{false};
     std::shared_ptr<const renderer::ProcessorRegistrySnapshot> m_snapshot;
     mutable int m_validation_calls{0};
-    mutable int m_shape_resolve_calls{0};
-    mutable int m_effect_resolve_calls{0};
 };
 
 class CompilerTestNode final : public RenderGraphNode {
@@ -607,7 +587,6 @@ TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
     CHECK(compiled.effect_processor_table[
               compiled.nodes[effect_id].effect_processors_offset].valid());
     CHECK(compiled.processor_snapshot != nullptr);
-    CHECK(backend.effect_resolve_calls() == 0);
 }
 
 TEST_CASE("FrameGraphCompiler - rejects snapshot generation mismatch") {
@@ -655,7 +634,6 @@ TEST_CASE("FrameGraphCompiler - reuse rejects a different same-generation snapsh
     REQUIRE(rebuilt.valid);
     CHECK(rebuilt.processor_snapshot_identity == second_snapshot->identity());
     CHECK(rebuilt.processor_snapshot != prior.processor_snapshot);
-    CHECK(second_backend.shape_resolve_calls() == 0);
 }
 
 TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
@@ -669,12 +647,10 @@ TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
 
     auto prior = compiler.compile(make_single_source_graph(ShapeType::Rect), ctx, options);
     REQUIRE(prior.valid);
-    CHECK(backend.shape_resolve_calls() == 0);
 
     auto reused = compiler.compile_with_reuse(
         make_single_source_graph(ShapeType::Rect), ctx, prior, options);
     REQUIRE(reused.valid);
-    CHECK(backend.shape_resolve_calls() == 0);
     CHECK(reused.registry_generation == ctx.services.registry_generation);
     CHECK(reused.processor_snapshot == prior.processor_snapshot);
     CHECK(reused.processor_snapshot_identity == prior.processor_snapshot_identity);

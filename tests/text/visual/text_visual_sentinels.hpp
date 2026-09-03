@@ -2,8 +2,8 @@
 // tests/text/visual/text_visual_sentinels.hpp — Phase-2.1 P0 split
 //
 // 128 explicit sentinel constants (16 presets × 8 each: 4 timestamps ×
-// 2 aspect ratios).  Mechanical split-off from
-// tests/test_text_preset_registry.cpp (formerly 248–440 LOC).  // drift-allow: stale-ref
+// 2 aspect ratios).  Mechanical split-off from the retired
+// tests/test_text_preset_registry.cpp (formerly 248–440 LOC).  // drift-class: historical (test retired in text-preset consolidation)
 //
 // Per user spec: `i sentinels sono in file dati (non logica test)`.
 // This header holds ONLY constexpr uint64_t data + header comments.

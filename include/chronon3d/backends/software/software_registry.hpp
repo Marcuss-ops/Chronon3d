@@ -54,19 +54,7 @@ public:
         return it != m_effects.end() ? it->second : nullptr;
     }
 
-    /// Legacy non-owning adapters. Returned pointers are valid only for the
-    /// immediate call and must not be retained across registry/engine
-    /// shutdown. New dispatch code must use the shared accessors or capture
-    /// a ProcessorRegistrySnapshot.
-    [[deprecated("Use get_shape_shared() to retain processor lifetime")]]
-    ShapeProcessor* get_shape(ShapeType type) const {
-        return get_shape_shared(type).get();
-    }
 
-    [[deprecated("Use get_effect_shared() to retain processor lifetime")]]
-    EffectProcessor* get_effect(std::type_index type) const {
-        return get_effect_shared(type).get();
-    }
 
     /// Capture the current engine-local processor ownership and mapping.
     /// Entries are sorted so handle indices are deterministic despite the

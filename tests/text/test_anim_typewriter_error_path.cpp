@@ -36,7 +36,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_error.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
-#include <content/text/text_helpers_typewriter.hpp>
+#include <chronon3d/text/typewriter_layout.hpp>  // core home of the retired content declarations
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>

@@ -32,7 +32,8 @@ TEST_CASE("store makes matching dimensions available") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 1920, 1080);
 
     CHECK(cache.has(1920, 1080));
@@ -43,7 +44,8 @@ TEST_CASE("try_take consumes the cached graph") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 1920, 1080);
 
     CHECK(cache.has(1920, 1080));
@@ -60,7 +62,8 @@ TEST_CASE("dimension mismatch does not consume the graph") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 1920, 1080);
 
     // Wrong dimensions — should return nullopt and NOT consume.
@@ -79,7 +82,8 @@ TEST_CASE("reset clears dimensions and payload") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 640, 480);
 
     CHECK(cache.has(640, 480));
@@ -108,7 +112,8 @@ TEST_CASE("cache present but dimension mismatch → build fresh") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 1920, 1080);
 
     ctx.services.compiled_graph_cache = &cache;
@@ -123,7 +128,8 @@ TEST_CASE("cache compatible → reuse available") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 3840, 2160);
 
     ctx.services.compiled_graph_cache = &cache;
@@ -149,7 +155,8 @@ TEST_CASE("cache domains reset independently") {
     REQUIRE(runtime.node_cache().contains(node_key));
 
     chronon3d::graph::RenderGraph graph;
-    chronon3d::graph::CompiledFrameGraph compiled(std::move(graph));
+    chronon3d::graph::CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     runtime.graph_cache().store(std::move(compiled), 16, 16);
     REQUIRE(runtime.graph_cache().has(16, 16));
 
@@ -222,7 +229,8 @@ TEST_CASE("cache domain facades reset independently in sequential random and rev
 
     for (const auto& order : orders) {
         chronon3d::graph::RenderGraph graph;
-        chronon3d::graph::CompiledFrameGraph compiled(std::move(graph));
+        chronon3d::graph::CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
         runtime.graph_cache().store(std::move(compiled), 8, 8);
         runtime.node_cache().store(
             key, std::make_shared<chronon3d::Framebuffer>(8, 8));
@@ -264,7 +272,8 @@ TEST_CASE("try_take consumes the value (coordinator path)") {
     CompiledGraphCache cache;
 
     RenderGraph graph;
-    CompiledFrameGraph compiled(std::move(graph));
+    CompiledFrameGraph compiled;
+    compiled.graph = std::move(graph);
     cache.store(std::move(compiled), 1920, 1080);
 
     ctx.services.compiled_graph_cache = &cache;

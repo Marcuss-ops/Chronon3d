@@ -12,7 +12,7 @@
 //   - `const CameraTransitionCatalog& get_transition_catalog();`
 //   - `void register_camera_v1_builtins();`
 //
-// These violated the CAM-05 per-job ownership rule (DOC 03 §5) because
+// These violated the CAM-05 per-job ownership rule (camera-plan DOC 03 §5, doc retired) because
 // they froze the catalog during static initialization, then exposed a
 // process-wide singleton that any `ShotTimelineResolver` could reach via
 // a global lookup.  The `CameraTransitionCatalog` itself owns a
@@ -31,7 +31,7 @@
 //      register_defaults()`. External callers (including unit tests) get
 //      the built-ins through `register_camera_v1_builtins_into(catalog)`.
 //
-// Reference: docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md
+// Reference: docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md  // drift-class: historical (camera-plan design docs retired)
 //            §5 (Per-job ownership enforcement).
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/register_camera_v1.hpp>
