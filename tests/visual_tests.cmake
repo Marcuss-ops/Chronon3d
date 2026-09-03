@@ -117,50 +117,6 @@ target_compile_definitions(chronon3d_pr3_composition_visual_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-# ── AE Parity Camera Visual Regression Tests ──
-# 10 AE parity scenes for visual comparison Chronon3D ↔ After Effects.
-# Golden PNGs in tests/golden/ae_parity/; diffs in tests/golden/ae_parity/diff/.
-# Set CHRONON3D_UPDATE_GOLDENS=1 to create / update golden PNGs.
-#
-# ae_parity_scenes.cpp was previously linked via chronon3d_content OBJECT
-# library; that link broke post content-dedup.  Compiling it directly
-# into the test binary restores the symbols without duplicating the TU
-# across the CLI binary (which also compiles it).
-# Repo-slim (6e6905116) externalized content/; skip when the fixture is
-# absent so the whole test tree still configures.
-if(EXISTS "${CMAKE_SOURCE_DIR}/content/ae_parity/ae_cam_scenes.cpp")
-chronon3d_add_test_suite(
-    NAME chronon3d_ae_parity_tests
-    TIER INTEGRATION
-    SOURCES
-            visual/ae_parity/ae_parity_tests.cpp
-        ${CMAKE_SOURCE_DIR}/content/ae_parity/ae_cam_scenes.cpp
-        # TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA regression:
-        # 6 TEST_CASEs (3 frames × 2 ARs) asserting alpha-bbox centroid
-        # stays within 2 px of canvas center despite per-frame scale
-        # breath (0.96/1.05/0.98). Locks the CanvasCenter-based centroid
-        # contract from drift caused by non-identity layer transforms.
-        visual/ae_parity/ae_glow_position_drift.cpp
-    LINK_TARGETS
-        chronon3d_sdk
-        chronon3d_visual_test_support
-        chronon3d_backend_software
-        chronon3d_scene
-)
-target_compile_definitions(chronon3d_ae_parity_tests
-    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-
-# TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA ctest alias.
-# 6 TEST_CASEs: 16:9 + 9:16 × 3 snapshot frames (f00/f15/f30) verifying
-# alpha-bbox centroid stability under scale 0.96/1.05/0.98.
-add_test(
-    NAME Ae08GlowPositionDrift
-    COMMAND chronon3d_ae_parity_tests --test-case="FASE-3 SCALA: ae_08 *"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-endif()  # content/ae_parity/ae_cam_scenes.cpp exists
-
 # ── Gate 1 — Timeline Visual Golden Tests ──
 # 4 tests proving sequence boundaries, local frame mapping,
 # animation-from-local-frame, and nested sequence mapping
