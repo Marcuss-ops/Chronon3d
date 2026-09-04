@@ -19,9 +19,6 @@ target_include_directories(chronon3d_cli_core PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
 )
-target_compile_definitions(chronon3d_cli_core PRIVATE
-    CHRONON3D_DAEMON_SPLIT_IMPL
-)
 target_link_libraries(chronon3d_cli_core PRIVATE
     chronon3d_pipeline
     CLI11::CLI11
