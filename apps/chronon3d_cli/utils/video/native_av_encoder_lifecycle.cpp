@@ -1,3 +1,19 @@
+#include "native_av_encoder.hpp"
+#include "native_av_encoder_internal.hpp"
+
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
+
+#include <mutex>
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
+
+namespace chronon3d::cli {
+using Clock = detail::NativeAvClock;
+using detail::elapsed_ms;
+
 bool NativeAvEncoder::close() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!codec_) {
@@ -101,3 +117,5 @@ void NativeAvEncoder::abort_open() noexcept {
 #endif
     open_complete_ = false;
 }
+
+} // namespace chronon3d::cli
