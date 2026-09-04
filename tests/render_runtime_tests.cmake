@@ -152,3 +152,8 @@ chronon3d_add_test_suite(
     TIER UNIT
     SOURCES runtime/test_semantic_core.cpp
 )
+chronon3d_add_test_suite(
+    NAME chronon3d_frame_execution_slot_tests
+    TIER UNIT
+    SOURCES runtime/test_frame_execution_slot_components.cpp
+)
