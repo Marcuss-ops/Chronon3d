@@ -17,7 +17,7 @@
 
 namespace chronon3d::graph {
 
-#include "executor_level_dispatch.inc"
+#include "executor_level_dispatch_detail.hpp"
 
 void execute_levels(
     RenderGraph& graph,
