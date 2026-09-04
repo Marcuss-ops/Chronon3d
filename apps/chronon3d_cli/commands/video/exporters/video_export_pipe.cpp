@@ -581,9 +581,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     if (session->direct_yuv_selected()) {
         dyuv_p.input_probe_ms = decode_stats.container_open_ms +
             decode_stats.stream_probe_ms + decode_stats.decoder_open_ms;
-        dyuv_p.scene_eval_ms = session->direct_yuv_session->program->scene_eval_ms();
-        dyuv_p.watermark_image_load_ms = session->direct_yuv_session->program->watermark_load_ms();
-        dyuv_p.watermark_cuda_upload_ms = session->direct_yuv_session->program->watermark_upload_ms();
+        // DirectYuvSession now exposes only the executor contract; the old
+        // private DirectYuvProgram timing hooks are intentionally unavailable.
     }
     dyuv_p.cuda_launch_ms = close_result.direct_yuv_cuda_launch_ms;
     dyuv_p.cuda_event_wait_ms = close_result.direct_yuv_cuda_wait_ms;

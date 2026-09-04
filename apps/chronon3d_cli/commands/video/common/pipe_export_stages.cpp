@@ -36,7 +36,7 @@ NativeSurfacePrep prepare_frame(
         return prep;
     }
 
-    prep.slot = ctx.execution_slots.acquire_lease(ctx.opts.cancellation_token);
+    prep.slot = ctx.execution_slots.acquire(ctx.opts.cancellation_token);
     if (!prep.slot.valid()) return prep;
 
     auto& execution_slot = prep.slot.slot();

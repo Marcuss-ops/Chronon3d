@@ -53,6 +53,14 @@ target_compile_definitions(chronon3d_vulkan_kernel_store_tests
     PRIVATE CHRONON3D_ENABLE_VULKAN)
 
 chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_surface_materializer_tests
+    TIER UNIT
+    SOURCES backends/test_vulkan_surface_materializer.cpp
+    LINK_TARGETS Vulkan::Vulkan doctest::doctest)
+target_compile_definitions(chronon3d_vulkan_surface_materializer_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)
+
+chronon3d_add_test_suite(
     NAME chronon3d_vulkan_submission_ring_tests
     TIER INTEGRATION
     SOURCES backends/test_vulkan_submission_ring.cpp
