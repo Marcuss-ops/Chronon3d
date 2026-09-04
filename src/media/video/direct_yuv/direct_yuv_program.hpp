@@ -1,7 +1,6 @@
 #pragma once
 
-#include "direct_yuv_frame.hpp"
-
+#include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/cuda_image_resource.hpp>
@@ -16,16 +15,14 @@ namespace chronon3d {
 class ImageCache;
 namespace media {
 class NativeVideoFrameDecoder;
-// The resource type is CUDA-only at implementation level, but the public
-// program holder also needs to compile in the non-CUDA video preset.
 class CudaImageResource;
 }
 }
 
-namespace chronon3d::cli {
+namespace chronon3d::media::video {
 
 struct DirectLayerResourceEntry {
-    std::shared_ptr<const media::CudaImageResource> gpu_resource;
+    std::shared_ptr<const ::chronon3d::media::CudaImageResource> gpu_resource;
     float native_width{0.0f};
     float native_height{0.0f};
     float local_offset_x{0.0f};
@@ -35,22 +32,21 @@ struct DirectLayerResourceEntry {
 
 struct DirectVideoLayer {
     std::string name;
-    video::VideoSource source;
+    ::chronon3d::video::VideoSource source;
 };
 
-/// Resolver-owned, precompiled program for the direct CUDA NV12 compositor.
-/// Supports 2D image overlays (scale, translate, opacity) and single-pass
-/// pre-rasterized text textures with zero CPU readback.
+/// Private compiled program used by DirectYuvExecutor. This type belongs to
+/// the media layer and is intentionally not exposed to CLI/export sessions.
 class DirectYuvProgram final {
 public:
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,
         ImageCache& image_cache,
-        std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
+        std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
         std::string& reason);
 
     [[nodiscard]] std::shared_ptr<DirectYuvFrame> execute(
-        media::NativeVideoFrameDecoder& decoder,
+        ::chronon3d::media::NativeVideoFrameDecoder& decoder,
         Frame frame) const;
 
     [[nodiscard]] const std::string& video_path() const noexcept { return video_path_; }
@@ -66,11 +62,11 @@ private:
     int height_{0};
     std::shared_ptr<const Composition> composition_;
     std::unordered_map<std::string, DirectLayerResourceEntry> layer_resources_;
-    std::vector<std::shared_ptr<const media::CudaImageResource>> persistent_resources_;
+    std::vector<std::shared_ptr<const ::chronon3d::media::CudaImageResource>> persistent_resources_;
     double scene_eval_ms_{0.0};
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};
-    mutable media::HwFrameRef last_decoded_{};
+    mutable ::chronon3d::media::HwFrameRef last_decoded_{};
 };
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::media::video

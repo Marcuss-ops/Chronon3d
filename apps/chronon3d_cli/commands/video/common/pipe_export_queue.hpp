@@ -4,7 +4,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/runtime/bounded_channel.hpp>
-#include "../../../utils/video/direct_yuv_frame.hpp"
+#include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/frame_execution_slot_ring.hpp>
 
@@ -15,11 +15,6 @@
 
 namespace chronon3d::cli {
 
-// ── Explicit frame variants ────────────────────────────────────────────────
-// Direct-YUV must not carry FullGraph ownership/lifetime state. Keeping the
-// two payloads as a variant makes accidental use of Vulkan surfaces or the
-// CPU arena in the direct path a type error instead of a convention.
-
 struct FullGraphFramePackage {
     Frame frame_number{0};
     runtime::FrameExecutionSlotRing::SlotLease slot;
@@ -29,7 +24,7 @@ struct FullGraphFramePackage {
 
 struct DirectYuvFramePackage {
     Frame frame_number{0};
-    std::shared_ptr<DirectYuvFrame> direct_yuv;
+    std::shared_ptr<media::video::DirectYuvFrame> direct_yuv;
 };
 
 using RenderFramePackage = std::variant<FullGraphFramePackage, DirectYuvFramePackage>;

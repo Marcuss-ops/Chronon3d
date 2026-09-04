@@ -26,7 +26,9 @@ extern "C" {
 #include <unordered_set>
 #include <utility>
 
-namespace chronon3d::cli {
+namespace chronon3d::media::video {
+namespace media = ::chronon3d::media;
+namespace source_video = ::chronon3d::video;
 namespace {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -113,21 +115,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     double watermark_load_ms = 0.0;
     double watermark_upload_ms = 0.0;
 
-    // ── Resource manifest preparation (compile once, not per frame) ────
-    // The pre-pass used to evaluate() every frame of the timeline to
-    // discover which layers appear anywhere in the composition — an entire
-    // extra logical traversal of the timeline before the render loop ran
-    // its own.  Composition layer membership is static: every layer that
-    // ever exists is present in a single evaluation, with its own from /
-    // duration window deciding visibility over time.  Static (non-animated)
-    // layers are prepared from that one scene directly; animated layers
-    // (keyframes or expressions on transform/opacity) get at most one
-    // representative evaluation inside their window for asset discovery,
-    // because image paths and text content are time-invariant for a layer.
     const auto prepare_t0 = profiling::now();
     const auto collect_layer = [&](const Layer& layer) -> bool {
-        // Returns true when the layer has been prepared (resource uploaded
-        // or explicitly skipped); false on a fatal failure.
         if (layer.video_source) return true;
         const std::string layer_name = std::string(layer.name);
         if (layer_resources.find(layer_name) != layer_resources.end()) return true;
@@ -248,15 +237,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                !animated(t.opacity) && !animated(t.blur);
     };
 
-    // Pass 1: prepare every static layer straight from the frame-0 scene.
     for (const auto& layer : scene_0.layers()) {
         if (!layer_is_static(layer)) continue;
         if (!collect_layer(layer)) return nullptr;
     }
-    // Pass 2: animated layers need one evaluation inside their active window
-    // to expose the layer at all (frame 0 may precede its from-frame). Text
-    // content and image paths are time-invariant per layer, so a single
-    // representative frame suffices for asset discovery.
     {
         std::unordered_set<std::string> pending;
         for (const auto& layer : scene_0.layers()) {
@@ -364,15 +348,13 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         if (layer.transform.opacity <= 0.001f) continue;
 
         if (layer.video_source) {
-            // The first video is the DirectYUV background supplied to the
-            // compositor. Every subsequent video becomes a native NV12 layer.
             if (video_layer_index++ == 0) continue;
             const auto overlay_index = video_layer_index - 2;
             if (overlay_index >= video_layers_.size()) return nullptr;
             const auto& overlay = video_layers_[overlay_index];
             const Frame local_frame = frame - layer.from;
             if (local_frame < 0) continue;
-            const Frame source_frame = video::map_video_frame(local_frame, overlay.source);
+            const Frame source_frame = source_video::map_video_frame(local_frame, overlay.source);
             const i64 source_fps = std::max<i64>(
                 1, static_cast<i64>(std::llround(overlay.source.source_fps)));
             auto overlay_frame = decoder.decode_native_frame_at(
@@ -486,4 +468,4 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 #endif
 }
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::media::video
