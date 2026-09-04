@@ -2,6 +2,11 @@
 // include/chronon3d/cache/compiled_artifact_cache.hpp
 //
 // CompiledArtifactCache — save/load compiled compositions to/from disk.
+// Cache family: ProgramCache (persistent I/O adapter).
+//
+// This type does not implement an in-memory cache primitive or eviction policy;
+// canonical runtime key/value caching remains delegated to cache::LruCache.
+// The "Cache" name describes persisted compiled-program reuse only.
 //
 // Pipeline:
 //   Save: CompiledComposition → FlatBuffers → zstd compress → atomic disk write
