@@ -5,15 +5,22 @@
 #include <chronon3d/backends/vulkan/gpu_kernel_registry.hpp>
 #include <vulkan/vulkan.h>
 
+// vulkan_backend_lifecycle_private.cpp persists the cache with
+// std::filesystem while constructing this owner. Keep that dependency
+// available from the private Vulkan kernel/cache boundary so a clean TU build
+// does not depend on unrelated transitive standard-library includes.
+#include <filesystem>
+
 namespace chronon3d::backends::vulkan {
 
-// Private owner of Vulkan compute pipelines and their layouts.
-// GpuKernelRegistry remains the single authority for the registered pipeline
-// set: destruction enumerates the registry itself rather than maintaining a
-// second hard-coded GpuKernelId list.
+// Private owner of Vulkan compute pipelines, their shared pipeline cache, and
+// their layouts. GpuKernelRegistry remains the single authority for the
+// registered semantic pipeline set; VkPipelineCache is only the Vulkan driver
+// cache used while creating those registered pipelines.
 class VulkanKernelStore {
 public:
     GpuKernelRegistry registry{};
+    VkPipelineCache pipeline_cache{VK_NULL_HANDLE};
     VkPipelineLayout general_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
@@ -27,6 +34,11 @@ public:
                 }
             });
         registry = {};
+
+        if (pipeline_cache != VK_NULL_HANDLE) {
+            vkDestroyPipelineCache(device, pipeline_cache, nullptr);
+            pipeline_cache = VK_NULL_HANDLE;
+        }
 
         if (general_layout != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, general_layout, nullptr);
