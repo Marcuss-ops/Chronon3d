@@ -1,9 +1,15 @@
-namespace {
+#include "pipe_export_session_internal.hpp"
+#include "temporal_render_bridge.hpp"
 
-struct NativeSurfacePrep {
-    RenderSettings video_settings{};
-    runtime::FrameExecutionSlotRing::SlotLease slot;
-};
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <spdlog/spdlog.h>
+
+#include <cstring>
+#include <span>
+#include <vector>
+
+namespace chronon3d::cli::detail {
 
 NativeSurfacePrep prepare_frame(
     const RenderLoopContext& ctx,
@@ -11,12 +17,6 @@ NativeSurfacePrep prepare_frame(
     Frame current_frame) {
     NativeSurfacePrep prep;
     prep.video_settings = settings;
-    // The resolved plan is authoritative when present, but older resolver
-    // paths may leave interop unset even though the caller explicitly chose
-    // require_gpu_native. In that case failing to acquire slot surfaces makes
-    // the graph render CPU-only and the later native-residency gate aborts
-    // after expensive frame evaluation. The explicit hot-path requirement is
-    // therefore also a native-graph request.
     const bool explicit_native_graph =
         ctx.opts.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
     const bool plan_requests_native_graph = explicit_native_graph ||
@@ -37,9 +37,7 @@ NativeSurfacePrep prepare_frame(
     }
 
     prep.slot = ctx.execution_slots.acquire_lease(ctx.opts.cancellation_token);
-    if (!prep.slot.valid()) {
-        return prep;
-    }
+    if (!prep.slot.valid()) return prep;
 
     auto& execution_slot = prep.slot.slot();
     if (!ctx.device_runtime) {
@@ -61,19 +59,6 @@ NativeSurfacePrep prepare_frame(
     prep.video_settings.native_video_source_surface = execution_slot.source_surface;
     return prep;
 }
-
-struct RenderOutcome {
-    std::shared_ptr<Framebuffer> fb;
-    FrameTimingProjection timing{};
-    std::chrono::steady_clock::time_point wall_start{};
-    double frame_ms{0.0};
-    double dirty_ratio{0.0};
-    bool dirty_rect_enabled{false};
-    std::optional<raster::BBox> dirty_rect;
-    bool tile_execution_used{false};
-    bool fast_path_reused{false};
-    bool graph_reused{false};
-};
 
 RenderOutcome render_frame(
     const RenderLoopContext& ctx,
@@ -106,14 +91,6 @@ RenderOutcome render_frame(
     return out;
 }
 
-struct EncodeOutcome {
-    bool pushed{false};
-    bool source_residency_failed{false};
-    RenderFramePackage package;
-    double wait_ms{0.0};
-    uint64_t node_cache_hits_after{0};
-};
-
 EncodeOutcome encode_frame(
     const RenderLoopContext& ctx,
     std::shared_ptr<Framebuffer> fb,
@@ -127,17 +104,14 @@ EncodeOutcome encode_frame(
     const auto q_size = ctx.queue.size_approx();
 
     if (ctx.counters) {
-        auto current_peak =
-            ctx.counters->io_queue_peak_depth.load(std::memory_order_relaxed);
+        auto current_peak = ctx.counters->io_queue_peak_depth.load(std::memory_order_relaxed);
         while (q_size > current_peak &&
                !ctx.counters->io_queue_peak_depth.compare_exchange_weak(
                    current_peak, q_size, std::memory_order_relaxed)) {
         }
     }
 
-    auto source_surface = fb
-        ? fb->surface_handle()
-        : runtime::kInvalidRenderSurfaceHandle;
+    auto source_surface = fb ? fb->surface_handle() : runtime::kInvalidRenderSurfaceHandle;
     auto* execution_slot = prep.slot.valid() ? &prep.slot.slot() : nullptr;
     if (source_surface == runtime::kInvalidRenderSurfaceHandle && execution_slot &&
         execution_slot->source_surface != runtime::kInvalidRenderSurfaceHandle &&
@@ -205,12 +179,9 @@ EncodeOutcome encode_frame(
     }
     if (execution_slot && execution_slot->native_surface != runtime::kInvalidRenderSurfaceHandle) {
         const bool submitted =
-            execution_slot->transition_interop_state(
-                runtime::InteropFrameState::VulkanRecording) &&
-            execution_slot->transition_interop_state(
-                runtime::InteropFrameState::VulkanSubmitted) &&
-            execution_slot->transition_interop_state(
-                runtime::InteropFrameState::VulkanComplete);
+            execution_slot->transition_interop_state(runtime::InteropFrameState::VulkanRecording) &&
+            execution_slot->transition_interop_state(runtime::InteropFrameState::VulkanSubmitted) &&
+            execution_slot->transition_interop_state(runtime::InteropFrameState::VulkanComplete);
         if (!submitted) {
             spdlog::error(
                 "[video] invalid Vulkan interop lifecycle for slot {} at frame {}",
@@ -228,13 +199,11 @@ EncodeOutcome encode_frame(
     ++status.frames_rendered;
 
     out.pushed = ctx.queue.push(out.package, ctx.opts.cancellation_token);
-    const auto wait_t1 = profiling::now();
-    out.wait_ms = profiling::duration_ms(wait_t0, wait_t1);
+    out.wait_ms = profiling::duration_ms(wait_t0, profiling::now());
 
     if (chronon3d::tracing::TracingActive()) {
-        const int64_t in_flight =
-            static_cast<int64_t>(ctx.queue.size_approx()) +
-            static_cast<int64_t>(ctx.execution_slots.busy_count());
+        const int64_t in_flight = static_cast<int64_t>(ctx.queue.size_approx()) +
+                                  static_cast<int64_t>(ctx.execution_slots.busy_count());
         CHRONON_TRACE_COUNTER("chronon.pipeline", "frames_in_flight", in_flight);
         const auto pool_stats = ctx.sw_renderer->framebuffer_pool()->stats();
         CHRONON_TRACE_COUNTER("chronon.pipeline", "framebuffer_pool_live_mb",
@@ -247,7 +216,6 @@ EncodeOutcome encode_frame(
         ctx.counters->io_queue_push_wait_ms.fetch_add(
             static_cast<uint64_t>(out.wait_ms), std::memory_order_relaxed);
     }
-
     out.node_cache_hits_after = ctx.node_cache.stats().hits;
     return out;
 }
@@ -259,4 +227,4 @@ void finalize_render_session(PipeExportStatus& status, Frame current_frame, Fram
     }
 }
 
-} // namespace
+} // namespace chronon3d::cli::detail

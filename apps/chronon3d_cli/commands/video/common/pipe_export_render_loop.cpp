@@ -1,4 +1,18 @@
+#include "pipe_export_session_internal.hpp"
+
+#include <chronon3d/core/profiling/profiling.hpp>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
+#include <spdlog/spdlog.h>
+
+#include <exception>
+
+namespace chronon3d::cli {
+
 RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
+    using namespace detail;
+
     RenderLoopResult result;
     auto& status = result.status;
     const int total = static_cast<int>(ctx.end - ctx.start);
@@ -12,27 +26,22 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 mark_pipe_cancelled(status, current_frame);
                 break;
             }
-
             if (ctx.writer_failed.load()) {
                 mark_pipe_writer_failed(status, current_frame);
                 break;
             }
 
-            int done_count = static_cast<int>(current_frame - ctx.start + 1);
+            const int done_count = static_cast<int>(current_frame - ctx.start + 1);
             if (should_log_pipe_progress(done_count, total)) {
                 spdlog::info("[video]   {}/{} frames", done_count, total);
             }
 
             auto current_arena = ctx.triple_arena->acquire();
             ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
-
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
-            NativeSurfacePrep prep =
-                prepare_frame(ctx, ctx.settings, current_frame);
-
-            RenderOutcome shot =
-                render_frame(ctx, prep.video_settings, current_frame);
+            NativeSurfacePrep prep = prepare_frame(ctx, ctx.settings, current_frame);
+            RenderOutcome shot = render_frame(ctx, prep.video_settings, current_frame);
             const auto& breakdown = shot.timing.breakdown;
             const auto& image_timing = shot.timing.image_timing;
             const auto& text_timing = shot.timing.text_timing;
@@ -97,7 +106,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 mark_pipe_writer_failed(status, current_frame);
                 break;
             }
-
             ++status.frames_enqueued;
 
             if (done_count % 25 == 0) {
@@ -122,7 +130,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             const bool cache_hit = shot.fast_path_reused ||
                 (enc.node_cache_hits_after > node_cache_hits_before);
-
             ctx.telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
                 .wall_start_ms = profiling::duration_ms(loop_t0, shot.wall_start),
@@ -155,3 +162,5 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     finalize_render_session(status, current_frame, ctx.end);
     return result;
 }
+
+} // namespace chronon3d::cli

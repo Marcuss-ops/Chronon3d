@@ -7,7 +7,9 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/exporters/pipe_export_pipeline.cpp
     commands/video/exporters/pipe_timing_sidecar.cpp
     commands/video/exporters/pipe_export_finalize.cpp
-    commands/video/common/pipe_export_session.cpp
+    commands/video/common/pipe_export_profile.cpp
+    commands/video/common/pipe_export_stages.cpp
+    commands/video/common/pipe_export_render_loop.cpp
     commands/video/common/pipe_export_direct_yuv.cpp
     commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
