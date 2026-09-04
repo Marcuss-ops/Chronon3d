@@ -14,7 +14,6 @@
 
 #include <spdlog/spdlog.h>
 
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -35,21 +34,27 @@ std::string resolve_output_path_for_telemetry(const std::string& output) {
     return resolved.lexically_normal().string();
 }
 
-void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) {
-    std::filesystem::path jsonl_path;
-    const char* env_path = std::getenv("CHRONON3D_TELEMETRY_PATH");
-    if (env_path && env_path[0] != '\0') {
-        std::filesystem::path env_base(env_path);
-        if (env_base.extension() == ".db" || env_base.extension() == ".sqlite") {
-            jsonl_path = env_base.parent_path() / "render_history.jsonl";
-        } else {
-            jsonl_path = env_base / "render_history.jsonl";
+std::filesystem::path resolve_jsonl_path(const RuntimePathConfig& runtime_paths) {
+    if (!runtime_paths.telemetry_path().empty()) {
+        std::filesystem::path base(runtime_paths.telemetry_path());
+        if (base.extension() == ".db" || base.extension() == ".sqlite") {
+            return base.parent_path() / "render_history.jsonl";
         }
-    } else {
-        const char* home = std::getenv("HOME");
-        if (!home) return;
-        jsonl_path = std::filesystem::path(home) /
-            ".chronon3d" / "telemetry" / "render_history.jsonl";
+        return base / "render_history.jsonl";
+    }
+
+    if (runtime_paths.telemetry_default_directory().empty()) {
+        return {};
+    }
+    return std::filesystem::path(runtime_paths.telemetry_default_directory()) /
+        "render_history.jsonl";
+}
+
+void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run,
+                        const RuntimePathConfig& runtime_paths) {
+    const std::filesystem::path jsonl_path = resolve_jsonl_path(runtime_paths);
+    if (jsonl_path.empty()) {
+        return;
     }
 
     std::error_code ec;
@@ -125,6 +130,15 @@ void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) 
     }
 }
 
+void release_transient_resources(RenderJobSetupResult& setup) {
+    auto& rt = setup.renderer->runtime();
+    rt.backend().release_frame_transient_surfaces();
+    for (const auto handle : rt.surface_registry().handles_with_lifetime(
+             runtime::LifetimeClass::FrameTransient)) {
+        (void)rt.surface_registry().release(handle);
+    }
+}
+
 } // anonymous namespace
 
 bool finalize_render_job(
@@ -143,6 +157,8 @@ bool finalize_render_job(
     if (!job.execution.report) {
         spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot(
             setup.renderer->runtime().diagnostics()));
+        release_transient_resources(setup);
+        return ok;
     }
 
     const auto wall_t1 = profiling::now();
@@ -263,38 +279,31 @@ bool finalize_render_job(
     (void)telemetry;
 #endif
 
-    if (job.execution.report) {
-        cli::telemetry::populate_run_host_attribs(run);
-        write_run_to_jsonl(run);
+    cli::telemetry::populate_run_host_attribs(run);
+    write_run_to_jsonl(run, setup.renderer->runtime().config().runtime());
 
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-        auto& tm = chronon3d::telemetry::TelemetryManager::instance();
-        tm.initialize_default_stores();
-        if (!tm.record_run(run, telemetry_frames, phases, counters_list)) {
-            spdlog::warn(
-                "[report] TelemetryManager::record_run reported failure for run {}",
-                run.run_id);
-        }
+    auto& tm = chronon3d::telemetry::TelemetryManager::instance();
+    tm.initialize_default_stores();
+    if (!tm.record_run(run, telemetry_frames, phases, counters_list)) {
+        spdlog::warn(
+            "[report] TelemetryManager::record_run reported failure for run {}",
+            run.run_id);
+    }
 #endif
 
-        RenderReportContext ctx;
-        ctx.run = run;
-        ctx.counters = counters_list;
-        ctx.phases = phases;
-        ctx.frames = telemetry_frames;
-        ctx.pool_current_bytes = pool_current_bytes;
-        ctx.pool_available_count = pool_available_count;
-        ctx.node_cache_top_entries = setup.renderer->node_cache().top_entries_by_weight(10);
-        ctx.command_line = job.execution.command_line;
-        generate_execution_report(ctx);
-    }
+    RenderReportContext ctx;
+    ctx.run = run;
+    ctx.counters = counters_list;
+    ctx.phases = phases;
+    ctx.frames = telemetry_frames;
+    ctx.pool_current_bytes = pool_current_bytes;
+    ctx.pool_available_count = pool_available_count;
+    ctx.node_cache_top_entries = setup.renderer->node_cache().top_entries_by_weight(10);
+    ctx.command_line = job.execution.command_line;
+    generate_execution_report(ctx);
 
-    auto& rt = setup.renderer->runtime();
-    rt.backend().release_frame_transient_surfaces();
-    for (const auto handle : rt.surface_registry().handles_with_lifetime(
-             runtime::LifetimeClass::FrameTransient)) {
-        (void)rt.surface_registry().release(handle);
-    }
+    release_transient_resources(setup);
     return ok;
 }
 
