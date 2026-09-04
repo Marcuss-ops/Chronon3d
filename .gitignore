@@ -130,6 +130,9 @@ temp/
 *.rej
 generated/
 
+# Local libabigail XML baseline. CI rebuilds the pinned baseline commit instead.
+tools/sdk/chronon3d_c.abi
+
 # ── vcpkg / third-party ────────────────────────────────────────────────────────
 vcpkg_installed/
 downloads/
