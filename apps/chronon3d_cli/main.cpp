@@ -10,7 +10,9 @@
 #include <tbb/global_control.h>
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include "cli_context.hpp"
 #include "cli_init.hpp"
 #include "commands/cli_groups.hpp"
@@ -24,8 +26,6 @@ int main(int argc, char** argv) {
     chronon3d::cli::record_process_start();
     chronon3d::cli::reset_startup_trace();
 
-    // Force construction of the default logger at the process boundary so
-    // logger setup is measured separately from CLI parsing and registration.
     {
         const auto t0 = chronon3d::profiling::now();
         (void)spdlog::default_logger();
@@ -35,10 +35,7 @@ int main(int argc, char** argv) {
     const auto cli_bootstrap_t0 = chronon3d::profiling::now();
 
 #ifdef CHRONON3D_ENABLE_CRASH_HANDLER
-    // Optional dev-mode crash handler.  A library must NOT install signal
-    // handlers in a client process; the CLI is an app boundary, so it may —
-    // but only when the developer explicitly opts in (keeps default CLI
-    // behavior identical to before).
+    // App-boundary opt-in: this getenv is intentionally not a runtime lookup.
     if (const char* env = std::getenv("CHRONON3D_DEV_CRASH_HANDLER")) {
         if (env[0] == '1' || env[0] == 'y' || env[0] == 'Y') {
             chronon3d::crash::install();
@@ -47,29 +44,6 @@ int main(int argc, char** argv) {
 #endif
 
     // ── Single concurrency budget ───────────────────────────────────────
-    //
-    // Architecture (certified by tests/core/test_concurrency_budget.cpp):
-    //
-    //   CpuBudget (render/decode/encode split)  ← single authority
-    //       ↓
-    //   tbb::global_control(max_allowed_parallelism, render_threads)  ← global cap
-    //       ↓
-    //   ExecutionScheduler::task_arena(slots = render_threads)  ← single arena
-    //       ↓
-    //   All tbb::parallel_for / for_each_tile calls go through the arena
-    //
-    // No oversubscription: frames are rendered sequentially (one frame
-    // thread).  All internal parallelism (tiles, effects, composite,
-    // blur, transform) uses the SAME capped TBB arena — no "N frame
-    // threads × T TBB workers = N*T explosion" possible.
-    //
-    // Unified CPU budget: render/decode/encode thread counts are derived
-    // from the hardware and the CHRONON3D_CPU_* environment variables.
-    // TBB is capped to the render pool so that decode/encode threads do
-    // not contend with the renderer.
-    //
-    // CHRONON3D_THREADS is preserved as a legacy override for the total
-    // budget input (and therefore the render pool / TBB global limit).
     std::size_t total_threads = std::thread::hardware_concurrency();
     if (const char* env_threads = std::getenv("CHRONON3D_THREADS")) {
         char* end = nullptr;
@@ -82,26 +56,30 @@ int main(int argc, char** argv) {
     const chronon3d::CpuBudget cpu_budget = chronon3d::cpu_budget_from_environment(
         static_cast<int>(total_threads));
 
+    // P2.11 — environment is resolved once at the application boundary.
+    // TelemetryManager receives immutable values and does not call getenv()
+    // from record/store code or any render-adjacent path.
+    const chronon3d::Config process_config =
+        chronon3d::Config::from_environment(cpu_budget);
+    chronon3d::telemetry::TelemetryManager::instance().configure({
+        .path_override = process_config.runtime().telemetry_path(),
+        .default_directory = process_config.runtime().telemetry_default_directory(),
+        .run_id_override = process_config.runtime().telemetry_run_id(),
+    });
+
     tbb::global_control tbb_control(
         tbb::global_control::max_allowed_parallelism,
-        static_cast<std::size_t>(cpu_budget.render_threads)
-    );
+        static_cast<std::size_t>(cpu_budget.render_threads));
 
-    // Reconstruct command line into CliContext
     std::string cmd_line;
     for (int i = 0; i < argc; ++i) {
         cmd_line += argv[i];
-        if (i < argc - 1) {
-            cmd_line += " ";
-        }
+        if (i < argc - 1) cmd_line += " ";
     }
 
     CLI::App app{"Chronon3d CLI - Motion Graphics Engine"};
     app.require_subcommand(1);
 
-    // Register content and built-in compositions into the registry.
-    // (CompositionRegistry now starts empty — compositions are added
-    //  explicitly via init_compositions()).
     const auto composition_t0 = chronon3d::profiling::now();
     chronon3d::CompositionRegistry registry;
     chronon3d::AssetRegistry assets;
@@ -120,9 +98,6 @@ int main(int argc, char** argv) {
     //   dev-video:   core + render + telemetry + video + dev
     //   full:        all groups
     chronon3d::cli::register_all_groups(app, ctx);
-
-    // NOTE: -benchmark_all and -report are handled via CLI11 aliases
-    // (see register_render_commands.cpp) — no argv mutation needed.
 
     try {
         chronon3d::cli::startup_trace().cli_bootstrap_ms =
