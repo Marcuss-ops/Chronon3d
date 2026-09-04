@@ -8,7 +8,9 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
-#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include <chronon3d/runtime/frame/frame_queue.hpp>
+#include <chronon3d/runtime/frame/frame_slot_pool.hpp>
+#include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -33,6 +35,8 @@
 namespace chronon3d {
 
 struct PreparedRenderJob::Impl {
+    static constexpr std::size_t kPipelineDepth = 3;
+
     struct SlotPayload {
         FrameArena arena{4u * 1024u * 1024u, true};
         std::optional<EvaluatedCompositionFrame> evaluated{};
@@ -50,17 +54,104 @@ struct PreparedRenderJob::Impl {
     Frame count{0};
     bool finished{false};
     runtime::ResourcePlan resource_plan;
-    runtime::FrameExecutionSlotRing slots{3};
-    std::array<SlotPayload, 3> payloads{};
+
+    // Canonical fixed-frame execution authorities. PreparedRenderJob owns
+    // orchestration only; slot storage/lifecycle, bounded handoff, and GPU
+    // completion state remain in their single-responsibility components.
+    runtime::GpuCompletionTracker gpu_completion{kPipelineDepth};
+    runtime::FrameSlotPool slot_pool{kPipelineDepth, gpu_completion};
+    runtime::FrameQueue evaluated_queue{kPipelineDepth};
+    runtime::FrameQueue rendered_queue{kPipelineDepth};
+
+    std::array<SlotPayload, kPipelineDepth> payloads{};
     std::uint64_t next_sequence{0};
 
     [[nodiscard]] SlotPayload& payload(const runtime::FrameExecutionSlot& slot) noexcept {
         return payloads[slot.slot_id];
     }
 
+    [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_evaluation() noexcept {
+        return slot_pool.try_acquire(runtime::FrameSlotState::Evaluating);
+    }
+
+    [[nodiscard]] bool publish_evaluated(runtime::FrameExecutionSlot& slot) noexcept {
+        if (!slot_pool.transition(
+                slot,
+                runtime::FrameSlotState::Evaluating,
+                runtime::FrameSlotState::Evaluated)) {
+            return false;
+        }
+        if (!evaluated_queue.try_push(slot.slot_id)) {
+            slot_pool.set_state(slot, runtime::FrameSlotState::Evaluating);
+            return false;
+        }
+        return true;
+    }
+
+    [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_render() noexcept {
+        runtime::FrameSlotId slot_id = 0;
+        return evaluated_queue.try_pop(slot_id) ? &slot_pool.slot(slot_id) : nullptr;
+    }
+
+    [[nodiscard]] bool publish_rendered(runtime::FrameExecutionSlot& slot) noexcept {
+        if (!slot_pool.transition(
+                slot,
+                runtime::FrameSlotState::Evaluated,
+                runtime::FrameSlotState::Rendered)) {
+            return false;
+        }
+        if (!rendered_queue.try_push(slot.slot_id)) {
+            slot_pool.set_state(slot, runtime::FrameSlotState::Evaluated);
+            return false;
+        }
+        return true;
+    }
+
+    [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_encoding() noexcept {
+        runtime::FrameSlotId slot_id = 0;
+        return rendered_queue.try_pop(slot_id) ? &slot_pool.slot(slot_id) : nullptr;
+    }
+
+    [[nodiscard]] bool begin_encoding(runtime::FrameExecutionSlot& slot) noexcept {
+        return slot_pool.transition(
+            slot,
+            runtime::FrameSlotState::Rendered,
+            runtime::FrameSlotState::Encoding);
+    }
+
+    void release_slot(runtime::FrameExecutionSlot& slot) noexcept {
+        gpu_completion.recycle(slot.slot_id);
+        slot.native_surface_ptr = 0;
+        slot.gpu_ready_sync = 0;
+        slot_pool.release(slot);
+    }
+
+    [[nodiscard]] bool release_encoded(runtime::FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) != runtime::FrameSlotState::Encoding) {
+            return false;
+        }
+        release_slot(slot);
+        return true;
+    }
+
+    [[nodiscard]] bool abort(runtime::FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) == runtime::FrameSlotState::Free) {
+            return false;
+        }
+        release_slot(slot);
+        return true;
+    }
+
+    [[nodiscard]] std::size_t rendered_depth() const noexcept {
+        return rendered_queue.size();
+    }
+
     void reset_slots() noexcept {
         for (auto& payload : payloads) payload.reset();
-        slots.reset();
+        evaluated_queue.clear();
+        rendered_queue.clear();
+        gpu_completion.reset();
+        slot_pool.reset();
     }
 
     [[nodiscard]] bool can_split_evaluation() const noexcept;
