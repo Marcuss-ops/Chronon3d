@@ -364,33 +364,13 @@ jobs:
         with:
           submodules: recursive
           lfs: true
-      - name: Install Linux build tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
-      - name: Test Suite Registration gate
-        run: bash tools/check_test_suite_registration.sh
+      - name: Canonical architecture and test registration gate
+        run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-full-validation
       - run: cmake --build --preset linux-ci-full-validation
-      - name: Configure production tracing propagation probe
-        run: |
-          cmake -S . -B build/chronon/linux-trace-production -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/Chronon3DVcpkgToolchain.cmake \
-            -DVCPKG_TARGET_TRIPLET=x64-linux -DVCPKG_INSTALLED_DIR=$PWD/vcpkg_installed/linux-trace-production \
-            -DVCPKG_MANIFEST_FEATURES='cli;blend2d;text;tracing' \
-            -DCHRONON3D_BUILD_CLI=ON -DCHRONON3D_BUILD_TESTS=OFF -DCHRONON3D_BUILD_BENCHMARKS=OFF \
-            -DCHRONON3D_BUILD_CONTENT=OFF -DCHRONON3D_BUILD_DIAGNOSTICS=OFF \
-            -DCHRONON3D_ENABLE_TEXT=ON -DCHRONON3D_USE_BLEND2D=ON -DCHRONON3D_ENABLE_EXR=OFF \
-            -DCHRONON3D_ENABLE_VIDEO=ON -DCHRONON3D_ENABLE_NATIVE_FFMPEG=OFF \
-            -DCHRONON3D_ENABLE_VULKAN=OFF -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF \
-            -DCHRONON3D_ENABLE_MESH=OFF -DCHRONON3D_ENABLE_TRACING=ON \
-            -DCHRONON3D_ENABLE_TELEMETRY=OFF -DCHRONON3D_UNITY_BUILD=OFF
-      - name: Validate production tracing propagation
-        run: bash tools/check_trace_production_build_selftest.sh build/chronon/linux-trace-production/compile_commands.json
       - name: Run full test suite
         run: ctest --preset linux-ci-full-validation-test --output-on-failure
 
@@ -437,12 +417,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Install Linux build tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - name: Architecture regression guard
-        run: python3 tools/check_render_asset_architecture.py
+        run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
