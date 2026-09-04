@@ -36,14 +36,15 @@ struct CachedDigest {
     double full_hash_ms{0.0};
 };
 
-// Process-persistent and shared by Direct-YUV, FullGraph, and future worker
-// jobs. Holding this mutex through a miss is intentional: it is the single-
-// flight guarantee. Two jobs cannot read and hash the same immutable asset at
-// the same time, while different assets remain safely serialized at this
-// small preflight boundary.
+// ContentCache family, preflight/cold-path member. Storage is delegated to the
+// single canonical cache primitive (LruCache). The outer mutex is only the
+// existing single-flight coordination boundary: it keeps metadata validation,
+// hashing and replacement atomic so two jobs never hash the same asset at once.
+// It is not a second cache engine and owns no entry container.
 class PreparedAssetDigestCache {
 public:
     static constexpr std::uint32_t kAlgorithmVersion = 1;
+    static constexpr std::size_t kMaxEntries = 4096;
 
     [[nodiscard]] Result<CachedDigest, AssetPreflightError> resolve(
         const std::filesystem::path& canonical,
@@ -54,24 +55,29 @@ public:
         std::uint64_t max_size) {
         const auto lookup_t0 = chronon3d::profiling::now();
         std::lock_guard<std::mutex> lock(m_mutex);
+        const auto key = canonical.generic_string();
+        auto found = m_entries.get(key);
         const double lookup_ms = chronon3d::profiling::duration_ms(
             lookup_t0, chronon3d::profiling::now());
         m_stats.cache_lookup_ms += lookup_ms;
-        const auto key = canonical.generic_string();
-        const auto found = m_entries.find(key);
-        const bool invalidated = found != m_entries.end();
-        if (found != m_entries.end() &&
-            found->second.algorithm_version == kAlgorithmVersion &&
-            found->second.byte_size == byte_size &&
-            found->second.timestamp == timestamp &&
-            found->second.identity == identity) {
+
+        const bool invalidated = found.has_value();
+        if (found &&
+            found->algorithm_version == kAlgorithmVersion &&
+            found->byte_size == byte_size &&
+            found->timestamp == timestamp &&
+            found->identity == identity) {
             ++m_stats.hits;
-            return CachedDigest{found->second.digest, true, false, 0U,
+            return CachedDigest{found->digest, true, false, 0U,
                                 lookup_ms, 0.0, 0.0};
         }
 
+        if (invalidated) {
+            (void)m_entries.erase(key, false);
+        }
         ++m_stats.misses;
         if (invalidated) ++m_stats.invalidations;
+
         const auto hash_t0 = chronon3d::profiling::now();
         auto digest = hash_file(canonical, logical_path, byte_size, max_size);
         if (!digest) return std::move(digest).error();
@@ -79,19 +85,23 @@ public:
             hash_t0, chronon3d::profiling::now());
         m_stats.bytes_hashed += byte_size;
         m_stats.full_hash_ms += hash_ms;
+
         const auto write_t0 = chronon3d::profiling::now();
-        m_entries[key] = DigestCacheEntry{kAlgorithmVersion, byte_size,
-                                           timestamp, identity, digest.value()};
+        m_entries.put(
+            key,
+            DigestCacheEntry{kAlgorithmVersion, byte_size, timestamp,
+                             identity, digest.value()});
         const double write_ms = chronon3d::profiling::duration_ms(
             write_t0, chronon3d::profiling::now());
         m_stats.cache_write_ms += write_ms;
+
         return CachedDigest{std::move(digest).value(), false, invalidated,
                             byte_size, lookup_ms, write_ms, hash_ms};
     }
 
     void discard(const std::filesystem::path& canonical) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_entries.erase(canonical.generic_string());
+        (void)m_entries.erase(canonical.generic_string(), false);
     }
 
     [[nodiscard]] AssetDigestCacheStats stats() const {
@@ -101,7 +111,8 @@ public:
 
 private:
     mutable std::mutex m_mutex;
-    std::unordered_map<std::string, DigestCacheEntry> m_entries;
+    chronon3d::cache::LruCache<std::string, DigestCacheEntry> m_entries{
+        kMaxEntries, 8, chronon3d::cache::CapacityMode::Count};
     AssetDigestCacheStats m_stats{};
 };
 
