@@ -64,12 +64,17 @@ SceneProgramCache::SceneProgramCache(
         m_diag_handle = diag->register_cache(
             CacheDomain::ScenePrograms,
             [this]() -> GenericCacheStats {
-                auto s = stats();
-                return {s.hits, s.misses, s.evictions, s.current_size,
-                        s.current_size /* weight == size in Count mode */};
+                if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+                return make_generic_cache_stats(m_cache.stats());
             },
-            [this] { clear(); },
-            [this] { return m_cache.capacity_mode(); },
+            [this] {
+                if (!m_diag_alive.load(std::memory_order_acquire)) return;
+                clear();
+            },
+            [this] {
+                if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Count;
+                return m_cache.capacity_mode();
+            },
             m_capacity);
     }
 }
