@@ -33,8 +33,15 @@ chronon3d_add_test_suite(
             video/reference_yuv_converter.cpp
             video/test_yuv_conversion_params.cpp
             video/test_native_frame_importer.cpp
-            video/test_cuda_p010_conversion.cpp
 )
+
+# P010 coverage has one owner per configuration. Native FFmpeg + CUDA builds
+# use the dedicated suite below; CUDA-only builds keep the contract here.
+# Non-CUDA builds no longer compile a vacuous CHECK(true) source.
+if(CHRONON3D_ENABLE_CUDA_INTEROP AND NOT CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_sources(chronon3d_media_video_tests PRIVATE video/test_cuda_p010_conversion.cpp)
+endif()
+
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     target_link_libraries(chronon3d_media_video_tests PRIVATE chronon3d_media_native)
 endif()

@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -30,6 +32,23 @@ struct SlowLoader {
 };
 
 } // namespace
+
+TEST_CASE("LruCache count mode evicts the least recently used entry") {
+    LruCache<std::int64_t, std::shared_ptr<int>> cache(
+        64, 1, CapacityMode::Count);
+
+    for (std::int64_t frame = 0; frame < 64; ++frame) {
+        cache.put(frame, std::make_shared<int>(static_cast<int>(frame)));
+    }
+
+    REQUIRE(cache.get(0).has_value());
+    cache.put(64, std::make_shared<int>(64));
+
+    CHECK(cache.get(0).has_value());
+    CHECK(!cache.get(1).has_value());
+    CHECK(cache.get(64).has_value());
+    CHECK(cache.stats().current_size == 64);
+}
 
 TEST_CASE("LruCache::compute_if_absent: loader called once for concurrent same-key loads") {
     // 1 shard forces the two threads onto the same lock, so we can

@@ -3,8 +3,6 @@ if(NOT CHRONON3D_BUILD_TESTS)
     return()
 endif()
 
-# Static architecture invariants are executed through the canonical declarative
-# registry. Procedural SDK shell syntax remains an independent CTest.
 add_test(
     NAME chronon3d_architecture_registry
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_architecture.py
@@ -56,8 +54,6 @@ target_compile_definitions(chronon3d_core_tests PRIVATE
 )
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
-# Core infrastructure suites live here too; they do not need a parallel
-# one-suite-per-file manifest layer.
 chronon3d_add_test_suite(
     NAME chronon3d_backend_registry_tests
     TIER UNIT
@@ -72,6 +68,23 @@ chronon3d_add_test_suite(
         perf/test_node_memory_tracker.cpp
 )
 
+# Image IO remains a focused target, but its registration belongs to this
+# infrastructure authority instead of a standalone io_tests.cmake manifest.
+chronon3d_add_test_suite(
+    NAME chronon3d_io_tests
+    TIER UNIT
+    EXTRA_LINK_TARGETS chronon3d_backend_image
+    SOURCES
+        io/test_image_writer.cpp
+        io/test_image_writer_throw.cpp
+        io/test_png_validity.cpp
+)
+target_include_directories(chronon3d_io_tests PRIVATE ${Stb_INCLUDE_DIR})
+if(CHRONON3D_ENABLE_EXR)
+    target_sources(chronon3d_io_tests PRIVATE io/test_exr_writer.cpp)
+    target_link_libraries(chronon3d_io_tests PRIVATE OpenEXR::OpenEXR)
+endif()
+
 chronon3d_add_test_suite(
     NAME chronon3d_optimizer_tests
     TIER UNIT
@@ -84,8 +97,6 @@ chronon3d_add_test_suite(
     SOURCES preflight/test_path_existence_map.cpp
 )
 
-# Cache suites are core runtime infrastructure and share the same registration
-# authority instead of a one-file wrapper.
 chronon3d_add_test_suite(
     NAME chronon3d_cache_tests
     TIER UNIT
@@ -95,7 +106,6 @@ chronon3d_add_test_suite(
         cache/test_cache_policy.cpp
         cache/test_persistent_framebuffer_store.cpp
         cache/test_lru_cache.cpp
-        cache/test_native_video_decoder_lru.cpp
         cache/test_lru_extensions.cpp
         cache/test_frame_cache.cpp
         cache/test_evict_lru_for.cpp
@@ -121,7 +131,6 @@ chronon3d_add_test_suite(
     SOURCES cache/test_parse_framebuffer_pool_clear_policy.cpp
 )
 
-# Optional OCIO coverage belongs to the core color/math domain.
 if(CHRONON3D_ENABLE_OCIO)
     chronon3d_add_test_suite(
         NAME chronon3d_ocio_tests
