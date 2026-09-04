@@ -5,7 +5,7 @@
 #include "vulkan_descriptor_authority.hpp"
 #include "memory/vulkan_memory_manager.hpp"
 
-#include <chronon3d/runtime/command_plan.hpp>
+#include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <vulkan/vulkan.h>
 
 #include <array>
