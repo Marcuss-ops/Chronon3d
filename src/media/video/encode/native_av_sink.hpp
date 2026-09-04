@@ -2,6 +2,7 @@
 
 #include <chronon3d/media/video/video_config.hpp>
 #include <chronon3d/media/video/video_sink.hpp>
+#include <chronon3d/media/video/packet_assembler.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -12,10 +13,6 @@ struct AVCodecContext;
 struct AVFrame;
 struct AVPacket;
 struct SwsContext;
-
-namespace chronon3d::media {
-class MuxSession;
-}
 
 namespace chronon3d::media::video {
 

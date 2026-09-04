@@ -133,9 +133,6 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
-        spdlog::info("[native_av_diag] push frame_pts={} event={} owner_ctx={} dest={}",
-                     gpu_frame->pts, static_cast<void*>(ready.event),
-                     static_cast<void*>(ready.owner_context), destination);
         pending_cuda_frames_.push_back(
             PendingCudaFrame{gpu_frame, ready, destination, nullptr, {}});
         cuda_pending_peak_ = std::max<std::uint64_t>(
@@ -164,8 +161,6 @@ bool NativeAvEncoder::finish_native_surface(
 #else
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     (void)backend;
-    spdlog::info("[native_av] finish_native_surface destination={} pending={}",
-                 destination, pending_cuda_frames_.size());
     for (;;) {
         auto it = std::find_if(
             pending_cuda_frames_.begin(), pending_cuda_frames_.end(),

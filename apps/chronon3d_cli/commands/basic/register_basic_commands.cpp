@@ -23,8 +23,18 @@ void register_info(CLI::App& app, CliContext& ctx) {
 }
 
 void register_doctor(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<DoctorOptions>();
     auto* cmd = app.add_subcommand("doctor", "Check whether the local Chronon3d environment is ready");
-    cmd->callback([&ctx]() { ctx.exit_code = command_doctor(ctx.registry); });
+    cmd->add_flag("--json", state->json, "Emit a machine-readable JSON report");
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_doctor(ctx.registry, *state); });
+}
+
+void register_capabilities(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<DoctorOptions>();
+    state->json = true;
+    auto* cmd = app.add_subcommand("capabilities", "Inspect engine capabilities in JSON format");
+    cmd->add_flag("--json", state->json, "Emit JSON capabilities report");
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_doctor(ctx.registry, *state); });
 }
 
 void register_verify(CLI::App& app, CliContext& ctx) {
@@ -40,6 +50,7 @@ void register_basic_commands(CLI::App& app, CliContext& ctx) {
     register_list(app, ctx);
     register_info(app, ctx);
     register_doctor(app, ctx);
+    register_capabilities(app, ctx);
     register_verify(app, ctx);
 }
 

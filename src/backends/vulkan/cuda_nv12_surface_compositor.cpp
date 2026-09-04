@@ -743,18 +743,6 @@ bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
                               (height + 31) / 32, 1, 16, 16, 1, 0, active,
                               args, nullptr),
                "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
-
-    static std::atomic<int> s_sample_count{0};
-    if (s_sample_count.fetch_add(1) < 3) {
-        unsigned char sample_y[64]{};
-        cuMemcpyDtoHAsync(sample_y, out_y, sizeof(sample_y), active);
-        cuStreamSynchronize(active);
-        spdlog::info("[nv12_diag] surface_u8={} w={} h={} out_yp={} sample_y[0..7]={:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}",
-                     surface_u8_, width, height, out_yp,
-                     sample_y[0], sample_y[1], sample_y[2], sample_y[3],
-                     sample_y[4], sample_y[5], sample_y[6], sample_y[7]);
-    }
-
     bridge_->signal_for_vulkan(active);
     first_write_ = false;
     if (auto* counters = profiling::g_current_counters) {
