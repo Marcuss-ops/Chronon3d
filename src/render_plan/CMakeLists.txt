@@ -4,7 +4,9 @@
 
 add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
+    fingerprint.cpp
     render_plan_validator.cpp
+    validation/json_schema_diagnostic_adapter.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
 
