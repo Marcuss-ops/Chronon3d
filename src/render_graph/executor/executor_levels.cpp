@@ -1,9 +1,9 @@
 #include "executor_levels.hpp"
 
+#include "executor_level_dispatch.hpp"
 #include "framebuffer_lifetime.hpp"
 #include "input_resolver.hpp"
 #include "level_timings.hpp"
-#include "node_runner.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
@@ -16,8 +16,6 @@
 #include <vector>
 
 namespace chronon3d::graph {
-
-#include "executor_level_dispatch_detail.hpp"
 
 void execute_levels(
     RenderGraph& graph,
