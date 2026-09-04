@@ -58,8 +58,7 @@ VideoFrameCache::VideoFrameCache(size_t max_entries, size_t num_shards, CacheDia
                   m_diag_handle = diag->register_cache(
                       CacheDomain::VideoFrames,
                       [this]() -> GenericCacheStats {
-                          auto s = m_cache.stats();
-                          return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                          return make_generic_cache_stats(m_cache.stats());
                       },
                       [this] { m_cache.clear(); },
                       [this] { return m_cache.capacity_mode(); },
@@ -79,8 +78,7 @@ void VideoFrameCache::set_diagnostics(CacheDiagnostics& diag) {
         CacheDomain::VideoFrames,
         [this]() -> GenericCacheStats {
             if (!m_diag_alive.load(std::memory_order_acquire)) return {};
-            auto s = m_cache.stats();
-            return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+            return make_generic_cache_stats(m_cache.stats());
         },
         [this] {
             if (!m_diag_alive.load(std::memory_order_acquire)) return;
