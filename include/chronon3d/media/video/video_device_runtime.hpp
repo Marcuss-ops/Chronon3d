@@ -2,7 +2,7 @@
 
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/device_scheduler.hpp>
-#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>

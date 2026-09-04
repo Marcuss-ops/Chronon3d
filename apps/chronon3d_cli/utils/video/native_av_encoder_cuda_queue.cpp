@@ -68,13 +68,10 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         native_send_frame_ms_ += send_dur;
         encoder_nvenc_submit_ms_ += send_dur;
         const int64_t popped_pts = pending.frame ? pending.frame->pts : -1;
+        (void)popped_pts;
         av_frame_unref(pending.frame);
         reusable_cuda_frames_.push_back(pending.frame);
         pending.frame = nullptr;
-        spdlog::info("[native_av_diag] pop frame_pts={} event={} owner_ctx={}",
-                     popped_pts,
-                     static_cast<void*>(pending.ready.event),
-                     static_cast<void*>(pending.ready.owner_context));
         cuda::destroy(pending.ready);
         pending_cuda_frames_.pop_front();
         if (send_ret < 0) {
