@@ -115,6 +115,13 @@ if(CHRONON3D_ENABLE_VULKAN AND CHRONON3D_ENABLE_CUDA_INTEROP
         "${CHRONON3D_NVRTC_LIBRARY}")
 endif()
 
+# DirectYUV depends on the completed engine/media graph but is not itself an
+# SDK aggregate component. Define it here, after chronon3d_pipeline exists,
+# so CLI/daemon frontends consume one media-owned implementation target.
+if(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    add_subdirectory(media/video/direct_yuv)
+endif()
+
 # Define the consumer-facing SDK targets after every registry-backed component
 # has registered its object libraries, and before the root install/export pass.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkTargets.cmake)

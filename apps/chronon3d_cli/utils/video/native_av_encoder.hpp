@@ -2,7 +2,7 @@
 
 #include "ffmpeg_pipe_encoder.hpp"
 #include <chronon3d/media/video/packet_assembler.hpp>
-#include "direct_yuv_frame.hpp"
+#include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include "cuda_context_guard.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <cstddef>
@@ -21,7 +21,6 @@
 #endif
 #endif
 
-
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
@@ -32,15 +31,8 @@ extern "C" {
 
 namespace chronon3d::cli {
 
-/// Native libavcodec/libavformat encoder.
-///
-/// Encodes frames directly via avcodec_send_frame / avcodec_receive_packet
-/// and muxes to MP4 via avformat, eliminating the external ffmpeg subprocess
-/// and pipe overhead entirely.
 class NativeAvEncoder : public IVideoEncoder {
 public:
-    /// Borrows the persistent GPU device runtime (primary CUDA context +
-    /// FFmpeg hwdevice). NVENC open() fails closed without it.
     explicit NativeAvEncoder(
         std::shared_ptr<media::VideoDeviceRuntime> device_runtime = nullptr);
     ~NativeAvEncoder() override;
@@ -62,7 +54,7 @@ public:
 #endif
     }
     bool write_frame(const Framebuffer& fb) override;
-    bool write_direct_yuv(const DirectYuvFrame& frame) override;
+    bool write_direct_yuv(const media::video::DirectYuvFrame& frame) override;
     bool write_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
@@ -79,15 +71,11 @@ public:
         runtime::RenderSurfaceHandle destination) override;
     bool close() override;
 
-    /// Safe, idempotent cleanup used by close(), the destructor, and failed
-    /// partial-open paths. It never throws and leaves all owned FFmpeg/CUDA
-    /// handles null.
     void shutdown_noexcept() noexcept;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
     [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
 
-    // ── Native encoder telemetry accessors ──
     [[nodiscard]] double native_convert_ms()          const override { return native_convert_ms_; }
     [[nodiscard]] double native_send_frame_ms()       const override { return native_send_frame_ms_; }
     [[nodiscard]] double native_backpressure_ms()     const override { return native_backpressure_ms_; }
@@ -121,9 +109,6 @@ public:
     [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
     [[nodiscard]] double open_mux_header_ms() const override { return mux_ ? mux_->open_header_ms() : 0.0; }
 
-    // Pool eligibility is deliberately explicit. NativeAvEncoder owns
-    // job-local codec, mux, PTS and CUDA queue state; it is not reusable
-    // until a future pool can prove a complete reset contract.
     [[nodiscard]] bool pool_reset_safe() const noexcept {
         return !open_complete_ && !codec_ && !mux_ && !frame_ && !packet_;
     }
@@ -143,7 +128,6 @@ private:
     double direct_yuv_cuda_launch_ms_{0.0};
     double direct_yuv_cuda_wait_ms_{0.0};
 
-    // FFmpeg objects
     std::unique_ptr<chronon3d::media::MuxSession> mux_;
     AVCodecContext*  codec_{nullptr};
     AVFrame*         frame_{nullptr};
@@ -160,21 +144,12 @@ private:
 #endif
     std::unique_ptr<media::CudaDirectNv12Compositor>
         direct_yuv_compositor_;
-    // AVFrame wrappers are recycled across the bounded CUDA/NVENC ring. The
-    // hw-frame pool remains owned by FFmpeg; only the wrapper lifetime is
-    // reused here, avoiding an av_frame_alloc/free pair per encoded frame.
     std::deque<AVFrame*> reusable_cuda_frames_;
     struct PendingCudaFrame {
         AVFrame* frame{nullptr};
         cuda::OwnedCudaEvent ready{};
         runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
-        // Keep the Direct-YUV overlay program (batch, resources and the
-        // device-resident watermark image) alive until NVENC has consumed the
-        // encoded output.  Typed replacement for the old shared_ptr<void>.
-        std::shared_ptr<const DirectYuvTemplate> program;
-        // Keep the NVDEC surface referenced until the direct-YUV kernel has
-        // completed.  Releasing it when the queue package is destroyed can
-        // make NVDEC block while trying to recycle its surface pool.
+        std::shared_ptr<const media::video::DirectYuvTemplate> program;
         media::HwFrameRef source_owner;
     };
     std::deque<PendingCudaFrame> pending_cuda_frames_;
@@ -186,13 +161,10 @@ private:
     AVBufferRef* cuda_device_ref_{nullptr};
     AVBufferRef* cuda_frames_ref_{nullptr};
 #endif
-    // Persistent device runtime borrowed from the job's registry. The
-    // primary CUDA context + FFmpeg hwdevice are owned there, not here.
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
     bool gpu_nvenc_{false};
     bool open_complete_{false};
 
-    // ── Telemetry accumulators (ms) ──
     double native_convert_ms_{0.0};
     double native_send_frame_ms_{0.0};
     double native_backpressure_ms_{0.0};
@@ -202,7 +174,6 @@ private:
     double native_trailer_ms_{0.0};
     EncoderFrameTelemetry last_frame_telemetry_{};
 
-    /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();
     bool mux_source_audio();
     bool drain_ready_cuda_frames(bool wait_for_one);
@@ -213,10 +184,6 @@ private:
         runtime::RenderSurfaceHandle destination,
         bool surface_already_prepared);
 
-    // ── Single-entry YUV conversion cache ──
-    // When consecutive frames have the same digest (static scenes), skip the
-    // expensive RGBA→YUV conversion entirely and reuse the AVFrame planes
-    // from the previous conversion.  No memcpy needed — the data is already there.
     uint64_t last_converted_digest_{0};
     int      last_converted_width_{0};
     int      last_converted_height_{0};
