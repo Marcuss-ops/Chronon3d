@@ -11,10 +11,10 @@
 
 namespace chronon3d::graph {
 
-#include "compiled_template_program_support.inc"
-#include "compiled_template_program_memory.inc"
-#include "compiled_template_program_temporal.inc"
-#include "compiled_template_program_prepare.inc"
-#include "compiled_template_program_compile.inc"
+#include "compiled_template_program_support_detail.hpp"
+#include "compiled_template_program_memory_detail.hpp"
+#include "compiled_template_program_temporal_detail.hpp"
+#include "compiled_template_program_prepare_detail.hpp"
+#include "compiled_template_program_compile_detail.hpp"
 
 } // namespace chronon3d::graph
