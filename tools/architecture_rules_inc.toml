@@ -4,6 +4,7 @@
 #   src/     = 0 handwritten .inc
 #   include/ = 0 handwritten .inc
 #   apps/    = 22 handwritten .inc
+# Current grandfathered debt after daemon migration: apps/ = 19.
 #
 # Existing CLI fragments are grandfathered only so this invariant can land
 # before their staged migration. Remove each exact allow-list entry in the same
@@ -34,10 +35,6 @@ allow_list = [
   '^apps/chronon3d_cli/commands/render/command_render_plan_internal\.inc$',
   '^apps/chronon3d_cli/commands/render/register_render_commands_body\.inc$',
   '^apps/chronon3d_cli/commands/render/register_render_commands_support\.inc$',
-
-  '^apps/chronon3d_cli/daemon/daemon_service_bootstrap\.inc$',
-  '^apps/chronon3d_cli/daemon/daemon_service_commands\.inc$',
-  '^apps/chronon3d_cli/daemon/daemon_service_ipc\.inc$',
 
   '^apps/chronon3d_cli/utils/job/report/render_job_report_diagnostics\.inc$',
   '^apps/chronon3d_cli/utils/job/report/render_job_report_output\.inc$',
