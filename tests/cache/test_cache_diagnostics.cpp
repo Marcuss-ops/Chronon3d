@@ -18,10 +18,30 @@ struct FakeCache {
     size_t evictions{0};
     size_t current_size{0};
     size_t current_weight{0};
+    std::uint64_t hash_time_ns{0};
+    std::uint64_t lock_time_ns{0};
+    std::uint64_t lru_mutation_time_ns{0};
+    std::uint64_t miss_loader_time_ns{0};
+    std::uint64_t contention_count{0};
     size_t capacity{1024};
     CapacityMode mode{CapacityMode::Weight};
     int clear_count{0};
 };
+
+[[nodiscard]] GenericCacheStats fake_stats(const FakeCache& fake) {
+    return GenericCacheStats{
+        .hits = fake.hits,
+        .misses = fake.misses,
+        .evictions = fake.evictions,
+        .current_size = fake.current_size,
+        .current_weight = fake.current_weight,
+        .hash_time_ns = fake.hash_time_ns,
+        .lock_time_ns = fake.lock_time_ns,
+        .lru_mutation_time_ns = fake.lru_mutation_time_ns,
+        .miss_loader_time_ns = fake.miss_loader_time_ns,
+        .contention_count = fake.contention_count,
+    };
+}
 
 } // namespace
 
@@ -39,15 +59,17 @@ TEST_CASE("CacheDiagnostics - register and snapshot") {
     fake.evictions = 2;
     fake.current_size = 3;
     fake.current_weight = 512;
+    fake.hash_time_ns = 100;
+    fake.lock_time_ns = 200;
+    fake.lru_mutation_time_ns = 300;
+    fake.miss_loader_time_ns = 400;
+    fake.contention_count = 5;
     fake.capacity = 1024;
     fake.mode = CapacityMode::Weight;
 
     auto handle = diag.register_cache(
         CacheDomain::RenderedFrames,
-        [&fake]() -> GenericCacheStats {
-            return {fake.hits, fake.misses, fake.evictions,
-                    fake.current_size, fake.current_weight};
-        },
+        [&fake]() -> GenericCacheStats { return fake_stats(fake); },
         [&fake] { ++fake.clear_count; },
         [&fake] { return fake.mode; },
         fake.capacity);
@@ -65,6 +87,11 @@ TEST_CASE("CacheDiagnostics - register and snapshot") {
     CHECK(snap[0].evictions == 2);
     CHECK(snap[0].current_size == 3);
     CHECK(snap[0].current_weight == 512);
+    CHECK(snap[0].hash_time_ns == 100);
+    CHECK(snap[0].lock_time_ns == 200);
+    CHECK(snap[0].lru_mutation_time_ns == 300);
+    CHECK(snap[0].miss_loader_time_ns == 400);
+    CHECK(snap[0].contention_count == 5);
     CHECK(snap[0].capacity == 1024);
     CHECK(snap[0].mode == CapacityMode::Weight);
 }
@@ -89,18 +116,14 @@ TEST_CASE("CacheDiagnostics - multiple domains") {
 
     auto h1 = diag.register_cache(
         CacheDomain::RenderedFrames,
-        [&fb_cache]() -> GenericCacheStats {
-            return {fb_cache.hits, 0, 0, fb_cache.current_size, fb_cache.current_weight};
-        },
+        [&fb_cache]() -> GenericCacheStats { return fake_stats(fb_cache); },
         [&fb_cache] { ++fb_cache.clear_count; },
         [&fb_cache] { return fb_cache.mode; },
         fb_cache.capacity);
 
     auto h2 = diag.register_cache(
         CacheDomain::ScenePrograms,
-        [&sp_cache]() -> GenericCacheStats {
-            return {sp_cache.hits, 0, 0, sp_cache.current_size, sp_cache.current_weight};
-        },
+        [&sp_cache]() -> GenericCacheStats { return fake_stats(sp_cache); },
         [&sp_cache] { ++sp_cache.clear_count; },
         [&sp_cache] { return sp_cache.mode; },
         sp_cache.capacity);
@@ -141,17 +164,17 @@ TEST_CASE("CacheDiagnostics - clear by domain") {
     FakeCache a, b, c;
     auto h1 = diag.register_cache(
         CacheDomain::RenderedFrames,
-        [&a]() -> GenericCacheStats { return {}; },
+        [&a]() -> GenericCacheStats { return fake_stats(a); },
         [&a] { ++a.clear_count; },
         [&a] { return a.mode; }, 1024);
     auto h2 = diag.register_cache(
         CacheDomain::VideoFrames,
-        [&b]() -> GenericCacheStats { return {}; },
+        [&b]() -> GenericCacheStats { return fake_stats(b); },
         [&b] { ++b.clear_count; },
         [&b] { return b.mode; }, 256);
     auto h3 = diag.register_cache(
         CacheDomain::RenderedFrames,
-        [&c]() -> GenericCacheStats { return {}; },
+        [&c]() -> GenericCacheStats { return fake_stats(c); },
         [&c] { ++c.clear_count; },
         [&c] { return c.mode; }, 2048);
 
@@ -178,12 +201,12 @@ TEST_CASE("CacheDiagnostics - clear all") {
     FakeCache a, b;
     auto h1 = diag.register_cache(
         CacheDomain::Nodes,
-        [&a]() -> GenericCacheStats { return {}; },
+        [&a]() -> GenericCacheStats { return fake_stats(a); },
         [&a] { ++a.clear_count; },
         [&a] { return a.mode; }, 2048);
     auto h2 = diag.register_cache(
         CacheDomain::ScenePrograms,
-        [&b]() -> GenericCacheStats { return {}; },
+        [&b]() -> GenericCacheStats { return fake_stats(b); },
         [&b] { ++b.clear_count; },
         [&b] { return b.mode; }, 8);
 
@@ -205,7 +228,7 @@ TEST_CASE("CacheDiagnostics - unregister on handle destruction") {
     {
         auto handle = diag.register_cache(
             CacheDomain::Nodes,
-            [&fake]() -> GenericCacheStats { return {}; },
+            [&fake]() -> GenericCacheStats { return fake_stats(fake); },
             [&fake] { ++fake.clear_count; },
             [&fake] { return fake.mode; }, 1024);
         CHECK(diag.registered_count() == 1);
@@ -227,7 +250,7 @@ TEST_CASE("CacheDiagnostics - handle move semantics") {
     {
         auto tmp = diag.register_cache(
             CacheDomain::Nodes,
-            [&fake]() -> GenericCacheStats { return {}; },
+            [&fake]() -> GenericCacheStats { return fake_stats(fake); },
             [&fake] { ++fake.clear_count; },
             [&fake] { return fake.mode; }, 1024);
         CHECK(diag.registered_count() == 1);
@@ -248,7 +271,7 @@ TEST_CASE("CacheDiagnostics - disabled mode") {
     FakeCache fake;
     auto handle = diag.register_cache(
         CacheDomain::Nodes,
-        [&fake]() -> GenericCacheStats { return {}; },
+        [&fake]() -> GenericCacheStats { return fake_stats(fake); },
         [&fake] { ++fake.clear_count; },
         [&fake] { return fake.mode; }, 1024);
 
@@ -276,24 +299,24 @@ TEST_CASE("CacheDiagnostics - DomainSnapshot aggregation") {
     FakeCache a, b;
     a.hits = 10; a.misses = 2; a.evictions = 1;
     a.current_size = 3; a.current_weight = 300; a.capacity = 1000;
+    a.hash_time_ns = 100; a.lock_time_ns = 200;
+    a.lru_mutation_time_ns = 300; a.miss_loader_time_ns = 400;
+    a.contention_count = 5;
 
     b.hits = 5; b.misses = 3; b.evictions = 0;
     b.current_size = 2; b.current_weight = 200; b.capacity = 500;
+    b.hash_time_ns = 10; b.lock_time_ns = 20;
+    b.lru_mutation_time_ns = 30; b.miss_loader_time_ns = 40;
+    b.contention_count = 2;
 
     auto h1 = diag.register_cache(
         CacheDomain::Nodes,
-        [&a]() -> GenericCacheStats {
-            return {a.hits, a.misses, a.evictions,
-                    a.current_size, a.current_weight};
-        },
+        [&a]() -> GenericCacheStats { return fake_stats(a); },
         [&a] { ++a.clear_count; },
         [&a] { return a.mode; }, a.capacity);
     auto h2 = diag.register_cache(
         CacheDomain::Nodes,
-        [&b]() -> GenericCacheStats {
-            return {b.hits, b.misses, b.evictions,
-                    b.current_size, b.current_weight};
-        },
+        [&b]() -> GenericCacheStats { return fake_stats(b); },
         [&b] { ++b.clear_count; },
         [&b] { return b.mode; }, b.capacity);
 
@@ -304,5 +327,10 @@ TEST_CASE("CacheDiagnostics - DomainSnapshot aggregation") {
     CHECK(ds.evictions == 1);
     CHECK(ds.current_size == 5);
     CHECK(ds.current_weight == 500);
+    CHECK(ds.hash_time_ns == 110);
+    CHECK(ds.lock_time_ns == 220);
+    CHECK(ds.lru_mutation_time_ns == 330);
+    CHECK(ds.miss_loader_time_ns == 440);
+    CHECK(ds.contention_count == 7);
     CHECK(ds.total_capacity == 1500);
 }
