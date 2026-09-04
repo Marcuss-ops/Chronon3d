@@ -24,13 +24,7 @@ bool execute_compiled_program(
 
     for (const auto& level : program.levels) {
         for (GraphNodeId node_id : level) {
-            const CompiledOperation* op = nullptr;
-            for (const auto& candidate : program.operations) {
-                if (candidate.node == node_id) {
-                    op = &candidate;
-                    break;
-                }
-            }
+            const CompiledOperation* op = program.operation_for(node_id);
             if (!op || !op->has_compiled_execute()) {
                 spdlog::error(
                     "[compiled-executor] node {} has no compiled_execute in "
