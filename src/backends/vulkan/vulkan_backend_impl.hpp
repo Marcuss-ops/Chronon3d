@@ -102,7 +102,7 @@ struct VulkanBackend::Impl {
     std::array<VkDescriptorSet, 3>& glow_descriptor_sets{
         descriptor_arena.glow_descriptor_sets};
 
-    // Submission ownership is likewise externalized.  Existing call sites use
+    // Submission ownership is likewise externalized. Existing call sites use
     // the historic member names only as references into this authority.
     using VulkanSubmissionRing = VulkanSubmissionAuthority;
     VulkanSubmissionRing submission_ring;
@@ -128,6 +128,7 @@ struct VulkanBackend::Impl {
     VkCommandBuffer& command_buffer{submission_ring.command_buffer};
     VkFence& fence{submission_ring.fence};
     VkSemaphore& timeline_semaphore{submission_ring.timeline_semaphore};
+    VkQueryPool& timestamp_pool{submission_ring.timestamp_pool};
     std::uint64_t& next_timeline_value{submission_ring.next_timeline_value};
     std::uint64_t& pending_timeline_value{submission_ring.pending_timeline_value};
 
@@ -155,7 +156,7 @@ struct VulkanBackend::Impl {
     Image dst{};
     Image src{};
 
-    // Source-compatibility façade only.  All state and binding policy live in
+    // Source-compatibility façade only. All state and binding policy live in
     // VulkanSurfaceAuthority; this nested type keeps the existing out-of-line
     // destroy_all definition and therefore requires no duplicated store state.
     class VulkanSurfaceStore final
@@ -193,7 +194,6 @@ struct VulkanBackend::Impl {
     VulkanSubmissionRing& frame_batch;
     bool& command_batch_active{submission_ring.command_batch_active};
     bool& command_batch_started{submission_ring.command_batch_started};
-    VkQueryPool timestamp_pool{VK_NULL_HANDLE};
     float timestamp_period_ns{0.0f};
     std::uint32_t timestamp_valid_bits{0};
     VulkanMemoryManager memory_manager{};
