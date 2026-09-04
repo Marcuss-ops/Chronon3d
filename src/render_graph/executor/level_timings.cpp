@@ -1,146 +1,79 @@
 #include "level_timings.hpp"
-
-// Canonical SDK header for the full RenderCounters definition (root
-// namespace `chronon3d::RenderCounters`).  The forward-decl in
-// `level_timings.hpp` is intentionally at the root namespace (NOT inside
-// `chronon3d::graph`) to prevent the shadow-type rot; this include
-// pulls the full definition so `roll_up` can access the `std::atomic<...>`
-// counter members via `fetch_add` without compile errors.
 #include <chronon3d/core/profiling/render_counter_types.hpp>
-
 #include <atomic>
 #include <cmath>
 #include <cstdint>
 
 namespace chronon3d::graph {
 
-// P1 — resize() implementation: zero-init all 7 per-node accumulators
-// to `n` entries each via `assign(n, 0.0)`.  `assign` is used instead
-// of `resize` to make the zero-init unconditional — even on hoisted /
-// reused instances, the pre-existing values are dropped, matching
-// the original `std::vector<double>(level.size(), 0.0)` allocation
-// pattern from executor_levels.cpp.
-void LevelTimings::resize(std::size_t n) {
-    cache.assign(n, 0.0);
-    dirty.assign(n, 0.0);
-    telemetry.assign(n, 0.0);
-    execute.assign(n, 0.0);
-    predicted_bbox.assign(n, 0.0);
-    clone_context.assign(n, 0.0);
-    state.assign(n, 0.0);
+// Stage 3: detailed per-node timing is no longer allocated on the production
+// path. The seven vectors remain as a compatibility surface for diagnostic
+// callers, but normal level dispatch passes nullptr and keeps them empty.
+void LevelTimings::resize(std::size_t) {
+    cache.clear();
+    dirty.clear();
+    telemetry.clear();
+    execute.clear();
+    predicted_bbox.clear();
+    clone_context.clear();
+    state.clear();
 }
 
-// P1 — roll_up() implementation: byte-equivalent to the pre-P1
-// executor_levels.cpp:185-243 if-block.  Performs:
-//   1. O(7n) sum of the 7 per-node accumulators across the level.
-//   2. overhead_ms = dispatch_ms - sum(7 per-node fields), clamped to
-//      >= 0 because the per-node sums can occasionally exceed
-//      dispatch_ms due to clock-resolution noise on tiny levels.
-//   3. 12 fetch_add operations onto the parent RenderCounters
-//      (4 whole-level duration deltas + 7 per-field sums + 1
-//      derived overhead_ms).  Memory order is `std::memory_order_relaxed`
-//      throughout — counters are statistical, no synchronisation role.
 void LevelTimings::roll_up(RenderCounters& counters,
                            double dispatch_ms,
                            double input_ms,
                            double schedule_ms,
                            double framebuffer_ms) const {
-    // Step 1: sum-of-vector across the 7 timing fields.  Total
-    // iteration count is taken from `execute.size()` because all 7
-    // vectors share the same size (set by `resize(n)`); using a
-    // canonical vector avoids subtle inconsistencies if the caller
-    // ever forgot to resize one of the seven.
-    double cache_sum = 0.0;
-    double dirty_sum = 0.0;
-    double telemetry_sum = 0.0;
-    double execute_sum = 0.0;
-    double pred_bbox_sum = 0.0;
-    double clone_ctx_sum = 0.0;
-    double state_sum = 0.0;
-
+    double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0,
+           execute_sum = 0.0, pred_bbox_sum = 0.0,
+           clone_ctx_sum = 0.0, state_sum = 0.0;
     const std::size_t n = execute.size();
     for (std::size_t i = 0; i < n; ++i) {
-        cache_sum     += cache[i];
-        dirty_sum     += dirty[i];
+        cache_sum += cache[i];
+        dirty_sum += dirty[i];
         telemetry_sum += telemetry[i];
-        execute_sum   += execute[i];
+        execute_sum += execute[i];
         pred_bbox_sum += predicted_bbox[i];
         clone_ctx_sum += clone_context[i];
-        state_sum     += state[i];
+        state_sum += state[i];
     }
 
-    // Step 2: derived overhead_ms.  Computed inline here (rather than
-    // at the call site) so the overhead's mathematical relationship
-    // to dispatch_ms and the per-node sums is encapsulated with the
-    // timing struct, not duplicated at every executor call site.
-    double overhead_ms = dispatch_ms
-                       - execute_sum - cache_sum - dirty_sum - telemetry_sum
+    double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum
                        - pred_bbox_sum - clone_ctx_sum - state_sum;
     if (overhead_ms < 0.0) overhead_ms = 0.0;
 
-    // Step 3: 12 fetch_add operations onto parent counters.  Order
-    // matches pre-P1 executor_levels.cpp:200-238 for byte-equivalence
-    // on counters (the cumulative order matters because some counters
-    // are diagnostic and may be post-processed in the order they
-    // were emitted).  All fetch_add calls use `std::memory_order_relaxed`
-    // inline (NOT a `using` alias — `memory_order_relaxed` is an enum
-    // value of type `std::memory_order`, not a type itself, so a
-    // `using` alias would fail to compile with "'memory_order_relaxed'
-    // does not name a type").
+    auto add_ms = [](auto& counter, double value) {
+        counter.fetch_add(static_cast<uint64_t>(std::llround(value)), std::memory_order_relaxed);
+    };
+    auto add_us = [](auto& counter, double value) {
+        counter.fetch_add(static_cast<uint64_t>(std::llround(value * 1000.0)), std::memory_order_relaxed);
+    };
 
-    counters.input_resolve_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(input_ms)), std::memory_order_relaxed);
-    counters.node_schedule_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(schedule_ms)), std::memory_order_relaxed);
-    counters.node_dispatch_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(dispatch_ms)), std::memory_order_relaxed);
-    counters.framebuffer_lifetime_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(framebuffer_ms)), std::memory_order_relaxed);
+    add_ms(counters.input_resolve_wall_ms, input_ms);
+    add_ms(counters.node_schedule_wall_ms, schedule_ms);
+    add_ms(counters.node_dispatch_wall_ms, dispatch_ms);
+    add_ms(counters.framebuffer_lifetime_wall_ms, framebuffer_ms);
+    add_ms(counters.cache_eval_wall_ms, cache_sum);
+    add_ms(counters.dirty_eval_wall_ms, dirty_sum);
+    add_ms(counters.telemetry_emit_wall_ms, telemetry_sum);
+    add_ms(counters.node_execute_actual_wall_ms, execute_sum);
+    add_ms(counters.predicted_bbox_wall_ms, pred_bbox_sum);
+    add_ms(counters.clone_context_wall_ms, clone_ctx_sum);
+    add_ms(counters.state_assign_wall_ms, state_sum);
+    add_ms(counters.node_overhead_wall_ms, overhead_ms);
 
-    counters.cache_eval_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(cache_sum)), std::memory_order_relaxed);
-    counters.dirty_eval_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(dirty_sum)), std::memory_order_relaxed);
-    counters.telemetry_emit_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(telemetry_sum)), std::memory_order_relaxed);
-    counters.node_execute_actual_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(execute_sum)), std::memory_order_relaxed);
-    counters.predicted_bbox_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(pred_bbox_sum)), std::memory_order_relaxed);
-    counters.clone_context_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(clone_ctx_sum)), std::memory_order_relaxed);
-    counters.state_assign_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(state_sum)), std::memory_order_relaxed);
-
-    counters.node_overhead_wall_ms.fetch_add(
-        static_cast<uint64_t>(std::llround(overhead_ms)), std::memory_order_relaxed);
-
-    // Microsecond-precision counters to avoid sub-millisecond truncation
-    counters.input_resolve_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(input_ms * 1000.0)), std::memory_order_relaxed);
-    counters.node_schedule_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(schedule_ms * 1000.0)), std::memory_order_relaxed);
-    counters.node_dispatch_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(dispatch_ms * 1000.0)), std::memory_order_relaxed);
-    counters.framebuffer_lifetime_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(framebuffer_ms * 1000.0)), std::memory_order_relaxed);
-
-    counters.cache_eval_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(cache_sum * 1000.0)), std::memory_order_relaxed);
-    counters.dirty_eval_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(dirty_sum * 1000.0)), std::memory_order_relaxed);
-    counters.telemetry_emit_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(telemetry_sum * 1000.0)), std::memory_order_relaxed);
-    counters.node_execute_actual_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(execute_sum * 1000.0)), std::memory_order_relaxed);
-    counters.predicted_bbox_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(pred_bbox_sum * 1000.0)), std::memory_order_relaxed);
-    counters.clone_context_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(clone_ctx_sum * 1000.0)), std::memory_order_relaxed);
-    counters.state_assign_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(state_sum * 1000.0)), std::memory_order_relaxed);
-    counters.node_overhead_wall_us.fetch_add(
-        static_cast<uint64_t>(std::llround(overhead_ms * 1000.0)), std::memory_order_relaxed);
+    add_us(counters.input_resolve_wall_us, input_ms);
+    add_us(counters.node_schedule_wall_us, schedule_ms);
+    add_us(counters.node_dispatch_wall_us, dispatch_ms);
+    add_us(counters.framebuffer_lifetime_wall_us, framebuffer_ms);
+    add_us(counters.cache_eval_wall_us, cache_sum);
+    add_us(counters.dirty_eval_wall_us, dirty_sum);
+    add_us(counters.telemetry_emit_wall_us, telemetry_sum);
+    add_us(counters.node_execute_actual_wall_us, execute_sum);
+    add_us(counters.predicted_bbox_wall_us, pred_bbox_sum);
+    add_us(counters.clone_context_wall_us, clone_ctx_sum);
+    add_us(counters.state_assign_wall_us, state_sum);
+    add_us(counters.node_overhead_wall_us, overhead_ms);
 }
 
 } // namespace chronon3d::graph
