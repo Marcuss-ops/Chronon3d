@@ -105,6 +105,14 @@ endif()
 # Developer CLI introspection commands are optional but share CLI ownership.
 if(CHRONON3D_BUILD_CLI_DEV)
     chronon3d_add_test_suite(
+        NAME chronon3d_inspect_text_tests
+        TIER UNIT
+        LINK_TARGETS chronon3d_cli_dev
+        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_inspect_text.cpp
+    )
+    list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_inspect_text_tests)
+
+    chronon3d_add_test_suite(
         NAME chronon3d_introspection_tests
         TIER UNIT
         LINK_TARGETS chronon3d_cli_dev
