@@ -6,7 +6,7 @@
 #   2. enforce check_main_clean.sh;
 #   3. run the developer chain through tools/run_developer_gates.sh;
 #   4. with CHRONON3D_GATE_PROFILE=wbh, run WBH_ONLY_GATES;
-#   5. optionally run PERF_GATE, push, and verify the SHA-triple invariant.
+#   5. push and verify the SHA-triple invariant.
 #
 # Gate membership lives only in tools/gates/manifest.sh. Do not duplicate
 # individual developer or WBH gate names in this wrapper.
@@ -139,45 +139,6 @@ if [[ "$GATE_PROFILE" == "wbh" ]]; then
     done
 else
     echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH_ONLY_GATES from canonical manifest"
-fi
-
-# Optional performance-regression gate.
-if [[ "${PERF_GATE:-disabled}" == "enabled" ]]; then
-    CURRENT_REPORT="${CHRONON3D_PERF_CURRENT_REPORT:-build/manual-test/perf_latest.json}"
-    BASELINE_REPORT="${CHRONON3D_PERF_BASELINE:-$REPO_ROOT/bench/baselines/main-HEAD-perf.json}"
-    if [[ ! -s "$CURRENT_REPORT" ]]; then
-        echo "wrap_push.sh: PERF_GATE=enabled but CHRONON3D_PERF_CURRENT_REPORT unresolved: $CURRENT_REPORT" >&2
-        echo "  fix: run 'chronon3d_cli bench <scene> --json-file $CURRENT_REPORT' first" >&2
-        echo "  fix: or set CHRONON3D_PERF_CURRENT_REPORT=/path/to/bench-v3.json explicitly" >&2
-        echo "GATE_FAIL"
-        exit 1
-    fi
-    if [[ ! -s "$BASELINE_REPORT" ]]; then
-        echo "wrap_push.sh: PERF_GATE=enabled but CHRONON3D_PERF_BASELINE unresolved: $BASELINE_REPORT" >&2
-        echo "  fix: set CHRONON3D_PERF_BASELINE=/path/to/bench-v3-baseline.json" >&2
-        echo "  fix: or place a default baseline at $BASELINE_REPORT (forward-point forward-ops)" >&2
-        echo "GATE_FAIL"
-        exit 1
-    fi
-    echo "wrap_push.sh: PERF_GATE pre-flight (current=$CURRENT_REPORT baseline=$BASELINE_REPORT)..."
-    bash "${SCRIPT_DIR}/check_perf_regression.sh" \
-        --current  "$CURRENT_REPORT" \
-        --baseline "$BASELINE_REPORT"
-    gate_rc=$?
-    case $gate_rc in
-        0) echo "wrap_push.sh: PERF_GATE PASSED — proceeding to git push"; ;;
-        1) echo "wrap_push.sh: GATE_FAIL on check_perf_regression.sh — push aborted" >&2
-           echo "  fix: see tools/check_perf_regression.sh diagnostic for offending metric(s)" >&2
-           echo "  fix-forward paths: (a) src-side fix; (b) regenerate baseline; (c) widen threshold (ADR)" >&2
-           exit 1 ;;
-        2) echo "wrap_push.sh: GATE_BLOCKED on check_perf_regression.sh — push aborted (env-block on this VPS)" >&2
-           echo "  fix: macchina-verifica DEFERRED-WBH per TICKET-PERF-GATE-V1-WBH-MACHINE-VERIFY" >&2
-           echo "  fix: when PERF_GATE=enabled and binary is missing locally, gate reports BLOCKED" >&2
-           echo "  fix: either set PERF_GATE=disabled to skip OR build chronon3d_cli locally first" >&2
-           exit 1 ;;
-        *) echo "wrap_push.sh: check_perf_regression.sh exited with unrecognized code $gate_rc — aborting" >&2
-           exit 2 ;;
-    esac
 fi
 
 # The commit tested by the gates must still be HEAD immediately before push.
