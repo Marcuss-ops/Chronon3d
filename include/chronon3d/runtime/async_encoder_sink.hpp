@@ -11,7 +11,7 @@
 #include <utility>
 
 #include <chronon3d/runtime/bounded_channel.hpp>
-#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 
 namespace chronon3d::runtime {
 
