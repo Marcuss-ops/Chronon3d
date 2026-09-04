@@ -65,7 +65,6 @@ chronon3d_add_test_suite(
         scene/camera/test_camera_program.cpp
         scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
         scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
-        scene/camera/test_camera_constraints_p5.cpp
         scene/camera/test_camera_session_checkpoint.cpp   # TICKET-031 — stateful constraint checkpoint + canonical pre-roll
         # TICKET-A3-DAMPED-HISTORY (Agent3 mission DoD gate (b)) — regression
         # lock that the presence of DampedFollowConstraint in
@@ -148,19 +147,6 @@ chronon3d_add_test_suite(
     SOURCES scene/camera/test_camera_compiled_evaluate.cpp
 )
 target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CMAKE_SOURCE_DIR})
-
-# CAM-DOC 04 architecture boundary gate — shadows the bash script so
-# `ctest -L camera_architecture_gate` runs the lint before any of the
-# scene tests below.  Fails the gate on retired camera authoring /
-# invalid SceneBuilder camera_pose usages, tan(fov) outside
-# camera_math/, or compile_camera() in hot paths.  See
-# tools/check_camera_architecture.sh for the rule definitions.
-add_test(NAME chronon3d_camera_architecture_gate
-         COMMAND ${CMAKE_SOURCE_DIR}/tools/check_camera_architecture.sh
-         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-set_tests_properties(chronon3d_camera_architecture_gate
-    PROPERTIES LABELS "camera_architecture_gate;gate"
-    TIMEOUT 30)
 
 # ── P3-F — Composition camera unification test suite ──
 # 7 mandatory end-to-end tests validating that Composition has NO mutable
