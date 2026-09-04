@@ -7,6 +7,15 @@
 
 namespace chronon3d::telemetry {
 
+/// Immutable process-boundary observability configuration.
+/// Environment variables are resolved by Config/CLI startup; telemetry runtime
+/// receives values and must not call getenv() on record or store paths.
+struct TelemetryRuntimeConfig {
+    std::filesystem::path path_override;
+    std::filesystem::path default_directory{"/tmp/.chronon3d/telemetry"};
+    std::string run_id_override;
+};
+
 class TelemetryManager {
 public:
     static TelemetryManager& instance();
@@ -14,16 +23,15 @@ public:
     TelemetryManager();
     ~TelemetryManager() = default;
 
-    // Registers a custom backend store
-    void add_store(std::shared_ptr<TelemetryStore> store);
+    void configure(TelemetryRuntimeConfig config);
 
-    // Clears all registered stores
+    // Registers a custom backend store.
+    void add_store(std::shared_ptr<TelemetryStore> store);
     void clear_stores();
 
-    // Sets up default stores (JSONL and SQLite if enabled) in default user directory
+    // Sets up the default SQLite/null store from pre-resolved boundary config.
     void initialize_default_stores();
 
-    // Gathers system info and writes record across all stores
     bool record_run(RenderTelemetryRecord& run,
                     const std::vector<FrameTelemetry>& frames = {},
                     const std::vector<PhaseTelemetryRecord>& phases = {},
@@ -35,7 +43,6 @@ public:
                     const std::vector<ImageTelemetryRecord>& image_events = {},
                     const std::vector<RenderArtifactRecord>& artifacts = {});
 
-    // System helper queries
     static std::string get_os_name();
     static std::string get_cpu_model();
     static int get_logical_cores();
@@ -45,9 +52,15 @@ public:
     static std::string get_current_iso_time();
     static std::string generate_uuid();
     static uint64_t get_peak_memory_usage();
+
+    /// Compatibility helper: resolves against the singleton's already
+    /// configured boundary value. It performs no environment lookup.
     static std::filesystem::path resolve_sqlite_telemetry_path();
+    static std::filesystem::path resolve_sqlite_telemetry_path(
+        const TelemetryRuntimeConfig& config);
 
 private:
+    TelemetryRuntimeConfig m_config{};
     std::vector<std::shared_ptr<TelemetryStore>> m_stores;
 };
 
