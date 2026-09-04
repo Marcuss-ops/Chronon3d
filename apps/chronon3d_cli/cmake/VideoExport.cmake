@@ -31,6 +31,7 @@ target_include_directories(chronon3d_cli_video_export PRIVATE
 )
 target_link_libraries(chronon3d_cli_video_export PRIVATE
     chronon3d
+    chronon3d_media_direct_yuv
     CLI11::CLI11
     spdlog::spdlog_header_only
     fmt::fmt
@@ -49,7 +50,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/native_av_encoder_packets.cpp
     )
     target_link_libraries(chronon3d_cli_video_export PRIVATE
-        chronon3d_ffmpeg_full chronon3d_media_native chronon3d_media_direct_yuv
+        chronon3d_ffmpeg_full chronon3d_media_native
     )
     target_compile_definitions(chronon3d_cli_video_export PRIVATE
         CHRONON3D_ENABLE_NATIVE_FFMPEG
