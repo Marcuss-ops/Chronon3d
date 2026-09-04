@@ -75,7 +75,11 @@ using Clock = std::chrono::steady_clock;
         }
         return false;
     }
-#endif
+    // libavcodec 61+ owns supported-config discovery. If a codec cannot
+    // expose that list, leave final validation to avcodec_open2 rather than
+    // reaching back into AVCodec::pix_fmts from the legacy API.
+    return true;
+#else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     if (!codec->pix_fmts) return true;
@@ -87,6 +91,7 @@ using Clock = std::chrono::steady_clock;
     }
 #pragma GCC diagnostic pop
     return false;
+#endif
 }
 
 [[nodiscard]] AVPixelFormat choose_encoder_pixel_format(
@@ -370,7 +375,7 @@ bool NativeAvSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
 
 bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
                                  const int linesize[4], int source_av_format,
-                                 int width, int height, std::int64_t /*pts_hint*/) {
+                                 int width, int height, std::int64_t pts_hint) {
     const auto submit_start = Clock::now();
     const int writable_result = av_frame_make_writable(frame_);
     if (writable_result < 0) {
@@ -393,8 +398,23 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
                     "sws_scale produced an incomplete frame");
     }
 
-    frame_->pts = static_cast<std::int64_t>(stats_.frames_submitted);
-    const int send_result = avcodec_send_frame(codec_, frame_);
+    // Preserve the caller's media timeline. NativeAvSink must not silently
+    // replace source PTS with submission order.
+    frame_->pts = pts_hint;
+
+    int send_result = avcodec_send_frame(codec_, frame_);
+    if (send_result == AVERROR(EAGAIN)) {
+        // libavcodec is applying backpressure: receive all currently
+        // available packets, then retry the exact same frame once. The
+        // send/receive contract guarantees that both sides cannot remain at
+        // EAGAIN without progress.
+        if (!drain_packets(false)) return false;
+        send_result = avcodec_send_frame(codec_, frame_);
+        if (send_result == AVERROR(EAGAIN)) {
+            return fail(VideoSinkError::EncoderFailed,
+                        "libavcodec made no progress after send-frame EAGAIN");
+        }
+    }
     if (send_result < 0) {
         return fail(VideoSinkError::EncoderFailed,
                     "avcodec_send_frame failed: " + ffmpeg_error(send_result));
@@ -412,7 +432,11 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
 bool NativeAvSink::drain_packets(bool flushing) {
     for (;;) {
         const int receive_result = avcodec_receive_packet(codec_, packet_);
-        if (receive_result == AVERROR(EAGAIN)) return !flushing;
+        if (receive_result == AVERROR(EAGAIN)) {
+            if (!flushing) return true;
+            return fail(VideoSinkError::EncoderFailed,
+                        "libavcodec requested more input after flush was accepted");
+        }
         if (receive_result == AVERROR_EOF) return true;
         if (receive_result < 0) {
             return fail(VideoSinkError::EncoderFailed,
@@ -447,12 +471,25 @@ bool NativeAvSink::flush() {
 
     const auto flush_start = Clock::now();
     state_ = VideoSinkState::Flushing;
-    const int send_result = avcodec_send_frame(codec_, nullptr);
+
+    int send_result = avcodec_send_frame(codec_, nullptr);
+    if (send_result == AVERROR(EAGAIN)) {
+        // A delayed encoder can still have output queued when drain mode is
+        // requested. Consume it first and retry the null frame; do not turn
+        // normal encoder backpressure into a sink failure.
+        if (!drain_packets(false)) return false;
+        send_result = avcodec_send_frame(codec_, nullptr);
+        if (send_result == AVERROR(EAGAIN)) {
+            return fail(VideoSinkError::EncoderFailed,
+                        "libavcodec made no progress while entering flush mode");
+        }
+    }
     if (send_result < 0 && send_result != AVERROR_EOF) {
         return fail(VideoSinkError::EncoderFailed,
                     "encoder flush submit failed: " + ffmpeg_error(send_result));
     }
-    if (!drain_packets(true)) return false;
+    if (send_result != AVERROR_EOF && !drain_packets(true)) return false;
+
     encoder_flushed_ = true;
     stats_.total_flush_ms += elapsed_ms(flush_start);
     state_ = VideoSinkState::Open;
