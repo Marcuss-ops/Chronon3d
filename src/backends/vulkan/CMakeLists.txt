@@ -146,7 +146,7 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         PUBLIC "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
 
     add_executable(chronon3d_cuda_vulkan_external_memory_probe
-        "${CMAKE_SOURCE_DIR}/tools/cuda_vulkan_external_memory_probe.cpp"
+        "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_external_memory_probe.cpp"
         cuda_vulkan_surface_bridge.cpp)
     target_include_directories(chronon3d_cuda_vulkan_external_memory_probe
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include")
@@ -155,7 +155,7 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         add_executable(chronon3d_cuda_vulkan_nvenc_probe
-            "${CMAKE_SOURCE_DIR}/tools/cuda_vulkan_nvenc_probe.cpp")
+            "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_nvenc_probe.cpp")
         target_include_directories(chronon3d_cuda_vulkan_nvenc_probe
             PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
         target_link_libraries(chronon3d_cuda_vulkan_nvenc_probe
@@ -172,7 +172,7 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
             target_link_libraries(chronon3d_backend_vulkan PUBLIC
                 "${CHRONON3D_NVRTC_LIBRARY}")
             add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                "${CMAKE_SOURCE_DIR}/tools/cuda_nvdec_nvenc_overlay_bench.cpp")
+                "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_nvdec_nvenc_overlay_bench.cpp")
             target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench
                 PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}"
                         "${CHRONON3D_NVRTC_INCLUDE_DIR}")
