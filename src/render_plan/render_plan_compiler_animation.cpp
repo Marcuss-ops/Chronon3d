@@ -1,14 +1,15 @@
-namespace {
+#include "render_plan_compiler_detail.hpp"
 
-chronon3d::FitMode fit_mode(FitMode value) {
-    switch (value) {
-        case FitMode::Contain: return chronon3d::FitMode::Contain;
-        case FitMode::Stretch: return chronon3d::FitMode::Stretch;
-        case FitMode::None: return chronon3d::FitMode::None;
-        case FitMode::Cover: return chronon3d::FitMode::Cover;
-    }
-    return chronon3d::FitMode::Cover;
-}
+#include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
+
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+
+namespace chronon3d::render_plan::detail {
+namespace {
 
 chronon3d::EasingCurve track_easing(std::string_view value) {
     using chronon3d::Easing;
@@ -49,9 +50,6 @@ float scalar_value(const AnimationKeyframePlan& key, std::string_view property) 
 chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
                              std::string_view property,
                              chronon3d::Vec3 fallback) {
-    // Text scale is commonly authored as one scalar and means uniform XYZ.
-    // Keep vector properties strict, but accept that canonical shorthand for
-    // ScaleProperty so declarative text motions do not need duplicate tracks.
     if (key.value.size() == 1 && property == "scale")
         return chronon3d::Vec3{key.value[0], key.value[0], key.value[0]};
     if (key.value.size() < 2 || key.value.size() > 3)
@@ -126,9 +124,12 @@ chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_vec3_component(
     chronon3d::AnimatedValue<chronon3d::Vec3> result{fallback};
     for (const auto& key : track.keyframes) {
         auto value = fallback;
-        if (property == "position_x" || property == "scale_x") value.x = scalar_value(key, property);
-        else if (property == "position_y" || property == "scale_y") value.y = scalar_value(key, property);
-        else value.z = scalar_value(key, property);
+        if (property == "position_x" || property == "scale_x")
+            value.x = scalar_value(key, property);
+        else if (property == "position_y" || property == "scale_y")
+            value.y = scalar_value(key, property);
+        else
+            value.z = scalar_value(key, property);
         result.add_keyframe(key.frame, value, track_easing(track.easing));
     }
     return result;
@@ -168,7 +169,8 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan) 
             animator.properties.push_back(chronon3d::ScaleProperty{
                 track.property == "scale"
                     ? animated_text_value(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)
-                    : animated_text_vec3_component(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)});
+                    : animated_text_vec3_component(
+                          track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property)});
         } else if (track.property == "opacity") {
             animator.properties.push_back(chronon3d::OpacityProperty{
                 animated_text_value(track, 1.0f, track.property)});
@@ -185,143 +187,6 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan) 
     if (animator.selectors.empty() || animator.properties.empty())
         throw std::runtime_error("text animator '" + animator.id + "' requires selectors and properties");
     return animator;
-}
-
-void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer) {
-    for (const auto& animator : layer.text_animators)
-        builder.animator(compile_text_animator(animator));
-}
-
-chronon3d::TextDefinition materialize_text(const LayerPlan& layer,
-                                           const chronon3d::CanvasInfo& canvas) {
-    if (!layer.style || layer.font.empty() || !layer.style->font_size ||
-        layer.style->fill.empty()) {
-        throw std::runtime_error("text layer '" + layer.id +
-                                 "' is missing concrete font/font_size/fill style");
-    }
-
-    chronon3d::TextDefinition definition;
-    definition.content.value = layer.text;
-    definition.style.font.font_path = layer.font;
-    definition.style.font.font_size = *layer.style->font_size;
-    const auto fill = parse_hex_color(layer.style->fill);
-    if (!fill)
-        throw std::runtime_error("text layer '" + layer.id + "' has invalid fill color");
-    definition.style.color = *fill;
-    definition.style.paint.fill = *fill;
-
-    if (layer.style->stroke) {
-        const auto stroke_color = parse_hex_color(layer.style->stroke->color);
-        if (!stroke_color)
-            throw std::runtime_error("text layer '" + layer.id + "' has invalid stroke color");
-        definition.style.paint.stroke_enabled = true;
-        definition.style.paint.stroke_color = *stroke_color;
-        definition.style.paint.stroke_width = layer.style->stroke->width.value_or(1.0f);
-    }
-    if (layer.style->shadow) {
-        const auto shadow_color = parse_hex_color(
-            layer.style->shadow->color,
-            layer.style->shadow->opacity.value_or(1.0f));
-        if (!shadow_color)
-            throw std::runtime_error("text layer '" + layer.id + "' has invalid shadow color");
-        chronon3d::TextShadow shadow;
-        shadow.enabled = true;
-        shadow.color = *shadow_color;
-        shadow.opacity = layer.style->shadow->opacity.value_or(1.0f);
-        shadow.blur = layer.style->shadow->blur.value_or(0.0f);
-        if (layer.style->shadow->offset_dimensions == 2) {
-            shadow.offset = {layer.style->shadow->offset[0], layer.style->shadow->offset[1]};
-        }
-        definition.style.shadows.push_back(shadow);
-    }
-    if (layer.style->background) {
-        const auto background_color = parse_hex_color(
-            layer.style->background->color,
-            layer.style->background->opacity.value_or(1.0f));
-        if (!background_color)
-            throw std::runtime_error("text layer '" + layer.id + "' has invalid background color");
-        definition.style.box_style.enabled = true;
-        definition.style.box_style.background = *background_color;
-        definition.style.box_style.radius = layer.style->background->radius.value_or(0.0f);
-        if (layer.style->background->padding_dimensions == 2) {
-            definition.style.box_style.padding = {
-                layer.style->background->padding[0],
-                layer.style->background->padding[1]};
-        }
-    }
-
-    definition.frame.size = layer.size_dimensions == 2
-        ? chronon3d::Vec2{layer.size[0], layer.size[1]}
-        : chronon3d::Vec2{static_cast<float>(canvas.width), static_cast<float>(canvas.height)};
-    definition.frame.anchor = chronon3d::TextAnchor::Center;
-    definition.frame.align = chronon3d::TextAlign::Center;
-    definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
-    definition.frame.placement = chronon3d::TextPlacement{
-        chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}};
-    return definition;
-}
-
-std::uint64_t render_settings_fingerprint(
-    const RenderPlanFingerprintSettings& settings) {
-    return chronon3d::core::hash::HashBuilder{}
-        .add("chronon3d.render-settings.fingerprint.v1")
-        .add(settings.width)
-        .add(settings.height)
-        .add(settings.antialiasing_samples)
-        .add(settings.ssaa_factor)
-        .add(settings.motion_blur)
-        .add(settings.dirty_rects)
-        .add(settings.deterministic)
-        .add(settings.force_scalar_normal_blend)
-        .add(settings.dirty_bitmask)
-        .add(settings.dirty_tiles)
-        .add(settings.parallel_tiles)
-        .add(settings.tile_size)
-        .add(settings.tile_dirty_ratio_threshold)
-        .add(settings.optimize_compositing)
-        .finish();
-}
-
-RenderJobFingerprint render_job_fingerprint(
-    const RenderPlan& plan,
-    const chronon3d::assets::PreparedAssetManifest& assets,
-    const RenderPlanFingerprintOptions& options) {
-    auto content_plan = plan;
-    content_plan.job_id.clear();
-    content_plan.output = {};
-    auto request_plan = plan;
-    request_plan.job_id.clear();
-    request_plan.output.path.clear();
-
-    const auto content_hash = compute_render_plan_content_fingerprint(content_plan);
-    const auto request_hash = compute_render_plan_content_fingerprint(request_plan);
-    const auto settings_hash = render_settings_fingerprint(options.render_settings);
-    const auto material = [&](std::string_view domain, std::uint64_t plan_hash,
-                              bool include_output_settings) {
-        auto hash = chronon3d::core::hash::HashBuilder{}
-            .add(domain)
-            .add(options.schema_version)
-            .add(options.engine_compatibility_version)
-            .add(plan_hash)
-            .add(settings_hash)
-            .add_bytes(assets.manifest_digest().bytes.data(),
-                       assets.manifest_digest().bytes.size());
-        if (include_output_settings) {
-            hash.add_enum(request_plan.output.format)
-                .add_enum(request_plan.output.codec)
-                .add(static_cast<int>(request_plan.output.rate_control))
-                .add(request_plan.output.bitrate)
-                .add(request_plan.output.crf)
-                .add(request_plan.output.qp)
-                .add(request_plan.output.profile_id);
-        }
-        return std::to_string(hash.finish());
-    };
-    return {
-        chronon3d::assets::sha256_string(
-            material("chronon.render-content.v3", content_hash, false)),
-        chronon3d::assets::sha256_string(
-            material("chronon.render-request.v3", request_hash, true))};
 }
 
 void apply_animation_tracks(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
@@ -410,6 +275,23 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder, const LayerPlan& l
     }
 }
 
+}  // namespace
+
+chronon3d::FitMode fit_mode(FitMode value) {
+    switch (value) {
+        case FitMode::Contain: return chronon3d::FitMode::Contain;
+        case FitMode::Stretch: return chronon3d::FitMode::Stretch;
+        case FitMode::None: return chronon3d::FitMode::None;
+        case FitMode::Cover: return chronon3d::FitMode::Cover;
+    }
+    return chronon3d::FitMode::Cover;
+}
+
+void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer) {
+    for (const auto& animator : layer.text_animators)
+        builder.animator(compile_text_animator(animator));
+}
+
 void apply_layer_primitives(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
@@ -424,4 +306,4 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder, const LayerPlan& l
     apply_animation_tracks(builder, layer);
 }
 
-} // namespace
+}  // namespace chronon3d::render_plan::detail
