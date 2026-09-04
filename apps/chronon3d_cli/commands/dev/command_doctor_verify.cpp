@@ -18,15 +18,66 @@ int command_doctor(const CompositionRegistry& /*registry*/,
 
     if (options.json) {
         nlohmann::json checks = nlohmann::json::array();
+        std::string git_sha = "unknown";
         for (const auto& check : report.checks) {
             checks.push_back({
                 {"id", check.id},
                 {"status", doctor_status_name(check.status)},
                 {"message", check.message},
             });
+            if (check.id == "engine.git_sha") {
+                git_sha = check.message;
+            }
         }
+        nlohmann::json caps = {
+            {"vulkan",
+#ifdef CHRONON3D_ENABLE_VULKAN
+             true
+#else
+             false
+#endif
+            },
+            {"cuda_interop",
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+             true
+#else
+             false
+#endif
+            },
+            {"direct_yuv",
+#if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
+             true
+#else
+             false
+#endif
+            },
+            {"native_ffmpeg",
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+             true
+#else
+             false
+#endif
+            },
+            {"nvdec",
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+             true
+#else
+             false
+#endif
+            },
+            {"nvenc", true},
+            {"ipc",
+#ifdef CHRONON3D_ENABLE_IPC
+             true
+#else
+             false
+#endif
+            },
+            {"build_sha", git_sha}
+        };
         std::cout << nlohmann::json{
                          {"ready", report.ready},
+                         {"capabilities", std::move(caps)},
                          {"checks", std::move(checks)}}
                          .dump(2)
                   << '\n';
