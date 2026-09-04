@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 
 namespace chronon3d::runtime {
 
@@ -20,6 +21,9 @@ void DeviceReservation::release() noexcept {
 
 void DeviceScheduler::register_device(DeviceCapabilities caps, DeviceResourceVector capacity) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_discovery_sealed) {
+        throw std::logic_error("DeviceScheduler discovery is sealed after reservation begins");
+    }
     caps.id = static_cast<DeviceId>(m_devices.size());
     DeviceResourceState state{};
     state.capacity = capacity;
@@ -52,11 +56,13 @@ float DeviceScheduler::calculate_pressure(const DeviceResourceState& state, cons
 
 std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceResourceVector& requirements) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    seal_discovery_locked();
     return reserve_locked(requirements, nullptr);
 }
 
 std::optional<DeviceReservation> DeviceScheduler::reserve(const DeviceSelectionRequirements& requirements) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    seal_discovery_locked();
     return reserve_locked(requirements.resources, &requirements);
 }
 
@@ -87,7 +93,6 @@ std::optional<DeviceReservation> DeviceScheduler::reserve_locked(
             continue;
         }
 
-        // Capacity bounds check
         if (entry.state.capacity.compute_units > 0.0f &&
             (entry.state.reserved.compute_units + requirements.compute_units > entry.state.capacity.compute_units)) {
             continue;
@@ -170,9 +175,12 @@ std::size_t DeviceScheduler::device_count() const noexcept {
 }
 
 const DeviceCapabilities* DeviceScheduler::capabilities(DeviceId id) const noexcept {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (id >= m_devices.size()) return nullptr;
-    return &m_devices[id].caps;
+    // Preserve the exported/source-compatible symbol without leaking an address
+    // into m_devices after m_mutex is released. The compatibility pointer now
+    // refers to a per-thread copy; capability_snapshot() is the canonical API.
+    thread_local std::optional<DeviceCapabilities> snapshot;
+    snapshot = capability_snapshot(id);
+    return snapshot ? &*snapshot : nullptr;
 }
 
 std::optional<DeviceCapabilities> DeviceScheduler::capability_snapshot(DeviceId id) const {

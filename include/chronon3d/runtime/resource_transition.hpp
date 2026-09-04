@@ -339,10 +339,22 @@ public:
         const ResourceState& first_state) {
         erase_overlaps(resource, range);
 
+        // An alias boundary discards the previous logical resource's image
+        // contents, but it must still order all memory accesses performed
+        // through the previous physical-slot owner before the first access by
+        // the new owner. Keep that semantic dependency in the canonical
+        // transition stream so native backends only translate it.
+        ResourceState alias_source{
+            .stages = PipelineStage::AllCommands,
+            .access = AccessMask::MemoryRead | AccessMask::MemoryWrite,
+            .layout = ResourceLayout::Undefined,
+            .queue = first_state.queue,
+        };
+
         ResourceTransition transition;
         transition.resource = resource;
         transition.range = range;
-        transition.before = ResourceState::undefined_state();
+        transition.before = alias_source;
         transition.after = first_state;
         transition.producer_pass = pass;
         transition.consumer_pass = pass;

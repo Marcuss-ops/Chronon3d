@@ -1,15 +1,15 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// video_sink_factory.hpp — Factory function for creating VideoSink instances.
+// video_sink_factory.hpp — Factory function for creating built-in VideoSink
+// instances.
 //
-// This is the sole public entry point for constructing a VideoSink.
-// Implementations are selected at runtime based on the VideoSinkConfig
-// (specifically the output container and encoder settings).
+// This is the sole public entry point for constructing Chronon3D's built-in
+// sinks. Implementations are selected from VideoSinkConfig; the factory does
+// not own a process-global extension registry.
 //
-// Callers should NOT include implementation-specific headers
-// (e.g. ffmpeg_pipe_sink.hpp, native_av_sink.hpp).  All concrete types
-// are hidden behind the factory.
+// Callers should NOT include implementation-specific headers. All concrete
+// sink types are hidden behind the factory.
 //
 // Usage:
 //   auto sink = create_video_sink(config);
@@ -27,37 +27,19 @@
 
 namespace chronon3d::media::video {
 
-/// Create a VideoSink implementation based on the given configuration.
+/// Create a built-in VideoSink implementation based on the configuration.
 ///
 /// Selection logic:
-///  - Uncompressed codec + Raw container  → RawVideoSink
-///  - Compressed codec (default)          → FfmpegPipeSink
-///  - Custom URI scheme                   → registered factory (if any)
+///  - Uncompressed codec or Raw container -> RawVideoSink
+///  - Compressed codec + native FFmpeg     -> NativeAvSink
+///  - Compressed codec without native FFmpeg -> nullptr
 ///
-/// Returns nullptr if no suitable implementation is available
-/// (e.g. native FFmpeg not compiled in and no pipe fallback).
+/// Compressed encoding deliberately has no subprocess fallback. Builds that
+/// need compressed output must enable CHRONON3D_ENABLE_NATIVE_FFMPEG.
 ///
-/// The returned sink is in the Created state.  Caller must invoke
-/// open() before submit().
+/// A non-null returned sink is in the Created state. Caller must invoke open()
+/// before submit().
 [[nodiscard]] std::unique_ptr<VideoSink> create_video_sink(
     const VideoSinkConfig& config);
-
-/// Register a custom VideoSink factory for a given scheme/prefix.
-///
-/// This allows external plugins or tests to inject alternative
-/// sink implementations without modifying the factory.
-/// The `scheme` is matched against the output path's URI scheme
-/// (e.g. "file", "http", "null", "test").
-///
-/// Thread-safety: Thread-safe.  create_video_sink() takes a shared_lock
-/// (concurrent reads); register/unregister take a unique_lock (exclusive
-/// write).  The factory callable is copied under the shared_lock and invoked
-/// after the lock is released, so factory code may safely call
-/// register/unregister without deadlock.
-using VideoSinkFactoryFn = std::unique_ptr<VideoSink>(*)(const VideoSinkConfig&);
-void register_sink_factory(std::string_view scheme, VideoSinkFactoryFn factory);
-
-/// Remove a previously registered factory.
-void unregister_sink_factory(std::string_view scheme) noexcept;
 
 } // namespace chronon3d::media::video

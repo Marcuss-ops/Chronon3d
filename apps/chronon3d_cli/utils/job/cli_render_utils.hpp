@@ -13,10 +13,6 @@
 namespace chronon3d {
 namespace cli {
 
-/// Concept: Args must have a nested 'pipeline' struct with all the
-/// standard render-settings fields that settings_from_args accesses.
-/// Intentionally exhaustive — catches missing fields at concept-check
-/// time rather than deep in the template body.
 template<typename Args>
 concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.diagnostic;
@@ -25,7 +21,7 @@ concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.no_dirty_rects;
     a.pipeline.tile_size;
     a.pipeline.quality.motion_blur;
-    a.pipeline.quality.motion_blur_mode;     // PR1
+    a.pipeline.quality.motion_blur_mode;
     a.pipeline.quality.motion_blur_samples;
     a.pipeline.quality.shutter_angle_deg;
     a.pipeline.quality.shutter_phase_deg;
@@ -44,104 +40,66 @@ concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.program_cache_tune_max_capacity;
 };
 
-/// Build a RenderSettings from any args struct that has the standard render fields
-/// (pipeline.quality.motion_blur, etc.).
-/// motion_blur_allowed: set to false for composition types that don't support it.
-/// diagnostic: pass args.pipeline.diagnostic if available, otherwise defaults to false.
 template<PipelinableArgs Args>
 RenderSettings settings_from_args(const Args& args,
                                   bool motion_blur_allowed = true,
                                   bool diagnostic = false) {
     RenderSettings s;
-    s.diagnostics.enabled       = diagnostic || args.pipeline.diagnostic;
-    s.diagnostics.plan          = args.pipeline.diagnostic_plan;
-    s.diagnostics.plan_output   = args.pipeline.diagnostic_plan_output;
+    s.diagnostics.enabled = diagnostic || args.pipeline.diagnostic;
+    s.diagnostics.plan = args.pipeline.diagnostic_plan;
+    s.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
     if (args.pipeline.no_dirty_rects) {
         s.dirty.enabled = false;
         s.dirty.use_bitmask = false;
         s.dirty.use_tiles = false;
     }
-    s.dirty.tile_size           = args.pipeline.tile_size;
-    // PR1 — Map the CLI's motion-blur trinary onto MotionBlurMode.
-    //   * `--motion-blur-mode 1` (TemporalAccumulation)
-    //   * `--motion-blur-mode 2` (VelocityApproximation)
-    //   * `--motion-blur-mode 0` (Off)
-    //   * legacy `--motion-blur` boolean (TemporalAccumulation if set)
-    // Out-of-range ints (incl. negative CLI bugs) are mapped to Off so the
-    // renderer never sees an undefined enum value.
-    if (motion_blur_allowed && args.pipeline.quality.motion_blur_mode != 0) {
-        switch (args.pipeline.quality.motion_blur_mode) {
-            case 1:
-                s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
-                break;
-            case 2:
-                s.motion_blur.mode = MotionBlurMode::VelocityApproximation;
-                break;
-            default:
-                s.motion_blur.mode = MotionBlurMode::Off;
-                break;
+    s.dirty.tile_size = args.pipeline.tile_size;
+
+    // P2.4: the CLI boundary has already validated and parsed these values.
+    // Runtime code only copies canonical typed values; there is no second
+    // int/string parser here.
+    if (motion_blur_allowed) {
+        s.motion_blur.mode = args.pipeline.quality.motion_blur_mode;
+        if (s.motion_blur.mode == MotionBlurMode::Off &&
+            args.pipeline.quality.motion_blur) {
+            s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
         }
-    } else if (motion_blur_allowed && args.pipeline.quality.motion_blur) {
-        s.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
     } else {
         s.motion_blur.mode = MotionBlurMode::Off;
     }
-    // (TICKET-026) `s.motion_blur.enabled` no longer exists — consumers that
-    // need to ask "is motion blur active?" must call
-    // `is_motion_blur_active(s.motion_blur)` (defined in camera_2_5d.hpp).
-    s.motion_blur.samples          = args.pipeline.quality.motion_blur_samples;
+    s.motion_blur.samples = args.pipeline.quality.motion_blur_samples;
     s.motion_blur.shutter_angle_deg = args.pipeline.quality.shutter_angle_deg;
     s.motion_blur.shutter_phase_deg = args.pipeline.quality.shutter_phase_deg;
-    s.motion_blur.pattern          = static_cast<TemporalSamplePattern>(args.pipeline.quality.motion_blur_pattern);
-    s.motion_blur.filter           = static_cast<TemporalFilter>(args.pipeline.quality.motion_blur_filter);
-    s.ssaa_factor               = args.pipeline.quality.ssaa;
+    s.motion_blur.pattern = args.pipeline.quality.motion_blur_pattern;
+    s.motion_blur.filter = args.pipeline.quality.motion_blur_filter;
+    s.ssaa_factor = args.pipeline.quality.ssaa;
     s.force_scalar_normal_blend = args.pipeline.force_scalar_normal_blend;
-    s.text_layout_debug         = args.pipeline.text_layout_debug ||
-                                  args.pipeline.diagnostic_overlay ||
-                                  args.pipeline.diagnostic_overlay_only ||
-                                  !args.pipeline.text_layout_debug_json_path.empty();
+    s.text_layout_debug = args.pipeline.text_layout_debug ||
+                          args.pipeline.diagnostic_overlay ||
+                          args.pipeline.diagnostic_overlay_only ||
+                          !args.pipeline.text_layout_debug_json_path.empty();
     s.text_layout_debug_json_path = args.pipeline.text_layout_debug_json_path;
-    s.diagnostic_overlay_only   = args.pipeline.diagnostic_overlay_only;
-    s.program_cache_capacity     = args.pipeline.program_cache_capacity;
-    s.program_cache_tune                  = args.pipeline.program_cache_tune;
-    s.program_cache_tune_interval         = args.pipeline.program_cache_tune_interval;
-    s.program_cache_tune_min_capacity     = args.pipeline.program_cache_tune_min_capacity;
-    s.program_cache_tune_max_capacity     = args.pipeline.program_cache_tune_max_capacity;
+    s.diagnostic_overlay_only = args.pipeline.diagnostic_overlay_only;
+    s.program_cache_capacity = args.pipeline.program_cache_capacity;
+    s.program_cache_tune = args.pipeline.program_cache_tune;
+    s.program_cache_tune_interval = args.pipeline.program_cache_tune_interval;
+    s.program_cache_tune_min_capacity = args.pipeline.program_cache_tune_min_capacity;
+    s.program_cache_tune_max_capacity = args.pipeline.program_cache_tune_max_capacity;
     return s;
 }
 
-/// Result of resolving a composition from the registry.
 struct ResolvedComposition {
     std::shared_ptr<Composition> comp;
-
-    /// Legacy flag reflecting whether the composition was loaded via the
-    /// (removed) specscene compiler pipeline.  Default false; reserved
-    /// for future composition resolvers that need to disambiguate
-    /// specscene-loaded vs descriptor-loaded cases.  No active consumer.
     bool from_specscene{false};
-
-    /// True if the composition was successfully resolved.
     explicit operator bool() const { return comp != nullptr; }
 };
 
-/// Resolve a composition from the registry by composition id.
-/// Logs errors via spdlog on failure — check the result with operator bool().
 ResolvedComposition resolve_composition(const CompositionRegistry& registry,
                                          const std::string& comp_id);
-
-/// Resolve a composition using explicit CompositionProps. This is the shared
-/// path used by render, validate and watch --props-file; the registry remains
-/// the sole decoder/validator/factory authority.
 ResolvedComposition resolve_composition(const CompositionRegistry& registry,
                                          const std::string& comp_id,
                                          const CompositionProps& props);
 
-/// Create and configure a SoftwareRenderer from the given settings.
-/// If `config` is provided, passes it to SoftwareRenderer's Config-accepting
-/// constructor; otherwise uses the default constructor (env-var-based Config).
-/// `engine_init_ms` (if non-null) receives the renderer construction + wiring
-/// duration; `backend_init_ms` (if non-null) receives the backend attach
-/// duration.  Both are wall-time measurements in milliseconds.
 std::shared_ptr<SoftwareRenderer> create_renderer(
     const CompositionRegistry& registry,
     const RenderSettings& settings,

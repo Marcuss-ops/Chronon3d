@@ -4,10 +4,40 @@
 find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    # Native FFmpeg is a build contract, not a best-effort linker fallback.
+    # Any preset that opts into the in-process backend must fail during
+    # configure when the required headers or libraries are unavailable.
+    find_path(CHRONON3D_FFMPEG_INCLUDE_DIR
+        NAMES libavcodec/avcodec.h
+        REQUIRED)
+    find_library(CHRONON3D_FFMPEG_SWSCALE_LIBRARY
+        NAMES swscale
+        REQUIRED)
+    find_library(CHRONON3D_FFMPEG_AVCODEC_LIBRARY
+        NAMES avcodec
+        REQUIRED)
+    find_library(CHRONON3D_FFMPEG_AVFORMAT_LIBRARY
+        NAMES avformat
+        REQUIRED)
+    find_library(CHRONON3D_FFMPEG_AVUTIL_LIBRARY
+        NAMES avutil
+        REQUIRED)
+
     add_library(chronon3d_ffmpeg_light INTERFACE)
-    target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
+    target_include_directories(chronon3d_ffmpeg_light INTERFACE
+        "${CHRONON3D_FFMPEG_INCLUDE_DIR}")
+    target_link_libraries(chronon3d_ffmpeg_light INTERFACE
+        "${CHRONON3D_FFMPEG_SWSCALE_LIBRARY}"
+        "${CHRONON3D_FFMPEG_AVUTIL_LIBRARY}")
+
     add_library(chronon3d_ffmpeg_full INTERFACE)
-    target_link_libraries(chronon3d_ffmpeg_full INTERFACE swscale avcodec avformat avutil)
+    target_include_directories(chronon3d_ffmpeg_full INTERFACE
+        "${CHRONON3D_FFMPEG_INCLUDE_DIR}")
+    target_link_libraries(chronon3d_ffmpeg_full INTERFACE
+        "${CHRONON3D_FFMPEG_SWSCALE_LIBRARY}"
+        "${CHRONON3D_FFMPEG_AVCODEC_LIBRARY}"
+        "${CHRONON3D_FFMPEG_AVFORMAT_LIBRARY}"
+        "${CHRONON3D_FFMPEG_AVUTIL_LIBRARY}")
 endif()
 
 add_subdirectory(core)

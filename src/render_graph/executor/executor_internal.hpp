@@ -9,17 +9,10 @@
 
 #include <memory>
 
-namespace chronon3d {
-struct RenderCounters;
+namespace chronon3d::graph {
 
-namespace graph {
-
-bool execute_compiled_program(
-    const CompiledFrameProgram& program,
-    RenderGraphContext& ctx,
-    ExecutionState& state,
-    RenderCounters* counters);
-
+// Private executor-module orchestration boundary. Compiled-program execution
+// has its own src-local interface in executor_compiled_program.hpp.
 [[nodiscard]] std::shared_ptr<Framebuffer> execute_internal(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
@@ -27,5 +20,4 @@ bool execute_compiled_program(
     FrameArena& arena,
     ExecutionScheduler& scheduler);
 
-} // namespace graph
-} // namespace chronon3d
+} // namespace chronon3d::graph

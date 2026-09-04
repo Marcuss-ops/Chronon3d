@@ -19,11 +19,8 @@ namespace {
 bool is_video_output(const std::string& output) {
     std::string ext = std::filesystem::path(output).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(),
-                   [](unsigned char c) {
-                       return static_cast<char>(std::tolower(c));
-                   });
-    return ext == ".mp4" || ext == ".mov" || ext == ".mkv" ||
-           ext == ".webm";
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext == ".mp4" || ext == ".mov" || ext == ".mkv" || ext == ".webm";
 }
 
 void fill_execution_options(RenderExecutionOptions& execution,
@@ -31,64 +28,35 @@ void fill_execution_options(RenderExecutionOptions& execution,
                             const CpuBudget& cpu_budget,
                             bool video_output,
                             chronon3d::graph::BackendPreference backend_preference) {
-    execution.warmup_renderer =
-        pipeline.warmup_renderer || execution.warmup_renderer;
+    execution.warmup_renderer = pipeline.warmup_renderer || execution.warmup_renderer;
     execution.warmup_framebuffers = pipeline.warmup_framebuffers;
-    execution.warmup_dummy_frame =
-        pipeline.warmup_dummy_frame || execution.warmup_dummy_frame;
+    execution.warmup_dummy_frame = pipeline.warmup_dummy_frame || execution.warmup_dummy_frame;
     execution.cpu_budget = cpu_budget;
 
     Config cfg;
     cfg.set_cpu_budget(cpu_budget);
     cfg.set_backend_preference(backend_preference);
-    // Video exports keep several frames in flight.  A large retained pool
-    // multiplies live framebuffer memory without improving this workload;
-    // keep the video default bounded while preserving the existing still/
-    // sequence default and the explicit CLI override.
     const size_t fb_pool_budget_mb = pipeline.fb_pool_budget_mb > 0
         ? pipeline.fb_pool_budget_mb
         : (video_output ? 64U : 0U);
     if (fb_pool_budget_mb > 0) {
-        cfg.set_fb_pool_budget(
-            fb_pool_budget_mb * 1024ULL * 1024ULL);
+        cfg.set_fb_pool_budget(fb_pool_budget_mb * 1024ULL * 1024ULL);
     }
-    if (!pipeline.fb_pool_clear_policy.empty()) {
-        const auto& policy_str = pipeline.fb_pool_clear_policy;
-        if (auto parsed =
-                chronon3d::cache::parse_framebuffer_pool_clear_policy(
-                    policy_str)) {
-            cfg.set_fb_pool_clear_policy(*parsed);
-        } else {
-            spdlog::warn(
-                "Invalid --fb-pool-clear-policy='{}'; valid values: "
-                "keep-warm, trim-after-job, trim-on-memory-pressure. "
-                "Using env-resolved default.",
-                policy_str);
-        }
+    if (pipeline.fb_pool_clear_policy) {
+        cfg.set_fb_pool_clear_policy(*pipeline.fb_pool_clear_policy);
     }
     execution.config = std::move(cfg);
 }
 
-chronon3d::graph::BackendPreference backend_preference_from_cli(
-    const std::string& value) {
-    if (value == "software") return chronon3d::graph::BackendPreference::Software;
-    if (value == "vulkan") return chronon3d::graph::BackendPreference::GPU;
-    return chronon3d::graph::BackendPreference::Auto;
-}
-
 void finalize_video_settings(RenderJob& job) {
     if (job.video_settings.frames_dir.empty()) {
-        job.video_settings.frames_dir =
-            "chronon_" +
+        job.video_settings.frames_dir = "chronon_" +
             std::filesystem::path(job.comp_id).filename().string();
     }
 
-    if (job.video_settings.tune.empty() &&
-        job.video_settings.codec == "libx264") {
+    if (job.video_settings.tune.empty() && job.video_settings.codec == "libx264") {
         job.video_settings.tune = "zerolatency";
-        spdlog::info(
-            "[video] Auto-selecting x264 tune=zerolatency for "
-            "low-latency pipe export");
+        spdlog::info("[video] Auto-selecting x264 tune=zerolatency for low-latency pipe export");
     }
 
 #if defined(__linux__)
@@ -96,15 +64,12 @@ void finalize_video_settings(RenderJob& job) {
         job.metadata.width % 2 == 0 && job.metadata.height % 2 == 0 &&
         job.video_settings.codec != "libx264rgb") {
         job.video_settings.pipe_pixfmt = "yuv420p";
-        spdlog::info(
-            "[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
-            job.metadata.width, job.metadata.height);
+        spdlog::info("[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
+                     job.metadata.width, job.metadata.height);
     }
 
     if (job.video_settings.pipe_writer == "io_uring") {
-        spdlog::warn(
-            "[video] io_uring pipe writer is experimental; "
-            "use classic for stable exports");
+        spdlog::warn("[video] io_uring pipe writer is experimental; use classic for stable exports");
     }
 #endif
 }
@@ -115,26 +80,18 @@ std::optional<RenderRequest> make_render_request(
     const CompositionRegistry& registry,
     const RenderArgs& args,
     const CompositionProps& props) {
-    if (args.comp_id.empty() || !registry.contains(args.comp_id)) {
-        return std::nullopt;
-    }
+    if (args.comp_id.empty() || !registry.contains(args.comp_id)) return std::nullopt;
 
     RenderRequest request;
     request.comp_id = args.comp_id;
     request.input.values = props.values;
     request.input.project_root = props.project_root;
     request.output = args.output;
-    if (!args.assets_root.empty()) {
-        request.execution.assets_root = std::filesystem::path(args.assets_root);
-    }
-    request.settings =
-        settings_from_args(args, true, args.pipeline.diagnostic);
-    request.settings.diagnostics.plan_output =
-        args.pipeline.diagnostic_plan_output;
+    if (!args.assets_root.empty()) request.execution.assets_root = std::filesystem::path(args.assets_root);
+    request.settings = settings_from_args(args, true, args.pipeline.diagnostic);
+    request.settings.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
     request.video_settings = args.video_settings;
-    if (!args.pipe_pixfmt_explicit) {
-        request.video_settings.pipe_pixfmt.clear();
-    }
+    if (!args.pipe_pixfmt_explicit) request.video_settings.pipe_pixfmt.clear();
 
     const auto range = parse_frames(args.frames);
     request.frame_step = Frame{range.step};
@@ -161,10 +118,8 @@ std::optional<RenderRequest> make_render_request(
     request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
     request.execution.trace_output = std::filesystem::path(args.trace_output);
     request.execution.trace_level = args.trace_level;
-    fill_execution_options(
-        request.execution, args.pipeline, args.cpu_budget,
-        request.mode == RenderMode::Video,
-        backend_preference_from_cli(args.backend));
+    fill_execution_options(request.execution, args.pipeline, args.cpu_budget,
+                           request.mode == RenderMode::Video, args.backend);
 
     return request;
 }
@@ -173,39 +128,30 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
-    std::shared_ptr<const CompiledComposition> compiled =
-        std::move(request.compiled_composition);
+    std::shared_ptr<const CompiledComposition> compiled = std::move(request.compiled_composition);
     std::optional<ResolvedCompositionSpec> resolved;
     if (!compiled) {
         auto registry_result = registry.resolve(composition_id, request.input);
         if (!registry_result) {
-            return RenderJobError{
-                RenderJobErrorCode::ValidationFailed,
-                "Failed to resolve composition '" + composition_id +
-                    "': " + registry_result.error().message};
+            return RenderJobError{RenderJobErrorCode::ValidationFailed,
+                "Failed to resolve composition '" + composition_id + "': " + registry_result.error().message};
         }
         resolved = std::move(registry_result.value());
         if (!resolved->construct) {
-            return RenderJobError{
-                RenderJobErrorCode::InvalidJob,
-                "Composition '" + composition_id +
-                    "' has no prepared constructor"};
+            return RenderJobError{RenderJobErrorCode::InvalidJob,
+                "Composition '" + composition_id + "' has no prepared constructor"};
         }
     }
 
     try {
         if (!compiled) {
             Composition comp = resolved->construct();
-            auto compiled_result = chronon3d::compile_composition(
-                comp, CompositionCompileContext{});
+            auto compiled_result = chronon3d::compile_composition(comp, CompositionCompileContext{});
             if (!compiled_result) {
-                return RenderJobError{
-                    RenderJobErrorCode::SetupFailed,
-                    "Composition compilation failed for '" + composition_id +
-                        "': " + compiled_result.error().message};
+                return RenderJobError{RenderJobErrorCode::SetupFailed,
+                    "Composition compilation failed for '" + composition_id + "': " + compiled_result.error().message};
             }
-            compiled = std::make_shared<const CompiledComposition>(
-                std::move(compiled_result).value());
+            compiled = std::make_shared<const CompiledComposition>(std::move(compiled_result).value());
         }
 
         RenderJob job;
@@ -230,46 +176,30 @@ Result<RenderJob, RenderJobError> resolve_render_request(
         job.execution = std::move(request.execution);
         job.diagnostics = request.diagnostics;
 
-        // The CLI's default frames value is "0". For video output that means
-        // the full composition; a non-zero single frame remains one-frame video.
-        if (job.mode == RenderMode::Video &&
-            job.first_frame == Frame{0} && job.last_frame == Frame{0}) {
-            const auto duration_last = std::max<std::int64_t>(
-                0, job.metadata.duration.integral() - 1);
+        if (job.mode == RenderMode::Video && job.first_frame == Frame{0} && job.last_frame == Frame{0}) {
+            const auto duration_last = std::max<std::int64_t>(0, job.metadata.duration.integral() - 1);
             job.last_frame = Frame{duration_last};
         }
-
-        if (job.mode == RenderMode::Video) {
-            finalize_video_settings(job);
-        }
-
+        if (job.mode == RenderMode::Video) finalize_video_settings(job);
         return job;
     } catch (const std::exception& error) {
-        return RenderJobError{
-            RenderJobErrorCode::SetupFailed,
-            "Composition construction failed for '" + composition_id +
-                "': " + error.what()};
+        return RenderJobError{RenderJobErrorCode::SetupFailed,
+            "Composition construction failed for '" + composition_id + "': " + error.what()};
     }
 }
 
-std::optional<RenderJob> make_render_job(
-    const CompositionRegistry& registry,
-    const RenderArgs& args) {
+std::optional<RenderJob> make_render_job(const CompositionRegistry& registry, const RenderArgs& args) {
     return make_render_job(registry, args, CompositionProps{});
 }
 
-std::optional<RenderJob> make_render_job(
-    const CompositionRegistry& registry,
-    const RenderArgs& args,
-    const CompositionProps& props) {
+std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args,
+                                         const CompositionProps& props) {
     auto request = make_render_request(registry, args, props);
     if (!request) return std::nullopt;
-
-    auto resolved =
-        resolve_render_request(registry, std::move(*request));
+    auto resolved = resolve_render_request(registry, std::move(*request));
     if (!resolved) {
-        spdlog::error(
-            "Failed to resolve render job: {}", resolved.error().message);
+        spdlog::error("Failed to resolve render job: {}", resolved.error().message);
         return std::nullopt;
     }
     return std::move(resolved).value();

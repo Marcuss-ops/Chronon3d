@@ -77,14 +77,10 @@ if(CHRONON3D_ENABLE_VIDEO)
     )
 
     # ── chronon3d_media_video — Video sink library ──────────────────
-    # TICKET-011 cmake-boundary (OBJECT lift) — see chronon3d_backend_software comment.
+    # Raw output is always available. Compressed output is added only with the
+    # one canonical in-process native FFmpeg authority below.
     add_library(chronon3d_media_video OBJECT
         video/raw_video_sink.cpp
-        video/ffmpeg_pipe_sink.cpp
-        video/ffmpeg_pipe_args.cpp
-        video/ffmpeg_frame_submit.cpp
-        video/process_runner.cpp
-        video/process_runner_posix.cpp
         video/media_probe.cpp
         video/output_contract.cpp
         video/video_sink_factory.cpp
