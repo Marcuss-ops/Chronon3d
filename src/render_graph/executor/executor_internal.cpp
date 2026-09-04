@@ -1,5 +1,6 @@
 #include "executor_internal.hpp"
 
+#include "executor_compiled_program.hpp"
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
 
