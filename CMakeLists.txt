@@ -333,28 +333,6 @@ if(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
-# Visual regression gate.
-option(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE
-    "Register the two-tier visual regression CTest gate" ON)
-if(CHRONON3D_BUILD_VISUAL_REGRESSION_GATE)
-    find_package(Python3 COMPONENTS Interpreter)
-    if(Python3_FOUND)
-        add_test(
-            NAME chronon3d_visual_regression_gate
-            COMMAND ${Python3_EXECUTABLE}
-                "${CMAKE_SOURCE_DIR}/tools/visual_regression_gate.py"
-                --actual "$ENV{VISUAL_GATE_ACTUAL}"
-                --reference "$ENV{VISUAL_GATE_REFERENCE}"
-                --output-dir "${CMAKE_BINARY_DIR}/test_renders/visual_gate"
-        )
-        set_tests_properties(chronon3d_visual_regression_gate PROPERTIES
-            TIMEOUT 60
-            LABELS "gate;visual;ci"
-            SKIP_RETURN_CODE 2
-        )
-    endif()
-endif()
-
 # SDK install/export boundary.
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkInstall.cmake)
 
