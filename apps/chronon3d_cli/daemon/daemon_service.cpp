@@ -2,25 +2,18 @@
 #include "daemon_service_internal.hpp"
 
 #include <chronon3d/api/render_engine.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/config.hpp>
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
 #include "../utils/job/cli_render_utils.hpp"
-#include "utils/common/render_error_formatter.hpp"
 
 #include <spdlog/spdlog.h>
-#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <optional>
 #include <sstream>
@@ -228,12 +221,5 @@ std::shared_ptr<SoftwareRenderer> DaemonService::warm_renderer_for_device(
     spdlog::info("[daemon] created warm device session {}", device);
     return renderer;
 }
-
-#ifndef CHRONON3D_DAEMON_SPLIT_IMPL
-using daemon_detail::format_output_path;
-using daemon_detail::split_args;
-#include "daemon_service_commands.inc"
-#include "daemon_service_ipc.inc"
-#endif
 
 } // namespace chronon3d::cli
