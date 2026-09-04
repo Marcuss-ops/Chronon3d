@@ -24,36 +24,6 @@ std::string lower_profile(std::string value) {
     return value;
 }
 
-chronon3d::graph::BackendPreference parse_backend_preference(std::string_view value) noexcept {
-    if (value == "software") return chronon3d::graph::BackendPreference::Software;
-    if (value == "vulkan") return chronon3d::graph::BackendPreference::GPU;
-    return chronon3d::graph::BackendPreference::Auto;
-}
-
-chronon3d::MotionBlurMode parse_motion_blur_mode(int value) noexcept {
-    switch (value) {
-        case 1: return chronon3d::MotionBlurMode::TemporalAccumulation;
-        case 2: return chronon3d::MotionBlurMode::VelocityApproximation;
-        default: return chronon3d::MotionBlurMode::Off;
-    }
-}
-
-chronon3d::TemporalSamplePattern parse_motion_blur_pattern(int value) noexcept {
-    switch (value) {
-        case 0: return chronon3d::TemporalSamplePattern::Uniform;
-        case 2: return chronon3d::TemporalSamplePattern::Halton;
-        default: return chronon3d::TemporalSamplePattern::Stratified;
-    }
-}
-
-chronon3d::TemporalFilter parse_motion_blur_filter(int value) noexcept {
-    switch (value) {
-        case 1: return chronon3d::TemporalFilter::Triangle;
-        case 2: return chronon3d::TemporalFilter::Gaussian;
-        default: return chronon3d::TemporalFilter::Box;
-    }
-}
-
 void commit_typed_runtime_options(RenderState& state) {
     auto& args = *state.args;
     args.backend = parse_backend_preference(state.backend);
