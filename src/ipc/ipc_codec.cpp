@@ -4,11 +4,7 @@
 
 #include "ipc_codec.hpp"
 
-#include "chronon_ipc_generated.h"
-
 namespace chronon3d::ipc {
-
-using namespace chronon3d::ipc;
 
 WireFrame IpcCodec::encode_request(std::uint64_t message_id,
                                    const IpcRequest& request) {
@@ -68,7 +64,7 @@ WireFrame IpcCodec::encode_reply(std::uint64_t message_id,
         if constexpr (std::is_same_v<T, IpcCreateCompositionResult>) {
             auto msg = builder.CreateString(rep.message);
             auto body_offset = CreateCreateCompositionReply(
-                builder, static_cast<IpcStatus>(rep.status), msg).Union();
+                builder, rep.status, msg).Union();
             auto envelope = CreateIpcReplyEnvelope(
                 builder, message_id, IpcReplyBody_CreateCompositionReply, body_offset);
             builder.Finish(envelope);
@@ -78,21 +74,19 @@ WireFrame IpcCodec::encode_reply(std::uint64_t message_id,
                 ? flatbuffers::Offset<flatbuffers::String>{}
                 : builder.CreateString(rep.output_path);
             auto body_offset = CreateRenderFrameReply(
-                builder, static_cast<IpcStatus>(rep.status), msg, out, rep.render_ms).Union();
+                builder, rep.status, msg, out, rep.render_ms).Union();
             auto envelope = CreateIpcReplyEnvelope(
                 builder, message_id, IpcReplyBody_RenderFrameReply, body_offset);
             builder.Finish(envelope);
         } else if constexpr (std::is_same_v<T, IpcStatusResult>) {
             auto msg = builder.CreateString(rep.message);
-            auto body_offset = CreateStatusReply(
-                builder, static_cast<IpcStatus>(rep.status), msg).Union();
+            auto body_offset = CreateStatusReply(builder, rep.status, msg).Union();
             auto envelope = CreateIpcReplyEnvelope(
                 builder, message_id, IpcReplyBody_StatusReply, body_offset);
             builder.Finish(envelope);
         } else if constexpr (std::is_same_v<T, IpcShutdownResult>) {
             auto msg = builder.CreateString(rep.message);
-            auto body_offset = CreateShutdownReply(
-                builder, static_cast<IpcStatus>(rep.status), msg).Union();
+            auto body_offset = CreateShutdownReply(builder, rep.status, msg).Union();
             auto envelope = CreateIpcReplyEnvelope(
                 builder, message_id, IpcReplyBody_ShutdownReply, body_offset);
             builder.Finish(envelope);
@@ -109,15 +103,12 @@ IpcCodec::decode_request(const WireFrame& frame) {
     if (frame.empty()) return std::nullopt;
 
     flatbuffers::Verifier verifier(frame.data(), frame.size());
-    if (!verifier.VerifyBuffer<IpcEnvelope>(nullptr)) {
-        return std::nullopt;
-    }
+    if (!verifier.VerifyBuffer<IpcEnvelope>(nullptr)) return std::nullopt;
 
     const auto* env = flatbuffers::GetRoot<IpcEnvelope>(frame.data());
     if (!env) return std::nullopt;
 
     const auto message_id = env->message_id();
-
     switch (env->body_type()) {
         case IpcRequestBody_CreateCompositionRequest: {
             const auto* req = env->body_as_CreateCompositionRequest();
@@ -157,21 +148,18 @@ IpcCodec::decode_reply(const WireFrame& frame) {
     if (frame.empty()) return std::nullopt;
 
     flatbuffers::Verifier verifier(frame.data(), frame.size());
-    if (!verifier.VerifyBuffer<IpcReplyEnvelope>(nullptr)) {
-        return std::nullopt;
-    }
+    if (!verifier.VerifyBuffer<IpcReplyEnvelope>(nullptr)) return std::nullopt;
 
     const auto* env = flatbuffers::GetRoot<IpcReplyEnvelope>(frame.data());
     if (!env) return std::nullopt;
 
     const auto message_id = env->message_id();
-
     switch (env->body_type()) {
         case IpcReplyBody_CreateCompositionReply: {
             const auto* r = env->body_as_CreateCompositionReply();
             if (!r) return std::nullopt;
             IpcCreateCompositionResult out;
-            out.status = static_cast<std::uint8_t>(r->status());
+            out.status = r->status();
             if (r->message()) out.message = r->message()->str();
             return std::make_pair(message_id, IpcResponse{std::move(out)});
         }
@@ -179,7 +167,7 @@ IpcCodec::decode_reply(const WireFrame& frame) {
             const auto* r = env->body_as_RenderFrameReply();
             if (!r) return std::nullopt;
             IpcRenderFrameResult out;
-            out.status    = static_cast<std::uint8_t>(r->status());
+            out.status    = r->status();
             out.render_ms = r->render_ms();
             if (r->message()) out.message = r->message()->str();
             if (r->output_path()) out.output_path = r->output_path()->str();
@@ -189,7 +177,7 @@ IpcCodec::decode_reply(const WireFrame& frame) {
             const auto* r = env->body_as_StatusReply();
             if (!r) return std::nullopt;
             IpcStatusResult out;
-            out.status = static_cast<std::uint8_t>(r->status());
+            out.status = r->status();
             if (r->message()) out.message = r->message()->str();
             return std::make_pair(message_id, IpcResponse{std::move(out)});
         }
@@ -197,7 +185,7 @@ IpcCodec::decode_reply(const WireFrame& frame) {
             const auto* r = env->body_as_ShutdownReply();
             if (!r) return std::nullopt;
             IpcShutdownResult out;
-            out.status = static_cast<std::uint8_t>(r->status());
+            out.status = r->status();
             if (r->message()) out.message = r->message()->str();
             return std::make_pair(message_id, IpcResponse{std::move(out)});
         }
