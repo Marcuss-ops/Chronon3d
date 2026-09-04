@@ -20,6 +20,14 @@ set(CHRONON3D_RUNTIME_SOURCES
     gpu_asset_cache.cpp
     gpu_glyph_atlas.cpp
     gpu_layer_batch.cpp
+    # Fixed-slot frame execution primitives. FrameSlotPool owns slot payloads,
+    # GpuCompletionTracker owns native GPU protocol/completion state, and
+    # FrameQueue owns bounded slot-id handoff. The legacy Ring name is now a
+    # compatibility facade composed from these three authorities.
+    frame/frame_slot_pool.cpp
+    frame/gpu_completion_tracker.cpp
+    frame/frame_queue.cpp
+    frame/frame_execution_slot_ring.cpp
     device_scheduler.cpp
     overlay_template.cpp
     template_program_cache.cpp   # Fase H (TICKET-VIDEO-COMPILER-ARCH-V1)
