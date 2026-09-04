@@ -313,8 +313,8 @@ RenderEngine::render_compiled(
 }
 
 chronon3d::Result<RenderReport, RenderError>
-#include "sdk_render_file_methods.inc"
-#include "sdk_render_plan_methods.inc"
+#include "sdk_render_file_methods_detail.hpp"
+#include "sdk_render_plan_methods_detail.hpp"
 void RenderEngine::set_settings(const RenderSettings& settings) {
     std::lock_guard lock(m_impl->state_mutex);
     m_impl->settings = settings;
