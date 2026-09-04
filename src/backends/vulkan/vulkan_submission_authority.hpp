@@ -18,6 +18,13 @@ namespace chronon3d::backends::vulkan {
 // Owns every Vulkan submission-lifetime primitive: rotating frame slots,
 // replay slots and the immediate/timeline submission state. Descriptor
 // allocators are borrowed from the descriptor authority rather than copied.
+//
+// Slot taxonomy:
+//   frame slots  - command/fence lifetime for ordinary frame batches;
+//   replay slots - pre-recorded command buffers + replay parameter buffers;
+//   upload slots - NOT owned here; VulkanUploadAuthority owns transfer lifetime.
+// Keeping upload slots separate prevents transfer staging lifetime from being
+// coupled to graphics/compute submission rotation.
 struct VulkanSubmissionAuthority {
     static constexpr std::size_t kSlotCount = 3;
     static constexpr std::size_t kCompiledPassTimingCapacity = 256;
@@ -49,6 +56,7 @@ struct VulkanSubmissionAuthority {
     VkCommandBuffer command_buffer{VK_NULL_HANDLE};
     VkFence fence{VK_NULL_HANDLE};
     VkSemaphore timeline_semaphore{VK_NULL_HANDLE};
+    VkQueryPool timestamp_pool{VK_NULL_HANDLE};
     std::uint64_t next_timeline_value{0};
     std::uint64_t pending_timeline_value{0};
     bool command_batch_active{false};
