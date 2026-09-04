@@ -1,3 +1,32 @@
+#include "pipe_export_pipeline_internal.hpp"
+#include "utils/process_start.hpp"
+
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/triple_buffer_arena.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
+#if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#endif
+
+#include <spdlog/spdlog.h>
+#include <cstdlib>
+#include <filesystem>
+#include <functional>
+#include <memory>
+#include <thread>
+#include <vector>
+
+namespace chronon3d::cli {
+using detail::VariantFanoutEncoder;
+using detail::render_graph_fallback_plan;
+
 std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
     const CompiledComposition& compiled,
@@ -55,9 +84,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->device_id = 0;
     }
 
-    if (!video_runtimes && execution) {
-        video_runtimes = execution->video_runtimes;
-    }
+    if (!video_runtimes && execution) video_runtimes = execution->video_runtimes;
     if (!video_runtimes) {
         spdlog::error("[video] FAIL_CLOSED: no persistent VideoRuntimeRegistry supplied. "
                       "The daemon or CLI must pass its shared registry; a throwaway "
@@ -164,9 +191,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     if (session->opts.sink.sink_type == VideoSinkType::Ffmpeg ||
         session->opts.sink.sink_type == VideoSinkType::RawFile) {
-        if (!ensure_output_directory_exists(session->opts.output.output)) {
-            return session;
-        }
+        if (!ensure_output_directory_exists(session->opts.output.output)) return session;
         for (const auto& variant : session->opts.variants) {
             const auto variant_path = variant.output.empty()
                 ? session->opts.output.output : variant.output;
@@ -336,3 +361,5 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     return session;
 }
+
+} // namespace chronon3d::cli
