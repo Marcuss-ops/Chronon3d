@@ -1,3 +1,12 @@
+#include "../common/pipe_export_pipeline.hpp"
+#include "../common/pipe_export_helpers.hpp"
+
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/output_contract.hpp>
+#include <spdlog/spdlog.h>
+
+#include <filesystem>
+
 namespace chronon3d::cli {
 
 EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
@@ -26,14 +35,8 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
         conversion_bytes, staging_copy_bytes, encoder_slot_reuses);
 
     result.success = session.encoder->close();
-    if (!result.success) {
-        spdlog::error("[video] Encoder close failed");
-    }
+    if (!result.success) spdlog::error("[video] Encoder close failed");
 
-    // Read the native accessors AFTER close() so the flush-time
-    // receive/mux/trailer accumulation (drain + av_write_trailer) is
-    // included. Reading before close() would silently drop the final
-    // packets and the trailer, under-reporting those tails.
     result.native_convert_ms      = session.encoder->native_convert_ms();
     result.native_send_ms         = session.encoder->native_send_frame_ms();
     result.native_backpressure_ms = session.encoder->native_backpressure_ms();
@@ -81,14 +84,7 @@ PipeExportResult make_pipe_export_result(
     result.writer_error = status.writer_error;
     result.exception_error = status.exception_error;
     result.encoder_close_failed = !close_result.success;
-
-    // An encoder close failure overrides success: even if all frames were
-    // rendered and encoded, a failed close means the output is incomplete
-    // or corrupted. The caller relies on return_code for the process exit
-    // code, so both success and return_code must reflect this.
-    if (result.encoder_close_failed) {
-        result.success = false;
-    }
+    if (result.encoder_close_failed) result.success = false;
 
     result.frames_rendered = status.frames_rendered;
     result.frames_enqueued = status.frames_enqueued;
@@ -98,9 +94,6 @@ PipeExportResult make_pipe_export_result(
     result.encode_ms = encode_ms;
     result.return_code = result.success ? 0 : 1;
 
-    // P1-B: atomic output — FFmpeg wrote to session.opts.output.output
-    // (which has .partial suffix). On success, rename to the original
-    // final path. On failure, clean up the partial file.
     const auto partial_path = std::filesystem::path(session.opts.output.output);
     const auto final_path = std::filesystem::path(session.original_output_path);
 
@@ -119,8 +112,7 @@ PipeExportResult make_pipe_export_result(
         }
     } else {
         const auto validation_t0 = profiling::now();
-        auto contract_result =
-            media::video::resolve_output_contract("youtube_overlay_v1");
+        auto contract_result = media::video::resolve_output_contract("youtube_overlay_v1");
         if (!contract_result) {
             spdlog::error("[video] output contract unavailable: {}",
                           std::move(contract_result).error());
@@ -139,8 +131,7 @@ PipeExportResult make_pipe_export_result(
             !session.opts.gop_source.empty();
         contract.audio_streams = contract.audio_required ? 1 : 0;
 
-        const auto verification = media::video::verify_output_contract(
-            partial_path, contract);
+        const auto verification = media::video::verify_output_contract(partial_path, contract);
         result.validation_ms = profiling::duration_ms(validation_t0, profiling::now());
         result.sha256 = verification.sha256;
         result.ffprobe_ms = verification.ffprobe_ms;
@@ -148,8 +139,7 @@ PipeExportResult make_pipe_export_result(
         result.copy_eligible = verification.copy_eligible;
 
         if (!verification.passed) {
-            spdlog::error("[video] output verification failed — {}",
-                          verification.failure);
+            spdlog::error("[video] output verification failed — {}", verification.failure);
             result.success = false;
             result.return_code = 1;
             std::error_code ec;
