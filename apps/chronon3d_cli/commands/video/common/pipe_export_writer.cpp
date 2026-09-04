@@ -148,6 +148,8 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 spdlog::error(
                     "[video] GPU_NATIVE_REQUIRED: non-GPU surface at frame {}; refusing CPU fallback",
                     full->frame_number);
+                // No encoder contact happened for this slot: the lease
+                // destructor performs the guarded Encoding→Free recycle.
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
@@ -166,6 +168,14 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                     ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);
                 }
+                if (gpu_frame) {
+                    // B7: the encoder may have partially consumed the native
+                    // surface before rejecting the frame. Pin the slot under a
+                    // completion token and let the reaper recycle it only once
+                    // poll_native_surface reports the encoder is done with it.
+                    full->slot.retire(std::make_shared<EncoderGpuCompletion>(
+                        ctx.encoder, *slot->backend, slot->native_surface));
+                }
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
@@ -175,6 +185,10 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 spdlog::error(
                     "[video] invalid encode submission lifecycle for slot {}",
                     slot->slot_id);
+                // B7: same pin-until-completion discipline as above — the
+                // encoder owns the surface even though bookkeeping failed.
+                full->slot.retire(std::make_shared<EncoderGpuCompletion>(
+                    ctx.encoder, *slot->backend, slot->native_surface));
                 ctx.writer_failed.store(true);
                 ctx.queue.close();
                 return;
@@ -191,6 +205,10 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                         spdlog::error(
                             "[video] invalid encode completion lifecycle for slot {}",
                             slot->slot_id);
+                        // Surface already reported ready, but keep the same
+                        // invariant: recycle only through the guarded path.
+                        full->slot.retire(std::make_shared<EncoderGpuCompletion>(
+                            ctx.encoder, *slot->backend, slot->native_surface));
                         ctx.writer_failed.store(true);
                         ctx.queue.close();
                         return;

@@ -535,9 +535,7 @@ NodeExecResult SourceNode::execute(
         m_node.shape.type() == ShapeType::Image
             ? detail::ProducerSurfaceKind::Image
             : detail::ProducerSurfaceKind::Background,
-        source_bbox
-            ? &*source_bbox
-            : nullptr);
+        source_bbox ? &*source_bbox : nullptr);
     detail::record_producer_surface(
         ctx.node_exec.counters,
         m_node.shape.type() == ShapeType::Image

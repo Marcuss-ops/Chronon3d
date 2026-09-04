@@ -422,6 +422,15 @@ public:
             "RenderBackend::fill_rect_surface: native surfaces are not supported"});
     }
 
+    /// Initialize a newly-created native surface to transparent without
+    /// consuming a compiled render-plan pass slot.
+    virtual RenderOpResult initialize_transparent_surface(
+        runtime::RenderSurfaceHandle /*destination*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::initialize_transparent_surface: native surfaces are not supported"});
+    }
+
     virtual RenderOpResult transform_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,

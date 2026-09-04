@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-
 namespace chronon3d::cli::detail {
 
 struct FrameProfileSample {
@@ -45,7 +44,7 @@ struct FrameTimingProjection {
 
 struct NativeSurfacePrep {
     RenderSettings video_settings{};
-    runtime::FrameExecutionSlotRing::SlotLease slot;
+    runtime::GpuSlotPool::Lease slot;
 };
 
 struct RenderOutcome {

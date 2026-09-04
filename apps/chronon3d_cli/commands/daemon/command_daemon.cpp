@@ -9,11 +9,15 @@ int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root,
                    const std::string& build_command,
                    const std::string& socket_path,
-                   const std::string& backend,
+                   graph::BackendPreference backend,
                    std::uint32_t gpu_device_id) {
     DaemonOptions options;
     options.assets_root = assets_root;
-    options.backend = backend;
+    switch (backend) {
+        case graph::BackendPreference::Software: options.backend = "software"; break;
+        case graph::BackendPreference::GPU: options.backend = "vulkan"; break;
+        case graph::BackendPreference::Auto: options.backend = "auto"; break;
+    }
     options.gpu_device_id = gpu_device_id;
     options.build_command = build_command;
     options.watch_dirs = {"src", "include", "apps", "content"};

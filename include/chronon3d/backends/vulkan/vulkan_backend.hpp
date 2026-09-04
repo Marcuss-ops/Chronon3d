@@ -300,6 +300,8 @@ public:
     graph::RenderOpResult fill_rect_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, const Color&) override;
+    graph::RenderOpResult initialize_transparent_surface(
+        runtime::RenderSurfaceHandle) override;
     /// Native axis-aligned solid primitive fill. `primitive_kind` is 0 for
     /// rectangles, 1 for rounded rectangles and 2 for ellipses; radii are in
     /// destination pixels.
