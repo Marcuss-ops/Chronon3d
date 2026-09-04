@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // render_plan/render_plan_validator.hpp — JSON Schema validator for
-// `chronon.render-plan` v1 plans.
+// `chronon.render-plan.v2` plans.
 //
-// Structural validation is delegated to nlohmann-json-schema-validator.
-// The schema in `schemas/chronon.render-plan.v1.schema.json` is the sole
+// Structural validity is delegated to nlohmann-json-schema-validator.
+// The schema in `schemas/json/chronon.render-plan.v2.schema.json` is the sole
 // source of structural rules; runtime asset/backend checks remain semantic.
 //
 // Cat-3 contract: no SDK state, no asset access, no logging — pure
-// functions that walk the parsed JSON against the schema.  Side effect:
-// throws std::runtime_error from the `_or_throw` overload so the C API
-// can map it to CHRONON_ERROR_PARSE_FAILED unchanged.
+// functions over parsed JSON. The `_or_throw` overload preserves the C API
+// fail-fast mapping while `validate_render_plan` returns structured diagnostics.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -33,7 +33,7 @@ enum class ValidationIssueKind : std::uint8_t {
     StringTooShort,     ///< minLength violation
     ArrayTooShort,      ///< minItems violation
     ArrayTooLong,       ///< maxItems violation
-    UnsupportedKeyword, ///< retained for API compatibility with older callers
+    UnsupportedKeyword, ///< validator failed on a constraint not mapped structurally
 };
 
 struct ValidationIssue {
@@ -44,7 +44,7 @@ struct ValidationIssue {
     std::string expected;
     /// What was actually present (human-readable, e.g. "string \"abc\"")
     std::string actual;
-    /// Optional human-readable detail.
+    /// Optional human-readable detail. Never parsed to determine `kind`.
     std::string detail;
 
     std::string to_string() const;
@@ -53,23 +53,18 @@ struct ValidationIssue {
 struct ValidationResult {
     std::vector<ValidationIssue> issues;
 
-    /// true iff no issues were accumulated.
     bool ok() const noexcept { return issues.empty(); }
-
-    /// Render the full issue list as a multi-line, grep-discoverable
-    /// string suitable for direct inclusion in error messages.
     std::string format() const;
 };
 
-/// Validate `root` against `schemas/chronon.render-plan.v1.schema.json`.
-/// Returns ALL issues found (does not fail-fast) so the caller can show
-/// the full diff to the user in a single response.
+/// Validate `root` against the canonical RenderPlan V2 schema.
+///
+/// nlohmann-json-schema-validator remains the validity authority. Chronon's
+/// diagnostic adapter maps schema structure into stable ValidationIssueKind
+/// values and never classifies errors by matching human-readable text.
 ValidationResult validate_render_plan(const nlohmann::json& root);
 
-/// Convenience overload that throws std::runtime_error on any issue,
-/// formatted via ValidationResult::format().  Used by the C API entry
-/// points (`compile_plan`, `render_legacy_json`) where the fail-fast
-/// semantics match the existing `compile_plan` throw contract.
+/// Throw std::runtime_error when validation produces any issue.
 void validate_render_plan_or_throw(const nlohmann::json& root);
 
 }  // namespace render_plan

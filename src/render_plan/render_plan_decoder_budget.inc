@@ -130,7 +130,3 @@ std::optional<PlanDecodeError> validate_render_plan_budget(
     const RenderPlan& plan, const RenderBudget& budget) {
     return validate_render_budget(plan, budget);
 }
-
-std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
-    return fingerprint_render_plan_impl(plan, false);
-}
