@@ -50,6 +50,7 @@ add_library(chronon3d_ipc OBJECT
     ipc_codec.cpp
     composition_session.cpp
     contract_validator_registry.cpp
+    transport/memfd_shared_memory_transport.cpp
     "${CHRONON3D_IPC_GENERATED_HEADER}"
     "${CHRONON3D_IPC_SCHEMA_HEADER}"
 )
@@ -64,8 +65,8 @@ target_link_libraries(chronon3d_ipc PUBLIC
 target_include_directories(chronon3d_ipc
     PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    PRIVATE ${CHRONON3D_IPC_GENERATED_DIR}
-           ${CMAKE_SOURCE_DIR}
+           $<BUILD_INTERFACE:${CHRONON3D_IPC_GENERATED_DIR}>
+    PRIVATE ${CMAKE_SOURCE_DIR}
 )
 
 # Publish to the canonical registry

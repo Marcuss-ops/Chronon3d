@@ -66,9 +66,6 @@ int main(int argc, char* argv[]) {
     spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
 
 #ifdef CHRONON3D_ENABLE_CRASH_HANDLER
-    // Install the fatal crash handler FIRST — before any engine work.
-    // A library must never install signal handlers in a client process;
-    // the daemon is an application boundary, so it owns this decision.
     chronon3d::crash::install();
 #endif
 
@@ -98,20 +95,17 @@ int main(int argc, char* argv[]) {
         auto decoded = IpcCodec::decode_request(request);
         if (!decoded) {
             return IpcCodec::encode_reply(0, IpcResponse{
-                IpcCreateCompositionResult{3, "bad request"}});
+                IpcCreateCompositionResult{IpcStatus_BadRequest, "bad request"}});
         }
 
         const auto [msg_id, req] = *decoded;
 
         if (std::holds_alternative<IpcShutdown>(req)) {
             return IpcCodec::encode_reply(msg_id, IpcResponse{
-                IpcShutdownResult{4, "bye"}});
+                IpcShutdownResult{IpcStatus_Shutdown, "bye"}});
         }
 
 #ifdef CHRONON3D_ENABLE_CRASH_HANDLER
-        // Populate the thread-local crash context so a fatal signal during
-        // dispatch reports the composition being rendered.  The C-strings
-        // point into the decoded request, which lives through dispatch().
         chronon3d::crash::CrashContext crash_ctx;
         crash_ctx.backend = args.backend.c_str();
         if (const auto* rf = std::get_if<IpcRenderFrame>(&req)) {
