@@ -1,3 +1,19 @@
+#include "native_av_encoder.hpp"
+#include "native_av_encoder_internal.hpp"
+
+#include <spdlog/spdlog.h>
+#include <algorithm>
+#include <exception>
+#include <mutex>
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
+
+namespace chronon3d::cli {
+using Clock = detail::NativeAvClock;
+using detail::elapsed_ms;
+
 bool NativeAvEncoder::write_native_surface(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
@@ -24,8 +40,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
         !direct.decoded || direct.decoded->format != AV_PIX_FMT_CUDA ||
         !direct.decoded->data[0] || !direct.decoded->data[1] ||
         !direct.program ||
-        (direct.program->batch.instances.empty() !=
-         direct.program->resources.empty())) {
+        (direct.program->batch.instances.empty() != direct.program->resources.empty())) {
         spdlog::error("[native_av] invalid DirectCudaYuv frame contract");
         return false;
     }
@@ -36,12 +51,10 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     const bool has_overlay = !direct.program->batch.instances.empty();
     if (has_overlay && !direct_yuv_compositor_) {
         try {
-            direct_yuv_compositor_ =
-                std::make_unique<media::CudaDirectNv12Compositor>(
-                    reinterpret_cast<CUcontext>(cuda_context_));
+            direct_yuv_compositor_ = std::make_unique<media::CudaDirectNv12Compositor>(
+                reinterpret_cast<CUcontext>(cuda_context_));
         } catch (const std::exception& error) {
-            spdlog::error("[native_av] DirectCudaYuv compositor init failed: {}",
-                          error.what());
+            spdlog::error("[native_av] DirectCudaYuv compositor init failed: {}", error.what());
             return false;
         }
     }
@@ -200,3 +213,5 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     return drained;
 #endif
 }
+
+} // namespace chronon3d::cli

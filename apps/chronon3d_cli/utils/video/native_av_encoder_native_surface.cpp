@@ -1,10 +1,25 @@
+#include "native_av_encoder.hpp"
+
+#include <spdlog/spdlog.h>
+#include <algorithm>
+#include <exception>
+#include <mutex>
+
+#if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <cuda.h>
+#endif
+
+namespace chronon3d::cli {
+
 bool NativeAvEncoder::write_native_surface_impl(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle destination,
     bool surface_already_prepared) {
 #if !defined(CHRONON3D_ENABLE_CUDA_INTEROP) || !defined(CHRONON3D_ENABLE_VULKAN)
-    (void)backend; (void)source; (void)destination;
+    (void)backend; (void)source; (void)destination; (void)surface_already_prepared;
     return false;
 #else
     std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -22,8 +37,7 @@ bool NativeAvEncoder::write_native_surface_impl(
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;
-    if (!vulkan->cuda_context_matches_device(
-            reinterpret_cast<CUcontext>(cuda_context_))) {
+    if (!vulkan->cuda_context_matches_device(reinterpret_cast<CUcontext>(cuda_context_))) {
         spdlog::error("[native_av] Vulkan/CUDA physical-device UUID mismatch");
         return false;
     }
@@ -183,3 +197,5 @@ bool NativeAvEncoder::poll_native_surface(
     return cuda::query(it->ready) == CUDA_SUCCESS;
 #endif
 }
+
+} // namespace chronon3d::cli

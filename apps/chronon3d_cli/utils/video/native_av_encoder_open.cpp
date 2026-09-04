@@ -1,19 +1,49 @@
-NativeAvEncoder::NativeAvEncoder(
-    std::shared_ptr<media::VideoDeviceRuntime> device_runtime)
-    : device_runtime_(std::move(device_runtime)) {}
+#include "native_av_encoder.hpp"
+#include "native_av_encoder_internal.hpp"
 
-/// Map our options to the codec name that avcodec_find_encoder_by_name expects.
-static const char* resolve_encoder_name(const FfmpegPipeOptions& opt) {
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <optional>
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#include <libavutil/hwcontext_cuda.h>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#endif
+#endif
+
+namespace chronon3d::cli {
+using Clock = detail::NativeAvClock;
+using detail::elapsed_ms;
+
+namespace {
+
+bool set_codec_option_checked(AVCodecContext* codec, const char* key,
+                              const std::string& value) {
+    const int rc = av_opt_set(codec, key, value.c_str(), AV_OPT_SEARCH_CHILDREN);
+    if (rc < 0) {
+        char error[AV_ERROR_MAX_STRING_SIZE]{};
+        av_strerror(rc, error, sizeof(error));
+        spdlog::error("[native_av] unsupported encoder option {}='{}': {}",
+                      key, value, error);
+        return false;
+    }
+    return true;
+}
+
+const char* resolve_encoder_name(const FfmpegPipeOptions& opt) {
     if (opt.hardware_encoder == "nvenc") {
         if (opt.codec == "hevc" || opt.codec == "libx265") return "hevc_nvenc";
         return "h264_nvenc";
     }
-    if (opt.codec == "libx264rgb")
-        return "libx264rgb";
+    if (opt.codec == "libx264rgb") return "libx264rgb";
     return "libx264";
 }
-
-namespace {
 
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
     return options.width > 0 && options.height > 0 &&
@@ -22,6 +52,10 @@ bool validate_encoder_options(const FfmpegPipeOptions& options) {
 }
 
 } // namespace
+
+NativeAvEncoder::NativeAvEncoder(
+    std::shared_ptr<media::VideoDeviceRuntime> device_runtime)
+    : device_runtime_(std::move(device_runtime)) {}
 
 bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     if (mux_ || codec_) {
@@ -58,20 +92,20 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     cache_hits_   = 0;
     cache_misses_ = 0;
 
-    native_convert_ms_         = 0.0;
-    native_send_frame_ms_      = 0.0;
-    native_backpressure_ms_    = 0.0;
-    native_flush_ms_           = 0.0;
-    native_receive_packet_ms_  = 0.0;
-    native_mux_write_ms_       = 0.0;
-    native_trailer_ms_         = 0.0;
+    native_convert_ms_ = 0.0;
+    native_send_frame_ms_ = 0.0;
+    native_backpressure_ms_ = 0.0;
+    native_flush_ms_ = 0.0;
+    native_receive_packet_ms_ = 0.0;
+    native_mux_write_ms_ = 0.0;
+    native_trailer_ms_ = 0.0;
     encoder_hwframe_get_buffer_ms_ = 0.0;
-    encoder_surface_acquire_ms_    = 0.0;
-    encoder_nvenc_submit_ms_       = 0.0;
+    encoder_surface_acquire_ms_ = 0.0;
+    encoder_nvenc_submit_ms_ = 0.0;
     encoder_queue_backpressure_wait_ms_ = 0.0;
-    encoder_packet_drain_ms_       = 0.0;
-    direct_yuv_cuda_launch_ms_     = 0.0;
-    direct_yuv_cuda_wait_ms_       = 0.0;
+    encoder_packet_drain_ms_ = 0.0;
+    direct_yuv_cuda_launch_ms_ = 0.0;
+    direct_yuv_cuda_wait_ms_ = 0.0;
 
     const std::string filename = options_.output_path;
 
@@ -87,11 +121,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
-    codec_->width     = options_.width;
-    codec_->height    = options_.height;
+    codec_->width = options_.width;
+    codec_->height = options_.height;
     codec_->time_base = AVRational{options_.fps_den, options_.fps_num};
     codec_->framerate = AVRational{options_.fps_num, options_.fps_den};
-    codec_->gop_size  = std::max(1, static_cast<int>(std::llround(
+    codec_->gop_size = std::max(1, static_cast<int>(std::llround(
         static_cast<double>(options_.fps_num) / options_.fps_den)));
     codec_->max_b_frames = 0;
 
@@ -176,15 +210,13 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         codec_->pix_fmt = AV_PIX_FMT_YUV420P;
     }
 
-    if (!options_.preset.empty()) {
-        if (!set_codec_option_checked(codec_, "preset", options_.preset)) return false;
-    }
+    if (!options_.preset.empty() &&
+        !set_codec_option_checked(codec_, "preset", options_.preset)) return false;
     {
         char crf_str[16];
         snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
         const std::string encoder_name = resolve_encoder_name(options_);
-        const bool is_nvenc = encoder_name == "h264_nvenc" ||
-                              encoder_name == "hevc_nvenc";
+        const bool is_nvenc = encoder_name == "h264_nvenc" || encoder_name == "hevc_nvenc";
         if (!gpu_nvenc_ && !is_nvenc &&
             !set_codec_option_checked(codec_, "crf", crf_str)) return false;
     }
@@ -194,15 +226,14 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             char threads_str[16];
             snprintf(threads_str, sizeof(threads_str), "%d", options_.encode_threads);
             if (!set_codec_option_checked(codec_, "threads", threads_str)) return false;
-        } else {
-            if (!set_codec_option_checked(codec_, "threads", "auto")) return false;
+        } else if (!set_codec_option_checked(codec_, "threads", "auto")) {
+            return false;
         }
         if (!set_codec_option_checked(codec_, "thread_type", "frame")) return false;
     }
     const std::string tune = options_.tune.empty() ? "" : options_.tune;
-    if (!tune.empty() && !gpu_nvenc_) {
-        if (!set_codec_option_checked(codec_, "tune", tune)) return false;
-    }
+    if (!tune.empty() && !gpu_nvenc_ &&
+        !set_codec_option_checked(codec_, "tune", tune)) return false;
 
     const auto nvenc_t0 = Clock::now();
     if (avcodec_open2(codec_, encoder, nullptr) < 0) {
@@ -216,15 +247,13 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (avformat_open_input(&audio_input_, options_.audio_source_path.c_str(),
                                 nullptr, nullptr) < 0 ||
             avformat_find_stream_info(audio_input_, nullptr) < 0) {
-            spdlog::error("[native_av] audio source open failed: {}",
-                          options_.audio_source_path);
+            spdlog::error("[native_av] audio source open failed: {}", options_.audio_source_path);
             return false;
         }
         audio_input_stream_ = av_find_best_stream(
             audio_input_, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
         if (audio_input_stream_ < 0) {
-            spdlog::error("[native_av] audio source has no audio stream: {}",
-                          options_.audio_source_path);
+            spdlog::error("[native_av] audio source has no audio stream: {}", options_.audio_source_path);
             return false;
         }
         audio_config = chronon3d::media::AudioStreamConfig{
@@ -242,7 +271,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
-    frame_  = av_frame_alloc();
+    frame_ = av_frame_alloc();
     packet_ = av_packet_alloc();
     if (!frame_ || !packet_) {
         spdlog::error("[native_av] av_frame_alloc or av_packet_alloc failed");
@@ -250,9 +279,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
 
     frame_->format = codec_->pix_fmt;
-    frame_->width  = codec_->width;
+    frame_->width = codec_->width;
     frame_->height = codec_->height;
-
     if (!gpu_nvenc_ && av_frame_get_buffer(frame_, 32) < 0) {
         spdlog::error("[native_av] av_frame_get_buffer failed");
         return false;
@@ -264,3 +292,5 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     open_complete_ = true;
     return true;
 }
+
+} // namespace chronon3d::cli

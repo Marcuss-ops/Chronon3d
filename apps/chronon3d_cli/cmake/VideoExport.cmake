@@ -26,10 +26,6 @@ if(NOT CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/hw_frame_ref_stubs.cpp)
 endif()
 set_target_properties(chronon3d_cli_video_export PROPERTIES UNITY_BUILD OFF)
-set_source_files_properties(
-    utils/video/native_av_encoder.cpp
-    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
-)
 target_include_directories(chronon3d_cli_video_export PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/include
@@ -51,7 +47,12 @@ endif()
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE
-        utils/video/native_av_encoder.cpp
+        utils/video/native_av_encoder_common.cpp
+        utils/video/native_av_encoder_open.cpp
+        utils/video/native_av_encoder_lifecycle.cpp
+        utils/video/native_av_encoder_cuda_queue.cpp
+        utils/video/native_av_encoder_direct_yuv.cpp
+        utils/video/native_av_encoder_native_surface.cpp
         utils/video/native_av_encoder_write.cpp
         utils/video/native_av_encoder_packets.cpp
     )
