@@ -1,3 +1,32 @@
+#include "command_bench_internal.hpp"
+#include "../args.hpp"
+#include "../../chronon3d_cli/utils/job/cli_render_utils.hpp"
+
+#ifdef CHRONON3D_BUILD_BENCHMARKS
+#include <benchmark/benchmark.h>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
+#include <fmt/format.h>
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
+#include <atomic>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+#endif
+
+namespace chronon3d::cli {
+
+#ifdef CHRONON3D_BUILD_BENCHMARKS
+using namespace detail;
+
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     if (!registry.contains(args.comp_id)) {
         spdlog::error("Unknown composition: {}", args.comp_id);
@@ -13,15 +42,12 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     }
 
     auto composition = registry.create(args.comp_id);
-    auto compiled_result = chronon3d::compile_composition(
-        composition, CompositionCompileContext{});
+    auto compiled_result = chronon3d::compile_composition(composition, CompositionCompileContext{});
     if (!compiled_result) {
-        spdlog::error("Composition compilation failed: {}",
-                      compiled_result.error().message);
+        spdlog::error("Composition compilation failed: {}", compiled_result.error().message);
         return 1;
     }
-    auto compiled = std::make_shared<const CompiledComposition>(
-        std::move(compiled_result).value());
+    auto compiled = std::make_shared<const CompiledComposition>(std::move(compiled_result).value());
     RenderSettings settings;
     if (args.no_dirty_rects) {
         settings.dirty.enabled = false;
@@ -31,10 +57,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     auto renderer = create_renderer(registry, settings);
 
     std::unique_ptr<ScopedSpdlogLevel> quiet_log_guard;
-    if (args.quiet) {
-        quiet_log_guard = std::make_unique<ScopedSpdlogLevel>(spdlog::level::off);
-    }
-
+    if (args.quiet) quiet_log_guard = std::make_unique<ScopedSpdlogLevel>(spdlog::level::off);
     if (!args.quiet) {
         spdlog::info("Benchmarking {} (warmup: {}, frames: {})", args.comp_id, args.warmup, args.frames);
     }
@@ -71,8 +94,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     }
 
     for (int i = 0; i < args.warmup; ++i) {
-        const auto frame = static_cast<Frame>(i);
-        renderer->render_compiled(*compiled, frame);
+        renderer->render_compiled(*compiled, static_cast<Frame>(i));
     }
 
     uint64_t saved_fb_alloc = 0;
@@ -101,7 +123,6 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     context.frames = args.frames;
     context.warmup = args.warmup;
     context.no_dirty_rects = args.no_dirty_rects;
-
     g_bench_context = &context;
 
     benchmark::AddCustomContext("comp_id", args.comp_id);
@@ -112,8 +133,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     std::optional<std::filesystem::path> temp_json_path;
     std::filesystem::path current_json_path = args.json_file.empty()
-        ? std::filesystem::path{}
-        : std::filesystem::path(args.json_file);
+        ? std::filesystem::path{} : std::filesystem::path(args.json_file);
     if (current_json_path.empty() || !args.compare_file.empty()) {
         temp_json_path = make_temp_json_path();
         if (!temp_json_path) {
@@ -121,27 +141,22 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
             g_bench_context = nullptr;
             return 1;
         }
-        if (current_json_path.empty()) {
-            current_json_path = *temp_json_path;
-        }
+        if (current_json_path.empty()) current_json_path = *temp_json_path;
     }
 
     auto benchmark_argv_storage = build_benchmark_argv(args, current_json_path);
     std::vector<char*> benchmark_argv;
     benchmark_argv.reserve(benchmark_argv_storage.size());
-    for (auto& arg : benchmark_argv_storage) {
-        benchmark_argv.push_back(arg.data());
-    }
-
+    for (auto& arg : benchmark_argv_storage) benchmark_argv.push_back(arg.data());
     int benchmark_argc = static_cast<int>(benchmark_argv.size());
     benchmark::Initialize(&benchmark_argc, benchmark_argv.data());
 
     benchmark::ConsoleReporter display_reporter(
         args.quiet ? benchmark::ConsoleReporter::OO_None : benchmark::ConsoleReporter::OO_Defaults);
-    NullStream null_stream;
+    auto null_stream = make_null_stream();
     if (args.quiet) {
-        display_reporter.SetOutputStream(&null_stream);
-        display_reporter.SetErrorStream(&null_stream);
+        display_reporter.SetOutputStream(null_stream.get());
+        display_reporter.SetErrorStream(null_stream.get());
     }
 
     std::ofstream json_out(current_json_path);
@@ -156,15 +171,12 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     const std::string benchmark_name = "chronon3d/render/" + args.comp_id;
     benchmark::RegisterBenchmark(benchmark_name.c_str(), run_render_benchmark)->Unit(benchmark::kMillisecond);
-
     benchmark::RunSpecifiedBenchmarks(&display_reporter, &file_reporter);
     benchmark::Shutdown();
     json_out.close();
 
     int exit_code = 0;
-    if (!args.quiet) {
-        spdlog::info("Benchmark JSON written to {}", current_json_path.string());
-    }
+    if (!args.quiet) spdlog::info("Benchmark JSON written to {}", current_json_path.string());
 
     std::vector<BenchmarkSummary> current_rows;
     try {
@@ -178,12 +190,9 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     if (!args.compare_file.empty()) {
         try {
             const auto baseline_rows = load_grouped_summaries(args.compare_file);
-            if (!args.quiet) {
-                fmt::print("--- Baseline Comparison ---\n");
-            }
-            print_comparison(
-                current_rows, baseline_rows,
-                args.fail_if_avg_slower_pct, args.quiet, exit_code);
+            if (!args.quiet) fmt::print("--- Baseline Comparison ---\n");
+            print_comparison(current_rows, baseline_rows,
+                             args.fail_if_avg_slower_pct, args.quiet, exit_code);
         } catch (const std::exception& e) {
             spdlog::error("Failed to compare benchmark JSON: {}", e.what());
             g_bench_context = nullptr;
@@ -225,3 +234,12 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     g_bench_context = nullptr;
     return exit_code;
 }
+
+#else
+int command_bench(const CompositionRegistry&, const BenchArgs&) {
+    spdlog::error("Benchmarks not available: built without Google Benchmark support");
+    return 1;
+}
+#endif
+
+} // namespace chronon3d::cli
