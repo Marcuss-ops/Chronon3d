@@ -26,10 +26,10 @@
 
 namespace chronon3d::graph {
 
-#include "frame_graph_builder_levels.inc"
-#include "frame_graph_builder_metadata.inc"
-#include "frame_graph_builder_validation.inc"
-#include "frame_graph_builder_program.inc"
-#include "frame_graph_builder_allocation.inc"
+#include "frame_graph_builder_levels_detail.hpp"
+#include "frame_graph_builder_metadata_detail.hpp"
+#include "frame_graph_builder_validation_detail.hpp"
+#include "frame_graph_builder_program_detail.hpp"
+#include "frame_graph_builder_allocation_detail.hpp"
 
 } // namespace chronon3d::graph
