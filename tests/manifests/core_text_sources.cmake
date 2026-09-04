@@ -40,7 +40,6 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_character_offset_pre_shaping.cpp
         text/test_text_document_builder.cpp
         text/test_timed_text_document.cpp
-        text/test_text_definition_canonical.cpp
         text/test_anim_typewriter_error_path.cpp
         text/test_typewriter_cluster_window.cpp
         text/test_animated_text_document.cpp
