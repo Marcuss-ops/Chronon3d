@@ -289,11 +289,10 @@ namespace chronon3d::backends::vulkan {
 
     void VulkanBackend::Impl::release_frame_transient_surfaces() noexcept {
         try {
-            // This is invoked only after a complete job. Drain the device
-            // once before destroying orphaned images; per-image destruction
-            // while submissions are in flight can serialize inside the
-            // driver and make daemon recovery appear hung.
-            check(vkDeviceWaitIdle(device), "vkDeviceWaitIdle(transient cleanup)");
+            // Explicit end-of-job drain: wait only for submissions tracked by
+            // this backend. Do not use vkDeviceWaitIdle here; the compiled
+            // frame path must never acquire an implicit device-global sync.
+            wait_for_pending();
             std::vector<runtime::RenderSurfaceHandle> handles;
             handles.reserve(surfaces.surface_bindings.size());
             for (const auto& [handle, slot] : surfaces.surface_bindings) {
@@ -316,10 +315,8 @@ namespace chronon3d::backends::vulkan {
                 }
                 ++stats.surface_releases;
             }
-            // Releasing a logical handle only removes its binding.  Destroy
-            // the now-orphaned transient backing images after the device-idle
-            // drain, otherwise every frame leaves another Vulkan image in the
-            // store even though the registry no longer owns it.
+            // The tracked-submission drain above makes orphaned transient
+            // backing images safe to destroy without a global device idle.
             prune_unused_transient_slots();
             if (surfaces.physical_surfaces.size() > 32) {
                 spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={}",
@@ -338,8 +335,8 @@ namespace chronon3d::backends::vulkan {
             // This is deliberately a status query, never a wait.  A transient
             // image is eligible for destruction only after every Vulkan
             // submission that could reference it has completed.  The normal
-            // frame path calls this opportunistically; the final cleanup path
-            // above remains the authoritative blocking drain.
+            // frame path calls this opportunistically; final job cleanup uses
+            // the explicit tracked-submission drain above.
             if (pending_timeline_value != 0 &&
                 vkGetFenceStatus(device, fence) != VK_SUCCESS) {
                 return;
