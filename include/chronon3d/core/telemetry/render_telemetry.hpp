@@ -1,22 +1,27 @@
 #pragma once
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
+#include <vector>
+
+#if defined(CHRONON3D_ENABLE_DIAGNOSTICS)
 #include <array>
 #include <atomic>
 #include <cstddef>
 #include <mutex>
 #include <utility>
-#include <vector>
+#endif
 
 namespace chronon3d::telemetry {
 
+// P2.11 diagnostics boundary:
+// Per-event sidecar telemetry is diagnostic-only. Production/runtime builds
+// keep the source-compatible record/collect API below, but recorders compile
+// to no-ops and no global stores, locks, atomics or vector growth exist.
+// Runtime diagnostics must never be enabled by getenv() from a hot path.
+#if defined(CHRONON3D_ENABLE_DIAGNOSTICS)
+
 namespace detail {
 
-/// Round-robin sharded store that eliminates the single-mutex bottleneck
-/// of the previous implementation.  Each `record()` call picks a different
-/// shard via an atomic counter, so concurrent recordings from different
-/// threads (or the same thread) almost never contend.  `collect()` and
-/// `clear()` briefly lock all 16 shards to drain the data.
 template <typename Record>
 class ShardedTelemetryStore {
 public:
@@ -34,10 +39,9 @@ public:
         for (std::size_t i = 0; i < kShards; ++i) {
             std::lock_guard<std::mutex> lock(m_mutexes[i]);
             auto& store = m_stores[i];
-            result.insert(
-                result.end(),
-                std::make_move_iterator(store.begin()),
-                std::make_move_iterator(store.end()));
+            result.insert(result.end(),
+                          std::make_move_iterator(store.begin()),
+                          std::make_move_iterator(store.end()));
             store.clear();
         }
         return result;
@@ -58,69 +62,51 @@ private:
 
 } // namespace detail
 
-// One sharded store per telemetry category.  The old design had 14
-// independent `static std::mutex` objects (one per category) which meant
-// every recorder call acquired a process-wide mutex.  With sharding,
-// concurrent recordings distribute across 16 internal mutexes per category.
-
 inline detail::ShardedTelemetryStore<NodeTelemetryRecord>& node_telemetry_store() {
     static detail::ShardedTelemetryStore<NodeTelemetryRecord> store;
     return store;
 }
-
 inline detail::ShardedTelemetryStore<LayerTelemetryRecord>& layer_telemetry_store() {
     static detail::ShardedTelemetryStore<LayerTelemetryRecord> store;
     return store;
 }
-
 inline detail::ShardedTelemetryStore<CacheTelemetryRecord>& cache_telemetry_store() {
     static detail::ShardedTelemetryStore<CacheTelemetryRecord> store;
     return store;
 }
-
 inline detail::ShardedTelemetryStore<CullingTelemetryRecord>& culling_telemetry_store() {
     static detail::ShardedTelemetryStore<CullingTelemetryRecord> store;
     return store;
 }
-
 inline detail::ShardedTelemetryStore<ImageTelemetryRecord>& image_telemetry_store() {
     static detail::ShardedTelemetryStore<ImageTelemetryRecord> store;
     return store;
 }
 
-// ── Node telemetry ──────────────────────────────────────────────────
 inline void record_node_telemetry(const NodeTelemetryRecord& rec) {
     node_telemetry_store().record(rec);
 }
 inline std::vector<NodeTelemetryRecord> collect_node_telemetry() {
     return node_telemetry_store().collect();
 }
-
-// ── Layer telemetry ─────────────────────────────────────────────────
 inline void record_layer_telemetry(const LayerTelemetryRecord& rec) {
     layer_telemetry_store().record(rec);
 }
 inline std::vector<LayerTelemetryRecord> collect_layer_telemetry() {
     return layer_telemetry_store().collect();
 }
-
-// ── Cache telemetry ─────────────────────────────────────────────────
 inline void record_cache_telemetry(const CacheTelemetryRecord& rec) {
     cache_telemetry_store().record(rec);
 }
 inline std::vector<CacheTelemetryRecord> collect_cache_telemetry() {
     return cache_telemetry_store().collect();
 }
-
-// ── Culling telemetry ───────────────────────────────────────────────
 inline void record_culling_telemetry(const CullingTelemetryRecord& rec) {
     culling_telemetry_store().record(rec);
 }
 inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() {
     return culling_telemetry_store().collect();
 }
-
-// ── Image telemetry ─────────────────────────────────────────────────
 inline void record_image_telemetry(const ImageTelemetryRecord& rec) {
     image_telemetry_store().record(rec);
 }
@@ -128,10 +114,6 @@ inline std::vector<ImageTelemetryRecord> collect_image_telemetry() {
     return image_telemetry_store().collect();
 }
 
-/// Clear all in-memory telemetry event stores.
-/// Call this after warmup to prevent warmup events from appearing
-/// alongside render-loop events (which would contradict atomic counters
-/// that were reset after warmup).
 inline void clear_telemetry_stores() {
     node_telemetry_store().clear();
     layer_telemetry_store().clear();
@@ -139,5 +121,21 @@ inline void clear_telemetry_stores() {
     culling_telemetry_store().clear();
     image_telemetry_store().clear();
 }
+
+#else
+
+inline void record_node_telemetry(const NodeTelemetryRecord&) noexcept {}
+inline std::vector<NodeTelemetryRecord> collect_node_telemetry() { return {}; }
+inline void record_layer_telemetry(const LayerTelemetryRecord&) noexcept {}
+inline std::vector<LayerTelemetryRecord> collect_layer_telemetry() { return {}; }
+inline void record_cache_telemetry(const CacheTelemetryRecord&) noexcept {}
+inline std::vector<CacheTelemetryRecord> collect_cache_telemetry() { return {}; }
+inline void record_culling_telemetry(const CullingTelemetryRecord&) noexcept {}
+inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() { return {}; }
+inline void record_image_telemetry(const ImageTelemetryRecord&) noexcept {}
+inline std::vector<ImageTelemetryRecord> collect_image_telemetry() { return {}; }
+inline void clear_telemetry_stores() noexcept {}
+
+#endif
 
 } // namespace chronon3d::telemetry
