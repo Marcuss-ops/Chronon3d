@@ -1,0 +1,50 @@
+# Repository-wide handwritten .inc debt ratchet.
+#
+# Baseline 2026-09-04:
+#   src/     = 0 handwritten .inc
+#   include/ = 0 handwritten .inc
+#   apps/    = 22 handwritten .inc
+#
+# Existing CLI fragments are grandfathered only so this invariant can land
+# before their staged migration. Remove each exact allow-list entry in the same
+# change that deletes/migrates that fragment. The permanent end state is that
+# .inc files are allowed only below generated/ directories.
+
+[[occurrence_cap]]
+name = "handwritten_inc_debt_ratchet"
+pattern = '\A'
+max_count = 0
+scan_paths = ["src", "apps", "include"]
+extensions = [".inc"]
+allow_list = [
+  '(^|/)generated/',
+
+  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_finish\.inc$',
+  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_json\.inc$',
+  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_measure\.inc$',
+  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_report\.inc$',
+  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_run\.inc$',
+  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_support\.inc$',
+
+  '^apps/chronon3d_cli/commands/dev/doctor_report_api\.inc$',
+  '^apps/chronon3d_cli/commands/dev/doctor_report_checks\.inc$',
+  '^apps/chronon3d_cli/commands/dev/doctor_report_helpers\.inc$',
+
+  '^apps/chronon3d_cli/commands/render/command_render_plan_api\.inc$',
+  '^apps/chronon3d_cli/commands/render/command_render_plan_internal\.inc$',
+  '^apps/chronon3d_cli/commands/render/register_render_commands_body\.inc$',
+  '^apps/chronon3d_cli/commands/render/register_render_commands_support\.inc$',
+
+  '^apps/chronon3d_cli/daemon/daemon_service_bootstrap\.inc$',
+  '^apps/chronon3d_cli/daemon/daemon_service_commands\.inc$',
+  '^apps/chronon3d_cli/daemon/daemon_service_ipc\.inc$',
+
+  '^apps/chronon3d_cli/utils/job/report/render_job_report_diagnostics\.inc$',
+  '^apps/chronon3d_cli/utils/job/report/render_job_report_output\.inc$',
+
+  '^apps/chronon3d_cli/utils/semantic/semantic_script_compile\.inc$',
+  '^apps/chronon3d_cli/utils/semantic/semantic_script_decode\.inc$',
+  '^apps/chronon3d_cli/utils/semantic/semantic_script_serialize\.inc$',
+  '^apps/chronon3d_cli/utils/semantic/semantic_script_support\.inc$',
+]
+skip_comments = false
