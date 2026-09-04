@@ -12,7 +12,7 @@ bool NativeAvEncoder::write_prepared_native_surface(
     return write_native_surface_impl(backend, source, destination, true);
 }
 
-bool NativeAvEncoder::write_direct_yuv(const DirectYuvFrame& direct) {
+bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direct) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
     (void)direct;
     return false;

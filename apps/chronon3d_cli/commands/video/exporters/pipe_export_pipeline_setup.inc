@@ -209,7 +209,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (direct_yuv_requested) {
         const auto input_t0 = profiling::now();
         std::string direct_reason;
-        session->direct_yuv_session->program = DirectYuvProgram::prepare(
+        session->direct_yuv_session->executor = media::video::DirectYuvExecutor::prepare(
             compiled, session->device_runtime->image_cache(), session->device_runtime,
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
@@ -229,7 +229,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
         if (session->direct_yuv_selected()) {
             spdlog::info("[direct-yuv] selected for video source '{}'",
-                         session->direct_yuv_session->program->video_path());
+                         session->direct_yuv_session->executor->video_path());
         }
     }
 

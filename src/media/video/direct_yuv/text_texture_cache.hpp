@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace chronon3d::cli {
+namespace chronon3d::media::video {
 
 struct RasterizedTextTexture {
     int width{0};
@@ -15,9 +15,6 @@ struct RasterizedTextTexture {
     assets::ContentDigest digest{};
 };
 
-// Rasterize one already-resolved text primitive to a premultiplied linear RGBA
-// texture. The font path must name a prepared asset; this function never
-// searches system fonts or upstream repository testdata.
 RasterizedTextTexture rasterize_text_texture(
     const std::string& text,
     const std::string& prepared_font_path,
@@ -35,4 +32,4 @@ RasterizedTextTexture rasterize_text_texture(
     float box_h,
     const std::string& alignment);
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::media::video
