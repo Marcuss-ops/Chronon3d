@@ -113,16 +113,20 @@ public:
         return false;
     }
 
+    // Compiled/materialized path. The caller already has an exact physical
+    // slot from CommandPlan/CompiledResourceTable. Placement is immutable here:
+    // no pinning, diversion, reuse search or next_slot mutation is permitted.
     ImageT& bind(runtime::RenderSurfaceHandle handle,
                  std::size_t slot,
                  const runtime::SurfaceDesc& desc) {
         require_owner();
-        if (owner_->plan_preallocated) {
-            return bind_planned_exact(handle, slot, desc);
-        }
-        return bind_unplanned(handle, slot, desc);
+        return bind_planned_exact(handle, slot, desc);
     }
 
+    // Explicit compatibility/unplanned path. This is the only API allowed to
+    // select or reselect a physical slot dynamically. Demolition Debt exit
+    // condition: compiled execution never calls ensure(); once all direct
+    // callers are planned, this policy can be removed entirely.
     ImageT& ensure(runtime::RenderSurfaceHandle handle,
                    const runtime::SurfaceDesc& desc) {
         require_owner();
@@ -163,20 +167,20 @@ public:
                 if (!slot_in_use(slot) &&
                     owner_->surface_compatible(physical.desc, desc)) {
                     owner_->ensure_descriptor_set();
-                    return bind(handle, slot, desc);
+                    return bind_unplanned(handle, slot, desc);
                 }
             }
             for (auto& [slot, physical] : physical_surfaces) {
                 if (!slot_in_use(slot) &&
                     physical.desc.lifetime != runtime::LifetimeClass::JobPersistent) {
                     owner_->ensure_descriptor_set();
-                    return bind(handle, slot, desc);
+                    return bind_unplanned(handle, slot, desc);
                 }
             }
         }
 
         owner_->ensure_descriptor_set();
-        return bind(handle, next_slot++, desc);
+        return bind_unplanned(handle, next_slot++, desc);
     }
 
     void prune_unused_slots() {
