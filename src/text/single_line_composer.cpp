@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/single_line_composer.hpp>
-#include "boundary_resolver/composer_helpers.hpp"
+#include "typography/composer_policy.hpp"
 
 namespace chronon3d {
 
