@@ -36,8 +36,8 @@
 
 namespace chronon3d::graph {
 
-#include "node_runner_helpers.inc"
-#include "node_runner_fused_batch.inc"
-#include "node_runner_single_node.inc"
+#include "node_runner_helpers_detail.hpp"
+#include "node_runner_fused_batch_detail.hpp"
+#include "node_runner_single_node_detail.hpp"
 
 } // namespace chronon3d::graph
