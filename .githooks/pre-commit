@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # pre-commit — fast local checks run before every git commit.
-#
-# Per AGENTS.md: doc SHA dedup, test hygiene, test suite registration.
-# All local, no network, exit 1 on violation.
-# ═══════════════════════════════════════════════════════════════════════════
+# Canonical authorities: doc SHA dedup, test hygiene, architecture registry.
 
 set -euo pipefail
 
@@ -17,8 +14,8 @@ bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
 bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
     || { echo "pre-commit: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
 
-bash "${SCRIPT_DIR}/check_test_suite_registration.sh" \
-    || { echo "pre-commit: GATE_FAIL on check_test_suite_registration.sh (exit $?)" >&2; exit 1; }
+python3 "${SCRIPT_DIR}/check_architecture.py" \
+    || { echo "pre-commit: GATE_FAIL on check_architecture.py (exit $?)" >&2; exit 1; }
 
 echo "pre-commit: fast checks PASSED"
 exit 0

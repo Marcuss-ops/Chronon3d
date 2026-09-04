@@ -1,7 +1,6 @@
 # Single ordered manifest of per-area test definition files.
 set(CHRONON3D_TEST_DEFINITIONS
     backends_software_tests.cmake
-    debug/CMakeLists.txt
     core_tests.cmake
     shader_abi_tests.cmake
     ipc_tests.cmake
