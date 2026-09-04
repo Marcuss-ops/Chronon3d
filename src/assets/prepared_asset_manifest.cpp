@@ -1,4 +1,5 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <chronon3d/assets/asset_resolver.hpp>
@@ -14,7 +15,6 @@
 #include <string>
 #include <limits>
 #include <mutex>
-#include <unordered_map>
 #include <utility>
 #include <spdlog/spdlog.h>
 
