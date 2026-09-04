@@ -8,8 +8,8 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/exporters/pipe_timing_sidecar.cpp
     commands/video/exporters/pipe_export_finalize.cpp
     commands/video/common/pipe_export_session.cpp
-    commands/video/common/direct_yuv_program.cpp
-    commands/video/common/text_texture_cache.cpp
+    ${CMAKE_SOURCE_DIR}/src/media/video/direct_yuv/direct_yuv_program.cpp
+    ${CMAKE_SOURCE_DIR}/src/media/video/direct_yuv/text_texture_cache.cpp
     commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
     utils/video/video_sink_adapter.cpp

@@ -19,7 +19,7 @@ namespace chronon3d::cli {
 
 #include "pipe_export_session_profile.inc"
 #include "pipe_export_session_stages.inc"
-#include "pipe_export_session_direct_yuv.inc"
+#include "src/media/video/direct_yuv/pipe_export_session_direct_yuv.inc"
 #include "pipe_export_session_render_loop.inc"
 
 } // namespace chronon3d::cli
