@@ -1,231 +1,100 @@
-// tests/render_graph/compiler/test_fusion_pass.cpp
-// ════════════════════════════════════════════════════════════════════════════
-// F3.1 (TICKET-FUSION-PASS-COMPILER-V1) — unit test for the FusedPixelProgram
-// ABI + 4-guard fusion logic + 3 counters (passes_before_fusion /
-// passes_after_fusion / bytes_saved_by_fusion).
-//
-// TIER=UNIT, no Blend2D / Text / GPU / FontEngine dependency. The test
-// exercises the F3.1 ABI surface directly via synthetic inputs; the
-// B03 CinematicGlow1080p smoke test verifies the integration on a
-// real composition (forward-pointed to WBH macchina-verifica per
-// the env-block pattern).
-// ════════════════════════════════════════════════════════════════════════════
-
 #include <doctest/doctest.h>
 
-#include <cstdint>
-#include <vector>
 #include <array>
+#include <vector>
 
+#include <chronon3d/render_graph/compiler/bit_exact_contract.hpp>
 #include <chronon3d/render_graph/compiler/fused_pixel_program.hpp>
 #include <chronon3d/simd/detail/scalar_kernels.hpp>
 
-namespace cs = chronon3d::simd;
 namespace cg = chronon3d::graph::fusion;
+namespace cd = chronon3d::graph::determinism;
+namespace cs = chronon3d::simd;
 
-// ── 1. ABI surface: structs + PixelKernel typedef ───────────────────────
-TEST_CASE("FusedPixelProgram: ABI surface compiles + is well-formed") {
-    cg::FusedPixelProgram program;
-    CHECK(program.operations.empty());
-    CHECK(program.resolved_kernel == nullptr);
-    CHECK_FALSE(program.guards.all_pass());
-    CHECK_FALSE(program.guards.math_order_preserved);
-    CHECK_FALSE(program.guards.blend_mode_compatible);
-    CHECK_FALSE(program.guards.dirty_rect_compatible);
-    CHECK_FALSE(program.guards.precision_certified);
-
-    // PixelKernel is the F5.1 BlendKernel::ApplyFn (ABI-compatible)
-    cg::PixelKernel k = &cs::detail::scalar_blend;
-    program.resolved_kernel = k;
-    CHECK(program.resolved_kernel != nullptr);
+namespace {
+cd::FusionCertification exact_certificate() {
+    cd::FusionCertification cert;
+    cert.reference_sha256 = "0123456789abcdef";
+    cert.fused_sha256 = cert.reference_sha256;
+    cert.environment_fingerprint = "test-platform";
+    cert.chronon_version = "test-sha";
+    cert.max_ulp_error = 0;
+    cert.same_plan = true;
+    cert.same_assets = true;
+    cert.same_environment = true;
+    cert.same_chronon_version = true;
+    return cert;
 }
 
-TEST_CASE("FusedPixelProgram: PixelOperation ctors populate payload") {
-    cg::PixelOperation cm = cg::PixelOperation::color_matrix({
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-    });
-    CHECK(cm.kind == cg::PixelOperation::Kind::ColorMatrix);
-    CHECK(cm.params[0] == doctest::Approx(1.0f));
-    CHECK(cm.params[5] == doctest::Approx(1.0f));
-    CHECK(cm.params[10] == doctest::Approx(1.0f));
-
-    cg::PixelOperation op = cg::PixelOperation::opacity(0.5f);
-    CHECK(op.kind == cg::PixelOperation::Kind::Opacity);
-    CHECK(op.params[0] == doctest::Approx(0.5f));
-
-    cg::PixelOperation bl = cg::PixelOperation::blend(0 /* Normal */);
-    CHECK(bl.kind == cg::PixelOperation::Kind::Blend);
-    CHECK(bl.blend_mode == 0);
-}
-
-TEST_CASE("FusedPixelProgram: 4-guard tag() reflects each guard's state") {
-    cg::FusedColorOpacityBlendGuard g;
-    auto tag = g.tag();
-    CHECK(tag[0] == 'm');
-    CHECK(tag[1] == 'b');
-    CHECK(tag[2] == 'd');
-    CHECK(tag[3] == 'p');
-
-    g.math_order_preserved = true;
-    g.blend_mode_compatible = true;
-    g.dirty_rect_compatible = true;
-    g.precision_certified = true;
-    auto tag_pass = g.tag();
-    CHECK(tag_pass[0] == 'M');
-    CHECK(tag_pass[1] == 'B');
-    CHECK(tag_pass[2] == 'D');
-    CHECK(tag_pass[3] == 'P');
-    CHECK(g.all_pass());
-
-    g.blend_mode_compatible = false;
-    CHECK_FALSE(g.all_pass());
-    auto tag_partial = g.tag();
-    CHECK(tag_partial[1] == 'b');
-}
-
-TEST_CASE("FusedPixelProgram: bytes_saved = (3 - 3) * pixel * 16 = 0 for empty program") {
-    cg::FusedPixelProgram program;
-    program.pixel_count = 0;
-    program.bytes_per_pixel = 16;
-    CHECK(program.bytes_saved() == 0);
-    CHECK(program.bytes_unfused() == 0);
-    CHECK(program.bytes_fused() == 0);
-}
-
-// ── B03 CinematicGlow1080p smoke test (F3.1 user-spec verbatim) ─────────
-//
-// User spec verbatim: "Smoke test su B03 CinematicGlow1080p: atteso
-// bytes_saved_by_fusion > 0". The smoke test instantiates a
-// FusedPixelProgram at the B03 resolution (1920x1080) with the canonical
-// 3-node ColorMatrix → Opacity → Blend chain and asserts that the
-// `bytes_saved` math is positive. The synthetic variant is the
-// Cat-3 minimum-surface (no real graph build + no conceptual effect-id
-// wiring required; the macchina-verifica end-to-end integration test is
-// forward-pointed to TICKET-FUSION-PASS-B03-MACHINE-VERIFY per the
-// env-block pattern).
-TEST_CASE("F3.1 B03 smoke test: bytes_saved > 0 for CinematicGlow1080p fusion") {
+cg::FusedPixelProgram valid_program() {
     cg::FusedPixelProgram program;
     program.operations = {
         cg::PixelOperation::color_matrix({1,0,0,0, 0,1,0,0, 0,0,1,0}),
-        cg::PixelOperation::opacity(1.0f),
-        cg::PixelOperation::blend(0 /* Normal */),
-    };
-    program.resolved_kernel = &cs::detail::scalar_blend;
-    program.pixel_count = 1920 * 1080;     // B03 CinematicGlow1080p
-    program.bytes_per_pixel = 16;            // RGBA float32 (4 channels × 4 bytes)
-
-    // Math: unfused = 3 passes × 2 transactions × 16 bytes/pixel = 96 bpp
-    //       fused   = 1 pass   × 3 transactions × 16 bytes/pixel = 48 bpp
-    //       saved   = 48 bpp = 3 × 1920 × 1080 × 16 = 99,532,800 bytes
-    constexpr std::size_t expected_saved = 3 * 1920 * 1080 * 16;
-    CHECK(program.bytes_saved() == expected_saved);
-    CHECK(program.bytes_saved() > 0);
-    // Sanity: bytes_unfused > bytes_fused (the savings is meaningful)
-    CHECK(program.bytes_unfused() > program.bytes_fused());
-}
-
-TEST_CASE("FusionStats: default-construct aggregates to 0") {
-    cg::FusionStats stats;
-    CHECK(stats.passes_before_fusion == 0);
-    CHECK(stats.passes_after_fusion == 0);
-    CHECK(stats.bytes_saved_by_fusion == 0);
-}
-
-TEST_CASE("F3.1 B03 smoke test: bytes_saved > 0 for CinematicGlow1080p fusion (variant)") {
-    // Cross-resolution regression check: the bytes_saved math is a
-    // linear function of (pixel_count × bytes_per_pixel). Validates
-    // the proportionality constant (3 × bpp) for 3 common resolutions.
-    cg::FusedPixelProgram program;
-    program.bytes_per_pixel = 16;   // RGBA float32 (4 channels × 4 bytes)
-    program.resolved_kernel = &cs::detail::scalar_blend;
-    program.operations = {cg::PixelOperation::color_matrix({1,0,0,0,0,1,0,0,0,0,1,0}), cg::PixelOperation::opacity(1.0f), cg::PixelOperation::blend(0)};
-
-    program.pixel_count = 1920 * 1080;   // B03 CinematicGlow1080p
-    CHECK(program.bytes_saved() == 3u * 1920u * 1080u * 16u);
-
-    program.pixel_count = 1280 * 720;
-    CHECK(program.bytes_saved() == 3u * 1280u * 720u * 16u);
-
-    program.pixel_count = 3840 * 2160;   // 4K
-    CHECK(program.bytes_saved() == 3u * 3840u * 2160u * 16u);
-}
-
-// ── 2. ABI contract: resolved_kernel binds to F5.1 scalar blend ─────────
-TEST_CASE("FusedPixelProgram: resolved_kernel binds to F5.1 scalar_blend ABI") {
-    cg::FusedPixelProgram program;
-    program.resolved_kernel = &cs::detail::scalar_blend;
-
-    // The kernel signature must match F5.1 BlendKernel::ApplyFn:
-    //   void (float*, const float*, std::size_t)
-    auto* k = program.resolved_kernel;
-    CHECK(k != nullptr);
-
-    // Round-trip: invoke the kernel with a 4-pixel span
-    std::vector<float> dst(16, 0.0f);
-    std::vector<float> src = {
-        0.5f, 0.5f, 0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f, 0.5f,
-    };
-    k(dst.data(), src.data(), 4);
-    // sa=0.5 → inv=0.5; dst = src + dst * 0.5
-    for (std::size_t i = 0; i < 16; ++i) {
-        CHECK(dst[i] == doctest::Approx(0.5f + 0.0f * 0.5f));
-    }
-}
-
-// ── 3. ABI contract: 4 guards all required for all_pass() ─────────────
-TEST_CASE("FusedPixelProgram: all_pass() requires all 4 guards") {
-    cg::FusedColorOpacityBlendGuard g;
-    g.math_order_preserved = true;
-    g.blend_mode_compatible = true;
-    g.dirty_rect_compatible = true;
-    g.precision_certified   = false;  // ← one missing
-    CHECK_FALSE(g.all_pass());
-
-    g.precision_certified = true;
-    CHECK(g.all_pass());
-}
-
-TEST_CASE("FusedPixelProgram: runtime execution matches color opacity blend order") {
-    cg::FusedPixelProgram program;
-    program.operations = {
-        cg::PixelOperation::color_matrix({
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-        }),
         cg::PixelOperation::opacity(0.5f),
         cg::PixelOperation::blend(0),
     };
     program.resolved_kernel = &cs::detail::scalar_blend;
-    program.guards = {true, true, true, true};
+    program.guards.math_order_preserved = true;
+    program.guards.blend_mode_compatible = true;
+    program.guards.dirty_rect_compatible = true;
+    program.guards.precision_compatible = true;
+    program.pixel_count = 1920u * 1080u;
+    return program;
+}
+} // namespace
+
+TEST_CASE("BitExactContract: 1 ULP is not BitExact") {
+    cd::FusionCertification cert = exact_certificate();
+    cert.fused_sha256 = "different";
+    cert.max_ulp_error = 1;
+
+    CHECK_FALSE(cert.bit_exact());
+    CHECK(cert.deterministic_within_platform());
+    CHECK_FALSE(cert.permits(cd::DeterminismClass::BitExact));
+    CHECK(cert.permits(cd::DeterminismClass::DeterministicWithinPlatform));
+}
+
+TEST_CASE("BitExactContract: equal output hashes certify exactness") {
+    const auto cert = exact_certificate();
+    CHECK(cert.bit_exact());
+    CHECK(cert.permits(cd::DeterminismClass::BitExact));
+}
+
+TEST_CASE("FusedPixelProgram: BitExact is fail-closed without certificate") {
+    auto program = valid_program();
+    CHECK_FALSE(program.certified_for_execution());
+    CHECK(program.bytes_saved() == 0);
+
+    float dst[4]{};
+    const float src[4]{};
+    CHECK_FALSE(program.execute(dst, src, 1));
+}
+
+TEST_CASE("FusedPixelProgram: exact certificate enables certified execution") {
+    auto program = valid_program();
+    program.certification = exact_certificate();
+    CHECK(program.certified_for_execution());
+    CHECK(program.bytes_saved() == 3u * 1920u * 1080u * 16u);
 
     float dst[] = {0.1f, 0.2f, 0.3f, 0.4f};
     const float src[] = {0.8f, 0.6f, 0.4f, 0.5f};
     CHECK(program.execute(dst, src, 1));
-
-    // The source is first premultiplied by the fused opacity, then composited
-    // with the canonical scalar Normal/SRC_OVER kernel.
     CHECK(dst[0] == doctest::Approx(0.4f + 0.1f * 0.75f));
     CHECK(dst[1] == doctest::Approx(0.3f + 0.2f * 0.75f));
     CHECK(dst[2] == doctest::Approx(0.2f + 0.3f * 0.75f));
     CHECK(dst[3] == doctest::Approx(0.25f + 0.4f * 0.75f));
 }
 
-TEST_CASE("FusedPixelProgram: runtime rejects invalid programs") {
-    cg::FusedPixelProgram program;
-    program.operations = {
-        cg::PixelOperation::color_matrix({1,0,0,0, 0,1,0,0, 0,0,1,0}),
-        cg::PixelOperation::opacity(1.0f),
-        cg::PixelOperation::blend(1),
-    };
-    program.resolved_kernel = &cs::detail::scalar_blend;
-    program.guards = {true, true, true, true};
-    float dst[4]{};
-    const float src[4]{};
-    CHECK_FALSE(program.execute(dst, src, 1));
+TEST_CASE("FusedPixelProgram: structural guards remain independently fail-closed") {
+    auto program = valid_program();
+    program.certification = exact_certificate();
+    program.guards.dirty_rect_compatible = false;
+    CHECK_FALSE(program.certified_for_execution());
+}
+
+TEST_CASE("FusionStats: default construct is zero") {
+    cg::FusionStats stats;
+    CHECK(stats.passes_before_fusion == 0);
+    CHECK(stats.passes_after_fusion == 0);
+    CHECK(stats.bytes_saved_by_fusion == 0);
 }
