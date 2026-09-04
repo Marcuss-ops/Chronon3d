@@ -1,17 +1,5 @@
 # =============================================================================
 # apps/chronon3d_bench/CMakeLists.txt — standalone bench binary.
-#
-# Source layout (after Phase 1 split):
-#   - args.hpp                       (BenchArgs)
-#   - cli_context.hpp                (CliContext struct)
-#   - registry.hpp                   (register_bench_commands prototype)
-#   - main.cpp                       (CLI11 entry point)
-#   - cmd/command_bench.cpp          (ex apps/chronon3d_cli/commands/bench/command_bench.cpp)
-#   - cmd/register_bench_commands.cpp
-#
-# bench-convert STAYS in apps/chronon3d_cli/commands/dev/command_bench_convert.cpp
-# because it depends on the render_job pipeline (apps/chronon3d_cli/utils/job/*.cpp)
-# which is too large to extract here.  Future cleanup phases may revisit.
 # =============================================================================
 
 option(CHRONON3D_BUILD_BENCHMARK_CLI
@@ -29,7 +17,8 @@ endif()
 
 add_executable(chronon3d_bench
     main.cpp
-    cmd/command_bench.cpp
+    cmd/command_bench_support.cpp
+    cmd/command_bench_run.cpp
     cmd/register_bench_commands.cpp
 )
 
