@@ -8,9 +8,8 @@
 // sinks. Implementations are selected from VideoSinkConfig; the factory does
 // not own a process-global extension registry.
 //
-// Callers should NOT include implementation-specific headers
-// (e.g. ffmpeg_pipe_sink.hpp, native_av_sink.hpp). All concrete types are
-// hidden behind the factory.
+// Callers should NOT include implementation-specific headers. All concrete
+// sink types are hidden behind the factory.
 //
 // Usage:
 //   auto sink = create_video_sink(config);
@@ -33,10 +32,12 @@ namespace chronon3d::media::video {
 /// Selection logic:
 ///  - Uncompressed codec or Raw container -> RawVideoSink
 ///  - Compressed codec + native FFmpeg     -> NativeAvSink
-///  - Compressed codec without native FFmpeg -> FfmpegPipeSink compatibility
-///    fallback (tracked demolition debt; not a production authority)
+///  - Compressed codec without native FFmpeg -> nullptr
 ///
-/// The returned sink is in the Created state. Caller must invoke open()
+/// Compressed encoding deliberately has no subprocess fallback. Builds that
+/// need compressed output must enable CHRONON3D_ENABLE_NATIVE_FFMPEG.
+///
+/// A non-null returned sink is in the Created state. Caller must invoke open()
 /// before submit().
 [[nodiscard]] std::unique_ptr<VideoSink> create_video_sink(
     const VideoSinkConfig& config);
