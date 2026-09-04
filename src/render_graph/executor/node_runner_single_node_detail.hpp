@@ -17,19 +17,21 @@ void execute_single_node(
     double* out_state_assign_ms,
     const CompiledFrameGraph& compiled
 ) {
+    // Stage 3: fine-grained per-node timing is no longer part of the normal
+    // execution contract. Keep the ABI-compatible pointer surface for
+    // diagnostic callers, but the production dispatcher passes nullptr and
+    // pays no region Clock::now() calls here.
+    (void)out_cache_ms;
+    (void)out_dirty_ms;
+    (void)out_telemetry_ms;
+    (void)out_execute_ms;
+    (void)out_predicted_bbox_ms;
+    (void)out_clone_context_ms;
+    (void)out_state_assign_ms;
+
     auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
-
-    ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
-
-    if (id < compiled.nodes.size() && compiled.nodes[id].reachable
-        && compiled.nodes[id].stable_node_id != kInvalidStableNodeId) {
-        ctx.node_exec.current_identity = NodeIdentity{
-            compiled.graph_instance_id,
-            compiled.nodes[id].stable_node_id
-        };
-    }
 
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
         commit_transparent_skip(
@@ -68,15 +70,22 @@ void execute_single_node(
             return;
         }
 
+        // Mutable node execution state is worker-local. Never write identity,
+        // scratch or reporter fields into the shared parent context.
+        RenderGraphContext batch_ctx = ctx.clone_for_node_execution();
+        batch_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
+        if (id < compiled.nodes.size() && compiled.nodes[id].reachable) {
+            batch_ctx.node_exec.current_identity = NodeIdentity{
+                compiled.graph_instance_id, compiled.nodes[id].stable_node_id};
+        }
         execute_fused_batch(
-            state, graph, ctx, *batch_for_root, id,
+            state, graph, batch_ctx, *batch_for_root, id,
             parent_pool, parent_counters, compiled);
         return;
     }
 
     profiling::ProfilingGuard node_guard(parent_counters, parent_pool);
 
-    const auto t_cache0 = profiling::now();
     auto cache_eval = evaluate_cache(
         node, ctx,
         pr.input_hash,
@@ -84,10 +93,6 @@ void execute_single_node(
         pr.has_cacheable_inputs,
         id
     );
-    const auto t_cache1 = profiling::now();
-    if (out_cache_ms) {
-        *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
-    }
 
     if (diag_exec_logging_enabled()) {
         spdlog::info("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
@@ -97,12 +102,7 @@ void execute_single_node(
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
     }
 
-    const auto t_bbox0 = profiling::now();
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
-    const auto t_bbox1 = profiling::now();
-    if (out_predicted_bbox_ms) {
-        *out_predicted_bbox_ms = profiling::duration_ms(t_bbox0, t_bbox1);
-    }
 
     const bool cache_hit_fast_path =
         cache_eval.result &&
@@ -111,14 +111,7 @@ void execute_single_node(
         !ctx.policy.tile_execution_enabled;
 
     if (cache_hit_fast_path) {
-        const auto t_fast0 = profiling::now();
-
         commit_node_state(state, id, cache_eval, predicted_bbox);
-
-        const auto t_fast1 = profiling::now();
-        const double fast_duration_ms = profiling::duration_ms(t_fast0, t_fast1);
-
-        const auto t_telemetry0 = profiling::now();
         emit_node_records(
             ctx, node,
             cache_eval.key,
@@ -127,36 +120,16 @@ void execute_single_node(
             cache_eval.cache_status,
             cache_eval.is_cacheable,
             static_cast<int>(input_ids.size()),
-            fast_duration_ms
+            0.0
         );
-        const auto t_telemetry1 = profiling::now();
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-        }
-        if (out_telemetry_ms) {
-            *out_telemetry_ms = profiling::duration_ms(t_telemetry0, t_telemetry1);
-        }
-        if (out_cache_ms) {
-            *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
-        }
-        if (out_dirty_ms) {
-            *out_dirty_ms = 0.0;
-        }
-        if (out_execute_ms) {
-            *out_execute_ms = 0.0;
-        }
-        if (out_clone_context_ms) {
-            *out_clone_context_ms = 0.0;
-        }
-        if (out_state_assign_ms) {
-            *out_state_assign_ms = 0.0;
         }
         return;
     }
 
     if (ctx.policy.tile_execution_enabled && ctx.node_exec.active_tile_clip &&
-        predicted_bbox && !predicted_bbox->is_empty())
-    {
+        predicted_bbox && !predicted_bbox->is_empty()) {
         const auto& tile = *ctx.node_exec.active_tile_clip;
         const auto& bbox = *predicted_bbox;
         const bool bbox_intersects_tile =
@@ -170,8 +143,9 @@ void execute_single_node(
         }
     }
 
-    const auto t_clone0 = profiling::now();
+    // Single worker-local mutable context for the actual node execution.
     RenderGraphContext node_ctx = ctx.clone_for_node_execution();
+    node_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
     node_ctx.node_exec.planned_physical_slot = nullptr;
     const auto& resource_table = compiled.resource_table();
     if (id < resource_table.resources.size()) {
@@ -221,20 +195,11 @@ void execute_single_node(
         node_ctx.node_exec.processor_snapshot = compiled.processor_snapshot;
         node_ctx.node_exec.processor_bindings_compiled = false;
     }
-    const auto t_clone1 = profiling::now();
-    if (out_clone_context_ms) {
-        *out_clone_context_ms = profiling::duration_ms(t_clone0, t_clone1);
-    }
 
-    const auto t_dirty0 = profiling::now();
     if (ctx.policy.dirty_rects_enabled) {
         node_ctx.node_exec.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
     } else {
         node_ctx.node_exec.clip_rect = predicted_bbox;
-    }
-    const auto t_dirty1 = profiling::now();
-    if (out_dirty_ms) {
-        *out_dirty_ms = profiling::duration_ms(t_dirty0, t_dirty1);
     }
 
     node_ctx.node_exec.reusable_inputs.clear();
@@ -252,9 +217,7 @@ void execute_single_node(
                  consumer_remaining[input_id].load(std::memory_order_relaxed) == 1) &&
                 state.temp[input_id].use_count() == 1) {
                 node_ctx.node_exec.reusable_inputs.push_back(state.temp[input_id].get());
-                if (j == 0) {
-                    node_ctx.node_exec.reusable_bottom = state.temp[input_id];
-                }
+                if (j == 0) node_ctx.node_exec.reusable_bottom = state.temp[input_id];
             }
         }
     }
@@ -272,6 +235,8 @@ void execute_single_node(
             0);
     }
 
+    // Keep exactly one node-execute duration for telemetry. The six auxiliary
+    // timing regions were removed from the production hot path above.
     const double duration_ms = run_node(
         node, node_ctx,
         pr.inputs, pr.input_bboxes,
@@ -282,31 +247,24 @@ void execute_single_node(
         parent_pool,
         &compiled.nodes[id].stable_node_id
     );
-    if (out_execute_ms) {
-        *out_execute_ms = duration_ms;
-    }
     if (state.node_memory_tracker && cache_eval.result) {
         node_memory_scope->set_live_bytes(cache_eval.result->size_bytes());
     }
 
     if (node.kind() == RenderGraphNodeKind::TextRun &&
-        cache_eval.result && predicted_bbox && !predicted_bbox->is_empty())
-    {
+        cache_eval.result && predicted_bbox && !predicted_bbox->is_empty()) {
         const Framebuffer* fb_ptr = cache_eval.result.get();
         if (fb_ptr && fb_ptr->width() > 0 && fb_ptr->height() > 0) {
-            if (auto expanded_bbox =
-                    reconcile_text_bbox_after_render(
-                        node, *fb_ptr, predicted_bbox,
-                        ctx.node_exec.counters,
-                        state.text_bbox_reporter,
-                        node_ctx.node_exec.actual_ink_bbox))
-            {
+            if (auto expanded_bbox = reconcile_text_bbox_after_render(
+                    node, *fb_ptr, predicted_bbox,
+                    ctx.node_exec.counters,
+                    state.text_bbox_reporter,
+                    node_ctx.node_exec.actual_ink_bbox)) {
                 predicted_bbox = *expanded_bbox;
             }
         }
     }
 
-    const auto t_telemetry0 = profiling::now();
     emit_node_records(
         ctx, node,
         cache_eval.key,
@@ -317,15 +275,6 @@ void execute_single_node(
         static_cast<int>(input_ids.size()),
         duration_ms
     );
-    const auto t_telemetry1 = profiling::now();
-    if (out_telemetry_ms) {
-        *out_telemetry_ms = profiling::duration_ms(t_telemetry0, t_telemetry1);
-    }
 
     commit_node_state(state, id, cache_eval, predicted_bbox);
-
-    const auto t_state1 = profiling::now();
-    if (out_state_assign_ms) {
-        *out_state_assign_ms = profiling::duration_ms(t_telemetry1, t_state1);
-    }
 }
