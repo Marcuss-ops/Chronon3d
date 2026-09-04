@@ -5,6 +5,10 @@
 namespace chronon3d::render_plan {
 
 /// Resource limits applied before a RenderPlan can reach compilation.
+/// Pure admission limits do not define rendered-content identity. The
+/// temporal-pixel ceiling is the deliberate exception: it can constrain
+/// temporal sample execution and therefore participates in the plan content
+/// fingerprint.
 /// The defaults are deliberately finite so untrusted jobs cannot request
 /// unbounded framebuffer, frame, text, or temporal sample allocations.
 struct RenderBudget {

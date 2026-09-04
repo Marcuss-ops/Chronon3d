@@ -1,15 +1,9 @@
-namespace {
+#include "render_plan_decoder_detail.hpp"
 
-template <typename T>
-std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
-    if (!object.contains(key)) return std::nullopt;
-    return object.at(key).get<T>();
-}
+#include <filesystem>
+#include <stdexcept>
 
-std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
-    if (!object.contains(key)) return std::nullopt;
-    return Frame{object.at(key).get<std::int64_t>()};
-}
+namespace chronon3d::render_plan::detail {
 
 bool invalid_logical_path(const std::string& value) {
     if (value.empty()) return false;
@@ -36,20 +30,20 @@ FitMode fit_mode(const std::string& value) {
     return FitMode::Cover;
 }
 
-std::optional<BlendMode> blend_mode(const std::string& value) {
-    if (value == "normal") return BlendMode::Normal;
-    if (value == "add") return BlendMode::Add;
-    if (value == "multiply") return BlendMode::Multiply;
-    if (value == "screen") return BlendMode::Screen;
-    if (value == "overlay") return BlendMode::Overlay;
-    if (value == "darken") return BlendMode::Darken;
-    if (value == "lighten") return BlendMode::Lighten;
-    if (value == "difference") return BlendMode::Difference;
-    if (value == "exclusion") return BlendMode::Exclusion;
-    if (value == "soft_light") return BlendMode::SoftLight;
-    if (value == "hard_light") return BlendMode::HardLight;
-    if (value == "color_dodge") return BlendMode::ColorDodge;
-    if (value == "color_burn") return BlendMode::ColorBurn;
+std::optional<chronon3d::BlendMode> blend_mode(const std::string& value) {
+    if (value == "normal") return chronon3d::BlendMode::Normal;
+    if (value == "add") return chronon3d::BlendMode::Add;
+    if (value == "multiply") return chronon3d::BlendMode::Multiply;
+    if (value == "screen") return chronon3d::BlendMode::Screen;
+    if (value == "overlay") return chronon3d::BlendMode::Overlay;
+    if (value == "darken") return chronon3d::BlendMode::Darken;
+    if (value == "lighten") return chronon3d::BlendMode::Lighten;
+    if (value == "difference") return chronon3d::BlendMode::Difference;
+    if (value == "exclusion") return chronon3d::BlendMode::Exclusion;
+    if (value == "soft_light") return chronon3d::BlendMode::SoftLight;
+    if (value == "hard_light") return chronon3d::BlendMode::HardLight;
+    if (value == "color_dodge") return chronon3d::BlendMode::ColorDodge;
+    if (value == "color_burn") return chronon3d::BlendMode::ColorBurn;
     return std::nullopt;
 }
 
@@ -68,4 +62,4 @@ VideoCodec video_codec(const std::string& value) {
     return VideoCodec::Auto;
 }
 
-} // namespace
+}  // namespace chronon3d::render_plan::detail
