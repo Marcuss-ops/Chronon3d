@@ -204,3 +204,30 @@ patterns = ['register_transition\s*\(\s*"[^"]+"']
 scan_paths = ["src", "include", "content", "examples"]
 allow_list = ['src/render_graph/transition/transition_catalog\.cpp']
 skip_comments = true
+
+# -----------------------------------------------------------------------------
+# Retired test/tool entrypoints — prevent parallel authorities from returning
+# -----------------------------------------------------------------------------
+
+[[forbidden_path]]
+name = "retired_test_and_gate_artifacts"
+paths = [
+  "tests/cli/test_video_end_semantics.cpp",
+  "tests/scene/camera/test_camera_constraints_p5.cpp",
+  "tests/debug/CMakeLists.txt",
+  "tests/debug/test_save_png_roundtrip.cpp",
+  "tests/debug/debug_visual_helpers.hpp",
+  "tests/inspect_text_tests.cmake",
+  "tests/visibility_contract_tests.cmake",
+  "tests/text_canvas_aware_presets_tests.cmake",
+  "tests/cache/test_native_video_decoder_lru.cpp",
+  "tests/compiler/fusion_pass_tests.cmake",
+  "tools/check_no_source_conflict_markers.sh",
+  "tools/check_no_changelog_conflict_markers.sh",
+  "tools/check_wbh_toolchain.sh",
+  "tools/wbh_toolchain_manifest.env",
+  "tools/check_camera_architecture.sh",
+  "tools/check_test_suite_registration.sh",
+  "tools/check_perf_regression.sh",
+  "tools/visual_regression_gate.py",
+]
