@@ -25,14 +25,14 @@
 namespace chronon3d::assets {
 namespace {
 
-#include "prepared_asset_manifest_sha.inc"
-#include "prepared_asset_manifest_support.inc"
-#include "prepared_asset_manifest_digest_cache.inc"
+#include "prepared_asset_manifest_sha_detail.hpp"
+#include "prepared_asset_manifest_support_detail.hpp"
+#include "prepared_asset_manifest_digest_cache_detail.hpp"
 
 } // namespace
 
-#include "prepared_asset_manifest_prepare.inc"
-#include "prepared_asset_manifest_verify.inc"
-#include "prepared_asset_manifest_store.inc"
+#include "prepared_asset_manifest_prepare_detail.hpp"
+#include "prepared_asset_manifest_verify_detail.hpp"
+#include "prepared_asset_manifest_store_detail.hpp"
 
 } // namespace chronon3d::assets
