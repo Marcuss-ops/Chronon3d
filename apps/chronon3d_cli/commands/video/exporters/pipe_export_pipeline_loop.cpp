@@ -1,3 +1,20 @@
+#include "../common/pipe_export_pipeline.hpp"
+
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/media/video/native_frame_importer_factory.hpp>
+#include <chronon3d/media/video/detail/video_execution_legacy.hpp>
+#if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <cuda.h>
+#endif
+#include <spdlog/spdlog.h>
+
+#include <memory>
+#include <vector>
+
+namespace chronon3d::cli {
+
 RenderLoopOutput run_pipe_export_loop(
     PipeExportSession& session,
     const CompositionRegistry& registry,
@@ -76,12 +93,8 @@ RenderLoopOutput run_pipe_export_loop(
     auto& loop_result = output.loop_result;
 
     session.queue.close();
-    if (session.writer_thread.joinable()) {
-        session.writer_thread.join();
-    }
+    if (session.writer_thread.joinable()) session.writer_thread.join();
     spdlog::info("[video] writer join complete");
-    if (session.renderer_ptr() && session.renderer_ptr()->counters()) {
-    }
 
     if (session.writer_failed.load()) {
         loop_result.status.success = false;
@@ -113,3 +126,5 @@ RenderLoopOutput run_pipe_export_loop(
 
     return output;
 }
+
+} // namespace chronon3d::cli

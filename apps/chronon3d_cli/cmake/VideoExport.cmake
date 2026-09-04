@@ -4,7 +4,10 @@ endif()
 
 add_library(chronon3d_cli_video_export STATIC
     commands/video/common/pipe_export_helpers.cpp
-    commands/video/exporters/pipe_export_pipeline.cpp
+    commands/video/exporters/pipe_export_pipeline_support.cpp
+    commands/video/exporters/pipe_export_pipeline_setup.cpp
+    commands/video/exporters/pipe_export_pipeline_loop.cpp
+    commands/video/exporters/pipe_export_pipeline_warmup.cpp
     commands/video/exporters/pipe_timing_sidecar.cpp
     commands/video/exporters/pipe_export_finalize_encoder.cpp
     commands/video/exporters/pipe_export_finalize_telemetry.cpp
