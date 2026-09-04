@@ -15,195 +15,54 @@ namespace chronon3d::backends::vulkan {
 
         if (canvas_width == 0 || canvas_height == 0 || plan.empty()) return;
 
-        // The graph framebuffer plan owns CPU Framebuffer slots.  Native
+        // The graph framebuffer plan owns CPU Framebuffer slots. Native
         // Vulkan surfaces are created through the logical surface registry
         // and have a different lifetime/aliasing contract; importing every
         // CPU interval slot here reserves hundreds of canvas-sized Vulkan
-        // aliases that the native node path never consumes.  Keep native
-        // allocation lazy and let ensure_surface() reuse the normal store.
+        // aliases that the native node path never consumes. Keep native
+        // allocation lazy and let the surface authority reuse its store.
         plan_preallocated = false;
         plan_canvas_width = canvas_width;
         plan_canvas_height = canvas_height;
         surfaces.prune_unused_slots();
-        return;
-
     }
 
-    // True when at least one logical handle currently references `slot`.
+    // Compatibility façade: all surface slot/binding policy lives in
+    // VulkanSurfaceAuthority. Impl only delegates so there is one authority.
     bool VulkanBackend::Impl::slot_in_use(std::size_t slot) const {
-        for (const auto& [handle, bound_slot] : surfaces.surface_bindings) {
-            (void)handle;
-            if (bound_slot == slot) return true;
-        }
-        return false;
+        return surfaces.slot_in_use(slot);
     }
 
     void VulkanBackend::Impl::prune_unused_transient_slots() {
-        for (auto it = surfaces.physical_surfaces.begin(); it != surfaces.physical_surfaces.end();) {
-            if (slot_in_use(it->first) ||
-                it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
-                ++it;
-                continue;
-            }
-            destroy_image(it->second.image);
-            it = surfaces.physical_surfaces.erase(it);
-        }
+        surfaces.prune_unused_slots();
     }
 
-    std::size_t VulkanBackend::Impl::bound_slot(runtime::RenderSurfaceHandle handle) const {
-        const auto it = surfaces.surface_bindings.find(handle);
-        if (it == surfaces.surface_bindings.end()) {
-            throw std::invalid_argument(
-                "Vulkan surface handle " + std::to_string(handle) +
-                " is not bound to a physical slot (bindings=" +
-                std::to_string(surfaces.surface_bindings.size()) +
-                ", surfaces.physical_surfaces=" +
-                std::to_string(surfaces.physical_surfaces.size()) + ")");
-        }
-        return it->second;
+    std::size_t VulkanBackend::Impl::bound_slot(
+        runtime::RenderSurfaceHandle handle) const {
+        return surfaces.bound_slot(handle);
     }
 
-    // The single resolve path: handle → slot → backing image.
-    VulkanBackend::Impl::Image& VulkanBackend::Impl::resolve_image(runtime::RenderSurfaceHandle handle) {
-        const auto slot = bound_slot(handle);
-        const auto physical_it = surfaces.physical_surfaces.find(slot);
-        if (physical_it == surfaces.physical_surfaces.end()) {
-            throw std::invalid_argument("Vulkan physical slot has no backing image");
-        }
-        return physical_it->second.image;
+    VulkanBackend::Impl::Image& VulkanBackend::Impl::resolve_image(
+        runtime::RenderSurfaceHandle handle) {
+        return surfaces.resolve(handle);
     }
 
-    // True when some handle OTHER than `self` is bound to `slot` and the
-    // slot's image already holds content.  Pre-initialized images (uploaded
-    // assets) are never aliased: the liveness model covers in-frame
-    // producers only, so sharing such a slot with a writer could clobber
-    // pixels the frame still needs to sample.
-    bool VulkanBackend::Impl::slot_has_initialized_occupant(std::size_t slot,
-                                       runtime::RenderSurfaceHandle self) const {
-        const auto physical_it = surfaces.physical_surfaces.find(slot);
-        if (physical_it == surfaces.physical_surfaces.end() ||
-            !physical_it->second.image.initialized) {
-            return false;
-        }
-        for (const auto& [handle, bound_slot] : surfaces.surface_bindings) {
-            if (handle != self && bound_slot == slot) return true;
-        }
-        return false;
+    bool VulkanBackend::Impl::slot_has_initialized_occupant(
+        std::size_t slot, runtime::RenderSurfaceHandle self) const {
+        return surfaces.slot_has_initialized_occupant(slot, self);
     }
 
-    // Bind a handle to a slot, creating (or resizing) the slot's single
-    // backing image as needed.  Aliased handles resolve to the same image
-    // (one VkImage per slot, never per handle).  Two conservative guards
-    // keep aliasing safe when content already exists:
-    //   * a handle whose image holds content (uploaded before the batch) is
-    //     PINNED to its current slot — pixels never migrate to another slot;
-    //   * a handle never aliases a slot whose occupant image is initialized
-    //     — such a slot is DIVERTED to a fresh private slot instead.
-    VulkanBackend::Impl::Image& VulkanBackend::Impl::bind_handle_to_slot(runtime::RenderSurfaceHandle handle,
-                               std::size_t slot,
-                               const runtime::SurfaceDesc& desc) {
-        const auto previous = surfaces.surface_bindings.find(handle);
-        if (previous != surfaces.surface_bindings.end() && previous->second != slot) {
-            const auto old_slot = previous->second;
-            const auto old_it = surfaces.physical_surfaces.find(old_slot);
-            const bool pinned = old_it != surfaces.physical_surfaces.end() &&
-                                old_it->second.image.initialized;
-            if (pinned) {
-                slot = old_slot;  // content stays where it is
-            } else {
-                surfaces.surface_bindings.erase(previous);
-            }
-        }
-        if (slot_has_initialized_occupant(slot, handle)) {
-            slot = surfaces.next_slot++;  // never share pre-initialized content
-        }
-        auto& physical = surfaces.physical_surfaces[slot];
-        stats.physical_surfaces_peak = std::max(
-            stats.physical_surfaces_peak,
-            static_cast<std::uint64_t>(surfaces.physical_surfaces.size()));
-        // When the plan is preallocated, the image already exists with the
-        // correct dimensions — no create, no resize.  Validate the invariant
-        // and skip all Vulkan object creation.
-        if (plan_preallocated && physical.image.image != VK_NULL_HANDLE) {
-            if (physical.image.width != desc.width ||
-                physical.image.height != desc.height) {
-                throw std::invalid_argument(
-                    "Vulkan plan-preallocated surface slot " +
-                    std::to_string(slot) + " has dimensions " +
-                    std::to_string(physical.image.width) + "x" +
-                    std::to_string(physical.image.height) +
-                    " but requested " + std::to_string(desc.width) + "x" +
-                    std::to_string(desc.height));
-            }
-            physical.desc = desc;
-            physical.image.text_atlas_encoding = desc.text_atlas_encoding;
-            surfaces.surface_bindings[handle] = slot;
-            return physical.image;
-        }
-        if (physical.image.image == VK_NULL_HANDLE ||
-            physical.image.width != desc.width ||
-            physical.image.height != desc.height) {
-            if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
-            make_image(physical.image, desc.width, desc.height, false,
-                       to_vk_format(desc.format));
-            physical.image.initialized = false;
-        }
-        physical.desc = desc;
-        physical.image.text_atlas_encoding = desc.text_atlas_encoding;
-        surfaces.surface_bindings[handle] = slot;
-        return physical.image;
+    VulkanBackend::Impl::Image& VulkanBackend::Impl::bind_handle_to_slot(
+        runtime::RenderSurfaceHandle handle,
+        std::size_t slot,
+        const runtime::SurfaceDesc& desc) {
+        return surfaces.bind(handle, slot, desc);
     }
 
-    VulkanBackend::Impl::Image& VulkanBackend::Impl::ensure_surface(runtime::RenderSurfaceHandle handle,
-                          const runtime::SurfaceDesc& desc) {
-        if (handle == runtime::kInvalidRenderSurfaceHandle ||
-            (desc.format != runtime::PixelFormat::Rgba32Float &&
-             desc.format != runtime::PixelFormat::Rgba8Unorm &&
-             desc.format != runtime::PixelFormat::R8Unorm &&
-             desc.format != runtime::PixelFormat::Nv12 &&
-             desc.format != runtime::PixelFormat::P010) ||
-            desc.width == 0 || desc.height == 0) {
-            throw std::invalid_argument("Vulkan surface requires a valid non-empty description");
-        }
-        const auto binding = surfaces.surface_bindings.find(handle);
-        if (binding != surfaces.surface_bindings.end()) {
-            auto& physical = surfaces.physical_surfaces.at(binding->second);
-            if (physical.image.image == VK_NULL_HANDLE ||
-                physical.image.width != desc.width ||
-                physical.image.height != desc.height ||
-                physical.desc.format != desc.format) {
-                if (physical.image.image != VK_NULL_HANDLE) destroy_image(physical.image);
-                make_image(physical.image, desc.width, desc.height, false, to_vk_format(desc.format));
-                physical.desc = desc;
-            }
-            physical.image.text_atlas_encoding = desc.text_atlas_encoding;
-            ensure_descriptor_set();
-            return physical.image;
-        }
-        // Job-persistent assets (decoded images, packed text atlases, etc.)
-        // must never alias a transient graph slot.  Their logical handle
-        // survives frame boundaries and is sampled by later jobs; reusing a
-        // free-looking physical slot here can race with deferred releases or
-        // let a later transient writer mutate the cached asset.  Allocate a
-        // dedicated physical image for the whole job/daemon lifetime.
-        if (desc.lifetime != runtime::LifetimeClass::JobPersistent) {
-            // Unbound transient: alias an exact-match compatible unused physical slot first
-            for (auto& [slot, physical] : surfaces.physical_surfaces) {
-                if (!slot_in_use(slot) && surface_compatible(physical.desc, desc)) {
-                    ensure_descriptor_set();
-                    return bind_handle_to_slot(handle, slot, desc);
-                }
-            }
-            // Next, reuse any unused physical slot (it will be resized by bind_handle_to_slot)
-            for (auto& [slot, physical] : surfaces.physical_surfaces) {
-                if (!slot_in_use(slot) && physical.desc.lifetime != runtime::LifetimeClass::JobPersistent) {
-                    ensure_descriptor_set();
-                    return bind_handle_to_slot(handle, slot, desc);
-                }
-            }
-        }
-        ensure_descriptor_set();
-        return bind_handle_to_slot(handle, surfaces.next_slot++, desc);
+    VulkanBackend::Impl::Image& VulkanBackend::Impl::ensure_surface(
+        runtime::RenderSurfaceHandle handle,
+        const runtime::SurfaceDesc& desc) {
+        return surfaces.ensure(handle, desc);
     }
 
     void VulkanBackend::Impl::wait_upload_slot(VulkanUploadRing::UploadSlot& slot) {
