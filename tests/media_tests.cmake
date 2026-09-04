@@ -1,7 +1,6 @@
 # ── Media/Video Tests ──
 #
-# These tests exercise chronon3d_media_video, chronon3d_backend_video,
-# and the video_sink_adapter from the CLI.
+# These tests exercise chronon3d_media_video and chronon3d_backend_video.
 #
 # Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
 if(NOT CHRONON3D_ENABLE_VIDEO)
@@ -35,19 +34,10 @@ chronon3d_add_test_suite(
             video/test_yuv_conversion_params.cpp
             video/test_native_frame_importer.cpp
             video/test_cuda_p010_conversion.cpp
-            cli/test_video_adapter_e2e.cpp
-            ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_sink_adapter.cpp
 )
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     target_link_libraries(chronon3d_media_video_tests PRIVATE chronon3d_media_native)
 endif()
-# CLI tests have a non-standard include dir for chrono3d_cli production
-# sources (the chronon3d_media_video_tests target reuses the CLI's
-# video_sink_adapter.cpp from apps/chronon3d_cli/utils/video/).
-# chronon3d_add_test_suite() already sets UNITY_BUILD OFF + the standard
-# include dirs; this explicit add covers the /apps/chronon3d_cli subset
-# the test sources need to compile.
-target_include_directories(chronon3d_media_video_tests PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
     target_include_directories(chronon3d_media_video_tests PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR}")
@@ -72,7 +62,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
         NAME chronon3d_native_decoder_tests
         TIER INTEGRATION
         LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
-        SOURCES            video/test_native_video_frame_decoder.cpp
+        SOURCES video/test_native_video_frame_decoder.cpp
             video/test_video_device_runtime.cpp
     )
 
