@@ -44,6 +44,18 @@ public:
 
     [[nodiscard]] std::size_t size() const noexcept { return m_pipelines.size(); }
 
+    /// Enumerate the kernels actually registered in this registry.
+    ///
+    /// Lifecycle authorities use this instead of maintaining a second manual
+    /// list of every GpuKernelId.  The registry remains the source of truth for
+    /// both lookup and destruction.
+    template <typename Fn>
+    void for_each_registered(Fn&& fn) const {
+        for (const auto& [id, pipeline] : m_pipelines) {
+            fn(id, pipeline);
+        }
+    }
+
 private:
     std::unordered_map<GpuKernelId, PipelineHandle> m_pipelines;
 };
