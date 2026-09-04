@@ -12,6 +12,7 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  ABI_BASELINE_REF: '6d09935be9f07ad48784e5725462f08b5cdb0f51'
 
 jobs:
   libabigail:
@@ -19,8 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout current source
+        uses: actions/checkout@v4
         with:
+          submodules: recursive
+
+      - name: Checkout pinned ABI baseline source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ABI_BASELINE_REF }}
+          path: abi-baseline
           submodules: recursive
 
       - name: Install ABI build tools
@@ -32,14 +41,22 @@ jobs:
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
-      - name: Configure hardened release
+      - name: Configure current hardened release
         run: cmake --preset linux-hardened-release
 
-      - name: Build C ABI shared library
+      - name: Build current C ABI shared library
+        run: cmake --build --preset linux-hardened-release --target chronon3d_c -j12
+
+      - name: Configure pinned ABI baseline
+        working-directory: abi-baseline
+        run: cmake --preset linux-hardened-release
+
+      - name: Build pinned C ABI baseline
+        working-directory: abi-baseline
         run: cmake --build --preset linux-hardened-release --target chronon3d_c -j12
 
       - name: Compare ABI baseline
         env:
           ABI_SO: build/chronon/linux-hardened-release/src/libchronon3d_c.so
-          ABI_BASELINE: tools/sdk/chronon3d_c.abi
+          ABI_BASELINE_SO: abi-baseline/build/chronon/linux-hardened-release/src/libchronon3d_c.so
         run: bash tools/sdk/check_abi_libabigail.sh
