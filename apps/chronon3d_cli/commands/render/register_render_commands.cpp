@@ -1,6 +1,7 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include "../../daemon/daemon_service.hpp"
+#include "../../utils/common/cli_mappers.hpp"
 #include "../../utils/common/props_file.hpp"
 #include "../../utils/common/props_inline.hpp"
 #include "../../utils/common/render_job_error_formatter.hpp"

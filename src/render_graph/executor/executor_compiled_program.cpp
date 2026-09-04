@@ -1,4 +1,4 @@
-#include "executor_internal.hpp"
+#include "executor_compiled_program.hpp"
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
