@@ -1,11 +1,12 @@
 [meta]
 version = 2
-generated = "2026-09-03"
+generated = "2026-09-04"
 description = "Canonical architecture registry. All static invariants are loaded through this root manifest."
 
 includes = [
   "architecture_rules_core.toml",
   "architecture_rules_migrated.toml",
   "architecture_rules_cleanup.toml",
+  "architecture_rules_inc.toml",
   "architecture_rules_camera.toml",
 ]
