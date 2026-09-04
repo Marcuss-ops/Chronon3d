@@ -8,11 +8,9 @@
 //
 //   Renderer → FrameConverter → VideoSink → encoded file
 //
-// Implementations:
-//  - FfmpegPipeSink: pipes raw frames to an external FFmpeg subprocess
-//  - NativeAvSink:   in-process encoding via libavcodec/libavformat
-//  - RawVideoSink:   writes raw pixel data to a file (no encoding)
-//  - NullSink:       discards all frames (for benchmarking)
+// Built-in implementations:
+//  - NativeAvSink: in-process compressed encoding via libavcodec/libavformat
+//  - RawVideoSink: writes raw pixel data to a file (no encoding)
 //
 // Lifecycle:
 //   open(config) → submit(frame 0..N) → flush() → close()
@@ -24,7 +22,6 @@
 //  - An I/O or encoder error transitions state to Failed
 //  - The destructor must NOT throw exceptions
 //  - No accepted frame may be silently dropped
-//  - Writer-thread errors are propagated to the submit() caller
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/media/video/video_frame.hpp>
@@ -51,7 +48,7 @@ enum class VideoSinkState : uint8_t {
     /// Stats are preserved for telemetry after close().
     Closed = 3,
 
-    /// An error occurred (I/O, encoder, broken pipe, etc.).
+    /// An I/O or encoder error occurred.
     /// The sink is in an unusable state and must be destroyed.
     Failed = 4,
 };
@@ -61,15 +58,15 @@ enum class VideoSinkState : uint8_t {
 enum class VideoSinkError : uint8_t {
     None            = 0,   ///< No error
     InvalidConfig   = 1,   ///< Config validation failed (empty path, bad codec, etc.)
-    FfmpegNotFound  = 2,   ///< FFmpeg executable not found on PATH
-    PipeBroken      = 3,   ///< stdin pipe to FFmpeg broke (EPIPE, child exited)
-    Timeout         = 4,   ///< FFmpeg timed out waiting for encoder flush
+    FfmpegNotFound  = 2,   ///< Reserved legacy ABI value
+    PipeBroken      = 3,   ///< Reserved legacy ABI value
+    Timeout         = 4,   ///< Output/encoder operation timed out
     InvalidFrame    = 5,   ///< Frame format/dimensions don't match session contract
     InvalidStride   = 6,   ///< Frame stride < tight row bytes
     FileExists      = 7,   ///< Output file exists and overwrite=false
-    EncoderFailed   = 8,   ///< FFmpeg exited with non-zero code
-    WriteFailed     = 9,   ///< write_for() returned false (pipe full, broken, etc.)
-    PartialOutput   = 10,  ///< ffprobe validation failed on completed output
+    EncoderFailed   = 8,   ///< Encoder backend failed
+    WriteFailed     = 9,   ///< Output write failed
+    PartialOutput   = 10,  ///< Completed output failed validation
     AlreadyClosed   = 11,  ///< Operation on an already-closed sink
     NotOpen         = 12,  ///< submit/flush on a sink that was never opened
     Count           = 255  ///< Sentinel — do not use
@@ -143,8 +140,7 @@ public:
     /// Implementations should convert to the internal format as needed.
     virtual bool submit_biplanar(const BiplanarVideoFrameView& frame) = 0;
 
-    /// Block until all accepted frames have been fully processed
-    /// (encoded, written to pipe/file, etc.).
+    /// Block until all accepted frames have been fully processed.
     /// Returns true on success, false if any frame failed during flush.
     /// After flush(), the sink is ready for close().
     virtual bool flush() = 0;
@@ -152,14 +148,13 @@ public:
     /// Close the sink and release all resources.
     /// Idempotent: calling close() on an already-closed sink is a no-op.
     /// Must NOT throw exceptions.
-    /// Returns true on success, false if the finalisation failed
-    /// (e.g. encoder trailer write failed).
+    /// Returns true on success, false if finalisation failed.
     virtual bool close() noexcept = 0;
 
     /// Returns the current lifecycle state.
     [[nodiscard]] virtual VideoSinkState state() const noexcept = 0;
 
-    /// Human-readable name of the sink implementation (e.g. "ffmpeg-pipe").
+    /// Human-readable name of the sink implementation (e.g. "native-av").
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
     /// Total number of frames successfully submitted.
@@ -172,9 +167,7 @@ public:
     struct Stats {
         uint64_t frames_submitted{0};
         uint64_t bytes_written{0};
-        /// Bytes copied into an encoder-side staging buffer.  A direct
-        /// FFmpeg pipe path keeps this at zero; the process boundary still
-        /// copies bytes into the child pipe and is intentionally not counted.
+        /// Bytes copied into an encoder-side staging buffer.
         uint64_t encoder_staging_copy_bytes{0};
         double   total_submit_ms{0.0};  // cumulative wall time in submit()
         double   total_flush_ms{0.0};   // cumulative wall time in flush()
@@ -190,13 +183,13 @@ public:
     // ── Diagnostics ────────────────────────────────────────────────────
 
     struct Diagnostics {
-        /// Child process PID (-1 if not applicable or not running).
+        /// Legacy-compatible process diagnostic. Built-in sinks return -1.
         int child_pid{-1};
 
-        /// Total time blocked on writes (ms).
+        /// Total time blocked on output writes (ms).
         double blocked_write_ms{0.0};
 
-        /// Backend identifier (e.g. "ffmpeg-pipe", "raw-file").
+        /// Backend identifier (e.g. "native-av", "raw-file").
         std::string_view backend;
     };
 
