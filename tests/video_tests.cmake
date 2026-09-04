@@ -41,8 +41,9 @@ target_include_directories(chronon3d_video_contracts_tests
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     chronon3d_add_test_suite(
         NAME chronon3d_native_video_sink_factory_tests
-        TIER UNIT
+        TIER INTEGRATION
         LINK_TARGETS chronon3d_media_video chronon3d_media_native
         SOURCES video/test_native_av_sink_factory.cpp
+                video/test_native_av_sink_lifecycle.cpp
     )
 endif()
