@@ -1,3 +1,14 @@
+#include <chronon3d/render_plan/render_plan.hpp>
+
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string>
+#include <utility>
+
+namespace chronon3d::render_plan {
+
 std::optional<PlanDecodeError> validate_render_budget(
     const RenderPlan& plan, const RenderBudget& budget) {
     const auto fail = [](std::string path, std::string message) {
@@ -90,7 +101,8 @@ std::optional<PlanDecodeError> validate_render_budget(
         if (layer.opacity)
             if (const auto invalid = fail_if_non_finite(*layer.opacity, "layers[].opacity")) return invalid;
         if (layer.style && layer.style->font_size)
-            if (const auto invalid = fail_if_non_finite(*layer.style->font_size, "layers[].style.font_size")) return invalid;
+            if (const auto invalid = fail_if_non_finite(*layer.style->font_size,
+                                                        "layers[].style.font_size")) return invalid;
 
         if (layer.animation) {
             for (const auto& track : layer.animation->tracks) {
@@ -109,8 +121,9 @@ std::optional<PlanDecodeError> validate_render_budget(
                         return fail(prefix + ".animation.tracks[].keyframes[].value",
                                     "keyframe value must contain 1 to 4 numeric components");
                     for (const auto component : key.value)
-                        if (const auto invalid = fail_if_non_finite(component,
-                                "layers[].animation.tracks[].keyframes[].value")) return invalid;
+                        if (const auto invalid = fail_if_non_finite(
+                                component, "layers[].animation.tracks[].keyframes[].value"))
+                            return invalid;
                 }
             }
         }
@@ -130,3 +143,5 @@ std::optional<PlanDecodeError> validate_render_plan_budget(
     const RenderPlan& plan, const RenderBudget& budget) {
     return validate_render_budget(plan, budget);
 }
+
+}  // namespace chronon3d::render_plan

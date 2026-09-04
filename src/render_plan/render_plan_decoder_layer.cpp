@@ -1,4 +1,25 @@
+#include "render_plan_decoder_detail.hpp"
+
+#include <nlohmann/json.hpp>
+
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+
+namespace chronon3d::render_plan::detail {
 namespace {
+
+template <typename T>
+std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
+    if (!object.contains(key)) return std::nullopt;
+    return object.at(key).get<T>();
+}
+
+std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
+    if (!object.contains(key)) return std::nullopt;
+    return Frame{object.at(key).get<std::int64_t>()};
+}
 
 AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     AnimationTrackPlan track;
@@ -48,6 +69,8 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
     }
     return animator;
 }
+
+}  // namespace
 
 LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
@@ -99,9 +122,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         style_plan.fill = style.value("fill", std::string{});
         if (style.contains("stroke")) {
             const auto& stroke = style.at("stroke");
-            style_plan.stroke = StrokeStyle{
-                stroke.value("color", std::string{}),
-                optional_value<float>(stroke, "width")};
+            style_plan.stroke = StrokeStyle{stroke.value("color", std::string{}),
+                                            optional_value<float>(stroke, "width")};
         }
         if (style.contains("shadow")) {
             const auto& shadow = style.at("shadow");
@@ -141,12 +163,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             animation.tracks.push_back(decode_animation_track(track_value));
         layer.animation = std::move(animation);
     }
-
     if (value.contains("text_animators")) {
         for (const auto& animator : value.at("text_animators"))
             layer.text_animators.push_back(decode_text_animator(animator));
     }
-
     if (value.contains("blend_mode")) {
         if (const auto mode = blend_mode(value.at("blend_mode").get<std::string>()))
             layer.blend_mode = mode;
@@ -156,4 +176,4 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     return layer;
 }
 
-} // namespace
+}  // namespace chronon3d::render_plan::detail

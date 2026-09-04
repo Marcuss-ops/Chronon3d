@@ -4,6 +4,9 @@
 
 add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
+    render_plan_decoder_support.cpp
+    render_plan_decoder_layer.cpp
+    render_budget.cpp
     fingerprint.cpp
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp
@@ -12,6 +15,9 @@ set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
 
 add_library(chronon3d_render_plan_compiler OBJECT
     render_plan_compiler.cpp
+    render_plan_compiler_animation.cpp
+    render_plan_compiler_text.cpp
+    render_plan_compiler_fingerprint.cpp
 )
 set_target_properties(chronon3d_render_plan_compiler PROPERTIES UNITY_BUILD OFF)
 set_source_files_properties(
