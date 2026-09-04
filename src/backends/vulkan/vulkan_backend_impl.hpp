@@ -251,6 +251,7 @@ struct VulkanBackend::Impl {
         VkPipelineLayout general_layout{VK_NULL_HANDLE};
         VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
         VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
+        VkPipelineCache pipeline_cache{VK_NULL_HANDLE};
 
         void destroy(VkDevice device) noexcept {
             for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
@@ -274,6 +275,10 @@ struct VulkanBackend::Impl {
             }
             if (text_tile_raster_layout != VK_NULL_HANDLE) {
                 vkDestroyPipelineLayout(device, text_tile_raster_layout, nullptr);
+            }
+            if (pipeline_cache != VK_NULL_HANDLE) {
+                vkDestroyPipelineCache(device, pipeline_cache, nullptr);
+                pipeline_cache = VK_NULL_HANDLE;
             }
             general_layout = VK_NULL_HANDLE;
             text_tile_bin_layout = VK_NULL_HANDLE;

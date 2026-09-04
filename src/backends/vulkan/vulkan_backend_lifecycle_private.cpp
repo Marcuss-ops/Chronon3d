@@ -15,6 +15,7 @@
 #include "text_batch_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
+#include <fstream>
 
 namespace chronon3d::backends::vulkan {
 
@@ -131,7 +132,25 @@ namespace chronon3d::backends::vulkan {
         check(vkCreatePipelineLayout(device, &tile_raster_pipeline_layout_info, nullptr,
                                      &kernels.text_tile_raster_layout),
               "vkCreatePipelineLayout(text tile raster)");
-        if (debug_context) debug_context->set_pipeline_layout_name(kernels.text_tile_raster_layout, "Chronon3D.PipelineLayout.TextTileRaster");
+        // ── Persistent VkPipelineCache on disk ────────────────────
+        std::filesystem::path cache_dir = std::filesystem::path(std::getenv("HOME") ? std::getenv("HOME") : "/tmp") / ".cache" / "chronon";
+        std::filesystem::create_directories(cache_dir);
+        std::filesystem::path cache_file = cache_dir / "vk_pipeline_cache.bin";
+
+        std::vector<char> cache_data;
+        if (std::ifstream is{cache_file, std::ios::binary | std::ios::ate}) {
+            auto size = is.tellg();
+            if (size > 0) {
+                cache_data.resize(static_cast<size_t>(size));
+                is.seekg(0);
+                is.read(cache_data.data(), size);
+            }
+        }
+
+        VkPipelineCacheCreateInfo cache_ci{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO, nullptr, 0,
+                                           cache_data.size(), cache_data.empty() ? nullptr : cache_data.data()};
+        check(vkCreatePipelineCache(device, &cache_ci, nullptr, &kernels.pipeline_cache),
+              "vkCreatePipelineCache");
 
         const VkShaderModuleCreateInfo shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -148,7 +167,7 @@ namespace chronon3d::backends::vulkan {
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0, stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline composite_pipeline = VK_NULL_HANDLE;
         const VkResult pipeline_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &composite_pipeline);
+            device, kernels.pipeline_cache, 1, &pipeline_info, nullptr, &composite_pipeline);
         vkDestroyShaderModule(device, shader, nullptr);
         check(pipeline_result, "vkCreateComputePipelines");
         if (!kernels.registry.register_kernel(
@@ -175,7 +194,7 @@ namespace chronon3d::backends::vulkan {
             transform_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline transform_pipeline = VK_NULL_HANDLE;
         const VkResult transform_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &transform_pipeline_info, nullptr, &transform_pipeline);
+            device, kernels.pipeline_cache, 1, &transform_pipeline_info, nullptr, &transform_pipeline);
         vkDestroyShaderModule(device, transform_shader, nullptr);
         check(transform_result, "vkCreateComputePipelines(transform)");
         if (!kernels.registry.register_kernel(
@@ -202,7 +221,7 @@ namespace chronon3d::backends::vulkan {
             affine_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline affine_transform_pipeline = VK_NULL_HANDLE;
         const VkResult affine_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &affine_pipeline_info, nullptr, &affine_transform_pipeline);
+            device, kernels.pipeline_cache, 1, &affine_pipeline_info, nullptr, &affine_transform_pipeline);
         vkDestroyShaderModule(device, affine_shader, nullptr);
         check(affine_result, "vkCreateComputePipelines(affine transform)");
         if (!kernels.registry.register_kernel(
@@ -229,7 +248,7 @@ namespace chronon3d::backends::vulkan {
             blur_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline blur_pipeline = VK_NULL_HANDLE;
         const VkResult blur_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &blur_pipeline_info, nullptr, &blur_pipeline);
+            device, kernels.pipeline_cache, 1, &blur_pipeline_info, nullptr, &blur_pipeline);
         vkDestroyShaderModule(device, blur_shader, nullptr);
         check(blur_result, "vkCreateComputePipelines(blur)");
         if (!kernels.registry.register_kernel(
@@ -256,7 +275,7 @@ namespace chronon3d::backends::vulkan {
             color_adjust_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline color_adjust_pipeline = VK_NULL_HANDLE;
         const VkResult color_adjust_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &color_adjust_pipeline_info, nullptr, &color_adjust_pipeline);
+            device, kernels.pipeline_cache, 1, &color_adjust_pipeline_info, nullptr, &color_adjust_pipeline);
         vkDestroyShaderModule(device, color_adjust_shader, nullptr);
         check(color_adjust_result, "vkCreateComputePipelines(color adjust)");
         if (!kernels.registry.register_kernel(
@@ -283,7 +302,7 @@ namespace chronon3d::backends::vulkan {
             matte_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline matte_pipeline = VK_NULL_HANDLE;
         const VkResult matte_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &matte_pipeline_info, nullptr, &matte_pipeline);
+            device, kernels.pipeline_cache, 1, &matte_pipeline_info, nullptr, &matte_pipeline);
         vkDestroyShaderModule(device, matte_shader, nullptr);
         check(matte_result, "vkCreateComputePipelines(matte)");
         if (!kernels.registry.register_kernel(
@@ -310,7 +329,7 @@ namespace chronon3d::backends::vulkan {
             text_run_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_run_pipeline = VK_NULL_HANDLE;
         const VkResult text_run_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &text_run_pipeline_info, nullptr, &text_run_pipeline);
+            device, kernels.pipeline_cache, 1, &text_run_pipeline_info, nullptr, &text_run_pipeline);
         vkDestroyShaderModule(device, text_run_shader, nullptr);
         check(text_run_result, "vkCreateComputePipelines(text run)");
         if (!kernels.registry.register_kernel(
@@ -337,7 +356,7 @@ namespace chronon3d::backends::vulkan {
             fill_rect_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline fill_rect_pipeline = VK_NULL_HANDLE;
         const VkResult fill_rect_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &fill_rect_pipeline_info, nullptr, &fill_rect_pipeline);
+            device, kernels.pipeline_cache, 1, &fill_rect_pipeline_info, nullptr, &fill_rect_pipeline);
         vkDestroyShaderModule(device, fill_rect_shader, nullptr);
         check(fill_rect_result, "vkCreateComputePipelines(fill rect)");
         if (!kernels.registry.register_kernel(
@@ -364,7 +383,7 @@ namespace chronon3d::backends::vulkan {
             layer_batch_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline layer_batch_pipeline = VK_NULL_HANDLE;
         const VkResult layer_batch_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &layer_batch_pipeline_info, nullptr, &layer_batch_pipeline);
+            device, kernels.pipeline_cache, 1, &layer_batch_pipeline_info, nullptr, &layer_batch_pipeline);
         vkDestroyShaderModule(device, layer_batch_shader, nullptr);
         check(layer_batch_result, "vkCreateComputePipelines(layer batch)");
         if (!kernels.registry.register_kernel(
@@ -391,7 +410,7 @@ namespace chronon3d::backends::vulkan {
             text_batch_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_batch_pipeline = VK_NULL_HANDLE;
         const VkResult text_batch_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &text_batch_pipeline_info, nullptr, &text_batch_pipeline);
+            device, kernels.pipeline_cache, 1, &text_batch_pipeline_info, nullptr, &text_batch_pipeline);
         vkDestroyShaderModule(device, text_batch_shader, nullptr);
         check(text_batch_result, "vkCreateComputePipelines(text batch)");
         if (!kernels.registry.register_kernel(
@@ -419,7 +438,7 @@ namespace chronon3d::backends::vulkan {
             text_tile_bin_stage, kernels.text_tile_bin_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_tile_bin_pipeline = VK_NULL_HANDLE;
         const VkResult text_tile_bin_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &text_tile_bin_pipeline_info, nullptr,
+            device, kernels.pipeline_cache, 1, &text_tile_bin_pipeline_info, nullptr,
             &text_tile_bin_pipeline);
         vkDestroyShaderModule(device, text_tile_bin_shader, nullptr);
         check(text_tile_bin_result, "vkCreateComputePipelines(text tile bin)");
@@ -448,7 +467,7 @@ namespace chronon3d::backends::vulkan {
             text_tile_raster_stage, kernels.text_tile_raster_layout, VK_NULL_HANDLE, -1};
         VkPipeline text_tile_raster_pipeline = VK_NULL_HANDLE;
         const VkResult text_tile_raster_result = vkCreateComputePipelines(
-            device, VK_NULL_HANDLE, 1, &text_tile_raster_pipeline_info, nullptr,
+            device, kernels.pipeline_cache, 1, &text_tile_raster_pipeline_info, nullptr,
             &text_tile_raster_pipeline);
         vkDestroyShaderModule(device, text_tile_raster_shader, nullptr);
         check(text_tile_raster_result, "vkCreateComputePipelines(text tile raster)");
@@ -459,6 +478,20 @@ namespace chronon3d::backends::vulkan {
             throw std::runtime_error("Vulkan kernel registry rejected TextTileRaster pipeline");
         }
         if (debug_context) debug_context->set_pipeline_name(text_tile_raster_pipeline, "Chronon3D.Pipeline.TextTileRaster");
+
+        // ── Save compiled pipeline cache to disk for instant warm starts ──
+        if (kernels.pipeline_cache != VK_NULL_HANDLE) {
+            size_t cache_size = 0;
+            if (vkGetPipelineCacheData(device, kernels.pipeline_cache, &cache_size, nullptr) == VK_SUCCESS && cache_size > 0) {
+                std::vector<char> cache_out(cache_size);
+                if (vkGetPipelineCacheData(device, kernels.pipeline_cache, &cache_size, cache_out.data()) == VK_SUCCESS) {
+                    std::ofstream os{cache_file, std::ios::binary};
+                    if (os) {
+                        os.write(cache_out.data(), cache_size);
+                    }
+                }
+            }
+        }
 
         const VkCommandBufferAllocateInfo command_info{
             VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, command_pool,

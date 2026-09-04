@@ -156,16 +156,20 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 #ifdef CHRONON3D_USE_BLEND2D
             std::string text_content;
             std::string font_path;
-            float font_size = 58.0f;
+            // No fast-path typography defaults: every value must come from the
+            // prepared TextRun shape produced by the canonical text/layout
+            // subsystem. A layer without one is a preparation failure, not a
+            // license to invent 58px white text.
+            float font_size = 0.0f;
             Color fill_color{1.0f, 1.0f, 1.0f, 1.0f};
             Color stroke_color{0.0f, 0.0f, 0.0f, 0.0f};
             float stroke_width = 0.0f;
             bool has_bg = false;
-            Color bg_color{0.05f, 0.05f, 0.09f, 0.88f};
-            float bg_opacity = 0.88f;
-            float bg_radius = 10.0f;
-            float pad_x = 20.0f;
-            float pad_y = 12.0f;
+            Color bg_color{0.0f, 0.0f, 0.0f, 0.0f};
+            float bg_opacity = 0.0f;
+            float bg_radius = 0.0f;
+            float pad_x = 0.0f;
+            float pad_y = 0.0f;
             float box_w = 0.0f;
             float box_h = 0.0f;
             std::string align = "center";
@@ -193,8 +197,17 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 reason = "text layer has no prepared font asset: " + layer_name;
                 return false;
             }
+            if (font_size <= 0.0f) {
+                reason = "text layer has no prepared font size (TextRun shape must carry the canonical layout): " + layer_name;
+                return false;
+            }
             if (node.color.a > 0.0f) fill_color = node.color;
-            if (text_content.empty()) text_content = layer_name;
+            if (text_content.empty()) {
+                // A text layer with no prepared source text cannot be
+                // rasterized faithfully from the layer name.
+                reason = "text layer has no prepared source text: " + layer_name;
+                return false;
+            }
 
             const auto text_t0 = profiling::now();
             auto rasterized = rasterize_text_texture(
@@ -264,8 +277,12 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     Scene scene_rep;
                     try {
                         scene_rep = compiled.composition->evaluate(ctx_f);
-                    } catch (...) {
-                        continue;
+                    } catch (const std::exception& error) {
+                        // FAIL-CLOSED: evaluation failure during asset
+                        // discovery is a fatal program-preparation error.
+                        reason = std::string("scene evaluation failed for layer '") +
+                                 std::string(layer.name) + "': " + error.what();
+                        return nullptr;
                     }
                     bool fatal = false;
                     for (const auto& rep_layer : scene_rep.layers()) {
@@ -333,19 +350,44 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     Scene scene;
     try {
         scene = composition_->evaluate(context);
+    } catch (const std::exception& error) {
+        // FAIL-CLOSED: a failed timeline evaluation must fail the frame — and
+        // therefore the render job — never silently fall back to an empty
+        // overlay program that would produce a formally-SUCCESSFUL video with
+        // every requested overlay missing.
+        spdlog::error("[direct-yuv] scene evaluation failed at frame={}: {}",
+                      frame.integral(), error.what());
+        (void)error;
+        return nullptr;
     } catch (...) {
-        result->program = template_frame;
-        return result;
+        spdlog::error("[direct-yuv] scene evaluation failed at frame={} with an unknown exception",
+                      frame.integral());
+        return nullptr;
     }
+
+    // Set when any layer in this frame carries a blend mode the fast path
+    // does not implement; the frame is failed below instead of emitting a
+    // visually-wrong program.
+    bool unsupported_blend = false;
 
     std::size_t video_layer_index = 0;
     for (const auto& layer : scene.layers()) {
+        if (unsupported_blend) return nullptr;
         if (!layer.visible) continue;
         if (frame.integral() < layer.from.integral() ||
             (layer.duration.integral() > 0 && frame.integral() >= layer.from.integral() + layer.duration.integral())) {
             continue;
         }
         if (layer.transform.opacity <= 0.001f) continue;
+
+        if (layer.nodes.size() > 1) {
+            // Fail-closed: the fast path composites one primitive per layer.
+            // A multi-node layer would render only node[0] and silently drop
+            // the rest — reject the frame instead of approximating it.
+            spdlog::error("[direct-yuv] multi-node layer not supported by Direct-YUV at frame={}: layer='{}' nodes={}",
+                          frame.integral(), layer.name, layer.nodes.size());
+            return nullptr;
+        }
 
         if (layer.video_source) {
             if (video_layer_index++ == 0) continue;
@@ -390,8 +432,20 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
                 .src_x0 = 0.0f, .src_y0 = 0.0f, .src_x1 = 1.0f, .src_y1 = 1.0f,
                 .dst_x0 = cx - half_w, .dst_y0 = cy - half_h,
                 .dst_x1 = cx + half_w, .dst_y1 = cy + half_h,
-                .opacity = std::clamp(layer.transform.opacity, 0.0f, 1.0f),
-                .blend = layer.blend_mode == BlendMode::Add ? BlendMode::Add : BlendMode::Normal});
+            .opacity = std::clamp(layer.transform.opacity, 0.0f, 1.0f),
+            .blend = [&]() {
+                // FAIL-CLOSED on blend semantics: the fast path only
+                // implements Add and Normal. Any other blend mode would be
+                // silently coerced to Normal and visually change the result,
+                // so reject the frame instead.
+                if (layer.blend_mode == BlendMode::Add || layer.blend_mode == BlendMode::Normal) {
+                    return layer.blend_mode;
+                }
+                spdlog::error("[direct-yuv] unsupported blend mode for video layer '{}': {}",
+                              layer.name, static_cast<int>(layer.blend_mode));
+                unsupported_blend = true;
+                return BlendMode::Normal;
+            }()});
             media::CudaLayerResource resource;
             resource.kind = media::CudaLayerResourceKind::Nv12;
             resource.y = reinterpret_cast<CUdeviceptr>(overlay_frame->data[0]);
@@ -405,7 +459,14 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             continue;
         }
         auto it = layer_resources_.find(std::string(layer.name));
-        if (it == layer_resources_.end() || !it->second.gpu_resource) continue;
+        if (it == layer_resources_.end() || !it->second.gpu_resource) {
+            // FAIL-CLOSED: the plan requested this layer, so a missing GPU
+            // resource is a render failure — never "render the base video and
+            // pretend the overlay never existed".
+            spdlog::error("[direct-yuv] required overlay resource is missing: layer='{}' frame={}",
+                          layer.name, frame.integral());
+            return nullptr;
+        }
         const auto& entry = it->second;
 
         float base_w = entry.native_width;
@@ -417,6 +478,15 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         float opacity = std::clamp(layer.transform.opacity, 0.0f, 1.0f);
 
         if (!layer.nodes.empty()) {
+            // Direct-YUV equivalence requires exactly one shape node per
+            // overlay layer. A multi-node layer has semantics (per-node
+            // transforms, ordering) the fast path cannot reproduce, so it is
+            // rejected instead of silently rendering only nodes[0].
+            if (layer.nodes.size() > 1) {
+                spdlog::error("[direct-yuv] layer '{}' has {} shape nodes; the fast path supports exactly one — refusing to render a visually-different result",
+                              layer.name, layer.nodes.size());
+                return nullptr;
+            }
             const auto& node = layer.nodes[0];
             scale_x *= node.world_transform.scale.x;
             scale_y *= node.world_transform.scale.y;
@@ -448,7 +518,18 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             .dst_x0 = dst_x0, .dst_y0 = dst_y0,
             .dst_x1 = dst_x1, .dst_y1 = dst_y1,
             .opacity = opacity,
-            .blend = layer.blend_mode == BlendMode::Add ? BlendMode::Add : BlendMode::Normal,
+            .blend = [&]() {
+                // FAIL-CLOSED on blend semantics: same contract as video
+                // layers — only Add and Normal are implemented; anything else
+                // fails the frame rather than being coerced to Normal.
+                if (layer.blend_mode == BlendMode::Add || layer.blend_mode == BlendMode::Normal) {
+                    return layer.blend_mode;
+                }
+                spdlog::error("[direct-yuv] unsupported blend mode for layer '{}': {}",
+                              layer.name, static_cast<int>(layer.blend_mode));
+                unsupported_blend = true;
+                return BlendMode::Normal;
+            }(),
             .corner_radius = entry.corner_radius});
 
         media::CudaLayerResource res;
