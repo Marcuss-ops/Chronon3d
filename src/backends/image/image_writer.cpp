@@ -23,9 +23,9 @@
 
 namespace chronon3d {
 
-#include "image_writer_support.inc"
-#include "image_writer_png.inc"
-#include "image_writer_exr.inc"
-#include "image_writer_dispatch.inc"
+#include "image_writer_support_detail.hpp"
+#include "image_writer_png_detail.hpp"
+#include "image_writer_exr_detail.hpp"
+#include "image_writer_dispatch_detail.hpp"
 
 } // namespace chronon3d

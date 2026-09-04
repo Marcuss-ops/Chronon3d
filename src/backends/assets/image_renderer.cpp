@@ -15,5 +15,5 @@
 #include <cstring>
 #include <sstream>
 
-#include "image_renderer_support.inc"
-#include "image_renderer_draw.inc"
+#include "image_renderer_support_detail.hpp"
+#include "image_renderer_draw_detail.hpp"

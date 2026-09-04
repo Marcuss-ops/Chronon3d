@@ -17,7 +17,7 @@ bool is_invisible_codepoint(char32_t cp) noexcept {
 } // namespace
 
 #ifndef CHRONON3D_ENABLE_TEXT
-#include "font_engine_stub.inc"
+#include "font_engine_stub_detail.hpp"
 
 namespace text::font_engine_internal {
 bool has_glyph_for_codepoint(FontEngine&, const FontSpec&, char32_t cp) {
