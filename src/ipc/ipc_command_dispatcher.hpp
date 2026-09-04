@@ -47,15 +47,16 @@ private:
     IpcResponse handle(const IpcCreateComposition& req) {
         try {
             m_session->create_composition(req.composition_id, req.descriptor_json);
-            return IpcResponse{IpcCreateCompositionResult{0, "ok"}};
+            return IpcResponse{IpcCreateCompositionResult{IpcStatus_Ok, "ok"}};
         } catch (const std::exception& e) {
-            return IpcResponse{IpcCreateCompositionResult{1, e.what()}};
+            return IpcResponse{IpcCreateCompositionResult{IpcStatus_Error, e.what()}};
         }
     }
 
     IpcResponse handle(const IpcRenderFrame& req) {
         if (!m_session->contains(req.composition_id)) {
-            return IpcResponse{IpcRenderFrameResult{5, "not prepared", "", 0.0f}};
+            return IpcResponse{IpcRenderFrameResult{
+                IpcStatus_NotPrepared, "not prepared", "", 0.0f}};
         }
 
         Frame frame(req.frame_index);
@@ -65,21 +66,21 @@ private:
 
         if (!fb) {
             return IpcResponse{IpcRenderFrameResult{
-                1, "render returned null framebuffer", "", render_ms}};
+                IpcStatus_Error, "render returned null framebuffer", "", render_ms}};
         }
 
         m_frame_count.fetch_add(1);
         m_total_render_ms += render_ms;
         return IpcResponse{IpcRenderFrameResult{
-            0, "ok", req.output_path, render_ms}};
+            IpcStatus_Ok, "ok", req.output_path, render_ms}};
     }
 
     IpcResponse handle(const IpcStatusRequest&) {
-        return IpcResponse{IpcStatusResult{0, status_json()}};
+        return IpcResponse{IpcStatusResult{IpcStatus_Ok, status_json()}};
     }
 
     IpcResponse handle(const IpcShutdown&) {
-        return IpcResponse{IpcShutdownResult{4, "bye"}};
+        return IpcResponse{IpcShutdownResult{IpcStatus_Shutdown, "bye"}};
     }
 
     std::unique_ptr<RenderEngine> m_engine;

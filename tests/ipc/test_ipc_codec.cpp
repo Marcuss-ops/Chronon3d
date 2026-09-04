@@ -10,7 +10,6 @@ using namespace chronon3d::ipc;
 TEST_SUITE("IPC.Codec") {
 
 TEST_CASE("Round-trip all request types") {
-    // 1. CreateComposition
     {
         IpcCreateComposition req;
         req.composition_id = "comp_test_1";
@@ -25,7 +24,6 @@ TEST_CASE("Round-trip all request types") {
         CHECK(out.descriptor_json == req.descriptor_json);
     }
 
-    // 2. RenderFrame
     {
         IpcRenderFrame req;
         req.composition_id = "comp_test_2";
@@ -49,7 +47,6 @@ TEST_CASE("Round-trip all request types") {
         CHECK(out.output_path == "/tmp/frame_42.png");
     }
 
-    // 3. StatusRequest
     {
         const auto encoded = IpcCodec::encode_request(103, IpcStatusRequest{});
         const auto decoded = IpcCodec::decode_request(encoded);
@@ -58,7 +55,6 @@ TEST_CASE("Round-trip all request types") {
         CHECK(std::holds_alternative<IpcStatusRequest>(decoded->second));
     }
 
-    // 4. ShutdownRequest
     {
         const auto encoded = IpcCodec::encode_request(104, IpcShutdown{});
         const auto decoded = IpcCodec::decode_request(encoded);
@@ -68,58 +64,54 @@ TEST_CASE("Round-trip all request types") {
     }
 }
 
-TEST_CASE("Round-trip all reply types") {
-    // 1. CreateCompositionResult
+TEST_CASE("Round-trip all reply types using schema-owned status values") {
     {
-        IpcCreateCompositionResult rep{0, "Ready"};
+        IpcCreateCompositionResult rep{IpcStatus_Ok, "Ready"};
         const auto encoded = IpcCodec::encode_reply(201, rep);
         const auto decoded = IpcCodec::decode_reply(encoded);
         REQUIRE(decoded.has_value());
         CHECK(decoded->first == 201);
         REQUIRE(std::holds_alternative<IpcCreateCompositionResult>(decoded->second));
         const auto& out = std::get<IpcCreateCompositionResult>(decoded->second);
-        CHECK(out.status == 0);
+        CHECK(out.status == IpcStatus_Ok);
         CHECK(out.message == "Ready");
     }
 
-    // 2. RenderFrameResult
     {
-        IpcRenderFrameResult rep{0, "Rendered", "/tmp/out.png", 3.14f};
+        IpcRenderFrameResult rep{IpcStatus_Ok, "Rendered", "/tmp/out.png", 3.14f};
         const auto encoded = IpcCodec::encode_reply(202, rep);
         const auto decoded = IpcCodec::decode_reply(encoded);
         REQUIRE(decoded.has_value());
         CHECK(decoded->first == 202);
         REQUIRE(std::holds_alternative<IpcRenderFrameResult>(decoded->second));
         const auto& out = std::get<IpcRenderFrameResult>(decoded->second);
-        CHECK(out.status == 0);
+        CHECK(out.status == IpcStatus_Ok);
         CHECK(out.output_path == "/tmp/out.png");
         CHECK(out.render_ms == doctest::Approx(3.14f));
         CHECK(out.message == "Rendered");
     }
 
-    // 3. StatusResult
     {
-        IpcStatusResult rep{0, "{\"uptime\":123}"};
+        IpcStatusResult rep{IpcStatus_Ok, "{\"uptime\":123}"};
         const auto encoded = IpcCodec::encode_reply(203, rep);
         const auto decoded = IpcCodec::decode_reply(encoded);
         REQUIRE(decoded.has_value());
         CHECK(decoded->first == 203);
         REQUIRE(std::holds_alternative<IpcStatusResult>(decoded->second));
         const auto& out = std::get<IpcStatusResult>(decoded->second);
-        CHECK(out.status == 0);
+        CHECK(out.status == IpcStatus_Ok);
         CHECK(out.message == "{\"uptime\":123}");
     }
 
-    // 4. ShutdownResult
     {
-        IpcShutdownResult rep{0, "Bye"};
+        IpcShutdownResult rep{IpcStatus_Shutdown, "Bye"};
         const auto encoded = IpcCodec::encode_reply(204, rep);
         const auto decoded = IpcCodec::decode_reply(encoded);
         REQUIRE(decoded.has_value());
         CHECK(decoded->first == 204);
         REQUIRE(std::holds_alternative<IpcShutdownResult>(decoded->second));
         const auto& out = std::get<IpcShutdownResult>(decoded->second);
-        CHECK(out.status == 0);
+        CHECK(out.status == IpcStatus_Shutdown);
         CHECK(out.message == "Bye");
     }
 }
@@ -152,27 +144,23 @@ TEST_CASE("LengthPrefixFraming handles framing bounds and malformed sockets") {
     int sv[2];
     REQUIRE(::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
 
-    // 1. Valid frame transmission
     WireFrame valid_payload = {0x01, 0x02, 0x03, 0x04};
     CHECK(LengthPrefixFraming::write_frame(sv[0], valid_payload));
     auto read_back = LengthPrefixFraming::read_frame(sv[1]);
     REQUIRE(read_back.has_value());
     CHECK(*read_back == valid_payload);
 
-    // 2. Reject 0-length frame
     std::uint8_t zero_header[4] = {0, 0, 0, 0};
     REQUIRE(::write(sv[0], zero_header, 4) == 4);
     CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
 
-    // 3. Reject oversized frame (> 64 MiB)
-    std::uint8_t giant_header[4] = {0x05, 0x00, 0x00, 0x00}; // ~83 MiB
+    std::uint8_t giant_header[4] = {0x05, 0x00, 0x00, 0x00};
     REQUIRE(::write(sv[0], giant_header, 4) == 4);
     CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
 
-    // 4. Partial header on disconnect
     std::uint8_t partial_hdr[2] = {0x00, 0x01};
     REQUIRE(::write(sv[0], partial_hdr, 2) == 2);
-    ::close(sv[0]); // Disconnect client
+    ::close(sv[0]);
     CHECK_FALSE(LengthPrefixFraming::read_frame(sv[1]).has_value());
     ::close(sv[1]);
 }

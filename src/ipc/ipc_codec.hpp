@@ -5,19 +5,20 @@
 #pragma once
 
 #include "ipc_transport.hpp"
+#include "chronon_ipc_generated.h"
 
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <string>
-#include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
 namespace chronon3d::ipc {
 
-// ── Typed request/reply types (Ipc prefix avoids FlatBuffers name collision) ─
-
+// Typed runtime request/reply values. FlatBuffers owns the wire discriminants
+// and status enum; these structs only adapt generated wire payloads to the
+// engine-facing C++ variant API.
 struct IpcCreateComposition {
     std::string composition_id;
     std::string descriptor_json;
@@ -40,24 +41,24 @@ using IpcRequest = std::variant<
     IpcShutdown>;
 
 struct IpcCreateCompositionResult {
-    std::uint8_t status{0};
+    IpcStatus status{IpcStatus_Ok};
     std::string message;
 };
 
 struct IpcRenderFrameResult {
-    std::uint8_t status{0};
+    IpcStatus status{IpcStatus_Ok};
     std::string message;
     std::string output_path;
     float render_ms{0.0f};
 };
 
 struct IpcStatusResult {
-    std::uint8_t status{0};
+    IpcStatus status{IpcStatus_Ok};
     std::string message;
 };
 
 struct IpcShutdownResult {
-    std::uint8_t status{0};
+    IpcStatus status{IpcStatus_Ok};
     std::string message;
 };
 
