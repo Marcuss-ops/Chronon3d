@@ -54,7 +54,6 @@ foreach(_target IN ITEMS
     chronon3d_renderer_tests
     chronon3d_io_tests
     chronon3d_animation_tests
-    chronon3d_content_tests
     chronon3d_precomp_tests
 )
     chronon3d_append_target_if_present(CHRONON3D_RENDER_TEST_DEPS ${_target})
