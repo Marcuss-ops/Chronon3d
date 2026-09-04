@@ -176,12 +176,23 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
             alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
             break;
         case VulkanMemoryClass::HostUpload:
+            // UploadRing writes directly through the persistent mapping. Make
+            // coherency part of the memory-class contract instead of assuming
+            // the VMA-selected HOST_VISIBLE type also happens to be coherent.
+            // With HOST_COHERENT guaranteed, no vmaFlushAllocation is needed.
             alloc_info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
                                VMA_ALLOCATION_CREATE_MAPPED_BIT;
+            alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case VulkanMemoryClass::HostReadback:
+            // Readback copies into a persistently mapped buffer and reads it
+            // immediately after the GPU fence. HOST_COHERENT makes the
+            // invalidate requirement explicit by construction: none is needed.
             alloc_info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT |
                                VMA_ALLOCATION_CREATE_MAPPED_BIT;
+            alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case VulkanMemoryClass::ExternalExportable:
             alloc_info.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
@@ -293,7 +304,7 @@ VulkanMemoryBudgetStats VulkanMemoryManager::budget_stats() const {
     std::vector<VmaBudget> budgets(props.memoryHeapCount);
     vmaGetHeapBudgets(allocator_, budgets.data());
     for (std::uint32_t i = 0; i < props.memoryHeapCount; ++i) {
-        if (props.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+        if (props.memoryHeaps[i].flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
             stats.budget_bytes += budgets[i].budget;
             stats.usage_bytes += budgets[i].usage;
         }
