@@ -1,7 +1,11 @@
 #include <chronon3d/media/video/video_sink_factory.hpp>
 
 #include "raw_video_sink.hpp"
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+#include "encode/native_av_sink.hpp"
+#else
 #include "ffmpeg_pipe_sink.hpp"
+#endif
 
 #include <mutex>
 #include <shared_mutex>
@@ -34,7 +38,8 @@ SinkFactoryState& custom_factory_state() {
 [[nodiscard]] std::unique_ptr<VideoSink> create_builtin_sink(
     const VideoSinkConfig& config)
 {
-    const auto codec = config.encoder.codec;
+    const auto codec = resolve_auto_codec(
+        config.encoder.codec, config.output.container);
 
     // Raw/uncompressed → RawVideoSink (write raw pixel data to file).
     if (codec == VideoCodec::Uncompressed ||
@@ -42,26 +47,27 @@ SinkFactoryState& custom_factory_state() {
         return std::make_unique<RawVideoSink>();
     }
 
-    // Compressed codecs → FfmpegPipeSink (pipe to ffmpeg subprocess).
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    // Production compressed output is always in-process when the native
+    // FFmpeg backend is available. libavcodec owns codec mechanics and the
+    // sink delegates all packet/container work to MuxSession/libavformat.
+    return std::make_unique<NativeAvSink>();
+#else
+    // Build-time compatibility fallback only. This path is intentionally not
+    // selected in native-FFmpeg builds, so a subprocess can never silently
+    // become the production canonical encoder.
     return std::make_unique<FfmpegPipeSink>();
+#endif
 }
 
 } // anonymous namespace
 
-// ============================================================================
-//  create_video_sink()
-// ============================================================================
-
 std::unique_ptr<VideoSink> create_video_sink(const VideoSinkConfig& config) {
-    // 1. Check custom factories first (scheme-matched on output path).
     const auto path_str = config.output.output_path.string();
     const auto scheme_end = path_str.find("://");
     if (scheme_end != std::string::npos) {
         const auto scheme = path_str.substr(0, scheme_end);
 
-        // Copy the callable under shared_lock (multiple concurrent
-        // reads are fine).  Invoke OUTSIDE the lock so the factory
-        // code may safely call register/unregister.
         VideoSinkFactoryFn factory;
         {
             auto& state = custom_factory_state();
@@ -77,19 +83,8 @@ std::unique_ptr<VideoSink> create_video_sink(const VideoSinkConfig& config) {
         }
     }
 
-    // 2. Fall back to built-in sink selection.
-    auto sink = create_builtin_sink(config);
-    if (sink) {
-        return sink;
-    }
-
-    // 3. No implementation available.
-    return nullptr;
+    return create_builtin_sink(config);
 }
-
-// ============================================================================
-//  Factory registration
-// ============================================================================
 
 void register_sink_factory(std::string_view scheme, VideoSinkFactoryFn factory) {
     auto& state = custom_factory_state();
