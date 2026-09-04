@@ -32,13 +32,10 @@ NodeExecResult ClearNode::execute(
         ctx.services.backend && ctx.services.surface_registry) {
         auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, false);
         if (ensure_empty_native_surface(ctx, *fb)) {
-            const auto cleared = ctx.services.backend->fill_rect_surface(
-                fb->surface_handle(), 0, 0, fb->width(), fb->height(),
-                Color::transparent());
-            if (cleared.ok()) {
-                fb->set_opaque(false);
-                return NodeExecResult{std::move(fb)};
-            }
+            // ensure_empty_native_surface initializes the new GPU target to
+            // transparent without consuming a compiled render-plan pass.
+            fb->set_opaque(false);
+            return NodeExecResult{std::move(fb)};
         }
         if (ctx.policy.require_native_gpu) {
             return NodeExecutionError{

@@ -182,9 +182,10 @@ inline bool ensure_native_surface(
 }
 
 /// Attach a device-local destination whose contents are produced completely
-/// by the next native kernel. ImageShape uses this variant because its affine
-/// kernel writes every destination pixel; uploading the CPU framebuffer first
-/// would add a needless GPU<-CPU round trip on every image layer/frame.
+/// by the next native kernel. Affine image transforms may use a clipped
+/// dispatch and therefore do not necessarily write every destination pixel.
+/// Newly allocated overlay surfaces are initialized to transparent so
+/// untouched pixels preserve source-over composition with layers below.
 inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                                         Framebuffer& framebuffer) {
     if (!ctx.services.backend || !ctx.services.surface_registry || !ctx.services.backend->supports_native_surfaces()) return false;
@@ -210,6 +211,14 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
         spdlog::error("[native-surface] empty create failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), created.error().message);
         ctx.services.surface_registry->release(handle);
+        return false;
+    }
+    const auto cleared = ctx.services.backend->initialize_transparent_surface(handle);
+    if (!cleared.ok()) {
+        spdlog::error("[native-surface] empty transparent clear failed for {}x{}: {}",
+                      framebuffer.width(), framebuffer.height(), cleared.error().message);
+        (void)ctx.services.backend->release_surface(handle);
+        (void)ctx.services.surface_registry->release(handle);
         return false;
     }
     if (ctx.node_exec.counters) {

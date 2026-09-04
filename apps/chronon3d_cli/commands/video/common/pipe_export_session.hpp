@@ -10,7 +10,7 @@
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
-#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include "gpu_slot_pool.hpp"
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/direct_yuv_executor.hpp>
@@ -40,7 +40,7 @@ struct FullGraphSession {
     std::shared_ptr<SoftwareRenderer> renderer;
     graph::RenderBackend* surface_backend{nullptr};
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
-    runtime::FrameExecutionSlotRing execution_slots;
+    runtime::GpuSlotPool execution_slots;
     std::unique_ptr<TripleBufferArena> triple_arena;
 
     FullGraphSession()

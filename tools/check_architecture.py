@@ -90,6 +90,8 @@ def iter_files(root: Path, paths: Iterable[str], extensions: list[str] | None = 
                 continue
             if any(part in EXCLUDED_DIRS or part.startswith("build-") for part in relative.parts[:-1]):
                 continue
+            if path.name == "CMakeLists.txt" and not any_file and ".txt" not in suffixes:
+                continue
             if any_file or path.suffix in suffixes or path.name == "CMakeLists.txt":
                 yield path
 
@@ -146,11 +148,13 @@ def load_registry(path: Path, seen: set[Path] | None = None) -> dict[str, Any]:
     with path.open("rb") as fh:
         data: dict[str, Any] = tomllib.load(fh)
     merged: dict[str, Any] = {}
-    for include in data.get("includes", []):
+    includes = data.get("includes") or data.get("meta", {}).get("includes", [])
+    for include in includes:
         load_path = path.parent / include
         if not load_path.exists():
             raise FileNotFoundError(f"architecture registry include missing: {load_path}")
         merge_rules(merged, load_registry(load_path, seen))
+    merge_rules(merged, data.get("meta", {}))
     merge_rules(merged, data)
     seen.remove(path)
     return merged

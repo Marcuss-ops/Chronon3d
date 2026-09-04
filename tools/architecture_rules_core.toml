@@ -102,6 +102,16 @@ forbidden_patterns = [
 hint = "Surface ownership must remain in VulkanSurfaceStore, not be duplicated in backend orchestration."
 
 [[boundary]]
+name = "vulkan_compiled_surface_allocation_is_plan_only"
+description = "Compiled plan path must never self-allocate: begin_plan_batch binds planned slots only; dynamic slot selection stays confined to the explicit unplanned authority (ensure/next_slot)"
+scan_paths = ["src/backends/vulkan/vulkan_backend.cpp"]
+forbidden_patterns = [
+    "begin_plan_batch.*next_slot\\+\\+",
+    "begin_plan_batch.*ensure_surface"
+]
+hint = "Compiled surface placement is owned by CompiledResourceTable via VulkanSurfaceAuthority::bind; dynamic allocation is confined to the unplanned authority path (create_surface/CUDA external)."
+
+[[boundary]]
 name = "vulkan_descriptor_ownership_is_arena_only"
 description = "Frame descriptor allocator arrays belong only to VulkanDescriptorArena"
 scan_paths = ["src/backends/vulkan/vulkan_backend.cpp"]

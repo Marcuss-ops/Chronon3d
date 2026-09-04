@@ -413,6 +413,20 @@ graph::RenderOpResult VulkanBackend::fill_rect_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::initialize_transparent_surface(
+    runtime::RenderSurfaceHandle destination) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    return run_batched_surface_op([&] {
+        m_impl->initialize_transparent_surface(destination);
+    });
+#else
+    (void)destination;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::initialize_transparent_surface: Vulkan support is disabled"});
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
     runtime::RenderSurfaceHandle destination,
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,

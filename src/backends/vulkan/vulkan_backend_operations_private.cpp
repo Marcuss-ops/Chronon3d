@@ -63,6 +63,35 @@ void VulkanBackend::Impl::fill_rect(runtime::RenderSurfaceHandle destination,
     throw std::logic_error("Vulkan fill_rect requires an active frame batch");
 }
 
+void VulkanBackend::Impl::initialize_transparent_surface(
+    runtime::RenderSurfaceHandle destination) {
+    auto& dst_image = resolve_image(destination);
+    if (dst_image.width == 0 || dst_image.height == 0) {
+        throw std::invalid_argument("Vulkan transparent initialization references an empty surface");
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan transparent initialization requires an active frame batch");
+    }
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_fill_rect_descriptors(descriptors, dst_image);
+    const auto cmd = active_command_buffer();
+    // Initialization is deliberately not part of the compiled pass index.
+    // It establishes transparent untouched pixels before the first planned
+    // affine/composite operation without shifting plan transitions.
+    emit_unplanned_compute_sync(cmd, {&dst_image});
+    record_fill_rect(cmd, descriptors, dst_image, 0, 0,
+                     static_cast<std::int32_t>(dst_image.width),
+                     static_cast<std::int32_t>(dst_image.height),
+                     Color::transparent());
+    dst_image.initialized = true;
+    // The initialization dispatch is intentionally outside the compiled
+    // pass stream. Publish its shader writes explicitly before the first
+    // planned pass touches this image; otherwise that pass may still use the
+    // plan's pre-initialization state and race the transparent clear.
+    emit_unplanned_compute_sync(cmd, {&dst_image});
+    ++stats.passes_executed;
+}
+
 void VulkanBackend::Impl::fill_solid_shape(
     runtime::RenderSurfaceHandle destination,
     std::int32_t x0, std::int32_t y0,

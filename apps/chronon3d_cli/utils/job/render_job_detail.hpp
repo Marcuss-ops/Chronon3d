@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render_job.hpp"
+#include "../common/cli_utils.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame.hpp>

@@ -5,6 +5,7 @@
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 
 #include <atomic>
@@ -86,7 +87,7 @@ struct RenderLoopContext {
     runtime::BoundedChannel<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     std::atomic<int>& frames_encoded;
-    runtime::FrameExecutionSlotRing& execution_slots;
+    runtime::GpuSlotPool& execution_slots;
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
     TripleBufferArena* triple_arena{nullptr};
     RenderCounters* counters;
