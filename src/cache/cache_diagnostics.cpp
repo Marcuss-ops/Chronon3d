@@ -73,15 +73,20 @@ std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const {
         for (const auto* entry : set) {
             GenericCacheStats gs = entry->stats_fn();
             result.push_back(CacheSnapshot{
-                .domain         = domain,
-                .hits           = gs.hits,
-                .misses         = gs.misses,
-                .evictions      = gs.evictions,
-                .current_size   = gs.current_size,
-                .current_weight = gs.current_weight,
-                .capacity       = entry->capacity,
-                .mode           = entry->mode_fn(),
-                .enabled        = true,
+                .domain                  = domain,
+                .hits                    = gs.hits,
+                .misses                  = gs.misses,
+                .evictions               = gs.evictions,
+                .current_size            = gs.current_size,
+                .current_weight          = gs.current_weight,
+                .hash_time_ns            = gs.hash_time_ns,
+                .lock_time_ns            = gs.lock_time_ns,
+                .lru_mutation_time_ns    = gs.lru_mutation_time_ns,
+                .miss_loader_time_ns     = gs.miss_loader_time_ns,
+                .contention_count        = gs.contention_count,
+                .capacity                = entry->capacity,
+                .mode                    = entry->mode_fn(),
+                .enabled                 = true,
             });
         }
     }
@@ -99,12 +104,17 @@ DomainSnapshot CacheDiagnostics::snapshot_by_domain(CacheDomain domain) const {
     ds.instance_count = it->second.size();
     for (const auto* entry : it->second) {
         GenericCacheStats gs = entry->stats_fn();
-        ds.hits           += gs.hits;
-        ds.misses         += gs.misses;
-        ds.evictions      += gs.evictions;
-        ds.current_size   += gs.current_size;
-        ds.current_weight += gs.current_weight;
-        ds.total_capacity += entry->capacity;
+        ds.hits                    += gs.hits;
+        ds.misses                  += gs.misses;
+        ds.evictions               += gs.evictions;
+        ds.current_size            += gs.current_size;
+        ds.current_weight          += gs.current_weight;
+        ds.hash_time_ns            += gs.hash_time_ns;
+        ds.lock_time_ns            += gs.lock_time_ns;
+        ds.lru_mutation_time_ns    += gs.lru_mutation_time_ns;
+        ds.miss_loader_time_ns     += gs.miss_loader_time_ns;
+        ds.contention_count        += gs.contention_count;
+        ds.total_capacity          += entry->capacity;
     }
     return ds;
 }
@@ -119,12 +129,17 @@ std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const {
         DomainSnapshot ds{.domain = domain, .instance_count = set.size()};
         for (const auto* entry : set) {
             GenericCacheStats gs = entry->stats_fn();
-            ds.hits           += gs.hits;
-            ds.misses         += gs.misses;
-            ds.evictions      += gs.evictions;
-            ds.current_size   += gs.current_size;
-            ds.current_weight += gs.current_weight;
-            ds.total_capacity += entry->capacity;
+            ds.hits                    += gs.hits;
+            ds.misses                  += gs.misses;
+            ds.evictions               += gs.evictions;
+            ds.current_size            += gs.current_size;
+            ds.current_weight          += gs.current_weight;
+            ds.hash_time_ns            += gs.hash_time_ns;
+            ds.lock_time_ns            += gs.lock_time_ns;
+            ds.lru_mutation_time_ns    += gs.lru_mutation_time_ns;
+            ds.miss_loader_time_ns     += gs.miss_loader_time_ns;
+            ds.contention_count        += gs.contention_count;
+            ds.total_capacity          += entry->capacity;
         }
         result.push_back(ds);
     }
