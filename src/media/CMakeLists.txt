@@ -25,14 +25,14 @@ target_include_directories(chronon3d_media_interface INTERFACE
 target_link_libraries(chronon3d_media_interface INTERFACE chronon3d chronon3d_media_execution)
 
 if(CHRONON3D_ENABLE_VIDEO)
-    # Native decoding belongs to the media subsystem. The CLI consumes the
-    # MediaFrameProvider contract and must not own decoder/interop sources.
+    # Native decode/mux mechanics belong to the media subsystem. The CLI
+    # consumes these authorities and must not own a parallel libavformat path.
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         add_library(chronon3d_media_native STATIC
             video/native_video_frame_decoder.cpp
             video/hw_frame_ref.cpp
             video/video_device_runtime.cpp
-            video/packet_assembler.cpp
+            video/mux/packet_assembler.cpp
         )
         target_include_directories(chronon3d_media_native PRIVATE
             ${CMAKE_SOURCE_DIR}
@@ -75,6 +75,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         fmt::fmt
         TBB::tbb
     )
+
     # ── chronon3d_media_video — Video sink library ──────────────────
     # TICKET-011 cmake-boundary (OBJECT lift) — see chronon3d_backend_software comment.
     add_library(chronon3d_media_video OBJECT
@@ -99,10 +100,16 @@ if(CHRONON3D_ENABLE_VIDEO)
         $<INSTALL_INTERFACE:include>)
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+        # The canonical compressed sink is in-process and shares the single
+        # libavformat MuxSession authority with copied/NVENC packets.
+        target_sources(chronon3d_media_video PRIVATE
+            video/encode/native_av_sink.cpp)
         target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
-        # Canonical media probing and output verification run in-process via
-        # libavformat/libavcodec instead of spawning ffprobe.
-        target_link_libraries(chronon3d_media_video PUBLIC chronon3d_ffmpeg_full)
+        target_link_libraries(chronon3d_media_video PUBLIC
+            chronon3d_ffmpeg_full
+            chronon3d_media_native)
+        target_compile_definitions(chronon3d_media_video PRIVATE
+            CHRONON3D_ENABLE_NATIVE_FFMPEG)
     endif()
     target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
