@@ -166,3 +166,41 @@ name = "render_graph_context_no_software_backend_include"
 patterns = ['#include\s*[<\"][^>\"]*backends/software/']
 scan_paths = ["include/chronon3d/render_graph/render_graph_context.hpp"]
 skip_comments = true
+
+# -----------------------------------------------------------------------------
+# Layer transition dispatch single source of truth
+# -----------------------------------------------------------------------------
+
+[[contract]]
+name = "transition_catalog_canonical_inventory"
+file = "src/render_graph/transition/transition_catalog.cpp"
+required_patterns = [
+  'register_transition\s*\(\s*"none"',
+  'register_transition\s*\(\s*"crossfade"',
+  'register_transition\s*\(\s*"slide"',
+  'register_transition\s*\(\s*"wipe_linear"',
+  'register_transition\s*\(\s*"smooth_wipe"',
+  'register_transition\s*\(\s*"circle_iris"',
+  'register_transition\s*\(\s*"flash"',
+  'register_transition\s*\(\s*"procedural_remotion"',
+  'register_transition\s*\(\s*"remotion"',
+]
+forbidden_patterns = [
+  'register_transition\s*\(\s*"(?!none"|crossfade"|slide"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion")[^"]+"',
+]
+
+[[forbidden_symbol]]
+name = "transition_id_string_dispatch"
+patterns = [
+  '\btransition_id\s*(?:==|!=)\s*"(?!none"|")[^"]*"',
+  '\btransition_id\s*\.\s*compare\s*\(\s*"(?!none"|")[^"]*"\s*\)',
+]
+scan_paths = ["src", "include", "tests", "content", "examples"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "transition_registration_single_authority"
+patterns = ['register_transition\s*\(\s*"[^"]+"']
+scan_paths = ["src", "include", "content", "examples"]
+allow_list = ['src/render_graph/transition/transition_catalog\.cpp']
+skip_comments = true
