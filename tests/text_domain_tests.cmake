@@ -43,7 +43,6 @@ chronon3d_add_test_suite(
 )
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_safe_area_placement_tests)
 
-
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     chronon3d_add_test_suite(
         NAME chronon3d_text_clip_policy_tests
@@ -81,6 +80,7 @@ if(CHRONON3D_BUILD_TESTS)
         NAME chronon3d_text_unicode_line_breaking_tests
         TIER UNIT
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_unicode_line_breaking.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/text/test_unicode_decoder.cpp
         LINK_TARGETS chronon3d_text_core chronon3d_pipeline chronon3d_backend_software
     )
     chronon3d_add_test_suite(
