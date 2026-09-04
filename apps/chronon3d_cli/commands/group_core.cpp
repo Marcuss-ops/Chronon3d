@@ -1,6 +1,7 @@
 #include "command_registry.hpp"
 #include "commands.hpp"
 #include "dev/doctor_report.hpp"
+#include "../utils/common/cli_mappers.hpp"
 #include "../utils/common/cli_utils.hpp"
 
 #include <memory>
@@ -10,12 +11,6 @@
 namespace chronon3d::cli::group_core {
 
 namespace {
-
-graph::BackendPreference parse_backend_preference(const std::string_view value) {
-    if (value == "software") return graph::BackendPreference::Software;
-    if (value == "vulkan") return graph::BackendPreference::GPU;
-    return graph::BackendPreference::Auto;
-}
 
 struct InfoState {
     std::shared_ptr<std::string> id{std::make_shared<std::string>()};
@@ -88,7 +83,7 @@ void register_benchmark(CLI::App& app, CliContext& ctx) {
     command->callback([state, &ctx]() {
         ctx.exit_code = command_benchmark_saturation(
             ctx.registry, ctx, *state->scene, *state->duration, *state->report_json,
-            static_cast<MotionBlurMode>(*state->motion_blur_mode),
+            parse_motion_blur_mode(*state->motion_blur_mode),
             *state->motion_blur_samples,
             parse_backend_preference(*state->backend));
     });
