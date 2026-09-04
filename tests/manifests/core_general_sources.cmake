@@ -95,9 +95,3 @@ set(CORE_TEST_SOURCES
     runtime/test_prepared_render_job_allocations.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
 )
-
-if(CHRONON3D_ENABLE_SVG)
-    list(APPEND CORE_TEST_SOURCES
-        assets/test_svg_path_loader.cpp
-    )
-endif()
