@@ -30,5 +30,5 @@ TEST_CASE("VideoSinkFactory: native FFmpeg build keeps raw output on RawVideoSin
 
     auto sink = create_video_sink(config);
     REQUIRE(sink != nullptr);
-    CHECK(sink->name() == "raw-file");
+    CHECK(sink->name() == "raw-video-sink");
 }
