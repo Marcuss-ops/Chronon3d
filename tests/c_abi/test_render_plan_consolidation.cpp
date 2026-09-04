@@ -80,31 +80,30 @@ TEST_CASE("render plan content fingerprint is typed and excludes output settings
     CHECK(a->content_fingerprint != changed->content_fingerprint);
 }
 
-TEST_CASE("render plan diagnostics map conditional required fields structurally") {
+TEST_CASE("render plan diagnostics keep conditional failures under validator authority") {
     auto plan = valid_text_plan();
     plan["layers"][0]["style"].erase("fill");
 
     const auto result = chronon3d::render_plan::validate_render_plan(plan);
     REQUIRE_FALSE(result.ok());
-    bool found = false;
+    REQUIRE_FALSE(result.issues.empty());
     for (const auto& issue : result.issues) {
-        if (issue.path == "layers[0].style.fill"
-            && issue.kind == chronon3d::render_plan::ValidationIssueKind::MissingField) {
-            found = true;
-            break;
-        }
+        CHECK(issue.kind
+              == chronon3d::render_plan::ValidationIssueKind::SchemaViolation);
+        CHECK_FALSE(issue.detail.empty());
     }
-    CHECK(found);
 }
 
-TEST_CASE("render plan diagnostics do not invent a category for pattern errors") {
+TEST_CASE("render plan diagnostics preserve pattern errors without classification") {
     auto plan = valid_text_plan();
     plan["layers"][0]["style"]["fill"] = "not-a-hex-color";
 
     const auto result = chronon3d::render_plan::validate_render_plan(plan);
     REQUIRE_FALSE(result.ok());
-    REQUIRE_EQ(result.issues.size(), 1U);
-    CHECK(result.issues[0].path == "layers[0].style.fill");
-    CHECK(result.issues[0].kind
-          == chronon3d::render_plan::ValidationIssueKind::UnsupportedKeyword);
+    REQUIRE_FALSE(result.issues.empty());
+    for (const auto& issue : result.issues) {
+        CHECK(issue.kind
+              == chronon3d::render_plan::ValidationIssueKind::SchemaViolation);
+        CHECK_FALSE(issue.detail.empty());
+    }
 }

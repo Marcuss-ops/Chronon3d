@@ -8,7 +8,8 @@
 //
 // Cat-3 contract: no SDK state, no asset access, no logging — pure
 // functions over parsed JSON. The `_or_throw` overload preserves the C API
-// fail-fast mapping while `validate_render_plan` returns structured diagnostics.
+// fail-fast mapping while `validate_render_plan` returns diagnostics emitted
+// by the validator without re-validating or re-interpreting the schema.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
@@ -23,28 +24,29 @@ namespace chronon3d {
 namespace render_plan {
 
 enum class ValidationIssueKind : std::uint8_t {
-    MissingField,       ///< required field not present
-    UnknownField,       ///< additionalProperties: false rejected this key
-    WrongType,          ///< `type` mismatch
-    ConstMismatch,      ///< `const` value mismatch
-    EnumMismatch,       ///< value not in `enum` set
-    BelowMinimum,       ///< numeric < minimum (or <= exclusiveMinimum)
-    AboveMaximum,       ///< numeric > maximum
-    StringTooShort,     ///< minLength violation
-    ArrayTooShort,      ///< minItems violation
-    ArrayTooLong,       ///< maxItems violation
-    UnsupportedKeyword, ///< validator failed on a constraint not mapped structurally
+    MissingField,       ///< legacy category retained for source compatibility
+    UnknownField,       ///< legacy category retained for source compatibility
+    WrongType,          ///< legacy category retained for source compatibility
+    ConstMismatch,      ///< legacy category retained for source compatibility
+    EnumMismatch,       ///< legacy category retained for source compatibility
+    BelowMinimum,       ///< legacy category retained for source compatibility
+    AboveMaximum,       ///< legacy category retained for source compatibility
+    StringTooShort,     ///< legacy category retained for source compatibility
+    ArrayTooShort,      ///< legacy category retained for source compatibility
+    ArrayTooLong,       ///< legacy category retained for source compatibility
+    UnsupportedKeyword, ///< legacy category retained for source compatibility
+    SchemaViolation,    ///< raw json-schema-validator diagnostic; no local revalidation
 };
 
 struct ValidationIssue {
-    /// JSON pointer-like path to the offending value, e.g. "layers[2].type"
+    /// Instance path reported by the validator, rendered for humans.
     std::string path;
-    ValidationIssueKind kind{ValidationIssueKind::WrongType};
-    /// What the schema required (human-readable, e.g. "integer >= 1")
+    ValidationIssueKind kind{ValidationIssueKind::SchemaViolation};
+    /// Stable generic expectation. Schema keywords are not reconstructed locally.
     std::string expected;
-    /// What was actually present (human-readable, e.g. "string \"abc\"")
+    /// Human-readable description of the instance value at `path` when available.
     std::string actual;
-    /// Optional human-readable detail. Never parsed to determine `kind`.
+    /// Original validator diagnostic, preserved verbatim and never parsed.
     std::string detail;
 
     std::string to_string() const;
@@ -59,9 +61,10 @@ struct ValidationResult {
 
 /// Validate `root` against the canonical RenderPlan V2 schema.
 ///
-/// nlohmann-json-schema-validator remains the validity authority. Chronon's
-/// diagnostic adapter maps schema structure into stable ValidationIssueKind
-/// values and never classifies errors by matching human-readable text.
+/// nlohmann-json-schema-validator is the only structural-validation authority.
+/// Chronon's adapter performs diagnostic conversion only: validator instance
+/// pointer + original detail -> ValidationIssue. It never walks the schema,
+/// evaluates schema conditions, or infers a keyword/category from message text.
 ValidationResult validate_render_plan(const nlohmann::json& root);
 
 /// Throw std::runtime_error when validation produces any issue.

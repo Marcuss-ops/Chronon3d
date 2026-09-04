@@ -43,6 +43,7 @@ std::string ValidationIssue::to_string() const {
         case ValidationIssueKind::ArrayTooShort: os << "array too short"; break;
         case ValidationIssueKind::ArrayTooLong: os << "array too long"; break;
         case ValidationIssueKind::UnsupportedKeyword: os << "unsupported keyword"; break;
+        case ValidationIssueKind::SchemaViolation: os << "schema violation"; break;
     }
     os << " (expected " << expected << ", got " << actual << ")";
     if (!detail.empty()) os << " [" << detail << "]";
@@ -64,10 +65,9 @@ ValidationResult validate_render_plan(const nlohmann::json& root) {
         nlohmann::json_schema::json_validator validator(schema);
         ErrorHandler handler;
         validator.validate(root, handler);
-        result.issues = validation::adapt_json_schema_diagnostics(
-            schema, root, handler.errors);
+        result.issues = validation::adapt_json_schema_diagnostics(root, handler.errors);
     } catch (const std::exception& error) {
-        result.issues.push_back({"<root>", ValidationIssueKind::UnsupportedKeyword,
+        result.issues.push_back({"<root>", ValidationIssueKind::SchemaViolation,
                                  "valid JSON Schema", "validator error", error.what()});
     }
     return result;
