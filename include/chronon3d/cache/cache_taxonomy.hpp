@@ -8,6 +8,11 @@
 // cross-cutting plumbing, not a cache itself — but every cache instance must
 // self-identify with one of these families.
 //
+// Generic in-memory key/value caches MUST delegate storage/eviction to LruCache.
+// Specialized residency managers (for example FramebufferPool) and persistent
+// artifact stores may own domain-specific allocation/I/O machinery, but they do
+// not define a fourth cache family or a second generic cache primitive.
+//
 // The taxonomy is canonical: no new cache family is allowed.  If a new cache
 // concept does not fit one of these three, the concept itself must be
 // redesigned to fit — or the existing family extended.
@@ -28,11 +33,13 @@ enum class CacheFamily : unsigned char {
     ///             deterministic by content, not by memory pressure.
     ///
     /// Members:
-    ///   • NodeCache           — rendered node outputs (inter-frame, frame-invariant)
-    ///   • FrameCache          — fully rendered frames by scene/render hash
-    ///   • VideoFrameCache     — converted video frames
-    ///   • GpuAssetCache       — decoded assets → GPU device-local surfaces
-    ///   • GpuGlyphAtlas styled entries — cached styled glyph representations
+    ///   • NodeCache                     — rendered node outputs
+    ///   • FrameCache                    — fully rendered frames by scene/render hash
+    ///   • VideoFrameCache               — converted video frames
+    ///   • ConvertedFrameCache           — output conversion results
+    ///   • GpuAssetCache                 — decoded assets → GPU device-local surfaces
+    ///   • PreparedAssetDigestCache      — preflight file digest memoization
+    ///   • GpuGlyphAtlas styled entries  — cached styled glyph representations
     ContentCache = 1,
 
     /// ResidencyCache — bounded memory residence governed by an external plan.
@@ -63,17 +70,19 @@ enum class CacheFamily : unsigned char {
     ///             they are job bindings applied at dispatch time.
     ///
     /// Members:
-    ///   • TemplateProgramCache   — compiled template programs by fingerprint
-    ///   • CompiledGraphCache     — compiled frame graphs (dimension-dependent)
-    ///   • SceneProgramCache      — scene-specific compiled programs
-    ///   • OverlayTemplateCache   — overlay template GPU command plans
+    ///   • TemplateProgramCache    — compiled template programs by fingerprint
+    ///   • CompiledGraphCache      — compiled frame graphs (dimension-dependent)
+    ///   • SceneProgramCache       — scene-specific compiled programs
+    ///   • OverlayTemplateCache    — overlay template GPU command plans
+    ///   • CompiledArtifactCache   — persistent compiled-program artifact store
+    ///                              (I/O adapter, not a second in-memory primitive)
     ProgramCache = 3,
 };
 
 // ── Compile-time annotation helper ──────────────────────────────────────────
 //
-/// Static assertion that a type belongs to exactly one cache family.
-/// Usage: `static_assert(cache_family_v<MyCache> == CacheFamily::ContentCache);`
+/// Marker used by cache implementations to lock their family assignment in
+/// static assertions without introducing another registry or runtime service.
 template <CacheFamily Family>
 inline constexpr bool cache_family_annotation = true;
 
