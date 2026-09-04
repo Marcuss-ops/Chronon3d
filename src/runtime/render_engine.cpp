@@ -226,7 +226,7 @@ struct RenderEngine::Impl {
     }
 };
 
-#include "render_engine_prepared_job.inc"
-#include "render_engine_api.inc"
+#include "render_engine_prepared_job_detail.hpp"
+#include "render_engine_api_detail.hpp"
 
 } // namespace chronon3d
