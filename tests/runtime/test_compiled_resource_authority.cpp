@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -44,6 +45,15 @@ public:
 private:
     std::string name_;
 };
+
+runtime::ResourceDesc transient_color_desc() {
+    return runtime::ResourceDesc::make(
+        640,
+        360,
+        runtime::canonical_render_format(),
+        runtime::ResourceUsage::ColorAttachment,
+        runtime::LifetimeClass::FrameTransient);
+}
 
 } // namespace
 
@@ -118,6 +128,58 @@ TEST_CASE("CompiledResourceTable is the complete compiled resource authority") {
     CHECK(table.logical_bytes == expected_bytes * 2);
     CHECK(table.planned_physical_bytes == expected_bytes);
     CHECK(table.peak_live_bytes == expected_bytes);
+}
+
+TEST_CASE("ResourcePlanner aliases only lifetime-disjoint transient resources") {
+    runtime::ResourcePlanner planner;
+    const auto desc = transient_color_desc();
+    planner.add(runtime::ResourceRequest{"a", desc, 0, 1, 101});
+    planner.add(runtime::ResourceRequest{"b", desc, 2, 3, 102});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.allocations.size() == 2);
+    REQUIRE(plan.slots.size() == 1);
+    CHECK(plan.allocations[0].physical_slot == 0);
+    CHECK(plan.allocations[1].physical_slot == 0);
+    CHECK(plan.telemetry.buffer_reuse_count == 1);
+}
+
+TEST_CASE("ResourcePlanner rejects physical-slot reuse while lifetimes overlap") {
+    runtime::ResourcePlanner planner;
+    const auto desc = transient_color_desc();
+    planner.add(runtime::ResourceRequest{"a", desc, 0, 2, 201});
+    planner.add(runtime::ResourceRequest{"b", desc, 1, 3, 202});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.allocations.size() == 2);
+    REQUIRE(plan.slots.size() == 2);
+    CHECK(plan.allocations[0].physical_slot != plan.allocations[1].physical_slot);
+}
+
+TEST_CASE("JobPersistent resources never enter transient alias reuse") {
+    runtime::ResourcePlanner planner;
+    auto persistent = transient_color_desc();
+    persistent.lifetime = runtime::LifetimeClass::JobPersistent;
+    planner.add(runtime::ResourceRequest{"persistent-a", persistent, 0, 0, 301});
+    planner.add(runtime::ResourceRequest{"persistent-b", persistent, 1, 1, 302});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.allocations.size() == 2);
+    REQUIRE(plan.slots.size() == 2);
+    CHECK(plan.allocations[0].physical_slot != plan.allocations[1].physical_slot);
+}
+
+TEST_CASE("External CUDA-style resources stay outside compiled physical placement") {
+    runtime::ResourcePlanner planner;
+    auto external = transient_color_desc();
+    external.lifetime = runtime::LifetimeClass::External;
+    planner.add(runtime::ResourceRequest{"cuda-exportable", external, 0, 4, 401});
+
+    const auto plan = planner.build();
+    REQUIRE(plan.allocations.size() == 1);
+    CHECK(plan.allocations.front().physical_slot ==
+          std::numeric_limits<std::size_t>::max());
+    CHECK(plan.slots.empty());
 }
 
 TEST_CASE("NV12 and P010 lower to real plane subresources") {

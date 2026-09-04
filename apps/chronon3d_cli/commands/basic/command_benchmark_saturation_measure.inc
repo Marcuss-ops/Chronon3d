@@ -19,18 +19,14 @@ auto compiled = std::make_shared<const CompiledComposition>(
 RenderSettings settings;
 settings.dirty.enabled = true;
 settings.disable_pixel_readback = true;
-settings.motion_blur.mode = static_cast<MotionBlurMode>(motion_blur_mode);
+settings.motion_blur.mode = motion_blur_mode;
 settings.motion_blur.samples = motion_blur_samples;
 settings.motion_blur.shutter_angle_deg = 180.0f;
 settings.motion_blur.shutter_phase_deg = -90.0f;
 std::optional<Config> renderer_config;
-if (backend == "software") {
+if (backend != graph::BackendPreference::Auto) {
     Config cfg;
-    cfg.set_backend_preference(graph::BackendPreference::Software);
-    renderer_config = std::move(cfg);
-} else if (backend == "vulkan") {
-    Config cfg;
-    cfg.set_backend_preference(graph::BackendPreference::GPU);
+    cfg.set_backend_preference(backend);
     renderer_config = std::move(cfg);
 }
 auto renderer = create_renderer(
@@ -207,7 +203,7 @@ out << "SCENE\n";
 out << "Composition................. " << scene << "\n";
 out << "Duration.................... " << duration_sec << " s\n";
 out << "Rendered frames............. " << total_frames << "\n";
-out << "Motion blur................. mode=" << motion_blur_mode
+out << "Motion blur................. mode=" << static_cast<int>(motion_blur_mode)
     << " samples=" << motion_blur_samples << "\n";
 out << "\n";
 out << "HOT-PATH CORPUS\n";

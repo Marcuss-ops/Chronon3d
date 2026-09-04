@@ -12,6 +12,11 @@
 #include <chronon3d/runtime/gpu_device_lost_error.hpp>
 #include "memory/vulkan_memory_manager.hpp"
 #include "debug/vulkan_debug_context.hpp"
+#include "vulkan_descriptor_authority.hpp"
+#include "vulkan_kernel_store.hpp"
+#include "vulkan_submission_authority.hpp"
+#include "vulkan_surface_authority.hpp"
+#include "vulkan_upload_authority.hpp"
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -81,145 +86,32 @@ struct VulkanBackend::Impl {
         VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
     };
 
-    class FrameDescriptorAllocator {
-    public:
-        static constexpr std::size_t kInitialChunkSets = 64;
-        static constexpr std::size_t kStorageImagesPerSet = 3;
-        static constexpr std::size_t kStorageBuffersPerSet = 2;
-
-        void create(VkDevice device, VkDescriptorSetLayout layout,
-                    std::size_t storage_images = kStorageImagesPerSet,
-                    std::size_t storage_buffers = kStorageBuffersPerSet) {
-            device_ = device;
-            layout_ = layout;
-            storage_images_ = storage_images;
-            storage_buffers_ = storage_buffers;
-        }
-
-        void destroy() {
-            for (auto pool : pools_) {
-                if (pool != VK_NULL_HANDLE) {
-                    vkDestroyDescriptorPool(device_, pool, nullptr);
-                }
-            }
-            pools_.clear();
-            active_pool_ = 0;
-        }
-
-        void reset() {
-            for (auto pool : pools_) {
-                check(vkResetDescriptorPool(device_, pool, 0),
-                      "vkResetDescriptorPool(frame descriptor chunk)");
-            }
-            active_pool_ = 0;
-        }
-
-        VkDescriptorSet allocate() {
-            if (active_pool_ >= pools_.size()) grow();
-            VkDescriptorSet set = VK_NULL_HANDLE;
-            const VkDescriptorSetAllocateInfo allocation{
-                VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr,
-                pools_[active_pool_], 1, &layout_};
-            const VkResult result =
-                vkAllocateDescriptorSets(device_, &allocation, &set);
-            if (result == VK_ERROR_OUT_OF_POOL_MEMORY ||
-                result == VK_ERROR_FRAGMENTED_POOL) {
-                ++active_pool_;
-                return allocate();
-            }
-            check(result, "vkAllocateDescriptorSets(frame descriptor chunk)");
-            return set;
-        }
-
-    private:
-        void grow() {
-            const std::size_t sets = kInitialChunkSets * (1u << pools_.size());
-            std::vector<VkDescriptorPoolSize> pool_sizes;
-            if (storage_images_ != 0) {
-                pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                      static_cast<std::uint32_t>(sets * storage_images_)});
-            }
-            if (storage_buffers_ != 0) {
-                pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                      static_cast<std::uint32_t>(sets * storage_buffers_)});
-            }
-            const VkDescriptorPoolCreateInfo pool_info{
-                VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
-                static_cast<std::uint32_t>(sets),
-                static_cast<std::uint32_t>(pool_sizes.size()), pool_sizes.data()};
-            VkDescriptorPool pool = VK_NULL_HANDLE;
-            check(vkCreateDescriptorPool(device_, &pool_info, nullptr, &pool),
-                  "vkCreateDescriptorPool(frame descriptor chunk)");
-            pools_.push_back(pool);
-        }
-
-        VkDevice device_{VK_NULL_HANDLE};
-        VkDescriptorSetLayout layout_{VK_NULL_HANDLE};
-        std::size_t storage_images_{kStorageImagesPerSet};
-        std::size_t storage_buffers_{kStorageBuffersPerSet};
-        std::vector<VkDescriptorPool> pools_{};
-        std::size_t active_pool_{0};
-    };
-
-    class VulkanDescriptorArena {
-    public:
-        std::array<FrameDescriptorAllocator, 3> pass{};
-        std::array<FrameDescriptorAllocator, 3> text_tile_bin{};
-        std::array<FrameDescriptorAllocator, 3> text_tile_raster{};
-
-        void destroy() {
-            for (auto& allocator : pass) allocator.destroy();
-            for (auto& allocator : text_tile_bin) allocator.destroy();
-            for (auto& allocator : text_tile_raster) allocator.destroy();
-        }
-
-        void reset(std::size_t slot) {
-            pass[slot].reset();
-            text_tile_bin[slot].reset();
-            text_tile_raster[slot].reset();
-        }
-    };
-
+    // Compatibility names remain inside Impl, but descriptor allocation and
+    // descriptor handles now have exactly one owner: VulkanDescriptorAuthority.
+    using FrameDescriptorAllocator = chronon3d::backends::vulkan::FrameDescriptorAllocator;
+    using VulkanDescriptorArena = VulkanDescriptorAuthority;
     VulkanDescriptorArena descriptor_arena{};
 
-    struct VulkanSubmissionRing {
-        static constexpr std::size_t kSlotCount = 3;
-        static constexpr std::size_t kCompiledPassTimingCapacity = 256;
-        bool active{false};
-        std::size_t next_slot{0};
-        std::array<VkCommandBuffer, kSlotCount> command_buffers{};
-        std::array<VkFence, kSlotCount> fences{};
-        std::array<bool, kSlotCount> in_flight{};
-        std::array<std::size_t, kSlotCount> submitted_pass_counts{};
-        std::array<FrameDescriptorAllocator, kSlotCount>& descriptor_allocators;
-        std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_bin_allocators;
-        std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_raster_allocators;
+    VkDescriptorSetLayout& descriptor_layout{descriptor_arena.descriptor_layout};
+    VkDescriptorSetLayout& text_tile_bin_descriptor_layout{
+        descriptor_arena.text_tile_bin_descriptor_layout};
+    VkDescriptorSetLayout& text_tile_raster_descriptor_layout{
+        descriptor_arena.text_tile_raster_descriptor_layout};
+    VkDescriptorPool& descriptor_pool{descriptor_arena.descriptor_pool};
+    VkDescriptorSet& descriptor_set{descriptor_arena.descriptor_set};
+    std::array<VkDescriptorSet, 3>& glow_descriptor_sets{
+        descriptor_arena.glow_descriptor_sets};
 
-        VulkanSubmissionRing(VulkanDescriptorArena& arena)
-            : descriptor_allocators(arena.pass),
-              text_tile_bin_allocators(arena.text_tile_bin),
-              text_tile_raster_allocators(arena.text_tile_raster) {}
-        VulkanSubmissionRing(const VulkanSubmissionRing&) = delete;
-        VulkanSubmissionRing& operator=(const VulkanSubmissionRing&) = delete;
-        std::vector<VkDescriptorSet> descriptor_sets;
-        std::size_t pass_count{0};
-        // Plan-driven batches point at the complete canonical command plan.
-        // pass_count is the consumer-pass index into plan.transitions.
-        const runtime::CommandPlan* command_plan{nullptr};
-    } submission_ring{descriptor_arena};
-
+    // Submission ownership is likewise externalized. Existing call sites use
+    // the historic member names only as references into this authority.
+    using VulkanSubmissionRing = VulkanSubmissionAuthority;
+    VulkanSubmissionRing submission_ring;
     using FrameBatchState = VulkanSubmissionRing;
-
-    struct ReplaySlot {
-        VkCommandBuffer command_buffer{VK_NULL_HANDLE};
-        VkFence fence{VK_NULL_HANDLE};
-        bool in_flight{false};
-        VulkanBufferAllocation params{};
-    };
-    static constexpr std::size_t kReplaySlotCount = 3;
-    std::array<ReplaySlot, kReplaySlotCount> replay_slots{};
-    bool replay_prepared{false};
-    std::size_t replay_next_slot{0};
+    using ReplaySlot = VulkanSubmissionRing::ReplaySlot;
+    static constexpr std::size_t kReplaySlotCount = VulkanSubmissionRing::kReplaySlotCount;
+    std::array<ReplaySlot, kReplaySlotCount>& replay_slots{submission_ring.replay_slots};
+    bool& replay_prepared{submission_ring.replay_prepared};
+    std::size_t& replay_next_slot{submission_ring.replay_next_slot};
 
     VkInstance instance{VK_NULL_HANDLE};
     VkPhysicalDevice physical_device{VK_NULL_HANDLE};
@@ -233,60 +125,19 @@ struct VulkanBackend::Impl {
     std::uint64_t calibration_gpu_ts{0};
     std::int64_t calibration_cpu_trace_ns{0};
     std::uint64_t calibration_max_deviation{0};
-    VkCommandBuffer command_buffer{VK_NULL_HANDLE};
-    VkFence fence{VK_NULL_HANDLE};
-    VkSemaphore timeline_semaphore{VK_NULL_HANDLE};
-    std::uint64_t next_timeline_value{0};
-    std::uint64_t pending_timeline_value{0};
-    VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
-    VkDescriptorSetLayout text_tile_bin_descriptor_layout{VK_NULL_HANDLE};
-    VkDescriptorSetLayout text_tile_raster_descriptor_layout{VK_NULL_HANDLE};
-    VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
-    VkDescriptorSet descriptor_set{VK_NULL_HANDLE};
-    std::array<VkDescriptorSet, 3> glow_descriptor_sets{};
+    VkCommandBuffer& command_buffer{submission_ring.command_buffer};
+    VkFence& fence{submission_ring.fence};
+    VkSemaphore& timeline_semaphore{submission_ring.timeline_semaphore};
+    VkQueryPool& timestamp_pool{submission_ring.timestamp_pool};
+    std::uint64_t& next_timeline_value{submission_ring.next_timeline_value};
+    std::uint64_t& pending_timeline_value{submission_ring.pending_timeline_value};
 
-    class VulkanKernelStore {
-    public:
-        GpuKernelRegistry registry{};
-        VkPipelineLayout general_layout{VK_NULL_HANDLE};
-        VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
-        VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
-        VkPipelineCache pipeline_cache{VK_NULL_HANDLE};
+    VulkanKernelStore kernels{};
 
-        void destroy(VkDevice device) noexcept {
-            for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
-                                  GpuKernelId::AffineTransform, GpuKernelId::Blur,
-                                  GpuKernelId::ColorAdjust, GpuKernelId::Matte,
-                                  GpuKernelId::TextRun, GpuKernelId::FillRect,
-                                  GpuKernelId::LayerBatch, GpuKernelId::TextBatch,
-                                  GpuKernelId::TextTileBin, GpuKernelId::TextTileRaster}) {
-                const auto handle = registry.resolve(id);
-                if (handle != 0) {
-                    vkDestroyPipeline(device,
-                                      reinterpret_cast<VkPipeline>(handle), nullptr);
-                }
-            }
-            registry = {};
-            if (general_layout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, general_layout, nullptr);
-            }
-            if (text_tile_bin_layout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, text_tile_bin_layout, nullptr);
-            }
-            if (text_tile_raster_layout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, text_tile_raster_layout, nullptr);
-            }
-            if (pipeline_cache != VK_NULL_HANDLE) {
-                vkDestroyPipelineCache(device, pipeline_cache, nullptr);
-                pipeline_cache = VK_NULL_HANDLE;
-            }
-            general_layout = VK_NULL_HANDLE;
-            text_tile_bin_layout = VK_NULL_HANDLE;
-            text_tile_raster_layout = VK_NULL_HANDLE;
-        }
-    } kernels;
+    using VulkanUploadRing = VulkanUploadAuthority;
+    VulkanUploadRing uploads{};
+    VulkanBufferAllocation& staging{uploads.staging};
 
-    VulkanBufferAllocation staging{};
     static constexpr std::size_t kGlyphInstancePassesPerSlot = 64;
     static constexpr std::size_t kGlyphInstanceRingSize =
         FrameBatchState::kSlotCount * kGlyphInstancePassesPerSlot;
@@ -302,135 +153,15 @@ struct VulkanBackend::Impl {
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_count_buffers{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_index_buffers{};
 
-    class VulkanUploadRing {
-    public:
-        struct UploadSlot {
-            VulkanBufferAllocation buffer_allocation{};
-            VkCommandBuffer command_buffer{VK_NULL_HANDLE};
-            VkFence fence{VK_NULL_HANDLE};
-            std::uint64_t ticket{0};
-            bool in_flight{false};
-        };
-        static constexpr std::size_t kSlotCount = 3;
-        std::array<UploadSlot, kSlotCount> slots{};
-        std::size_t next_slot{0};
-    } uploads;
-
     Image dst{};
     Image src{};
 
-    class VulkanSurfaceStore {
+    // Source-compatibility façade only. All state and binding policy live in
+    // VulkanSurfaceAuthority; this nested type keeps the existing out-of-line
+    // destroy_all definition and therefore requires no duplicated store state.
+    class VulkanSurfaceStore final
+        : public VulkanSurfaceAuthority<Image, VulkanBackend::Impl> {
     public:
-        struct PhysicalSurface {
-            Image image;
-            runtime::SurfaceDesc desc{};
-        };
-
-        std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces;
-        std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings;
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        std::unordered_set<std::size_t> cuda_ready_surfaces;
-        std::unordered_set<std::size_t> cuda_export_ready_surfaces;
-#endif
-        std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases;
-        std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles;
-        std::size_t next_slot{0};
-        std::unordered_map<std::size_t, runtime::ResourceAccess> slot_last_access{};
-
-        [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {
-            const auto binding = surface_bindings.find(handle);
-            if (binding == surface_bindings.end()) return false;
-            const auto surface = physical_surfaces.find(binding->second);
-            return surface != physical_surfaces.end() && surface->second.image.initialized;
-        }
-
-        [[nodiscard]] std::size_t physical_count() const noexcept {
-            return physical_surfaces.size();
-        }
-
-        [[nodiscard]] std::size_t binding_count() const noexcept {
-            return surface_bindings.size();
-        }
-
-        [[nodiscard]] std::size_t deferred_release_count() const noexcept {
-            return deferred_surface_releases.size();
-        }
-
-        void clear_access_state() noexcept { slot_last_access.clear(); }
-
-        [[nodiscard]] bool is_job_persistent(
-            runtime::RenderSurfaceHandle handle) const noexcept {
-            const auto binding = surface_bindings.find(handle);
-            if (binding == surface_bindings.end()) return false;
-            const auto physical = physical_surfaces.find(binding->second);
-            return physical != physical_surfaces.end() &&
-                   physical->second.desc.lifetime == runtime::LifetimeClass::JobPersistent;
-        }
-
-        Image& bind(runtime::RenderSurfaceHandle handle,
-                    std::size_t slot,
-                    const runtime::SurfaceDesc& desc) {
-            const auto previous = surface_bindings.find(handle);
-            if (previous != surface_bindings.end() && previous->second != slot) {
-                const auto old_slot = previous->second;
-                const auto old_it = physical_surfaces.find(old_slot);
-                const bool pinned = old_it != physical_surfaces.end() &&
-                                    old_it->second.image.initialized;
-                if (pinned) slot = old_slot;
-                else surface_bindings.erase(previous);
-            }
-            if (physical_surfaces.contains(slot) &&
-                physical_surfaces.at(slot).image.initialized) {
-                for (const auto& [bound_handle, bound_slot] : surface_bindings) {
-                    if (bound_handle != handle && bound_slot == slot) {
-                        slot = next_slot++;
-                        break;
-                    }
-                }
-            }
-            return bind_handle_to_slot_impl(handle, slot, desc);
-        }
-
-        void prune_unused_slots() { prune_unused_slots_impl(); }
-
-    private:
-        Image& bind_handle_to_slot_impl(runtime::RenderSurfaceHandle handle,
-                                        std::size_t slot,
-                                        const runtime::SurfaceDesc& desc) {
-            auto& physical = physical_surfaces[slot];
-            if (physical.image.image != VK_NULL_HANDLE && owner_->plan_preallocated) {
-                if (physical.image.width != desc.width || physical.image.height != desc.height) {
-                    throw std::invalid_argument(
-                        "Vulkan preallocated surface dimensions mismatch");
-                }
-            }
-            physical.desc = desc;
-            surface_bindings[handle] = slot;
-            owner_->stats.physical_surfaces_peak = std::max(
-                owner_->stats.physical_surfaces_peak,
-                static_cast<std::uint64_t>(physical_surfaces.size()));
-            return physical.image;
-        }
-
-        void prune_unused_slots_impl() {
-            for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
-                bool in_use = false;
-                for (const auto& [handle, slot] : surface_bindings) {
-                    (void)handle;
-                    if (slot == it->first) { in_use = true; break; }
-                }
-                if (in_use ||
-                    it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
-                    ++it;
-                    continue;
-                }
-                owner_->destroy_image(it->second.image);
-                it = physical_surfaces.erase(it);
-            }
-        }
-
-    public:
-        VulkanBackend::Impl* owner_{nullptr};
         void destroy_all(VulkanBackend::Impl& owner) noexcept;
     } surfaces;
 
@@ -461,9 +192,8 @@ struct VulkanBackend::Impl {
     void prune_surface_slots() { surfaces.prune_unused_slots(); }
 
     VulkanSubmissionRing& frame_batch;
-    bool command_batch_active{false};
-    bool command_batch_started{false};
-    VkQueryPool timestamp_pool{VK_NULL_HANDLE};
+    bool& command_batch_active{submission_ring.command_batch_active};
+    bool& command_batch_started{submission_ring.command_batch_started};
     float timestamp_period_ns{0.0f};
     std::uint32_t timestamp_valid_bits{0};
     VulkanMemoryManager memory_manager{};

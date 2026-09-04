@@ -1,0 +1,53 @@
+name: Native Video Certification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+jobs:
+  native-video-contract:
+    name: Native FFmpeg sink contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install native video build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            ninja-build ccache pkg-config mono-complete \
+            ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure native video contract build
+        run: |
+          cmake --preset linux-video-test \
+            -DCHRONON3D_ENABLE_VULKAN=OFF \
+            -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF \
+            -DCHRONON3D_ENABLE_TEXT=OFF \
+            -DCHRONON3D_USE_BLEND2D=OFF \
+            -DCHRONON3D_ENABLE_IPC=OFF \
+            -DVCPKG_MANIFEST_FEATURES='cli;tests'
+
+      - name: Build native sink certification target
+        run: |
+          cmake --build --preset linux-video-test \
+            --target chronon3d_native_video_sink_factory_tests
+
+      - name: Run native H264/H265/raw sink contracts
+        run: |
+          ctest --test-dir build/chronon/linux-video-test \
+            -R '^chronon3d_native_video_sink_factory_tests$' \
+            --output-on-failure
