@@ -6,11 +6,11 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
+| Main truth / Stage 1-2 closeout | P0 | VERIFY | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — frame-slot structural closeout + Vulkan pipeline-cache consistency + docs reconciliation landed; close only after same-SHA `Chronon CI` green and main-tip verification |
 | Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) — Test 13 = Camera brutal, distinto da Test 11; product validation in PipelineGen |
 | Deprecated API | P1 | OPEN | [DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |
 | Test harness + WBH cert | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Benchmark + CPU budget | P1 | OPEN | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) + [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
-| Perf baseline v1 + SW composite blur SEGV | P1 | DONE | [PERF-BASELINE-V1](tickets/TICKET-PERF-BASELINE-V1.md) — baseline lockata; blur_band riabilitato in BENCH-3 (SEGV non più riproducibile, §4a RESOLVED 2026-08-28) |
 | Tools / lint | P2 | OPEN | [TOOLS-ORPHAN-AUDIT](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
@@ -20,7 +20,7 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
-| FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification |
+| FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification; Wave 0 closeout classifies this debt but does not bypass its exit conditions |
 
 ## Backlog P2/P3 (non bloccante)
 
@@ -31,8 +31,8 @@
 
 ## Recently Closed (ultimi 3)
 
+- `PERF-BASELINE-V1` — DONE; baseline software/CPU lockata e blur_band riabilitato in BENCH-3 → [ticket](tickets/TICKET-PERF-BASELINE-V1.md)
 - `NODE-CACHE-KEY-COLLAPSE-ROT` — DONE 2026-09-04 after re-census: `run_node`, `emit_node_records` and `cache_evaluator` all carry the canonical `NodeCacheKey`; historical forward-points already landed → [ticket](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md)
 - IPC heap-buffer-overflow in `decode_reply` — fuzzer (libFuzzer) → fix (Verifier) in `eabb6713a` → [TICKET-130](tickets/TICKET-130-IPC-HEAP-OVERFLOW-DECODE-REPLY.md)
-- `has_compiled_recorder` + `fully_recorded` fast-path (TICKET-VIDEO-COMPILER-ARCH-V1 Fase D/E) — 2026-08-22
 
 > Storico completo: `docs/tickets/archive/` (the historical `docs/CHANGELOG.md` was retired in commit 9758751f8).  <!-- drift-class: historical -->

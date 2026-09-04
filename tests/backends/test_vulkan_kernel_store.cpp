@@ -11,6 +11,12 @@ namespace chronon3d::backends::vulkan {
 
 TEST_SUITE("VulkanKernelStore") {
 
+TEST_CASE("pipeline cache has one explicit owner and starts empty") {
+    VulkanKernelStore store;
+
+    CHECK(store.pipeline_cache == VK_NULL_HANDLE);
+}
+
 TEST_CASE("registry is the sole kernel to pipeline resolution authority") {
     VulkanKernelStore store;
 
