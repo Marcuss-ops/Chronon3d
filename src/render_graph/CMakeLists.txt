@@ -128,6 +128,9 @@ target_link_libraries(chronon3d_graph_compiler PUBLIC
 # ── Executor: graph execution ───────────────────────────────────────────────
 add_library(chronon3d_graph_executor OBJECT
     executor/executor.cpp
+    executor/executor_compiled_program.cpp
+    executor/executor_internal.cpp
+    executor/executor_level_dispatch.cpp
     executor/input_resolver.cpp
     executor/cache_evaluator.cpp
     executor/tile_pruning.cpp
