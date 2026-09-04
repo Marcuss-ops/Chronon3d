@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../commands.hpp"
+#include "../../render_args.hpp"
 
 #include <string_view>
 
@@ -29,18 +29,18 @@ void apply_render_profile(RenderArgs& args,
 
     if (profile == "draft") {
         set_if_default("--tile-size", [&] { pipeline.tile_size = 256; });
-        if (!motion_blur_explicit) quality.motion_blur_mode = 0;
+        if (!motion_blur_explicit) quality.motion_blur_mode = MotionBlurMode::Off;
         set_if_default("--motion-blur-samples", [&] { quality.motion_blur_samples = 2; });
         set_if_default("--warmup-framebuffers", [&] { pipeline.warmup_framebuffers = 1; });
         set_if_default("--program-cache-tune", [&] { pipeline.program_cache_tune = false; });
     } else if (profile == "preview") {
         set_if_default("--tile-size", [&] { pipeline.tile_size = 128; });
-        if (!motion_blur_explicit) quality.motion_blur_mode = 1;
+        if (!motion_blur_explicit) quality.motion_blur_mode = MotionBlurMode::TemporalAccumulation;
         set_if_default("--motion-blur-samples", [&] { quality.motion_blur_samples = 4; });
         set_if_default("--warmup-framebuffers", [&] { pipeline.warmup_framebuffers = 2; });
     } else if (profile == "maximum") {
         set_if_default("--tile-size", [&] { pipeline.tile_size = 0; });
-        if (!motion_blur_explicit) quality.motion_blur_mode = 1;
+        if (!motion_blur_explicit) quality.motion_blur_mode = MotionBlurMode::TemporalAccumulation;
         set_if_default("--motion-blur-samples", [&] { quality.motion_blur_samples = 16; });
         set_if_default("--warmup-framebuffers", [&] { pipeline.warmup_framebuffers = 4; });
         set_if_default("--program-cache-tune", [&] { pipeline.program_cache_tune = true; });

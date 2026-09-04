@@ -125,6 +125,8 @@ class DeviceScheduler {
 public:
     DeviceScheduler() = default;
 
+    /// Discovery-only operation. The first reservation seals discovery so the
+    /// capability table is immutable for the lifetime of active scheduling.
     void register_device(DeviceCapabilities caps, DeviceResourceVector capacity);
 
     [[nodiscard]] std::optional<DeviceReservation> reserve(const DeviceResourceVector& requirements);
@@ -133,6 +135,10 @@ public:
     void release(DeviceId id, const DeviceResourceVector& resources) noexcept;
 
     [[nodiscard]] std::size_t device_count() const noexcept;
+    /// Compatibility-only pointer API. The returned pointer refers to a
+    /// thread-local snapshot, never to storage protected by m_mutex. New code
+    /// must use capability_snapshot().
+    [[deprecated("use capability_snapshot(); raw pointers must not escape scheduler storage")]]
     [[nodiscard]] const DeviceCapabilities* capabilities(DeviceId id) const noexcept;
     [[nodiscard]] std::optional<DeviceCapabilities> capability_snapshot(DeviceId id) const;
     [[nodiscard]] std::optional<DeviceResourceState> resource_state(DeviceId id) const noexcept;
@@ -148,7 +154,9 @@ private:
 
     mutable std::mutex m_mutex;
     std::vector<DeviceEntry> m_devices;
+    bool m_discovery_sealed{false};
 
+    void seal_discovery_locked() noexcept { m_discovery_sealed = true; }
     [[nodiscard]] std::optional<DeviceReservation> reserve_locked(
         const DeviceResourceVector& requirements,
         const DeviceSelectionRequirements* capabilities);

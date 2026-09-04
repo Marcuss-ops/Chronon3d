@@ -149,8 +149,7 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         "${CMAKE_SOURCE_DIR}/tools/cuda_vulkan_external_memory_probe.cpp"
         cuda_vulkan_surface_bridge.cpp)
     target_include_directories(chronon3d_cuda_vulkan_external_memory_probe
-        PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include"
-                "${CMAKE_SOURCE_DIR}/vcpkg_installed/linux-fast-dev/x64-linux/include")
+        PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include")
     target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
         PRIVATE chronon3d Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
 
