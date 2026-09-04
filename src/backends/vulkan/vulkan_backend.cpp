@@ -231,16 +231,71 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     // canonical ResourceTransition stream directly to Synchronization2.
     m_impl->frame_batch.command_plan = &plan;
 
-    for (const auto& allocation : plan.resources.allocations) {
-        if (allocation.surface == runtime::kInvalidRenderSurfaceHandle) continue;
-        if (allocation.physical_slot == std::numeric_limits<std::size_t>::max()) continue;
-        if (allocation.physical_slot >= plan.resources.slots.size()) continue;
-        if (m_impl->surface_is_job_persistent(allocation.surface)) continue;
-        const auto& planned = plan.resources.slots[allocation.physical_slot];
-        runtime::ResourceDesc request_desc{};
-        if (allocation.request_index < plan.resources.requests.size()) {
-            request_desc = plan.resources.requests[allocation.request_index].desc;
+    // P0 authority invariant: validate the complete compiled placement before
+    // mutating VulkanSurfaceStore. The compatibility allocator is allowed to
+    // pick slots only for explicitly unplanned surfaces; a compiled binding
+    // must never reach the store's next_slot++ fallback.
+    const auto invalid_slot = std::numeric_limits<std::size_t>::max();
+    const auto& resources = plan.resources;
+    auto& store = m_impl->surfaces;
+
+    for (const auto& allocation : resources.allocations) {
+        if (allocation.surface == runtime::kInvalidRenderSurfaceHandle ||
+            allocation.physical_slot == invalid_slot) {
+            continue;
         }
+        if (allocation.request_index >= resources.requests.size()) {
+            throw std::logic_error(
+                "Vulkan compiled allocation references an invalid request index");
+        }
+        if (allocation.physical_slot >= resources.slots.size()) {
+            throw std::logic_error(
+                "Vulkan compiled allocation references a physical slot outside the plan");
+        }
+
+        const auto& request = resources.requests[allocation.request_index];
+        if (request.surface != runtime::kInvalidRenderSurfaceHandle &&
+            request.surface != allocation.surface) {
+            throw std::logic_error(
+                "Vulkan compiled allocation surface disagrees with its ResourceRequest");
+        }
+        if (store.unplanned_surface_handles.contains(allocation.surface)) {
+            throw std::logic_error(
+                "Vulkan compiled allocation attempts to claim an explicitly unplanned surface");
+        }
+
+        const auto existing = store.surface_bindings.find(allocation.surface);
+        if (existing != store.surface_bindings.end() &&
+            existing->second != allocation.physical_slot) {
+            throw std::logic_error(
+                "Vulkan compiled surface is already bound to a different physical slot");
+        }
+
+        const auto physical = store.physical_surfaces.find(allocation.physical_slot);
+        if (physical != store.physical_surfaces.end() &&
+            physical->second.image.initialized) {
+            for (const auto& [bound_handle, bound_slot] : store.surface_bindings) {
+                if (bound_handle != allocation.surface &&
+                    bound_slot == allocation.physical_slot) {
+                    throw std::logic_error(
+                        "Vulkan compiled physical-slot collision with initialized content");
+                }
+            }
+        }
+    }
+
+    // Reserve the compiler-owned slot namespace. Dynamic/unplanned allocation
+    // starts after it, so CUDA/export/compatibility surfaces cannot silently
+    // collide with a slot selected by the compiled resource plan.
+    store.next_slot = std::max(store.next_slot, resources.slots.size());
+
+    for (const auto& allocation : resources.allocations) {
+        if (allocation.surface == runtime::kInvalidRenderSurfaceHandle ||
+            allocation.physical_slot == invalid_slot) {
+            continue;
+        }
+        const auto& planned = resources.slots[allocation.physical_slot];
+        const auto& request_desc = resources.requests[allocation.request_index].desc;
         const auto width = request_desc.width != 0 ? request_desc.width : planned.desc.width;
         const auto height = request_desc.height != 0 ? request_desc.height : planned.desc.height;
         const auto format = request_desc.format.pixel != runtime::PixelFormat::Unknown
@@ -248,8 +303,22 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         const auto usage = request_desc.usage != runtime::ResourceUsage::Generic
             ? request_desc.usage : planned.desc.usage;
         const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
-            width, height, format, usage, runtime::LifetimeClass::FrameTransient);
-        m_impl->bind_surface_to_slot(allocation.surface, allocation.physical_slot, desc);
+            width, height, format, usage, request_desc.lifetime);
+
+        const auto compatibility_cursor = store.next_slot;
+        m_impl->bind_surface_to_slot(
+            allocation.surface, allocation.physical_slot, desc);
+
+        const auto actual = store.surface_bindings.find(allocation.surface);
+        if (actual == store.surface_bindings.end() ||
+            actual->second != allocation.physical_slot) {
+            throw std::logic_error(
+                "Vulkan compiled surface was not materialized in its planned slot");
+        }
+        if (store.next_slot != compatibility_cursor) {
+            throw std::logic_error(
+                "Vulkan compiled surface reached the dynamic compatibility allocator");
+        }
     }
     m_impl->prune_surface_slots();
 #else
