@@ -17,8 +17,8 @@
 
 namespace chronon3d::graph {
 
-#include "executor_compiled_program.inc"
-#include "executor_internal.inc"
-#include "executor_api.inc"
+#include "executor_compiled_program_detail.hpp"
+#include "executor_internal_detail.hpp"
+#include "executor_api_detail.hpp"
 
 } // namespace chronon3d::graph
