@@ -2,8 +2,8 @@
 // cache_diagnostics_format.cpp — Human-readable cache snapshot dump.
 //
 // cache_diagnostics_format.cpp — format_cache_snapshot() queries the
-// CacheDiagnostics singleton and returns a multi-line string suitable for
-// spdlog or CLI output.
+// per-runtime CacheDiagnostics instance and returns a multi-line string
+// suitable for spdlog or CLI output.
 // =============================================================================
 
 #include <chronon3d/cache/cache_diagnostics.hpp>
@@ -34,6 +34,11 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
     std::size_t total_entries = 0;
     std::size_t total_weight = 0;
     std::size_t total_capacity = 0;
+    std::uint64_t total_hash_ns = 0;
+    std::uint64_t total_lock_ns = 0;
+    std::uint64_t total_lru_ns = 0;
+    std::uint64_t total_loader_ns = 0;
+    std::uint64_t total_contention = 0;
 
     // Format weight with appropriate unit (used in loop and totals).
     auto format_weight = [](std::size_t bytes) -> std::string {
@@ -48,6 +53,10 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
                 static_cast<double>(bytes) / 1024.0);
         }
         return fmt::format("{} B", bytes);
+    };
+
+    const auto ns_to_us = [](std::uint64_t ns) {
+        return static_cast<double>(ns) / 1000.0;
     };
 
     for (const auto& ds : domains) {
@@ -91,13 +100,24 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
             "│ {:18s}   hits={:<8} miss={:<8} evict={:<4} size={:<6} weight={:>10s}  cap={:>12s}  hit_rate={:.1f}%\n",
             name, ds.hits, ds.misses, ds.evictions,
             ds.current_size, wt_str, cap_str, hit_pct);
+        out += fmt::format(
+            "│ {:18s}   hash={:>10.1f}us lock={:>10.1f}us lru={:>10.1f}us loader={:>10.1f}us contention={}\n",
+            "hot-path",
+            ns_to_us(ds.hash_time_ns), ns_to_us(ds.lock_time_ns),
+            ns_to_us(ds.lru_mutation_time_ns), ns_to_us(ds.miss_loader_time_ns),
+            ds.contention_count);
 
-        total_hits      += ds.hits;
-        total_misses    += ds.misses;
-        total_evictions += ds.evictions;
-        total_entries   += ds.current_size;
-        total_weight    += ds.current_weight;
-        total_capacity  += ds.total_capacity;
+        total_hits        += ds.hits;
+        total_misses      += ds.misses;
+        total_evictions   += ds.evictions;
+        total_entries     += ds.current_size;
+        total_weight      += ds.current_weight;
+        total_capacity    += ds.total_capacity;
+        total_hash_ns     += ds.hash_time_ns;
+        total_lock_ns     += ds.lock_time_ns;
+        total_lru_ns      += ds.lru_mutation_time_ns;
+        total_loader_ns   += ds.miss_loader_time_ns;
+        total_contention  += ds.contention_count;
     }
 
     const double total_hit_pct = (total_hits + total_misses) > 0
@@ -123,6 +143,11 @@ std::string format_cache_snapshot(CacheDiagnostics& diag) {
         fmt::format("{} domains", domains.size()),
         total_hits, total_misses, total_evictions,
         total_entries, tot_weight_str, tot_cap_str, total_hit_pct);
+    out += fmt::format(
+        "│ {:18s}   hash={:>10.1f}us lock={:>10.1f}us lru={:>10.1f}us loader={:>10.1f}us contention={}\n",
+        "hot-path",
+        ns_to_us(total_hash_ns), ns_to_us(total_lock_ns), ns_to_us(total_lru_ns),
+        ns_to_us(total_loader_ns), total_contention);
 
     out += "└";
     out.append(79, '-');
