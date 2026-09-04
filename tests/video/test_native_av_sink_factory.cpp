@@ -5,16 +5,31 @@
 
 using namespace chronon3d::media::video;
 
-TEST_CASE("VideoSinkFactory: native FFmpeg build selects in-process compressed sink") {
+namespace {
+
+VideoSinkConfig compressed_config(VideoCodec codec, const char* output_path) {
     VideoSinkConfig config;
     config.stream.width = 64;
     config.stream.height = 64;
     config.stream.submitted_format = PixelFormat::RGBA8;
-    config.encoder.codec = VideoCodec::H264;
+    config.encoder.codec = codec;
     config.output.container = VideoContainer::Mp4;
-    config.output.output_path = "native-factory-test.mp4";
+    config.output.output_path = output_path;
+    return config;
+}
 
-    auto sink = create_video_sink(config);
+} // namespace
+
+TEST_CASE("VideoSinkFactory: native FFmpeg build routes H264 in-process") {
+    auto sink = create_video_sink(
+        compressed_config(VideoCodec::H264, "native-factory-h264.mp4"));
+    REQUIRE(sink != nullptr);
+    CHECK(sink->name() == "native-av");
+}
+
+TEST_CASE("VideoSinkFactory: native FFmpeg build routes H265 in-process") {
+    auto sink = create_video_sink(
+        compressed_config(VideoCodec::H265, "native-factory-h265.mp4"));
     REQUIRE(sink != nullptr);
     CHECK(sink->name() == "native-av");
 }
