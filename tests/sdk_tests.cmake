@@ -21,6 +21,7 @@ set(_chronon3d_c_abi_links
 set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_decoder.cpp
     c_abi/test_render_plan_validator.cpp
+    c_abi/test_render_plan_consolidation.cpp
     c_abi/test_prepared_render_plan.cpp)
 if(TARGET chronon3d_c)
     list(APPEND _chronon3d_c_abi_links chronon3d_c)
