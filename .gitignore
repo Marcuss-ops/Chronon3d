@@ -107,6 +107,7 @@ output/
 outputs/
 screenshots/
 artifacts/
+test_outputs/
 
 # ── Logs & profiling ────────────────────────────────────────────────────────────
 *.log
@@ -116,6 +117,8 @@ artifacts/
 *.perf
 *.flamegraph
 *.speedscope.json
+# Zero-copy gate / pipeline-stage timing reports (generated per run).
+*.timing.json
 /--hot-path*
 hot-path/
 profile-results/
@@ -148,4 +151,8 @@ bazel-*
 vcpkg_bootstrap
 test_renders/
 reports/
-bench/baselines/
+# NOTE: bench/baselines/ is NOT ignored — official benchmark baselines
+# (bench/baselines/main-<sha>-bench.json) are committed per docs/CHRONON_PLAN.md
+# Fase 0. Raw benchmark run output stays out of the repo:
+bench/results/
+bench/raw/

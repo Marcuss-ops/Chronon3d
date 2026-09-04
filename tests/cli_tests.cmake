@@ -38,6 +38,8 @@ if(TARGET chronon3d_cli_video_export)
     list(APPEND _cli_test_sources
         ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/video_export_common.cpp
         cli/test_pipe_export_helpers.cpp
+        cli/test_gpu_slot_pool.cpp
+        cli/test_video_end_semantics.cpp
         cli/test_video_sink_encoders.cpp
         cli/test_ffmpeg_export_options.cpp
         cli/test_packet_assembler_contract.cpp

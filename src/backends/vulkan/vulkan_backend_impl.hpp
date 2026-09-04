@@ -419,6 +419,7 @@ struct VulkanBackend::Impl {
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,
                    const Color& color);
+    void initialize_transparent_surface(runtime::RenderSurfaceHandle destination);
     void fill_solid_shape(runtime::RenderSurfaceHandle destination,
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,

@@ -6,7 +6,7 @@
 #include <chronon3d/runtime/bounded_channel.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/runtime/frame_execution_slot_ring.hpp>
+#include "gpu_slot_pool.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -17,7 +17,7 @@ namespace chronon3d::cli {
 
 struct FullGraphFramePackage {
     Frame frame_number{0};
-    runtime::FrameExecutionSlotRing::SlotLease slot;
+    runtime::GpuSlotPool::Lease slot;
     std::shared_ptr<Framebuffer> cpu_fallback;
     std::shared_ptr<FramebufferArena> cpu_arena;
 };

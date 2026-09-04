@@ -95,6 +95,12 @@ RenderLoopOutput run_pipe_export_loop(
     session.queue.close();
     if (session.writer_thread.joinable()) session.writer_thread.join();
     spdlog::info("[video] writer join complete");
+    if (session.full_graph_session) {
+        // B7 drain: retired slots stay pinned until their encoder completion
+        // fires; reap them (or force-close on failure) before teardown touches
+        // any surface the encoder may still reference.
+        session.full_graph_session->execution_slots.drain();
+    }
 
     if (session.writer_failed.load()) {
         loop_result.status.success = false;
