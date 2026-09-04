@@ -17,9 +17,9 @@
 namespace chronon3d::assets {
 namespace {
 
-#include "mesh_loader_support.inc"
-#include "mesh_loader_materials.inc"
-#include "mesh_loader_decode.inc"
+#include "mesh_loader_support_detail.hpp"
+#include "mesh_loader_materials_detail.hpp"
+#include "mesh_loader_decode_detail.hpp"
 
 } // namespace
 #endif // CHRONON3D_ENABLE_MESH
@@ -28,6 +28,6 @@ namespace {
 namespace chronon3d::assets {
 #endif
 
-#include "mesh_loader_api.inc"
+#include "mesh_loader_api_detail.hpp"
 
 } // namespace chronon3d::assets
