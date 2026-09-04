@@ -15,8 +15,8 @@
 
 namespace chronon3d::graph {
 
-#include "effect_stack_node_native.inc"
-#include "effect_stack_node_bbox.inc"
-#include "effect_stack_node_execute.inc"
+#include "effect_stack_node_native_detail.hpp"
+#include "effect_stack_node_bbox_detail.hpp"
+#include "effect_stack_node_execute_detail.hpp"
 
 } // namespace chronon3d::graph
