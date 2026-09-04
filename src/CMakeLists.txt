@@ -116,9 +116,9 @@ if(CHRONON3D_ENABLE_VULKAN AND CHRONON3D_ENABLE_CUDA_INTEROP
 endif()
 
 # DirectYUV depends on the completed engine/media graph but is not itself an
-# SDK aggregate component. Define it here, after chronon3d_pipeline exists,
-# so CLI/daemon frontends consume one media-owned implementation target.
-if(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
+# SDK aggregate component. Define its stable facade for every video build;
+# native FFmpeg/CUDA sources are selected inside the subdirectory target.
+if(CHRONON3D_ENABLE_VIDEO)
     add_subdirectory(media/video/direct_yuv)
 endif()
 
