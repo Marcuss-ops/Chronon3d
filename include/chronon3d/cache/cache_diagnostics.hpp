@@ -22,6 +22,7 @@
 #include <chronon3d/cache/cache_policy.hpp>
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
@@ -52,8 +53,8 @@ class CacheDiagnostics;
 //
 // Because each LruCache<Key,Value,Hash> has its own nested ::Stats type, we
 // define a standalone struct here that the registration callbacks return.
-// Cache facades convert their LruCache<K,V,H>::Stats → GenericCacheStats
-// inside the lambda (trivial field-for-field copy).
+// `make_generic_cache_stats()` is the single conversion point so new canonical
+// LruCache counters cannot be silently dropped by individual cache facades.
 
 struct GenericCacheStats {
     std::size_t hits{0};
@@ -61,7 +62,28 @@ struct GenericCacheStats {
     std::size_t evictions{0};
     std::size_t current_size{0};
     std::size_t current_weight{0};
+    std::uint64_t hash_time_ns{0};
+    std::uint64_t lock_time_ns{0};
+    std::uint64_t lru_mutation_time_ns{0};
+    std::uint64_t miss_loader_time_ns{0};
+    std::uint64_t contention_count{0};
 };
+
+template <typename Stats>
+[[nodiscard]] GenericCacheStats make_generic_cache_stats(const Stats& s) noexcept {
+    return GenericCacheStats{
+        .hits = s.hits,
+        .misses = s.misses,
+        .evictions = s.evictions,
+        .current_size = s.current_size,
+        .current_weight = s.current_weight,
+        .hash_time_ns = s.hash_time_ns,
+        .lock_time_ns = s.lock_time_ns,
+        .lru_mutation_time_ns = s.lru_mutation_time_ns,
+        .miss_loader_time_ns = s.miss_loader_time_ns,
+        .contention_count = s.contention_count,
+    };
+}
 
 // ── CacheSnapshot — aggregate stats for one registered cache instance ─────
 
@@ -72,6 +94,11 @@ struct CacheSnapshot {
     std::size_t      evictions{0};
     std::size_t      current_size{0};
     std::size_t      current_weight{0};
+    std::uint64_t    hash_time_ns{0};
+    std::uint64_t    lock_time_ns{0};
+    std::uint64_t    lru_mutation_time_ns{0};
+    std::uint64_t    miss_loader_time_ns{0};
+    std::uint64_t    contention_count{0};
     std::size_t      capacity{0};
     CapacityMode     mode{CapacityMode::Weight};
     bool             enabled{true};
@@ -87,6 +114,11 @@ struct DomainSnapshot {
     std::size_t      evictions{0};
     std::size_t      current_size{0};
     std::size_t      current_weight{0};
+    std::uint64_t    hash_time_ns{0};
+    std::uint64_t    lock_time_ns{0};
+    std::uint64_t    lru_mutation_time_ns{0};
+    std::uint64_t    miss_loader_time_ns{0};
+    std::uint64_t    contention_count{0};
     std::size_t      total_capacity{0};
 };
 
