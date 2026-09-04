@@ -17,7 +17,9 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/common/pipe_export_direct_yuv.cpp
     commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
-    utils/video/video_sink_adapter.cpp
+    utils/video/video_sink_adapter_config.cpp
+    utils/video/video_sink_adapter_lifecycle.cpp
+    utils/video/video_sink_adapter_submit.cpp
     utils/video/gop_smart_copy.cpp
 )
 if(NOT CHRONON3D_ENABLE_NATIVE_FFMPEG)
@@ -114,7 +116,8 @@ target_sources(chronon3d_cli_render PRIVATE
     commands/video/exporters/video_export_pipe.cpp
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp
-    utils/video/video_job_execute.cpp
+    utils/video/video_job_execute_options.cpp
+    utils/video/video_job_execute_dispatch.cpp
 )
 set_target_properties(chronon3d_cli_render PROPERTIES UNITY_BUILD OFF)
 set_source_files_properties(

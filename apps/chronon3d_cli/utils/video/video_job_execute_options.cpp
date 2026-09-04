@@ -1,3 +1,10 @@
+#include "video_export_support.hpp"
+#include "../../commands/video/common/video_export_common.hpp"
+
+#include <utility>
+
+namespace chronon3d::cli {
+
 FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     OutputOptions output;
     output.output = job.output;
@@ -43,9 +50,6 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.assets_root = job.execution.assets_root;
     opts.gop_source = job.video_settings.gop_source;
     opts.gop_copy_only = job.video_settings.gop_copy_only;
-    // Honor the canonical backend preference resolved from --backend.
-    // The video pipe exporter otherwise rebuilt a fresh Config::from_environment
-    // (Auto → Software) and silently ignored --backend vulkan.
     opts.backend_preference = job.execution.config
         ? job.execution.config->backend_preference()
         : chronon3d::graph::BackendPreference::Auto;
@@ -54,3 +58,5 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
         : chronon3d::GpuHotPathMode::Auto;
     return opts;
 }
+
+} // namespace chronon3d::cli
