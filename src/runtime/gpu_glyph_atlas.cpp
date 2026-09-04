@@ -9,7 +9,7 @@
 
 namespace chronon3d::runtime {
 
-#include "gpu_glyph_atlas_core.inc"
-#include "gpu_styled_glyph_cache.inc"
+#include "gpu_glyph_atlas_core_detail.hpp"
+#include "gpu_styled_glyph_cache_detail.hpp"
 
 } // namespace chronon3d::runtime
