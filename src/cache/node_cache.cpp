@@ -40,8 +40,7 @@ NodeCache::NodeCache(size_t capacity_bytes, CacheDiagnostics* diag)
                       CacheDomain::Nodes,
                       [this]() -> GenericCacheStats {
                           if (!m_diag_alive.load(std::memory_order_acquire)) return {};
-                          auto s = m_cache.stats();
-                          return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                          return make_generic_cache_stats(m_cache.stats());
                       },
                       [this] {
                           if (!m_diag_alive.load(std::memory_order_acquire)) return;
@@ -71,8 +70,7 @@ void NodeCache::set_diagnostics(CacheDiagnostics& diag) {
         CacheDomain::Nodes,
         [this]() -> GenericCacheStats {
             if (!m_diag_alive.load(std::memory_order_acquire)) return {};
-            auto s = m_cache.stats();
-            return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+            return make_generic_cache_stats(m_cache.stats());
         },
         [this] {
             if (!m_diag_alive.load(std::memory_order_acquire)) return;
