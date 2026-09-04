@@ -3,6 +3,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include "vulkan_surface_materializer.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -38,6 +39,10 @@ public:
     std::size_t next_slot{0};
     std::unordered_map<std::size_t, runtime::ResourceAccess> slot_last_access{};
 
+    // Policy owns binding state; materializer owns only the physical Vulkan
+    // mechanism. It receives an already-selected Image record and never a
+    // physical slot, so it cannot make placement decisions.
+    VulkanSurfaceMaterializer<ImageT, OwnerT> materializer_{};
     OwnerT* owner_{nullptr};
 
     [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {
@@ -148,11 +153,7 @@ public:
                 physical.image.width != desc.width ||
                 physical.image.height != desc.height ||
                 physical.desc.format != desc.format) {
-                if (physical.image.image != VK_NULL_HANDLE) {
-                    owner_->destroy_image(physical.image);
-                }
-                owner_->make_image(physical.image, desc.width, desc.height, false,
-                                   owner_->to_vk_format(desc.format));
+                materializer_.materialize(physical.image, desc);
                 physical.desc = desc;
             }
             physical.image.text_atlas_encoding = desc.text_atlas_encoding;
@@ -191,16 +192,17 @@ public:
                 ++it;
                 continue;
             }
-            owner_->destroy_image(it->second.image);
+            materializer_.destroy(it->second.image);
             it = physical_surfaces.erase(it);
         }
     }
 
 protected:
-    void require_owner() const {
+    void require_owner() {
         if (owner_ == nullptr) {
             throw std::logic_error("Vulkan surface authority has no owner");
         }
+        materializer_.set_owner(owner_);
     }
 
     ImageT& bind_planned_exact(runtime::RenderSurfaceHandle handle,
@@ -272,13 +274,9 @@ protected:
 
         if (physical.image.image == VK_NULL_HANDLE ||
             physical.image.width != desc.width ||
-            physical.image.height != desc.height) {
-            if (physical.image.image != VK_NULL_HANDLE) {
-                owner_->destroy_image(physical.image);
-            }
-            owner_->make_image(physical.image, desc.width, desc.height, false,
-                               owner_->to_vk_format(desc.format));
-            physical.image.initialized = false;
+            physical.image.height != desc.height ||
+            physical.desc.format != desc.format) {
+            materializer_.materialize(physical.image, desc);
         }
         physical.desc = desc;
         physical.image.text_atlas_encoding = desc.text_atlas_encoding;
