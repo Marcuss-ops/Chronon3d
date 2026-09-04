@@ -17,6 +17,12 @@
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 | Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
 
+## Demolition Debt (exit-condition driven)
+
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
+| FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification |
+
 ## Backlog P2/P3 (non bloccante)
 
 | Area | Pri | Stato | Scheda |
