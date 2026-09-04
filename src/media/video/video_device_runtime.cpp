@@ -24,7 +24,7 @@ extern "C" {
 #include <utility>
 #include <chrono>
 
-#include "video_device_runtime_lifecycle.inc"
-#include "video_device_runtime_surfaces.inc"
-#include "video_device_runtime_cuda_cache.inc"
-#include "video_device_runtime_registry.inc"
+#include "video_device_runtime_lifecycle_detail.hpp"
+#include "video_device_runtime_surfaces_detail.hpp"
+#include "video_device_runtime_cuda_cache_detail.hpp"
+#include "video_device_runtime_registry_detail.hpp"
