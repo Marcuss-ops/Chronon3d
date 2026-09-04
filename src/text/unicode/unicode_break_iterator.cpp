@@ -1,6 +1,5 @@
-#include "text_boundary_resolver.hpp"
-
-#include "../unicode/utf8_decoder.hpp"
+#include "../boundary_resolver/text_boundary_resolver.hpp"
+#include "utf8_decoder.hpp"
 
 #include <unicode/brkiter.h>
 #include <unicode/locid.h>
@@ -15,7 +14,6 @@
 #include <vector>
 
 namespace chronon3d::text::boundary {
-
 namespace {
 
 [[nodiscard]] std::vector<std::size_t> utf16_to_utf8_offsets(
@@ -38,8 +36,6 @@ namespace {
 
         offsets[static_cast<std::size_t>(utf16_offset)] = byte_start;
         if (utf16_units == 2 && utf16_offset + 1 < utf16_length) {
-            // ICU never reports a boundary inside a surrogate pair, but keep
-            // the intermediate entry valid for defensive conversion.
             offsets[static_cast<std::size_t>(utf16_offset + 1)] = byte_start;
         }
         utf16_offset += utf16_units;
@@ -101,9 +97,7 @@ void append_word_boundaries_and_segments(
 }
 
 [[nodiscard]] icu::Locale make_locale(TextBoundaryOptions options) {
-    if (options.language.empty()) {
-        return icu::Locale::getRoot();
-    }
+    if (options.language.empty()) return icu::Locale::getRoot();
     const std::string language(options.language);
     return icu::Locale::createFromName(language.c_str());
 }
@@ -158,12 +152,8 @@ BoundaryMap IcuBoundaryResolver::resolve(
     collect(std::unique_ptr<icu::BreakIterator>(
                 icu::BreakIterator::createLineInstance(locale, status)),
             result.line_boundaries);
-    if (U_FAILURE(status)) {
-        result.line_boundaries.clear();
-    }
+    if (U_FAILURE(status)) result.line_boundaries.clear();
 
-    // A successful iterator always reports these anchors.  Reassert them so
-    // malformed input and future ICU changes cannot produce an unusable map.
     for (auto* boundaries : {&result.grapheme_boundaries,
                              &result.word_boundaries,
                              &result.line_boundaries}) {

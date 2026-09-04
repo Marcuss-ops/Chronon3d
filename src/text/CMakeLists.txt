@@ -61,9 +61,9 @@ add_library(chronon3d_text_core OBJECT
     resolve_text_placement.cpp
     text_scramble_helpers.cpp
     unicode/utf8_decoder.cpp
+    unicode/unicode_break_iterator.cpp
     boundary_resolver/whitespace.cpp
     boundary_resolver/text_boundary_resolver.cpp
-    boundary_resolver/icu_boundary_resolver.cpp
     boundary_resolver/text_unit_map.cpp
     boundary_resolver/text_unit_map_lookups.cpp
     internal/text_resolver_helpers.cpp
@@ -73,7 +73,7 @@ add_library(chronon3d_text_core OBJECT
 # anonymous-namespace helpers or intentionally distinct TextUnitMap models.
 set_source_files_properties(
     timed_text_document.cpp
-    boundary_resolver/icu_boundary_resolver.cpp
+    unicode/unicode_break_iterator.cpp
     boundary_resolver/text_unit_map.cpp
     boundary_resolver/text_unit_map_lookups.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
