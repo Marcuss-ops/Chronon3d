@@ -1,3 +1,9 @@
+#include "../common/pipe_export_pipeline.hpp"
+
+#include <chronon3d/cache/framebuffer_pool.hpp>
+#include <spdlog/spdlog.h>
+
+namespace chronon3d::cli {
 namespace {
 
 void warmup_text_size_classes(cache::FramebufferPool& pool) {
@@ -26,9 +32,7 @@ void warmup_text_size_classes(cache::FramebufferPool& pool) {
 } // namespace
 
 void warmup_pipe_pool(PipeExportSession& session) {
-    if (!session.renderer_ptr() || !session.renderer_ptr()->framebuffer_pool()) {
-        return;
-    }
+    if (!session.renderer_ptr() || !session.renderer_ptr()->framebuffer_pool()) return;
 
     const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(
         session.canvas_width, session.canvas_height);
@@ -47,3 +51,5 @@ void warmup_pipe_pool(PipeExportSession& session) {
 
     warmup_text_size_classes(*session.renderer_ptr()->framebuffer_pool());
 }
+
+} // namespace chronon3d::cli
