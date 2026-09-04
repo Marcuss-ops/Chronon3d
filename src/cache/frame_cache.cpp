@@ -33,8 +33,7 @@ FrameCache::FrameCache(size_t max_entries, size_t num_shards, CacheDiagnostics* 
                   m_diag_handle = diag->register_cache(
                       CacheDomain::RenderedFrames,
                       [this]() -> GenericCacheStats {
-                          auto s = m_cache.stats();
-                          return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                          return make_generic_cache_stats(m_cache.stats());
                       },
                       [this] { m_cache.clear(); },
                       [this] { return m_cache.capacity_mode(); },
@@ -54,8 +53,7 @@ void FrameCache::set_diagnostics(CacheDiagnostics& diag) {
         CacheDomain::RenderedFrames,
         [this]() -> GenericCacheStats {
             if (!m_diag_alive.load(std::memory_order_acquire)) return {};
-            auto s = m_cache.stats();
-            return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+            return make_generic_cache_stats(m_cache.stats());
         },
         [this] {
             if (!m_diag_alive.load(std::memory_order_acquire)) return;
