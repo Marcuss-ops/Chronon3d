@@ -60,6 +60,14 @@ chronon3d_add_test_suite(
 target_compile_definitions(chronon3d_vulkan_submission_ring_tests
     PRIVATE CHRONON3D_ENABLE_VULKAN)
 
+chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_upload_ring_tests
+    TIER INTEGRATION
+    SOURCES backends/test_vulkan_upload_ring.cpp
+    LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan spdlog::spdlog)
+target_compile_definitions(chronon3d_vulkan_upload_ring_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)
+
 # Headless "TEST 123" canary: dispatches the embedded tile-bin/raster SPIR-V
 # on a real Vulkan device and verifies format qualification and premultiplied
 # compositing.  Skips when no compute device is available.
