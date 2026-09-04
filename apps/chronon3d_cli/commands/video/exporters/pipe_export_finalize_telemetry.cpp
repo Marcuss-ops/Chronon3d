@@ -1,3 +1,18 @@
+#include "../common/pipe_export_pipeline.hpp"
+#include "../common/pipe_export_helpers.hpp"
+#include "../../../utils/telemetry/telemetry_run.hpp"
+
+#include <chronon3d/core/telemetry/telemetry_bundle.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#endif
+
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <vector>
+
 namespace chronon3d::cli {
 
 void record_pipe_telemetry(
@@ -28,9 +43,7 @@ void record_pipe_telemetry(
         while (encode_it != sorted_encoder.end() && encode_it->frame_number < frame.frame_number) {
             ++encode_it;
         }
-        if (encode_it == sorted_encoder.end() || encode_it->frame_number != frame.frame_number) {
-            continue;
-        }
+        if (encode_it == sorted_encoder.end() || encode_it->frame_number != frame.frame_number) continue;
         frame.conversion_copy_ms = encode_it->conversion_copy_ms;
         frame.encoder_ms = encode_it->encoder_ms;
         frame.pipe_write_ms = encode_it->pipe_write_ms;
@@ -52,7 +65,6 @@ void record_pipe_telemetry(
 
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
     const bool direct_yuv = session.direct_yuv_selected();
-
     if (!direct_yuv && session.renderer_ptr() && counters) {
         auto graph_phases = cli::telemetry::capture_graph_phase_records(*counters);
         phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
@@ -88,11 +100,9 @@ void record_pipe_telemetry(
         : 0ULL;
 
     chronon3d::telemetry::RenderPhaseTimings phase_timings;
-    phase_timings.gpu_render_ms = direct_yuv
-        ? 0.0 : static_cast<double>(node_execute_ms);
+    phase_timings.gpu_render_ms = direct_yuv ? 0.0 : static_cast<double>(node_execute_ms);
     phase_timings.scene_eval_ms = direct_yuv
-        ? 0.0
-        : std::max(0.0, loop_result.render_graph_eval_ms - phase_timings.gpu_render_ms);
+        ? 0.0 : std::max(0.0, loop_result.render_graph_eval_ms - phase_timings.gpu_render_ms);
 
     double readback_sum = 0.0;
     double codec_sum = 0.0;
@@ -122,7 +132,6 @@ void record_pipe_telemetry(
 
     if (counters) {
         session.sys_metrics.fill_system_counters(*counters);
-
         if (is_native) {
             counters->native_av_convert_wall_ms.store(
                 static_cast<uint64_t>(close_result.native_convert_ms), std::memory_order_relaxed);
@@ -166,17 +175,14 @@ void record_pipe_telemetry(
     if (session.renderer_ptr() && session.renderer_ptr()->runtime().backend_attached()) {
         std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
         session.renderer_ptr()->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
-        for (const auto& [name, value] : gpu_counters) {
-            resolved_counters.push_back({name, value});
-        }
+        for (const auto& [name, value] : gpu_counters) resolved_counters.push_back({name, value});
     }
 
     std::vector<chronon3d::telemetry::RenderArtifactRecord> artifacts;
     {
         namespace fs = std::filesystem;
         const std::string out_path = result.output_published
-            ? session.original_output_path
-            : session.opts.output.output;
+            ? session.original_output_path : session.opts.output.output;
         chronon3d::telemetry::RenderArtifactRecord artifact;
         artifact.run_id = "";
         artifact.type = "video";
