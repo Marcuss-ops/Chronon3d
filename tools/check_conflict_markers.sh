@@ -49,10 +49,11 @@ scan_source() {
 scan_docs() {
     [[ -d docs ]] || return 0
     # Use find rather than git grep so newly-created/untracked Markdown is
-    # blocked before it can be committed.
-    find docs -type f -name '*.md' -print0 \
-        | xargs -0 -r grep -nHE '^(<<<<<<< |=======$|>>>>>>> )' \
-            >"$docs_hits" 2>/dev/null || true
+    # blocked before it can be committed. -exec ... {} + is portable across
+    # GNU and BSD/macOS find/xargs environments.
+    find docs -type f -name '*.md' \
+        -exec grep -nHE '^(<<<<<<< |=======$|>>>>>>> )' {} + \
+        >"$docs_hits" 2>/dev/null || true
 }
 
 case "$scope" in
