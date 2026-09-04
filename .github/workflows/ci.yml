@@ -364,6 +364,10 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - name: Canonical architecture and test registration gate
         run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
@@ -417,6 +421,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
       - name: Architecture regression guard
         run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
