@@ -13,6 +13,7 @@
 #include "memory/vulkan_memory_manager.hpp"
 #include "debug/vulkan_debug_context.hpp"
 #include "vulkan_descriptor_authority.hpp"
+#include "vulkan_kernel_store.hpp"
 #include "vulkan_submission_authority.hpp"
 #include "vulkan_surface_authority.hpp"
 #include "vulkan_upload_authority.hpp"
@@ -130,41 +131,7 @@ struct VulkanBackend::Impl {
     std::uint64_t& next_timeline_value{submission_ring.next_timeline_value};
     std::uint64_t& pending_timeline_value{submission_ring.pending_timeline_value};
 
-    class VulkanKernelStore {
-    public:
-        GpuKernelRegistry registry{};
-        VkPipelineLayout general_layout{VK_NULL_HANDLE};
-        VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
-        VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
-
-        void destroy(VkDevice device) noexcept {
-            for (const auto id : {GpuKernelId::Composite, GpuKernelId::Transform,
-                                  GpuKernelId::AffineTransform, GpuKernelId::Blur,
-                                  GpuKernelId::ColorAdjust, GpuKernelId::Matte,
-                                  GpuKernelId::TextRun, GpuKernelId::FillRect,
-                                  GpuKernelId::LayerBatch, GpuKernelId::TextBatch,
-                                  GpuKernelId::TextTileBin, GpuKernelId::TextTileRaster}) {
-                const auto handle = registry.resolve(id);
-                if (handle != 0) {
-                    vkDestroyPipeline(device,
-                                      reinterpret_cast<VkPipeline>(handle), nullptr);
-                }
-            }
-            registry = {};
-            if (general_layout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, general_layout, nullptr);
-            }
-            if (text_tile_bin_layout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, text_tile_bin_layout, nullptr);
-            }
-            if (text_tile_raster_layout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, text_tile_raster_layout, nullptr);
-            }
-            general_layout = VK_NULL_HANDLE;
-            text_tile_bin_layout = VK_NULL_HANDLE;
-            text_tile_raster_layout = VK_NULL_HANDLE;
-        }
-    } kernels;
+    VulkanKernelStore kernels{};
 
     using VulkanUploadRing = VulkanUploadAuthority;
     VulkanUploadRing uploads{};
