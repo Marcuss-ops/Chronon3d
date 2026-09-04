@@ -51,11 +51,13 @@ TEST_CASE("rotates frame slots without changing one submission per frame") {
     CHECK(after.passes_executed >= before.passes_executed + 3);
 }
 
-TEST_CASE("reusing a frame slot waits for its fence") {
+TEST_CASE("wraparound reuses the first frame slot fence") {
     BackendFixture fixture;
     if (!fixture.backend) { WARN("No Vulkan device available"); return; }
 
     const auto before = fixture.backend->stats();
+    // SubmissionRing has depth 3. The fourth frame must wrap to slot 0 and
+    // retire/reuse that slot's fence before recording into it again.
     for (int frame = 0; frame < 4; ++frame) {
         fixture.backend->begin_frame_batch();
         CHECK(fixture.backend->fill_rect_surface(
@@ -66,7 +68,22 @@ TEST_CASE("reusing a frame slot waits for its fence") {
     }
     const auto after = fixture.backend->stats();
     CHECK(after.submissions == before.submissions + 4);
-    CHECK(after.frame_slot_wait_count >= before.frame_slot_wait_count);
+    CHECK(after.frame_slot_wait_count >= before.frame_slot_wait_count + 1);
+}
+
+TEST_CASE("empty command batch is abandoned without a submission") {
+    BackendFixture fixture;
+    if (!fixture.backend) { WARN("No Vulkan device available"); return; }
+
+    const auto before = fixture.backend->stats();
+    fixture.backend->begin_command_batch();
+    fixture.backend->end_command_batch();
+    const auto after = fixture.backend->stats();
+
+    CHECK(after.submissions == before.submissions);
+    CHECK(after.passes_executed == before.passes_executed);
+    CHECK_FALSE(after.command_batch_active);
+    CHECK_FALSE(after.command_batch_started);
 }
 
 TEST_CASE("one command batch submits once for multiple frames") {
