@@ -8,8 +8,7 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/exporters/pipe_timing_sidecar.cpp
     commands/video/exporters/pipe_export_finalize.cpp
     commands/video/common/pipe_export_session.cpp
-    ${CMAKE_SOURCE_DIR}/src/media/video/direct_yuv/direct_yuv_program.cpp
-    ${CMAKE_SOURCE_DIR}/src/media/video/direct_yuv/text_texture_cache.cpp
+    commands/video/common/pipe_export_direct_yuv.cpp
     commands/video/common/pipe_export_writer.cpp
     utils/video/video_sink_encoders.cpp
     utils/video/video_sink_adapter.cpp
@@ -50,7 +49,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/native_av_encoder_packets.cpp
     )
     target_link_libraries(chronon3d_cli_video_export PRIVATE
-        chronon3d_ffmpeg_full chronon3d_media_native
+        chronon3d_ffmpeg_full chronon3d_media_native chronon3d_media_direct_yuv
     )
     target_compile_definitions(chronon3d_cli_video_export PRIVATE
         CHRONON3D_ENABLE_NATIVE_FFMPEG

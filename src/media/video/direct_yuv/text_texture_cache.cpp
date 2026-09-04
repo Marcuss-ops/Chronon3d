@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <string_view>
 
-namespace chronon3d::cli {
+namespace chronon3d::media::video {
 namespace {
 
 std::string require_prepared_font(const std::string& requested) {
@@ -208,4 +208,4 @@ RasterizedTextTexture rasterize_text_texture(
 #endif
 }
 
-} // namespace chronon3d::cli
+} // namespace chronon3d::media::video
