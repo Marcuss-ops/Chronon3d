@@ -22,60 +22,42 @@ namespace chronon3d::graph {
 using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
 
 struct SceneBindingMetadata {
-    bool     active{false};
+    bool active{false};
     uint32_t layer_index{0};
     uint32_t item_index{0};
     uint16_t effect_begin{0};
     uint16_t effect_count{0};
-
     [[nodiscard]] bool has_binding() const { return active; }
 };
 
-enum class ExecutionOwner : std::uint8_t {
-    None,
-    Standalone,
-    Fused,
-};
-
+enum class ExecutionOwner : std::uint8_t { None, Standalone, Fused };
 enum class EliminationReason : std::uint8_t {
-    None,
-    StaticBake,
-    FusedIntoBatch,
-    DeadNode,
-    EarlyExit,
+    None, StaticBake, FusedIntoBatch, DeadNode, EarlyExit,
 };
 
 struct CompiledNodeInfo {
     GraphNodeId id{k_invalid_node};
-
     RenderGraphNodeKind kind{};
     std::string name;
     std::string layer_id;
-
     std::vector<GraphNodeId> inputs;
     std::vector<GraphNodeId> consumers;
-
     NodeCacheKey static_key{};
     RenderNodeCachePolicy cache_policy{};
-
     int shape_type{-1};
     std::vector<int> source_shape_types;
     std::string processor_id;
-
     renderer::ShapeProcessorHandle shape_processor{};
     std::uint32_t shape_processors_offset{0};
     std::uint32_t shape_processors_count{0};
     std::uint32_t effect_processors_offset{0};
     std::uint32_t effect_processors_count{0};
-
     SceneBindingMetadata binding_meta{};
-
     bool reachable{false};
     bool early_exit_skip{false};
     bool lowered_into_batch{false};
     ExecutionOwner execution_owner{ExecutionOwner::None};
     EliminationReason elimination_reason{EliminationReason::None};
-
     std::optional<raster::BBox> predicted_bbox;
     StableNodeId stable_node_id{kInvalidStableNodeId};
 };
@@ -86,10 +68,9 @@ using CompiledExecuteFn = bool (*)(RenderBackend* backend,
 
 inline constexpr std::uint32_t kInvalidPassTiming =
     std::numeric_limits<std::uint32_t>::max();
+inline constexpr std::uint32_t kInvalidOperationIndex =
+    std::numeric_limits<std::uint32_t>::max();
 
-/// One compiled pass owns exactly one pair of timestamp queries. Backends fill
-/// gpu_duration_ns after resolving the pair; frame GPU time is just the sum of
-/// resolved pass durations and requires no second timing model.
 struct PassTiming {
     std::uint32_t begin_query{0};
     std::uint32_t end_query{0};
@@ -100,12 +81,7 @@ struct PassTiming {
 struct PassQueryArena {
     std::vector<PassTiming> timings;
     std::uint32_t next_query{0};
-
-    void clear() noexcept {
-        timings.clear();
-        next_query = 0;
-    }
-
+    void clear() noexcept { timings.clear(); next_query = 0; }
     [[nodiscard]] std::uint32_t allocate() {
         const auto index = static_cast<std::uint32_t>(timings.size());
         const auto begin = next_query++;
@@ -113,20 +89,15 @@ struct PassQueryArena {
         timings.push_back(PassTiming{begin, end, 0, false});
         return index;
     }
-
     [[nodiscard]] PassTiming* timing(std::uint32_t index) noexcept {
         return index < timings.size() ? &timings[index] : nullptr;
     }
-
     [[nodiscard]] const PassTiming* timing(std::uint32_t index) const noexcept {
         return index < timings.size() ? &timings[index] : nullptr;
     }
-
     [[nodiscard]] std::uint64_t gpu_frame_time_ns() const noexcept {
         std::uint64_t total = 0;
-        for (const auto& timing : timings) {
-            if (timing.resolved) total += timing.gpu_duration_ns;
-        }
+        for (const auto& timing : timings) if (timing.resolved) total += timing.gpu_duration_ns;
         return total;
     }
 };
@@ -142,10 +113,7 @@ struct CompiledOperation {
     ::chronon3d::renderer::ProcessorCapabilities capabilities{};
     bool is_fused{false};
     CompiledExecuteFn compiled_execute{nullptr};
-
-    [[nodiscard]] bool has_compiled_execute() const noexcept {
-        return compiled_execute != nullptr;
-    }
+    [[nodiscard]] bool has_compiled_execute() const noexcept { return compiled_execute != nullptr; }
 };
 
 struct StaticSubgraphBakePass {
@@ -170,15 +138,14 @@ struct CompiledLayerBatch {
     GraphNodeId root_node{k_invalid_node};
     std::uint32_t output_physical_slot{kInvalidPhysicalAllocationId};
     bool is_gpu_fused{false};
-
-    [[nodiscard]] bool has_instances() const noexcept {
-        return !instances.empty();
-    }
+    [[nodiscard]] bool has_instances() const noexcept { return !instances.empty(); }
 };
 
 struct CompiledFrameProgram {
     std::vector<std::vector<GraphNodeId>> levels;
     std::vector<CompiledOperation> operations;
+    // Compiler-owned dense lookup. Node execution never scans operations.
+    std::vector<std::uint32_t> operation_index_by_node;
     std::vector<StaticSubgraphBakePass> static_bakes;
     std::vector<CompiledLayerBatch> layer_batches;
     PassQueryArena query_arena;
@@ -188,88 +155,70 @@ struct CompiledFrameProgram {
     bool require_native_gpu{false};
     std::vector<bool> interior_node_skip;
 
-    void allocate_pass_queries() {
-        query_arena.clear();
-        for (auto& operation : operations) {
-            operation.pass_timing = query_arena.allocate();
+    void rebuild_operation_index(std::size_t node_count) {
+        operation_index_by_node.assign(node_count, kInvalidOperationIndex);
+        for (std::uint32_t i = 0; i < operations.size(); ++i) {
+            const auto node = operations[i].node;
+            if (node >= node_count) {
+                throw std::runtime_error("CompiledFrameProgram operation node is out of range");
+            }
+            if (operation_index_by_node[node] != kInvalidOperationIndex) {
+                throw std::runtime_error("CompiledFrameProgram contains duplicate node operation");
+            }
+            operation_index_by_node[node] = i;
         }
     }
 
-    [[nodiscard]] std::uint64_t gpu_frame_time_ns() const noexcept {
-        return query_arena.gpu_frame_time_ns();
+    [[nodiscard]] const CompiledOperation* operation_for(GraphNodeId node) const noexcept {
+        if (node >= operation_index_by_node.size()) return nullptr;
+        const auto index = operation_index_by_node[node];
+        return index != kInvalidOperationIndex && index < operations.size()
+            ? &operations[index] : nullptr;
     }
 
-    [[nodiscard]] bool empty() const noexcept {
-        return operations.empty() || levels.empty();
+    void allocate_pass_queries() {
+        query_arena.clear();
+        for (auto& operation : operations) operation.pass_timing = query_arena.allocate();
     }
+    [[nodiscard]] std::uint64_t gpu_frame_time_ns() const noexcept { return query_arena.gpu_frame_time_ns(); }
+    [[nodiscard]] bool empty() const noexcept { return operations.empty() || levels.empty(); }
 };
 
-/// Immutable compiled graph plus its sole persisted resource authority.
 struct CompiledFrameGraph : CompiledResourceTable {
     RenderGraph graph;
     GraphNodeId output{k_invalid_node};
-
     std::uint64_t structure_hash{0};
-
     std::uint64_t registry_generation{0};
     std::uint64_t processor_snapshot_identity{0};
     std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot> processor_snapshot;
-
     std::vector<::chronon3d::renderer::ShapeProcessorHandle> shape_processor_table;
     std::vector<::chronon3d::renderer::EffectProcessorHandle> effect_processor_table;
-
     std::uint64_t authored_structure_fingerprint{0};
-
     std::vector<std::vector<GraphNodeId>> levels;
-
     std::vector<CompiledNodeInfo> nodes;
-
     CompiledFrameProgram program;
-
     std::optional<ExecutionDecision> execution_decision;
     std::optional<::chronon3d::media::RenderToMediaPlan> render_to_media;
-
     std::shared_ptr<const FrameParameterTable> prepared_parameters;
     std::vector<FrameParameterSlice> parameter_bindings;
 
-    [[nodiscard]] CompiledResourceTable& resource_table() noexcept {
-        return *this;
-    }
-
-    [[nodiscard]] const CompiledResourceTable& resource_table() const noexcept {
-        return *this;
-    }
-
-    void set_parameter_bindings(std::vector<FrameParameterSlice> bindings) {
-        parameter_bindings = std::move(bindings);
-    }
-
+    [[nodiscard]] CompiledResourceTable& resource_table() noexcept { return *this; }
+    [[nodiscard]] const CompiledResourceTable& resource_table() const noexcept { return *this; }
+    void set_parameter_bindings(std::vector<FrameParameterSlice> bindings) { parameter_bindings = std::move(bindings); }
     void apply_parameter_patches(const ParameterPatchSet& patches) {
-        if (!prepared_parameters) {
-            throw std::logic_error("CompiledFrameGraph has no prepared parameter table");
-        }
+        if (!prepared_parameters) throw std::logic_error("CompiledFrameGraph has no prepared parameter table");
         auto mutable_table = std::make_shared<FrameParameterTable>(*prepared_parameters);
-        for (const auto& patch : patches.patches) {
-            mutable_table->patch(patch.offset, patch.value);
-        }
+        for (const auto& patch : patches.patches) mutable_table->patch(patch.offset, patch.value);
         prepared_parameters = std::move(mutable_table);
     }
 
     std::vector<bool> early_exit_skip;
     bool skip_initial_clear{false};
-
     bool valid{false};
-
     GraphInstanceId graph_instance_id{kInvalidGraphInstanceId};
-
-    [[nodiscard]] bool empty() const {
-        return !valid || levels.empty() || output == k_invalid_node;
-    }
-
+    [[nodiscard]] bool empty() const { return !valid || levels.empty() || output == k_invalid_node; }
     [[nodiscard]] NodeIdentity node_identity(GraphNodeId id) const noexcept {
-        if (id >= nodes.size()) {
-            return NodeIdentity{};
-        }
+        if (id >= nodes.size()) return NodeIdentity{};
         return NodeIdentity{graph_instance_id, nodes[id].stable_node_id};
     }
 };
