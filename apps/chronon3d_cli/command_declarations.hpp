@@ -22,14 +22,14 @@ int command_benchmark_machine(const CliContext& ctx);
 int command_benchmark_saturation(const CompositionRegistry& registry, const CliContext& ctx,
                                   const std::string& scene, int duration_sec,
                                   const std::string& report_json = {},
-                                  int motion_blur_mode = 0,
+                                  MotionBlurMode motion_blur_mode = MotionBlurMode::Off,
                                   int motion_blur_samples = 8,
-                                  const std::string& backend = "auto");
+                                  graph::BackendPreference backend = graph::BackendPreference::Auto);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
                    const std::string& build_command = "",
                    const std::string& socket_path = "",
-                   const std::string& backend = "auto",
+                   graph::BackendPreference backend = graph::BackendPreference::Auto,
                    std::uint32_t gpu_device_id = Config::kAutoGpuDevice);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry, const DoctorOptions& options);
