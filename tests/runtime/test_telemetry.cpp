@@ -158,6 +158,7 @@ public:
 TEST_CASE("Telemetry: TelemetryManager and MockStore Orchestration") {
     auto mock = std::make_shared<MockTelemetryStore>();
     TelemetryManager manager;
+    manager.set_level(TelemetryLevel::Detailed);
     manager.add_store(mock);
 
     RenderTelemetryRecord run;
@@ -203,6 +204,7 @@ TEST_CASE("Telemetry: node accumulator collects and clears") {
 TEST_CASE("Telemetry: MockStore node and layer events") {
     auto mock = std::make_shared<MockTelemetryStore>();
     TelemetryManager manager;
+    manager.set_level(TelemetryLevel::Detailed);
     manager.add_store(mock);
 
     RenderTelemetryRecord run;
@@ -277,6 +279,7 @@ TEST_CASE("Telemetry: MockStore node and layer events") {
 TEST_CASE("Telemetry: image events are forwarded to the store") {
     auto mock = std::make_shared<MockTelemetryStore>();
     TelemetryManager manager;
+    manager.set_level(TelemetryLevel::Detailed);
     manager.add_store(mock);
 
     RenderTelemetryRecord run;
@@ -332,6 +335,112 @@ TEST_CASE("Telemetry: image sampling metrics survive run storage") {
     CHECK(mock->last_run.image_decode_wall_ms == doctest::Approx(1.25));
     CHECK(mock->last_run.image_sample_ms == doctest::Approx(3.5));
     CHECK(mock->last_run.image_sampled_pixels == 480000);
+}
+
+class TxTrackingStore final : public TelemetryStore {
+public:
+    bool fail_counters{false};
+    bool last_commit{true};
+    int begin_count{0};
+
+    bool initialize(const std::string&) override { return true; }
+    bool write_render_run(const RenderTelemetryRecord&) override { return true; }
+    bool write_frames(const std::string&, const std::vector<FrameTelemetry>&) override { return true; }
+    bool write_phases(const std::string&, const std::vector<PhaseTelemetryRecord>&) override { return true; }
+    bool write_counters(const std::string&, const std::vector<CounterTelemetryRecord>&) override {
+        return !fail_counters;
+    }
+    bool write_node_events(const std::string&, const std::vector<NodeTelemetryRecord>&) override { return true; }
+    bool write_layer_events(const std::string&, const std::vector<LayerTelemetryRecord>&) override { return true; }
+    bool write_cache_events(const std::string&, const std::vector<CacheTelemetryRecord>&) override { return true; }
+    bool write_culling_events(const std::string&, const std::vector<CullingTelemetryRecord>&) override { return true; }
+    bool write_image_events(const std::string&, const std::vector<ImageTelemetryRecord>&) override { return true; }
+    bool write_artifacts(const std::string&, const std::vector<RenderArtifactRecord>&) override { return true; }
+
+    void begin_transaction() override { ++begin_count; }
+    void end_transaction(bool commit) override { last_commit = commit; }
+};
+
+TEST_CASE("Telemetry: Summary level persists durable rows only (granular gated)") {
+    auto mock = std::make_shared<MockTelemetryStore>();
+    TelemetryManager manager;  // default level = Summary
+    manager.add_store(mock);
+
+    TelemetryRunSnapshot snapshot;
+    snapshot.run.run_id = "summary-run";
+    snapshot.run.success = true;
+    snapshot.frames.push_back({.frame_number = 0, .duration_ms = 16.6, .cache_hit = true, .dirty_area_ratio = 1.0});
+    snapshot.phases.push_back({"render", 10.0});
+    snapshot.counters.push_back({"cache_hits", 100});
+    snapshot.node_events.push_back({.node_name = "n", .duration_ms = 1.0});
+    snapshot.layer_events.push_back({.layer_id = "l"});
+    snapshot.image_events.push_back({.image_path = "i.png"});
+
+    REQUIRE(manager.record_run(snapshot));
+    CHECK(mock->run_written);
+    CHECK(mock->phases_written);
+    CHECK(mock->counters_written);
+    // Granular per-frame/per-event tables must NOT be written at Summary.
+    CHECK_FALSE(mock->frames_written);
+    CHECK_FALSE(mock->node_events_written);
+    CHECK_FALSE(mock->layer_events_written);
+    CHECK_FALSE(mock->image_events_written);
+
+    // Same snapshot content at Detailed reaches the granular tables.
+    auto detailed_mock = std::make_shared<MockTelemetryStore>();
+    TelemetryManager detailed_manager;
+    detailed_manager.set_level(TelemetryLevel::Detailed);
+    detailed_manager.add_store(detailed_mock);
+    REQUIRE(detailed_manager.record_run(snapshot));
+    CHECK(detailed_mock->frames_written);
+    CHECK(detailed_mock->node_events_written);
+    CHECK(detailed_mock->layer_events_written);
+    CHECK(detailed_mock->image_events_written);
+}
+
+TEST_CASE("Telemetry: failed write rolls back the transaction (end_transaction(false))") {
+    auto store = std::make_shared<TxTrackingStore>();
+    TelemetryManager manager;
+    manager.set_level(TelemetryLevel::Detailed);
+    manager.add_store(store);
+
+    TelemetryRunSnapshot snapshot;
+    snapshot.run.run_id = "tx-run";
+    snapshot.run.success = true;
+    snapshot.counters.push_back({"cache_hits", 1});
+    snapshot.frames.push_back({.frame_number = 0, .duration_ms = 16.6, .cache_hit = true, .dirty_area_ratio = 0.5});
+
+    // Success path: commit is requested.
+    REQUIRE(manager.record_run(snapshot));
+    CHECK(store->begin_count == 1);
+    CHECK(store->last_commit);
+
+    // Failure path: counters write fails mid-transaction → rollback requested.
+    store->fail_counters = true;
+    store->last_commit = true;
+    TelemetryRunSnapshot failing;
+    failing.run.run_id = "tx-run-fail";
+    failing.run.success = false;
+    failing.counters.push_back({"cache_hits", 1});
+    CHECK_FALSE(manager.record_run(failing));
+    CHECK(store->begin_count == 2);
+    CHECK_FALSE(store->last_commit);
+}
+
+TEST_CASE("Telemetry: Off level records nothing") {
+    auto store = std::make_shared<TxTrackingStore>();
+    TelemetryManager manager;
+    manager.set_level(TelemetryLevel::Off);
+    manager.add_store(store);
+
+    TelemetryRunSnapshot snapshot;
+    snapshot.run.run_id = "off-run";
+    snapshot.run.success = true;
+    snapshot.counters.push_back({"cache_hits", 1});
+
+    CHECK(manager.record_run(snapshot));
+    CHECK(store->begin_count == 0);
+    CHECK(store->last_commit);  // untouched: no transaction was opened
 }
 
 // ── NullTelemetryStore tests (telemetry OFF path) ────────────────────────
@@ -624,6 +733,108 @@ TEST_CASE("TelemetryRunSnapshot: record_run(snapshot) writes summaries inside on
     CHECK(sqlite3_column_double(stmt, 1) == doctest::Approx(3.5));
     CHECK(sqlite3_column_int64(stmt, 2) == 8);
     CHECK(sqlite3_column_int64(stmt, 3) == 8192);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    std::filesystem::remove(db_path);
+}
+
+TEST_CASE("SQLite telemetry: retention janitor purges Detailed rows of old runs only") {
+    const auto db_path = unique_telemetry_db("retention");
+    std::filesystem::remove(db_path);
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+
+        RenderTelemetryRecord old_run;
+        old_run.run_id = "old-run";
+        old_run.success = true;
+        old_run.finished_at_iso = "2020-01-01T00:00:00Z";
+        REQUIRE(store.write_render_run(old_run));
+
+        RenderTelemetryRecord fresh_run;
+        fresh_run.run_id = "fresh-run";
+        fresh_run.success = true;
+        fresh_run.finished_at_iso = TelemetryManager::get_current_iso_time();
+        REQUIRE(store.write_render_run(fresh_run));
+
+        const std::vector<FrameTelemetry> frames = {
+            {.frame_number = 0, .duration_ms = 16.6, .cache_hit = true, .dirty_area_ratio = 1.0}};
+        REQUIRE(store.write_frames("old-run", frames));
+        REQUIRE(store.write_frames("fresh-run", frames));
+        const std::vector<NodeTelemetryRecord> node_events = {
+            {.node_name = "old-node", .duration_ms = 1.0}};
+        REQUIRE(store.write_node_events("old-run", node_events));
+
+        // Janitor: 30-day window keeps the fresh run, drops the 2020 run's
+        // granular rows, and never touches render_runs itself.
+        store.apply_retention(30);
+    }
+
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.string().c_str(), &db) == SQLITE_OK);
+
+    auto scalar_int = [db](const char* sql) {
+        sqlite3_stmt* stmt = nullptr;
+        REQUIRE(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK);
+        REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+        const int value = sqlite3_column_int(stmt, 0);
+        sqlite3_finalize(stmt);
+        return value;
+    };
+
+    CHECK(scalar_int(
+        "SELECT COUNT(*) FROM render_frames WHERE run_id = 'old-run';") == 0);
+    CHECK(scalar_int(
+        "SELECT COUNT(*) FROM render_frames WHERE run_id = 'fresh-run';") == 1);
+    CHECK(scalar_int(
+        "SELECT COUNT(*) FROM render_node_events WHERE run_id = 'old-run';") == 0);
+    // Durable Summary rows are never purged.
+    CHECK(scalar_int("SELECT COUNT(*) FROM render_runs;") == 2);
+
+    sqlite3_close(db);
+    std::filesystem::remove(db_path);
+}
+
+TEST_CASE("SQLite telemetry: legacy v0 DB is column-topped-up and preserved") {
+    const auto db_path = unique_telemetry_db("legacy-v0");
+    std::filesystem::remove(db_path);
+
+    // Create a pre-versioning database: minimal render_runs + one row.
+    {
+        sqlite3* raw = nullptr;
+        REQUIRE(sqlite3_open(db_path.string().c_str(), &raw) == SQLITE_OK);
+        REQUIRE(sqlite3_exec(raw,
+            "CREATE TABLE render_runs (run_id TEXT PRIMARY KEY, composition_id TEXT, success INTEGER);",
+            nullptr, nullptr, nullptr) == SQLITE_OK);
+        REQUIRE(sqlite3_exec(raw,
+            "INSERT INTO render_runs (run_id, composition_id, success) VALUES ('legacy-1', 'legacy-comp', 1);",
+            nullptr, nullptr, nullptr) == SQLITE_OK);
+        REQUIRE(sqlite3_close(raw) == SQLITE_OK);
+    }
+
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+        RenderTelemetryRecord run;
+        run.run_id = "legacy-1";
+        run.composition_id = "legacy-comp";
+        run.success = true;
+        run.frames_total = 3;
+        REQUIRE(store.write_render_run(run));
+    }
+
+    CHECK(query_user_version(db_path) >= 1);
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.string().c_str(), &db) == SQLITE_OK);
+    sqlite3_stmt* stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(db,
+        "SELECT COUNT(*), composition_id, frames_total FROM render_runs WHERE run_id = 'legacy-1';",
+        -1, &stmt, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+    CHECK(sqlite3_column_int(stmt, 0) == 1);
+    CHECK(std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1))) ==
+          "legacy-comp");
+    CHECK(sqlite3_column_int(stmt, 2) == 3);
     sqlite3_finalize(stmt);
     sqlite3_close(db);
     std::filesystem::remove(db_path);

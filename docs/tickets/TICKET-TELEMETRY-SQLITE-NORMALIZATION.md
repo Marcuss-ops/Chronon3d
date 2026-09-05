@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS render_counters (
 - [x] **Stage 2 — TelemetryRunSnapshot**: Creazione del Value Object immutabile `TelemetryRunSnapshot` in `include/chronon3d/runtime/telemetry/telemetry_run_snapshot.hpp` e overload in `TelemetryManager::record_run(const TelemetryRunSnapshot&)`.
 - [x] **Stage 3 — Memory Persistence**: Aggiunta delle tabelle SQL `render_node_summary` e `render_memory_summary`, con binding preparati in `sqlite_telemetry_store_events.cpp` e supporto in `TelemetryStore`.
 - [ ] **Stage 4 — Run Schema Normalization**: Deprecazione delle 131 colonne di `render_runs` a favore di `render_counters` e summary mirati.
-- [ ] **Stage 5 — Telemetry Levels**: Implementazione dell'enum `TelemetryLevel` e filtraggio del salvataggio degli eventi granulari in `Summary` mode.
+- [x] **Stage 5 — Telemetry Levels**: Implementazione dell'enum `TelemetryLevel` (`telemetry_level.hpp`) e filtraggio del salvataggio degli eventi granulari in `Summary` mode; retention janitor (TTL) applicato solo alle tabelle Detailed/Trace (`SqliteTelemetryStore::apply_retention`), Summary mai ruotata.
 - [x] **Stage 6 — Profiler Consolidation & Demolition Debt**: Consumer census di `RenderProfiler` eseguito (0 chiamanti attivi); `RenderProfiler` (`graph_profiler.hpp`, `graph_profiler.cpp` e membro in `RenderGraphContext`) rimosso definitivamente dal core.
 - [ ] **Stage 7 — Hardware & Workload Fingerprinting**: Riconoscimento hardware dettagliato (CPU/GPU/Driver) e calcolo degli hash canonici per cost model e regression testing.
 
