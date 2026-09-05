@@ -137,13 +137,8 @@ Rgb8 pixel_at(const c3d::sdk::RenderOutput& output, int x, int y) {
     const std::size_t offset = static_cast<std::size_t>(y) * stride
         + static_cast<std::size_t>(x) * 4u;
 
-    if (output.format == c3d::sdk::PixelFormat::Bgra8) {
-        return Rgb8{
-            output.pixels[offset + 2],
-            output.pixels[offset + 1],
-            output.pixels[offset + 0],
-        };
-    }
+    // SDK only reports canonical RGBA8 (Bgra8 spelling retired with the
+    // duplicate sdk enum); no byte-swap branch needed.
     return Rgb8{
         output.pixels[offset + 0],
         output.pixels[offset + 1],

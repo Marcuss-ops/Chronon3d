@@ -146,8 +146,7 @@ int main(int argc, char* argv[]) {
                      "[BOUNDARY-FAIL] render returned empty output\n");
         return 1;
     }
-    if (out.format != c3d::sdk::PixelFormat::Rgba8
-        && out.format != c3d::sdk::PixelFormat::Bgra8) {
+    if (out.format != c3d::sdk::PixelFormat::RGBA8) {
         std::fprintf(stderr,
                      "[BOUNDARY-FAIL] unsupported PixelFormat enum=%d\n",
                      static_cast<int>(out.format));
@@ -157,7 +156,8 @@ int main(int argc, char* argv[]) {
     // ── 6. Bridge: RenderOutput → Framebuffer ────────────────────────
     c3d::Framebuffer fb{out.width, out.height};
     const std::uint8_t* src = out.pixels;
-    const bool is_bgra = (out.format == c3d::sdk::PixelFormat::Bgra8);
+    // SDK only reports canonical RGBA8 (Bgra8 spelling retired).
+    const bool is_bgra = false;
     const std::size_t row_stride =
         (out.bytes_per_row > 0)
             ? static_cast<std::size_t>(out.bytes_per_row)
