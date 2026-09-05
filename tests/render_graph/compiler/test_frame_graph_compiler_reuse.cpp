@@ -199,9 +199,19 @@ TEST_CASE("FrameGraphCompiler - CompiledResourcePlan computes deterministic rele
     //   A (Producer 0) ───┐
     //                     ├──> C (Composite, sole consumer of A & B) ──> D (Output)
     //   B (Producer 1) ───┘
+    //
+    // Ownership transfer is a frame-transient concept: a single-consumer
+    // producer hands its storage to the consumer for in-place reuse.  It is
+    // deliberately NOT compiled for persistent (cross-frame cached) producers
+    // — handing a cached framebuffer to a consumer would let the consumer
+    // scribble over the cache entry.  A and B therefore use an explicit
+    // transient (`no_cache`) policy; C keeps the fixture default
+    // (static/persistent) so the exclusion is pinned below.
     RenderGraph graph;
-    GraphNodeId a = graph.add_node(std::make_unique<CompilerTestNode>("A"));
-    GraphNodeId b = graph.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId a = graph.add_node(std::make_unique<CompilerTestNode>(
+        "A", no_cache("transient-producer-a")));
+    GraphNodeId b = graph.add_node(std::make_unique<CompilerTestNode>(
+        "B", no_cache("transient-producer-b")));
     GraphNodeId c = graph.add_node(std::make_unique<CompilerTestNode>("C"));
     GraphNodeId d = graph.add_node(std::make_unique<CompilerTestNode>("D"));
     graph.connect(a, c);
@@ -215,16 +225,25 @@ TEST_CASE("FrameGraphCompiler - CompiledResourcePlan computes deterministic rele
     const auto& table = compiled.resource_table();
     const auto* a_plan = table.resource_for(a);
     const auto* b_plan = table.resource_for(b);
+    const auto* c_plan = table.resource_for(c);
     REQUIRE(a_plan != nullptr);
     REQUIRE(b_plan != nullptr);
+    REQUIRE(c_plan != nullptr);
+    CHECK_FALSE(a_plan->persistent);
+    CHECK_FALSE(b_plan->persistent);
+    CHECK(c_plan->persistent);  // static_memory_cache fixture default
     CHECK(a_plan->release_scheduled);
     CHECK(b_plan->release_scheduled);
     CHECK(a_plan->release_after_level == a_plan->last_level);
     CHECK(b_plan->release_after_level == b_plan->last_level);
+    // Transient single-consumer producers hand ownership to their sole consumer.
     REQUIRE(a_plan->ownership_transfer_consumer().has_value());
     REQUIRE(b_plan->ownership_transfer_consumer().has_value());
     CHECK(*a_plan->ownership_transfer_consumer() == c);
     CHECK(*b_plan->ownership_transfer_consumer() == c);
+    // Persistent producers never transfer ownership, even when single-consumer:
+    // their framebuffer is cache-resident and must not be reused in place.
+    CHECK_FALSE(c_plan->ownership_transfer_consumer().has_value());
 
     // Verify CompiledFrameProgram remains derived from the same resource plans.
     REQUIRE_FALSE(compiled.program.empty());
