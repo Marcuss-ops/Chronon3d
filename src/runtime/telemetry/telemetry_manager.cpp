@@ -14,6 +14,9 @@
 #include <fstream>
 #include <utility>
 #include <sys/resource.h>
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#endif
 
 namespace chronon3d::telemetry {
 
@@ -297,7 +300,34 @@ std::string TelemetryManager::get_os_name() {
 }
 
 std::string TelemetryManager::get_cpu_model() {
+#if defined(__linux__)
+    // First "model name" line of /proc/cpuinfo, e.g.
+    // "model name\t: Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz".
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::string line;
+    while (std::getline(cpuinfo, line)) {
+        if (line.rfind("model name", 0) == 0) {
+            const auto colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string model = line.substr(colon + 1);
+                while (!model.empty() && (model.front() == ' ' || model.front() == '\t')) {
+                    model.erase(model.begin());
+                }
+                return model.empty() ? "Generic CPU" : model;
+            }
+        }
+    }
     return "Generic CPU";
+#elif defined(__APPLE__)
+    char brand[256] = {0};
+    size_t len = sizeof(brand);
+    if (sysctlbyname("machdep.cpu.brand_string", brand, &len, nullptr, 0) == 0 && brand[0] != '\0') {
+        return brand;
+    }
+    return "Generic CPU";
+#else
+    return "Generic CPU";
+#endif
 }
 
 int TelemetryManager::get_logical_cores() {
