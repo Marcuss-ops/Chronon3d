@@ -23,6 +23,10 @@ public:
     bool write_culling_events(const std::string& run_id, const std::vector<CullingTelemetryRecord>& events) override;
     bool write_image_events(const std::string& run_id, const std::vector<ImageTelemetryRecord>& events) override;
     bool write_artifacts(const std::string& run_id, const std::vector<RenderArtifactRecord>& artifacts) override;
+    bool write_node_summaries(const std::string& run_id,
+                              const std::vector<NodeSummaryTelemetryRecord>& summaries) override;
+    bool write_memory_summary(const std::string& run_id,
+                              const MemorySummaryTelemetryRecord& summary) override;
 
 private:
     struct Impl;

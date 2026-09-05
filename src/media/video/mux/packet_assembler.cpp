@@ -457,10 +457,12 @@ bool MuxSession::write_header(const std::string& output_path,
         format_->pb->seekable = writer_->sink->seekable;
         format_->flags |= AVFMT_FLAG_CUSTOM_IO;
     }
-    AVDictionary* opts = nullptr;
-    av_dict_set(&opts, "movflags", "+faststart", 0);
-    const int ret = avformat_write_header(format_, &opts);
-    av_dict_free(&opts);
+    // Do not enable movflags +faststart on the checksum-aware custom AVIO.
+    // MP4 faststart performs a second seek/rewrite pass over the output; that
+    // path is incompatible with the append-oriented hash writer and was
+    // producing malformed stco/stsz/mdat tables.  A caller that needs web
+    // faststart can remux the validated artifact afterwards with stock AVIO.
+    const int ret = avformat_write_header(format_, nullptr);
     if (ret < 0) {
         reason = "failed to write mux header";
         return false;

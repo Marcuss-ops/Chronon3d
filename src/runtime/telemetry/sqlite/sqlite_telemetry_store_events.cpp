@@ -291,4 +291,84 @@ bool SqliteTelemetryStore::write_artifacts(const std::string& run_id, const std:
     return true;
 }
 
+// Stage 3 — end-of-run memory persistence projections.
+bool SqliteTelemetryStore::write_node_summaries(const std::string& run_id,
+                                                const std::vector<NodeSummaryTelemetryRecord>& summaries) {
+    std::scoped_lock lock(m_impl->mutex);
+    if (!m_impl->db) return false;
+
+    const char* sql = "INSERT OR REPLACE INTO render_node_summary "
+        "(run_id, node_id, node_type, layer_id, "
+        "calls, total_ms, min_ms, max_ms, avg_ms, "
+        "cache_hits, cache_misses, "
+        "pixels_read, pixels_written, bytes_read, bytes_written, "
+        "allocations, allocated_bytes, temporary_buffers, peak_live_bytes, "
+        "framebuffer_copies, framebuffer_clears, output_bytes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+    SqliteStatement stmt(m_impl->db, sql);
+    if (!stmt) {
+        return false;
+    }
+
+    for (const auto& s : summaries) {
+        if (!stmt.reset() || !bind_all(stmt,
+                run_id,
+                s.node_id,
+                s.node_type,
+                s.layer_id,
+                s.calls,
+                s.total_ms,
+                s.min_ms,
+                s.max_ms,
+                s.avg_ms,
+                s.cache_hits,
+                s.cache_misses,
+                s.pixels_read,
+                s.pixels_written,
+                s.bytes_read,
+                s.bytes_written,
+                s.allocations,
+                s.allocated_bytes,
+                s.temporary_buffers,
+                s.peak_live_bytes,
+                s.framebuffer_copies,
+                s.framebuffer_clears,
+                s.output_bytes) || !stmt.step_done()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool SqliteTelemetryStore::write_memory_summary(const std::string& run_id,
+                                                const MemorySummaryTelemetryRecord& summary) {
+    std::scoped_lock lock(m_impl->mutex);
+    if (!m_impl->db) return false;
+
+    const char* sql = "INSERT OR REPLACE INTO render_memory_summary "
+        "(run_id, peak_rss_bytes, current_live_bytes, peak_live_bytes, "
+        "framebuffer_current_bytes, framebuffer_retained_bytes, "
+        "framebuffer_peak_retained_bytes, framebuffer_allocations, "
+        "framebuffer_reuses, framebuffer_returns, framebuffer_evicted_bytes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+    SqliteStatement stmt(m_impl->db, sql);
+    if (!stmt) {
+        return false;
+    }
+
+    return bind_all(stmt,
+        run_id,
+        summary.peak_rss_bytes,
+        summary.current_live_bytes,
+        summary.peak_live_bytes,
+        summary.framebuffer_current_bytes,
+        summary.framebuffer_retained_bytes,
+        summary.framebuffer_peak_retained_bytes,
+        summary.framebuffer_allocations,
+        summary.framebuffer_reuses,
+        summary.framebuffer_returns,
+        summary.framebuffer_evicted_bytes) && stmt.step_done();
+}
+
 } // namespace chronon3d::telemetry
