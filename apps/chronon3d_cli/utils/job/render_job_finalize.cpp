@@ -16,8 +16,6 @@
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
-#include <fstream>
-#include <sstream>
 
 namespace chronon3d::cli {
 
@@ -33,102 +31,6 @@ std::string resolve_output_path_for_telemetry(const std::string& output) {
         resolved = std::filesystem::absolute(resolved);
     }
     return resolved.lexically_normal().string();
-}
-
-std::filesystem::path resolve_jsonl_path(const RuntimePathConfig& runtime_paths) {
-    if (!runtime_paths.telemetry_path().empty()) {
-        std::filesystem::path base(runtime_paths.telemetry_path());
-        if (base.extension() == ".db" || base.extension() == ".sqlite") {
-            return base.parent_path() / "render_history.jsonl";
-        }
-        return base / "render_history.jsonl";
-    }
-
-    if (runtime_paths.telemetry_default_directory().empty()) {
-        return {};
-    }
-    return std::filesystem::path(runtime_paths.telemetry_default_directory()) /
-        "render_history.jsonl";
-}
-
-void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run,
-                        const RuntimePathConfig& runtime_paths) {
-    const std::filesystem::path jsonl_path = resolve_jsonl_path(runtime_paths);
-    if (jsonl_path.empty()) {
-        return;
-    }
-
-    std::error_code ec;
-    std::filesystem::create_directories(jsonl_path.parent_path(), ec);
-
-    auto json_escape = [](const std::string& s) -> std::string {
-        std::string out;
-        out.reserve(s.size() + 8);
-        for (char c : s) {
-            switch (c) {
-            case '"':  out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n";  break;
-            case '\r': out += "\\r";  break;
-            case '\t': out += "\\t";  break;
-            default:   out += c;       break;
-            }
-        }
-        return out;
-    };
-
-    std::ostringstream js;
-    js << "{";
-    js << "\"type\":\"run\"";
-    js << ",\"run_id\":\"" << json_escape(run.run_id) << "\"";
-    js << ",\"composition_id\":\"" << json_escape(run.composition_id) << "\"";
-    js << ",\"output_path\":\"" << json_escape(run.output_path) << "\"";
-    js << ",\"success\":" << (run.success ? "1" : "0");
-    js << ",\"frames_total\":" << run.frames_total;
-    js << ",\"frames_written\":" << run.frames_written;
-    js << ",\"wall_time_ms\":" << run.wall_time_ms;
-    js << ",\"render_ms\":" << run.render_ms;
-    js << ",\"encode_ms\":" << run.encode_ms;
-    js << ",\"effective_fps\":" << run.effective_fps;
-    js << ",\"started_at_iso\":\"" << json_escape(run.started_at_iso) << "\"";
-    js << ",\"finished_at_iso\":\"" << json_escape(run.finished_at_iso) << "\"";
-    js << ",\"git_commit_short\":\"" << json_escape(run.git_commit_short) << "\"";
-    js << ",\"build_type\":\"" << json_escape(run.build_type) << "\"";
-    js << ",\"os\":\"" << json_escape(run.os) << "\"";
-    js << ",\"cpu_model\":\"" << json_escape(run.cpu_model) << "\"";
-    js << ",\"cores\":" << run.cores;
-    js << ",\"cache_hits\":" << run.cache_hits;
-    js << ",\"cache_misses\":" << run.cache_misses;
-    js << ",\"pixels_touched\":" << run.pixels_touched;
-    js << ",\"dirty_pixels\":" << run.dirty_pixels;
-    js << ",\"framebuffer_allocations\":" << run.framebuffer_allocations;
-    js << ",\"framebuffer_reuses\":" << run.framebuffer_reuses;
-    js << ",\"framebuffer_bytes_allocated\":" << run.framebuffer_bytes_allocated;
-    js << ",\"framebuffer_bytes_peak\":" << run.framebuffer_bytes_peak;
-    js << ",\"bytes_allocated_peak\":" << run.bytes_allocated_peak;
-    js << ",\"logical_resource_count\":" << run.logical_resource_count;
-    js << ",\"physical_resource_slot_count\":" << run.physical_resource_slot_count;
-    js << ",\"logical_resource_bytes\":" << run.logical_resource_bytes;
-    js << ",\"physical_resource_bytes\":" << run.physical_resource_bytes;
-    js << ",\"alias_saved_bytes\":" << run.alias_saved_bytes;
-    js << ",\"alias_reuse_count\":" << run.alias_reuse_count;
-    js << ",\"new_resource_slot_count\":" << run.new_resource_slot_count;
-    js << ",\"arena_peak_bytes\":" << run.arena_peak_bytes;
-    js << ",\"process_startup_ms\":" << run.process_startup_ms;
-    js << ",\"framebuffer_allocations_per_frame\":" << run.framebuffer_allocations_per_frame;
-    js << ",\"ffprobe_wall_ms\":" << run.ffprobe_wall_ms;
-    js << ",\"sha256_wall_ms\":" << run.sha256_wall_ms;
-    js << ",\"compiler_info\":\"" << json_escape(run.compiler_info) << "\"";
-    js << "}\n";
-
-    std::ofstream out(jsonl_path, std::ios::app);
-    if (out.is_open()) {
-        out << js.str();
-        out.close();
-        spdlog::info("[report] Telemetry run written to JSONL: {}", run.run_id);
-    } else {
-        spdlog::warn("[report] Failed to open JSONL for append: {}", jsonl_path.string());
-    }
 }
 
 void release_transient_resources(RenderJobSetupResult& setup) {
@@ -153,7 +55,13 @@ bool finalize_render_job(
     profiling::Clock::time_point loop_t0,
     profiling::Clock::time_point loop_t1)
 {
-    spdlog::info("Render complete.");
+    // Never announce success before the outcome is known: a failed job must
+    // not log "Render complete." (the caller reports the concrete error).
+    if (ok) {
+        spdlog::info("Render complete.");
+    } else {
+        spdlog::warn("Render job finished with errors.");
+    }
 
     if (!job.execution.report) {
         spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot(
@@ -277,7 +185,6 @@ bool finalize_render_job(
 #endif
 
     cli::telemetry::populate_run_host_attribs(run);
-    write_run_to_jsonl(run, setup.renderer->runtime().config().runtime());
 
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     auto& tm = chronon3d::telemetry::TelemetryManager::instance();

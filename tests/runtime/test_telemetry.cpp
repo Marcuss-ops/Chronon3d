@@ -169,7 +169,13 @@ TEST_CASE("Telemetry: TelemetryManager and MockStore Orchestration") {
     std::vector<PhaseTelemetryRecord> phases = {{"render", 10.0}};
     std::vector<CounterTelemetryRecord> counters = {{"cache_hits", 100}};
 
-    bool ok = manager.record_run(run, frames, phases, counters);
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    snapshot.frames = frames;
+    snapshot.phases = phases;
+    snapshot.counters = counters;
+    bool ok = manager.record_run(snapshot);
+    run = snapshot.run;  // legacy back-fill of manager-filled defaults
     CHECK(ok);
     CHECK(mock->run_written);
     CHECK(mock->frames_written);
@@ -245,7 +251,12 @@ TEST_CASE("Telemetry: MockStore node and layer events") {
         .visible_pixels = 2073600,
     });
 
-    bool ok = manager.record_run(run, {}, {}, {}, node_events, layer_events);
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    snapshot.node_events = node_events;
+    snapshot.layer_events = layer_events;
+    bool ok = manager.record_run(snapshot);
+    run = snapshot.run;  // legacy back-fill of manager-filled defaults
     CHECK(ok);
     CHECK(mock->run_written);
     CHECK(mock->node_events_written);
@@ -286,7 +297,11 @@ TEST_CASE("Telemetry: image events are forwarded to the store") {
         .sampled_pixels = 480000,
     });
 
-    bool ok = manager.record_run(run, {}, {}, {}, {}, {}, {}, {}, image_events);
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    snapshot.image_events = image_events;
+    bool ok = manager.record_run(snapshot);
+    run = snapshot.run;  // legacy back-fill of manager-filled defaults
     CHECK(ok);
     CHECK(mock->run_written);
     CHECK(mock->image_events_written);
@@ -307,7 +322,10 @@ TEST_CASE("Telemetry: image sampling metrics survive run storage") {
     run.image_sample_ms = 3.5;
     run.image_sampled_pixels = 480000;
 
-    bool ok = manager.record_run(run);
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    bool ok = manager.record_run(snapshot);
+    run = snapshot.run;  // legacy back-fill of manager-filled defaults
     CHECK(ok);
     CHECK(mock->run_written);
     CHECK(mock->last_run.composition_id == "test_image_metrics");
@@ -375,7 +393,13 @@ TEST_CASE("NullTelemetryStore: TelemetryManager with null store does not fail") 
     std::vector<PhaseTelemetryRecord> phases = {{"setup", 5.0}};
     std::vector<CounterTelemetryRecord> counters = {{"cache_hits", 1}};
 
-    bool ok = manager.record_run(run, frames, phases, counters);
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    snapshot.frames = frames;
+    snapshot.phases = phases;
+    snapshot.counters = counters;
+    bool ok = manager.record_run(snapshot);
+    run = snapshot.run;  // legacy back-fill of manager-filled defaults
     CHECK(ok);
     // run_id should be auto-generated
     CHECK(!run.run_id.empty());
@@ -393,7 +417,10 @@ TEST_CASE("NullTelemetryStore: TelemetryManager record_run with empty stores suc
     run.success = false;
 
     // record_run should succeed even with zero stores registered
-    bool ok = manager.record_run(run);
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    bool ok = manager.record_run(snapshot);
+    run = snapshot.run;  // legacy back-fill of manager-filled defaults
     CHECK(ok);
 }
 

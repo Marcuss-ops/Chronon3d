@@ -5,8 +5,8 @@
 
 // TelemetryManager::get_os_name()/get_cpu_model()/etc. are static helpers
 // available unconditionally (both SqliteTelemetryStore and NullTelemetryStore
-// builds expose them) and are needed for the JSONL fallback path which runs
-// regardless of CHRONON3D_ENABLE_SQLITE_TELEMETRY.  Keep the include
+// builds expose them) and are needed by `populate_run_host_attribs()` which
+// runs regardless of CHRONON3D_ENABLE_SQLITE_TELEMETRY.  Keep the include
 // unconditional.  `record_output_run()` below additionally requires the
 // SQLite build; its block is still gated by the same #ifdef.
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
@@ -313,11 +313,18 @@ inline void record_output_run(const std::string& composition_id,
             run.framebuffer_pool_size_class_count = counter.counter_value;
     }
 
-    chronon3d::telemetry::TelemetryManager::instance().record_run(
-        run, frames, phases, resolved_counters, node_events,
-        layer_events, cache_events, culling_events,
-        image_events, artifacts
-    );
+    chronon3d::telemetry::TelemetryRunSnapshot snapshot;
+    snapshot.run = run;
+    snapshot.frames = frames;
+    snapshot.phases = phases;
+    snapshot.counters = resolved_counters;
+    snapshot.node_events = node_events;
+    snapshot.layer_events = layer_events;
+    snapshot.cache_events = cache_events;
+    snapshot.culling_events = culling_events;
+    snapshot.image_events = image_events;
+    snapshot.artifacts = artifacts;
+    chronon3d::telemetry::TelemetryManager::instance().record_run(snapshot);
 }
 
 /// Convenience overload with fewer parameters (backward-compatible).
