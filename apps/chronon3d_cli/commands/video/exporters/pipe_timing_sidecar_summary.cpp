@@ -157,6 +157,17 @@ void build_summary_and_job_sections(
     } else {
         enc_settings["async_depth"] = nullptr;
     }
+    if (timings.encoder_settings.requested_rate_control) {
+        enc_settings["requested_rate_control"] =
+            *timings.encoder_settings.requested_rate_control;
+    } else {
+        enc_settings["requested_rate_control"] = nullptr;
+    }
+    if (timings.encoder_settings.requested_preset) {
+        enc_settings["requested_preset"] = *timings.encoder_settings.requested_preset;
+    } else {
+        enc_settings["requested_preset"] = nullptr;
+    }
 
     auto& gpu = job["gpu"];
     const auto put_gpu = [&gpu](const char* key, const std::optional<double>& value) {

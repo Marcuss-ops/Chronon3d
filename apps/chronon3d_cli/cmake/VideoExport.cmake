@@ -23,6 +23,7 @@ add_library(chronon3d_cli_video_export STATIC
     utils/video/video_sink_adapter_config.cpp
     utils/video/video_sink_adapter_lifecycle.cpp
     utils/video/video_sink_adapter_submit.cpp
+    utils/video/encoder_config_resolution.cpp
     utils/video/gop_smart_copy.cpp
 )
 if(NOT CHRONON3D_ENABLE_NATIVE_FFMPEG)

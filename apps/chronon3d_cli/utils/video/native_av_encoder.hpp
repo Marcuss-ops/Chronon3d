@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ffmpeg_pipe_encoder.hpp"
+#include "encoder_config_resolution.hpp"
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include "cuda_context_guard.hpp"
@@ -9,6 +10,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -111,6 +113,8 @@ public:
     [[nodiscard]] std::string applied_encoder_preset() const override { return applied_encoder_preset_; }
     [[nodiscard]] std::string applied_encoder_rate_control() const override { return applied_encoder_rate_control_; }
     [[nodiscard]] int applied_encoder_async_depth() const override { return applied_encoder_async_depth_; }
+    [[nodiscard]] std::string requested_encoder_rate_control() const override { return requested_encoder_rate_control_; }
+    [[nodiscard]] std::string requested_encoder_preset() const override { return requested_encoder_preset_; }
 
     [[nodiscard]] bool pool_reset_safe() const noexcept {
         return !open_complete_ && !codec_ && !mux_ && !frame_ && !packet_;
@@ -167,12 +171,21 @@ private:
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
     bool gpu_nvenc_{false};
     bool open_complete_{false};
-    // Resolved encoder settings for telemetry; populated in open() when a
-    // hardware NVENC path is selected, cleared otherwise (pooled instances
-    // may be re-opened with a different backend).
+    // ── Encoder configuration telemetry ────────────────────────────────
+    // `applied_*` = post-resolution values actually applied at open() time;
+    // `requested_*` = what the caller explicitly asked for ("engine-default"
+    // when never requested). Populated on every successful resolution in
+    // open() for both software and NVENC backends; cleared on open (pooled
+    // instances may be re-opened with a different backend, and early failure
+    // paths must not leak stale values into the closeout report).
     std::string applied_encoder_preset_;
     std::string applied_encoder_rate_control_;
     int applied_encoder_async_depth_{0};
+    std::string requested_encoder_rate_control_;
+    std::string requested_encoder_preset_;
+    // The immutable resolved configuration this session APPLIES (the encoder
+    // never reinterprets encoder policy from raw strings).
+    std::optional<ResolvedEncoderConfig> resolved_encoder_config_;
 
     double native_convert_ms_{0.0};
     double native_send_frame_ms_{0.0};

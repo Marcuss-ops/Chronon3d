@@ -36,15 +36,6 @@ bool set_codec_option_checked(AVCodecContext* codec, const char* key,
     return true;
 }
 
-const char* resolve_encoder_name(const FfmpegPipeOptions& opt) {
-    if (opt.hardware_encoder == "nvenc") {
-        if (opt.codec == "hevc" || opt.codec == "libx265") return "hevc_nvenc";
-        return "h264_nvenc";
-    }
-    if (opt.codec == "libx264rgb") return "libx264rgb";
-    return "libx264";
-}
-
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
     return options.width > 0 && options.height > 0 &&
            options.canonical_fps_num() > 0 && options.canonical_fps_den() > 0 &&
@@ -106,18 +97,59 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     encoder_packet_drain_ms_ = 0.0;
     direct_yuv_cuda_launch_ms_ = 0.0;
     direct_yuv_cuda_wait_ms_ = 0.0;
-    // Applied-settings telemetry: cleared on every open (a pooled encoder
-    // instance may be re-opened with a different backend, and early failure
-    // paths must not leak stale values into the closeout report).
+    // Applied/requested-settings telemetry: cleared on every open (a pooled
+    // encoder instance may be re-opened with a different backend, and early
+    // failure paths must not leak stale values into the closeout report).
     applied_encoder_preset_.clear();
     applied_encoder_rate_control_.clear();
     applied_encoder_async_depth_ = 0;
+    requested_encoder_rate_control_.clear();
+    requested_encoder_preset_.clear();
+    resolved_encoder_config_.reset();
+
+    // ── C-1/C-2: resolve + validate the encoder configuration BEFORE any
+    // FFmpeg/decoder/CUDA/render setup. NativeAvEncoder applies the resolved
+    // configuration verbatim; it never interprets raw rate-control/preset/
+    // tune strings into policy itself (the single authority is
+    // resolve_encoder_config). Unknown rate-control strings, unsupported
+    // combinations (NVENC + explicit crf, NVENC + tune) and invalid presets
+    // fail here — fast, with a precise message.
+    auto config_request = make_encoder_config_request(options_);
+    auto resolution = resolve_encoder_config(config_request);
+    if (!resolution) {
+        spdlog::error("[native_av] Invalid encoder configuration: {}",
+                      resolution.error().message);
+        return false;
+    }
+	// ResolvedEncoderConfig is intentionally immutable after construction and
+	// therefore deletes assignment operators. Construct the optional in place
+	// instead of attempting move-assignment into an existing optional.
+	resolved_encoder_config_.emplace(std::move(resolution).value());
+    const auto& resolved = *resolved_encoder_config_;
+
+    gpu_nvenc_ = resolved.backend() == EncoderBackend::Nvenc;
+#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+    if (gpu_nvenc_) {
+        spdlog::error("[native_av] NVENC requires a CUDA-interop build (CHRONON3D_ENABLE_CUDA_INTEROP)");
+        return false;
+    }
+#endif
+
+    // Requested (pre-resolution) intent, for telemetry. "engine-default"
+    // means the caller never asked — distinct from an explicit request.
+    requested_encoder_rate_control_ =
+        options_.rate_control_mode_explicit ? options_.rate_control_mode
+                                            : "engine-default";
+    requested_encoder_preset_ =
+        options_.preset_explicit ? options_.preset : "engine-default";
 
     const std::string filename = options_.output_path;
 
-    const AVCodec* encoder = avcodec_find_encoder_by_name(resolve_encoder_name(options_));
+    const AVCodec* encoder =
+        avcodec_find_encoder_by_name(resolved.encoder_name().c_str());
     if (!encoder) {
-        spdlog::error("[native_av] avcodec_find_encoder_by_name('{}') failed", resolve_encoder_name(options_));
+        spdlog::error("[native_av] avcodec_find_encoder_by_name('{}') failed",
+                      resolved.encoder_name());
         return false;
     }
 
@@ -136,7 +168,6 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     codec_->max_b_frames = 0;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    gpu_nvenc_ = options_.hardware_encoder == "nvenc";
     if (gpu_nvenc_) {
         const auto hw_t0 = Clock::now();
         if (!device_runtime_) {
@@ -216,17 +247,23 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         codec_->pix_fmt = AV_PIX_FMT_YUV420P;
     }
 
-    if (!options_.preset.empty() &&
-        !set_codec_option_checked(codec_, "preset", options_.preset)) return false;
+    // ── Apply the RESOLVED configuration verbatim ────────────────────────
+    // Everything below is driven by `resolved` (from
+    // resolve_encoder_config). NativeAvEncoder no longer interprets
+    // rate-control/preset/tune strings: the resolver already validated the
+    // combination for this backend and produced the exact option set.
     {
-        char crf_str[16];
-        snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
-        const std::string encoder_name = resolve_encoder_name(options_);
-        const bool is_nvenc = encoder_name == "h264_nvenc" || encoder_name == "hevc_nvenc";
-        if (!gpu_nvenc_ && !is_nvenc &&
-            !set_codec_option_checked(codec_, "crf", crf_str)) return false;
+        const std::string& preset = resolved.preset();
+        if (!preset.empty() &&
+            !set_codec_option_checked(codec_, "preset", preset)) return false;
     }
-    const std::string codec_name = resolve_encoder_name(options_);
+    if (const auto crf = resolved.crf()) {
+        char crf_str[16];
+        snprintf(crf_str, sizeof(crf_str), "%d", *crf);
+        if (!set_codec_option_checked(codec_, "crf", crf_str)) return false;
+    }
+    if (resolved.bitrate()) codec_->bit_rate = *resolved.bitrate();
+    const std::string& codec_name = resolved.encoder_name();
     if (codec_name == "libx264" || codec_name == "libx264rgb") {
         if (options_.encode_threads > 0) {
             char threads_str[16];
@@ -237,28 +274,24 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         }
         if (!set_codec_option_checked(codec_, "thread_type", "frame")) return false;
     }
-    const std::string tune = options_.tune.empty() ? "" : options_.tune;
-    if (!tune.empty() && !gpu_nvenc_ &&
-        !set_codec_option_checked(codec_, "tune", tune)) return false;
+    if (const auto tune = resolved.tune()) {
+        // The resolver only ever emits a tune on software (libx264-family)
+        // backends; NVENC + tune fails during resolution.
+        if (!set_codec_option_checked(codec_, "tune", *tune)) return false;
+    }
 
-    // ── Native NVENC pipeline depth + explicit rate control ─────────────
-    // crf was silently ignored for h264_nvenc/hevc_nvenc before, so the
-    // driver default RC applied. Keep that default when the caller did not
-    // request an explicit RC mode, and always deepen NVENC's in-flight
-    // capacity: the FFmpeg build used here (libavcodec 58 / 4.2-4.4) does
+    // ── Native NVENC pipeline depth + resolved rate control ─────────────
+    // The NVENC wrapper in this FFmpeg build (libavcodec 58 / 4.2-4.4) does
     // NOT expose an `async_depth` AVOption on h264_nvenc/hevc_nvenc — the
     // wrapper's in-flight queue is bounded by its surface pool ("surfaces",
     // default 4). With only 4 surfaces every avcodec_send_frame blocks
     // whenever the driver still holds all of them, serializing
     // decode/composite behind encode (certification measured the submit
-    // wall dominating the render loop). We therefore map the requested
+    // wall dominating the render loop). We therefore map the resolved
     // engine-level in-flight depth onto a surface pool sized depth + 4 so
     // the submit path never starves while `depth` frames are in flight.
     if (gpu_nvenc_) {
-        int async_depth = options_.async_depth;
-        if (async_depth <= 0) {
-            async_depth = 4; // engine default: 4 in-flight encode frames
-        }
+        const int async_depth = resolved.async_depth();
         // surfaces option range is [0, 64]; keep headroom inside the range.
         const int nvenc_surfaces = std::min(60, async_depth + 4);
         char surf_str[16];
@@ -266,42 +299,55 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (!set_codec_option_checked(codec_, "surfaces", surf_str)) {
             return false;
         }
-        const std::string rc_mode = options_.rate_control_mode;
-        std::string rc_applied = "driver-default";
-        if ((rc_mode == "bitrate" || rc_mode == "vbr" || rc_mode == "cbr") &&
-            options_.bitrate > 0) {
-            codec_->bit_rate = options_.bitrate;
-            const std::string rc_name = (rc_mode == "bitrate") ? "vbr" : rc_mode;
-            if (!set_codec_option_checked(codec_, "rc", rc_name)) {
-                return false;
+        switch (resolved.rate_control()) {
+            case ResolvedEncoderRateControl::ConstantQp: {
+                if (!set_codec_option_checked(codec_, "rc", "constqp")) {
+                    return false;
+                }
+                char qp_str[16];
+                snprintf(qp_str, sizeof(qp_str), "%d", resolved.qp().value_or(-1));
+                if (!set_codec_option_checked(codec_, "qp", qp_str)) {
+                    return false;
+                }
+                break;
             }
-            rc_applied = rc_name;
-        } else if ((rc_mode == "qp" || rc_mode == "crf") && options_.qp > 0) {
-            // constqp keeps a stable quality target; qp is the NVENC constqp
-            // knob. The crf name is accepted as an alias for callers that
-            // think in x264 terms; the engine maps it to constqp qp.
-            if (!set_codec_option_checked(codec_, "rc", "constqp")) {
+            case ResolvedEncoderRateControl::Vbr:
+                if (!set_codec_option_checked(codec_, "rc", "vbr")) {
+                    return false;
+                }
+                break;
+            case ResolvedEncoderRateControl::Cbr:
+                if (!set_codec_option_checked(codec_, "rc", "cbr")) {
+                    return false;
+                }
+                break;
+            case ResolvedEncoderRateControl::DriverDefault:
+                // Explicit engine decision: no rc option — the NVENC driver
+                // default applies. Kept visible in telemetry as
+                // "driver-default" and rejected by validate_for_benchmark.
+                break;
+            case ResolvedEncoderRateControl::ConstantQuality:
+                // Unreachable: the resolver rejects NVENC + explicit crf.
+                spdlog::error("[native_av] Internal error: constant-quality NVENC "
+                              "reached open() despite resolution rejection");
                 return false;
-            }
-            char qp_str[16];
-            snprintf(qp_str, sizeof(qp_str), "%d", options_.qp);
-            if (!set_codec_option_checked(codec_, "qp", qp_str)) {
-                return false;
-            }
-            rc_applied = "constqp";
         }
-        applied_encoder_preset_ = options_.preset.empty()
-            ? std::string("ffmpeg-nvenc-default")
-            : options_.preset;
-        applied_encoder_rate_control_ = rc_applied;
+        if (resolved.bitrate()) codec_->bit_rate = *resolved.bitrate();
+        applied_encoder_preset_ = resolved.preset_label();
+        applied_encoder_rate_control_ = resolved.rate_control_label();
         applied_encoder_async_depth_ = async_depth;
         spdlog::info(
             "[native_av] NVENC tuning applied: rc={} preset={} async_depth={} "
             "nvenc_surfaces={} qp={} bitrate={}",
-            rc_applied,
-            options_.preset.empty() ? "ffmpeg-nvenc-default" : options_.preset,
-            async_depth, nvenc_surfaces, options_.qp,
-            static_cast<long long>(options_.bitrate));
+            resolved.rate_control_label(), resolved.preset_label(),
+            async_depth, nvenc_surfaces,
+            resolved.qp().value_or(-1),
+            static_cast<long long>(resolved.bitrate().value_or(0)));
+    } else {
+        // Software encoder: resolved settings also surface in telemetry.
+        applied_encoder_preset_ = resolved.preset_label();
+        applied_encoder_rate_control_ = resolved.rate_control_label();
+        applied_encoder_async_depth_ = 0;
     }
 
     const auto nvenc_t0 = Clock::now();
@@ -355,9 +401,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
-    spdlog::info("[native_av] Opened native encoder: {}x{} @ {}fps, codec={}, preset={}, crf={}, output='{}'",
-                 options_.width, options_.height, options_.fps,
-                 resolve_encoder_name(options_), options_.preset, options_.crf, filename);
+    spdlog::info(
+        "[native_av] Opened native encoder: {}x{} @ {}fps, codec={}, rc={}, preset={}, output='{}'",
+        options_.width, options_.height, options_.fps,
+        resolved.encoder_name(), resolved.rate_control_label(),
+        resolved.preset_label(), filename);
     open_complete_ = true;
     return true;
 }

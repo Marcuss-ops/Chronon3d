@@ -42,6 +42,7 @@ if(TARGET chronon3d_cli_video_export)
         cli/test_video_sink_encoders.cpp
         cli/test_ffmpeg_export_options.cpp
         cli/test_packet_assembler_contract.cpp
+        cli/test_encoder_config_resolution.cpp
     )
 endif()
 

@@ -48,6 +48,21 @@ struct VideoSettings {
     std::string codec{"auto"};
     std::string encode_preset{"slow"};
     std::string tune;
+
+    // ── Encoder-option explicitness ────────────────────────────────────────
+    // True only when the value above was explicitly requested by the user, a
+    // render-plan file, or an IPC payload. Engine placeholder defaults stay
+    // false so the encoder-configuration resolver can distinguish USER INTENT
+    // from CHRONON DEFAULTS (e.g. an NVENC job that never mentioned rate
+    // control must not be treated as an explicit CRF request). Set by the
+    // CLI/plan/daemon boundaries before the job is resolved.
+    bool rate_control_mode_explicit{false};
+    bool crf_explicit{false};
+    bool qp_explicit{false};
+    bool bitrate_explicit{false};
+    bool encode_preset_explicit{false};
+    bool tune_explicit{false};
+
     bool        keep_frames{false};
     std::string frames_dir;
     int         chunks{1};
