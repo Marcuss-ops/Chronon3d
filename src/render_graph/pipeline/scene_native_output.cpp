@@ -100,7 +100,12 @@ void release_temporary_native_output(RenderGraphContext& ctx,
         !ctx.services.backend || !ctx.services.surface_registry) {
         return;
     }
-    (void)ctx.services.backend->release_surface(source);
+    // The frame batch has already submitted the device-to-device copy, but
+    // the NVENC/CUDA consumer can still be reading the physical image.  Do
+    // not call release_surface here: the Vulkan compatibility release path
+    // waits for every pending submission and turned every video frame into a
+    // full GPU drain.  Drop only the logical registry lease; physical
+    // transient retirement is fenced centrally at batch/job cleanup.
     (void)ctx.services.surface_registry->release(source);
     if (framebuffer->surface_handle() == source) {
         framebuffer->clear_surface_handle();

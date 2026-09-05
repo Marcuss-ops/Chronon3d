@@ -153,7 +153,8 @@ namespace chronon3d::backends::vulkan {
                 surfaces.surface_bindings.erase(binding);
                 surfaces.unplanned_surface_handles.erase(handle);
                 const auto it = surfaces.physical_surfaces.find(slot);
-                if (it != surfaces.physical_surfaces.end()) {
+                if (it != surfaces.physical_surfaces.end() &&
+                    !surfaces.slot_in_use(slot)) {
                     it->second.image.initialized = false;
                 }
                 ++stats.surface_releases;
@@ -175,14 +176,21 @@ namespace chronon3d::backends::vulkan {
 
     void VulkanBackend::Impl::retire_completed_frame_transient_surfaces() noexcept {
         try {
-            // A transient image is eligible for destruction only after every
-            // tracked submission that could reference it has completed.  The
-            // old status-only probe could defer cleanup for the whole render
-            // job when the encoder kept one upload in flight, accumulating a
-            // canvas-sized RGBA32F image per frame.  Drain the backend-owned
-            // submission rings here, then reclaim all generic transient
-            // bindings in one centralized place.
-            wait_for_pending();
+            // A transient image is eligible for destruction only after the
+            // frame submission that references it has completed.  Poll the
+            // frame fences instead of draining every pending submission: a
+            // blocking wait here serialized the Vulkan->CUDA/NVENC pipeline
+            // and made every exported frame pay the full GPU latency.
+            for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+                if (!frame_batch.in_flight[i]) continue;
+                const auto status = vkGetFenceStatus(device, frame_batch.fences[i]);
+                if (status == VK_NOT_READY) continue;
+                check(status, "vkGetFenceStatus(frame transient retirement)");
+                check(vkResetFences(device, 1, &frame_batch.fences[i]),
+                      "vkResetFences(frame transient retirement)");
+                frame_batch.in_flight[i] = false;
+                read_gpu_timestamps(i);
+            }
 
             std::vector<runtime::RenderSurfaceHandle> handles;
             handles.reserve(surfaces.surface_bindings.size());
@@ -204,7 +212,8 @@ namespace chronon3d::backends::vulkan {
                 surfaces.surface_bindings.erase(binding);
                 surfaces.unplanned_surface_handles.erase(handle);
                 const auto it = surfaces.physical_surfaces.find(slot);
-                if (it != surfaces.physical_surfaces.end()) {
+                if (it != surfaces.physical_surfaces.end() &&
+                    !surfaces.slot_in_use(slot)) {
                     it->second.image.initialized = false;
                 }
                 ++stats.surface_releases;
