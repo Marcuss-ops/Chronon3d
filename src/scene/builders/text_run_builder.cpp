@@ -1,3 +1,4 @@
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
@@ -447,7 +448,7 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     PreparedText prepared_with_font = normalized;
     if (prepared_with_font.style.font.font_path.empty() &&
         prepared_with_font.style.font.font_family.empty()) {
-        prepared_with_font.style.font.font_path = "assets/fonts/Inter-Bold.ttf";
+        prepared_with_font.style.font.font_path = presets::inter_bold_font_path();
     }
 
     TextCompileServices services{

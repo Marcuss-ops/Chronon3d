@@ -43,5 +43,17 @@ allow_list = [
   '^apps/chronon3d_cli/utils/semantic/semantic_script_decode\.inc$',
   '^apps/chronon3d_cli/utils/semantic/semantic_script_serialize\.inc$',
   '^apps/chronon3d_cli/utils/semantic/semantic_script_support\.inc$',
+
+  # Staged debt (TICKET-200): function-body fragments textually included
+  # inside their consumer TU. Migration to real headers/TUs is owned by the
+  # c-api and text-run refactors; remove each entry in the same change.
+  '^src/c_api/buffer_management\.inc$',
+  '^src/c_api/engine_lifetime\.inc$',
+  '^src/c_api/error_bridge\.inc$',
+  '^src/c_api/log_callback_bridge\.inc$',
+  '^src/c_api/plan_compile_api\.inc$',
+  '^src/c_api/render_api\.inc$',
+  '^src/render_graph/nodes/text_run/gpu_text_run_cached\.inc$',
+  '^src/render_graph/nodes/text_run/text_run_node_geometry\.inc$',
 ]
 skip_comments = false

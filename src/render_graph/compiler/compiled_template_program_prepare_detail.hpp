@@ -3,8 +3,14 @@
 // For every StaticBakeRegion discovered by the temporal analysis, prepare()
 // marks interior nodes as skip and records the root node as a baked producer.
 //
-// Phase 4 does NOT allocate GPU surfaces — surface residency lands in Phase 5
-// (PhysicalFramebufferPlan materialization).  What Phase 4 delivers:
+// Phase 4 does NOT allocate GPU surfaces.  The former Phase 5 entry point
+// preallocate_surfaces()/RenderBackend::preallocate_plan_surfaces() has been
+// DEMOLISHED (P1.4): it never preallocated anything — the Vulkan override
+// only set plan_preallocated=false and pruned unused slots.  Native surface
+// materialization is lazily owned by the VulkanSurfaceAuthority; the
+// compiled plan drives WHICH surfaces exist, not this hook.
+//
+// What Phase 4 delivers:
 //   1. `interior_node_skip` mask: interior nodes execute = 0 after prepare
 //   2. `baked_regions`: per-region metadata (root, members, fingerprint)
 //   3. The contract that render() never re-evaluates static islands.
@@ -13,19 +19,6 @@
 // the per-node cache becomes redundant — the region-level bake covers the
 // same static surface, and the skip mask eliminates the execute call entirely
 // instead of returning a cached Framebuffer on each frame.
-void preallocate_surfaces(const CompiledTemplateProgram& program,
-                          RenderBackend* backend,
-                          std::uint32_t canvas_width,
-                          std::uint32_t canvas_height) {
-    if (!backend || !program.compiled || canvas_width == 0 || canvas_height == 0) {
-        return;
-    }
-    const auto& plan = program.compiled->resource_table();
-    if (plan.empty()) return;
-
-    backend->preallocate_plan_surfaces(canvas_width, canvas_height, plan);
-}
-
 PreparedFrameProgram prepare(const CompiledTemplateProgram& program) {
     PreparedFrameProgram prepared;
     if (!program.compiled || program.static_regions.empty()) {

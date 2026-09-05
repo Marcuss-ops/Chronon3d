@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <algorithm>
@@ -13,8 +14,8 @@ using LayerMotion3D = Motion3D;
 
 struct SoftGlowTextParams {
     std::string text;
-    std::string font_path_main{"assets/fonts/Inter-Bold.ttf"};
-    std::string font_path_glow{"assets/fonts/Inter-Regular.ttf"};
+    std::string font_path_main{presets::inter_bold_font_path()};
+    std::string font_path_glow{presets::inter_regular_font_path()};
     std::string font_family_main{"Inter"};
     std::string font_family_glow{"Inter"};
     int font_weight_main{800};

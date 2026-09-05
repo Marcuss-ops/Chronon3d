@@ -91,8 +91,15 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_lifecycle_private.cpp
     vulkan_descriptor_arena_private.cpp
     vulkan_surface_store_private.cpp
-    vulkan_kernel_store_private.cpp
+    vulkan_kernel_record_private.cpp
+    vulkan_kernel_replay_private.cpp
     vulkan_backend_operations_private.cpp
+    vulkan_backend_text_ops_private.cpp
+    vulkan_backend_layer_ops_private.cpp
+    vulkan_backend_resources_private.cpp
+    vulkan_backend_submission_private.cpp
+    vulkan_backend_sync_private.cpp
+    vulkan_backend_cuda_export_private.cpp
     vulkan_legacy_fallback.cpp
     memory/vulkan_memory_manager.cpp
     debug/vulkan_debug_context.cpp
@@ -139,6 +146,8 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
     target_sources(chronon3d_backend_vulkan PRIVATE
         cuda_vulkan_surface_bridge.cpp
         cuda_nv12_surface_compositor.cpp
+        cuda_nv12_surface_compositor_paths.cpp
+        cuda_nv12_surface_compositor_batch.cpp
         vulkan_cuda_frame_importer.cpp)
     target_include_directories(chronon3d_backend_vulkan
         PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")

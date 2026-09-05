@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -31,7 +32,7 @@ constexpr f32 H  = 1080.0f;
 
 namespace detail {
 
-inline std::string default_font() { return "assets/fonts/Inter-Bold.ttf"; }
+inline std::string default_font() { return presets::inter_bold_font_path(); }
 
 inline FillStyle soft_radial_gradient(Color inner, Color outer) {
     return FillStyle::radial({0.5f, 0.5f}, 0.5f, {

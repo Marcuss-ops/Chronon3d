@@ -39,6 +39,10 @@ target_precompile_headers(chronon3d_graph_core PRIVATE
 # ── Nodes: graph node implementations ───────────────────────────────────────
 add_library(chronon3d_graph_nodes OBJECT
     nodes/source_node.cpp
+    nodes/source_node_geometry.cpp
+    nodes/source_node_execute.cpp
+    nodes/source_node_native_rect.cpp
+    nodes/source_node_native_image.cpp
     nodes/multi_source_node.cpp
     nodes/transform_node.cpp
     nodes/transform_kernels.cpp
@@ -135,6 +139,7 @@ add_library(chronon3d_graph_executor OBJECT
     executor/cache_evaluator.cpp
     executor/tile_pruning.cpp
     executor/node_runner.cpp
+    executor/node_runner_fused_batch.cpp  # P1.5 — fused batch implementation moved out of the detail header (kills text/transform/source include fanout in the executor hot TU)
     executor/node_state_commit.cpp     # P1 step 3 — extract commit_node_state (5 per-node state-slot writes from cache_eval + bbox; byte-equivalent to inline pattern at Site 1 cache-hit fast-path + Site 3 main tail in node_runner.cpp; Site 2 tile-skip stays inline per Cat-3 anti-dup)
     executor/text_bbox_reconcile.cpp   # P0 #1 — extracted post-render alpha_bbox reconciliation helper (replaces duplicate TU-local scan in node_runner.cpp + closes static-bool race)
     executor/node_skip_policy.cpp      # P1 step 1/3 — unified commit_transparent_skip (replaces 2 duplicate 64×10 transparent skip blocks in node_runner.cpp; SkipReason enum drives the Clear-name branch)
@@ -232,6 +237,7 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
 add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
+    pipeline/scene_native_output.cpp
     pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
     pipeline/scene_dirty.cpp
     pipeline/frame_delta_compiler.cpp

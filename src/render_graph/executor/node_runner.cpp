@@ -34,10 +34,17 @@
 #include <string_view>
 #include <unordered_map>
 
+// node_runner_fused_batch_detail.hpp carries its own namespace block
+// (chronon3d::graph::detail). It MUST be included at file scope: including
+// it inside a namespace would re-nest its declarations
+// ("graph::graph::detail") and break name lookup.
+#include "node_runner_fused_batch_detail.hpp"
+
 namespace chronon3d::graph {
 
+// These detail headers declare names in the enclosing namespace
+// (helpers use an anonymous namespace); they rely on being included here.
 #include "node_runner_helpers_detail.hpp"
-#include "node_runner_fused_batch_detail.hpp"
 #include "node_runner_single_node_detail.hpp"
 
 } // namespace chronon3d::graph

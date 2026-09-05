@@ -339,13 +339,13 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
             hash_bytes(&(*m_opacity_override), sizeof(f32)));
     }
 
-    // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
-    // Conditional on `has_camera_2_5d` globally.  Fold zoom + position.z +
-    // parent + DOF into `params_hash` so zoom-animated frames produce
-    // distinct per-frame keys.
-    if (ctx.frame_input.has_camera_2_5d && !m_placement.tight_surface) {
-        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
-    }
+    // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B):
+    // canonical conditional fold. Tight-surface text is owned downstream by
+    // TransformNode, so camera state must not fragment the raster cache.
+    cache::fold_camera_if(
+        key,
+        ctx.frame_input.has_camera_2_5d && !m_placement.tight_surface,
+        ctx.frame_input.camera_2_5d);
 
     return key;
 }

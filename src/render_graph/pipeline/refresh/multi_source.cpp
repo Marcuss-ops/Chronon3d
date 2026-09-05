@@ -1,6 +1,7 @@
 #include "multi_source.hpp"
 #include "layer_item.hpp"
 
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include "../../builder/graph_builder_coordinates.hpp"
 #include "../../builder/evaluated_layer_placement.hpp"
@@ -68,22 +69,20 @@ void refresh_multi_source_node(
         // and stale out as soon as the shape mutates between refreshes.
     }
 
-    cache::NodeCacheKey key{
-        .scope = "layer.multisource:" + layer_name_str,
-        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-        .width = ctx.frame_input.width,
-        .height = ctx.frame_input.height,
-        .params_hash = aggregated_params_hash,
-        .source_hash = hash_string(layer_name_str + "_multisource")
-    };
-
-    // TICKET-ae-cam-hash-collision Soluzione B — fold evaluated cam into
-    // params_hash so this MultiSourceNode's framebuffer cache distinguishes
-    // zoom-animated frames (AE_CAM_02) and parent-relative Z-dolly frames
-    // (AE_CAM_04) at the cache-key level.
-    if (ctx.frame_input.has_camera_2_5d) {
-        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
+    // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione B):
+    // the builder folds the evaluated camera by construction so this
+    // MultiSourceNode's framebuffer cache distinguishes zoom-animated frames
+    // (AE_CAM_02) and parent-relative Z-dolly frames (AE_CAM_04).
+    cache::NodeCacheKey key = cache::NodeCacheIdentityBuilder{
+        "layer.multisource:" + layer_name_str
     }
+        .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+        .output(ctx.frame_input.width, ctx.frame_input.height)
+        .params(aggregated_params_hash)
+        .source(hash_string(layer_name_str + "_multisource"))
+        .camera_if(ctx.frame_input.has_camera_2_5d,
+                   ctx.frame_input.camera_2_5d)
+        .build();
 
     node.refresh(
         layer_name_str + "_multi",

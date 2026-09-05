@@ -1,3 +1,4 @@
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -238,7 +239,7 @@ RenderNode RenderNodeFactory::text(
     // (e.g. tests, presets) still resolve a usable font path before
     // the engine path-load kicks in.
     if (p.font.font_path.empty()) {
-        p.font.font_path = "assets/fonts/Inter-Bold.ttf";
+        p.font.font_path = presets::inter_bold_font_path();
     }
 
     node.world_transform.anchor   = resolve_text_anchor(box_anchor, box_size);

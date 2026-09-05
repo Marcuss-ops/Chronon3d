@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
+import os
 import re
 import subprocess
 import sys
@@ -26,51 +28,31 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+_COMMENT_TOKEN_RE = re.compile(
+    r'"(?:\\.|[^"\\])*"'      # double-quoted string (kept)
+    r"|'(?:\\.|[^'\\])*'"      # char/string literal (kept)
+    r"|/\*.*?\*/"              # block comment
+    r"|/\*.*\Z"                # unterminated block comment (EOF)
+    r"|//[^\n]*",              # line comment
+    re.DOTALL,
+)
+
+
 def strip_comments(text: str) -> str:
-    out: list[str] = []
-    i = 0
-    block = False
-    quote: str | None = None
-    while i < len(text):
-        c = text[i]
-        n = text[i + 1] if i + 1 < len(text) else ""
-        if block:
-            if c == "*" and n == "/":
-                block = False
-                out.extend("  ")
-                i += 2
-            else:
-                out.append("\n" if c == "\n" else " ")
-                i += 1
-            continue
-        if quote:
-            out.append(c)
-            if c == "\\" and i + 1 < len(text):
-                out.append(text[i + 1])
-                i += 2
-                continue
-            if c == quote:
-                quote = None
-            i += 1
-            continue
-        if c in {'"', "'"}:
-            quote = c
-            out.append(c)
-            i += 1
-            continue
-        if c == "/" and n == "/":
-            while i < len(text) and text[i] != "\n":
-                out.append(" ")
-                i += 1
-            continue
-        if c == "/" and n == "*":
-            block = True
-            out.extend("  ")
-            i += 2
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
+    """Regex equivalent of the previous per-character scanner.
+
+    Comments are blanked out with spaces (newlines preserved so line/col
+    structure and error line numbers stay identical); string/char literals
+    are left untouched so comment markers inside them survive. The previous
+    pure-Python loop cost ~2 minutes of CPU across the full scan — the gate
+    was functionally hung on large checkouts.
+    """
+    def repl(m: re.Match[str]) -> str:
+        s = m.group(0)
+        if s.startswith("/"):
+            return re.sub(r"[^\n]", " ", s)
+        return s
+    return _COMMENT_TOKEN_RE.sub(repl, text)
 
 
 def iter_files(root: Path, paths: Iterable[str], extensions: list[str] | None = None) -> Iterable[Path]:
@@ -80,7 +62,19 @@ def iter_files(root: Path, paths: Iterable[str], extensions: list[str] | None = 
         base = root / rel
         if not base.exists():
             continue
-        candidates = [base] if base.is_file() else base.rglob("*")
+        if base.is_file():
+            candidates: Iterable[Path] = [base]
+        else:
+            # Prune excluded directories during traversal instead of filtering
+            # after rglob: a 30+ GB build/ tree makes post-hoc filtering take
+            # minutes, which is functionally a hung gate.
+            def walk_pruned(base: Path = base) -> Iterable[Path]:
+                for dirpath, dirnames, filenames in os.walk(base):
+                    dirnames[:] = [d for d in dirnames
+                                   if d not in EXCLUDED_DIRS and not d.startswith("build-")]
+                    for name in filenames:
+                        yield Path(dirpath) / name
+            candidates = walk_pruned()
         for path in candidates:
             if not path.is_file():
                 continue
@@ -94,6 +88,18 @@ def iter_files(root: Path, paths: Iterable[str], extensions: list[str] | None = 
                 continue
             if any_file or path.suffix in suffixes or path.name == "CMakeLists.txt":
                 yield path
+
+
+def pruned_rglob(base: Path, pattern: str) -> Iterable[Path]:
+    """os.walk with directory pruning; equivalent to base.rglob(pattern) but
+    never descends into excluded/build trees (30+ GB build/ makes rglob
+    take minutes — a functionally hung gate)."""
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = [d for d in dirnames
+                       if d not in EXCLUDED_DIRS and not d.startswith("build-")]
+        for name in filenames:
+            if fnmatch.fnmatch(name, pattern):
+                yield Path(dirpath) / name
 
 
 def relpath(root: Path, path: Path) -> str:
@@ -443,7 +449,7 @@ class Runner:
         keywords = {"STATIC", "SHARED", "MODULE", "OBJECT", "INTERFACE", "IMPORTED",
                     "ALIAS", "WIN32", "MACOSX_BUNDLE", "EXCLUDE_FROM_ALL",
                     "PRIVATE", "PUBLIC"}
-        for cmake in self.root.rglob("CMakeLists.txt"):
+        for cmake in pruned_rglob(self.root, "CMakeLists.txt"):
             if any(part in EXCLUDED_DIRS or part.startswith("build-") for part in cmake.parts):
                 continue
             for _, args in self.cmake_commands(read_text(cmake)):

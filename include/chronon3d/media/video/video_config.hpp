@@ -241,7 +241,7 @@ struct ValidationResult {
 ///  - Output: path not empty
 ///
 /// This is the single point of truth for config validation.  All sink
-/// implementations (FfmpegPipeSink, RawVideoSink, etc.) should call this
+/// implementations (RawVideoSink, NativeAvSink, etc.) should call this
 /// at the top of open() and reject invalid configs early.
 [[nodiscard]] ValidationResult validate_video_sink_config(
     const VideoSinkConfig& config) noexcept;
