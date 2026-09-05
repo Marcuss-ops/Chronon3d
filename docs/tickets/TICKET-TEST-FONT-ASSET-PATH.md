@@ -1,6 +1,21 @@
 # TICKET-TEST-FONT-ASSET-PATH
 
 **Status**: WIRED (P1, macchina-verifica pending)
+
+## 2026-09-05 — fixture fleet re-pinned (bootstrap v2)
+
+- `tools/bootstrap_test_fonts.py` extended to all 21 pinned fixtures: 9 heavy
+  fonts (original fleet) + 7 UI fonts (Inter/Poppins/DMSans/Georgia, demolished
+  from main in `3bed1ea0e`) + 5 images (checker/grid_tile/landscape/camera_ref/test_image).
+- Resolution order: local git object store (`git cat-file`, network-free,
+  snapshot `a31b1627`) → pinned GitHub raw fallback. Every payload verified by
+  git blob SHA-1 before atomic write.
+- `.gitignore`: `assets/` now ignored wholesale (bootstrap-only policy); the
+  old `!assets/**` negation was un-tracking the fixtures by accident.
+- Observed: `chronon3d_text_fallback_tests` PASS; `chronon3d_render_graph_tests`
+  371/373 (residual = in-flight CompiledResourcePlan/pinned-anchor work, not
+  asset debt); ShapedGlyphLine content-suite observation still pending (WIRED
+  criterion unchanged).
 **Forward-point from**: `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` forward-point (g)
 **Discovered via**: `chronon3d_content_tests --test-case='*ShapedGlyphLine*'`
 

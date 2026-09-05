@@ -63,10 +63,7 @@ allow_list = [
   'src/scene/timeline_builder\.cpp',
   'src/scene/builders/camera_api\.cpp',
   'content/.*/compositions/.*\.cpp',
-  'include/chronon3d/scene/presets/.*\.hpp',
-  'include/chronon3d/presets/.*\.hpp',
   'include/chronon3d/scene/builders/sequence_builder\.hpp',
-  'content/.*saas_intro_premium.*\.cpp',
   'content/ae_parity/ae_cam_scenes\.cpp',
 ]
 skip_comments = true
@@ -88,7 +85,6 @@ allow_list = [
   'tests/scene/camera/test_camera_descriptor_adapters\.cpp',
   'src/scene/camera/camera_v1/camera_descriptor_adapters\.cpp',
   'include/chronon3d/scene/builders/scene_builder\.hpp',
-  'include/chronon3d/scene/presets/scene_presets\.hpp',
   'content/.*/compositions/.*\.cpp',
 ]
 skip_comments = true

@@ -1,35 +1,15 @@
 # Chronon3D — Active Roadmap
 
-> Release identity and v0.1 acceptance contract: [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This roadmap tracks future work and does not redefine release status.
+> Release identity and v0.1 acceptance contract: [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md).
+> This roadmap tracks future work and does not redefine release status.
+> Stato corrente: [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](RELEASE_GATE.md).
 
-La roadmap è organizzata per milestone prodotto. Non avviare una milestone
-successiva per nascondere blocker della precedente.
-
-Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
-
-> **Snapshot osservato (2026-08-09):** `main@dc3fb34e` (worktree locale non pulito). Il cleanup legacy
-> confermato è allineato al codice: registration descriptor-only, shaping
-> canonico, `Composition` descriptor-only per la camera, factory unica del
-> runtime, alias temporali/camera rimossi e ticket superati chiusi. Verifiche
-> mirate PASS; golden visuali focalizzati 39/39 e camera visuale 9/9 passano
-> su questo SHA; la baseline globale 11/11 resta da ricalcolare.
+Non avviare una milestone successiva per nascondere blocker della precedente.
 
 ## Decisione corrente — Cleanup → Glow V1 → Camera 2.5D V1
 
-Il repository resta vincolato alla certificazione sullo stesso SHA: il cleanup
-non è ancora promosso a `CLEAN-BASELINE`; Glow V1, Camera 2.5D V1 e la fixture
-combinata hanno certificazioni storiche su `main@5cfdf1cd`, ma non sono ancora
-ricertificate sullo SHA corrente. Il gate cleanup globale resta da eseguire con
-il checkout senza file non tracciati e con il full baseline runner.
-Il lineage di cleanup osservato arriva a `main@20a102f3`: timing globale rimosso
-dal job, Render Plan tipizzato e preparato prima del frame, CLI unificata, C ABI
-isolata, ciclo base/animazioni spezzato, percorso non-modulare rimosso, adapter
-legacy cancellati, asset integrity al render boundary e gate architetturali resi
-bloccanti. La certificazione globale macchina è ancora `NOT RUN`: sanitizer
-completo e packaging release richiedono un ambiente/checkout dedicato; i gate
-focalizzati del nuovo SHA sono riportati in `CURRENT_STATUS.md`.
-
-L'ordine vincolante successivo è:
+Il repository resta vincolato alla certificazione sullo stesso SHA. L'ordine
+vincolante successivo è:
 
 1. **Baseline cleanup** — tutti i gate, consumer e test richiesti sullo stesso SHA.
 2. **Glow V1** — solo glow software CPU, con sampling continuo, bbox/dirty rect,
@@ -42,142 +22,31 @@ L'ordine vincolante successivo è:
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
 plugin o sistemi sperimentali.
 
-## M4 — GPU backend Vulkan (IN PROGRESS, dopo la baseline corrente)
+## Milestones
 
-> Storico audit dettagliato archiviato in `ROADMAP.archive.md` (771 righe).
-
-
-## M0 — Baseline verificata
-
-
-### Obiettivo
-
-Produrre un commit candidato sul quale build, test, gate, consumer e documenti
-riportano lo stesso stato.
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## V0.1 — Acceptance suite (contract defined, certification blocked)
-
-The canonical v0.1 release SHA is `7e86278e5535b799ec5c54960e520ce38c77244a`.
-The tag remains immutable and is currently `BLOCKED / NOT CERTIFIED` because
-same-SHA clean build, CTest, 11 gates, determinism corpus and performance
-baseline were not completed. See [`docs/RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md).
-
-
-> **Origine:** TICKET-ACCEPTANCE-SUITE-PHASE-D closure commit (2026-07-11).
-> 20 acceptance contract rows REGISTERED into `chronon3d_acceptance`
-> aggregate meta-target (15 in-orchestrator + 1 out-of-tree + 4 forward-point
-> catalog rows).
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M2 — Camera Production V1
-
-
-### Obiettivo
-
-Rendere `CameraDescriptor → CameraProgram` l'unico percorso authoring nuovo e
-coprire i movimenti cinematografici necessari al motion graphics 2.5D.
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M3 — CapCut-grade Parity (in progress, post-V0.2 cycle)
-
-
-> **Origine:** verdict CapCut-grade (2026-07-21, sessione CapCut parity). Formalizza
-> il milestone di parità visiva e comportamentale con CapCut per la pipeline tipografica
-> Chronon3D (subtitle + kinetic typography + static text + rendering globale).
-> NON avviabile come milestone completamente macchina-verificata sul lineage corrente
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M3 — SDK Product V1
-
-
-### Obiettivo
-
-Distribuire Chronon3D come SDK C++ installabile e documentato, non soltanto come
-repository sorgente.
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M4 — Pacchetti animazione e interoperabilità
-
-
-### Obiettivo
-
-Permettere ad altri programmi di caricare e usare animazioni Chronon3D senza
-compilare direttamente il core C++.
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M5 — Global text ed effetti premium
-
-
-Solo dopo M0–M4:
-
-- ICU opzionale;
-- variable fonts;
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M6 — V3 tile-first
-
-
-V3 è una futura evoluzione interna. Non deve interrompere la chiusura di Text,
-Camera e SDK V1 né introdurre una pipeline parallela prima che i contratti V1
-siano verificati.
-
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M1.8 — Text Simplicity (Remotion-like Ergonomics) (PLANNED)
-
-
-> **Origine:** sessione 2026-07-10. Piano dettagliato per raggiungere l'ergonomia di Remotion
-> mantenendo headless, CPU-first, deterministico, server-side, senza browser.
-> Piano operativo completo: [`docs/TEXT_SIMPLICITY_ACTION_PLAN.md`](docs/TEXT_SIMPLICITY_ACTION_PLAN.md).
-> Regola operativa: commit atomici su `main`, nessuna branch, push frequente.
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## M7 — Video Compiler Architecture (PLANNED)
-
-
-> Architettura "video compiler offline": `SceneIR → CompiledTemplateProgram →
-> PreparedJobProgram → DeviceProgram → hot loop` (temporal analysis, static island
-> baking, PhysicalResourcePlan, FrameSlot parameter ring, command replay, PixelProgram
-> IR + fusion, PixelDomain inference YUV-first, daemon + template cache, Macro-ROI,
-
-_Dettaglio completo in `ROADMAP.archive.md`._
+| Milestone | Obiettivo | Note |
+|---|---|---|
+| M0 — Baseline verificata | Un commit candidato su cui build, test, gate, consumer e documenti riportano lo stesso stato | Gate di chiusura di ogni campagna |
+| V0.1 — Acceptance suite | 20 contract rows nell'orchestratore `chronon3d_acceptance` | Contract definito in `RELEASE_V0_1_CONTRACT.md`; certificazione same-SHA ancora bloccata |
+| M2 — Camera Production V1 | `CameraDescriptor → CameraProgram` unico percorso authoring nuovo | Copertura movimenti cinematografici 2.5D |
+| M3 — CapCut-grade Parity | Parità visiva/comportamentale pipeline tipografica (subtitle + kinetic typography) | Post cycle V0.2; non avviabile come milestone macchina-verificata sul lineage corrente |
+| M3 — SDK Product V1 | Chronon3D distribuito come SDK C++ installabile e documentato | Requisiti in `RELEASE_GATE.md` §SDK Product V1 |
+| M4 — GPU backend Vulkan | Backend headless Vulkan production | IN PROGRESS |
+| M4 — Pacchetti animazione | Altri programmi caricano animazioni Chronon3D senza compilare il core C++ | Interop |
+| M5 — Global text ed effetti premium | ICU opzionale, variable fonts | Solo dopo M0–M4 |
+| M6 — V3 tile-first | Evoluzione interna; non interrompe Text/Camera/SDK V1 né introduce pipeline parallela | |
+| M1.8 — Text Simplicity | Ergonomia Remotion-like, headless/CPU-first/deterministico/server-side | Piano: `docs/TEXT_SIMPLICITY_ACTION_PLAN.md` |
+| M7 — Video Compiler Architecture | `SceneIR → CompiledTemplateProgram → PreparedJobProgram → DeviceProgram → hot loop` | Temporal analysis, static island baking, PhysicalResourcePlan, command replay, PixelProgram IR + fusion, daemon + template cache |
 
 ## Vincoli permanenti
-
 
 - non reintrodurre executor su raw graph o `ExecutionPlanCache`;
 - non creare registry, resolver, sampler o cache paralleli;
 - non costruire executor dentro i nodi;
-- non indebolire gate per adattarli al codice;
-
-_Dettaglio completo in `ROADMAP.archive.md`._
+- non indebolire gate per adattarli al codice.
 
 ## Global DoD Sign-off (21-item) — historical evidence, not v0.1 certification
 
-
-Il comando canonico di certificazione prodotto `tools/verify_chronon_product_linux.sh` orchestra 14 sub-gate eseguibili + 1 forward-pointed che coprono i **21 item DoD** dello spec utente (13 zero-require + 8 one-of). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (14/14 PASS + 1 forward-pointed `verify_diagnostics_linux`). Dettaglio: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Forward-point: `TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN` (separati per AGENTS.md "Fare PR piccole e mirate"). M0 §10 closes: l'orchestratore esiste + esegue + riporta verdict onesto.
-
----
-
-
-_Dettaglio completo in `ROADMAP.archive.md`._
-
-## Transitions cleanup roadmap (TRN-01..TRN-07)
-
-
-Stato: CLOSURE CANDIDATE (source/gate audit corrente). Le fasi TRN-01..TRN-07
-sono implementate nei percorsi canonici e coperte dai test/gate correnti; il
-master tracker resta OPEN finché la sua scheda non viene sincronizzata.
-
-
-_Dettaglio completo in `ROADMAP.archive.md`._
+Il comando canonico di certificazione prodotto è `tools/verify_chronon_product_linux.sh`
+(15 sub-gate eseguibili, verdict aggregato `CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}`).
+Dettaglio e baseline storiche: [`docs/baselines/`](baselines/) e [`docs/RELEASE_GATE.md`](RELEASE_GATE.md).
