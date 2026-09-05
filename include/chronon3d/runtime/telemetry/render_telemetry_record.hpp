@@ -362,6 +362,57 @@ struct CounterTelemetryRecord {
     uint64_t counter_value{0};
 };
 
+// ── End-of-run memory persistence (Stage 3, TICKET-TELEMETRY-SQLITE-NORMALIZATION) ──
+// Projections built once at end-of-run by joining NodeMemoryTracker snapshots
+// with node telemetry. Not measurement authorities; never written from the
+// hot path.
+
+/// One row of render_node_summary: per-node aggregate over the whole run.
+struct NodeSummaryTelemetryRecord {
+    std::string node_id;
+    std::string node_type;
+    std::string layer_id;
+
+    uint64_t calls{0};
+    double total_ms{0.0};
+    double min_ms{0.0};
+    double max_ms{0.0};
+    double avg_ms{0.0};
+
+    uint64_t cache_hits{0};
+    uint64_t cache_misses{0};
+
+    // From NodeMemoryTracker (NodeStatsSnapshot):
+    uint64_t pixels_read{0};
+    uint64_t pixels_written{0};
+    uint64_t bytes_read{0};
+    uint64_t bytes_written{0};
+    uint64_t allocations{0};
+    uint64_t allocated_bytes{0};
+    uint64_t temporary_buffers{0};
+    uint64_t peak_live_bytes{0};
+    uint64_t framebuffer_copies{0};
+    uint64_t framebuffer_clears{0};
+
+    uint64_t output_bytes{0};
+};
+
+/// One row of render_memory_summary: run-level memory envelope.
+struct MemorySummaryTelemetryRecord {
+    uint64_t peak_rss_bytes{0};
+
+    uint64_t current_live_bytes{0};
+    uint64_t peak_live_bytes{0};
+
+    uint64_t framebuffer_current_bytes{0};
+    uint64_t framebuffer_retained_bytes{0};
+    uint64_t framebuffer_peak_retained_bytes{0};
+    uint64_t framebuffer_allocations{0};
+    uint64_t framebuffer_reuses{0};
+    uint64_t framebuffer_returns{0};
+    uint64_t framebuffer_evicted_bytes{0};
+};
+
 // ── Per-node telemetry (populated during GraphExecutor::execute_node) ──────────
 struct NodeTelemetryRecord {
     std::string run_id;

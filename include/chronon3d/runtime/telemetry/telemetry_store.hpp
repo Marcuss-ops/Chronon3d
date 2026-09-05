@@ -26,6 +26,13 @@ public:
     virtual bool write_culling_events(const std::string& run_id, const std::vector<CullingTelemetryRecord>& events) = 0;
     virtual bool write_image_events(const std::string& run_id, const std::vector<ImageTelemetryRecord>& events) = 0;
     virtual bool write_artifacts(const std::string& run_id, const std::vector<RenderArtifactRecord>& artifacts) = 0;
+
+    // Stage 3 memory persistence (end-of-run projections from
+    // NodeMemoryTracker; never written from the hot path).
+    virtual bool write_node_summaries(const std::string& run_id,
+                                      const std::vector<NodeSummaryTelemetryRecord>& summaries) { return true; }
+    virtual bool write_memory_summary(const std::string& run_id,
+                                      const MemorySummaryTelemetryRecord& summary) { return true; }
 };
 
 } // namespace chronon3d::telemetry

@@ -21,8 +21,8 @@ bool try_native_path_fill(
     const auto& path = node.shape.path();
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
         path.stroke.enabled || path.commands.empty() ||
-        native_promotion::has_active_mask(state) ||
-        native_promotion::is_projected(state)) {
+        graph::native_promotion::has_active_mask(state) ||
+        graph::native_promotion::is_projected(state)) {
         return false;
     }
 
@@ -81,14 +81,14 @@ bool try_native_path_fill(
     auto y0 = static_cast<std::int32_t>(std::floor(min_y));
     auto x1 = static_cast<std::int32_t>(std::ceil(max_x));
     auto y1 = static_cast<std::int32_t>(std::ceil(max_y));
-    if (!native_promotion::intersect_clip(
+    if (!graph::native_promotion::intersect_clip(
             state.clip_rect, framebuffer.width(), framebuffer.height(),
             x0, y0, x1, y1)) {
         return true;  // empty intersection: nothing to fill
     }
 
     bool alpha_zero = false;
-    const Color color = native_promotion::premultiply(
+    const Color color = graph::native_promotion::premultiply(
         path.fill.solid, state.opacity, &alpha_zero);
     if (alpha_zero) return true;
     return backend.fill_path_surface(framebuffer.surface_handle(), vertices, color).ok();
@@ -106,14 +106,14 @@ bool try_native_path_stroke(
         path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
         !path.stroke.dash_array.empty() || path.stroke.gradient.has_value() ||
         path.stroke.cap != LineCap::Butt ||
-        native_promotion::has_active_mask(state) ||
-        native_promotion::is_projected(state)) {
+        graph::native_promotion::has_active_mask(state) ||
+        graph::native_promotion::is_projected(state)) {
         return false;
     }
 
     const float width = path.stroke.width;
     bool alpha_zero = false;
-    const Color color = native_promotion::premultiply(
+    const Color color = graph::native_promotion::premultiply(
         path.stroke.color, state.opacity, &alpha_zero);
     if (alpha_zero) return true;
 
@@ -201,7 +201,7 @@ bool try_native_solid_rect(
     if ((type != ShapeType::Rect && type != ShapeType::RoundedRect &&
          type != ShapeType::Circle && type != ShapeType::Line) ||
         (node.fill.type != FillType::Solid && node.fill.enabled) ||
-        native_promotion::has_active_mask(state) ||
+        graph::native_promotion::has_active_mask(state) ||
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
@@ -238,12 +238,12 @@ bool try_native_solid_rect(
         shape_params = Vec4{3.0f, width, 0.0f, 0.0f};
         shape_color = line.stroke.color;
     }
-    if (!is_line && !native_promotion::is_axis_aligned_affine(state)) {
+    if (!is_line && !graph::native_promotion::is_axis_aligned_affine(state)) {
         return false;
     }
 
     bool alpha_zero = false;
-    const Color color = native_promotion::premultiply(shape_color, state.opacity,
+    const Color color = graph::native_promotion::premultiply(shape_color, state.opacity,
                                                       &alpha_zero);
     if (alpha_zero) return true;
 

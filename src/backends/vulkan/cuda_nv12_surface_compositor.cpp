@@ -13,6 +13,10 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
+#ifndef CHRONON3D_NVRTC_ARCHITECTURE
+#define CHRONON3D_NVRTC_ARCHITECTURE "compute_75"
+#endif
+
 #include <chrono>
 #include <dlfcn.h>
 #include <filesystem>

@@ -290,6 +290,66 @@ CREATE TABLE IF NOT EXISTS render_image_events (
     sampled_pixels INTEGER
 );
 
+-- ── Stage 3 — memory persistence (TICKET-TELEMETRY-SQLITE-NORMALIZATION) ───
+-- Projections, not authorities: both tables are written once at end-of-run
+-- from the NodeMemoryTracker snapshot combined with node telemetry. They never
+-- receive hot-path writes.
+
+CREATE TABLE IF NOT EXISTS render_node_summary (
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    node_type TEXT,
+    layer_id TEXT,
+
+    calls INTEGER NOT NULL DEFAULT 0,
+    total_ms REAL NOT NULL DEFAULT 0,
+    min_ms REAL,
+    max_ms REAL,
+    avg_ms REAL,
+
+    cache_hits INTEGER,
+    cache_misses INTEGER,
+
+    pixels_read INTEGER,
+    pixels_written INTEGER,
+
+    bytes_read INTEGER,
+    bytes_written INTEGER,
+
+    allocations INTEGER,
+    allocated_bytes INTEGER,
+
+    temporary_buffers INTEGER,
+    peak_live_bytes INTEGER,
+
+    framebuffer_copies INTEGER,
+    framebuffer_clears INTEGER,
+
+    output_bytes INTEGER,
+
+    PRIMARY KEY (run_id, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_summary_run_type
+    ON render_node_summary(run_id, node_type);
+
+CREATE TABLE IF NOT EXISTS render_memory_summary (
+    run_id TEXT PRIMARY KEY,
+
+    peak_rss_bytes INTEGER,
+
+    current_live_bytes INTEGER,
+    peak_live_bytes INTEGER,
+
+    framebuffer_current_bytes INTEGER,
+    framebuffer_retained_bytes INTEGER,
+    framebuffer_peak_retained_bytes INTEGER,
+    framebuffer_allocations INTEGER,
+    framebuffer_reuses INTEGER,
+    framebuffer_returns INTEGER,
+    framebuffer_evicted_bytes INTEGER
+);
+
 -- Performance indices for analytical queries
 CREATE INDEX IF NOT EXISTS idx_node_events_run_type ON render_node_events(run_id, node_type);
 CREATE INDEX IF NOT EXISTS idx_node_events_run_duration ON render_node_events(run_id, duration_ms DESC);

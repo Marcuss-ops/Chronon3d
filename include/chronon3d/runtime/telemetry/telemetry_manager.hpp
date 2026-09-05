@@ -1,4 +1,5 @@
 #pragma once
+#include <chronon3d/runtime/telemetry/telemetry_run_snapshot.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_store.hpp>
 #include <vector>
 #include <memory>
@@ -32,6 +33,13 @@ public:
     // Sets up the default SQLite/null store from pre-resolved boundary config.
     void initialize_default_stores();
 
+    // Canonical entry point: one completed run, one immutable snapshot,
+    // one transaction per store ("whole run or nothing").
+    bool record_run(const TelemetryRunSnapshot& snapshot);
+
+    // Compatibility overload — builds a snapshot and forwards.
+    // DEMOLITION DEBT (TICKET-TELEMETRY-SQLITE-NORMALIZATION Stage 2):
+    // remove once all callers construct TelemetryRunSnapshot directly.
     bool record_run(RenderTelemetryRecord& run,
                     const std::vector<FrameTelemetry>& frames = {},
                     const std::vector<PhaseTelemetryRecord>& phases = {},

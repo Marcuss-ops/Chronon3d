@@ -7,6 +7,7 @@
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <cuda.h>
+#include <libavutil/buffer.h>
 #endif
 #include <spdlog/spdlog.h>
 
@@ -24,6 +25,8 @@ RenderLoopOutput run_pipe_export_loop(
     Frame end,
     const FfmpegExportOptions& opts)
 {
+    RenderLoopOutput output;
+    bool native_video_setup_failed = false;
     session.native_decoder = std::make_shared<::chronon3d::media::NativeVideoFrameDecoder>();
     auto& native_decoder = session.native_decoder;
     native_decoder->set_counters(session.renderer_ptr()
@@ -36,24 +39,42 @@ RenderLoopOutput run_pipe_export_loop(
         spdlog::info("[direct-yuv] decoder bound to the shared video device runtime");
 #if defined(CHRONON3D_ENABLE_VULKAN)
     } else if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&session.renderer_ptr()->backend())) {
+        // VideoDeviceRuntime is intentionally lazy.  Materialize its FFmpeg
+        // hwdevice before reading GpuRuntime::native_context_handle(); the
+        // latter is null until the shared primary CUDA context has been
+        // initialized.  Without this ordering the native importer is skipped
+        // and the render graph fails later while seeding the destination.
+        AVBufferRef* cuda_hwdevice = session.device_runtime
+            ? session.device_runtime->ref_cuda_hwdevice() : nullptr;
         auto gpu = session.device_runtime ? session.device_runtime->gpu() : nullptr;
         CUcontext cuda_context = gpu
             ? reinterpret_cast<CUcontext>(gpu->native_context_handle()) : nullptr;
-        if (!cuda_context) {
-            spdlog::error("[video] FAIL_CLOSED: shared video runtime has no CUDA context");
+        if (!cuda_hwdevice || !cuda_context) {
+            spdlog::error(
+                "[video] FAIL_CLOSED: shared video runtime could not initialize "
+                "the CUDA primary context before Vulkan importer setup");
+            native_video_setup_failed = true;
         } else {
             auto importer = media::create_native_frame_importer_for_backend(
                 *vulkan, session.renderer_ptr()->runtime().surface_registry(), cuda_context);
-            if (importer) native_decoder->set_native_frame_importer(std::move(importer));
+            if (importer) {
+                native_decoder->set_native_frame_importer(std::move(importer));
+            } else {
+                spdlog::error(
+                    "[video] FAIL_CLOSED: could not create the Vulkan native frame importer");
+                native_video_setup_failed = true;
+            }
         }
+        if (cuda_hwdevice) av_buffer_unref(&cuda_hwdevice);
 #endif
     }
 #endif
     native_decoder->set_trace_job_id(session.trace_job_id);
     media::MediaFrameProvider* video_decoder = native_decoder.get();
 
-    RenderLoopOutput output;
-    if (session.direct_yuv_selected()) {
+    if (native_video_setup_failed) {
+        mark_pipe_render_failed(output.loop_result.status, start);
+    } else if (session.direct_yuv_selected()) {
         output = run_direct_yuv_loop(session, *native_decoder, start, end, opts);
     } else {
         cache::NodeCache& node_cache = session.renderer_ptr()->node_cache();
