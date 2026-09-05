@@ -635,17 +635,8 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
 #endif
 }
 
-void VulkanBackend::preallocate_plan_surfaces(
-    std::uint32_t canvas_width,
-    std::uint32_t canvas_height,
-    const graph::CompiledResourceTable& plan) {
-#ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
-    m_impl->preallocate_plan_surfaces(canvas_width, canvas_height, plan);
-#else
-    (void)canvas_width; (void)canvas_height; (void)plan;
-#endif
-}
+// DEMOLISHED (P1.4): VulkanBackend::preallocate_plan_surfaces removed —
+// native surface materialization is the lazy VulkanSurfaceAuthority path.
 
 void VulkanBackend::composite_legacy_surface(
     Framebuffer& destination, const Framebuffer& source, BlendMode mode,

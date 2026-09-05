@@ -13,11 +13,8 @@ endif()
 # We must link chronon3d_pipeline explicitly to resolve all symbols.
 # This matches the standard INTEGRATION tier link contract.
 
-chronon3d_add_test_suite(
-    NAME chronon3d_media_video_tests
-    TIER INTEGRATION
-    LINK_TARGETS chronon3d_pipeline chronon3d_backend_video chronon3d_backend_software chronon3d_media_video chronon3d_scene
-    SOURCES video/test_frame_converter.cpp
+set(_media_video_sources
+            video/test_frame_converter.cpp
             video/test_encoder_frame_pool.cpp
             video/test_converted_frame_cache.cpp
             video/test_video_diff.cpp
@@ -28,12 +25,22 @@ chronon3d_add_test_suite(
             video/test_raw_video_sink_planar.cpp
             video/test_raw_video_sink_edge.cpp
             video/test_media_probe.cpp
-            video/test_output_contract.cpp
             video/test_frame_rate_video_validation.cpp
             video/reference_yuv_converter.cpp
             video/test_yuv_conversion_params.cpp
-            video/test_native_frame_importer.cpp
-)
+            video/test_native_frame_importer.cpp)
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    # test_output_contract.cpp exercises MuxSession and calls the libav* C API
+    # directly; those symbols only exist when the native FFmpeg mux authority
+    # is built.
+    list(APPEND _media_video_sources video/test_output_contract.cpp)
+endif()
+
+chronon3d_add_test_suite(
+    NAME chronon3d_media_video_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_pipeline chronon3d_backend_video chronon3d_backend_software chronon3d_media_video chronon3d_scene
+    SOURCES ${_media_video_sources})
 
 # P010 coverage has one owner per configuration. Native FFmpeg + CUDA builds
 # use the dedicated suite below; CUDA-only builds keep the contract here.

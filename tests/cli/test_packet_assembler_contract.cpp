@@ -65,11 +65,15 @@ TEST_CASE("VideoExecutionResolver: public contract hides backend selection") {
     CHECK_FALSE(rejected.valid);
 }
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+// assemble_segments lives in chronon3d_media_native (libavformat MuxSession
+// authority) which is only linked when native FFmpeg is enabled.
 TEST_CASE("Segment assembly request rejects empty input") {
     const auto result = chronon3d::media::assemble_segments({{}, "/tmp/final.mp4"});
     CHECK_FALSE(result.success);
     CHECK(result.reason.find("requires inputs") != std::string::npos);
 }
+#endif
 
 TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") {
     CHECK(resolve_audio_execution(false, false, true) == AudioExecutionPath::CopyPackets);

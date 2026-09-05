@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/presets/motion_animation.hpp>
@@ -137,7 +138,7 @@ struct MotionStyle {
 };
 
 struct TextStyleMotion {
-    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
+    std::string font_path{presets::inter_bold_font_path()};
     std::string font_family{"Inter"};
     int font_weight{800};
     std::string font_style{"normal"};
@@ -193,7 +194,7 @@ struct MotionObject {
         // struct member already initialises font_path to the same value, but
         // setting it here makes the intent explicit at the call site and
         // protects against future refactors that might remove the default.
-        o.text_style.font_path = "assets/fonts/Inter-Bold.ttf";
+        o.text_style.font_path = presets::inter_bold_font_path();
         return o;
     }
 

@@ -74,6 +74,9 @@ patterns = [
   '(?:u8|u|U|L)?(?:R)?["](?:\./)?assets[/\\]',
 ]
 scan_paths = ["include", "src"]
+# Sole font-path constants authority (Cat-3): all preset/shape defaults
+# reference presets/font_asset_paths.hpp instead of scattering literals.
+allow_list = ['include/chronon3d/presets/font_asset_paths\.hpp']
 skip_comments = true
 
 [[forbidden_symbol]]
@@ -141,9 +144,13 @@ skip_comments = true
 
 [[scan]]
 name = "preset_catalog_no_magic_statics"
+# Invariant: preset-catalog accessors must only lazily construct their own
+# catalog type (function-local Meyers singleton — required for TU-init-order
+# independence, see motion_preset_catalog.cpp). Any other magic static inside
+# the accessor body is a violation.
 patterns = [
-  'motion_preset_catalog\([^)]*\)\s*\{\s*static\s+const',
-  'builtin_text_preset_registry\([^)]*\)\s*\{\s*static\s+const',
+  'motion_preset_catalog\([^)]*\)\s*\{\s*static\s+const\s+(?!MotionPresetCatalog\b)',
+  'builtin_text_preset_registry\([^)]*\)\s*\{\s*static\s+const\s+(?!TextPresetRegistry\b)',
 ]
 scan_paths = ["include", "src"]
 multiline = true
@@ -171,6 +178,15 @@ skip_comments = true
 name = "dual_text_pin_anchor_text_cooccurrence"
 cooccurrence_patterns = ['\bpin_to\s*\(', '\bTextAnchor::', '\.text\s*\(']
 scan_paths = ["include", "src", "tests", "apps"]
+# Staged debt (TICKET-200): layer-level pin_to(Anchor) + glyph-level
+# .anchor = TextAnchor co-exist in these files. Migration to a single
+# anchor authority is owned by the text-domain refactor; remove each
+# entry in the same change that unifies its anchoring.
+allow_list = [
+  '^src/backends/text/typewriter_build\.cpp$',
+  '^tests/helpers/overlay_cert_fixture\.hpp$',
+  '^tests/render_graph/nodes/test_text_run_predicted_bbox\.cpp$',
+]
 skip_comments = true
 
 [[occurrence_cap]]
@@ -279,12 +295,15 @@ required_patterns = [
 [[contract]]
 name = "render_to_media_output_sink_contract"
 file = "include/chronon3d/runtime/output_sink.hpp"
+# Mode-member accessor spelling follows the implementation (mode_); the
+# contract pins the seek gate + finalize/hash structure, not a stale name.
 required_patterns = [
   'OutputSinkMode::AppendOnly',
   'OutputSinkMode::Seekable',
   'hash_final_content_impl\(\)',
   'finalize\(\)',
-  'if \(m_mode == OutputSinkMode::Seekable\)',
+  'mode_\s*!=\s*OutputSinkMode::Seekable',
+  'mode_\s*==\s*OutputSinkMode::AppendOnly',
 ]
 
 [[required_path]]
@@ -325,7 +344,9 @@ magic_enum = "magic-enum"
 nlohmann_json = "nlohmann-json"
 boost_spirit = "boost-spirit"
 boost_math = "boost-math"
-unofficial = "sqlite3"
+unofficial-sqlite3 = "sqlite3"
+unofficial-spirv-reflect = "spirv-reflect"
+unofficial-perfetto = "perfetto"
 VulkanMemoryAllocator = "vulkan-memory-allocator"
 Stb = "stb"
 TBB = "tbb"

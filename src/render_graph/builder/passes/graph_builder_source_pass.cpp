@@ -2,6 +2,8 @@
 #include "../graph_builder_coordinates.hpp"
 #include "../evaluated_layer_placement.hpp"
 
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
+
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
@@ -134,18 +136,22 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 f32 resolved_opacity = 0.0f;
                 auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
 
-                cache::NodeCacheKey run_key{
-                    .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-                    .width = ctx.frame_input.width,
-                    .height = ctx.frame_input.height,
-                    .params_hash = content_hash,
-                    .source_hash = hash_combine(hash_string(node.name), placement_hash)
-                };
-                // TICKET-ae-cam-hash-collision Soluzione B
-                if (ctx.frame_input.has_camera_2_5d && !placement.tight_surface) {
-                    cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
+                // Canonical cache identity (TICKET-ae-cam-hash-collision
+                // Soluzione B). Tight-surface text is rasterized in a local
+                // surface owned downstream by TransformNode, so camera state
+                // must NOT fragment this key — camera_if(false) keeps parity.
+                cache::NodeCacheKey run_key = cache::NodeCacheIdentityBuilder{
+                    "layer.textrun:" + std::string(layer.name) + ":" +
+                    std::string(node.name)
                 }
+                    .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+                    .output(ctx.frame_input.width, ctx.frame_input.height)
+                    .params(content_hash)
+                    .source(hash_combine(hash_string(node.name), placement_hash))
+                    .camera_if(ctx.frame_input.has_camera_2_5d &&
+                                   !placement.tight_surface,
+                               ctx.frame_input.camera_2_5d)
+                    .build();
 
                 source = graph.add_node(std::make_unique<TextRunNode>(
                     std::string(node.name),
@@ -169,18 +175,19 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             }
 
             {
-                cache::NodeCacheKey source_key{
-                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-                    .width = ctx.frame_input.width,
-                    .height = ctx.frame_input.height,
-                    .params_hash = content_hash,
-                    .source_hash = hash_combine(hash_string(node.name), placement_hash)
-                };
-                // TICKET-ae-cam-hash-collision Soluzione B
-                if (ctx.frame_input.has_camera_2_5d) {
-                    cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+                // Canonical cache identity (TICKET-ae-cam-hash-collision
+                // Soluzione B): camera folded by construction.
+                cache::NodeCacheKey source_key = cache::NodeCacheIdentityBuilder{
+                    "layer.source:" + std::string(layer.name) + ":" +
+                    std::string(node.name)
                 }
+                    .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+                    .output(ctx.frame_input.width, ctx.frame_input.height)
+                    .params(content_hash)
+                    .source(hash_combine(hash_string(node.name), placement_hash))
+                    .camera_if(ctx.frame_input.has_camera_2_5d,
+                               ctx.frame_input.camera_2_5d)
+                    .build();
 
                 const auto source_placement = evaluate_source_placement(item, node, ctx);
                 const Mat4 shape_matrix = finalize_source_placement_matrix(
@@ -242,18 +249,18 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 "materialize_prepared_text().");
         }
 
-        cache::NodeCacheKey source_key{
-            .scope = "layer.multisource:" + std::string(layer.name),
-            .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-            .width = ctx.frame_input.width,
-            .height = ctx.frame_input.height,
-            .params_hash = aggregated_params_hash,
-            .source_hash = aggregated_source_hash
-        };
-        // TICKET-ae-cam-hash-collision Soluzione B
-        if (ctx.frame_input.has_camera_2_5d) {
-            cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+        // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione
+        // B): camera folded by construction.
+        cache::NodeCacheKey source_key = cache::NodeCacheIdentityBuilder{
+            "layer.multisource:" + std::string(layer.name)
         }
+            .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+            .output(ctx.frame_input.width, ctx.frame_input.height)
+            .params(aggregated_params_hash)
+            .source(aggregated_source_hash)
+            .camera_if(ctx.frame_input.has_camera_2_5d,
+                       ctx.frame_input.camera_2_5d)
+            .build();
 
         std::vector<RenderNode> materialized_nodes;
         materialized_nodes.reserve(layer.nodes.size());

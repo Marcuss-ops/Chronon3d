@@ -212,12 +212,10 @@ public:
     /// frame loop is a direct handle→slot binding with zero vkCreateImage,
     /// zero vkCreateImageView, and zero vkAllocateMemory calls.
     ///
-    /// The pool-based fallback path remains active for unplanned surfaces
-    /// (job-persistent assets, scratch surfaces, text atlases).
-    void preallocate_plan_surfaces(
-        std::uint32_t canvas_width,
-        std::uint32_t canvas_height,
-        const graph::CompiledResourceTable& plan);
+    /// DEMOLISHED (P1.4): preallocate_plan_surfaces() no longer exists.
+    /// Native surface materialization happens lazily inside the
+    /// VulkanSurfaceAuthority; the compiled plan decides WHICH surfaces
+    /// exist, not an out-of-band preallocate hook.
 
     // ── Phase 8: command-replay (record once, submit with param writes) ─
     /// Number of replay ring slots available.  Matches the frame-batch ring

@@ -1,5 +1,6 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include "../../render_graph/nodes/detail/native_promotion.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,11 +21,8 @@ bool try_native_path_fill(
     const auto& path = node.shape.path();
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
         path.stroke.enabled || path.commands.empty() ||
-        (state.mask && state.mask->enabled()) ||
-        std::abs(state.matrix[0][3]) > 1e-4f ||
-        std::abs(state.matrix[1][3]) > 1e-4f ||
-        std::abs(state.matrix[2][3]) > 1e-4f ||
-        std::abs(state.matrix[3][3] - 1.0f) > 1e-4f) {
+        native_promotion::has_active_mask(state) ||
+        native_promotion::is_projected(state)) {
         return false;
     }
 
@@ -83,24 +81,16 @@ bool try_native_path_fill(
     auto y0 = static_cast<std::int32_t>(std::floor(min_y));
     auto x1 = static_cast<std::int32_t>(std::ceil(max_x));
     auto y1 = static_cast<std::int32_t>(std::ceil(max_y));
-    x0 = std::clamp(x0, 0, framebuffer.width());
-    y0 = std::clamp(y0, 0, framebuffer.height());
-    x1 = std::clamp(x1, 0, framebuffer.width());
-    y1 = std::clamp(y1, 0, framebuffer.height());
-    if (state.clip_rect) {
-        x0 = std::max(x0, state.clip_rect->x0);
-        y0 = std::max(y0, state.clip_rect->y0);
-        x1 = std::min(x1, state.clip_rect->x1);
-        y1 = std::min(y1, state.clip_rect->y1);
+    if (!native_promotion::intersect_clip(
+            state.clip_rect, framebuffer.width(), framebuffer.height(),
+            x0, y0, x1, y1)) {
+        return true;  // empty intersection: nothing to fill
     }
-    if (x0 >= x1 || y0 >= y1) return true;
 
-    Color color = path.fill.solid.to_linear();
-    color.a *= state.opacity;
-    if (color.a <= 0.0f) return true;
-    color.r *= color.a;
-    color.g *= color.a;
-    color.b *= color.a;
+    bool alpha_zero = false;
+    const Color color = native_promotion::premultiply(
+        path.fill.solid, state.opacity, &alpha_zero);
+    if (alpha_zero) return true;
     return backend.fill_path_surface(framebuffer.surface_handle(), vertices, color).ok();
 }
 
@@ -116,21 +106,16 @@ bool try_native_path_stroke(
         path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
         !path.stroke.dash_array.empty() || path.stroke.gradient.has_value() ||
         path.stroke.cap != LineCap::Butt ||
-        (state.mask && state.mask->enabled()) ||
-        std::abs(state.matrix[0][3]) > 1e-4f ||
-        std::abs(state.matrix[1][3]) > 1e-4f ||
-        std::abs(state.matrix[2][3]) > 1e-4f ||
-        std::abs(state.matrix[3][3] - 1.0f) > 1e-4f) {
+        native_promotion::has_active_mask(state) ||
+        native_promotion::is_projected(state)) {
         return false;
     }
 
     const float width = path.stroke.width;
-    Color color = path.stroke.color.to_linear();
-    color.a *= state.opacity;
-    if (color.a <= 0.0f) return true;
-    color.r *= color.a;
-    color.g *= color.a;
-    color.b *= color.a;
+    bool alpha_zero = false;
+    const Color color = native_promotion::premultiply(
+        path.stroke.color, state.opacity, &alpha_zero);
+    if (alpha_zero) return true;
 
     const auto transform = [&state](Vec2 point) {
         const Vec4 transformed = state.matrix * Vec4(point, 0.0f, 1.0f);
@@ -216,7 +201,7 @@ bool try_native_solid_rect(
     if ((type != ShapeType::Rect && type != ShapeType::RoundedRect &&
          type != ShapeType::Circle && type != ShapeType::Line) ||
         (node.fill.type != FillType::Solid && node.fill.enabled) ||
-        (state.mask && state.mask->enabled()) ||
+        native_promotion::has_active_mask(state) ||
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
@@ -253,20 +238,14 @@ bool try_native_solid_rect(
         shape_params = Vec4{3.0f, width, 0.0f, 0.0f};
         shape_color = line.stroke.color;
     }
-    if (!is_line && (std::abs(state.matrix[0][1]) > 1e-4f ||
-        std::abs(state.matrix[1][0]) > 1e-4f ||
-        std::abs(state.matrix[0][3]) > 1e-4f ||
-        std::abs(state.matrix[1][3]) > 1e-4f ||
-        std::abs(state.matrix[3][3] - 1.0f) > 1e-4f)) {
+    if (!is_line && !native_promotion::is_axis_aligned_affine(state)) {
         return false;
     }
 
-    Color color = shape_color.to_linear();
-    color.a *= state.opacity;
-    if (color.a <= 0.0f) return true;
-    color.r *= color.a;
-    color.g *= color.a;
-    color.b *= color.a;
+    bool alpha_zero = false;
+    const Color color = native_promotion::premultiply(shape_color, state.opacity,
+                                                      &alpha_zero);
+    if (alpha_zero) return true;
 
     const Vec4 c00 = state.matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
     const Vec4 c10 = state.matrix * Vec4(size.x, 0.0f, 0.0f, 1.0f);
@@ -345,32 +324,15 @@ void VulkanBackend::apply_effect_stack(
 void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer& source,
                                     BlendMode mode, const std::optional<raster::BBox>& clip,
                                     CompositeOperator op) {
-    // This overload can be called by low-level tests and CPU-owned callers
-    // before a native surface is assigned. Keep that contract local to the
-    // framebuffer API; planned render-graph composites use composite_surfaces
-    // below and never enter this path.
+    // Fail closed: a GPU backend never blends pixels on the CPU. CPU-origin
+    // assets must be materialized into native surfaces (ensure_native_surface
+    // / upload_surface) before reaching this authority; a missing handle is a
+    // contract violation by the caller, never a silent CPU fallback.
     if (destination.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
         source.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
-        if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
-            throw std::invalid_argument(
-                "VulkanBackend::composite_layer: CPU-owned surfaces support only Normal/SourceOver");
-        }
-        const int x0 = clip ? std::clamp(clip->x0, 0, destination.width()) : 0;
-        const int y0 = clip ? std::clamp(clip->y0, 0, destination.height()) : 0;
-        const int x1 = clip ? std::clamp(clip->x1, x0, destination.width()) : destination.width();
-        const int y1 = clip ? std::clamp(clip->y1, y0, destination.height()) : destination.height();
-        for (int y = y0; y < y1; ++y) {
-            for (int x = x0; x < x1; ++x) {
-                const Color s = source.get_pixel(x, y);
-                Color d = destination.get_pixel(x, y);
-                d.r = s.r + d.r * (1.0f - s.a);
-                d.g = s.g + d.g * (1.0f - s.a);
-                d.b = s.b + d.b * (1.0f - s.a);
-                d.a = s.a + d.a * (1.0f - s.a);
-                destination.set_pixel(x, y, d);
-            }
-        }
-        return;
+        throw std::invalid_argument(
+            "VulkanBackend::composite_layer: missing native surface handle "
+            "(CPU blit fallback was demolished; materialize surfaces first)");
     }
     if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
         throw std::runtime_error("VulkanBackend::composite_layer: only Normal/SourceOver is implemented");

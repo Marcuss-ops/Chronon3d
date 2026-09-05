@@ -21,6 +21,7 @@
 
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
 // Private definition needed by the per-session warn-once helper below.

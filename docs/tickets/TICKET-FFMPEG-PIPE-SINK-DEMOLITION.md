@@ -1,25 +1,30 @@
 # TICKET-FFMPEG-PIPE-SINK-DEMOLITION — delete subprocess encoder fallback
 
-**Stato:** OPEN  
+**Stato:** OPEN (residual scope redefined 2026-09-04 after negative census)  
 **Priorità:** P1 demolition debt  
 **Authority:** `src/media/video/video_sink_factory.cpp` + `src/media/CMakeLists.txt`
 
-## Problema
+## 2026-09-04 negative census (authoritative)
 
-`FfmpegPipeSink` resta una compatibility path basata su processo esterno quando Chronon3D viene compilato senza `CHRONON3D_ENABLE_NATIVE_FFMPEG`. Nei build con native FFmpeg, l'authority canonica per output compresso è `NativeAvSink` e il muxing è in-process.
+| Target | Stato | Evidenza |
+|---|---|---|
+| `src/media/video/ffmpeg_pipe_sink.*`, `ffmpeg_pipe_args.cpp`, `ffmpeg_frame_submit.cpp`, `process_runner.*` | **GIÀ DEMOLITI** | 0 file in `src/`, `apps/`, `include/` |
+| `FfmpegPipeSink` symbol in production code | **ESTINTO** | solo 2 commenti storici in `include/` (aggiornati) |
+| `ProcessRunner` | **ESTINTO** | 0 match in src/apps/include/tests |
+| `bind_unplanned` (Vulkan surface authority) | **VIVO — non eliminare ora** | `vulkan_surface_authority.hpp` (4 ref); entry point: `vulkan_surface_store_private.cpp:65 ensure()`. Richiede Wave 1 sync authority, non demolition stop-and-pop |
+| **Residuo reale: pipe ENCODER lato CLI** | **VIVO** | `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` (interfaccia `IVideoEncoder`, legittima) + `VideoSinkEncoderAdapter(VideoSinkType::Ffmpeg)` usato quando `encoder_backend != "native"` oppure quando native è richiesto ma non compilato (**downgrade silenzioso** a `video_export_common.cpp:38-41`) |
 
-Il fallback pipe non deve diventare una seconda authority permanente. Finché esiste, il suo scopo è esclusivamente consentire build/consumer non ancora certificati sul percorso native.
+## Nuovo scope residuo (sostituisce la lista file sopra)
 
-Debito ancora presente nel tree:
+1. **Downgrade silenzioso nativo→pipe**: `create_video_encoder()` con `CHRONON3D_ENABLE_NATIVE_FFMPEG` spento e `encoder_backend == "native"` oggi logga un warn e prosegue in pipe. Deve diventare fail-closed (errore, no output) — stesso contratto P0.1/P0.2 del resto della repo.
+2. **`--encoder-backend pipe` come percorso esplicito**: resta consentito come modalità diagnostic/debug dichiarata (null/adaptive), ma mai come fallback silenzioso del native.
+3. Cleanup finale di `ffmpeg-mode pipe` doc/options quando il punto 1 è chiiuso.
 
-- `src/media/video/ffmpeg_pipe_sink.cpp`
-- `src/media/video/ffmpeg_pipe_sink.hpp`
-- `src/media/video/ffmpeg_pipe_sink_internal.hpp`
-- `src/media/video/ffmpeg_pipe_args.cpp`
-- `src/media/video/ffmpeg_frame_submit.cpp`
-- `src/media/video/process_runner.cpp`
-- `src/media/video/process_runner.hpp`
-- `src/media/video/process_runner_posix.cpp`
+## Problema (storico)
+
+`FfmpegPipeSink` era una compatibility path basata su processo esterno. Nei build con native FFmpeg, l'authority canonica per output compresso è `NativeAvSink` e il muxing è in-process.
+
+Il fallback pipe non deve diventare una seconda authority permanente.
 
 ## Regola architetturale
 

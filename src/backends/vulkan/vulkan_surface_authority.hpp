@@ -255,22 +255,9 @@ protected:
             owner_->stats.physical_surfaces_peak,
             static_cast<std::uint64_t>(physical_surfaces.size()));
 
-        if (owner_->plan_preallocated && physical.image.image != VK_NULL_HANDLE) {
-            if (physical.image.width != desc.width ||
-                physical.image.height != desc.height) {
-                throw std::invalid_argument(
-                    "Vulkan plan-preallocated surface slot " +
-                    std::to_string(slot) + " has dimensions " +
-                    std::to_string(physical.image.width) + "x" +
-                    std::to_string(physical.image.height) +
-                    " but requested " + std::to_string(desc.width) + "x" +
-                    std::to_string(desc.height));
-            }
-            physical.desc = desc;
-            physical.image.text_atlas_encoding = desc.text_atlas_encoding;
-            surface_bindings[handle] = slot;
-            return physical.image;
-        }
+        // DEMOLISHED (P1.4): the plan_preallocated fast-path was dead —
+        // plan_preallocated was always false.  Lazy materialization below is
+        // the only path.
 
         if (physical.image.image == VK_NULL_HANDLE ||
             physical.image.width != desc.width ||
