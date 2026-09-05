@@ -17,6 +17,7 @@
 #include "vulkan_backend_impl.hpp"
 #endif
 
+#include <array>
 #include <cstring>
 #include <memory>
 #include <optional>
@@ -457,6 +458,45 @@ graph::RenderOpResult VulkanBackend::fill_path_surface(
     return graph::RenderOpResult(graph::RenderBackendError{
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::fill_path_surface: Vulkan support is disabled"});
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::fill_grid_surface(
+    runtime::RenderSurfaceHandle destination,
+    std::int32_t x0, std::int32_t y0,
+    std::int32_t x1, std::int32_t y1,
+    const NativeGridFillParams& params) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    // Host side mirrors render_grid_background_kernel exactly: colors move
+    // to linear light and effective opacity scales every alpha (the kernel's
+    // degenerate opacity==0 guard is reproduced before the scaling).
+    const float effective_opacity =
+        (params.opacity > 0.0f) ? params.opacity : 1.0f;
+    const Color bg_linear = params.bg_color.to_linear();
+    const Color grid_linear = params.grid_color.to_linear();
+    const float bg_alpha = bg_linear.a * effective_opacity;
+    const float minor_alpha = grid_linear.a * effective_opacity;
+    const Color line_color{grid_linear.r, grid_linear.g, grid_linear.b,
+                           minor_alpha};
+    const Vec4 shape{5.0f, std::max(params.spacing, 1.0f),
+                     static_cast<float>(params.major_every), 0.0f};
+    const Vec4 line{params.offset.x, params.offset.y,
+                    std::max(params.minor_thickness, 0.0f),
+                    std::max(params.major_thickness, 0.0f)};
+    std::array<Vec2, 8> vertices{};
+    vertices[0] = Vec2{bg_linear.r, bg_linear.g};
+    vertices[1] = Vec2{bg_linear.b, bg_alpha};
+    vertices[2] = Vec2{params.size.x, params.size.y};
+    vertices[3] = Vec2{params.centered ? 1.0f : 0.0f, 0.0f};
+    return run_batched_surface_op([&] {
+        m_impl->fill_grid(destination, x0, y0, x1, y1,
+                          line_color, shape, line, vertices);
+    });
+#else
+    (void)destination; (void)x0; (void)y0; (void)x1; (void)y1; (void)params;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::fill_grid_surface: Vulkan support is disabled"});
 #endif
 }
 

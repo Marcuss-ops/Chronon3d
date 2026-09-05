@@ -57,4 +57,9 @@ chronon3d_add_test_suite(
             # local isolation lock.  Strictly under src/backends/software/
             # (BUILD_INTERFACE path); no include/chronon3d/ expansion.
             backends/software/test_frame_alloc_counter.cpp
+            # GPU/CPU semantic parity closeout — GridBackgroundShape: premultiplied
+            # background contract, resolved major-line rule (no ghost lines at
+            # major_thickness==0), clip confinement.  CPU expectations are the
+            # contract the GPU analytic fill must reproduce (Vulkan host corpus).
+            backends/software/test_grid_background_kernel_semantics.cpp
 )
