@@ -397,11 +397,34 @@ NodeExecResult CompositeNode::execute(
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
             if (!try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
-                return NodeExecutionError{
-                    RenderBackendErrorCode::ExecutionFailure,
-                    "CompositeNode",
-                    "dimension-mismatched composite failed on native path; "
-                    "CPU fallback is forbidden"};
+                // try_native_affine_composite returns false both when the
+                // native affine path is unavailable (software backend, or
+                // source/destination already same size) and when it failed.
+                // Materialize native surfaces when the backend owns them;
+                // then fall back to the CPU composite_layer.  Only a strict
+                // require_native_gpu policy turns materialization failure
+                // into a hard error.  (Regression from the Sep-5 TU split
+                // 39a5c03c9: it deleted this CPU fallback, making every
+                // software dimension-mismatch composite — e.g. shadow
+                // receivers smaller than the canvas — fail hard.)
+                if (ctx.services.surface_registry &&
+                    ctx.services.backend->supports_native_surfaces()) {
+                    const bool destination_ready = ensure_native_surface(
+                        ctx, *result, "CompositeNode.dimension.destination");
+                    auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
+                    const bool source_ready = ensure_native_surface(
+                        ctx, mutable_bottom, "CompositeNode.dimension.source");
+                    if (ctx.policy.require_native_gpu &&
+                        (!destination_ready || !source_ready)) {
+                        return NodeExecutionError{
+                            RenderBackendErrorCode::ExecutionFailure,
+                            "CompositeNode",
+                            "native residency violation while materializing "
+                            "dimension-mismatched inputs"};
+                    }
+                }
+                ctx.services.backend->composite_layer(
+                    *result, *bottom, BlendMode::Normal);
             }
         }
         // F3.2 — size mismatch forces a full-canvas composite (every pixel
