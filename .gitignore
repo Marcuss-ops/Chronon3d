@@ -1,19 +1,10 @@
-# ── Downloaded test-font artifacts ────────────────────────────────────────────
-# Legacy optional Poppins fixtures remain untracked.
-assets/fonts/Poppins-Regular.ttf
-assets/fonts/Poppins-SemiBold.ttf
-assets/fonts/Poppins-ExtraBold.ttf
-# Heavy multilingual/emoji fixtures are checksum-pinned by
-# tools/bootstrap_test_fonts.py and intentionally excluded from the core repo.
-assets/fonts/FreeSerif.ttf
-assets/fonts/NotoColorEmoji.ttf
-assets/fonts/NotoNaskhArabic-Bold.ttf
-assets/fonts/NotoNaskhArabic-Regular.ttf
-assets/fonts/NotoSansCJK-Regular.ttc
-assets/fonts/NotoSansHebrew-Bold.ttf
-assets/fonts/NotoSansHebrew-Regular.ttf
-assets/fonts/NotoSansSymbols2-Regular.ttf
-assets/fonts/UnifontUpper.otf
+# ── Test fixtures (bootstrap-only policy) ────────────────────────────────────
+# Everything under assets/ is checksum-pinned by tools/bootstrap_test_fonts.py
+# (blob SHA-1, snapshot a31b1627). Fixture binaries are intentionally untracked:
+# the script materializes them network-free from the local git object store,
+# falling back to the pinned GitHub snapshot. Media patterns below must not
+# re-expose them, hence assets/ is ignored wholesale and never negated.
+assets/
 
 # ── IDE / Editor ───────────────────────────────────────────────────────────────
 .idea/
@@ -96,7 +87,6 @@ desktop.ini
 *.bmp
 *.tga
 *.exr
-!assets/**
 !tests/**
 !docs/**
 

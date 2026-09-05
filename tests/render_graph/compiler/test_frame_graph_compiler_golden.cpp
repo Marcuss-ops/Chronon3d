@@ -134,7 +134,13 @@ TEST_CASE("FrameGraphCompiler - compiled frame program is deterministic (golden)
     // Persist the contract as a small source-controlled golden. The test is
     // intentionally opt-in for regeneration so ordinary runs cannot rewrite
     // a golden accidentally.
+    // The registration layer defines CHRONON3D_SOURCE_DIR as a compile-time
+    // macro (_chronon3d_renderer_target_finalize); the env var is an optional
+    // override for out-of-tree runs.
     const char* source_dir = std::getenv("CHRONON3D_SOURCE_DIR");
+#ifdef CHRONON3D_SOURCE_DIR
+    if (!source_dir) source_dir = CHRONON3D_SOURCE_DIR;
+#endif
     REQUIRE(source_dir != nullptr);
     const std::string golden_path = std::string(source_dir) +
         "/tests/render_graph/compiler/frame_graph_program.golden";
