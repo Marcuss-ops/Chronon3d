@@ -12,7 +12,11 @@ CacheEvalResult evaluate_cache(
     u64 input_hash,
     bool inputs_frame_dependent,
     bool has_cacheable_inputs,
-    GraphNodeId node_id
+    GraphNodeId node_id,
+    // HOT-PATH TAX A — topology-time bit from the compiled graph
+    // (CompiledNodeInfo::cache_key_required).  Defaults to true so direct
+    // callers keep the historical always-build behavior.
+    bool cache_key_required = true
 );
 
 } // namespace chronon3d::graph

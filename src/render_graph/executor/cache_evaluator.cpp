@@ -12,7 +12,8 @@ CacheEvalResult evaluate_cache(
     u64 input_hash,
     bool inputs_frame_dependent,
     bool has_cacheable_inputs,
-    GraphNodeId node_id
+    GraphNodeId node_id,
+    bool cache_key_required
 ) {
     CacheEvalResult cr;
     const auto policy = node.cache_policy();
@@ -66,31 +67,56 @@ CacheEvalResult evaluate_cache(
         cr.use_cache = false;
     }
 
-    // The key is ALWAYS computed here (even for cache-bypassed nodes) on
-    // purpose: `commit_node_state` records `cr.key.digest()` into
+    // ── HOT-PATH TAX A: topology-gated key construction ────────────────
+    // Historically the key was ALWAYS computed here (even for cache-bypassed
+    // nodes) because `commit_node_state` records `cr.key.digest()` into
     // `ExecutionState::resolved_key_digest`, and `resolve_inputs` folds that
     // digest into every consumer's `input_hash`.  A bypassed producer whose
     // key were skipped would publish a stale/missing digest, collapsing the
-    // consumers' cache keys across frames (the NODE-CACHE-KEY-COLLAPSE rot
-    // class).  Skipping key construction on bypass therefore requires
-    // compile/topology-time knowledge that NO cacheable consumer exists for
-    // this node — not a safe per-node local decision (TICKET-HOT-PATH-TAX
-    // candidate, gated on the compiled consumer table).
-    cr.key = node.cache_key(ctx);
+    // consumers' cache keys across frames (NODE-CACHE-KEY-COLLAPSE-ROT).
+    //
+    // The skip below is therefore NOT a per-node local decision: it is gated
+    // on the compiled consumer table.  `CompiledNodeInfo::cache_key_required`
+    // is true for every node that can perform a lookup itself or transitively
+    // feeds a node that can — so when it is false, NO executed consumer will
+    // ever fold this node's digest into a live cache key, and publishing the
+    // default-key constant digest is unobservable.  Telemetry consumption is
+    // OR-ed in here because the emitter (telemetry_emitter.cpp) reads key
+    // fields for every cacheable node in SQLite-enabled builds; this TU sees
+    // the same compile-time flag the emitter sees.
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    const bool telemetry_consumes_key = is_cacheable && ctx.services.node_cache;
+#else
+    const bool telemetry_consumes_key = false;
+#endif
+    const bool may_need_key = cache_key_required || telemetry_consumes_key;
+    if (!may_need_key) {
+        // No lookup path and no telemetry sink can read this key: skip
+        // construction (and any lookup that would need it).
+        cr.use_cache = false;
+    } else {
+        cr.key = node.cache_key(ctx);
 
-    // Propagate the central sub-frame tick so that every node that generates
-    // a frame-dependent cache key gets the same quantised time anchor without
-    // having to remember to include it themselves.  Static nodes keep tick=0,
-    // avoiding cache pollution.
-    if (cr.node_frame_dependent) {
-        cr.key.temporal_key = ctx.frame_input.temporal_key;
-    }
+        // Propagate the central sub-frame tick so that every node that
+        // generates a frame-dependent cache key gets the same quantised time
+        // anchor without having to remember to include it themselves.  Static
+        // nodes keep tick=0, avoiding cache pollution.
+        if (cr.node_frame_dependent) {
+            cr.key.temporal_key = ctx.frame_input.temporal_key;
+        }
 
-    cr.key.input_hash = input_hash;
-    if (ctx.policy.tile_execution_enabled && ctx.node_exec.active_tile_clip) {
-        cr.key.tile_x = ctx.node_exec.active_tile_clip->x0;
-        cr.key.tile_y = ctx.node_exec.active_tile_clip->y0;
-        cr.key.tile_size = ctx.policy.tile_size > 0 ? ctx.policy.tile_size : 0;
+        cr.key.input_hash = input_hash;
+        if (ctx.policy.tile_execution_enabled && ctx.node_exec.active_tile_clip) {
+            cr.key.tile_x = ctx.node_exec.active_tile_clip->x0;
+            cr.key.tile_y = ctx.node_exec.active_tile_clip->y0;
+            cr.key.tile_size = ctx.policy.tile_size > 0 ? ctx.policy.tile_size : 0;
+        }
+
+        // HOT-PATH TAX D — digest computed exactly once per key, before the
+        // key reaches any unordered_map or the resolved_key_digest
+        // publication.  After this point the key is read-only; digest() is a
+        // single load.
+        cr.key.finalize_digest();
     }
 
     if (ctx.policy.diagnostics_enabled) {
