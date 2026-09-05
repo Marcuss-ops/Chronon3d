@@ -150,7 +150,8 @@ CREATE TABLE IF NOT EXISTS render_counters (
 - [ ] **Stage 4 — Run Schema Normalization**: Deprecazione delle 131 colonne di `render_runs` a favore di `render_counters` e summary mirati.
 - [x] **Stage 5 — Telemetry Levels**: Implementazione dell'enum `TelemetryLevel` (`telemetry_level.hpp`) e filtraggio del salvataggio degli eventi granulari in `Summary` mode; retention janitor (TTL) applicato solo alle tabelle Detailed/Trace (`SqliteTelemetryStore::apply_retention`), Summary mai ruotata.
 - [x] **Stage 6 — Profiler Consolidation & Demolition Debt**: Consumer census di `RenderProfiler` eseguito (0 chiamanti attivi); `RenderProfiler` (`graph_profiler.hpp`, `graph_profiler.cpp` e membro in `RenderGraphContext`) rimosso definitivamente dal core.
-- [ ] **Stage 7 — Hardware & Workload Fingerprinting**: Riconoscimento hardware dettagliato (CPU/GPU/Driver) e calcolo degli hash canonici per cost model e regression testing.
+- [~] **Stage 7 — Hardware & Workload Fingerprinting (CPU-part done)**: Host attributes persistiti e back-fillati in `render_runs` (`os` reale, `cpu_model` da `/proc/cpuinfo`/`sysctl`, `cores`, `compiler_info`, `build_type`, `git_commit_short`). Rimane aperto: riconoscimento GPU/Driver e hash workload canonici per cost model e regression testing.
+- [x] **Stage 8 — JSONL as explicit export**: Canale di scrittura JSONL duplicato rimosso dal finalize job (zero dual-write di default); SQLite è l'unico store persistente. La compatibilità JSONL vive solo come export esplicito su richiesta: `chronon3d_cli telemetry export --run-id <id> [-o file]` (record per run, chiavi = colonne `render_runs`, nessun drift di schema).
 
 ---
 
