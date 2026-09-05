@@ -9,6 +9,12 @@
 namespace chronon3d::cache {
 
 u64 NodeCacheKey::digest() const {
+    // HOT-PATH TAX D — finalized keys read the memo; everything else falls
+    // back to the pure computation so semantics never change.
+    return digest_finalized ? precomputed_digest : compute_digest();
+}
+
+u64 NodeCacheKey::compute_digest() const {
     return core::hash::HashBuilder{}
         .add(scope)
         .add(frame)
