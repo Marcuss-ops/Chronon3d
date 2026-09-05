@@ -37,7 +37,6 @@ namespace chronon3d::video {
 namespace chronon3d::graph {
 
 class RenderBackend;
-class RenderProfiler;
 using GraphNodeId = uint32_t;
 
 enum class RenderGraphNodeKind {

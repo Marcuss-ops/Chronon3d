@@ -8,8 +8,17 @@ namespace chronon3d::telemetry {
 
 namespace {
 
-// Canonical column count for render_runs (from telemetry_schema.sql)
-constexpr int CANONICAL_RUN_COLUMNS = 131;
+// ── Versioned schema migrations (TICKET-TELEMETRY-SQLITE-NORMALIZATION) ──
+//
+// Schema authority is telemetry_schema.sql (embedded as TELEMETRY_SCHEMA_SQL).
+// Version history:
+//   0 → 1: legacy DBs created before PRAGMA user_version tracking.
+//          The legacy column-array bridge below tops up any tables that
+//          predate a schema column, then the base schema (CREATE TABLE IF
+//          NOT EXISTS) is idempotent from there.
+//   1    : current version — render_node_summary + render_memory_summary
+//          added (Stage 3); base schema covers them.
+constexpr int kCurrentSchemaVersion = 1;
 
 // Ordered column names for render_runs matching telemetry_schema.sql
 constexpr const char* RUN_COLUMN_NAMES[] = {
@@ -132,7 +141,12 @@ constexpr TableDef ALL_TABLES[] = {
 
 #undef COLUMNS_OF
 
-// Non-destructive migration: add missing columns to ALL tables with ALTER TABLE ADD COLUMN
+// Legacy 0→1 bridge: add missing columns to ALL tables with ALTER TABLE ADD
+// COLUMN. DEMOLITION DEBT: this bridge exists only so databases created before
+// versioned migrations keep working. Removal condition: telemetry DBs in the
+// wild are all at user_version >= 1 (no version-0 files are opened anymore).
+// It must NOT grow: new columns ship exclusively through telemetry_schema.sql
+// plus a versioned migration, never through this array duplication.
 void migrate_add_missing_columns(sqlite3* db) {
     for (const auto& table_def : ALL_TABLES) {
         std::string pragma_sql = "PRAGMA table_info(" + std::string(table_def.name) + ");";
@@ -192,15 +206,34 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
     exec_sql(m_impl->db, "PRAGMA journal_mode=WAL;");
     exec_sql(m_impl->db, "PRAGMA synchronous=NORMAL;");
 
-    // Non-destructive migration: add any missing columns to existing tables
-    migrate_add_missing_columns(m_impl->db);
+    // Versioned migration: read user_version, apply only what is needed.
+    int db_version = 0;
+    {
+        SqliteStatement version_stmt(m_impl->db, "PRAGMA user_version;");
+        if (version_stmt && version_stmt.step_row()) {
+            db_version = sqlite3_column_int(version_stmt.get(), 0);
+        }
+    }
 
-    // Apply schema from the canonical .sql file (embedded at build time)
+    // Legacy bridge: databases created before version tracking may predate
+    // columns the canonical schema now defines. Tops up pre-existing tables;
+    // fresh databases are fully covered by the base schema.
+    if (db_version < 1) {
+        migrate_add_missing_columns(m_impl->db);
+    }
+
+    // Apply schema from the canonical .sql file (embedded at build time).
+    // Every CREATE is IF NOT EXISTS, so re-applying is idempotent.
     char* err_msg = nullptr;
     rc = sqlite3_exec(m_impl->db, TELEMETRY_SCHEMA_SQL, nullptr, nullptr, &err_msg);
     if (rc != SQLITE_OK) {
         if (err_msg) sqlite3_free(err_msg);
         return false;
+    }
+
+    if (db_version < kCurrentSchemaVersion) {
+        exec_sql(m_impl->db,
+                 ("PRAGMA user_version = " + std::to_string(kCurrentSchemaVersion) + ";").c_str());
     }
     return true;
 }

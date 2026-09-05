@@ -167,16 +167,24 @@ std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path() {
     return resolve_sqlite_telemetry_path(instance().m_config);
 }
 
-bool TelemetryManager::record_run(RenderTelemetryRecord& run,
-                                  const std::vector<FrameTelemetry>& frames,
-                                  const std::vector<PhaseTelemetryRecord>& phases,
-                                  const std::vector<CounterTelemetryRecord>& counters,
-                                  const std::vector<NodeTelemetryRecord>& node_events,
-                                  const std::vector<LayerTelemetryRecord>& layer_events,
-                                  const std::vector<CacheTelemetryRecord>& cache_events,
-                                  const std::vector<CullingTelemetryRecord>& culling_events,
-                                  const std::vector<ImageTelemetryRecord>& image_events,
-                                  const std::vector<RenderArtifactRecord>& artifacts) {
+bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
+    // The snapshot is the immutable photograph; the manager may still fill
+    // run metadata defaults that only it owns (run_id, host attribs). Copy
+    // locally so the const input is respected while the persisted run can be
+    // default-filled. This preserves the value-object invariant at the call
+    // site and keeps exactly one authoritative run_id assignment point.
+    TelemetryRunSnapshot mutable_snapshot = snapshot;
+    RenderTelemetryRecord& run = mutable_snapshot.run;
+    const std::vector<FrameTelemetry>& frames = mutable_snapshot.frames;
+    const std::vector<PhaseTelemetryRecord>& phases = mutable_snapshot.phases;
+    const std::vector<CounterTelemetryRecord>& counters = mutable_snapshot.counters;
+    const std::vector<NodeTelemetryRecord>& node_events = mutable_snapshot.node_events;
+    const std::vector<LayerTelemetryRecord>& layer_events = mutable_snapshot.layer_events;
+    const std::vector<CacheTelemetryRecord>& cache_events = mutable_snapshot.cache_events;
+    const std::vector<CullingTelemetryRecord>& culling_events = mutable_snapshot.culling_events;
+    const std::vector<ImageTelemetryRecord>& image_events = mutable_snapshot.image_events;
+    const std::vector<RenderArtifactRecord>& artifacts = mutable_snapshot.artifacts;
+
     spdlog::info("[telemetry] record_run called with {} stores registered", m_stores.size());
     if (run.run_id.empty()) {
         run.run_id = m_config.run_id_override.empty()
@@ -241,11 +249,43 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
             spdlog::info("[telemetry] write_artifacts returned: {}", r);
             ok &= r;
         }
+        // Stage 3 — memory persistence projections (same transaction).
+        if (!mutable_snapshot.node_summaries.empty()) {
+            const bool r = store->write_node_summaries(run.run_id, mutable_snapshot.node_summaries);
+            ok &= r;
+        }
+        ok &= store->write_memory_summary(run.run_id, mutable_snapshot.memory_summary);
         store->end_transaction(ok);
         spdlog::info("[telemetry] store transaction end with status: {}", ok);
         all_ok &= ok;
     }
     return all_ok;
+}
+
+bool TelemetryManager::record_run(RenderTelemetryRecord& run,
+                                  const std::vector<FrameTelemetry>& frames,
+                                  const std::vector<PhaseTelemetryRecord>& phases,
+                                  const std::vector<CounterTelemetryRecord>& counters,
+                                  const std::vector<NodeTelemetryRecord>& node_events,
+                                  const std::vector<LayerTelemetryRecord>& layer_events,
+                                  const std::vector<CacheTelemetryRecord>& cache_events,
+                                  const std::vector<CullingTelemetryRecord>& culling_events,
+                                  const std::vector<ImageTelemetryRecord>& image_events,
+                                  const std::vector<RenderArtifactRecord>& artifacts) {
+    TelemetryRunSnapshot snapshot;
+    snapshot.run = std::move(run);
+    snapshot.frames = frames;
+    snapshot.phases = phases;
+    snapshot.counters = counters;
+    snapshot.node_events = node_events;
+    snapshot.layer_events = layer_events;
+    snapshot.cache_events = cache_events;
+    snapshot.culling_events = culling_events;
+    snapshot.image_events = image_events;
+    snapshot.artifacts = artifacts;
+    const bool ok = record_run(snapshot);
+    run = snapshot.run;
+    return ok;
 }
 
 std::string TelemetryManager::get_os_name() {

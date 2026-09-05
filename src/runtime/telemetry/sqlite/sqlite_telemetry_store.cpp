@@ -10,7 +10,7 @@ SqliteTelemetryStore::~SqliteTelemetryStore() = default;
 void SqliteTelemetryStore::begin_transaction() {
     m_impl->mutex.lock();  // held until end_transaction(); write_* methods lock recursively
     if (m_impl->db) {
-        exec_sql(m_impl->db, "BEGIN TRANSACTION;");
+        exec_sql(m_impl->db, "BEGIN IMMEDIATE TRANSACTION;");
     }
 }
 
