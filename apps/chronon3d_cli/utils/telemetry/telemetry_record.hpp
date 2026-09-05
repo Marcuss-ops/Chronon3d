@@ -21,13 +21,12 @@ namespace chronon3d::cli::telemetry {
 /// Populates host-system attributes on a RenderTelemetryRecord.
 ///
 /// Each attribute is filled only when currently empty (idempotent: callers may
-/// pre-populate fields from setup-time data).  This helper exists to keep the
-/// JSONL-fallback write path and the SqliteTelemetryStore path describing the
-/// *same* host context; without it, runs written via the JSONL-only path
-/// would silently miss fields that TelemetryManager::record_run() fills
-/// internally.  Centralize here so adding a new host attribute (e.g.
-/// architecture, NUMA topology, distro version) only needs editing one place
-/// and automatically propagates to both stores.
+/// pre-populate fields from setup-time data).  SQLite is the only persistence
+/// channel, but keeping the population here (rather than relying solely on
+/// TelemetryManager::record_run() back-fill) lets setup-time callers describe
+/// host context exactly once.  Centralize here so adding a new host attribute
+/// (e.g. architecture, NUMA topology, distro version) only needs editing one
+/// place.
 ///
 /// `bytes_allocated_peak` is set unconditionally because it is a process-wide
 /// gauge (not a missing-field situation): the value is taken at finalize time
