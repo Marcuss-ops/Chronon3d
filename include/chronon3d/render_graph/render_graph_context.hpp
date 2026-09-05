@@ -24,7 +24,7 @@
 //                                          // PrecompBuilderService (was
 //                                          // precomp_build std::function)
 //       NodeExecutionContext node_exec;    // per-frame/per-node mutable
-//                                          // workspace: counters, profiler,
+//                                          // workspace: counters,
 //                                          // telemetry vectors, tile clip
 //                                          // rect, early-exit mask, dirty
 //                                          // rect, transform scratch,
@@ -482,7 +482,7 @@ struct NodeExecutionContext {
     // Nullable so test paths that drive `predicted_bbox()` standalone
     // (without an executor) don't pay an SDK-symbol cost; the include
     // of `text_bbox_reporter.hpp` is still necessary to dereference.
-    // Mirrors the existing null-pointer pattern (`counters`, `profiler`,
+    // Mirrors the existing null-pointer pattern (`counters`,
     // `asset_resolver`, `scheduler`, `session`, etc.) — additive field,
     // Cat-2 compliant (forward-decl pattern, no new public API surface).
     TextBboxReporter* text_bbox_reporter{ nullptr };
@@ -504,7 +504,7 @@ struct NodeExecutionContext {
     // are exposed (full def in
     // `<chronon3d/render_graph/executor/node_memory_metrics.hpp>`).
     //
-    // Mirrors the existing null-pointer pattern (`counters`, `profiler`,
+    // Mirrors the existing null-pointer pattern (`counters`,
     // `text_bbox_reporter`, `asset_resolver`, `scheduler`, `session`, etc.)
     // — additive field, Cat-2 compliant (forward-decl pattern, no new ABI
     // surface for non-`#include`-ing callers).
