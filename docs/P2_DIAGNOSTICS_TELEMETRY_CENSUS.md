@@ -54,6 +54,8 @@ Observability, moved fully to the boundary by P2.11:
 
 - `CHRONON3D_TELEMETRY_PATH`
 - `CHRONON3D_RUN_ID`
+- `CHRONON3D_TELEMETRY_LEVEL` (off|summary|detailed|trace; default summary)
+- `CHRONON3D_TELEMETRY_DETAIL_TTL_DAYS` (retention janitor window for Detailed/Trace rows; 0 = disabled; default 30)
 - `HOME` only for resolving the default telemetry directory
 
 `TelemetryManager` receives a `TelemetryRuntimeConfig` containing the already-resolved path/default directory/run-id override. It performs no environment lookup.

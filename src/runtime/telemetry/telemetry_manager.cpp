@@ -113,7 +113,21 @@ void TelemetryManager::clear_stores() {
 void TelemetryManager::initialize_default_stores() {
     clear_stores();
 
+    if (m_config.level == TelemetryLevel::Off) {
+        spdlog::info("[telemetry] Capture level is Off; no stores registered.");
+        return;
+    }
+
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+    const auto apply_retention = [this](const std::shared_ptr<TelemetryStore>& store) {
+        // Janitor for Detailed/Trace rows left behind by earlier runs. Runs
+        // at any current level clean stale granular history; Summary rows are
+        // durable and are never passed to the janitor.
+        if (m_config.detail_ttl_days > 0) {
+            store->apply_retention(m_config.detail_ttl_days);
+        }
+    };
+
     const std::filesystem::path base_dir = telemetry_directory(m_config);
     spdlog::info("[telemetry] Initializing default stores in base directory: {}",
                  base_dir.string());
@@ -128,6 +142,7 @@ void TelemetryManager::initialize_default_stores() {
     if (sqlite_store->initialize(sqlite_path.string())) {
         spdlog::info("[telemetry] Successfully initialized SQLite store at {}",
                      sqlite_path.string());
+        apply_retention(sqlite_store);
         add_store(std::move(sqlite_store));
     } else {
         spdlog::warn(
@@ -141,6 +156,7 @@ void TelemetryManager::initialize_default_stores() {
         if (fallback_store->initialize(fallback_path.string())) {
             spdlog::info("[telemetry] Successfully initialized fallback SQLite store at {}",
                          fallback_path.string());
+            apply_retention(fallback_store);
             add_store(std::move(fallback_store));
         } else {
             spdlog::warn("[telemetry] Failed to initialize fallback SQLite store at {}",
@@ -173,6 +189,14 @@ bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
     // locally so the const input is respected while the persisted run can be
     // default-filled. This preserves the value-object invariant at the call
     // site and keeps exactly one authoritative run_id assignment point.
+    if (m_config.level == TelemetryLevel::Off) {
+        return true;  // Off: persistence disabled at the boundary.
+    }
+
+    // Detailed/Trace persist the granular per-frame/per-event tables;
+    // Summary (production default) persists only durable KPI rows.
+    const bool persist_detail = m_config.level >= TelemetryLevel::Detailed;
+
     TelemetryRunSnapshot mutable_snapshot = snapshot;
     RenderTelemetryRecord& run = mutable_snapshot.run;
     const std::vector<FrameTelemetry>& frames = mutable_snapshot.frames;
@@ -204,7 +228,7 @@ bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
         store->begin_transaction();
         bool ok = store->write_render_run(run);
         spdlog::info("[telemetry] write_render_run returned: {}", ok);
-        if (!frames.empty()) {
+        if (!frames.empty() && persist_detail) {
             const bool r = store->write_frames(run.run_id, frames);
             spdlog::info("[telemetry] write_frames returned: {}", r);
             ok &= r;
@@ -219,27 +243,27 @@ bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
             spdlog::info("[telemetry] write_counters returned: {}", r);
             ok &= r;
         }
-        if (!node_events.empty()) {
+        if (!node_events.empty() && persist_detail) {
             const bool r = store->write_node_events(run.run_id, node_events);
             spdlog::info("[telemetry] write_node_events returned: {}", r);
             ok &= r;
         }
-        if (!layer_events.empty()) {
+        if (!layer_events.empty() && persist_detail) {
             const bool r = store->write_layer_events(run.run_id, layer_events);
             spdlog::info("[telemetry] write_layer_events returned: {}", r);
             ok &= r;
         }
-        if (!cache_events.empty()) {
+        if (!cache_events.empty() && persist_detail) {
             const bool r = store->write_cache_events(run.run_id, cache_events);
             spdlog::info("[telemetry] write_cache_events returned: {}", r);
             ok &= r;
         }
-        if (!culling_events.empty()) {
+        if (!culling_events.empty() && persist_detail) {
             const bool r = store->write_culling_events(run.run_id, culling_events);
             spdlog::info("[telemetry] write_culling_events returned: {}", r);
             ok &= r;
         }
-        if (!image_events.empty()) {
+        if (!image_events.empty() && persist_detail) {
             const bool r = store->write_image_events(run.run_id, image_events);
             spdlog::info("[telemetry] write_image_events returned: {}", r);
             ok &= r;
