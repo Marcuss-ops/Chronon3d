@@ -413,6 +413,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // render API still returns a CPU Framebuffer, so perform exactly one
     // terminal synchronization here rather than between every graph pass.
     detail::synchronize_native_output(ctx, exec_result.fb);
+    // Retirement polls completed frame fences and never blocks the native
+    // Vulkan->CUDA/NVENC hot path.
     backend.retire_frame_transient_surfaces();
     const auto t_exec1 = profiling::now();
 
