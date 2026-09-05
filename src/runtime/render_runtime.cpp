@@ -153,14 +153,6 @@ void RenderRuntime::reset_frame_value_cache() {
     FrameValueCache{m_owned_node_cache}.reset();
 }
 
-chronon3d::cache::PersistentFramebufferStore* RenderRuntime::framebuffer_store() noexcept {
-    return m_framebuffer_store.get();
-}
-
-const chronon3d::cache::PersistentFramebufferStore* RenderRuntime::framebuffer_store() const noexcept {
-    return m_framebuffer_store.get();
-}
-
 void RenderRuntime::populate() {
     if (m_populated) {
         return;
@@ -174,14 +166,6 @@ void RenderRuntime::populate() {
     // default-constructed member instead of move-assigning a new one.
     m_owned_node_cache.set_capacity(cache_cfg.node_cache_max_bytes());
     m_owned_node_cache.set_diagnostics(m_diagnostics);
-    if (!cache_cfg.disable_persistent_framebuffer_cache()) {
-        m_framebuffer_store =
-            std::make_unique<chronon3d::cache::PersistentFramebufferStore>();
-        const auto& cache_dir = m_config.paths().persistent_framebuffer_cache_dir();
-        if (!cache_dir.empty()) {
-            m_framebuffer_store->set_cache_dir(cache_dir);
-        }
-    }
     // The per-job/CLI budget is the canonical retention limit when present.
     // Previously it was stored in Config but this construction path only read
     // the legacy max-bytes field, making --fb-pool-budget-mb ineffective.

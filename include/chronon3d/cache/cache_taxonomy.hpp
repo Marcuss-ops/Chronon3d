@@ -56,7 +56,6 @@ enum class CacheFamily : unsigned char {
     /// Members:
     ///   • FramebufferPool                    — cold-path / reference / extension pool
     ///   • GpuGlyphAtlas plain glyph pages    — glyph page residency
-    ///   • PersistentFramebufferStore         — named persistent FB storage
     ResidencyCache = 2,
 
     /// ProgramCache — program identity → compiled executable.

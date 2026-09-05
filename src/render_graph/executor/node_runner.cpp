@@ -7,7 +7,6 @@
 #include "tile_pruning.hpp"
 #include "telemetry_emitter.hpp"
 #include "text_bbox_reconcile.hpp"
-#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
