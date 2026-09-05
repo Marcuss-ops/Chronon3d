@@ -37,20 +37,6 @@ public:
     // one transaction per store ("whole run or nothing").
     bool record_run(const TelemetryRunSnapshot& snapshot);
 
-    // Compatibility overload — builds a snapshot and forwards.
-    // DEMOLITION DEBT (TICKET-TELEMETRY-SQLITE-NORMALIZATION Stage 2):
-    // remove once all callers construct TelemetryRunSnapshot directly.
-    bool record_run(RenderTelemetryRecord& run,
-                    const std::vector<FrameTelemetry>& frames = {},
-                    const std::vector<PhaseTelemetryRecord>& phases = {},
-                    const std::vector<CounterTelemetryRecord>& counters = {},
-                    const std::vector<NodeTelemetryRecord>& node_events = {},
-                    const std::vector<LayerTelemetryRecord>& layer_events = {},
-                    const std::vector<CacheTelemetryRecord>& cache_events = {},
-                    const std::vector<CullingTelemetryRecord>& culling_events = {},
-                    const std::vector<ImageTelemetryRecord>& image_events = {},
-                    const std::vector<RenderArtifactRecord>& artifacts = {});
-
     static std::string get_os_name();
     static std::string get_cpu_model();
     static int get_logical_cores();
