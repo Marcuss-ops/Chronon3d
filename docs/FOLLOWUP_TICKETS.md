@@ -23,6 +23,7 @@
 |---|---|---|---|
 | FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification; Wave 0 closeout classifies this debt but does not bypass its exit conditions |
 | RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
+| PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | [PERSISTENT-FB-STORE-REMOVAL](tickets/TICKET-PERSISTENT-FB-STORE-REMOVAL.md) — codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato) |
 
 ## Backlog P2/P3 (non bloccante)
 
