@@ -4,8 +4,8 @@
 //
 // Config is constructed from environment variables via the factory
 // `Config::from_environment()`.  Domain-specific sub-configs (DebugConfig,
-// CacheConfig, SchedulerConfig, PathConfig) are exposed via const accessors
-// so callers can consume only the section they need.
+// CacheConfig, SchedulerConfig) are exposed via const accessors so callers
+// can consume only the section they need.
 //
 // The old singleton pattern (`Config::get()`) is deprecated.  Callers should
 // construct a Config instance via `from_environment()` and pass it explicitly
@@ -66,9 +66,6 @@ public:
     [[nodiscard]] std::size_t video_frame_max_entries() const noexcept { return video_frame_max_entries_; }
     [[nodiscard]] std::size_t converted_frame_cache_max_bytes() const noexcept { return converted_frame_cache_max_bytes_; }
     [[nodiscard]] std::size_t scene_program_cache_max_entries() const noexcept { return scene_program_cache_max_entries_; }
-    [[nodiscard]] bool disable_persistent_framebuffer_cache() const noexcept {
-        return disable_persistent_framebuffer_cache_;
-    }
     [[nodiscard]] chronon3d::cache::FramebufferPoolClearPolicy
     framebuffer_pool_clear_policy() const noexcept {
         return framebuffer_pool_clear_policy_;
@@ -88,7 +85,6 @@ private:
     std::size_t video_frame_max_entries_ = 0;
     std::size_t converted_frame_cache_max_bytes_ = 0;
     std::size_t scene_program_cache_max_entries_ = 0;
-    bool disable_persistent_framebuffer_cache_ = false;
     chronon3d::cache::FramebufferPoolClearPolicy framebuffer_pool_clear_policy_{
         chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob};
 };
@@ -138,17 +134,6 @@ private:
     std::string cli_assets_root_;
 };
 
-class PathConfig {
-public:
-    [[nodiscard]] const std::string& persistent_framebuffer_cache_dir() const noexcept {
-        return persistent_framebuffer_cache_dir_;
-    }
-
-private:
-    friend class Config;
-    std::string persistent_framebuffer_cache_dir_;
-};
-
 class Config {
 public:
     static constexpr std::uint32_t kAutoGpuDevice = UINT32_MAX;
@@ -156,12 +141,6 @@ public:
     [[nodiscard]] static Config from_environment(const CpuBudget& budget);
 
     void set_fb_pool_budget(std::size_t bytes);
-    void set_disable_persistent_framebuffer_cache(bool disabled) noexcept {
-        cache_.disable_persistent_framebuffer_cache_ = disabled;
-    }
-    void set_persistent_framebuffer_cache_dir(std::string path) {
-        paths_.persistent_framebuffer_cache_dir_ = std::move(path);
-    }
     void set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy policy);
     void set_cpu_budget(const CpuBudget& budget) { cpu_budget_ = budget; }
     void set_backend_preference(chronon3d::graph::BackendPreference preference) noexcept {
@@ -173,7 +152,6 @@ public:
     [[nodiscard]] const DebugConfig& debug() const noexcept { return debug_; }
     [[nodiscard]] const CacheConfig& cache() const noexcept { return cache_; }
     [[nodiscard]] const SchedulerConfig& scheduler() const noexcept { return scheduler_; }
-    [[nodiscard]] const PathConfig& paths() const noexcept { return paths_; }
     [[nodiscard]] const RuntimePathConfig& runtime() const noexcept { return runtime_; }
     [[nodiscard]] const CpuBudget& cpu_budget() const noexcept { return cpu_budget_; }
     [[nodiscard]] chronon3d::graph::BackendPreference backend_preference() const noexcept {
@@ -195,7 +173,6 @@ private:
     DebugConfig debug_;
     CacheConfig cache_;
     SchedulerConfig scheduler_;
-    PathConfig paths_;
     RuntimePathConfig runtime_;
     CpuBudget cpu_budget_;
     chronon3d::graph::BackendPreference backend_preference_{
