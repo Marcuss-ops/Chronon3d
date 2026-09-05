@@ -262,32 +262,6 @@ bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
     return all_ok;
 }
 
-bool TelemetryManager::record_run(RenderTelemetryRecord& run,
-                                  const std::vector<FrameTelemetry>& frames,
-                                  const std::vector<PhaseTelemetryRecord>& phases,
-                                  const std::vector<CounterTelemetryRecord>& counters,
-                                  const std::vector<NodeTelemetryRecord>& node_events,
-                                  const std::vector<LayerTelemetryRecord>& layer_events,
-                                  const std::vector<CacheTelemetryRecord>& cache_events,
-                                  const std::vector<CullingTelemetryRecord>& culling_events,
-                                  const std::vector<ImageTelemetryRecord>& image_events,
-                                  const std::vector<RenderArtifactRecord>& artifacts) {
-    TelemetryRunSnapshot snapshot;
-    snapshot.run = std::move(run);
-    snapshot.frames = frames;
-    snapshot.phases = phases;
-    snapshot.counters = counters;
-    snapshot.node_events = node_events;
-    snapshot.layer_events = layer_events;
-    snapshot.cache_events = cache_events;
-    snapshot.culling_events = culling_events;
-    snapshot.image_events = image_events;
-    snapshot.artifacts = artifacts;
-    const bool ok = record_run(snapshot);
-    run = snapshot.run;
-    return ok;
-}
-
 std::string TelemetryManager::get_os_name() {
 #if defined(__linux__)
     return "Linux";
