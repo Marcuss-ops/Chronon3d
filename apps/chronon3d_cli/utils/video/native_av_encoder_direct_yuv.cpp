@@ -184,15 +184,13 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
     }
-    const auto sync_t0 = Clock::now();
-    const CUresult sync_res = cuda::synchronize(ready);
-    direct_yuv_cuda_wait_ms_ += elapsed_ms(sync_t0);
-    if (sync_res != CUDA_SUCCESS) {
-        cuda::destroy(ready);
-        av_frame_unref(gpu_frame);
-        reusable_cuda_frames_.push_back(gpu_frame);
-        return false;
-    }
+    // Do not wait for the producer event here.  Direct-YUV is a bounded
+    // producer/consumer pipeline: the CUDA composite/copy is enqueued on the
+    // producer stream and the single encoder owner consumes completed frames
+    // from pending_cuda_frames_ in drain_ready_cuda_frames().  Waiting here
+    // collapses the existing ring to depth one and makes NVDEC/composite and
+    // NVENC run serially.  The consumer still waits when the bounded ring is
+    // full, preserving ordering, frame lifetime and fail-closed CUDA errors.
     pending_cuda_frames_.push_back(
         PendingCudaFrame{gpu_frame, ready,
                          runtime::kInvalidRenderSurfaceHandle,

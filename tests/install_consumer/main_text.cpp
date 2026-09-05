@@ -46,13 +46,13 @@ namespace c3d = chronon3d;
 /// Returns empty vector on failure.
 static std::vector<float> bridge_to_float_rgba(const c3d::sdk::RenderOutput& out) {
     if (out.pixels == nullptr || out.width <= 0 || out.height <= 0) return {};
-    if (out.format != c3d::sdk::PixelFormat::Rgba8 &&
-        out.format != c3d::sdk::PixelFormat::Bgra8) return {};
+    if (out.format != c3d::sdk::PixelFormat::RGBA8) return {};
 
     const size_t count = static_cast<size_t>(out.width) * out.height;
     std::vector<float> rgba(count * 4);
     const uint8_t* src = out.pixels;
-    const bool is_bgra = (out.format == c3d::sdk::PixelFormat::Bgra8);
+    // SDK only reports canonical RGBA8 (Bgra8 spelling retired).
+    const bool is_bgra = false;
     const size_t row_stride = (out.bytes_per_row > 0)
         ? static_cast<size_t>(out.bytes_per_row)
         : static_cast<size_t>(out.width) * 4u;
@@ -274,7 +274,8 @@ int main(int argc, char* argv[]) {
     // ═══════════════════════════════════════════════════════════════
     c3d::Framebuffer fb{out.width, out.height};
     const uint8_t* src = out.pixels;
-    const bool is_bgra = (out.format == c3d::sdk::PixelFormat::Bgra8);
+    // SDK only reports canonical RGBA8 (Bgra8 spelling retired).
+    const bool is_bgra = false;
     const size_t row_stride = (out.bytes_per_row > 0)
         ? static_cast<size_t>(out.bytes_per_row)
         : static_cast<size_t>(out.width) * 4u;
