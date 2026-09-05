@@ -83,6 +83,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     ]() {
         auto& render_args = *state->args;
         commit_typed_runtime_options(*state);
+        mark_video_option_explicitness(*cmd, render_args);
         if (auto* pipe_pixfmt = cmd->get_option("--pipe-pixfmt")) {
             render_args.pipe_pixfmt_explicit = pipe_pixfmt->count() > 0;
         }
@@ -102,11 +103,21 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     .hardware_encoder = render_args.video_settings.hardware_encoder,
                     .encoder_backend = render_args.video_settings.encoder_backend,
                     .ffmpeg_mode = render_args.video_settings.ffmpeg_mode,
-                    .encode_preset = render_args.video_settings.encode_preset,
-                    .rate_control_mode = render_args.video_settings.rate_control_mode,
-                    .crf = render_args.video_settings.crf,
-                    .qp = render_args.video_settings.qp,
-                    .bitrate = render_args.video_settings.bitrate,
+                    // Only options explicitly requested on the command line
+                    // override the render plan: the engine placeholder
+                    // defaults (rate_control_mode="crf", crf, preset, ...)
+                    // must not be mistaken for explicit user requests when
+                    // the encoder-configuration resolver runs.
+                    .encode_preset = render_args.video_settings.encode_preset_explicit
+                        ? render_args.video_settings.encode_preset : std::string{},
+                    .rate_control_mode = render_args.video_settings.rate_control_mode_explicit
+                        ? render_args.video_settings.rate_control_mode : std::string{},
+                    .crf = render_args.video_settings.crf_explicit
+                        ? render_args.video_settings.crf : -1,
+                    .qp = render_args.video_settings.qp_explicit
+                        ? render_args.video_settings.qp : -1,
+                    .bitrate = render_args.video_settings.bitrate_explicit
+                        ? render_args.video_settings.bitrate : std::int64_t{0},
                     .gop_source = render_args.video_settings.gop_source,
                     .gop_copy_only = render_args.video_settings.gop_copy_only},
                 render_args.trace_output, render_args.trace_level,

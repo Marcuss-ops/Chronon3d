@@ -57,6 +57,8 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.applied_encoder_preset        = session.encoder->applied_encoder_preset();
     result.applied_encoder_rate_control  = session.encoder->applied_encoder_rate_control();
     result.applied_encoder_async_depth   = session.encoder->applied_encoder_async_depth();
+    result.requested_encoder_rate_control = session.encoder->requested_encoder_rate_control();
+    result.requested_encoder_preset      = session.encoder->requested_encoder_preset();
 
     if (is_native) {
         spdlog::info(

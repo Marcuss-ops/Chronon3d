@@ -110,6 +110,13 @@ struct IVideoEncoder {
     [[nodiscard]] virtual std::string applied_encoder_rate_control() const { return {}; }
     [[nodiscard]] virtual int applied_encoder_async_depth() const { return 0; }
 
+    // Encoder settings the caller requested ("engine-default" when the value
+    // was never explicitly requested). Together with the applied_* accessors
+    // above this lets telemetry reveal requested vs resolved configuration
+    // instead of pretending an engine default was an explicit user choice.
+    [[nodiscard]] virtual std::string requested_encoder_rate_control() const { return {}; }
+    [[nodiscard]] virtual std::string requested_encoder_preset() const { return {}; }
+
     [[nodiscard]] virtual double total_write_blocked_ms() const { return 0.0; }
     [[nodiscard]] virtual int    ffmpeg_pid() const { return -1; }
 };
@@ -126,12 +133,28 @@ struct FfmpegPipeOptions {
     int fps{30};
     int fps_num{30};
     int fps_den{1};
+
+    // ── Encoder configuration (rate control / quality) ────────────────────
+    //
+    // The `*_explicit` markers distinguish a USER REQUEST from a CHRONON
+    // engine placeholder default. A default must never be indistinguishable
+    // from an explicit request: the encoder-configuration resolver (see
+    // encoder_config_resolution.hpp) rejects unsupported combinations only
+    // when they were explicitly requested, and applies the deterministic
+    // engine default otherwise. All plumbing (CLI render, render-plan, IPC,
+    // video jobs) must set these markers from the original source of the
+    // value; never leave an explicit value unmarked.
     std::string rate_control_mode{"crf"};
+    bool rate_control_mode_explicit{false};
     int crf{18};
+    bool crf_explicit{false};
     int qp{-1};
+    bool qp_explicit{false};
     std::int64_t bitrate{0};
+    bool bitrate_explicit{false};
     int async_depth{0};
     std::string preset{"medium"};
+    bool preset_explicit{false};
     std::string codec{"libx264"};
     std::string hardware_encoder{"none"};
     std::string output_path;
@@ -140,6 +163,7 @@ struct FfmpegPipeOptions {
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
     std::string tune;
+    bool tune_explicit{false};
     std::string pipe_writer{"classic"};
     int encode_threads{0};
     bool direct_yuv_mode{false};

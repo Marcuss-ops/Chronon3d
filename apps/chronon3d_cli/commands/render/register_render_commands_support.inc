@@ -115,6 +115,26 @@ void set_log_level(std::string_view level) {
     else if (level == "error" || level == "err") spdlog::set_level(spdlog::level::err);
 }
 
+/// Mark which encoder options were explicitly requested on the command line.
+///
+/// The encoder-configuration resolver distinguishes USER INTENT from CHRONON
+/// DEFAULTS: an engine placeholder (e.g. the default rate_control_mode="crf"
+/// that every NVENC job carries) must never be treated as an explicit CRF
+/// request. Only options actually present on the command line are explicit.
+void mark_video_option_explicitness(CLI::App& cmd, RenderArgs& args) {
+    auto& vs = args.video_settings;
+    const auto marked = [&](const char* name, bool& target) {
+        if (auto* option = cmd.get_option(name)) target = option->count() > 0;
+    };
+    marked("--rate-control", vs.rate_control_mode_explicit);
+    marked("--crf", vs.crf_explicit);
+    marked("--qp", vs.qp_explicit);
+    marked("--bitrate", vs.bitrate_explicit);
+    marked("--encode-preset", vs.encode_preset_explicit);
+    marked("--preset", vs.encode_preset_explicit);
+    marked("--tune", vs.tune_explicit);
+}
+
 void add_video_options(CLI::App& cmd, RenderArgs& args) {
     auto* video = cmd.add_option_group("Video output", "Encoder controls used when the output extension selects video mode");
     video->add_option("--fps", args.video_settings.fps, "Output frame rate")->check(CLI::Range(1, 240));

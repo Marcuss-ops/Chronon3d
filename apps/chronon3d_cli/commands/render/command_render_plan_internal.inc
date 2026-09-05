@@ -126,6 +126,27 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         } else if (!args.encode_preset.empty()) {
             request.video_settings.encode_preset = args.encode_preset;
         }
+        // Explicitness markers: only CLI/API overrides and values that the
+        // render plan itself decoded as explicit configuration count as user
+        // requests. Engine placeholder defaults (rate_control default "crf"
+        // with no crf/qp/bitrate value, the default encode preset) stay
+        // unmarked so the encoder-configuration resolver can apply the
+        // deterministic per-backend engine default instead of rejecting an
+        // NVENC job that simply never mentioned rate control.
+        request.video_settings.rate_control_mode_explicit =
+            !args.video.rate_control_mode.empty() ||
+            prepared.output.rate_control != render_plan::RateControlMode::Crf ||
+            (prepared.output.crf > 0 && prepared.output.crf <= 51);
+        request.video_settings.crf_explicit =
+            args.video.crf >= 0 || args.crf >= 0 ||
+            (prepared.output.crf > 0 && prepared.output.crf <= 51);
+        request.video_settings.qp_explicit =
+            args.video.qp >= 0 || prepared.output.qp >= 0;
+        request.video_settings.bitrate_explicit =
+            args.video.bitrate > 0 || prepared.output.bitrate > 0;
+        request.video_settings.encode_preset_explicit =
+            !args.video.encode_preset.empty() || !args.encode_preset.empty();
+        request.video_settings.tune_explicit = false;
         if (video_output(output)) {
             request.mode = RenderMode::Video;
             request.first_frame = Frame{first};
