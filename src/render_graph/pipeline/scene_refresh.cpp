@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include "../builder/graph_builder_coordinates.hpp"
 #include "refresh/layer_item.hpp"
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 #include "../builder/graph_builder_pipeline.hpp"
@@ -336,17 +337,21 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     const bool item_static = is_static_cache.count(layer_name_str)
                         ? is_static_cache.at(layer_name_str) : rl->layer->cache_static;
                     const bool source_is_static = item_static;
-                    cache::NodeCacheKey key{
-                        .scope = "layer.textrun:" + name + ":"
-                            + std::string(render_ref.name),
-                        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-                        .width = ctx.frame_input.width,
-                        .height = ctx.frame_input.height,
-                        .params_hash = hash_render_node_content_only(render_ref),
-                        .source_hash = hash_combine(
+                    // Canonical cache identity via the builder. Camera is
+                    // intentionally NOT folded here (parity with the fresh
+                    // build path: projected text matrices are owned by the
+                    // downstream TransformNode, not the text raster cache).
+                    cache::NodeCacheKey key = cache::NodeCacheIdentityBuilder{
+                        "layer.textrun:" + name + ":" +
+                        std::string(render_ref.name)
+                    }
+                        .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+                        .output(ctx.frame_input.width, ctx.frame_input.height)
+                        .params(hash_render_node_content_only(render_ref))
+                        .source(hash_combine(
                             hash_string(render_ref.name),
-                            hash_render_node_placement_only(render_ref))
-                    };
+                            hash_render_node_placement_only(render_ref)))
+                        .build();
                     prepared->refresh_placement(
                         render_ref, placement, key,
                         std::optional<f32>(opacity));

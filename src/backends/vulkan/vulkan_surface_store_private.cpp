@@ -6,26 +6,10 @@
 
 namespace chronon3d::backends::vulkan {
 
-    // The compiler's interval plan owns CPU Framebuffer slots. Native Vulkan
-    // surfaces use the logical registry/store lifecycle below.
-    void VulkanBackend::Impl::preallocate_plan_surfaces(
-        std::uint32_t canvas_width,
-        std::uint32_t canvas_height,
-        const graph::CompiledResourceTable& plan) {
-
-        if (canvas_width == 0 || canvas_height == 0 || plan.empty()) return;
-
-        // The graph framebuffer plan owns CPU Framebuffer slots. Native
-        // Vulkan surfaces are created through the logical surface registry
-        // and have a different lifetime/aliasing contract; importing every
-        // CPU interval slot here reserves hundreds of canvas-sized Vulkan
-        // aliases that the native node path never consumes. Keep native
-        // allocation lazy and let the surface authority reuse its store.
-        plan_preallocated = false;
-        plan_canvas_width = canvas_width;
-        plan_canvas_height = canvas_height;
-        surfaces.prune_unused_slots();
-    }
+    // DEMOLISHED (P1.4): Impl::preallocate_plan_surfaces removed — it never
+    // preallocated anything.  The prune it performed lives on through
+    // prune_unused_transient_slots(), and native surface materialization is
+    // the lazy VulkanSurfaceAuthority path below.
 
     // Compatibility façade: all surface slot/binding policy lives in
     // VulkanSurfaceAuthority. Impl only delegates so there is one authority.
@@ -191,27 +175,14 @@ namespace chronon3d::backends::vulkan {
 
     void VulkanBackend::Impl::retire_completed_frame_transient_surfaces() noexcept {
         try {
-            // This is deliberately a status query, never a wait.  A transient
-            // image is eligible for destruction only after every Vulkan
-            // submission that could reference it has completed.  The normal
-            // frame path calls this opportunistically; final job cleanup uses
-            // the explicit tracked-submission drain above.
-            if (pending_timeline_value != 0 &&
-                vkGetFenceStatus(device, fence) != VK_SUCCESS) {
-                return;
-            }
-            for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
-                if (frame_batch.in_flight[i] &&
-                    vkGetFenceStatus(device, frame_batch.fences[i]) != VK_SUCCESS) {
-                    return;
-                }
-            }
-            for (const auto& upload : uploads.slots) {
-                if (upload.in_flight &&
-                    vkGetFenceStatus(device, upload.fence) != VK_SUCCESS) {
-                    return;
-                }
-            }
+            // A transient image is eligible for destruction only after every
+            // tracked submission that could reference it has completed.  The
+            // old status-only probe could defer cleanup for the whole render
+            // job when the encoder kept one upload in flight, accumulating a
+            // canvas-sized RGBA32F image per frame.  Drain the backend-owned
+            // submission rings here, then reclaim all generic transient
+            // bindings in one centralized place.
+            wait_for_pending();
 
             std::vector<runtime::RenderSurfaceHandle> handles;
             handles.reserve(surfaces.surface_bindings.size());

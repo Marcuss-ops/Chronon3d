@@ -1,4 +1,5 @@
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
@@ -208,12 +209,10 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
 #endif
     }
 
-    // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
-    // Conditional on `has_camera_2_5d` globally so zoom-animated frames
-    // (e.g. AE_CAM_02) produce distinct per-frame keys.
-    if (ctx.frame_input.has_camera_2_5d) {
-        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
-    }
+    // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B):
+    // canonical conditional fold — single implementation for the invariant.
+    cache::fold_camera_if(
+        key, ctx.frame_input.has_camera_2_5d, ctx.frame_input.camera_2_5d);
 
     return key;
 }

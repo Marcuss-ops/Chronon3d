@@ -1,5 +1,6 @@
 #include "graph_builder_pipeline.hpp"
 
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include "passes/graph_builder_layer_passes.hpp"
 #include "passes/graph_builder_lighting_passes.hpp"
 #include "passes/graph_builder_source_pass.hpp"
@@ -22,20 +23,20 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
                                 GraphNodeId current) {
     bool first_root_source = true;
     for (const auto& node : scene.nodes()) {
-        cache::NodeCacheKey source_key{
-            .scope = "root.source:" + std::string(node.name),
-            .frame = ctx.frame_input.frame,
-            .width = ctx.frame_input.width,
-            .height = ctx.frame_input.height,
-            .params_hash = hash_render_node(node),
-            .source_hash = hash_bytes(node.name.data(), node.name.size())
-        };
-        // TICKET-ae-cam-hash-collision Soluzione B — root-level source keys
-        // ALSO need the camera fingerprint so a cinematic camera-driven
-        // composition with mixed root/child sources stays deterministic.
-        if (ctx.frame_input.has_camera_2_5d) {
-            cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+        // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione
+        // B): the builder folds the camera fingerprint by construction so a
+        // cinematic camera-driven composition with mixed root/child sources
+        // stays deterministic.
+        cache::NodeCacheKey source_key = cache::NodeCacheIdentityBuilder{
+            "root.source:" + std::string(node.name)
         }
+            .frame(ctx.frame_input.frame)
+            .output(ctx.frame_input.width, ctx.frame_input.height)
+            .params(hash_render_node(node))
+            .source(hash_bytes(node.name.data(), node.name.size()))
+            .camera_if(ctx.frame_input.has_camera_2_5d,
+                       ctx.frame_input.camera_2_5d)
+            .build();
 
         // Root nodes already carry top-left pixel placement in their
         // world transform. The canonical root-source resolver owns the
@@ -127,25 +128,23 @@ GraphNodeId build_layer_output_node(
     append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d, ctx, node_ctx);
 
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
-        cache::NodeCacheKey matte_key{
-            .scope       = "matte:" + std::string(layer.name),
-            .frame       = (layer.cache_static || item.is_static) ? Frame{0} : ctx.frame_input.frame,
-            .width       = ctx.frame_input.width,
-            .height      = ctx.frame_input.height,
-            .params_hash = hash_bytes(layer.track_matte.source_layer.data(),
-                                      layer.track_matte.source_layer.size()),
-        };
-        matte_key.params_hash = hash_combine(
-            matte_key.params_hash,
-            static_cast<u64>(layer.track_matte.type));
-
-        // TICKET-ae-cam-hash-collision Soluzione B — track-matte cache keys
-        // also participate in the framebuffer cache lookup chain, so they
-        // MUST differentiate per-camera-state (track-matte compositing is
-        // camera-position relative on multi-camera compositions).
-        if (ctx.frame_input.has_camera_2_5d) {
-            cache::fold_camera_into_params_hash(matte_key, ctx.frame_input.camera_2_5d);
+        // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione
+        // B): track-matte keys participate in the framebuffer cache lookup
+        // chain and MUST differentiate per-camera-state (track-matte
+        // compositing is camera-position relative on multi-camera comps).
+        cache::NodeCacheKey matte_key = cache::NodeCacheIdentityBuilder{
+            "matte:" + std::string(layer.name)
         }
+            .frame((layer.cache_static || item.is_static) ? Frame{0}
+                                                          : ctx.frame_input.frame)
+            .output(ctx.frame_input.width, ctx.frame_input.height)
+            .params(hash_combine(
+                hash_bytes(layer.track_matte.source_layer.data(),
+                           layer.track_matte.source_layer.size()),
+                static_cast<u64>(layer.track_matte.type)))
+            .camera_if(ctx.frame_input.has_camera_2_5d,
+                       ctx.frame_input.camera_2_5d)
+            .build();
 
         // PR2-cleanup: TrackMatteNode carries its policy in `m_cache_policy` (ctor-time).
         {
@@ -202,11 +201,13 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     // invisible by resolve_layer_graph_item(); do not build or composite its
     // source in that case.  Without this guard BackfaceMode::Hidden emitted
     // the correct diagnostic but the stale source still reached the output.
-    spdlog::info("[append_layer_pipe] frame={} layer='{}' item_vis={} layer_vis={} anim_op_td={} opacity={}",
-                 static_cast<int>(ctx.frame_input.frame), layer.name.c_str(),
-                 item.visible, layer.visible,
-                 layer.anim_transform.opacity.is_time_dependent(),
-                 layer.transform.opacity);
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::info("[append_layer_pipe] frame={} layer='{}' item_vis={} layer_vis={} anim_op_td={} opacity={}",
+                     static_cast<int>(ctx.frame_input.frame), layer.name.c_str(),
+                     item.visible, layer.visible,
+                     layer.anim_transform.opacity.is_time_dependent(),
+                     layer.transform.opacity);
+    }
     if (!item.visible || !layer.visible) {
         return;
     }
@@ -248,12 +249,16 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     GraphNodeId layer_output = build_layer_output_node(
         graph, item, ctx, cam25d, casters, depth_grade, node_ctx);
-    spdlog::info("[append_layer_pipe] layer='{}' layer_output={} current={}",
-                 layer.name.c_str(), layer_output, current);
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::info("[append_layer_pipe] layer='{}' layer_output={} current={}",
+                     layer.name.c_str(), layer_output, current);
+    }
 
     const bool is_static = layer.cache_static || item.is_static;
     append_composite_pass(graph, current, layer_output, layer, is_static, ctx, item.world_z, node_ctx);
-    spdlog::info("[append_layer_pipe] after composite current={}", current);
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::info("[append_layer_pipe] after composite current={}", current);
+    }
 }
 
 void sort_camera25d_layers(std::vector<LayerGraphItem>& items) {

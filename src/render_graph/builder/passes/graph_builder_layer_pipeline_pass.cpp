@@ -68,9 +68,13 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             }
         }
 
-        spdlog::info("[cull_check] frame={} layer='{}' is_culled={} reason='{}' bbox=[{}, {}, {}, {}]",
-                     static_cast<int>(rctx.frame_input.frame), item.layer->name.c_str(),
-                     is_culled, cull_reason, bbox.x0, bbox.y0, bbox.x1, bbox.y1);
+        // P1.0: per-layer formatted logs moved behind diagnostics_enabled.
+        // The cull counters below are the always-on telemetry surface.
+        if (rctx.policy.diagnostics_enabled) {
+            spdlog::info("[cull_check] frame={} layer='{}' is_culled={} reason='{}' bbox=[{}, {}, {}, {}]",
+                         static_cast<int>(rctx.frame_input.frame), item.layer->name.c_str(),
+                         is_culled, cull_reason, bbox.x0, bbox.y0, bbox.x1, bbox.y1);
+        }
 
         if (rctx.node_exec.counters) {
             rctx.node_exec.counters->layer_culling_tests.fetch_add(1, std::memory_order_relaxed);
@@ -204,10 +208,13 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         const bool is_static_val =
             ctx.is_static_cache.at(layer_name);
 
-        spdlog::info("[layer_pipe] frame={} layer='{}' active={} visible={} from={} duration={}",
-                     static_cast<int>(rctx.frame_input.frame), layer.name.c_str(),
-                     layer.active_at(rctx.frame_input.frame), layer.visible,
-                     static_cast<int>(layer.from), static_cast<int>(layer.duration));
+        // P1.0: per-layer formatted logs are diagnostics-only, never hot-loop.
+        if (rctx.policy.diagnostics_enabled) {
+            spdlog::info("[layer_pipe] frame={} layer='{}' active={} visible={} from={} duration={}",
+                         static_cast<int>(rctx.frame_input.frame), layer.name.c_str(),
+                         layer.active_at(rctx.frame_input.frame), layer.visible,
+                         static_cast<int>(layer.from), static_cast<int>(layer.duration));
+        }
         if (!layer.active_at(rctx.frame_input.frame)) continue;
 
         // Matte source layers are consumed exclusively by TrackMatteNode.

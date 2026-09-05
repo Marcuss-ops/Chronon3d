@@ -20,16 +20,18 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <chronon3d/sdk/render_request.hpp>   // sdk::Frame (peer sdk include)
+#include <chronon3d/runtime/frame_format.hpp>  // canonical PixelFormat authority
+#include <chronon3d/sdk/render_request.hpp>    // sdk::Frame (peer sdk include)
 
 namespace chronon3d::sdk {
 
 /// Pixel-format identifier for `RenderOutput::pixels`.
-enum class PixelFormat : std::uint8_t {
-    Unknown = 0,
-    Rgba8   = 1,   ///< 4 channels × 8 bits per channel
-    Bgra8   = 2,   ///< 4 channels × 8 bits per channel (B, G, R, A order)
-};
+///
+/// Cat-3 single authority: this is an alias of the canonical
+/// `runtime::PixelFormat` (include/chronon3d/runtime/frame_format.hpp) —
+/// not a second pixel taxonomy. The SDK only ever reports `RGBA8` today;
+/// the wider canonical set stays available without a second enum.
+using PixelFormat = runtime::PixelFormat;
 
 /// SDK-side render output.
 struct RenderOutput {

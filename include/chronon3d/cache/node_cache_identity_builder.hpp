@@ -103,4 +103,19 @@ private:
     NodeCacheKey m_key{};
 };
 
+/// Canonical conditional camera fold for nodes that evolve an existing key
+/// (NodeCacheKey::cache_key() implementations that re-fold per evaluation).
+/// This is the same contract NodeCacheIdentityBuilder::camera_if() enforces
+/// at construction time; nodes that mutate `m_key` per frame must use this
+/// helper so the camera-fingerprint invariant has exactly one implementation
+/// and no recall-based discipline.
+inline void fold_camera_if(
+    NodeCacheKey& key,
+    bool has_camera,
+    const ::chronon3d::Camera2_5D& value) {
+    if (has_camera) {
+        fold_camera_into_params_hash(key, value);
+    }
+}
+
 } // namespace chronon3d::cache

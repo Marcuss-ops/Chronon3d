@@ -49,7 +49,7 @@
 using namespace chronon3d;
 using namespace chronon3d::graph;
 
-// ── Test node used by §4 (mirrors tests/render_graph/compiler/test_frame_graph_compiler.cpp) ──
+// ── Test node used by §4 (mirrors tests/render_graph/compiler/test_frame_graph_compiler_fixtures.hpp) ──
 
 namespace {
 
@@ -260,7 +260,7 @@ TEST_CASE("node_identity: PrecompInstanceKey defaults are zero (kInvalid-ish)") 
 // Verifies the real signature: compile(RenderGraph graph,
 // RenderGraphContext& ctx, const FrameGraphCompileOptions& options = {}).
 // We use CompilerTestNode (same shape as tests/render_graph/compiler/
-// test_frame_graph_compiler.cpp) for end-to-end coverage.
+// test_frame_graph_compiler_fixtures.hpp) for end-to-end coverage.
 // ═════════════════════════════════════════════════════════════════════════════
 
 namespace {

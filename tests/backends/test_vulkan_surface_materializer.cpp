@@ -34,7 +34,7 @@ struct FakeSurfaceStats {
 
 struct FakeSurfaceOwner {
     FakeSurfaceStats stats{};
-    bool plan_preallocated{false};
+    // DEMOLISHED (P1.4): plan_preallocated removed from the real owner.
     std::uint32_t make_count{0};
     std::uint32_t destroy_count{0};
 

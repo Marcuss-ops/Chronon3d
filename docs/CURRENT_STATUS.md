@@ -17,7 +17,7 @@
 | Surface authority | DONE | `CompiledResourceTable` owns physical placement; Vulkan is materialization/runtime binding only. |
 | GraphExecutor | DONE | `GraphExecutor` is the sole production execution authority; helper TUs have distinct responsibilities. |
 | Descriptor authority | DONE | `VulkanDescriptorAuthority` owns descriptor allocation/handles; compatibility names in `Impl` are references only. |
-| FFmpeg subprocess | DEMOLITION DEBT | Native path is canonical in native builds, but `FfmpegPipeSink` removal remains blocked by explicit SDK/CI/zero-caller exit conditions. Do not delete early. |
+| FFmpeg subprocess | DEMOLITION DEBT (scope redefined 2026-09-04) | Negative census: `FfmpegPipeSink`/`ProcessRunner` files and symbols are already gone from src/apps/include. Residual scope is the CLI pipe *encoder* fallback (`VideoSinkEncoderAdapter(Ffmpeg)` + silent native→pipe downgrade in `create_video_encoder`), tracked in `TICKET-FFMPEG-PIPE-SINK-DEMOLITION`. |
 | DeviceScheduler | DONE | Runtime implementation and focused tests exist; no second scheduler introduced. |
 | CLI typed config / RenderPlan | DONE (focused) | CLI V3 / `PreparedRenderPlan -> CompiledComposition` remains the canonical typed route. |
 | Telemetry | PARTIAL / CONTAINED | Default-path recording was gated behind the real SQLite consumer; physical deletion of remaining compatibility stores is deferred cleanup, not a reason to add another telemetry authority. |

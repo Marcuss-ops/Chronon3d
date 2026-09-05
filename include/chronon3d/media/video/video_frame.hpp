@@ -67,7 +67,7 @@ struct VideoFrameView {
 
 // ==========================================================================
 // Frame validation helpers (shared contract between RawVideoSink and
-// FfmpegPipeSink).
+// NativeAvSink).
 // ==========================================================================
 
 [[nodiscard]] inline bool validate_planar_frame(int width, int height,

@@ -82,6 +82,19 @@ public:
     /// True if the id is known.
     [[nodiscard]] bool contains(std::string_view id) const;
 
+    /// Backend capability for a transition id: which acceleration paths the
+    /// registered program supports. The catalog owns the id→capability
+    /// mapping so no consumer dispatches on string ids (arch rule
+    /// transition_id_string_dispatch).
+    enum class BackendCapability : std::uint8_t {
+        CpuOnly = 0,   ///< CPU program only (LayerTransitionProgram::execute).
+        NativeBlend,   ///< Native backend can accelerate via a surface blend.
+    };
+
+    /// Which acceleration paths the registered transition supports.
+    /// Unknown ids report CpuOnly (resolve() will still fail loudly later).
+    [[nodiscard]] BackendCapability backend_capability(std::string_view id) const;
+
     /// Resolve a spec to an executable program.  Throws on unknown ids.
     [[nodiscard]] std::unique_ptr<LayerTransitionProgram> resolve(const LayerTransitionSpec& spec) const;
 

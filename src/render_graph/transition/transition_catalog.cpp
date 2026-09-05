@@ -455,6 +455,16 @@ bool LayerTransitionCatalog::contains(std::string_view id) const {
     return m_factories.find(std::string(id)) != m_factories.end();
 }
 
+LayerTransitionCatalog::BackendCapability
+LayerTransitionCatalog::backend_capability(std::string_view id) const {
+    // Canonical id→capability mapping lives here, next to the registration
+    // that owns the same id. Consumers must not dispatch on string ids.
+    if (id == "crossfade") {
+        return BackendCapability::NativeBlend;
+    }
+    return BackendCapability::CpuOnly;
+}
+
 std::unique_ptr<LayerTransitionProgram> LayerTransitionCatalog::resolve(const LayerTransitionSpec& spec) const {
     auto it = m_factories.find(spec.transition_id);
     if (it == m_factories.end()) {

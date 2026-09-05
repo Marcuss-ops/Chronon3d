@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -88,8 +89,8 @@ struct PhraseParams {
     Vec2 title_size{860.0f, 120.0f};
     Vec2 subtitle_size{860.0f, 52.0f};
 
-    std::string title_font_path{"assets/fonts/Inter-Bold.ttf"};
-    std::string subtitle_font_path{"assets/fonts/Inter-Regular.ttf"};
+    std::string title_font_path{inter_bold_font_path()};
+    std::string subtitle_font_path{inter_regular_font_path()};
     f32 title_font_size{72.0f};
     f32 subtitle_font_size{28.0f};
 

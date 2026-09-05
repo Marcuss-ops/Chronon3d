@@ -29,7 +29,9 @@ if(CHRONON3D_ENABLE_VIDEO)
     # consumes these authorities and must not own a parallel libavformat path.
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         add_library(chronon3d_media_native STATIC
-            video/native_video_frame_decoder.cpp
+            video/native_video_frame_decoder_helpers.cpp
+            video/native_video_frame_decoder_session.cpp
+            video/native_video_frame_decoder_decode.cpp
             video/hw_frame_ref.cpp
             video/video_device_runtime.cpp
             video/mux/packet_assembler.cpp

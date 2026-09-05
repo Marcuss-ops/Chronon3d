@@ -98,6 +98,7 @@
 // without coordinate hard-coding.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/presets/font_asset_paths.hpp>  // canonical font asset constants
 #include <chronon3d/presets/text/preset_constraints.hpp>  // TextBoxConstraints, AspectRatioPolicy, resolve_text_box_constraints
 #include <chronon3d/text/text_definition.hpp>       // TextDefinition, TextContent
 #include <chronon3d/text/text_placement.hpp>        // TextPlacement, TextPlacementKind, SafeAreaPreset
@@ -144,7 +145,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
-    def.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
+    def.style.font.font_path = poppins_bold_font_path();
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 700;
     def.style.font.font_style  = "normal";
@@ -186,7 +187,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
-    def.style.font.font_path = "assets/fonts/Poppins-Regular.ttf";
+    def.style.font.font_path = poppins_regular_font_path();
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 600;
     def.style.font.font_style  = "normal";
@@ -228,7 +229,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
-    def.style.font.font_path = "assets/fonts/Poppins-Regular.ttf";
+    def.style.font.font_path = poppins_regular_font_path();
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 500;
     def.style.font.font_style  = "normal";
@@ -272,7 +273,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
-    def.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
+    def.style.font.font_path = poppins_bold_font_path();
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 900;
     def.style.font.font_style  = "normal";
@@ -314,7 +315,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
-    def.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
+    def.style.font.font_path = poppins_bold_font_path();
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 700;
     def.style.font.font_style  = "normal";

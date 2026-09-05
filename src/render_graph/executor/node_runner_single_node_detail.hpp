@@ -78,7 +78,7 @@ void execute_single_node(
             batch_ctx.node_exec.current_identity = NodeIdentity{
                 compiled.graph_instance_id, compiled.nodes[id].stable_node_id};
         }
-        execute_fused_batch(
+        detail::execute_fused_batch(
             state, graph, batch_ctx, *batch_for_root, id,
             parent_pool, parent_counters, compiled);
         return;

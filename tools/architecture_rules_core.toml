@@ -271,11 +271,11 @@ hint = "Shape-type text API was retired; use canonical TextRunShape."
 
 [[forbidden_include]]
 name = "msdfgen_libtess2_unicode_deny"
-description = "CPU-first deny: msdfgen, libtess2, unicode includes — PR-A10 + AGENTS.md"
+description = "CPU-first deny: msdfgen, libtess2, unicode includes — PR-A10 + AGENTS.md. ADR-009 carves out the canonical ICU boundary authority."
 patterns = ['#include\s*[<"]msdfgen', '#include\s*[<"]libtess2', '#include\s*[<"]unicode(?:/|")']
-hint = "These headers are deny-everywhere per AGENTS.md Gate 5 Check 11. Requires ADR for exceptions."
+hint = "These headers are deny-everywhere per AGENTS.md Gate 5 Check 11. Exceptions require an ADR: ADR-009 authorises <unicode/...> only in src/text/unicode (IcuBoundaryResolver) and src/text/boundary_resolver."
 skip_comments = true
-exclude_paths = ["src/text/boundary_resolver"]
+exclude_paths = ["src/text/boundary_resolver", "src/text/unicode"]
 
 [[forbidden_include]]
 name = "legacy_umbrella_includes"
@@ -441,7 +441,13 @@ hint = "Canonical immutable executor definition missing."
 name = "canonical_render_command_registration"
 description = "Canonical render command registration"
 file = "apps/chronon3d_cli/commands/render/register_render_commands.cpp"
-required_pattern = 'register_render_commands\s*\('
+# The registration body lives in the textually-included
+# register_render_commands_body.inc (staged .inc debt, TICKET-200); the
+# contract pins the TU to its canonical include pair.
+required_patterns = [
+  '#include\s*"register_render_commands_body\.inc"',
+  '#include\s*"register_render_commands_support\.inc"',
+]
 hint = "Canonical render command registration missing."
 
 [[contract]]

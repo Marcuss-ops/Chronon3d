@@ -19,6 +19,25 @@
 
 namespace chronon3d::backends::vulkan {
 
+    namespace {
+
+    // register_kernel_or_throw() — single authority for the
+    // create-pipeline → register-in-registry → destroy-on-reject dance that
+    // each of the 12 compute kernels previously duplicated by hand.
+    void register_kernel_or_throw(
+        GpuKernelRegistry& registry, VkDevice device,
+        GpuKernelId id, VkPipeline pipeline, const char* pipeline_name) {
+        if (!registry.register_kernel(
+                id, reinterpret_cast<GpuKernelRegistry::PipelineHandle>(pipeline))) {
+            vkDestroyPipeline(device, pipeline, nullptr);
+            throw std::runtime_error(
+                std::string("Vulkan kernel registry rejected ") +
+                pipeline_name + " pipeline");
+        }
+    }
+
+    } // namespace
+
     VulkanBackend::Impl::Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
          std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported,
@@ -170,12 +189,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &pipeline_info, nullptr, &composite_pipeline);
         vkDestroyShaderModule(device, shader, nullptr);
         check(pipeline_result, "vkCreateComputePipelines");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::Composite,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(composite_pipeline))) {
-            vkDestroyPipeline(device, composite_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected Composite pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::Composite, composite_pipeline, "Composite");
         if (debug_context) debug_context->set_pipeline_name(composite_pipeline, "Chronon3D.Pipeline.Composite");
 
         const VkShaderModuleCreateInfo transform_shader_info{
@@ -197,12 +212,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &transform_pipeline_info, nullptr, &transform_pipeline);
         vkDestroyShaderModule(device, transform_shader, nullptr);
         check(transform_result, "vkCreateComputePipelines(transform)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::Transform,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(transform_pipeline))) {
-            vkDestroyPipeline(device, transform_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected Transform pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::Transform, transform_pipeline, "Transform");
         if (debug_context) debug_context->set_pipeline_name(transform_pipeline, "Chronon3D.Pipeline.Transform");
 
         const VkShaderModuleCreateInfo affine_shader_info{
@@ -224,12 +235,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &affine_pipeline_info, nullptr, &affine_transform_pipeline);
         vkDestroyShaderModule(device, affine_shader, nullptr);
         check(affine_result, "vkCreateComputePipelines(affine transform)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::AffineTransform,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(affine_transform_pipeline))) {
-            vkDestroyPipeline(device, affine_transform_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected AffineTransform pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::AffineTransform, affine_transform_pipeline, "AffineTransform");
         if (debug_context) debug_context->set_pipeline_name(affine_transform_pipeline, "Chronon3D.Pipeline.AffineTransform");
 
         const VkShaderModuleCreateInfo blur_shader_info{
@@ -251,12 +258,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &blur_pipeline_info, nullptr, &blur_pipeline);
         vkDestroyShaderModule(device, blur_shader, nullptr);
         check(blur_result, "vkCreateComputePipelines(blur)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::Blur,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(blur_pipeline))) {
-            vkDestroyPipeline(device, blur_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected Blur pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::Blur, blur_pipeline, "Blur");
         if (debug_context) debug_context->set_pipeline_name(blur_pipeline, "Chronon3D.Pipeline.Blur");
 
         const VkShaderModuleCreateInfo color_adjust_shader_info{
@@ -278,12 +281,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &color_adjust_pipeline_info, nullptr, &color_adjust_pipeline);
         vkDestroyShaderModule(device, color_adjust_shader, nullptr);
         check(color_adjust_result, "vkCreateComputePipelines(color adjust)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::ColorAdjust,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(color_adjust_pipeline))) {
-            vkDestroyPipeline(device, color_adjust_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected ColorAdjust pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::ColorAdjust, color_adjust_pipeline, "ColorAdjust");
         if (debug_context) debug_context->set_pipeline_name(color_adjust_pipeline, "Chronon3D.Pipeline.ColorAdjust");
 
         const VkShaderModuleCreateInfo matte_shader_info{
@@ -305,12 +304,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &matte_pipeline_info, nullptr, &matte_pipeline);
         vkDestroyShaderModule(device, matte_shader, nullptr);
         check(matte_result, "vkCreateComputePipelines(matte)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::Matte,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(matte_pipeline))) {
-            vkDestroyPipeline(device, matte_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected Matte pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::Matte, matte_pipeline, "Matte");
         if (debug_context) debug_context->set_pipeline_name(matte_pipeline, "Chronon3D.Pipeline.Matte");
 
         const VkShaderModuleCreateInfo text_run_shader_info{
@@ -332,12 +327,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &text_run_pipeline_info, nullptr, &text_run_pipeline);
         vkDestroyShaderModule(device, text_run_shader, nullptr);
         check(text_run_result, "vkCreateComputePipelines(text run)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::TextRun,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_run_pipeline))) {
-            vkDestroyPipeline(device, text_run_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected TextRun pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::TextRun, text_run_pipeline, "TextRun");
         if (debug_context) debug_context->set_pipeline_name(text_run_pipeline, "Chronon3D.Pipeline.TextRun");
 
         const VkShaderModuleCreateInfo fill_rect_shader_info{
@@ -359,12 +350,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &fill_rect_pipeline_info, nullptr, &fill_rect_pipeline);
         vkDestroyShaderModule(device, fill_rect_shader, nullptr);
         check(fill_rect_result, "vkCreateComputePipelines(fill rect)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::FillRect,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(fill_rect_pipeline))) {
-            vkDestroyPipeline(device, fill_rect_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected FillRect pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::FillRect, fill_rect_pipeline, "FillRect");
         if (debug_context) debug_context->set_pipeline_name(fill_rect_pipeline, "Chronon3D.Pipeline.FillRect");
 
         const VkShaderModuleCreateInfo layer_batch_shader_info{
@@ -386,12 +373,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &layer_batch_pipeline_info, nullptr, &layer_batch_pipeline);
         vkDestroyShaderModule(device, layer_batch_shader, nullptr);
         check(layer_batch_result, "vkCreateComputePipelines(layer batch)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::LayerBatch,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(layer_batch_pipeline))) {
-            vkDestroyPipeline(device, layer_batch_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected LayerBatch pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::LayerBatch, layer_batch_pipeline, "LayerBatch");
         if (debug_context) debug_context->set_pipeline_name(layer_batch_pipeline, "Chronon3D.Pipeline.LayerBatch");
 
         const VkShaderModuleCreateInfo text_batch_shader_info{
@@ -413,12 +396,8 @@ namespace chronon3d::backends::vulkan {
             device, kernels.pipeline_cache, 1, &text_batch_pipeline_info, nullptr, &text_batch_pipeline);
         vkDestroyShaderModule(device, text_batch_shader, nullptr);
         check(text_batch_result, "vkCreateComputePipelines(text batch)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::TextBatch,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_batch_pipeline))) {
-            vkDestroyPipeline(device, text_batch_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected TextBatch pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::TextBatch, text_batch_pipeline, "TextBatch");
         if (debug_context) debug_context->set_pipeline_name(text_batch_pipeline, "Chronon3D.Pipeline.TextBatch");
 
         const VkShaderModuleCreateInfo text_tile_bin_shader_info{
@@ -442,12 +421,8 @@ namespace chronon3d::backends::vulkan {
             &text_tile_bin_pipeline);
         vkDestroyShaderModule(device, text_tile_bin_shader, nullptr);
         check(text_tile_bin_result, "vkCreateComputePipelines(text tile bin)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::TextTileBin,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_tile_bin_pipeline))) {
-            vkDestroyPipeline(device, text_tile_bin_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected TextTileBin pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::TextTileBin, text_tile_bin_pipeline, "TextTileBin");
         if (debug_context) debug_context->set_pipeline_name(text_tile_bin_pipeline, "Chronon3D.Pipeline.TextTileBin");
 
         const VkShaderModuleCreateInfo text_tile_raster_shader_info{
@@ -471,12 +446,8 @@ namespace chronon3d::backends::vulkan {
             &text_tile_raster_pipeline);
         vkDestroyShaderModule(device, text_tile_raster_shader, nullptr);
         check(text_tile_raster_result, "vkCreateComputePipelines(text tile raster)");
-        if (!kernels.registry.register_kernel(
-                GpuKernelId::TextTileRaster,
-                reinterpret_cast<GpuKernelRegistry::PipelineHandle>(text_tile_raster_pipeline))) {
-            vkDestroyPipeline(device, text_tile_raster_pipeline, nullptr);
-            throw std::runtime_error("Vulkan kernel registry rejected TextTileRaster pipeline");
-        }
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::TextTileRaster, text_tile_raster_pipeline, "TextTileRaster");
         if (debug_context) debug_context->set_pipeline_name(text_tile_raster_pipeline, "Chronon3D.Pipeline.TextTileRaster");
 
         // ── Save compiled pipeline cache to disk for instant warm starts ──

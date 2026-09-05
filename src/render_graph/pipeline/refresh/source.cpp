@@ -1,6 +1,7 @@
 #include "source.hpp"
 #include "layer_item.hpp"
 
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include "../../builder/graph_builder_coordinates.hpp"
 #include "../../builder/evaluated_layer_placement.hpp"
@@ -23,21 +24,19 @@ void refresh_source_node(
         const auto it = root_nodes_by_name.find(std::string{node.name()});
         if (it == root_nodes_by_name.end()) return;
         const RenderNode src_node = materialize_mesh_node(*it->second, ctx);
-        cache::NodeCacheKey key{
-            .scope = "root.source:" + std::string(src_node.name),
-            .frame = ctx.frame_input.frame,
-            .width = ctx.frame_input.width,
-            .height = ctx.frame_input.height,
-            .params_hash = hash_render_node(src_node),
-            .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
-        };
-        // TICKET-ae-cam-hash-collision Soluzione B — fold cam into root
-        // source-node cache key so root-level sources also differentiate
-        // per-camera-state (otherwise root.source keys would still collide
-        // on AE_CAM_02 zoom-only).
-        if (ctx.frame_input.has_camera_2_5d) {
-            cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
+        // Canonical cache identity: the builder folds camera state by
+        // construction (TICKET-ae-cam-hash-collision Soluzione B) — root
+        // source keys differentiate per-camera-state (AE_CAM_02 zoom-only).
+        cache::NodeCacheKey key = cache::NodeCacheIdentityBuilder{
+            "root.source:" + std::string(src_node.name)
         }
+            .frame(ctx.frame_input.frame)
+            .output(ctx.frame_input.width, ctx.frame_input.height)
+            .params(hash_render_node(src_node))
+            .source(hash_bytes(src_node.name.data(), src_node.name.size()))
+            .camera_if(ctx.frame_input.has_camera_2_5d,
+                       ctx.frame_input.camera_2_5d)
+            .build();
         // Keep refresh byte-equivalent to append_root_sources() through the
         // canonical root-source placement helper.
         const auto matrix_override = root_source_matrix_override(src_node, ctx);
@@ -82,22 +81,19 @@ void refresh_source_node(
     const Mat4 render_matrix = finalize_source_placement_matrix(
         source_placement, item, src_node, ctx);
     const f32 render_opacity = source_placement.opacity;
-    cache::NodeCacheKey key{
-        .scope = "layer.source:" + layer_name_str + ":" + std::string(src_node.name),
-        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-        .width = ctx.frame_input.width,
-        .height = ctx.frame_input.height,
-        .params_hash = hash_render_node(src_node),
-        .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
-    };
-
-    // TICKET-ae-cam-hash-collision Soluzione B — layer-source case (the
-    // dominant path for AE_CAM_02/04 single-shape compositions). Fold the
-    // evaluated camera state into params_hash so cache-key distinguishes
-    // zoom-animated and Z-dolly frames at the framebuffer cache level.
-    if (ctx.frame_input.has_camera_2_5d) {
-        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
+    // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione B):
+    // the builder folds the evaluated camera state by construction so
+    // zoom-animated / Z-dolly frames never collide at the cache-key level.
+    cache::NodeCacheKey key = cache::NodeCacheIdentityBuilder{
+        "layer.source:" + layer_name_str + ":" + std::string(src_node.name)
     }
+        .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+        .output(ctx.frame_input.width, ctx.frame_input.height)
+        .params(hash_render_node(src_node))
+        .source(hash_bytes(src_node.name.data(), src_node.name.size()))
+        .camera_if(ctx.frame_input.has_camera_2_5d,
+                   ctx.frame_input.camera_2_5d)
+        .build();
 
     node.refresh(
         std::string(src_node.name),
