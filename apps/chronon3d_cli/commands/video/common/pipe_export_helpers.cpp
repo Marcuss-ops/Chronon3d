@@ -66,8 +66,16 @@ FfmpegPipeOptions make_pipe_options(
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget)
 {
+    // "ultrafast"/"superfast" is x264 vocabulary. NVENC accepts p1..p7 and
+    // the legacy slow/medium/fast names only, so the superfast→ultrafast
+    // rewrite must never run when a hardware encoder is selected — passing
+    // "ultrafast" to h264_nvenc would fail option validation at open.
+    const bool x264_preset_vocab =
+        opts.encoder.encoder_backend == "native" &&
+        (opts.encoder.hardware_encoder.empty() ||
+         opts.encoder.hardware_encoder == "none");
     const std::string effective_preset =
-        (opts.encoder.encoder_backend == "native" && opts.encoder.encode_preset == "superfast")
+        (x264_preset_vocab && opts.encoder.encode_preset == "superfast")
             ? "ultrafast"
             : opts.encoder.encode_preset;
     const std::string effective_tune =
@@ -85,6 +93,7 @@ FfmpegPipeOptions make_pipe_options(
         .crf = opts.encoder.crf,
         .qp = opts.encoder.qp,
         .bitrate = opts.encoder.bitrate,
+        .async_depth = opts.encoder.async_depth,
         .preset = effective_preset,
         .codec = codec,
         .hardware_encoder = opts.encoder.hardware_encoder,

@@ -106,6 +106,12 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     encoder_packet_drain_ms_ = 0.0;
     direct_yuv_cuda_launch_ms_ = 0.0;
     direct_yuv_cuda_wait_ms_ = 0.0;
+    // Applied-settings telemetry: cleared on every open (a pooled encoder
+    // instance may be re-opened with a different backend, and early failure
+    // paths must not leak stale values into the closeout report).
+    applied_encoder_preset_.clear();
+    applied_encoder_rate_control_.clear();
+    applied_encoder_async_depth_ = 0;
 
     const std::string filename = options_.output_path;
 
@@ -234,6 +240,62 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     const std::string tune = options_.tune.empty() ? "" : options_.tune;
     if (!tune.empty() && !gpu_nvenc_ &&
         !set_codec_option_checked(codec_, "tune", tune)) return false;
+
+    // ── Native NVENC pipeline depth + explicit rate control ─────────────
+    // crf was silently ignored for h264_nvenc/hevc_nvenc before, so the
+    // driver default RC applied. Keep that default when the caller did not
+    // request an explicit RC mode, and always deepen NVENC's in-flight
+    // queue: with FFmpeg's nvenc async_depth=1 default every
+    // avcodec_send_frame blocks until the driver consumes the frame, which
+    // serializes decode/composite behind encode (certification measured the
+    // submit wall dominating the render loop). async_depth>1 lets the
+    // wrapper queue frames ahead inside the driver.
+    if (gpu_nvenc_) {
+        int async_depth = options_.async_depth;
+        if (async_depth <= 0) {
+            async_depth = 4; // engine default: 4 in-flight encode frames
+        }
+        char depth_str[16];
+        snprintf(depth_str, sizeof(depth_str), "%d", async_depth);
+        if (!set_codec_option_checked(codec_, "async_depth", depth_str)) {
+            return false;
+        }
+        const std::string rc_mode = options_.rate_control_mode;
+        std::string rc_applied = "driver-default";
+        if ((rc_mode == "bitrate" || rc_mode == "vbr" || rc_mode == "cbr") &&
+            options_.bitrate > 0) {
+            codec_->bit_rate = options_.bitrate;
+            const std::string rc_name = (rc_mode == "bitrate") ? "vbr" : rc_mode;
+            if (!set_codec_option_checked(codec_, "rc", rc_name)) {
+                return false;
+            }
+            rc_applied = rc_name;
+        } else if ((rc_mode == "qp" || rc_mode == "crf") && options_.qp > 0) {
+            // constqp keeps a stable quality target; qp is the NVENC constqp
+            // knob. The crf name is accepted as an alias for callers that
+            // think in x264 terms; the engine maps it to constqp qp.
+            if (!set_codec_option_checked(codec_, "rc", "constqp")) {
+                return false;
+            }
+            char qp_str[16];
+            snprintf(qp_str, sizeof(qp_str), "%d", options_.qp);
+            if (!set_codec_option_checked(codec_, "qp", qp_str)) {
+                return false;
+            }
+            rc_applied = "constqp";
+        }
+        applied_encoder_preset_ = options_.preset.empty()
+            ? std::string("ffmpeg-nvenc-default")
+            : options_.preset;
+        applied_encoder_rate_control_ = rc_applied;
+        applied_encoder_async_depth_ = async_depth;
+        spdlog::info(
+            "[native_av] NVENC tuning applied: rc={} preset={} async_depth={} qp={} bitrate={}",
+            rc_applied,
+            options_.preset.empty() ? "ffmpeg-nvenc-default" : options_.preset,
+            async_depth, options_.qp,
+            static_cast<long long>(options_.bitrate));
+    }
 
     const auto nvenc_t0 = Clock::now();
     if (avcodec_open2(codec_, encoder, nullptr) < 0) {

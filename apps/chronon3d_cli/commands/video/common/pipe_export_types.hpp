@@ -140,6 +140,11 @@ struct EncoderCloseResult {
     double encoder_packet_drain_ms{0.0};
     double direct_yuv_cuda_launch_ms{0.0};
     double direct_yuv_cuda_wait_ms{0.0};
+    // Encoder settings actually applied at open() time (post-default
+    // resolution). Empty/0 when the encoder is not a hardware NVENC path.
+    std::string applied_encoder_preset;
+    std::string applied_encoder_rate_control;
+    int applied_encoder_async_depth{0};
     bool success{true};
 };
 

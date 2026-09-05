@@ -54,6 +54,9 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.encoder_packet_drain_ms       = session.encoder->encoder_packet_drain_ms();
     result.direct_yuv_cuda_launch_ms     = session.encoder->direct_yuv_cuda_launch_ms();
     result.direct_yuv_cuda_wait_ms       = session.encoder->direct_yuv_cuda_wait_ms();
+    result.applied_encoder_preset        = session.encoder->applied_encoder_preset();
+    result.applied_encoder_rate_control  = session.encoder->applied_encoder_rate_control();
+    result.applied_encoder_async_depth   = session.encoder->applied_encoder_async_depth();
 
     if (is_native) {
         spdlog::info(
