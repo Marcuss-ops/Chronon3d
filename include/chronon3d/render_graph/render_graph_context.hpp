@@ -171,6 +171,20 @@ struct DofSourceCoverage {
 // ── Per-frame input: frame id, time, dimensions, camera, projection ─────────
 // Engine-generic, immutable-ish per frame.  Replaces the 7-substruct pair
 // (RenderFrameInfo + RenderCameraContext) folded together.
+//
+// HOT-PATH TAX C — the per-node context clone (clone_for_node_execution,
+// once per executed node) deep-copies frame_input.  assets_root was the only
+// heap-backed member, so every node × frame paid a string allocation.  It is
+// written once at context setup and never per frame, therefore it now lives
+// in an immutable FrameStaticContext shared (cheap refcount) by every clone.
+// Frame/geometry/camera payloads stay by value: they are POD and can differ
+// per frame (animated cameras), so sharing them behind an allocation would
+// cost more than the memcpy.
+struct FrameStaticContext {
+    // Per-composition assets directory.
+    std::string assets_root;
+};
+
 struct FrameInput {
     Frame frame{0};
     SampleTime sample_time{};
@@ -179,7 +193,11 @@ struct FrameInput {
     float fps{30.0f};
     int width{0};
     int height{0};
-    std::string assets_root;  // per-composition assets directory
+
+    // Immutable run/session payload shared by every copy of this FrameInput.
+    // Null when no context was wired (asset resolution then returns the
+    // relative path unchanged, matching the historical empty assets_root).
+    std::shared_ptr<const FrameStaticContext> static_context;
 
     // Camera + projection + lighting (folded RenderCameraContext).
     Camera camera{};
@@ -187,6 +205,12 @@ struct FrameInput {
     bool has_camera_2_5d{false};
     renderer::ProjectionContext projection_ctx{};
     rendering::LightContext light_context{};
+
+    /// Canonical accessor for the per-composition assets directory.
+    [[nodiscard]] const std::string& assets_root() const noexcept {
+        static const std::string kEmptyAssetsRoot;
+        return static_context ? static_context->assets_root : kEmptyAssetsRoot;
+    }
 };
 
 // ── Per-job policy: flags + optimization shortcuts + tile plan ─────────────

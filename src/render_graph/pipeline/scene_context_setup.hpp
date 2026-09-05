@@ -23,7 +23,7 @@ namespace chronon3d::graph::detail {
 
 // Assumes `ctx` is already constructed via make_graph_context().
 // Mutates the following in-place:
-//   * ctx.frame_input.assets_root
+//   * ctx.frame_input.static_context (shared assets_root; tax C)
 //   * ctx.frame_input.light_context, camera_2_5d, has_camera_2_5d, projection_ctx
 //   * ctx.policy.debug_config  (when an actual SoftwareRenderer is wired)
 //   * ctx.services.sw_renderer_sidecar  (threading from upstream callers)
