@@ -18,7 +18,13 @@ CacheEvalResult evaluate_cache(
     const auto policy = node.cache_policy();
     bool is_cacheable = policy.enabled();
 
-    const auto t_cache0 = profiling::now();
+    // B (hot-path tax): zero clock reads when no sink consumes the timing.
+    // cache_eval_wall_ms is accumulated only under `ctx.node_exec.counters`
+    // below, so the production hot path (counters == nullptr) pays no
+    // profiling::now() at this scope.
+    const bool timing_enabled = ctx.node_exec.counters != nullptr;
+    const auto t_cache0 =
+        timing_enabled ? profiling::now() : profiling::Clock::time_point{};
 
     cr.node_frame_dependent =
         policy.frame_dependent() ||
@@ -60,8 +66,16 @@ CacheEvalResult evaluate_cache(
         cr.use_cache = false;
     }
 
-    // Always compute the key to ensure we have a valid key digest for telemetry,
-    // bypassed nodes, and the downstream video conversion frame cache.
+    // The key is ALWAYS computed here (even for cache-bypassed nodes) on
+    // purpose: `commit_node_state` records `cr.key.digest()` into
+    // `ExecutionState::resolved_key_digest`, and `resolve_inputs` folds that
+    // digest into every consumer's `input_hash`.  A bypassed producer whose
+    // key were skipped would publish a stale/missing digest, collapsing the
+    // consumers' cache keys across frames (the NODE-CACHE-KEY-COLLAPSE rot
+    // class).  Skipping key construction on bypass therefore requires
+    // compile/topology-time knowledge that NO cacheable consumer exists for
+    // this node — not a safe per-node local decision (TICKET-HOT-PATH-TAX
+    // candidate, gated on the compiled consumer table).
     cr.key = node.cache_key(ctx);
 
     // Propagate the central sub-frame tick so that every node that generates
@@ -94,7 +108,9 @@ CacheEvalResult evaluate_cache(
     }
 
     if (cr.use_cache) {
-        const auto lookup_t0 = profiling::now();
+        const auto lookup_t0 = ctx.node_exec.counters
+            ? profiling::now()
+            : profiling::Clock::time_point{};
         cr.result = ctx.services.node_cache->get(cr.key);
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->node_cache_lookup_wall_us.fetch_add(
