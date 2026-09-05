@@ -32,19 +32,15 @@ constexpr std::string_view token(WordEmphasisKind kind) noexcept {
     return kind;
 }
 
-[[nodiscard]] bool starts_with(std::string_view value, std::string_view prefix) {
-    return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
-}
-
 } // namespace
 
 EmphasisParseResult parse_emphasis_prefix(std::string_view semantic_id) {
-    if (starts_with(semantic_id, kBase))   return {WordEmphasisKind::Base, semantic_id.substr(kBase.size())};
-    if (starts_with(semantic_id, kPhrase)) return {WordEmphasisKind::Phrase, semantic_id.substr(kPhrase.size())};
-    if (starts_with(semantic_id, kName))   return {WordEmphasisKind::Name, semantic_id.substr(kName.size())};
-    if (starts_with(semantic_id, kWord))   return {WordEmphasisKind::Word, semantic_id.substr(kWord.size())};
-    if (starts_with(semantic_id, kTitle))  return {WordEmphasisKind::Title, semantic_id.substr(kTitle.size())};
-    if (starts_with(semantic_id, kEmph))   return {WordEmphasisKind::Emph, semantic_id.substr(kEmph.size())};
+    if (semantic_id.starts_with(kBase))   return {WordEmphasisKind::Base, semantic_id.substr(kBase.size())};
+    if (semantic_id.starts_with(kPhrase)) return {WordEmphasisKind::Phrase, semantic_id.substr(kPhrase.size())};
+    if (semantic_id.starts_with(kName))   return {WordEmphasisKind::Name, semantic_id.substr(kName.size())};
+    if (semantic_id.starts_with(kWord))   return {WordEmphasisKind::Word, semantic_id.substr(kWord.size())};
+    if (semantic_id.starts_with(kTitle))  return {WordEmphasisKind::Title, semantic_id.substr(kTitle.size())};
+    if (semantic_id.starts_with(kEmph))   return {WordEmphasisKind::Emph, semantic_id.substr(kEmph.size())};
     return {WordEmphasisKind::None, semantic_id};
 }
 
