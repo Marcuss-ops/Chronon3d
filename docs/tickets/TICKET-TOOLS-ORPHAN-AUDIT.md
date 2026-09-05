@@ -1,6 +1,6 @@
 # TICKET-TOOLS-ORPHAN-AUDIT — Orphan-Script Removal Audit (95 scripts classified)
 
-## Stato: AUDITED (2026-07-31; one verified removal, remaining watch-list active)
+## Stato: CLOSED (2026-09-05; census closed the remaining watch-list)
 
 ## Problema
 
@@ -49,19 +49,22 @@ The strict-interpretation: identify orphan scripts (session/action named OR clos
 
 ### Closed-Ticket-Only Candidates
 
-**Status**: one verified orphan removed (`analyze_frames.py`); the remaining watch-list entries stay pending per-script evaluation.
+**Status**: one verified orphan removed (`analyze_frames.py`); the two remaining
+watch-list entries were re-censused on 2026-09-05 and are absent from the
+current tree, so they are `OBSOLETE` with no implementation target.
 
 **Candidates requiring per-script evaluation** (each forward-pointed to a dedicated ticket for evaluation):
 
 | Script | Owning ticket | Status | Forward-point |
 |---|---|---|---|
-| `render_showcase_contact_sheet.sh` | TICKET-A4 (closed per cat-5 catena) | Watch | TICKET-TOOLS-RENDER-SHOWCASE-CONTACT-SHEET-ORPHAN-V1 |
+| `render_showcase_contact_sheet.sh` | TICKET-A4 (closed per cat-5 catena) | OBSOLETE — path absent | no implementation target remains |
 | `pilot_metrics.py` | TICKET-PILOT-IG-DASHBOARD-WIREUP | OPEN | (no removal — actively wired) |
 | `run_pilot.sh` | TICKET-PILOT-IG-DASHBOARD-WIREUP | OPEN | (no removal — actively wired) |
-| `selftest_validate_benchmark_json.sh` | TICKET-BENCH-SCHEMA-V1 | Watch | TICKET-TOOLS-BENCH-SELFTEST-ORPHAN-V1 |
+| `selftest_validate_benchmark_json.sh` | TICKET-BENCH-SCHEMA-V1 | OBSOLETE — path absent | no implementation target remains |
 | `analyze_frames.py` | none | DONE — removed 2026-07-31; no active wiring | TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1 |
 
-**Verification protocol** for each per-script evaluation ticket:
+**Verification protocol** for each per-script evaluation ticket (used for
+historical removals; the two absent paths above require no new ticket):
 1. Confirm owning-ticket status (`docs/FOLLOWUP_TICKETS.md` row in §Recently Closed + ticket-home in `docs/tickets/`)
 2. Confirm transfer-to-domain-keeper (grep `tools/verify_*_functional_linux.sh` + `tools/run_developer_gates.sh` + `tools/check_clean_rebuild.sh` for cross-reference)
 3. Confirm no active wiring (`rg -l $(basename script) tools/` returning empty set)
@@ -70,11 +73,18 @@ The strict-interpretation: identify orphan scripts (session/action named OR clos
 
 (Note for ticket-home catena readers: the 5-step verification-protocol count above is the canonical version. The earlier "3-step" + "7-step" variants that appear in the parent CHANGELOG entry are pre-fix inconsistencies resolved by this amendment per code-reviewer Finding 2.)
 
-## Verdict: Audit + One Verified Removal
+## Verdict: Audit closed
 
-**Outcome**: This audit records one completed per-script evaluation and removal: `tools/analyze_frames.py`. The exact basename search found no active invocations in workflows, CMake, gates, tests, bench, or maintained tools; its only non-archive references explicitly describe it as unused. The remaining watch-list entries stay deferred to their own evaluations.
+**Outcome**: This audit records one completed per-script evaluation and removal:
+`tools/analyze_frames.py`. The exact basename search found no active invocations
+in workflows, CMake, gates, tests, bench, or maintained tools. The two remaining
+watch-list paths are absent from the current tree and are closed as obsolete;
+no per-script ticket is opened for a path that no longer exists.
 
-**Rationale**: AGENTS.md "Non rimuovere se non sei sicuro" is satisfied only for `analyze_frames.py`; the nightly contact-sheet script is actively wired and the benchmark self-test remains a documented manual verifier, so those two scripts are retained.
+**Rationale**: AGENTS.md "Non rimuovere se non sei sicuro" is satisfied for
+`analyze_frames.py`; the two watch-list paths were separately confirmed absent
+from the current tree and are therefore historical stale references, not files
+to retain or remove.
 
 ## Files Touched
 
@@ -83,7 +93,7 @@ This per-script chaser is Cat-3 minimal-surface: one unused helper removed.
 - NEW: `docs/tickets/TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1.md`
 - EDIT: this audit ticket with the evidence and final classification
 - EDIT: `docs/CHANGELOG.md` with a cite-only entry
-- EDIT: `docs/FOLLOWUP_TICKETS.md`; the umbrella Tools / lint debt blocker remains open for the other watch-list entries and links the completed per-script ticket.
+- EDIT: `docs/FOLLOWUP_TICKETS.md`; the obsolete watch-list entries are no longer active blockers.
 
 ## Criterio di landing stabile
 
@@ -99,10 +109,8 @@ Uno script `tools/` può essere rimosso solo quando **tutte** le condizioni segu
 
 ## Forward-Points
 
-1. `TICKET-TOOLS-RENDER-SHOWCASE-CONTACT-SHEET-ORPHAN-V1` — per-script evaluation of `render_showcase_contact_sheet.sh` orphan status
-2. `TICKET-TOOLS-BENCH-SELFTEST-ORPHAN-V1` — per-script evaluation of `selftest_validate_benchmark_json.sh` orphan status
-3. `TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1` — DONE: `analyze_frames.py` removed after zero-wiring audit
-4. `TICKET-TOOLS-AZ18-HISTORY-RESOLVE` — resolve `az18_build_ctet.sh` non-existence (git reflog deep-query on a clean host)
+1. `TICKET-TOOLS-ANALYZE-FRAMES-ORPHAN-V1` — DONE: `analyze_frames.py` removed after zero-wiring audit
+2. `TICKET-TOOLS-AZ18-HISTORY-RESOLVE` — resolve `az18_build_ctet.sh` non-existence (git reflog deep-query on a clean host)
 
 ## Cross-References
 
