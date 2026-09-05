@@ -62,6 +62,16 @@ struct TextMetrics {
     std::optional<std::uint64_t> instance_upload_bytes;
 };
 
+/// Encoder settings actually applied for this job, resolved at open() time
+/// after engine defaults are filled in (NVENC preset, rate control, async
+/// depth). Lets certification verify which settings really ran instead of
+/// which were requested. Empty optionals = not a hardware-NVENC job.
+struct AppliedEncoderSettings {
+    std::optional<std::string> preset;
+    std::optional<std::string> rate_control;
+    std::optional<int> async_depth;
+};
+
 struct EncoderMetrics {
     std::optional<double> submit_cpu_ms;
     std::optional<double> backpressure_wait_ms;
@@ -298,6 +308,7 @@ struct JobTimings {
     CacheMetrics cache;
     TextMetrics text;
     EncoderMetrics encoder;
+    AppliedEncoderSettings encoder_settings;
     GpuMetrics gpu;
     RuntimeMetrics runtime;
     CpuBreakdownMetrics cpu_breakdown;
