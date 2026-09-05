@@ -37,8 +37,6 @@ add_library(chronon3d_cache OBJECT
     node_cache.cpp
     framebuffer_pool.cpp
     framebuffer_pool_evict.cpp
-    persistent_framebuffer_store.cpp
-    persistent_framebuffer_store_config.cpp
     video_frame_cache.cpp
     lru_log.cpp
     cache_diagnostics.cpp
@@ -48,10 +46,6 @@ add_library(chronon3d_cache OBJECT
     "${CHRONON3D_ARTIFACT_GENERATED_HEADER}"
 )
 set_target_properties(chronon3d_cache PROPERTIES UNITY_BUILD OFF)
-set_source_files_properties(
-    persistent_framebuffer_store.cpp
-    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
-)
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash zstd::libzstd flatbuffers::flatbuffers)
 target_include_directories(chronon3d_cache
     PRIVATE ${CHRONON3D_ARTIFACT_GENERATED_DIR}

@@ -109,7 +109,6 @@ chronon3d_add_test_suite(
     SOURCES
         cache/test_cache_diagnostics.cpp
         cache/test_cache_policy.cpp
-        cache/test_persistent_framebuffer_store.cpp
         cache/test_lru_cache.cpp
         cache/test_lru_extensions.cpp
         cache/test_frame_cache.cpp

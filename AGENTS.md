@@ -127,7 +127,7 @@ Ogni cache deve appartenere a ESATTAMENTE una famiglia.  Vedi
 | Famiglia | Semantica | Membri |
 |---|---|---|
 | **ContentCache** | Stessa chiave → stesso output, sempre | NodeCache, FrameCache, VideoFrameCache, GpuAssetCache, GpuGlyphAtlas styled |
-| **ResidencyCache** | Bounded memory / residency reuse | FramebufferPool (cold-path), GpuGlyphAtlas pages, PersistentFramebufferStore |
+| **ResidencyCache** | Bounded memory / residency reuse | FramebufferPool (cold-path), GpuGlyphAtlas pages |
 | **ProgramCache** | Stesso fingerprint → stesso programma compilato | TemplateProgramCache, CompiledGraphCache, SceneProgramCache, OverlayTemplateCache |
 
 Il placement hot-path non appartiene alla cache taxonomy: `runtime::ResourcePlanner`

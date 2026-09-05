@@ -140,7 +140,6 @@ Config::Config() {
     cache_.converted_frame_cache_max_bytes_ = resolve_env_int("CHRONON3D_CONVERTED_FRAME_CACHE_MAX_BYTES", 0);
     cache_.scene_program_cache_max_entries_ = resolve_env_int("CHRONON3D_SCENE_PROGRAM_CACHE_MAX_ENTRIES", 0);
 
-    cache_.disable_persistent_framebuffer_cache_ = env_bool("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
     {
         const char* policy_env = std::getenv("CHRONON3D_FB_POOL_CLEAR_POLICY");
         if (policy_env && *policy_env) {
@@ -156,7 +155,6 @@ Config::Config() {
         }
     }
 
-    paths_.persistent_framebuffer_cache_dir_ = env_string("CHRONON_PERSISTENT_FB_CACHE_DIR");
     runtime_.assets_root_ = env_string("CHRONON3D_CLI_ASSETS_ROOT");
     runtime_.cli_assets_root_ = runtime_.assets_root_;
 

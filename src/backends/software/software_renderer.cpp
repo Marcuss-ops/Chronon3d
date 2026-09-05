@@ -63,7 +63,6 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include "internal/software_processor_services.hpp"
 #include <chronon3d/cache/cache_policy.hpp>
-#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 // P1-7 Chore 1 (commit A) — REMOVED the `#include
 // "processors/text/software_text_effects.hpp"` block that previously
 // lived here to expose `clear_text_glow_cache()` / `clear_text_shadow_cache()`.
