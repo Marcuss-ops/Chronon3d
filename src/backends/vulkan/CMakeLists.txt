@@ -100,7 +100,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_submission_private.cpp
     vulkan_backend_sync_private.cpp
     vulkan_backend_cuda_export_private.cpp
-    vulkan_legacy_fallback.cpp
+    vulkan_native_shape_dispatch.cpp
     memory/vulkan_memory_manager.cpp
     debug/vulkan_debug_context.cpp
     ${_chronon3d_shader_headers}

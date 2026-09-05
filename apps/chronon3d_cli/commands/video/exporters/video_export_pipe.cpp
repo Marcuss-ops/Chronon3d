@@ -216,6 +216,16 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     if (close_result.applied_encoder_async_depth > 0) {
         timings.encoder_settings.async_depth = close_result.applied_encoder_async_depth;
     }
+    // Requested (pre-resolution) encoder settings; only populated on the
+    // native path where the encoder can report them.
+    if (!close_result.requested_encoder_rate_control.empty()) {
+        timings.encoder_settings.requested_rate_control =
+            close_result.requested_encoder_rate_control;
+    }
+    if (!close_result.requested_encoder_preset.empty()) {
+        timings.encoder_settings.requested_preset =
+            close_result.requested_encoder_preset;
+    }
     timings.output_finalize_ms = result.output_finalize_ms;
     timings.validation_ms = result.validation_ms;
     timings.ffprobe_ms = result.ffprobe_ms;

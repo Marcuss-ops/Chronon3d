@@ -147,32 +147,41 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     return false;
 }
 
-// seed_native_destination() replaces the destination pixels with a copy from
-// the source via transform_surface_affine in replace mode — zero intermediate
-// surfaces, no temporary clear.  The `replace=true` path in Vulkan's
-// composite kernel writes directly into the destination, bypassing blending.
+// seed_native_destination() replaces the destination pixels with a same-size
+// copy from the source.  This is deliberately routed through copy_surface,
+// not transform_surface_affine: the seed is a full-frame 1:1 copy and the
+// Vulkan copy/composite kernel is the native path that also works when the
+// destination is part of the CUDA/NVENC surface chain.
 bool seed_native_destination(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source) {
-    if (!ctx.services.backend || !ctx.services.surface_registry ||
-        source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
-        !ctx.services.backend->is_native_surface_valid(source.surface_handle())) {
+    if (!ctx.services.backend || !ctx.services.surface_registry) {
         return false;
     }
     const auto original_destination = destination.surface_handle();
-    if (!ensure_empty_native_surface(ctx, destination)) return false;
+    // The CPU copy made by acquire_owned_fb is always a valid source of
+    // truth. If the bottom did not retain a native handle, promote the result
+    // directly instead of rejecting the whole frame.
+    if (source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
+        !ctx.services.backend->is_native_surface_valid(source.surface_handle())) {
+        return ensure_native_surface(ctx, destination,
+                                     "CompositeNode.seed.source-fallback");
+    }
+    if (!ensure_empty_native_surface(ctx, destination)) {
+        // The CPU framebuffer is still authoritative at this point. Promote
+        // it directly so native NVENC can proceed even when a backend cannot
+        // allocate an empty same-size target during startup.
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            destination.clear_surface_handle();
+        }
+        return ensure_native_surface(ctx, destination,
+                                     "CompositeNode.seed.fallback");
+    }
 
-    // Use the direct affine path: identity transform copies source to
-    // destination pixel-for-pixel without a GPU clear pass.
-    runtime::SurfaceAffineTransform transform{};
-    transform.source_x[0] = 1.0f;
-    transform.source_y[1] = 1.0f;
-    transform.max_x = static_cast<float>(source.width());
-    transform.max_y = static_cast<float>(source.height());
-    transform.opacity = 1.0f;
-
-    const auto seeded = ctx.services.backend->transform_surface_affine(
-        destination.surface_handle(), source.surface_handle(), transform);
+    // `copy_surface` maps to replace-mode composite on Vulkan. It preserves
+    // the source pixels exactly and avoids affine sampling/coordinate setup.
+    const auto seeded = ctx.services.backend->copy_surface(
+        destination.surface_handle(), source.surface_handle(), std::nullopt);
     if (!seeded.ok()) {
         if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
             release_native_surface(ctx, destination);
@@ -191,7 +200,15 @@ bool seed_native_destination(
                 "(failure #{}): {}",
                 nth, seeded.error().message);
         }
-        return false;
+        // Some Vulkan drivers reject a replace-copy while the destination is
+        // being imported into the CUDA/NVENC chain. The CPU pixels in
+        // `destination` are valid (acquire_owned_fb copied them above), so
+        // promote those pixels as a correctness-preserving native fallback.
+        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
+            release_native_surface(ctx, destination);
+        }
+        return ensure_native_surface(ctx, destination,
+                                     "CompositeNode.seed.copy-fallback");
     }
     return true;
 }
