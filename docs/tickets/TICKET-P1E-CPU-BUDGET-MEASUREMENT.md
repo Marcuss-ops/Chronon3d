@@ -1,6 +1,6 @@
 # TICKET-P1E-CPU-BUDGET-MEASUREMENT — CpuBudget render/encode timing measurement
 
-## Stato: HARNESS-COMPLETE (2026-07-13, macchina-verifica DEFERRED to working build host)
+## Stato: OPEN / NOT RUN (2026-09-05; measurement harness absent on current main)
 
 ## Contesto
 
@@ -68,7 +68,12 @@ Presets per machine class (cpu_budget.cpp:54-108):
 
 ## Script di misurazione
 
-`tools/measure_cpu_budget.sh` — HARNESS-COMPLETE:
+`tools/measure_cpu_budget.sh` è citato dalla pianificazione storica ma non è
+presente nel main attuale. Nessuna misurazione deve essere considerata
+eseguita finché l'harness non viene ripristinato o sostituito con un runner
+verificato e registrato nel ticket.
+
+L'harness previsto deve coprire:
 - Run 1: Still render (1 frame, pure render time, no encode)
 - Run 2: Video pipe mode (60 frames, interleaved render+encode)
 - Run 3: Video chunked mode (60 frames, separate render then encode)
@@ -97,13 +102,13 @@ Macchina-verifica DEFERRED to working build host per:
 
 ```bash
 # 1. Risolvi il rot preesistente (TICKET-NODE-CACHE-KEY-COLLAPSE-ROT)
-# 2. Build chronon3d_cli
+# 2. Ripristina o implementa l'harness di misurazione e registralo qui
+# 3. Build chronon3d_cli
 cmake --build build/chronon/linux-content-dev --target chronon3d_cli -j$(nproc)
 
-# 3. Esegui la misurazione
-bash tools/measure_cpu_budget.sh
+# 4. Esegui la misurazione con l'harness verificato
 
-# 4. Analizza i risultati
+# 5. Analizza i risultati
 #    - Se encode_ratio > 25%: estendi CpuBudget con bounded pipeline
 #    - Se encode_ratio ≤ 25%: il ciclo sequenziale è accettabile
 #    - NON creare pool separati in nessun caso
@@ -111,7 +116,7 @@ bash tools/measure_cpu_budget.sh
 
 ## Criteri di accettazione
 
-- [ ] `tools/measure_cpu_budget.sh` eseguito su working build host
+- [ ] Harness di misurazione presente, registrato e verificato su working build host
 - [ ] Baseline salvata in `docs/baselines/cpu-budget-<timestamp>.txt`
 - [ ] Decisione documentata: estendi CpuBudget vs mantieni sequenziale
 - [ ] Se estensione: implementata nello stesso CpuBudget (no pool separati)
