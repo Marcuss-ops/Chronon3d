@@ -12,7 +12,6 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.policy      = policy;
     copy.services    = services;
     copy.node_exec.counters         = node_exec.counters;
-    copy.node_exec.profiler         = node_exec.profiler;
     copy.node_exec.clip_rect        = node_exec.clip_rect;
     copy.node_exec.active_tile_clip = node_exec.active_tile_clip;
     copy.node_exec.dirty_rect       = node_exec.dirty_rect;

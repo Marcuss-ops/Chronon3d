@@ -396,3 +396,209 @@ TEST_CASE("NullTelemetryStore: TelemetryManager record_run with empty stores suc
     bool ok = manager.record_run(run);
     CHECK(ok);
 }
+
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+#include <chronon3d/runtime/telemetry/telemetry_run_snapshot.hpp>
+#include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
+
+namespace {
+
+std::filesystem::path unique_telemetry_db(const char* tag) {
+    return std::filesystem::temp_directory_path() /
+        (std::string("chronon3d-") + tag + "-" + std::to_string(
+            static_cast<unsigned long long>(std::chrono::high_resolution_clock::now()
+                .time_since_epoch().count())) + ".sqlite");
+}
+
+int query_user_version(const std::filesystem::path& db_path) {
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.string().c_str(), &db) == SQLITE_OK);
+    sqlite3_stmt* stmt = nullptr;
+    int version = -1;
+    REQUIRE(sqlite3_prepare_v2(db, "PRAGMA user_version;", -1, &stmt, nullptr) == SQLITE_OK);
+    if (sqlite3_step(stmt) == SQLITE_ROW) version = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return version;
+}
+
+} // namespace
+
+TEST_CASE("SQLite telemetry: fresh DB is stamped with the current schema version") {
+    const auto db_path = unique_telemetry_db("schema-version");
+    std::filesystem::remove(db_path);
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+    }
+    CHECK(query_user_version(db_path) >= 1);
+    std::filesystem::remove(db_path);
+}
+
+TEST_CASE("SQLite telemetry: re-initializing an existing DB is idempotent and preserves data") {
+    const auto db_path = unique_telemetry_db("reinit");
+    std::filesystem::remove(db_path);
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+        RenderTelemetryRecord run;
+        run.run_id = "reinit-run";
+        run.success = true;
+        REQUIRE(store.write_render_run(run));
+    }
+    // Second open of the SAME file: versioned path must not duplicate or fail.
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+    }
+    CHECK(query_user_version(db_path) >= 1);
+
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.string().c_str(), &db) == SQLITE_OK);
+    sqlite3_stmt* stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM render_runs;", -1, &stmt, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+    CHECK(sqlite3_column_int(stmt, 0) == 1);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    std::filesystem::remove(db_path);
+}
+
+TEST_CASE("SQLite telemetry: NodeMemoryTracker snapshot persists exactly into summary tables") {
+    using chronon3d::graph::NodeMemoryTracker;
+    using chronon3d::graph::NodeMemoryMetrics;
+
+    NodeMemoryTracker tracker;
+    NodeMemoryMetrics m;
+    m.pixels_read.store(100);
+    m.pixels_written.store(200);
+    m.bytes_read.store(1600);
+    m.bytes_written.store(3200);
+    m.allocations.store(3);
+    m.allocated_bytes.store(4096);
+    m.temporary_buffers.store(2);
+    m.peak_live_bytes.store(1024);
+    m.framebuffer_copies.store(5);
+    m.framebuffer_clears.store(6);
+    tracker.observe_node("BlurNode42", m);
+    tracker.record_rss_peak(1u << 30);
+
+    const auto report = tracker.snapshot();
+    REQUIRE(report.nodes.size() == 1);
+
+    const auto db_path = unique_telemetry_db("node-summary");
+    std::filesystem::remove(db_path);
+    {
+        SqliteTelemetryStore store;
+        REQUIRE(store.initialize(db_path.string()));
+
+        // Build the projection the same way the CLI finalize does.
+        std::vector<NodeSummaryTelemetryRecord> summaries;
+        for (const auto& node : report.nodes) {
+            auto& s = summaries.emplace_back();
+            s.node_id = node.node_id;
+            s.pixels_read = node.pixels_read;
+            s.pixels_written = node.pixels_written;
+            s.bytes_read = node.bytes_read;
+            s.bytes_written = node.bytes_written;
+            s.allocations = node.allocations;
+            s.allocated_bytes = node.allocated_bytes;
+            s.temporary_buffers = node.temporary_buffers;
+            s.peak_live_bytes = node.peak_live_bytes;
+            s.framebuffer_copies = node.framebuffer_copies;
+            s.framebuffer_clears = node.framebuffer_clears;
+        }
+        MemorySummaryTelemetryRecord mem;
+        mem.peak_rss_bytes = report.peak_rss_bytes;
+        mem.current_live_bytes = report.current_live_bytes;
+        mem.peak_live_bytes = report.peak_live_bytes;
+
+        store.begin_transaction();
+        const bool ok = store.write_node_summaries("parity-run", summaries) &&
+                        store.write_memory_summary("parity-run", mem);
+        store.end_transaction(ok);
+        REQUIRE(ok);
+    }
+
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.string().c_str(), &db) == SQLITE_OK);
+
+    sqlite3_stmt* stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(db,
+        "SELECT node_id, pixels_read, pixels_written, bytes_read, bytes_written, "
+        "allocations, allocated_bytes, temporary_buffers, peak_live_bytes, "
+        "framebuffer_copies, framebuffer_clears "
+        "FROM render_node_summary WHERE run_id = ?1;", -1, &stmt, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_bind_text(stmt, 1, "parity-run", -1, SQLITE_STATIC) == SQLITE_OK);
+    REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+    CHECK(std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0))) == "BlurNode42");
+    CHECK(sqlite3_column_int64(stmt, 1) == 100);
+    CHECK(sqlite3_column_int64(stmt, 2) == 200);
+    CHECK(sqlite3_column_int64(stmt, 3) == 1600);
+    CHECK(sqlite3_column_int64(stmt, 4) == 3200);
+    CHECK(sqlite3_column_int64(stmt, 5) == 3);
+    CHECK(sqlite3_column_int64(stmt, 6) == 4096);
+    CHECK(sqlite3_column_int64(stmt, 7) == 2);
+    CHECK(sqlite3_column_int64(stmt, 8) == 1024);
+    CHECK(sqlite3_column_int64(stmt, 9) == 5);
+    CHECK(sqlite3_column_int64(stmt, 10) == 6);
+    sqlite3_finalize(stmt);
+
+    REQUIRE(sqlite3_prepare_v2(db,
+        "SELECT peak_rss_bytes, current_live_bytes, peak_live_bytes "
+        "FROM render_memory_summary WHERE run_id = ?1;", -1, &stmt, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_bind_text(stmt, 1, "parity-run", -1, SQLITE_STATIC) == SQLITE_OK);
+    REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+    CHECK(sqlite3_column_int64(stmt, 0) == (1u << 30));
+    CHECK(sqlite3_column_int64(stmt, 1) == 0);
+    CHECK(sqlite3_column_int64(stmt, 2) == 0);
+    sqlite3_finalize(stmt);
+
+    sqlite3_close(db);
+    std::filesystem::remove(db_path);
+}
+
+TEST_CASE("TelemetryRunSnapshot: record_run(snapshot) writes summaries inside one transaction") {
+    const auto db_path = unique_telemetry_db("snapshot");
+    std::filesystem::remove(db_path);
+
+    TelemetryManager manager;
+    auto store = std::make_shared<SqliteTelemetryStore>();
+    REQUIRE(store->initialize(db_path.string()));
+    manager.clear_stores();
+    manager.add_store(store);
+
+    TelemetryRunSnapshot snapshot;
+    snapshot.run.run_id = "snapshot-run";
+    snapshot.run.success = true;
+    snapshot.phases.push_back({"setup", 5.0});
+    snapshot.counters.push_back({"cache_hits", 42});
+    auto& s = snapshot.node_summaries.emplace_back();
+    s.node_id = "Text8";
+    s.calls = 10;
+    s.total_ms = 3.5;
+    s.avg_ms = 0.35;
+    s.cache_hits = 8;
+    s.cache_misses = 2;
+    s.output_bytes = 8192;
+    snapshot.memory_summary.peak_live_bytes = 2048;
+
+    REQUIRE(manager.record_run(snapshot));
+
+    sqlite3* db = nullptr;
+    REQUIRE(sqlite3_open(db_path.string().c_str(), &db) == SQLITE_OK);
+    sqlite3_stmt* stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(db,
+        "SELECT calls, total_ms, cache_hits, output_bytes FROM render_node_summary WHERE run_id = ?1;",
+        -1, &stmt, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_bind_text(stmt, 1, "snapshot-run", -1, SQLITE_STATIC) == SQLITE_OK);
+    REQUIRE(sqlite3_step(stmt) == SQLITE_ROW);
+    CHECK(sqlite3_column_int64(stmt, 0) == 10);
+    CHECK(sqlite3_column_double(stmt, 1) == doctest::Approx(3.5));
+    CHECK(sqlite3_column_int64(stmt, 2) == 8);
+    CHECK(sqlite3_column_int64(stmt, 3) == 8192);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    std::filesystem::remove(db_path);
+}
+#endif

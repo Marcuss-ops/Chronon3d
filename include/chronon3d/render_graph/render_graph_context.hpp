@@ -151,7 +151,6 @@ namespace chronon3d::graph {
 
 class RenderBackend;
 struct NodeExecutionError;
-class RenderProfiler;
 class CompiledGraphCache;
 class CompiledSceneProgram;
 class RenderGraphNode;
@@ -354,7 +353,6 @@ struct RenderServices {
 struct NodeExecutionContext {
     // ── Telemetry (was RenderTelemetryContext) ─────────────────────────
     chronon3d::RenderCounters* counters{nullptr};
-    RenderProfiler* profiler{nullptr};
 
     std::vector<chronon3d::telemetry::NodeTelemetryRecord>  node_telemetry;
     std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
