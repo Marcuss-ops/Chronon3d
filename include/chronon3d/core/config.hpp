@@ -123,6 +123,10 @@ public:
     [[nodiscard]] const std::string& telemetry_run_id() const noexcept {
         return telemetry_run_id_;
     }
+    [[nodiscard]] const std::string& telemetry_level() const noexcept { return telemetry_level_; }
+    [[nodiscard]] const std::string& telemetry_detailed_ttl_days() const noexcept {
+        return telemetry_detailed_ttl_days_;
+    }
     [[nodiscard]] const std::string& cli_assets_root() const noexcept { return cli_assets_root_; }
 
 private:
@@ -131,6 +135,11 @@ private:
     std::string telemetry_path_;
     std::string telemetry_default_directory_;
     std::string telemetry_run_id_;
+    // Boundary-resolved capture level + Detailed/Trace retention window
+    // (parsed to TelemetryLevel / days at the CLI startup boundary, never by
+    // telemetry runtime code). Defaults mirror TelemetryRuntimeConfig.
+    std::string telemetry_level_{std::string{"summary"}};
+    std::string telemetry_detailed_ttl_days_{std::string{"30"}};
     std::string cli_assets_root_;
 };
 

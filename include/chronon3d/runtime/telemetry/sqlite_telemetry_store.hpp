@@ -27,6 +27,7 @@ public:
                               const std::vector<NodeSummaryTelemetryRecord>& summaries) override;
     bool write_memory_summary(const std::string& run_id,
                               const MemorySummaryTelemetryRecord& summary) override;
+    void apply_retention(int detail_ttl_days) override;
 
 private:
     struct Impl;

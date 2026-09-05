@@ -1,6 +1,42 @@
 #include "sqlite_telemetry_store_impl.hpp"
 
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
+#include <string>
+
 namespace chronon3d::telemetry {
+
+namespace {
+
+// Detailed/Trace tables ONLY. Durable Summary rows (render_runs,
+// render_counters, render_phase_events, summaries, artifacts) are never
+// passed to the retention janitor.
+constexpr const char* kDetailedTables[] = {
+    "render_frames",
+    "render_node_events",
+    "render_layer_events",
+    "render_cache_events",
+    "render_culling_events",
+    "render_image_events",
+};
+
+// UTC ISO-8601 "YYYY-MM-DDTHH:MM:SSZ" `days` ago — same fixed-width format
+// as TelemetryManager::get_current_iso_time(), so a lexicographic comparison
+// equals a chronological one for timestamps written by the engine.
+std::string iso_time_days_ago(int days) {
+    const auto cutoff =
+        std::chrono::system_clock::now() - std::chrono::hours(24LL * days);
+    const std::time_t t = std::chrono::system_clock::to_time_t(cutoff);
+    std::tm tm_buf{};
+    gmtime_r(&t, &tm_buf);
+    std::ostringstream oss;
+    oss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%SZ");
+    return oss.str();
+}
+
+} // namespace
 
 SqliteTelemetryStore::SqliteTelemetryStore()
     : m_impl(std::make_unique<Impl>()) {}
@@ -235,6 +271,28 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.process_startup_ms,
         run.framebuffer_allocations_per_frame
     ) && stmt.step_done();
+}
+
+void SqliteTelemetryStore::apply_retention(int detail_ttl_days) {
+    if (detail_ttl_days <= 0) return;
+    std::scoped_lock lock(m_impl->mutex);
+    if (!m_impl->db) return;
+
+    // Purge granular rows whose run finished before the retention window.
+    // Runs with an empty timestamp are conservatively kept (unknown age);
+    // render_runs and the other Summary tables are never touched here.
+    const std::string cutoff = iso_time_days_ago(detail_ttl_days);
+    std::string sql = "BEGIN IMMEDIATE;";
+    for (const char* table : kDetailedTables) {
+        sql += " DELETE FROM ";
+        sql += table;
+        sql += " WHERE run_id IN (SELECT run_id FROM render_runs";
+        sql += " WHERE finished_at_iso <> '' AND finished_at_iso < '";
+        sql += cutoff;
+        sql += "');";
+    }
+    sql += " COMMIT;";
+    exec_sql(m_impl->db, sql.c_str());
 }
 
 } // namespace chronon3d::telemetry
