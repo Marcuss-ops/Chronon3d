@@ -37,9 +37,9 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
 std::string RenderGraphContext::resolve_asset(const std::string& relative_path) const {
     if (relative_path.empty()) return relative_path;
     if (!relative_path.empty() && relative_path[0] == '/') return relative_path;
-    const auto& root = frame_input.assets_root;
+    const auto& root = frame_input.assets_root();
     if (root.empty()) return relative_path;
-    if (!root.empty() && root.back() == '/') {
+    if (root.back() == '/') {
         return root + relative_path;
     }
     return root + "/" + relative_path;
