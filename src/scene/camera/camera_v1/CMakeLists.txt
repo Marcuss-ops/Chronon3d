@@ -14,6 +14,9 @@
 target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_trajectory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_orientation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_source_dispatch.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_evaluate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_sources.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_constraints.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_v1.cpp

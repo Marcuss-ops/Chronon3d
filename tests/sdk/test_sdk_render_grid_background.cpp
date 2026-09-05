@@ -63,7 +63,9 @@ std::size_t count_non_black_pixels(const c3d::sdk::RenderOutput& out) {
         ? static_cast<std::size_t>(out.bytes_per_row)
         : static_cast<std::size_t>(out.width) * 4u;
     std::size_t above = 0;
-    const bool is_bgra = (out.format == c3d::sdk::PixelFormat::Bgra8);
+    // SDK only reports canonical RGBA8 (sdk::PixelFormat aliases
+    // runtime::PixelFormat; the retired Bgra8 spelling is gone).
+    const bool is_bgra = false;
     for (std::int32_t y = 0; y < out.height; ++y) {
         for (std::int32_t x = 0; x < out.width; ++x) {
             const std::size_t idx =
@@ -177,8 +179,7 @@ TEST_CASE("SDK-RENDERER GATE-10-PHASE-4-BLACK: sdk::RenderEngine::render with "
     REQUIRE(out.pixels != nullptr);
     REQUIRE(out.width  == kWidth);
     REQUIRE(out.height == kHeight);
-    REQUIRE((out.format == c3d::sdk::PixelFormat::Rgba8
-          || out.format == c3d::sdk::PixelFormat::Bgra8));
+    REQUIRE(out.format == c3d::sdk::PixelFormat::RGBA8);
 
     const std::size_t above = count_non_black_pixels(out);
     std::printf("[TICKET-GATE-10-PHASE-4-BLACK] sdk render produced %zu/%zu "
