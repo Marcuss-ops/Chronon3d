@@ -219,9 +219,15 @@ protected:
             surface_bindings.erase(previous);
         }
 
-        if (slot_has_initialized_occupant(slot, handle)) {
-            throw std::logic_error(
-                "Vulkan planned surface physical slot is already occupied");
+        // Planned graph resources must not alias a persistent video slot even
+        // before that slot has received its first GPU write.  The old check
+        // considered only initialized occupants, allowing the first plan
+        // materialization to steal the NVENC ring's physical image.
+        for (const auto& [bound_handle, bound_slot] : surface_bindings) {
+            if (bound_handle != handle && bound_slot == slot) {
+                throw std::logic_error(
+                    "Vulkan planned surface physical slot is already reserved");
+            }
         }
         return materialize_binding(handle, slot, desc);
     }
