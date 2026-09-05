@@ -51,6 +51,7 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     validate_renderable_graph(graph, compiled.output, ctx);
     build_execution_levels(graph, compiled.output, compiled);
     build_node_metadata(graph, ctx, compiled, options);
+    compute_cache_key_requirement(compiled);
 
     // P1.0: level dumps are diagnostics-only, not per-compile hot logging.
     if (ctx.policy.diagnostics_enabled) {
@@ -108,6 +109,44 @@ CompiledFrameGraph FrameGraphCompiler::compile(
 
     compiled.valid = true;
     return compiled;
+}
+
+void FrameGraphCompiler::compute_cache_key_requirement(
+    CompiledFrameGraph& compiled
+) const {
+    // Base set: nodes that can perform a cache lookup in some frame.  This
+    // mirrors the STATIC half of evaluate_cache's use_cache decision
+    // (policy.enabled() && !policy.frame_dependent(), minus the forced
+    // Composite bypass).  The dynamic half (inputs_frame_dependent,
+    // node_cache presence, native-video surfaces) can only turn a lookup
+    // OFF, never ON, so the static superset is the correct conservative
+    // seed.  The executor ORs in telemetry key consumption afterwards.
+    const size_t node_count = compiled.nodes.size();
+    for (auto& info : compiled.nodes) {
+        info.cache_key_required =
+            info.reachable &&
+            info.cache_policy.enabled() &&
+            !info.cache_policy.frame_dependent() &&
+            info.kind != RenderGraphNodeKind::Composite;
+    }
+
+    // Close over consumers: resolve_inputs folds a producer's
+    // resolved_key_digest into every consumer's input_hash, so any producer
+    // feeding a required consumer is itself required.  compiled.levels is
+    // topologically ordered (producers in earlier levels), therefore a
+    // reverse sweep propagates the requirement upstream in one pass.
+    for (size_t l = compiled.levels.size(); l-- > 0;) {
+        for (GraphNodeId id : compiled.levels[l]) {
+            if (id >= node_count || !compiled.nodes[id].cache_key_required) {
+                continue;
+            }
+            for (GraphNodeId parent : compiled.nodes[id].inputs) {
+                if (parent < node_count && compiled.nodes[parent].reachable) {
+                    compiled.nodes[parent].cache_key_required = true;
+                }
+            }
+        }
+    }
 }
 
 std::uint64_t FrameGraphCompiler::compute_structure_hash(
@@ -232,6 +271,7 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         }
         build_execution_levels(graph, compiled.output, compiled);
         build_node_metadata(graph, ctx, compiled, options);
+        compute_cache_key_requirement(compiled);
     }
 
     compiled.graph = std::move(graph);

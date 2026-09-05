@@ -86,12 +86,19 @@ void execute_single_node(
 
     profiling::ProfilingGuard node_guard(parent_counters, parent_pool);
 
+    // HOT-PATH TAX A — the compiled consumer table says whether this node's
+    // per-frame cache key can ever be read (own lookup or a consumer's).
+    // Default true when the compiled node info is unavailable.
+    const bool cache_key_required =
+        id < compiled.nodes.size() && compiled.nodes[id].cache_key_required;
+
     auto cache_eval = evaluate_cache(
         node, ctx,
         pr.input_hash,
         pr.inputs_frame_dependent,
         pr.has_cacheable_inputs,
-        id
+        id,
+        cache_key_required
     );
 
     if (diag_exec_logging_enabled()) {

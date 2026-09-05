@@ -51,6 +51,17 @@ private:
         const FrameGraphCompileOptions& options
     ) const;
 
+    /// HOT-PATH TAX A — compute the `cache_key_required` bit per node.
+    /// Runs after build_node_metadata (needs reachable/kind/cache_policy/
+    /// inputs + topological levels).  Node-local, macro-free: it marks a
+    /// node required when it may perform a cache lookup (policy enabled,
+    /// not frame-dependent, not a Composite) or any consumer is required.
+    /// The executor ORs in the telemetry-consumption condition separately
+    /// (that flag is only visible in the executor TU).
+    void compute_cache_key_requirement(
+        CompiledFrameGraph& compiled
+    ) const;
+
     /// Build the sole persisted resource authority for the compiled graph.
     /// Lifetime analysis and physical allocation are intentionally one phase:
     /// ResourcePlanner is used as an ephemeral allocation engine and only the
