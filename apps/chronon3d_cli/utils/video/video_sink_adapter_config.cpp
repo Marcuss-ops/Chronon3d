@@ -1,4 +1,5 @@
 #include "video_sink_adapter.hpp"
+#include "encoder_config_resolution.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -86,24 +87,102 @@ bool VideoSinkEncoderAdapter::build_sink_config(
         const auto container = detect_container(opts.output_path);
         auto raw_codec = map_codec(opts.codec);
         config.encoder.codec = media::video::resolve_auto_codec(raw_codec, container);
-        if (opts.rate_control_mode == "qp") {
-            config.encoder.rate_control_mode = RateControlMode::ConstantQp;
-            config.encoder.qp = opts.qp;
-            config.encoder.crf = -1;
-            config.encoder.bitrate = 0;
-        } else if (opts.rate_control_mode == "bitrate") {
-            config.encoder.rate_control_mode = RateControlMode::Bitrate;
-            config.encoder.bitrate = opts.bitrate;
-            config.encoder.crf = -1;
-            config.encoder.qp = -1;
+
+        // ── Single-authority encoder configuration ─────────────────────
+        // This adapter runs the CPU (external-pipe) encoder path. For the
+        // libx264 family the encoder-configuration resolver is the only place
+        // that interprets rate-control intent, presets and tunes: unknown
+        // rate-control strings, bitrate/QP modes without their required
+        // value, invalid presets and unsupported tunes fail fast here instead
+        // of silently degrading to CRF or the driver default. NVENC never
+        // reaches this adapter in native builds (NativeAvEncoder owns it);
+        // when native FFmpeg is disabled the historical CPU-fallback mapping
+        // is kept, but unknown rate-control strings still fail below.
+        const bool x264_family =
+            opts.codec == "libx264" || opts.codec == "libx264rgb" ||
+            opts.codec == "h264" || opts.codec == "auto";
+        const bool nvenc_requested =
+            resolve_encoder_backend(opts.codec, opts.hardware_encoder) ==
+            EncoderBackend::Nvenc;
+        const bool resolve_quality =
+            x264_family && !nvenc_requested;
+
+        if (resolve_quality) {
+            const auto resolution =
+                resolve_encoder_config(make_encoder_config_request(opts));
+            if (!resolution) {
+                spdlog::error("[video_adapter] Invalid encoder configuration: {}",
+                              resolution.error().message);
+                return false;
+            }
+            const auto& resolved = resolution.value();
+            switch (resolved.rate_control()) {
+                case ResolvedEncoderRateControl::ConstantQuality:
+                    config.encoder.rate_control_mode = RateControlMode::Crf;
+                    config.encoder.crf = resolved.crf().value_or(-1);
+                    config.encoder.qp = -1;
+                    config.encoder.bitrate = 0;
+                    break;
+                case ResolvedEncoderRateControl::ConstantQp:
+                    config.encoder.rate_control_mode = RateControlMode::ConstantQp;
+                    config.encoder.qp = resolved.qp().value_or(-1);
+                    config.encoder.crf = -1;
+                    config.encoder.bitrate = 0;
+                    break;
+                case ResolvedEncoderRateControl::Vbr:
+                case ResolvedEncoderRateControl::Cbr:
+                    config.encoder.rate_control_mode = RateControlMode::Bitrate;
+                    config.encoder.bitrate = resolved.bitrate().value_or(0);
+                    config.encoder.crf = -1;
+                    config.encoder.qp = -1;
+                    break;
+                case ResolvedEncoderRateControl::DriverDefault:
+                    // Only NVENC produces this; guarded above by
+                    // resolve_quality, but keep the config explicit.
+                    config.encoder.rate_control_mode = RateControlMode::Crf;
+                    config.encoder.crf = -1;
+                    config.encoder.qp = -1;
+                    config.encoder.bitrate = 0;
+                    break;
+            }
+            config.encoder.preset = resolved.preset();
+            config.encoder.tune = resolved.tune();
         } else {
-            config.encoder.rate_control_mode = RateControlMode::Crf;
-            config.encoder.crf = opts.crf;
-            config.encoder.qp = -1;
-            config.encoder.bitrate = 0;
+            // Non-libx264 codec families (h265/vp9/av1/...) or the degraded
+            // NVENC-on-pipe fallback: the media layer owns their semantics.
+            // Unknown rate-control strings must still never silently become
+            // CRF (the historical `else → Crf` trap).
+            if (!opts.rate_control_mode.empty()) {
+                EncoderRateControlRequest parsed;
+                if (!parse_rate_control_request(opts.rate_control_mode, parsed)) {
+                    spdlog::error(
+                        "[video_adapter] Unknown rate-control mode '{}'; "
+                        "allowed modes: crf, qp, bitrate",
+                        opts.rate_control_mode);
+                    return false;
+                }
+            }
+            if (opts.rate_control_mode == "qp") {
+                config.encoder.rate_control_mode = RateControlMode::ConstantQp;
+                config.encoder.qp = opts.qp;
+                config.encoder.crf = -1;
+                config.encoder.bitrate = 0;
+            } else if (opts.rate_control_mode == "bitrate" ||
+                       opts.rate_control_mode == "vbr" ||
+                       opts.rate_control_mode == "cbr") {
+                config.encoder.rate_control_mode = RateControlMode::Bitrate;
+                config.encoder.bitrate = opts.bitrate;
+                config.encoder.crf = -1;
+                config.encoder.qp = -1;
+            } else {
+                config.encoder.rate_control_mode = RateControlMode::Crf;
+                config.encoder.crf = opts.crf;
+                config.encoder.qp = -1;
+                config.encoder.bitrate = 0;
+            }
+            config.encoder.preset = opts.preset;
+            config.encoder.tune = opts.tune.empty() ? std::nullopt : std::make_optional(opts.tune);
         }
-        config.encoder.preset = opts.preset;
-        config.encoder.tune = opts.tune.empty() ? std::nullopt : std::make_optional(opts.tune);
     }
 
     config.encoder.encoded_pixel_format = map_output_pix_fmt(opts.output_pix_fmt);

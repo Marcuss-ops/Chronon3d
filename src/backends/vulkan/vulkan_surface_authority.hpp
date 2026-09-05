@@ -241,7 +241,15 @@ protected:
                 surface_bindings.erase(previous);
             }
         }
-        if (slot_has_initialized_occupant(slot, handle)) {
+        // A logical binding reserves its physical slot even before the image
+        // has received its first upload.  Checking only initialized occupants
+        // lets a transient graph surface alias a persistent NVENC/source
+        // surface during the first frame; retiring the transient then clears
+        // the shared image and invalidates the encode ring on frame four.
+        while (slot_in_use(slot) ||
+               (physical_surfaces.contains(slot) &&
+                physical_surfaces.at(slot).desc.lifetime ==
+                    runtime::LifetimeClass::JobPersistent)) {
             slot = next_slot++;
         }
         return materialize_binding(handle, slot, desc);

@@ -120,7 +120,15 @@ EncodeOutcome encode_frame(
     }
     auto* surface_registry = ctx.sw_renderer
         ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
-    if (surface_registry && video_settings.retain_native_surface_for_video) {
+    // When a native encode destination exists, finish_frame_encode() has
+    // already copied the rendered source into CUDA/NVENC. Do not require the
+    // temporary source handle to survive that copy; this validation is only
+    // needed for retained-surface paths without a dedicated encode target.
+    const bool require_retained_source =
+        video_settings.retain_native_surface_for_video &&
+        video_settings.native_video_encode_surface ==
+            runtime::kInvalidRenderSurfaceHandle;
+    if (surface_registry && require_retained_source) {
         if (source_surface != runtime::kInvalidRenderSurfaceHandle &&
             !ctx.backend.is_native_surface_valid(source_surface)) {
             spdlog::error("[video] native source surface became invalid before frame {} handle={}",

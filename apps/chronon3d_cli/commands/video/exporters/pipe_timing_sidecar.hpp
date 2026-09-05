@@ -62,14 +62,19 @@ struct TextMetrics {
     std::optional<std::uint64_t> instance_upload_bytes;
 };
 
-/// Encoder settings actually applied for this job, resolved at open() time
-/// after engine defaults are filled in (NVENC preset, rate control, async
-/// depth). Lets certification verify which settings really ran instead of
-/// which were requested. Empty optionals = not a hardware-NVENC job.
+/// Encoder settings for this job. The `preset`/`rate_control`/`async_depth`
+/// values are what was RESOLVED and applied at open() time (after engine
+/// defaults are filled in); the `requested_*` fields keep what the caller
+/// explicitly asked for ("engine-default" when never requested). Telemetry
+/// therefore reveals requested vs resolved configuration instead of
+/// pretending an engine default was an explicit user choice. Empty optionals
+/// = not a native encoder job.
 struct AppliedEncoderSettings {
     std::optional<std::string> preset;
     std::optional<std::string> rate_control;
     std::optional<int> async_depth;
+    std::optional<std::string> requested_rate_control;
+    std::optional<std::string> requested_preset;
 };
 
 struct EncoderMetrics {

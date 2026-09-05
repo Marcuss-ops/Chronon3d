@@ -277,10 +277,11 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
 std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
     std::shared_ptr<Framebuffer> exec_fb, Frame frame) {
     if (!encode_batch_active_) return exec_fb;
+    runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
     if (ctx_.policy.native_video_encode_surface !=
             runtime::kInvalidRenderSurfaceHandle &&
         exec_fb) {
-        const auto source = ensure_native_source(exec_fb, frame);
+        source = ensure_native_source(exec_fb, frame);
         if (source == runtime::kInvalidRenderSurfaceHandle) {
             spdlog::error("[backend] native encode copy has no valid source surface for frame {}",
                           static_cast<int>(frame));
@@ -293,7 +294,6 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
                               static_cast<int>(frame), copy.error().message);
                 exec_fb.reset();
             } else {
-                release_temporary_native_output(ctx_, exec_fb, source);
             }
         }
     } else if (ctx_.policy.native_video_encode_surface !=
@@ -302,6 +302,7 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
                       static_cast<int>(frame));
         exec_fb.reset();
     }
+    release_temporary_native_output(ctx_, exec_fb, source);
     backend_.end_frame_batch();
     encode_batch_active_ = false;
     return exec_fb;

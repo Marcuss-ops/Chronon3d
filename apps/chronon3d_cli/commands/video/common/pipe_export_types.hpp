@@ -145,6 +145,11 @@ struct EncoderCloseResult {
     std::string applied_encoder_preset;
     std::string applied_encoder_rate_control;
     int applied_encoder_async_depth{0};
+    // Settings the caller explicitly requested ("engine-default" when never
+    // requested). Telemetry pairs these with the applied_* fields above so
+    // requested config and resolved config are never conflated.
+    std::string requested_encoder_rate_control;
+    std::string requested_encoder_preset;
     bool success{true};
 };
 

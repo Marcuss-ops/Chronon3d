@@ -212,6 +212,82 @@ TEST_CASE(
     CHECK(approx_equal(minor_only_enabled, minor_only_no_major));
 }
 
+// ─── 4a. opacity only (opaque bg, translucent line) ───────────────────────
+TEST_CASE(
+    "GRID-KERNEL SEMANTICS: opacity<1 with opaque background premultiplies "
+    "line + keeps bg storage identical to straight (a==1)") {
+    constexpr int kWidth = 64;
+    constexpr int kHeight = 32;
+    c3d::Framebuffer fb(kWidth, kHeight);
+
+    c3d::GridBackgroundShape grid;
+    grid.size = c3d::Vec2{static_cast<c3d::f32>(kWidth),
+                          static_cast<c3d::f32>(kHeight)};
+    grid.bg_color = c3d::Color{0.20f, 0.22f, 0.24f, 1.0f};   // opaque
+    grid.grid_color = c3d::Color{0.50f, 0.80f, 1.0f, 0.9f};
+    grid.spacing = 16.0f;
+    grid.minor_thickness = 8.0f;   // saturated centres (weight 1)
+    grid.major_thickness = 0.0f;
+    grid.major_every = 4;
+    grid.centered = false;
+    grid.offset = c3d::Vec2{0.0f, 0.0f};
+    c3d::RenderState state;
+    state.opacity = 0.5f;
+
+    const c3d::raster::BBox full{0, 0, kWidth, kHeight};
+    c3d::renderer::render_grid_background_kernel(fb, grid, full, state);
+
+    // Opacity folds into the bg alpha too: even an "opaque" bg is stored
+    // premultiplied as rgb*(1.0*opacity).
+    const c3d::Color bg = expected_background(grid, state.opacity);
+    CHECK(approx_equal(pixel_at(fb, 8, 8), bg));
+
+    // Line centre: opacity folds into the line alpha only (bg.a stays 1).
+    const c3d::Color line = pixel_at(fb, 0, 8);
+    const c3d::Color expected = expected_line_over_background(
+        grid, state.opacity, /*line_alpha_weight=*/1.0f,
+        /*major_alpha_scale=*/1.0f);
+    CHECK(approx_equal(line, expected));
+}
+
+// ─── 4b. non-zero offset shifts the grid origin ───────────────────────────
+TEST_CASE(
+    "GRID-KERNEL SEMANTICS: grid offset shifts the line lattice (non-zero "
+    "origin + odd spacing)") {
+    constexpr int kWidth = 96;
+    constexpr int kHeight = 48;
+    c3d::Framebuffer fb(kWidth, kHeight);
+
+    c3d::GridBackgroundShape grid;
+    grid.size = c3d::Vec2{static_cast<c3d::f32>(kWidth),
+                          static_cast<c3d::f32>(kHeight)};
+    grid.bg_color = c3d::Color{0.10f, 0.12f, 0.14f, 1.0f};
+    grid.grid_color = c3d::Color{0.60f, 0.80f, 1.0f, 0.9f};
+    grid.spacing = 33.0f;             // odd spacing
+    grid.minor_thickness = 8.0f;      // saturated centres
+    grid.major_thickness = 0.0f;
+    grid.major_every = 4;
+    grid.centered = false;
+    grid.offset = c3d::Vec2{7.0f, 5.0f};   // odd offset
+    c3d::RenderState state;
+    state.opacity = 1.0f;
+
+    const c3d::raster::BBox full{0, 0, kWidth, kHeight};
+    c3d::renderer::render_grid_background_kernel(fb, grid, full, state);
+
+    // Vertical lattice at x = 7 + 33k → saturated at x == 7.
+    // Horizontal lattice at y = 5 + 33k; y = 20 is off every horizontal line.
+    const c3d::Color centre = pixel_at(fb, 7, 20);
+    const c3d::Color expected = expected_line_over_background(
+        grid, state.opacity, /*line_alpha_weight=*/1.0f,
+        /*major_alpha_scale=*/1.0f);
+    CHECK(approx_equal(centre, expected));
+
+    // Far from any lattice line (x = 7 + 16): pure background.
+    CHECK(approx_equal(pixel_at(fb, 23, 20),
+                       expected_background(grid, state.opacity)));
+}
+
 // ─── 4. The kernel honours the clip rectangle ──────────────────────────────
 TEST_CASE("GRID-KERNEL SEMANTICS: paint is confined to the clip rectangle") {
     constexpr int kWidth = 128;
