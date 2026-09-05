@@ -48,12 +48,17 @@ SoftwareRenderer* setup_render_graph_context(
         static_cast<SoftwareRenderer*>(ctx.services.sw_renderer_sidecar);
 
     // ── Runtime assets root ──────────────────────────────────────────
-    // Deep code uses ctx.resolve_asset() or ctx.frame_input.assets_root.
-    // Asset roots are owned by the render runtime, not by the scene.
+    // Deep code uses ctx.resolve_asset() or ctx.frame_input.assets_root().
+    // Asset roots are owned by the render runtime, not by the scene, and are
+    // written here once per setup (never per frame), so they live in the
+    // shared immutable FrameStaticContext: per-node context clones copy a
+    // shared_ptr instead of deep-copying the string (hot-path tax C).
     if (sw_renderer) {
         if (const auto root = sw_renderer->runtime().resolver().mount_root();
             !root.empty()) {
-            ctx.frame_input.assets_root = root.string();
+            ctx.frame_input.static_context =
+                std::make_shared<const graph::FrameStaticContext>(
+                    graph::FrameStaticContext{root.string()});
         }
     }
 
