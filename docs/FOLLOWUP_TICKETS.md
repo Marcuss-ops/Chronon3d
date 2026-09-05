@@ -30,6 +30,7 @@
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
+| Telemetry granular emitter | P2 | OPEN | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — emit per-nodo non gated da TelemetryLevel nei build telemetry-ON + store sharded orfani senza consumer (zero collect_*) |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
 
 ## Recently Closed (ultimi 3)
