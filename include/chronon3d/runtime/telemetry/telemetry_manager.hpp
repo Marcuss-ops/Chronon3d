@@ -1,4 +1,5 @@
 #pragma once
+#include <chronon3d/runtime/telemetry/telemetry_level.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_run_snapshot.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_store.hpp>
 #include <vector>
@@ -15,6 +16,14 @@ struct TelemetryRuntimeConfig {
     std::filesystem::path path_override;
     std::filesystem::path default_directory{"/tmp/.chronon3d/telemetry"};
     std::string run_id_override;
+
+    /// Capture level (boundary-resolved; default = Summary). Granular
+    /// per-frame/per-event tables are only persisted at Detailed/Trace;
+    /// durable Summary rows are always persisted (never auto-rotated).
+    TelemetryLevel level{kDefaultTelemetryLevel};
+    /// Retention window (days) for Detailed/Trace data only. 0 disables the
+    /// janitor. Summary data (runs/counters/summaries) is never purged.
+    int detail_ttl_days{30};
 };
 
 class TelemetryManager {
@@ -25,6 +34,10 @@ public:
     ~TelemetryManager() = default;
 
     void configure(TelemetryRuntimeConfig config);
+
+    // Capture-level override (equivalent to configure() with only `level`
+    // set). Convenience for hosts/tests that keep the default boundary paths.
+    void set_level(TelemetryLevel level) noexcept { m_config.level = level; }
 
     // Registers a custom backend store.
     void add_store(std::shared_ptr<TelemetryStore> store);

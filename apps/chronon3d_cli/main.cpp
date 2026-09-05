@@ -65,6 +65,13 @@ int main(int argc, char** argv) {
         .path_override = process_config.runtime().telemetry_path(),
         .default_directory = process_config.runtime().telemetry_default_directory(),
         .run_id_override = process_config.runtime().telemetry_run_id(),
+        // Boundary-resolved capture level + Detailed/Trace retention window.
+        // Summary (default) persists only durable rows; Detailed/Trace rows
+        // older than the TTL are purged by the janitor at store init.
+        .level = chronon3d::telemetry::parse_telemetry_level(
+            process_config.runtime().telemetry_level()),
+        .detail_ttl_days = chronon3d::telemetry::parse_retention_days(
+            process_config.runtime().telemetry_detailed_ttl_days()),
     });
 
     tbb::global_control tbb_control(
