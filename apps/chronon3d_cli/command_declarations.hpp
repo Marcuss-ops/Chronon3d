@@ -41,6 +41,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
+int command_telemetry_export(const TelemetryExportArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
 int command_watch(const CompositionRegistry& registry, const WatchArgs& args);
 int command_preview(const CompositionRegistry& registry, const PreviewArgs& args);

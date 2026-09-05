@@ -8,6 +8,7 @@ add_library(chronon3d_cli_telemetry STATIC
     commands/telemetry/command_telemetry.cpp
     commands/telemetry/command_telemetry_helpers.cpp
     commands/telemetry/command_telemetry_summary.cpp
+    commands/telemetry/command_telemetry_export.cpp
 )
 target_include_directories(chronon3d_cli_telemetry PRIVATE
     ${CMAKE_SOURCE_DIR}
@@ -20,6 +21,7 @@ target_link_libraries(chronon3d_cli_telemetry PRIVATE
     spdlog::spdlog_header_only
     fmt::fmt
     unofficial::sqlite3::sqlite3
+    nlohmann_json::nlohmann_json
 )
 target_compile_definitions(chronon3d_cli_telemetry PRIVATE
     CHRONON3D_ENABLE_SQLITE_TELEMETRY
