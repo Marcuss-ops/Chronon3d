@@ -60,6 +60,11 @@ public:
     struct Stats {
         size_t hits{0};
         size_t misses{0};
+        /// Lookups that waited on an in-flight loader for the same key
+        /// (request coalescing). These are resident-cache misses resolved
+        /// by deduplication, NOT hits; keeping them out of `hits` makes
+        /// hits/lookups a true residency ratio.
+        size_t coalesced_waits{0};
         size_t evictions{0};
         size_t oversized_rejections{0};
         size_t current_size{0};
@@ -71,7 +76,7 @@ public:
         std::uint64_t contention_count{0};
 
         [[nodiscard]] std::size_t lookups() const noexcept {
-            return hits + misses;
+            return hits + misses + coalesced_waits;
         }
     };
 
@@ -177,7 +182,10 @@ public:
 
         if (!promise_ptr) {
             auto result = waiting_future.get().first;
-            m_hits.fetch_add(1, std::memory_order_relaxed);
+            // Request coalescing: this caller did not touch the resident
+            // cache; count it separately so `hits` stays a true residency
+            // ratio (hits + misses + coalesced_waits == call-site lookups).
+            m_coalesced_waits.fetch_add(1, std::memory_order_relaxed);
             return result;
         }
 
@@ -295,6 +303,7 @@ public:
         Stats s;
         s.hits = m_hits.load(std::memory_order_relaxed);
         s.misses = m_misses.load(std::memory_order_relaxed);
+        s.coalesced_waits = m_coalesced_waits.load(std::memory_order_relaxed);
         s.evictions = m_evictions.load(std::memory_order_relaxed);
         s.oversized_rejections =
             m_oversized_rejections.load(std::memory_order_relaxed);
@@ -517,6 +526,7 @@ private:
     void reset_counters() noexcept {
         m_hits.store(0, std::memory_order_relaxed);
         m_misses.store(0, std::memory_order_relaxed);
+        m_coalesced_waits.store(0, std::memory_order_relaxed);
         m_evictions.store(0, std::memory_order_relaxed);
         m_oversized_rejections.store(0, std::memory_order_relaxed);
         m_hash_time_ns.store(0, std::memory_order_relaxed);
@@ -529,6 +539,9 @@ private:
     void copy_counters_from(const LruCache& other) noexcept {
         m_hits.store(other.m_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
         m_misses.store(other.m_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        m_coalesced_waits.store(
+            other.m_coalesced_waits.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
         m_evictions.store(other.m_evictions.load(std::memory_order_relaxed), std::memory_order_relaxed);
         m_oversized_rejections.store(
             other.m_oversized_rejections.load(std::memory_order_relaxed),
@@ -555,6 +568,7 @@ private:
     std::vector<std::unique_ptr<Shard>> m_shards;
     mutable std::atomic<size_t> m_hits{0};
     mutable std::atomic<size_t> m_misses{0};
+    mutable std::atomic<size_t> m_coalesced_waits{0};
     mutable std::atomic<size_t> m_evictions{0};
     mutable std::atomic<size_t> m_oversized_rejections{0};
     mutable std::atomic<std::uint64_t> m_hash_time_ns{0};

@@ -259,7 +259,11 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
 }
 
 ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
-#if defined(CHRONON3D_ENABLE_VIDEO)
+    // assemble_segments lives in chronon3d_media_native (libavformat MuxSession
+    // authority), which exists only when native FFmpeg is enabled. The old
+    // CHRONON3D_ENABLE_VIDEO guard was wrong and produced an undefined symbol
+    // at link time in video-enabled / native-ffmpeg-disabled presets.
+#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     try {
         const auto request = nlohmann::json::parse(payload);
         const auto paths = request.value("input_paths", std::vector<std::string>{});
@@ -275,7 +279,7 @@ ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
 #else
     (void)payload;
     return ipc::Reply{ipc::Status::Error,
-                      std::string{"ASSEMBLE_SEGMENTS unavailable: built without CHRONON3D_ENABLE_VIDEO"}};
+                      std::string{"ASSEMBLE_SEGMENTS unavailable: built without native FFmpeg mux"}};
 #endif
 }
 

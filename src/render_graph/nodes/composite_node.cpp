@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <optional>
+#include <string_view>
 #include <vector>
 
 #include "native_surface.hpp"
@@ -178,6 +180,84 @@ bool seed_native_destination(
     return true;
 }
 
+// publish_dof_provenance() — single authority for DOF depth/coverage
+// publication.  Previously this loop existed twice verbatim (pass-through
+// branch and post-blend branch); the two copies had to be kept in sync by
+// discipline.  Writes world-z into the depth buffer for every covered pixel
+// and expands the DOF source bbox/radius coverage.
+void publish_dof_provenance(
+    RenderGraphContext& ctx, const Framebuffer& surface,
+    float world_z, float source_radius,
+    const std::optional<raster::BBox>& clip,
+    i32 framebuffer_width, i32 framebuffer_height) {
+    auto& dof_depth = ctx.node_exec.dof_depth_buffer();
+    if (dof_depth.empty()) return;
+    const i32 w = framebuffer_width;
+    const i32 bx0 = clip ? clip->x0 : 0;
+    const i32 by0 = clip ? clip->y0 : 0;
+    const i32 bx1 = clip ? clip->x1 : framebuffer_width;
+    const i32 by1 = clip ? clip->y1 : framebuffer_height;
+    for (i32 y = by0; y < by1; ++y) {
+        const i32 sy = y - surface.origin_y();
+        if (sy < 0 || sy >= surface.height()) continue;
+        const Color* row = surface.pixels_row(sy);
+        for (i32 x = bx0; x < bx1; ++x) {
+            const i32 sx = x - surface.origin_x();
+            if (sx < 0 || sx >= surface.width() || row[sx].a <= 0.01f) continue;
+            dof_depth[static_cast<size_t>(y) * w + x] = world_z;
+            if (std::isfinite(source_radius) && source_radius >= 0.5f) {
+                auto& coverage = ctx.node_exec.dof_sources();
+                if (!coverage.source_bbox) {
+                    coverage.source_bbox = raster::BBox{x, y, x + 1, y + 1};
+                } else {
+                    auto& bbox = *coverage.source_bbox;
+                    bbox.x0 = std::min(bbox.x0, x);
+                    bbox.y0 = std::min(bbox.y0, y);
+                    bbox.x1 = std::max(bbox.x1, x + 1);
+                    bbox.y1 = std::max(bbox.y1, y + 1);
+                }
+                coverage.max_radius = std::max(coverage.max_radius, source_radius);
+            }
+        }
+    }
+}
+
+// dof_source_radius() — shared radius derivation for both DOF publish sites.
+float dof_source_radius(RenderGraphContext& ctx, float world_z) {
+    const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
+    return camera_2_5d.dof.enabled
+        ? compute_dof_blur_radius(camera_2_5d.dof, camera_2_5d.lens,
+                                  world_z,
+                                  static_cast<float>(ctx.frame_input.width))
+        : 0.0f;
+}
+
+// materialize_native_or_fail() — the ensure(destination)+ensure(source)+
+// fail-closed dance shared by the operator and fallback composite branches.
+// On a native backend a materialization failure is a hard error: the GPU
+// program must never silently degrade to a CPU blend (P0.2 contract).
+[[nodiscard]] std::optional<NodeExecutionError> materialize_native_or_fail(
+    RenderGraphContext& ctx, Framebuffer& destination,
+    const Framebuffer& source, std::string_view context) {
+    if (!ctx.services.backend || !ctx.services.surface_registry ||
+        !ctx.services.backend->supports_native_surfaces()) {
+        return std::nullopt;
+    }
+    const bool destination_ready =
+        ensure_native_surface(ctx, destination, "CompositeNode.destination");
+    auto& mutable_source = const_cast<Framebuffer&>(source);
+    const bool source_ready =
+        ensure_native_surface(ctx, mutable_source, "CompositeNode.source");
+    if (!destination_ready || !source_ready) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "CompositeNode",
+            std::string(context) +
+            " could not materialize native surfaces; CPU fallback is forbidden"};
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 NodeExecResult CompositeNode::execute(
@@ -206,42 +286,12 @@ NodeExecResult CompositeNode::execute(
         // the layer surface represented by m_world_z.  Do not let this
         // optimization bypass DOF provenance publication.
         if (inputs.size() == 1 && inputs[0] &&
-            ctx.policy.track_dof_depth && !ctx.node_exec.dof_depth_buffer().empty()) {
-            auto& dof_depth = ctx.node_exec.dof_depth_buffer();
-            const i32 w = ctx.frame_input.width;
-            const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
-            const float source_radius = camera_2_5d.dof.enabled
-                ? compute_dof_blur_radius(camera_2_5d.dof, camera_2_5d.lens,
-                                          m_world_z, static_cast<float>(w))
-                : 0.0f;
-            const i32 bx0 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->x0 : 0;
-            const i32 by0 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->y0 : 0;
-            const i32 bx1 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->x1 : w;
-            const i32 by1 = ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->y1 : ctx.frame_input.height;
-            const Framebuffer& surface = *inputs[0];
-            for (i32 y = by0; y < by1; ++y) {
-                const i32 sy = y - surface.origin_y();
-                if (sy < 0 || sy >= surface.height()) continue;
-                const Color* row = surface.pixels_row(sy);
-                for (i32 x = bx0; x < bx1; ++x) {
-                    const i32 sx = x - surface.origin_x();
-                    if (sx < 0 || sx >= surface.width() || row[sx].a <= 0.01f) continue;
-                    dof_depth[static_cast<size_t>(y) * w + x] = m_world_z;
-                    if (std::isfinite(source_radius) && source_radius >= 0.5f) {
-                        auto& coverage = ctx.node_exec.dof_sources();
-                        if (!coverage.source_bbox) {
-                            coverage.source_bbox = raster::BBox{x, y, x + 1, y + 1};
-                        } else {
-                            auto& bbox = *coverage.source_bbox;
-                            bbox.x0 = std::min(bbox.x0, x);
-                            bbox.y0 = std::min(bbox.y0, y);
-                            bbox.x1 = std::max(bbox.x1, x + 1);
-                            bbox.y1 = std::max(bbox.y1, y + 1);
-                        }
-                        coverage.max_radius = std::max(coverage.max_radius, source_radius);
-                    }
-                }
-            }
+            ctx.policy.track_dof_depth) {
+            publish_dof_provenance(
+                ctx, *inputs[0], m_world_z,
+                dof_source_radius(ctx, m_world_z),
+                ctx.node_exec.clip_rect,
+                ctx.frame_input.width, ctx.frame_input.height);
         }
         auto fallback = inputs.empty() ? ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height) : ctx.acquire_owned_fb(*inputs[0]);
         return NodeExecResult{std::move(fallback)};
@@ -317,48 +367,47 @@ NodeExecResult CompositeNode::execute(
         bottom->height() == ctx.frame_input.height;
     OwnedFB result;
     if (bottom_matches_canvas) {
-        result = ctx.acquire_owned_fb(*bottom);
-        const bool result_native_valid =
-            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-            ctx.services.backend &&
-            ctx.services.backend->is_native_surface_valid(result->surface_handle());
-        const bool bottom_native_valid =
+        const bool native_backend =
+            ctx.services.backend && ctx.services.surface_registry &&
+            ctx.services.backend->supports_native_surfaces();
+        auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
+        bool bottom_native_valid =
             bottom->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-            ctx.services.backend &&
+            native_backend &&
             ctx.services.backend->is_native_surface_valid(bottom->surface_handle());
-        if (result->surface_handle() != bottom->surface_handle() && bottom_native_valid) {
+        if (native_backend && !bottom_native_valid) {
+            if (!ensure_native_surface(ctx, mutable_bottom, "CompositeNode.bottom")) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode",
+                    "failed to materialize native bottom surface"};
+            }
+            bottom_native_valid = true;
+        }
+        result = ctx.acquire_owned_fb(*bottom);
+        if (native_backend && result->surface_handle() != bottom->surface_handle()) {
             if (!seed_native_destination(ctx, *result, *bottom)) {
-                if (ctx.policy.require_native_gpu) {
-                    return NodeExecutionError{
-                        RenderBackendErrorCode::ExecutionFailure,
-                        "CompositeNode",
-                        "native residency violation: failed to seed destination from bottom surface"};
-                }
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode",
+                    "failed to seed native destination from bottom surface"};
             }
         }
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
             if (!try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
-                if (ctx.services.surface_registry && ctx.services.backend->supports_native_surfaces()) {
-                    const bool destination_ready = ensure_native_surface(ctx, *result, "CompositeNode.dimension.destination");
-                    auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
-                    const bool source_ready = ensure_native_surface(ctx, mutable_bottom, "CompositeNode.dimension.source");
-                    if (ctx.policy.require_native_gpu &&
-                        (!destination_ready || !source_ready)) {
-                        return NodeExecutionError{
-                            RenderBackendErrorCode::ExecutionFailure,
-                            "CompositeNode",
-                            "native residency violation while materializing dimension-mismatched inputs"};
-                    }
-                }
-                ctx.services.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode",
+                    "dimension-mismatched composite failed on native path; "
+                    "CPU fallback is forbidden"};
             }
         }
-        // F3.2 — size mismatch forces a full-canvas composite_layer
-        // (every pixel touched). Surface as a full-frame pass. The byte
-        // side-cost is captured separately by framebuffer_copy_wall_ms when the
-        // pool returns a re-used allocation that demands std::copy.
+        // F3.2 — size mismatch forces a full-canvas composite (every pixel
+        // touched). Surface as a full-frame pass. The byte side-cost is
+        // captured separately by framebuffer_copy_wall_ms when the pool
+        // returns a re-used allocation that demands std::copy.
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
         }
@@ -404,7 +453,7 @@ NodeExecResult CompositeNode::execute(
         // a POD timestamp, default-constructed without clock syscall.
         auto _de = profiling::now(); // dispatch end
         auto _os = profiling::now(); // overhead start
-        auto _oe = profiling::now(); // overhead end
+        auto _oe = _os;              // overhead end
 
         // Record dispatch time before composite_layer call.
         if (ctx.node_exec.counters) {
@@ -433,6 +482,14 @@ NodeExecResult CompositeNode::execute(
                 "CompositeNode",
                 "native residency violation: composite inputs could not be materialized"};
         }
+        if (ctx.services.backend && ctx.services.backend->supports_native_surfaces() &&
+            m_operator == CompositeOperator::SourceOver &&
+            !native_composite && !native_dimension_composite) {
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "CompositeNode",
+                "native SourceOver composite failed; CPU fallback is forbidden"};
+        }
         if (native_composite || native_dimension_composite) {
             // The native path has already composed the logical surfaces. The
             // CPU pixels remain a reference snapshot for any legacy consumer;
@@ -444,16 +501,12 @@ NodeExecResult CompositeNode::execute(
             // apply the operator via the backend (which handles the masking).
             // The operator is passed along so the backend can apply the
             // appropriate matte-style coverage to the backdrop.
-            if (ctx.services.backend && ctx.services.surface_registry && ctx.services.backend->supports_native_surfaces()) {
-                const bool destination_ready = ensure_native_surface(ctx, *result, "CompositeNode.operator.destination");
-                auto& mutable_top = const_cast<Framebuffer&>(*top);
-                const bool source_ready = ensure_native_surface(ctx, mutable_top, "CompositeNode.operator.source");
-                if (ctx.policy.require_native_gpu &&
-                    (!destination_ready || !source_ready)) {
-                    return NodeExecutionError{
-                        RenderBackendErrorCode::ExecutionFailure,
-                        "CompositeNode",
-                        "native residency violation in non-SourceOver composite"};
+            if (ctx.services.backend && ctx.services.surface_registry &&
+                ctx.services.backend->supports_native_surfaces()) {
+                if (auto err = materialize_native_or_fail(
+                        ctx, *result, *top,
+                        "non-SourceOver composite")) {
+                    return *err;
                 }
             }
             ctx.services.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
@@ -465,20 +518,11 @@ NodeExecResult CompositeNode::execute(
         // (for example Add/stencil operators).  Materialize both handles
         // before dispatching that fallback; otherwise the backend receives
         // the framebuffer sentinel 0 and fails later in resolve_image().
-        if (ctx.services.backend && ctx.services.surface_registry && ctx.services.backend->supports_native_surfaces()) {
-            const bool destination_ready = ensure_native_surface(ctx, *result, "CompositeNode.fallback.destination");
-            auto& mutable_top = const_cast<Framebuffer&>(*top);
-            const bool source_ready = ensure_native_surface(ctx, mutable_top, "CompositeNode.fallback.source");
-            if (!destination_ready || !source_ready) {
-                spdlog::error("[composite] native fallback could not materialize surfaces "
-                              "destination={} source={}",
-                              result->surface_handle(), mutable_top.surface_handle());
-                if (ctx.policy.require_native_gpu) {
-                    return NodeExecutionError{
-                        RenderBackendErrorCode::ExecutionFailure,
-                        "CompositeNode",
-                        "native residency violation in composite fallback"};
-                }
+        if (ctx.services.backend && ctx.services.surface_registry &&
+            ctx.services.backend->supports_native_surfaces()) {
+            if (auto err = materialize_native_or_fail(
+                    ctx, *result, *top, "composite fallback")) {
+                return *err;
             }
         }
         ctx.services.backend->composite_layer(*result, *top, m_mode, clip);
@@ -491,43 +535,9 @@ NodeExecResult CompositeNode::execute(
 
         auto& dof_depth = ctx.node_exec.dof_depth_buffer();
         if (ctx.policy.track_dof_depth && !dof_depth.empty()) {
-            const i32 w = ctx.frame_input.width;
-            const float wz = m_world_z;
-            const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
-            const float source_radius = camera_2_5d.dof.enabled
-                ? compute_dof_blur_radius(camera_2_5d.dof, camera_2_5d.lens,
-                                          wz, static_cast<float>(w))
-                : 0.0f;
-            const i32 bx0 = clip ? clip->x0 : 0;
-            const i32 by0 = clip ? clip->y0 : 0;
-            const i32 bx1 = clip ? clip->x1 : ctx.frame_input.width;
-            const i32 by1 = clip ? clip->y1 : ctx.frame_input.height;
-            for (i32 y = by0; y < by1; ++y) {
-                const i32 sy = y - top->origin_y();
-                if (sy < 0 || sy >= top->height()) continue;
-                const Color* src_row = top->pixels_row(sy);
-                for (i32 x = bx0; x < bx1; ++x) {
-                    const i32 sx = x - top->origin_x();
-                    if (sx < 0 || sx >= top->width()) continue;
-                    if (src_row[sx].a > 0.01f) {
-                        dof_depth[static_cast<size_t>(y) * w + x] = wz;
-                        if (std::isfinite(source_radius) && source_radius >= 0.5f) {
-                            auto& coverage = ctx.node_exec.dof_sources();
-                            if (!coverage.source_bbox) {
-                                coverage.source_bbox = raster::BBox{x, y, x + 1, y + 1};
-                            } else {
-                                auto& bbox = *coverage.source_bbox;
-                                bbox.x0 = std::min(bbox.x0, x);
-                                bbox.y0 = std::min(bbox.y0, y);
-                                bbox.x1 = std::max(bbox.x1, x + 1);
-                                bbox.y1 = std::max(bbox.y1, y + 1);
-                            }
-                            coverage.max_radius = std::max(coverage.max_radius,
-                                                            source_radius);
-                        }
-                    }
-                }
-            }
+            publish_dof_provenance(
+                ctx, *top, m_world_z, dof_source_radius(ctx, m_world_z),
+                clip, ctx.frame_input.width, ctx.frame_input.height);
         }
 
         if (m_mode == BlendMode::Normal && top->is_opaque() &&

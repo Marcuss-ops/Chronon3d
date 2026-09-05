@@ -23,7 +23,9 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            float world_z,
                            const BuilderContext& node_ctx) {
     if (layer_output == k_invalid_node || layer_output == current) {
-        spdlog::info("[append_composite_pass] skipped layer='{}' layer_output={} current={}", layer.name.c_str(), layer_output, current);
+        if (ctx.policy.diagnostics_enabled) {
+            spdlog::info("[append_composite_pass] skipped layer='{}' layer_output={} current={}", layer.name.c_str(), layer_output, current);
+        }
         return;
     }
 

@@ -31,6 +31,7 @@
 
 // FASE 20 extracted primitives — included at FILE SCOPE (so the variant
 // below can use them as complete types).
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/scene/model/shape/shape_stroke.hpp>
 #include <chronon3d/scene/model/shape/rect_shape.hpp>
 #include <chronon3d/scene/model/shape/rounded_rect_shape.hpp>
@@ -293,7 +294,7 @@ struct GridBackgroundShape {
 
 struct FakeExtrudedTextShape {
     std::string text;
-    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
+    std::string font_path{presets::inter_bold_font_path()};
     f32   font_size{80.0f};
     TextAlign align{TextAlign::Center};
 

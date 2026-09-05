@@ -67,7 +67,10 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_RENDERER_LINK_TARGETS}
     SOURCES
         render_graph/cache/test_scene_program_store.cpp
-        render_graph/compiler/test_frame_graph_compiler.cpp
+        render_graph/compiler/test_frame_graph_compiler_fixtures.cpp
+        render_graph/compiler/test_frame_graph_compiler_reuse.cpp
+        render_graph/compiler/test_frame_graph_compiler_runtime.cpp
+        render_graph/compiler/test_frame_graph_compiler_golden.cpp
         render_graph/core/test_node_identity.cpp
         render_graph/features/test_transition.cpp
         render_graph/features/test_clip_transition.cpp
@@ -96,7 +99,9 @@ chronon3d_add_test_suite(
         render_graph/pipeline/test_graph_preflight_diagnostics.cpp
         render_graph/pipeline/test_grid_math.cpp
         render_graph/pipeline/test_line_grid.cpp
-        render_graph/pipeline/test_pipeline_robustness.cpp
+        render_graph/pipeline/test_pipeline_robustness_coordinate.cpp
+        render_graph/pipeline/test_pipeline_robustness_diagnostics.cpp
+        render_graph/pipeline/test_pipeline_robustness_placement.cpp
         render_graph/pipeline/test_render_backend.cpp
         render_graph/pipeline/test_clip_transition_scene_integration.cpp
         render_graph/pipeline/test_render_pipeline.cpp

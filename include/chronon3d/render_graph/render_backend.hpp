@@ -609,16 +609,11 @@ public:
             resources, transforms, paints);
     }
 
-    /// Phase 5 — pre-allocate every physical GPU surface from the compiled
-    /// interval-coloring plan.  Called once after prepare() and before the
-    /// first frame.  GPU backends create all VkImages here; the default
-    /// no-op is correct for software/reference backends.
-    virtual void preallocate_plan_surfaces(
-        std::uint32_t /*canvas_width*/,
-        std::uint32_t /*canvas_height*/,
-        const CompiledResourceTable& /*plan*/) {
-        // Default: no-op (software/reference backends)
-    }
+    /// DEMOLISHED (P1.4): RenderBackend::preallocate_plan_surfaces no longer
+    /// exists.  No backend ever preallocated plan surfaces — the only
+    /// override (Vulkan) explicitly disabled preallocation and pruned slots.
+    /// Physical surface materialization is owned by each backend's surface
+    /// authority, driven lazily by the CompiledResourceTable.
 };
 
 } // namespace chronon3d::graph

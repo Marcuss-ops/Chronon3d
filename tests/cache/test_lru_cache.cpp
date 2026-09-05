@@ -85,7 +85,12 @@ TEST_CASE("LruCache::compute_if_absent: loader called once for concurrent same-k
 
     auto stats = cache.stats();
     CHECK(stats.misses == 1);
-    CHECK(stats.hits == 1); // second caller found the entry inserted by the first
+    // The second caller waited on the in-flight loader (request coalescing);
+    // it never touched the resident cache, so it counts as coalesced_waits,
+    // not as a resident hit. hits + misses + coalesced_waits == lookups.
+    CHECK(stats.coalesced_waits == 1);
+    CHECK(stats.hits == 0);
+    CHECK(stats.lookups() == 2);
     CHECK(stats.current_size == 1);
     CHECK(cache.contains(kKey));
 }

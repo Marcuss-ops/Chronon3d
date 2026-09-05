@@ -20,22 +20,10 @@ if(TARGET chronon3d::content)
     target_link_libraries(chronon3d_compositor_tests PRIVATE chronon3d::content)
 endif()
 
+# chronon3d_io_tests is registered once by core_tests.cmake (infrastructure
+# authority). The previous SDK-tier duplicate here broke clean configure with
+# "cannot create target chronon3d_io_tests ... already exists".
 if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
-    chronon3d_add_test_suite(
-        NAME chronon3d_io_tests
-        TIER SDK
-        EXTRA_LINK_TARGETS
-            chronon3d_sdk_impl
-            chronon3d_pipeline
-            chronon3d_backend_image
-        SOURCES
-            io/test_image_writer.cpp
-            io/test_png_validity.cpp
-            io/test_image_writer_throw.cpp
-    )
-    if(CHRONON3D_ENABLE_EXR)
-        target_sources(chronon3d_io_tests PRIVATE io/test_exr_writer.cpp)
-    endif()
 
     chronon3d_add_test_suite(
         NAME chronon3d_tbb_workers_test

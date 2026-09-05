@@ -165,9 +165,9 @@ struct VulkanBackend::Impl {
         void destroy_all(VulkanBackend::Impl& owner) noexcept;
     } surfaces;
 
-    bool plan_preallocated{false};
-    std::uint32_t plan_canvas_width{0};
-    std::uint32_t plan_canvas_height{0};
+    // DEMOLISHED (P1.4): plan_preallocated/plan_canvas_width/plan_canvas_height
+    // removed — plan_preallocated was initialized false and only ever written
+    // false; the canvas extents were written but never read.
 
     void destroy_surface_images() noexcept { surfaces.destroy_all(*this); }
     void defer_surface_release(runtime::RenderSurfaceHandle handle) {
@@ -304,10 +304,8 @@ struct VulkanBackend::Impl {
         return a.width == b.width && a.height == b.height && a.format == b.format;
     }
 
-    void preallocate_plan_surfaces(
-        std::uint32_t canvas_width,
-        std::uint32_t canvas_height,
-        const graph::CompiledResourceTable& plan);
+    // DEMOLISHED (P1.4): preallocate_plan_surfaces removed — the surface
+    // authority materializes lazily from the compiled plan.
     bool slot_in_use(std::size_t slot) const;
     void prune_unused_transient_slots();
     [[nodiscard]] std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const;

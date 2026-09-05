@@ -2,6 +2,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/transition/transition_progress_sampler.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include "native_surface.hpp"
 #include <cmath>
 #include <algorithm>
@@ -167,8 +168,14 @@ NodeExecResult TransitionNode::execute(
 
     const float p = compute_progress(ctx);
 
-    // Native GPU crossfade path
-    if (m_spec.transition_id == "crossfade" && has_native_backend &&
+    // Native GPU crossfade path. Capability decision comes from the
+    // transition catalog — the single string-id authority — never from
+    // local string dispatch.
+    const bool native_blend_capable =
+        !ctx.services.transition_catalog ||
+        ctx.services.transition_catalog->backend_capability(m_spec.transition_id) ==
+            LayerTransitionCatalog::BackendCapability::NativeBlend;
+    if (native_blend_capable && has_native_backend &&
         (src->is_gpu_authoritative() || ctx.policy.require_native_gpu ||
          src->surface_handle() != runtime::kInvalidRenderSurfaceHandle)) {
         const float t = m_is_out ? (1.0f - p) : p;

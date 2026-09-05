@@ -63,7 +63,7 @@ TEST_CASE("VideoFrameKey: golden digest") {
     key.frame_index    = 10;
     key.width          = 1920;
     key.height         = 1080;
-    key.format         = VideoPixelFormat::YUV420P;
+    key.format         = runtime::make_frame_format(runtime::PixelFormat::Yuv420P);
     key.scene_hash     = 0xDEADBEEF;
     key.render_hash    = 0xCAFEBABE;
 
@@ -115,8 +115,8 @@ TEST_CASE("ConvertedFrameCacheKey: golden hash") {
 }
 
 TEST_CASE("HashBuilder: add_enum works for various enum types") {
-    auto h1 = HashBuilder{}.add_enum(VideoPixelFormat::RGBA8).finish();
-    auto h2 = HashBuilder{}.add_enum(VideoPixelFormat::YUV420P).finish();
+    auto h1 = HashBuilder{}.add_enum(runtime::PixelFormat::RGBA8).finish();
+    auto h2 = HashBuilder{}.add_enum(runtime::PixelFormat::YUV420P).finish();
     CHECK(h1 != h2);
 }
 

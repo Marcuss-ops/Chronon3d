@@ -219,7 +219,7 @@ struct RenderEngine::Impl {
             output.frame = frame;
             output.width = settings.width;
             output.height = settings.height;
-            output.format = PixelFormat::Rgba8;
+            output.format = PixelFormat::RGBA8; // canonical runtime::PixelFormat (SDK alias)
             output.bytes_per_row = static_cast<std::size_t>(output.width) * 4;
             output.pixels = pixel_buffer.data();
             output.elapsed_milliseconds = std::chrono::duration<double, std::milli>(
