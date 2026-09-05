@@ -10,7 +10,9 @@
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string_view>
@@ -174,6 +176,20 @@ bool seed_native_destination(
     if (!seeded.ok()) {
         if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
             release_native_surface(ctx, destination);
+        }
+        // A rejected seed is a hard error at the only call site (see below):
+        // on a native backend, composite of a canvas-sized SourceOver chain is
+        // fail-closed and CPU fallback is forbidden by policy, so a per-frame
+        // warn here would spam without changing the outcome.  Log the first
+        // occurrences and roll up at 1000 boundaries instead.
+        static std::atomic<std::uint64_t> g_seed_failures{0};
+        const std::uint64_t nth =
+            g_seed_failures.fetch_add(1, std::memory_order_relaxed) + 1;
+        if (nth <= 3 || nth % 1000 == 0) {
+            spdlog::warn(
+                "[native-seed] transform_surface_affine rejected by backend "
+                "(failure #{}): {}",
+                nth, seeded.error().message);
         }
         return false;
     }

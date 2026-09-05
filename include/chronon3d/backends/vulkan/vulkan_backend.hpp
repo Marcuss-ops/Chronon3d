@@ -132,6 +132,23 @@ struct CudaExternalMemoryInfo {
 };
 #endif
 
+/// Analytic grid-background fill parameters (native GPU rasterization of
+/// GridBackgroundShape). Colors are authoring-domain values; the backend
+/// converts them to linear and folds `opacity` into the alphas exactly like
+/// the software render_grid_background_kernel before recording the fill.
+struct NativeGridFillParams {
+    Vec2 size{};                // logical grid canvas (origin anchor basis)
+    Vec2 offset{};              // extra cell-phase offset in pixels
+    Color bg_color{0.0f, 0.0f, 0.0f, 1.0f};
+    Color grid_color{0.25f, 0.52f, 1.0f, 0.05f};
+    float spacing{140.0f};
+    float minor_thickness{1.25f};
+    float major_thickness{2.75f};
+    int major_every{4};
+    bool centered{true};
+    float opacity{1.0f};
+};
+
 /// Persistent headless Vulkan backend foundation. It owns the device and
 /// queue for the runtime lifetime; graph surface execution is added on top of
 /// this boundary and never exposes Vulkan handles to graph nodes.
@@ -309,6 +326,14 @@ public:
         const Vec4& line, const Color&);
     graph::RenderOpResult fill_path_surface(
         runtime::RenderSurfaceHandle, std::span<const Vec2>, const Color&);
+    /// Native analytic grid background fill over the half-open destination
+    /// rectangle [x0,x1) x [y0,y1). Mirrors the software
+    /// render_grid_background_kernel per-pixel feather and blend semantics.
+    graph::RenderOpResult fill_grid_surface(
+        runtime::RenderSurfaceHandle destination,
+        std::int32_t x0, std::int32_t y0,
+        std::int32_t x1, std::int32_t y1,
+        const NativeGridFillParams& params);
     graph::RenderOpResult transform_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         int, int, float) override;

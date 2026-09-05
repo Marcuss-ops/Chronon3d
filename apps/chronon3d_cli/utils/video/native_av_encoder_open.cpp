@@ -245,19 +245,25 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // crf was silently ignored for h264_nvenc/hevc_nvenc before, so the
     // driver default RC applied. Keep that default when the caller did not
     // request an explicit RC mode, and always deepen NVENC's in-flight
-    // queue: with FFmpeg's nvenc async_depth=1 default every
-    // avcodec_send_frame blocks until the driver consumes the frame, which
-    // serializes decode/composite behind encode (certification measured the
-    // submit wall dominating the render loop). async_depth>1 lets the
-    // wrapper queue frames ahead inside the driver.
+    // capacity: the FFmpeg build used here (libavcodec 58 / 4.2-4.4) does
+    // NOT expose an `async_depth` AVOption on h264_nvenc/hevc_nvenc — the
+    // wrapper's in-flight queue is bounded by its surface pool ("surfaces",
+    // default 4). With only 4 surfaces every avcodec_send_frame blocks
+    // whenever the driver still holds all of them, serializing
+    // decode/composite behind encode (certification measured the submit
+    // wall dominating the render loop). We therefore map the requested
+    // engine-level in-flight depth onto a surface pool sized depth + 4 so
+    // the submit path never starves while `depth` frames are in flight.
     if (gpu_nvenc_) {
         int async_depth = options_.async_depth;
         if (async_depth <= 0) {
             async_depth = 4; // engine default: 4 in-flight encode frames
         }
-        char depth_str[16];
-        snprintf(depth_str, sizeof(depth_str), "%d", async_depth);
-        if (!set_codec_option_checked(codec_, "async_depth", depth_str)) {
+        // surfaces option range is [0, 64]; keep headroom inside the range.
+        const int nvenc_surfaces = std::min(60, async_depth + 4);
+        char surf_str[16];
+        snprintf(surf_str, sizeof(surf_str), "%d", nvenc_surfaces);
+        if (!set_codec_option_checked(codec_, "surfaces", surf_str)) {
             return false;
         }
         const std::string rc_mode = options_.rate_control_mode;
@@ -290,10 +296,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         applied_encoder_rate_control_ = rc_applied;
         applied_encoder_async_depth_ = async_depth;
         spdlog::info(
-            "[native_av] NVENC tuning applied: rc={} preset={} async_depth={} qp={} bitrate={}",
+            "[native_av] NVENC tuning applied: rc={} preset={} async_depth={} "
+            "nvenc_surfaces={} qp={} bitrate={}",
             rc_applied,
             options_.preset.empty() ? "ffmpeg-nvenc-default" : options_.preset,
-            async_depth, options_.qp,
+            async_depth, nvenc_surfaces, options_.qp,
             static_cast<long long>(options_.bitrate));
     }
 

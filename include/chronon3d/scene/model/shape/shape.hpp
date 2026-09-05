@@ -290,6 +290,15 @@ struct GridBackgroundShape {
     f32 major_thickness{2.75f};
     i32 major_every{4};
     bool centered{true};
+
+    /// Resolved major-line semantics shared by EVERY backend (software kernel
+    /// and GPU analytic fill consume this ONE rule): major lines render only
+    /// when a major period is requested AND the major stroke has positive
+    /// thickness. A zero/negative major thickness disables major lines
+    /// entirely — it must never produce feather "ghost" lines at cell centers.
+    [[nodiscard]] bool major_lines_enabled() const noexcept {
+        return major_every > 1 && major_thickness > 0.0f;
+    }
 };
 
 struct FakeExtrudedTextShape {

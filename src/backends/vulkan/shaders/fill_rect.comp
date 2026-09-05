@@ -1,11 +1,27 @@
 #version 450
 
-// fill_rect.comp — solid-color axis-aligned rectangle fill.
+// fill_rect.comp — GPU primitive rasterizer (fill, shapes, analytic grid).
 //
-// First primitive of the GPU shape rasterizer.  Writes a constant RGBA color
-// into a half-open pixel rectangle of the destination storage image; pixels
-// outside the rect are left untouched.  Dispatch covers the full destination
-// and each invocation early-outs, matching the transform/composite pattern.
+// Writes RGBA into a half-open pixel rectangle of the destination storage
+// image; pixels outside the rect are left untouched.  Dispatch covers the
+// full destination and each invocation early-outs, matching the
+// transform/composite pattern.
+//
+// Primitive kinds (params.shape.x):
+//   0 rectangle, 1 rounded rectangle, 2 ellipse, 3 line segment,
+//   4 even-odd polygon (params.vertices), 5 analytic grid background
+//   (GridBackgroundShape semantics, mirrors the software
+//   render_grid_background_kernel).
+//
+// For kind 5 the push-constant fields carry:
+//   color    = grid line straight linear RGB; alpha = grid.a * opacity
+//   shape    = {5, minor_step, major_every, 0}
+//   line     = {offset.x, offset.y, minor_thickness, major_thickness}
+//   vertices = {bg straight linear RGB, bg alpha, grid size.xy,
+//               centered, ...} (flat floats)
+// The kernel reproduces the software feather (0.85 px) and the
+// premultiplied-over-background blend semantics exactly, so CPU and GPU
+// grid backdrops stay visually identical.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D dst_image;
@@ -14,12 +30,30 @@ layout(push_constant) uniform FillRectParams {
     ivec4 rect;   // x0, y0, x1, y1 (half-open, destination pixel space)
     vec4 color;   // premultiplied RGBA to store
     // x = primitive kind: 0 rectangle, 1 rounded rectangle, 2 ellipse,
-    //     3 line segment, 4 even-odd polygon.
+    //     3 line segment, 4 even-odd polygon, 5 analytic grid.
     // y/z = corner/ellipse radii, or line thickness, in destination pixels.
     vec4 shape;
     vec4 line;   // x0, y0, x1, y1 for primitive kind 3
     vec2 vertices[8];
 } params;
+
+// Feather width of the software grid kernel (grid_background_kernel.cpp).
+const float kGridFeather = 0.85;
+
+float grid_line_weight(float distance, float thickness) {
+    float half_width = max(thickness * 0.5, 0.0);
+    float edge0 = half_width + kGridFeather;
+    float edge1 = half_width - kGridFeather;
+    if (distance <= edge1) return 1.0;
+    if (distance >= edge0) return 0.0;
+    return 1.0 - (distance - edge1) / max(edge0 - edge1, 1e-6);
+}
+
+float grid_cell_distance(float value, float step) {
+    if (step <= 1e-6) return 0.0;
+    float cell = round(value / step) * step;
+    return abs(value - cell);
+}
 
 void main() {
     // Dispatch is restricted to the rectangle's clipped bounds.  Re-add the
@@ -33,7 +67,57 @@ void main() {
     vec2 max_corner = vec2(params.rect.zw);
     vec2 size = max_corner - min_corner;
     vec2 center = (min_corner + max_corner) * 0.5;
-    if (params.shape.x > 3.5) {
+    if (params.shape.x > 4.5) {
+        // ── Analytic grid background (software-kernel replica) ────────
+        // Evaluates the same per-pixel feather weights as the CPU
+        // render_grid_background_kernel and blends the selected line over
+        // the background with the identical premultiplied 'over' math.
+        vec3 bg_rgb = vec3(params.vertices[0].x, params.vertices[0].y,
+                           params.vertices[1].x);
+        float bg_alpha = params.vertices[1].y;
+        float grid_size_x = params.vertices[2].x;
+        float grid_size_y = params.vertices[2].y;
+        bool centered = params.vertices[3].x > 0.5;
+
+        float minor_step = max(params.shape.y, 1.0);
+        bool use_major = params.shape.z > 1.0 && params.line.w > 0.0;
+        float major_step = minor_step * params.shape.z;
+
+        if (grid_size_x > 0.0 && grid_size_y > 0.0) {
+            float origin_x = centered ? grid_size_x * 0.5 : 0.0;
+            float origin_y = centered ? grid_size_y * 0.5 : 0.0;
+            // CPU kernel measures from the pixel's integer coordinate,
+            // so the +0.5 pixel-center offset used by the shape kinds is
+            // intentionally NOT applied here.
+            float gx = float(pixel.x) - origin_x - params.line.x;
+            float gy = float(pixel.y) - origin_y - params.line.y;
+
+            float minor_w = max(
+                grid_line_weight(grid_cell_distance(gx, minor_step), params.line.z),
+                grid_line_weight(grid_cell_distance(gy, minor_step), params.line.z));
+            float major_w = use_major
+                ? max(grid_line_weight(grid_cell_distance(gx, major_step), params.line.w),
+                      grid_line_weight(grid_cell_distance(gy, major_step), params.line.w))
+                : 0.0;
+
+            // params.color.a carries grid.a * opacity (minor base alpha).
+            float minor_alpha = minor_w * params.color.a;
+            float major_alpha = major_w * min(1.0, params.color.a * 4.0);
+            float line_alpha = max(minor_alpha, major_alpha);
+
+            vec3 bg_premul = bg_rgb * bg_alpha;
+            vec4 out_pixel;
+            if (line_alpha <= 0.0) {
+                out_pixel = vec4(bg_premul, bg_alpha);
+            } else {
+                out_pixel.rgb = params.color.rgb * line_alpha +
+                                bg_premul * (1.0 - line_alpha);
+                out_pixel.a = line_alpha + bg_alpha * (1.0 - line_alpha);
+            }
+            imageStore(dst_image, pixel, out_pixel);
+        }
+        return;
+    } else if (params.shape.x > 3.5) {
         int count = clamp(int(params.shape.w), 3, 8);
         bool inside = false;
         for (int i = 0, j = count - 1; i < count; j = i++) {

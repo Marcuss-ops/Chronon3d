@@ -425,6 +425,12 @@ struct VulkanBackend::Impl {
                           const Color& color);
     void fill_path(runtime::RenderSurfaceHandle destination,
                    std::span<const Vec2> vertices, const Color& color);
+    void fill_grid(runtime::RenderSurfaceHandle destination,
+                   std::int32_t x0, std::int32_t y0,
+                   std::int32_t x1, std::int32_t y1,
+                   const Color& line_color,
+                   const Vec4& shape, const Vec4& line,
+                   const std::array<Vec2, 8>& vertices);
     void transform(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source,
                    int offset_x, int offset_y, float opacity);

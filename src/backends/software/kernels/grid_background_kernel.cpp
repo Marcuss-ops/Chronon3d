@@ -101,7 +101,16 @@ void render_grid_background_kernel(
 
     // ── Geometry constants ────────────────────────────────────────────────
     const f32 minor_step          = std::max(grid.spacing, 1.0f);
-    const bool use_major          = grid.major_every > 1;
+    // ONE resolved major-line rule shared by every backend
+    // (GridBackgroundShape::major_lines_enabled): major lines render only when
+    // a major period is requested AND the major stroke has positive thickness.
+    // A zero/negative major thickness disables major lines entirely — it must
+    // never produce feather "ghost" lines at the cell centers.  The GPU
+    // analytic fill consumes the same rule through the resolved numeric fields
+    // (shape.z = major_every, line.w = clamped major thickness + shader gate).
+    const f32 minor_thickness     = std::max(grid.minor_thickness, 0.0f);
+    const f32 major_thickness     = std::max(grid.major_thickness, 0.0f);
+    const bool use_major          = grid.major_lines_enabled();
     const f32 major_step          = use_major ? minor_step * static_cast<f32>(grid.major_every) : minor_step;
     // Use grid.size (viewport dimensions) for centering origin, NOT fb dimensions.
     // fb may be a sub-region (dirty rect / tile) — fb.width() would give the wrong origin.
@@ -111,8 +120,6 @@ void render_grid_background_kernel(
     const f32 origin_y            = grid.centered ? half_h : 0.0f;
     const f32 offset_x            = grid.offset.x;
     const f32 offset_y            = grid.offset.y;
-    const f32 minor_thickness     = std::max(grid.minor_thickness, 0.0f);
-    const f32 major_thickness     = std::max(grid.major_thickness, 0.0f);
 
     // ── Mask setup ────────────────────────────────────────────────────────
     const Color* mask_pixels = nullptr;
@@ -156,14 +163,15 @@ void render_grid_background_kernel(
         }
     }
 
-    // Early exit: no vertical grid lines anywhere in this clip region.
-    if (active_x.empty() && !use_major) {
-        // Even without verticals we still need to draw horizontal lines.
-        // But if active_x is empty but rows might still be active, we handle it below.
-    }
-
     // ── Parallel row fill ─────────────────────────────────────────────────
-    fb.clear(bg_adj, clip);
+    // Framebuffer storage is canonical premultiplied linear RGBA (see
+    // Framebuffer::clear + Color::premultiplied); the background is therefore
+    // cleared PREMULTIPLIED — clearing the straight color here would store a
+    // different representation than the GPU analytic fill (which composes
+    // bg_premul = bg.rgb * bg.a), breaking CPU/GPU pixel parity for any
+    // translucent background or opacity < 1.  blend_normal below blends the
+    // straight-alpha grid line over this premultiplied backdrop.
+    fb.clear(bg_adj.premultiplied(), clip);
 
     const bool has_active_cols = !active_x.empty();
     const i32 active_count = static_cast<i32>(active_x.size());

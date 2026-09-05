@@ -140,6 +140,11 @@ public:
         if (m_owns_pixels) framebuffer_decrement_allocations(size_bytes());
     }
 
+    // Storage contract: the framebuffer holds canonical PREMULTIPLIED linear
+    // RGBA (see Color::premultiplied and blend_normal).  clear()/set_pixel()
+    // store the color verbatim, so callers painting a translucent color must
+    // pass color.premultiplied(); opaque (a==1) and transparent (a==0) colors
+    // are identical in both representations and may be passed as-is.
     void clear(const Color& color) {
         Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
         if (m_allocated_width == m_width) {

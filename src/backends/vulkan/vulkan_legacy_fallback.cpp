@@ -111,11 +111,45 @@ bool try_native_path_stroke(
         return false;
     }
 
+    // CPU-exactness gate: this GPU path rasterises every segment as an
+    // independent hard-edged SourceOver line, which is only equivalent to the
+    // CPU stroker for a SINGLE straight OPAQUE segment:
+    //   - flattening Quadratic/Cubic curves into 8/12 sub-segments
+    //     double-blends the overlapping joints (visible seams when alpha<1)
+    //     and leaves butt-cap notches on the outside of curved corners;
+    //   - polyline joins carry no certified joint semantics shared with the
+    //     CPU stroker;
+    //   - translucent strokes accumulate alpha on every covered pixel.
+    // Everything outside this subset returns Unsupported so the caller falls
+    // back to the exact CPU stroker: slower-but-correct beats
+    // fast-but-wrong-pixels (backend specialization must never change render
+    // semantics).
+    int segments = 0;
+    bool saw_move = false;
+    for (const auto& command : path.commands) {
+        switch (command.type) {
+        case PathCommandType::MoveTo:
+            if (saw_move) return false;  // multiple subpaths → unsupported
+            saw_move = true;
+            break;
+        case PathCommandType::LineTo:
+            if (!saw_move || ++segments > 1) return false;  // polyline → CPU
+            break;
+        case PathCommandType::Close:
+        case PathCommandType::QuadraticTo:
+        case PathCommandType::CubicTo:
+            return false;  // curves / closed contours → exact CPU stroker
+        }
+    }
+    if (!saw_move || segments != 1) return false;
+
     const float width = path.stroke.width;
     bool alpha_zero = false;
     const Color color = graph::native_promotion::premultiply(
         path.stroke.color, state.opacity, &alpha_zero);
     if (alpha_zero) return true;
+    // Opaque-only: translucent strokes would double-blend (see gate comment).
+    if (path.stroke.color.a < 1.0f || state.opacity < 1.0f) return false;
 
     const auto transform = [&state](Vec2 point) {
         const Vec4 transformed = state.matrix * Vec4(point, 0.0f, 1.0f);
@@ -192,6 +226,54 @@ bool try_native_path_stroke(
         }
     }
     return emitted && ok;
+}
+
+bool try_native_grid(
+    VulkanBackend& backend, Framebuffer& framebuffer,
+    const RenderNode& node, const RenderState& state) {
+    if (node.shape.type() != ShapeType::GridBackground ||
+        graph::native_promotion::has_active_mask(state) ||
+        graph::native_promotion::is_projected(state) ||
+        framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+        return false;
+    }
+    const auto& grid = node.shape.grid_background();
+    if (grid.size.x <= 0.0f || grid.size.y <= 0.0f) {
+        return true;  // empty grid: nothing to draw (kernel no-op)
+    }
+
+    // The software kernel draws in canvas pixel coordinates anchored on
+    // grid.size and ignores the node transform; the analytic GPU fill
+    // reproduces exactly those semantics over the clip intersection.
+    //
+    // CPU/GPU parity: the software shape processor ALWAYS paints the full
+    // viewport for GridBackgroundShape and intentionally ignores
+    // state.clip_rect (a dirty-rect clip would chop grid lines at the
+    // viewport edge).  This GPU promotion must mirror that: fill the whole
+    // framebuffer, never the clip intersection.
+    auto x0 = 0;
+    auto y0 = 0;
+    auto x1 = static_cast<std::int32_t>(framebuffer.width());
+    auto y1 = static_cast<std::int32_t>(framebuffer.height());
+    x0 = std::clamp(x0, 0, static_cast<std::int32_t>(framebuffer.width()));
+    y0 = std::clamp(y0, 0, static_cast<std::int32_t>(framebuffer.height()));
+    x1 = std::clamp(x1, x0, static_cast<std::int32_t>(framebuffer.width()));
+    y1 = std::clamp(y1, y0, static_cast<std::int32_t>(framebuffer.height()));
+    if (x0 >= x1 || y0 >= y1) return true;
+
+    NativeGridFillParams params;
+    params.size = grid.size;
+    params.offset = grid.offset;
+    params.bg_color = grid.bg_color;
+    params.grid_color = grid.grid_color;
+    params.spacing = grid.spacing;
+    params.minor_thickness = grid.minor_thickness;
+    params.major_thickness = grid.major_thickness;
+    params.major_every = grid.major_every;
+    params.centered = grid.centered;
+    params.opacity = state.opacity;
+    return backend.fill_grid_surface(
+        framebuffer.surface_handle(), x0, y0, x1, y1, params).ok();
 }
 
 bool try_native_solid_rect(
@@ -303,6 +385,7 @@ void VulkanBackend::apply_per_pixel_dof(
 graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
                                                const RenderState& state, const Camera& camera,
                                                int width, int height) {
+    if (try_native_grid(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
     if (try_native_path_fill(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
     if (try_native_path_stroke(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
     if (try_native_solid_rect(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
