@@ -192,13 +192,19 @@ Layer LayerBuilder::build() {
                 // The layer owns the Canvas pin; the node receives only the
                 // resolver's box origin relative to that pin.
                 local_origin -= layer_pin;
-            } else if (resolved_placement.kind != TextPlacementKind::Absolute) {
+            } else {
                 // The 2D graph basis is centered at (0,0), while the
                 // canonical resolver intentionally remains top-left Canvas.
-                // Absolute placement is already a graph-space coordinate;
-                // resolve_text_run_placement deliberately skips the implicit
-                // canvas-center matrix for it, so subtracting the canvas half
-                // here would move the glyphs completely off-canvas.
+                // Every unpinned layer is shifted by +canvas-half in
+                // layer_resolver.cpp (modular path); subtracting the half
+                // here keeps the resolved pin (Canvas top-left space for ALL
+                // placement kinds, Absolute included per ADR-019) in place
+                // after that layer shift.  Exempting Absolute (55d3c590e)
+                // double-shifted its explicit pin by exactly one canvas
+                // center: the +center comes from the layer world matrix via
+                // layer_resolver, not from resolve_text_run_placement, so
+                // skipping the compensation moved every unpinned Absolute
+                // pin off by (width/2, height/2).
                 local_origin -= Vec2{canvas.width * 0.5f, canvas.height * 0.5f};
             }
 
