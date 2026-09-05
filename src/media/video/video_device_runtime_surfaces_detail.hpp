@@ -42,8 +42,12 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
             source_desc->desc.width == desc.width &&
             source_desc->desc.height == desc.height &&
             source_desc->desc.format == desc.format &&
-            backend.is_native_surface_valid(slot.native_surface) &&
-            backend.is_native_surface_valid(slot.source_surface);
+            // The encode destination must remain initialized across the
+            // asynchronous NVENC ring.  The retained source binding is a
+            // fallback/ownership handle in the prepared native path and may
+            // legitimately be uninitialized because the frame is copied
+            // directly into native_surface before the writer consumes it.
+            backend.is_native_surface_valid(slot.native_surface);
         if (reusable) {
             slot.backend = &backend;
             return true;
