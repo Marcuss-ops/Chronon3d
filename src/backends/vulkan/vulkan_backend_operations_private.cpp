@@ -147,6 +147,32 @@ void VulkanBackend::Impl::fill_path(runtime::RenderSurfaceHandle destination,
     throw std::logic_error("Vulkan fill_path requires an active frame batch");
 }
 
+void VulkanBackend::Impl::fill_grid(
+    runtime::RenderSurfaceHandle destination,
+    std::int32_t x0, std::int32_t y0,
+    std::int32_t x1, std::int32_t y1,
+    const Color& line_color,
+    const Vec4& shape, const Vec4& line,
+    const std::array<Vec2, 8>& vertices) {
+    auto& dst_image = resolve_image(destination);
+    if (dst_image.width == 0 || dst_image.height == 0) {
+        throw std::invalid_argument("Vulkan grid fill references an empty surface");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_fill_rect_descriptors(descriptors, dst_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image});
+        record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
+                         line_color, shape, line, vertices);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan grid fill requires an active frame batch");
+}
+
 void VulkanBackend::Impl::transform(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
                                     int offset_x, int offset_y, float opacity) {
