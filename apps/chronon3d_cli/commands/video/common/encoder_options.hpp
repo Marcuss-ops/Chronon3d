@@ -46,6 +46,14 @@ struct EncoderOptions {
 
     /// Encoder backend: "native" (in-process libavcodec) or "pipe" (external ffmpeg).
     std::string encoder_backend{"native"};
+
+    /// NVENC async depth: how many frames may be queued inside the FFmpeg
+    /// nvenc wrapper before avcodec_send_frame blocks. 0 keeps the engine
+    /// default (4: deepens the in-flight encode pipeline so decode/composite
+    /// overlap NVENC instead of serializing behind it — certification showed
+    /// avcodec_send_frame submit dominating the render loop wall). Only
+    /// meaningful when hardware_encoder == "nvenc".
+    int async_depth{0};
 };
 
 } // namespace chronon3d::cli

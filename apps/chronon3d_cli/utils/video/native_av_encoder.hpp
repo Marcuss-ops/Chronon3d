@@ -108,6 +108,9 @@ public:
     [[nodiscard]] double cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
     [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
     [[nodiscard]] double open_mux_header_ms() const override { return mux_ ? mux_->open_header_ms() : 0.0; }
+    [[nodiscard]] std::string applied_encoder_preset() const override { return applied_encoder_preset_; }
+    [[nodiscard]] std::string applied_encoder_rate_control() const override { return applied_encoder_rate_control_; }
+    [[nodiscard]] int applied_encoder_async_depth() const override { return applied_encoder_async_depth_; }
 
     [[nodiscard]] bool pool_reset_safe() const noexcept {
         return !open_complete_ && !codec_ && !mux_ && !frame_ && !packet_;
@@ -164,6 +167,12 @@ private:
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
     bool gpu_nvenc_{false};
     bool open_complete_{false};
+    // Resolved encoder settings for telemetry; populated in open() when a
+    // hardware NVENC path is selected, cleared otherwise (pooled instances
+    // may be re-opened with a different backend).
+    std::string applied_encoder_preset_;
+    std::string applied_encoder_rate_control_;
+    int applied_encoder_async_depth_{0};
 
     double native_convert_ms_{0.0};
     double native_send_frame_ms_{0.0};

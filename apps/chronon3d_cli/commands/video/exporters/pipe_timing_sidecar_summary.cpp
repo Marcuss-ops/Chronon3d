@@ -141,6 +141,23 @@ void build_summary_and_job_sections(
     put_ms("ffprobe_ms", timings.ffprobe_ms);
     put_ms("sha256_ms", timings.sha256_ms);
 
+    auto& enc_settings = job["encoder_settings"];
+    if (timings.encoder_settings.preset) {
+        enc_settings["preset"] = *timings.encoder_settings.preset;
+    } else {
+        enc_settings["preset"] = nullptr;
+    }
+    if (timings.encoder_settings.rate_control) {
+        enc_settings["rate_control"] = *timings.encoder_settings.rate_control;
+    } else {
+        enc_settings["rate_control"] = nullptr;
+    }
+    if (timings.encoder_settings.async_depth) {
+        enc_settings["async_depth"] = *timings.encoder_settings.async_depth;
+    } else {
+        enc_settings["async_depth"] = nullptr;
+    }
+
     auto& gpu = job["gpu"];
     const auto put_gpu = [&gpu](const char* key, const std::optional<double>& value) {
         if (value) gpu[key] = *value; else gpu[key] = nullptr;

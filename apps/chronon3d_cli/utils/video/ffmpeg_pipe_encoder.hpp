@@ -102,6 +102,14 @@ struct IVideoEncoder {
     [[nodiscard]] virtual double open_nvenc_ms() const { return 0.0; }
     [[nodiscard]] virtual double open_mux_header_ms() const { return 0.0; }
 
+    // Encoder settings actually applied at open() time (post-default
+    // resolution). Empty/0 means "not applicable" (e.g. software encoder or
+    // default virtual). Surfaced so certification can verify in the timing
+    // sidecar which NVENC preset/RC/async_depth really ran.
+    [[nodiscard]] virtual std::string applied_encoder_preset() const { return {}; }
+    [[nodiscard]] virtual std::string applied_encoder_rate_control() const { return {}; }
+    [[nodiscard]] virtual int applied_encoder_async_depth() const { return 0; }
+
     [[nodiscard]] virtual double total_write_blocked_ms() const { return 0.0; }
     [[nodiscard]] virtual int    ffmpeg_pid() const { return -1; }
 };
@@ -122,6 +130,7 @@ struct FfmpegPipeOptions {
     int crf{18};
     int qp{-1};
     std::int64_t bitrate{0};
+    int async_depth{0};
     std::string preset{"medium"};
     std::string codec{"libx264"};
     std::string hardware_encoder{"none"};
